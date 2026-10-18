@@ -42,6 +42,7 @@ Options:
   --root <path>              Project root that contains the OpenCode config (default ".").
   --config <path>            Explicit OpenCode config path, relative to the root.
   --codeindex-config <path>  CodeIndex configuration passed to the server.
+  --mcp-path <path>          MCP bundle to register, relative to the root.
   --json                     Print a machine-readable result.
   --help                     Print this message.
 
@@ -200,14 +201,14 @@ const parseOptions = (argv: readonly string[]): Record<string, unknown> => {
 			options['json'] = true;
 		} else if (argument === '--help' || argument === '-h') {
 			options['help'] = true;
-		} else if (argument === '--root' || argument === '--config' || argument === '--codeindex-config') {
+		} else if (argument === '--root' || argument === '--config' || argument === '--codeindex-config' || argument === '--mcp-path') {
 			const value = argv.at(index + 1);
 
 			if (value === undefined) {
 				throw new Error(`${argument} requires a value`);
 			}
 
-			const key = argument === '--root' ? 'root' : argument === '--config' ? 'config' : 'codeIndexConfig';
+			const key = argument === '--root' ? 'root' : argument === '--config' ? 'config' : argument === '--codeindex-config' ? 'codeIndexConfig' : 'mcpPath';
 			options[key] = value;
 			index += 1;
 		} else {
@@ -248,6 +249,7 @@ export const runMcpCommand = (argv: readonly string[], io: McpCommandIoType, opt
 				root: z.string().default('.'),
 				config: z.string().optional(),
 				codeIndexConfig: z.string().optional(),
+				mcpPath: z.string().optional(),
 				json: z.boolean().default(false),
 				help: z.boolean().default(false),
 			})
@@ -258,7 +260,11 @@ export const runMcpCommand = (argv: readonly string[], io: McpCommandIoType, opt
 			return 0;
 		}
 
-		const input = InputSchema.parse({...cliOptions, action, mcpPath: options.mcpPath});
+		const input = InputSchema.parse({
+			...cliOptions,
+			action,
+			mcpPath: cliOptions.mcpPath === undefined ? options.mcpPath : resolve(cliOptions.root, cliOptions.mcpPath),
+		});
 
 		const configPath = configPathOf(input);
 		const relativePath = relative(resolve(input.root), configPath).split(sep).join('/');

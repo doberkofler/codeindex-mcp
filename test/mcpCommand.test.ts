@@ -201,6 +201,29 @@ describe('mcp command with a CodeIndex configuration', () => {
 		});
 	});
 
+	it('registers an explicit MCP path', () => {
+		const {root, mcpPath} = fixture();
+		const explicit = path.join(root, 'vendor', 'mcp.mjs');
+		mkdirSync(path.dirname(explicit), {recursive: true});
+		writeFileSync(explicit, '// vendor bundle\n');
+		writeFileSync(path.join(root, 'tools', 'code_index', 'codeindex.config.json'), '{}\n');
+		const captured = createIo();
+
+		expect(
+			runMcpCommand(['install', '--root', root, '--mcp-path', 'vendor/mcp.mjs', '--codeindex-config', 'tools/code_index/codeindex.config.json'], captured.io, {
+				mcpPath,
+			}),
+		).toBe(0);
+
+		const config = parseConfig(readFileSync(path.join(root, '.opencode', 'opencode.jsonc'), 'utf8'));
+		expect(serverOf(config)).toStrictEqual({
+			codeindex: {
+				type: 'local',
+				command: ['node', 'vendor/mcp.mjs', '--config', 'tools/code_index/codeindex.config.json'],
+			},
+		});
+	});
+
 	it('rejects a missing or outside CodeIndex configuration', () => {
 		const {root, mcpPath} = fixture();
 		const missing = createIo();

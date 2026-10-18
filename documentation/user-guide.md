@@ -111,6 +111,15 @@ codeindex-cli mcp uninstall --root .
 is passed to the server as `--config`, so it selects the CodeIndex project
 configuration.
 
+With pnpm, pass `--mcp-path` so the registration uses a stable `node_modules`
+path instead of the versioned pnpm store path:
+
+```bash
+codeindex-cli mcp install --root . \
+	--mcp-path node_modules/codeindex-mcp/dist/mcp.mjs \
+	--codeindex-config ./codeindex.config.json
+```
+
 To register manually, add:
 
 ```jsonc
