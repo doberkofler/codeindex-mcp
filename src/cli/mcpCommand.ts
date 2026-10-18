@@ -18,6 +18,7 @@ const InputSchema = z.object({
 	action: z.enum(['install', 'uninstall']),
 	root: z.string().min(1),
 	config: z.string().optional(),
+	codeIndexConfig: z.string().optional(),
 	json: z.boolean(),
 	mcpPath: z.string().min(1),
 });
@@ -38,10 +39,14 @@ const usage = `Usage: cli mcp <install|uninstall> [options]
 Adds or removes the local code-index MCP server in the project OpenCode config.
 
 Options:
-  --root <path>    Project root that contains the OpenCode config (default ".").
-  --config <path>  Explicit OpenCode config path, relative to the root.
-  --json           Print a machine-readable result.
-  --help           Print this message.
+  --root <path>              Project root that contains the OpenCode config (default ".").
+  --config <path>            Explicit OpenCode config path, relative to the root.
+  --codeindex-config <path>  CodeIndex configuration passed to the server.
+  --json                     Print a machine-readable result.
+  --help                     Print this message.
+
+--config selects the OpenCode configuration file to edit. To make the installed
+server use a CodeIndex configuration file, pass --codeindex-config.
 `;
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -117,16 +122,42 @@ const configPathOf = (input: InputType): string => {
 
 const commandPathOf = (root: string, mcpPath: string): string => relative(resolve(root), resolve(mcpPath)).split(sep).join('/');
 
-const serverEntry = (root: string, mcpPath: string): Readonly<Record<string, unknown>> => ({
-	type: 'local',
-	command: ['node', commandPathOf(root, mcpPath)],
-});
+const relativeInsideRoot = (root: string, filePath: string, option: string): string => {
+	const resolvedRoot = resolve(root);
+	const resolvedPath = resolve(resolvedRoot, filePath);
+	const inside = relative(resolvedRoot, resolvedPath);
+
+	if (inside.startsWith('..') || path.isAbsolute(inside)) {
+		throw new Error(`${option} must stay inside --root`);
+	}
+
+	return inside.split(sep).join('/');
+};
+
+const serverEntry = (root: string, mcpPath: string, codeIndexConfig: string | undefined): Readonly<Record<string, unknown>> => {
+	const command = ['node', commandPathOf(root, mcpPath)];
+
+	if (codeIndexConfig !== undefined) {
+		command.push('--config', relativeInsideRoot(root, codeIndexConfig, '--codeindex-config'));
+	}
+
+	return {type: 'local', command};
+};
 
 const readConfig = (configPath: string): string => (existsSync(configPath) ? readFileSync(configPath, 'utf8') : '{\n}\n');
 
 const install = (input: InputType, configPath: string): string => {
 	if (!existsSync(input.mcpPath)) {
 		throw new Error(`MCP bundle not found: ${input.mcpPath}. Run "pnpm build" first.`);
+	}
+
+	if (input.codeIndexConfig !== undefined) {
+		const relativeConfig = relativeInsideRoot(input.root, input.codeIndexConfig, '--codeindex-config');
+		const codeIndexPath = resolve(input.root, relativeConfig);
+
+		if (!existsSync(codeIndexPath)) {
+			throw new Error(`CodeIndex configuration not found: ${input.codeIndexConfig}`);
+		}
 	}
 
 	let text = readConfig(configPath);
@@ -136,7 +167,7 @@ const install = (input: InputType, configPath: string): string => {
 		text = applyPath(text, ['$schema'], SCHEMA_URL);
 	}
 
-	text = applyPath(text, ['mcp', 'servers', SERVER_NAME], serverEntry(input.root, input.mcpPath));
+	text = applyPath(text, ['mcp', 'servers', SERVER_NAME], serverEntry(input.root, input.mcpPath, input.codeIndexConfig));
 	parseJsonc(text, configPath);
 	return text;
 };
@@ -169,14 +200,15 @@ const parseOptions = (argv: readonly string[]): Record<string, unknown> => {
 			options['json'] = true;
 		} else if (argument === '--help' || argument === '-h') {
 			options['help'] = true;
-		} else if (argument === '--root' || argument === '--config') {
+		} else if (argument === '--root' || argument === '--config' || argument === '--codeindex-config') {
 			const value = argv.at(index + 1);
 
 			if (value === undefined) {
 				throw new Error(`${argument} requires a value`);
 			}
 
-			options[argument === '--root' ? 'root' : 'config'] = value;
+			const key = argument === '--root' ? 'root' : argument === '--config' ? 'config' : 'codeIndexConfig';
+			options[key] = value;
 			index += 1;
 		} else {
 			throw new Error(`Unknown option: ${argument}`);
@@ -215,6 +247,7 @@ export const runMcpCommand = (argv: readonly string[], io: McpCommandIoType, opt
 			.object({
 				root: z.string().default('.'),
 				config: z.string().optional(),
+				codeIndexConfig: z.string().optional(),
 				json: z.boolean().default(false),
 				help: z.boolean().default(false),
 			})

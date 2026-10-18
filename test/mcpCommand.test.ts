@@ -162,3 +162,56 @@ describe('mcp command', () => {
 		expect(existsSync(path.join(root, '.opencode', 'opencode.jsonc'))).toBe(false);
 	});
 });
+
+describe('mcp command with a CodeIndex configuration', () => {
+	let directory: string | undefined;
+
+	afterEach(() => {
+		if (directory !== undefined) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		directory = undefined;
+	});
+
+	const fixture = (): Readonly<{root: string; mcpPath: string}> => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-mcp-'));
+		const root = path.join(directory, 'workspace');
+		const mcpPath = path.join(root, 'tools', 'code_index', 'dist', 'mcp.mjs');
+		mkdirSync(path.dirname(mcpPath), {recursive: true});
+		writeFileSync(mcpPath, '// mcp bundle\n');
+
+		return {root, mcpPath};
+	};
+
+	it('passes a CodeIndex configuration to the installed server', () => {
+		const {root, mcpPath} = fixture();
+		writeFileSync(path.join(root, 'tools', 'code_index', 'codeindex.config.json'), '{}\n');
+		const captured = createIo();
+
+		expect(runMcpCommand(['install', '--root', root, '--codeindex-config', 'tools/code_index/codeindex.config.json'], captured.io, {mcpPath})).toBe(0);
+		expect(captured.stderr).toStrictEqual([]);
+
+		const config = parseConfig(readFileSync(path.join(root, '.opencode', 'opencode.jsonc'), 'utf8'));
+		expect(serverOf(config)).toStrictEqual({
+			codeindex: {
+				type: 'local',
+				command: ['node', 'tools/code_index/dist/mcp.mjs', '--config', 'tools/code_index/codeindex.config.json'],
+			},
+		});
+	});
+
+	it('rejects a missing or outside CodeIndex configuration', () => {
+		const {root, mcpPath} = fixture();
+		const missing = createIo();
+
+		expect(runMcpCommand(['install', '--root', root, '--codeindex-config', 'tools/code_index/missing.json'], missing.io, {mcpPath})).toBe(1);
+		expect(missing.stderr.join('\n')).toContain('CodeIndex configuration not found');
+		expect(existsSync(path.join(root, '.opencode', 'opencode.jsonc'))).toBe(false);
+
+		writeFileSync(path.join(root, 'codeindex.config.json'), '{}\n');
+		const outside = createIo();
+		expect(runMcpCommand(['install', '--root', root, '--codeindex-config', path.join(root, '..', 'outside.json')], outside.io, {mcpPath})).toBe(1);
+		expect(outside.stderr.join('\n')).toContain('must stay inside --root');
+	});
+});

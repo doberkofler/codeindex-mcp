@@ -100,7 +100,18 @@ project file unless configured explicitly. It is stable and non-reversible.
 
 ## Use from OpenCode
 
-Register the server in project OpenCode configuration:
+Install the server with the CLI:
+
+```bash
+codeindex-cli mcp install --root . --codeindex-config ./codeindex.config.json
+codeindex-cli mcp uninstall --root .
+```
+
+`--config` selects the OpenCode configuration file to edit. `--codeindex-config`
+is passed to the server as `--config`, so it selects the CodeIndex project
+configuration.
+
+To register manually, add:
 
 ```jsonc
 {
@@ -115,12 +126,14 @@ Register the server in project OpenCode configuration:
 }
 ```
 
-If the client requires a launcher, create a small script that supplies
-`CODE_INDEX_CONFIG` and imports `codeindex-mcp/mcp`. The launcher must not write
-to stdout.
-
 Open `/mcps` in OpenCode and confirm that `codeindex` is connected. OpenCode
 starts the server locally over stdio; no separate daemon is required.
+
+OpenCode V2 exposes MCP tools through Code Mode by default. The six CodeIndex
+tools therefore appear in the `execute` tool catalog rather than as top-level
+entries in the model request's `tools` array. This is expected and does not mean
+the tools are unavailable. Set `codemode` to `false` on the server configuration
+only when direct exposure is specifically required.
 
 Ask navigation questions normally. Examples:
 
@@ -298,6 +311,13 @@ a bounded diagnostic. The server is local stdio without authentication.
 
 - **`codeindex` is absent from `/mcps`:** confirm the dependency is installed and
   the launcher resolves. Run `codeindex-cli status --config ...`.
+- **The first request cannot see CodeIndex although the server starts:** wait
+  until `/mcps` reports `codeindex` as connected, then retry in a new session.
+  On macOS, opening the same project through equivalent `/var` and
+  `/private/var` paths can create two OpenCode project instances and trigger the
+  startup race tracked by
+  [anomalyco/opencode#51812](https://github.com/anomalyco/opencode/issues/51812).
+  Use one canonical project path until that issue is resolved.
 - **The server does not reflect an upgrade:** disconnect and reconnect it through
   `/mcps`.
 - **The first query reports `index_not_ready`:** wait for the initial background
