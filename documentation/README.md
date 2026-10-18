@@ -5,16 +5,23 @@ Operational and design documentation for CodeIndex MCP.
 | Document | Purpose |
 | --- | --- |
 | [Architecture](./architecture.md) | Core design, generation lifecycle, storage, extractor seam, and query contracts |
+| [TypeScript/JavaScript adapter](./typescript-adapter.md) | Shipped extractor behavior, production-pilot status, validation, limitations, and enhancement backlog |
+| [Oracle adapter](./oracle-adapter.md) | Planned SQL and PL/SQL static and live extraction, PL/Scope, and source/database drift |
+| [ORDS and cross-language resolution](./ords-cross-language.md) | Planned HTTP, ORDS, and PL/SQL route evidence and cross-language graph construction |
+| [Roadmap](./roadmap.md) | Ordered delivery phases, acceptance gates, stop rules, and open decisions |
+| [Maintainer guide](./maintainer-guide.md) | Runtime contracts, verification, performance, security, and release discipline |
 | [User guide](./user-guide.md) | Installation, configuration, MCP/CLI/console usage, and troubleshooting |
 | [Evaluation harness](./evaluation-harness.md) | Proposed methodology for controlled index-versus-baseline comparisons |
+| [Migration coverage](./migration-coverage.md) | Audit of preserved, generalized, deferred, and intentionally excluded design knowledge |
 | [Source-line counter](./tools/countSourceLines.py) | Local measurement helper for repository size |
 
 ## Scope
 
-These documents describe the public, language-neutral implementation and its
-TypeScript/JavaScript extractor. They intentionally contain no consumer-specific
-workspace paths, corpus content, evaluation transcripts, credentials, or
-proprietary source excerpts.
+These documents describe the public, language-neutral implementation, its
+TypeScript/JavaScript extractor, and the planned Oracle and ORDS adapter family.
+The architecture is intended to support additional source languages through
+adapters. It intentionally contains no consumer-specific workspace paths, corpus
+content, evaluation transcripts, credentials, or proprietary source excerpts.
 
 Private evaluation material is not part of this repository. The private harness
 may pin a released tag and launch the installed MCP executable, but its corpus,

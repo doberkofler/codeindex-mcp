@@ -127,6 +127,17 @@ Each execution uses a dedicated checkout:
 If no VCS is available, use a disposable copy and a content manifest instead of a
 revision. Record which isolation mode was used.
 
+### 5.1 External systems
+
+Cases requiring a database or routing service use disposable development fixtures
+or read-only snapshots. A suite records database/ORDS version, schema fixture
+identity, adapter privilege mode, configuration digest, and PL/Scope settings.
+Baseline and indexed arms must observe equivalent external state.
+
+Never point evaluation at production. Restoration must remove fixture mutations
+made by the task runner and verify object validity before the next run. The index
+itself remains read-only.
+
 ## 6. CLI shape
 
 ```bash
@@ -210,6 +221,47 @@ Per index generation:
 - unresolved and ambiguous ratios;
 - drift-state counts, when applicable.
 
+### 8.1 Workflow policy
+
+Normalize nested and top-level tool calls into one ordered event sequence. Evaluate
+policy against normalized tool identity, validated input, output bytes, duration,
+status, and position.
+
+Supported predicates should include:
+
+- required and forbidden tools;
+- first retrieval tool;
+- maximum total, index, search, read, and database calls;
+- maximum output bytes by tool family;
+- elapsed-time and token limits;
+- required input fields and forbidden broad query shapes;
+- duplicate source reads;
+- fallback after a successful authoritative index result.
+
+Classify broad searches structurally from their path/include scope, not from a
+query-string heuristic. Version and test the classifier. Workflow compliance,
+answer correctness, process success, and telemetry validity remain separate
+results.
+
+### 8.2 Adapter-specific case classes
+
+The corpus should grow one independently runnable case at a time:
+
+| Class | Required ground truth |
+| --- | --- |
+| Language navigation | Language-service or reviewed declaration/reference set |
+| Dependency usage/impact | Reviewed direct edges and bounded transitive paths |
+| SQL and PL/SQL source units | Exact byte ranges and expected unit kinds/names |
+| Oracle live metadata | Disposable-schema dictionary snapshot and reviewed objects |
+| PL/Scope | Known calls/statements plus explicit unavailable-coverage cases |
+| Drift | Paired source/live fixtures for every state and ambiguous mapping |
+| ORDS routing | Sanitized configuration/live metadata with expected route targets |
+| Cross-language impact | Reviewed complete chains plus dynamic and ambiguous residue |
+
+Exact/high confidence classes are graded for precision separately. Unresolved and
+ambiguous sites are expected outputs, not automatic failures; a case fails when the
+adapter hides or misclassifies them.
+
 The primary success criterion is lower retrieval payload with no correctness loss.
 Token reduction is secondary because provider context accounting cannot reliably
 attribute tokens to individual retrieval calls.
@@ -255,6 +307,9 @@ Integration tests use temporary fixture workspaces:
 - mismatched revision, model, prompt, bundle, or configuration is rejected;
 - timeout and malformed events create inspectable failed results;
 - `--list` and `--dry-run` start no MCP or agent process.
+- mismatched database/ORDS fixture identity is rejected;
+- arms observing different external-system snapshots are rejected;
+- cleanup detects invalid or unexpected database objects.
 
 Acceptance requires one real draft case run through the production MCP entry. Do
 not freeze a case from mocked event streams alone.

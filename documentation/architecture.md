@@ -3,7 +3,10 @@
 ## 1. Scope
 
 CodeIndex MCP builds a local, immutable index of a workspace and serves bounded
-navigation results over MCP, a CLI, and a loopback console.
+navigation results over MCP, a CLI, and a loopback console. The current release
+ships a TypeScript/JavaScript extractor. The target architecture supports source,
+compiler, database-metadata, and routing adapters without adding language branches
+to the core.
 
 The design separates three concerns:
 
@@ -12,7 +15,7 @@ Transport adapters        MCP · CLI · console
         │
         ▼
 Language-neutral core     generations · freshness · storage · publication
-                          pagination · limits · dependency queries · analytics
+                          pagination · limits · graph queries · analytics
         │
         ▼
 Extractor adapter         project loading · declarations · occurrences
@@ -27,7 +30,7 @@ provenance reader.
 
 - Replacing a compiler, type checker, or build system.
 - Full-text, fuzzy, or embedding search.
-- Cross-language edges.
+- Claiming complete resolution of dynamic dispatch or generated code.
 - Multi-writer database access.
 - Remote or multi-user service operation.
 - Source modification. Every index operation is read-only.
@@ -125,6 +128,9 @@ Core tables:
 | `occurrence` | Definition/reference occurrences and enclosing symbol |
 | `dependency_edge` | Authored imports/exports and external dependency facts |
 | `dependency_binding` | Imported/exported/local names per edge |
+| `edge` (planned) | Language-neutral relationships between symbols, routes, and database objects |
+| `evidence` (planned) | Independent observations supporting an edge, with confidence and provenance |
+| `unresolved_site` (planned) | Dynamic, ambiguous, unsupported, or failed resolution sites |
 | `diagnostic` | Bounded extractor diagnostics |
 | `extraction_artifact` | Per-file reusable facts keyed by content, extractor, and context |
 | `build_lease` | Single-writer ownership |
@@ -135,6 +141,48 @@ Persisted paths are workspace-relative POSIX paths. Absolute paths appear only i
 Previous generations are retained as `superseded` for one generation so in-flight
 queries holding a generation identifier can complete. Unreferenced content and
 artifacts are removed on publication.
+
+### 7.1 Identity invariants
+
+A file is identified by workspace identity plus workspace-relative path. Identical
+bytes at two paths remain two files. A content digest is a version/cache identity,
+not file identity. Rename history is provenance and must not be inferred from equal
+bytes.
+
+Raw bytes are hashed before decoding. The raw digest owns byte and line ranges.
+Encoding, byte count, line starts, and decoded text belong to that immutable
+content version. A separately versioned semantic digest may support comparison,
+but never source identity or ranges.
+
+Derived facts are reusable only under the complete key:
+
+```text
+(raw content digest, artifact kind, adapter identity, adapter version, context digest)
+```
+
+The context digest includes every input capable of changing extraction: compiler,
+parser, or database version; effective project configuration and path mappings;
+workspace/package exports; dependency-graph inputs; generated declarations used
+for resolution; schema/edition and PL/Scope settings; route rules; and the
+dependent symbol/name-universe generation. Partial cache keys are correctness
+defects.
+
+### 7.2 Multi-adapter generations
+
+The current release selects one extractor project. The target configuration may
+select multiple adapter projects in one workspace. Each candidate generation
+records the exact context digest for every participating adapter.
+
+Adapters emit typed batches to one ingestion owner. They never publish or open
+independent write transactions. After source and metadata extraction, resolvers
+join facts inside the private candidate generation. Publication occurs only after
+all required adapters and consistency checks succeed. Readers select one published
+generation and therefore never combine TypeScript, Oracle, or ORDS facts from
+different builds.
+
+An adapter may be configured as optional only when query coverage reports its
+absence explicitly. Failure of a required adapter fails the candidate and retains
+the previous published generation.
 
 ## 8. Extractor contract
 
@@ -169,9 +217,24 @@ The TypeScript/JavaScript adapter uses the TypeScript compiler API. It:
 
 JavaScript is indexed only when the project enables `allowJs`.
 
+See [TypeScript and JavaScript adapter](./typescript-adapter.md) for its complete
+fact semantics, production-pilot status, validation gates, and enhancement backlog.
+
 Adding another language means implementing this interface and registering the
 adapter. Storage, publication, pagination, MCP envelopes, and analytics do not
 change.
+
+Adapters fall into four categories:
+
+- **compiler-backed:** declarations and references resolved by a language service;
+- **parser-backed:** source units and conservative relationships from undeployed files;
+- **metadata-backed:** authoritative facts from a live system such as an Oracle
+  data dictionary;
+- **routing/configuration:** routes, handlers, authorization, and deployment facts.
+
+An adapter emits serializable facts only. Compiler objects, database connections,
+parser trees, credentials, and client-specific configuration remain inside the
+adapter boundary.
 
 ## 9. Query contract
 
@@ -218,7 +281,36 @@ that root. Traversal is cycle-safe and bounded by depth and page size.
 
 These results prove authored-module reachability, not binding use.
 
-## 11. Configuration boundary
+## 11. Cross-language graph and evidence
+
+Cross-language support is planned. It extends the fact model; it does not replace
+language-native symbol navigation.
+
+An edge is the proposition `(from, to, kind)`. Evidence records why the edge is
+believed. One edge may have compiler, parser, dictionary, configuration, and
+runtime observations. Replacing one observation must not delete unrelated
+evidence.
+
+Confidence is attached to evidence, not silently inferred from edge existence:
+
+| Class | Meaning |
+| --- | --- |
+| `exact` | Compiler/dictionary resolution or a complete validated configuration chain |
+| `high` | Deterministic narrowing leaves one target but depends on adapter rules |
+| `observed` | Runtime evidence proves occurrence in one sampled execution |
+| `heuristic` | Pattern or partial-name evidence requiring inspection |
+| `ambiguous` | Evidence supports multiple targets |
+
+Runtime evidence proves occurrence, never completeness. Heuristic evidence is
+excluded from normal impact results unless requested. Ambiguous targets remain
+branches. Unsupported or dynamic sites are persisted as unresolved facts instead
+of guessed edges.
+
+Graph traversal is generation-bound, cycle-safe, depth-limited, result-limited,
+and filterable by edge kind and minimum confidence. Every returned path identifies
+its supporting evidence.
+
+## 12. Configuration boundary
 
 Project configuration is external. The package contains no consumer-specific
 workspace paths. Configuration selects:
@@ -233,7 +325,7 @@ Environment overrides exist for runtime injection. Relative configuration-file
 paths resolve against the file directory. Storage paths must stay outside the
 indexed workspace. See the [user guide](./user-guide.md).
 
-## 12. Version-control provenance
+## 13. Version-control provenance
 
 Provenance is optional and adapter-based:
 
@@ -244,7 +336,7 @@ Provenance is optional and adapter-based:
 An unversioned workspace indexes normally. Provenance is metadata; it never
 controls freshness, which is hash-based.
 
-## 13. Analytics
+## 14. Analytics
 
 Analytics are local, versioned, bounded, and enabled by default.
 
@@ -257,7 +349,7 @@ Analytics are local, versioned, bounded, and enabled by default.
 
 Analytics never replace diagnostics on stderr and never influence query results.
 
-## 14. Operational invariants
+## 15. Operational invariants
 
 - A failed build never replaces the published generation.
 - Queries never read `building` rows.
@@ -268,13 +360,31 @@ Analytics never replace diagnostics on stderr and never influence query results.
 - JSON responses are bounded.
 - The console binds only to loopback and requires a per-run bearer token.
 - Schema changes bump the schema version and rebuild the derived database.
+- An edge never exists without evidence.
+- Adapters report incomplete coverage and unresolved sites explicitly.
 
-## 15. Limitations
+## 16. Planned adapter family
+
+The next delivery family is:
+
+1. static SQL and PL/SQL source extraction;
+2. Oracle dictionary extraction;
+3. a gated PL/Scope adapter;
+4. source/database drift;
+5. ORDS route and handler extraction;
+6. evidence-backed TypeScript/JavaScript → HTTP → ORDS → PL/SQL edges.
+
+See [Oracle adapter](./oracle-adapter.md),
+[ORDS and cross-language resolution](./ords-cross-language.md), and
+[Roadmap](./roadmap.md). A later language remains a new adapter, not a core branch.
+
+## 17. Limitations
 
 - One extractor in 0.1.0: TypeScript/JavaScript.
 - JavaScript requires `allowJs`.
 - Only files reachable from the selected project file are indexed.
-- No cross-language edges, lexical search, or embeddings.
+- Cross-language edges, Oracle, and ORDS are designed but not shipped.
+- No lexical search or embeddings.
 - Generation-granular reuse; no incremental compiler state.
 - The core stores dependency facts but does not interpret language-specific
   package semantics; the adapter supplies normalized names.

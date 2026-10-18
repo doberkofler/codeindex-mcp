@@ -1,7 +1,7 @@
 # CodeIndex MCP
 
-A local, language-neutral code index exposed through the Model Context Protocol
-(MCP), a command-line interface, and a loopback management console.
+A local, extensible, language-neutral code index exposed through the Model Context
+Protocol (MCP), a command-line interface, and a loopback management console.
 
 CodeIndex MCP builds an immutable index generation from a workspace, stores it in
 SQLite, and answers bounded navigation questions without reading the whole
@@ -43,7 +43,8 @@ JavaScript files are indexed when the selected project file enables `allowJs`.
 Declaration files (`.d.ts`, `.d.mts`, `.d.cts`) and generated output are used for
 resolution but are not published as authored source.
 
-Other languages are not supported in 0.1.0. No adapter exists for them yet.
+Other languages are not supported in 0.1.0. Oracle SQL, PL/SQL, and ORDS are the next
+planned adapter family; later languages use the same adapter seam.
 
 ## Architecture
 
@@ -231,6 +232,11 @@ verify, benchmark, and reference verification operations.
 ## Documentation
 
 - [Architecture](./documentation/architecture.md)
+- [TypeScript/JavaScript adapter](./documentation/typescript-adapter.md)
+- [Oracle adapter design](./documentation/oracle-adapter.md)
+- [ORDS and cross-language design](./documentation/ords-cross-language.md)
+- [Roadmap](./documentation/roadmap.md)
+- [Maintainer guide](./documentation/maintainer-guide.md)
 - [User guide](./documentation/user-guide.md)
 - [Evaluation harness methodology](./documentation/evaluation-harness.md)
 
@@ -251,7 +257,8 @@ Oxlint. Do not weaken a check to make it pass.
 - One extractor only: TypeScript / JavaScript.
 - JavaScript requires `allowJs` in the selected project file.
 - Files must be reachable from the selected project file.
-- No cross-language edges, embeddings, fuzzy search, or full-text search.
+- Oracle, ORDS, and cross-language edges are planned but not shipped.
+- No embeddings, fuzzy search, or full-text search.
 - No incremental delta storage; reuse is generation-granular.
 - Console and MCP trust the local loopback boundary.
 
