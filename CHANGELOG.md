@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1](https://github.com/doberkofler/codeindex-mcp/compare/v0.1.0...v0.1.1) (2026-10-18)
+
+### Added
+
+* add CodeIndex configuration support to MCP install ([4374da3](https://github.com/doberkofler/codeindex-mcp/commit/4374da36e69c7eb1e945a117d9380df29cfc2e87))
+
+### Documentation
+
+* add architecture, user, and evaluation documentation ([fd2f184](https://github.com/doberkofler/codeindex-mcp/commit/fd2f1846f142bd5a4fcdedebeb63fe826c46bb8b))
+
 ## 0.1.0 (2026-10-18)
 
 ### Added
