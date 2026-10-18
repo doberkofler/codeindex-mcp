@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {runCli, type CliIoType} from '../src/cli/runCli.ts';
+import {PROGRAM_VERSION} from '../src/version.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 type CapturedIoType = Readonly<{io: CliIoType; stdout: () => string; stderr: () => string}>;
@@ -56,7 +57,7 @@ describe('operational CLI', () => {
 
 			const human = captureIo();
 			await expect(runCli(['status'], environment, human.io)).resolves.toBe(0);
-			expect(human.stdout().split('\n')[0]).toBe('codeindex-mcp 0.1.0 (status)');
+			expect(human.stdout().split('\n')[0]).toBe(`codeindex-mcp ${PROGRAM_VERSION} (status)`);
 
 			const verify = captureIo();
 			await expect(runCli(['verify', '--json'], environment, verify.io)).resolves.toBe(0);
