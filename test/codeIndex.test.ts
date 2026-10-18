@@ -1,8 +1,8 @@
 import {appendFileSync} from 'node:fs';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {CodeIndexError, StaleFileError} from '../src/index/errors.ts';
-import {type DependencyConsumerItemType, type DependencyEvidenceConsumerType} from '../src/index/model.ts';
+import {CodeIndexError, StaleFileError} from '../src/core/errors/errors.ts';
+import {type DependencyConsumerItemType, type DependencyEvidenceConsumerType} from '../src/core/model.ts';
 import {createFixtureIndex, type FixtureContextType} from './helpers/fixture.ts';
 
 const evidenceOf = (item: DependencyConsumerItemType | undefined): DependencyEvidenceConsumerType | undefined =>

@@ -2,7 +2,7 @@ import {mkdtempSync, realpathSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {loadConfig, toRepositoryPath} from '../src/config/config.ts';
+import {loadConfig, toRepositoryPath} from '../src/core/config/config.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 describe('configuration', () => {

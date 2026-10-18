@@ -1,8 +1,8 @@
 import {fileURLToPath} from 'node:url';
-import {runCleanup} from '../cleanup.ts';
-import {runMcpCommand} from '../cli/mcpCommand.ts';
-import {runCli, type CliIoType} from '../cli/runCli.ts';
-import {runVerification} from '../extractors/typescript/verifyReferences.ts';
+import {runCleanup} from '../core/cleanup.ts';
+import {runMcpCommand} from '../transports/cli/mcpCommand.ts';
+import {runCli, type CliIoType} from '../transports/cli/runCli.ts';
+import {runVerification} from '../adapters/typescript/verifyReferences.ts';
 
 const io: CliIoType = {
 	stdout: (line) => {

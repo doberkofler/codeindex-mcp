@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {WorkspaceWatcher} from '../src/index/workspaceWatcher.ts';
+import {WorkspaceWatcher} from '../src/core/freshness/workspaceWatcher.ts';
 import {silentLogger} from './helpers/fixture.ts';
 
 const includesPath = (paths: readonly string[] | null, target: string): boolean => paths?.includes(target) === true;

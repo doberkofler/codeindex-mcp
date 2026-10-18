@@ -45,5 +45,6 @@
 		"skipLibCheck": true /* Skip type checking all .d.ts files. */,
 		"forceConsistentCasingInFileNames": true /* Ensure that casing is correct in imports. */
 	},
-	"include": ["src/**/*"]
+	"include": ["src/**/*"],
+	"exclude": ["src/ui/**"]
 }

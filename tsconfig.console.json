@@ -7,5 +7,6 @@
 		"jsx": "react-jsx",
 		"types": ["vite/client"]
 	},
-	"include": ["console/src/**/*.ts", "console/src/**/*.tsx", "src/console/contracts.ts"]
+	"include": ["src/ui/console/**/*.ts", "src/ui/console/**/*.tsx", "src/transports/console/contracts.ts"],
+	"exclude": []
 }

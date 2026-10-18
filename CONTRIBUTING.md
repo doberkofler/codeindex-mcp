@@ -30,6 +30,22 @@ pnpm verify
 Fix the underlying code when a check fails. Do not disable, exclude, or relax a
 rule. Configuration changes require explicit review and must not weaken a rule.
 
+## Repository layout
+
+All authored executable source lives under `src/`:
+
+```text
+src/core/        language-neutral indexing machinery
+src/adapters/    fact producers (TypeScript today; Oracle and ORDS planned)
+src/resolvers/   cross-adapter graph joins
+src/transports/  MCP, CLI, and loopback console surfaces
+src/ui/          browser console application
+src/entries/     executable composition roots
+```
+
+See [Architecture](./documentation/architecture.md) for the responsibility
+boundaries.
+
 ## Design rules
 
 - The core is language-neutral. It must not learn about TypeScript, a specific
@@ -41,15 +57,18 @@ rule. Configuration changes require explicit review and must not weaken a rule.
 - Stdout belongs to the MCP transport. Diagnostics use stderr.
 - A failed build never replaces the published generation.
 
-## Adding an extractor
+## Adding an adapter
 
-1. Implement the interface in `src/extractors/types.ts`.
-2. Emit files, declarations, occurrences, dependency edges, diagnostics, and
+1. Implement the interface in `src/adapters/types.ts`.
+2. Place source-language implementations under `src/adapters/<language>/`.
+   Planned metadata and routing adapters live under `src/adapters/oracle/` and
+   `src/adapters/ords/`.
+3. Emit files, declarations, occurrences, dependency edges, diagnostics, and
    source ranges as language-neutral facts.
-3. Register the adapter in `src/extractors/registry.ts`.
-4. Add fixtures and tests that exercise scanning, extraction, and stale-file
+4. Register the adapter in `src/adapters/registry.ts`.
+5. Add fixtures and tests that exercise scanning, extraction, and stale-file
    rejection.
-5. Document the adapter and its limitations in the README.
+6. Document the adapter and its limitations in `documentation/`.
 
 Do not add a language-specific branch to the core.
 

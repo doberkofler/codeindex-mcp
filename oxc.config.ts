@@ -136,14 +136,14 @@ export const linter = defineConfig({
 		{
 			// The worker event API is callback-based; wrapping it in a Promise is the
 			// only way to await one build result without blocking the transport.
-			files: ['src/index/codeIndex.ts'],
+			files: ['src/core/generation/codeIndex.ts'],
 			rules: {
 				'promise/avoid-new': 'off',
 			},
 		},
 		{
 			// worker_threads has no browser origin; the rule targets window.postMessage.
-			files: ['src/index/buildWorker.ts'],
+			files: ['src/core/generation/buildWorker.ts'],
 			rules: {
 				'unicorn/require-post-message-target-origin': 'off',
 			},

@@ -4,7 +4,7 @@ import path from 'node:path';
 import {parse, type ParseError} from 'jsonc-parser';
 import {afterEach, describe, expect, it} from 'vitest';
 import {z} from 'zod';
-import {runMcpCommand} from '../src/cli/mcpCommand.ts';
+import {runMcpCommand} from '../src/transports/cli/mcpCommand.ts';
 
 type CapturedIoType = Readonly<{
 	stdout: string[];

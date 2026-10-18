@@ -1,7 +1,7 @@
 import {appendFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {scanProject} from '../src/extractors/typescript/scanProject.ts';
+import {scanProject} from '../src/adapters/typescript/scanProject.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 describe('scanWorkspace', () => {

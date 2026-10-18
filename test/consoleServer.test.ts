@@ -4,7 +4,7 @@ import {IncomingMessage, request as httpRequest} from 'node:http';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {buildAnalyticsDashboard} from '../src/analytics/dashboard.ts';
+import {buildAnalyticsDashboard} from '../src/core/analytics/dashboard.ts';
 import {
 	type AnalyticsDashboardType,
 	type AnalyticsWindowType,
@@ -12,9 +12,9 @@ import {
 	type ConsoleMetaType,
 	type ConsoleOperationType,
 	type ConsoleSnapshotType,
-} from '../src/console/contracts.ts';
-import {startConsoleServer, type ConsoleServerHandleType, type ConsoleServicePortType} from '../src/console/server.ts';
-import {type IndexStatusType} from '../src/index/model.ts';
+} from '../src/transports/console/contracts.ts';
+import {startConsoleServer, type ConsoleServerHandleType, type ConsoleServicePortType} from '../src/transports/console/server.ts';
+import {type IndexStatusType} from '../src/core/model.ts';
 import {silentLogger} from './helpers/fixture.ts';
 
 const TOKEN = 'test-token';

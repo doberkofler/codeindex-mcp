@@ -1,7 +1,7 @@
 import {Client} from '@modelcontextprotocol/client';
 import {InMemoryTransport} from '@modelcontextprotocol/server';
 import {afterEach, describe, expect, it} from 'vitest';
-import {buildMcpServer} from '../src/mcp/buildMcpServer.ts';
+import {buildMcpServer} from '../src/transports/mcp/buildMcpServer.ts';
 import {createFixtureIndex, silentLogger} from './helpers/fixture.ts';
 
 type EnvelopeType = Readonly<{ok: boolean; data?: unknown; error?: Readonly<{code: string; message: string}>}>;

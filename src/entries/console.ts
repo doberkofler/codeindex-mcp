@@ -3,11 +3,11 @@ import {existsSync} from 'node:fs';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
-import {loadConfig} from '../config/config.ts';
-import {startConsoleServer} from '../console/server.ts';
-import {ConsoleService} from '../console/service.ts';
-import {createLogger} from '../logging/logger.ts';
-import {PROGRAM_NAME, PROGRAM_VERSION} from '../version.ts';
+import {loadConfig} from '../core/config/config.ts';
+import {startConsoleServer} from '../transports/console/server.ts';
+import {ConsoleService} from '../transports/console/service.ts';
+import {createLogger} from '../core/logging/logger.ts';
+import {PROGRAM_NAME, PROGRAM_VERSION} from '../core/version.ts';
 
 const usage = `Usage: codeindex-console [options]
 

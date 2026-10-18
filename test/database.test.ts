@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {IndexDatabase} from '../src/storage/database.ts';
+import {IndexDatabase} from '../src/core/storage/database.ts';
 
 const file = {
 	path: 'src/example.ts',

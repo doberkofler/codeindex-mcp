@@ -21,7 +21,7 @@ project or retained as known imported files from the published generation.
 
 ## 2. Adapter boundary
 
-Implementation entry: [`src/extractors/typescript/index.ts`](../src/extractors/typescript/index.ts).
+Implementation entry: [`src/adapters/typescript/index.ts`](../src/adapters/typescript/index.ts).
 
 The adapter implements `ExtractorType` with:
 
@@ -233,11 +233,11 @@ package results. The following enhancements are shipped:
 
 Relevant implementation:
 
-- [`extractDependencies.ts`](../src/extractors/typescript/extractDependencies.ts)
-- [`dependencyQuery.ts`](../src/index/dependencyQuery.ts)
-- [`queryService.ts`](../src/index/queryService.ts)
-- [`toolSchemas.ts`](../src/mcp/toolSchemas.ts)
-- [`buildMcpServer.ts`](../src/mcp/buildMcpServer.ts)
+- [`extractDependencies.ts`](../src/adapters/typescript/extractDependencies.ts)
+- [`dependencyQuery.ts`](../src/core/query/dependencyQuery.ts)
+- [`queryService.ts`](../src/core/query/queryService.ts)
+- [`toolSchemas.ts`](../src/transports/mcp/toolSchemas.ts)
+- [`buildMcpServer.ts`](../src/transports/mcp/buildMcpServer.ts)
 
 ## 11. Open enhancement backlog
 

@@ -1,8 +1,8 @@
 import {isMainThread, workerData} from 'node:worker_threads';
 import {parseArgs} from 'node:util';
-import {isBuildWorkerData, runBuildWorker} from '../index/buildWorker.ts';
-import {run as runMcp} from '../main.ts';
-import {PROGRAM_NAME, PROGRAM_VERSION} from '../version.ts';
+import {isBuildWorkerData, runBuildWorker} from '../core/generation/buildWorker.ts';
+import {run as runMcp} from '../transports/mcp/runServer.ts';
+import {PROGRAM_NAME, PROGRAM_VERSION} from '../core/version.ts';
 
 const usage = `Usage: codeindex-mcp [options]
 

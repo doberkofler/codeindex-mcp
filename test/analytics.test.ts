@@ -2,10 +2,10 @@ import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, u
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {assertAnalyticsFields, PROHIBITED_ANALYTICS_FIELDS} from '../src/analytics/events.ts';
-import {createAnalyticsRecorder, type AnalyticsRecorderType} from '../src/analytics/recorder.ts';
-import {summarizeAnalytics} from '../src/analytics/report.ts';
-import {runAnalyticsCommand} from '../src/cli/analyticsCommand.ts';
+import {assertAnalyticsFields, PROHIBITED_ANALYTICS_FIELDS} from '../src/core/analytics/events.ts';
+import {createAnalyticsRecorder, type AnalyticsRecorderType} from '../src/core/analytics/recorder.ts';
+import {summarizeAnalytics} from '../src/core/analytics/report.ts';
+import {runAnalyticsCommand} from '../src/transports/cli/analyticsCommand.ts';
 
 describe('analytics', () => {
 	let directory: string | undefined;

@@ -2,7 +2,7 @@ import {existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync} 
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {collectCleanupTargets, removeCleanupTargets, type CleanupOptionsType, type CleanupRootsType} from '../src/cleanup.ts';
+import {collectCleanupTargets, removeCleanupTargets, type CleanupOptionsType, type CleanupRootsType} from '../src/core/cleanup.ts';
 
 const {join} = path;
 const temporaryDirectories: string[] = [];

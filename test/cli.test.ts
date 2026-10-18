@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {runCli, type CliIoType} from '../src/cli/runCli.ts';
-import {PROGRAM_VERSION} from '../src/version.ts';
+import {runCli, type CliIoType} from '../src/transports/cli/runCli.ts';
+import {PROGRAM_VERSION} from '../src/core/version.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 type CapturedIoType = Readonly<{io: CliIoType; stdout: () => string; stderr: () => string}>;

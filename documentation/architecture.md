@@ -8,23 +8,27 @@ ships a TypeScript/JavaScript extractor. The target architecture supports source
 compiler, database-metadata, and routing adapters without adding language branches
 to the core.
 
-The design separates three concerns:
+The design separates five concerns:
 
 ```text
-Transport adapters        MCP · CLI · console
+Adapters                  compiler · parser · dictionary · routing · provenance
+        │                 serializable facts only
+        ▼
+Core ingestion            identity · immutable content · generations · storage
         │
         ▼
-Language-neutral core     generations · freshness · storage · publication
-                          pagination · limits · graph queries · analytics
+Cross-language resolvers  evidence-backed joins inside one candidate generation
         │
         ▼
-Extractor adapter         project loading · declarations · occurrences
-                          dependency facts · diagnostics
+Core queries              freshness · bounds · pagination · graph traversal
+        │
+        ▼
+Transports                MCP · CLI · console
 ```
 
-The core must not import a language compiler, a package manager, or a
-version-control client. Those belong to an adapter or to a small optional
-provenance reader.
+The core must not import a language compiler, parser, database driver, package
+manager, or version-control client. Those belong to an adapter or to a small
+optional provenance reader. Transports contain no indexing or query semantics.
 
 ## 2. Non-goals
 
@@ -48,6 +52,45 @@ provenance reader.
 
 Stdout belongs exclusively to the MCP transport. Diagnostics, the version
 banner, and debug traces use stderr.
+
+### 3.1 Repository layout
+
+All authored executable source lives under `src/`:
+
+```text
+src/
+  core/                 language-neutral indexing machinery
+    generation/         worker builds, publication, lifecycle
+    freshness/          watcher, reconciliation, refresh state
+    query/              bounded queries and graph traversal
+    storage/            SQLite schema and persistence
+    analytics/          local events and reports
+    benchmark/          model-free local measurements
+    config/             validated external configuration
+    logging/            stderr diagnostics
+    errors/             stable error types
+  adapters/             fact producers
+    typescript/         shipped TypeScript/JavaScript extractor
+    oracle/source/      planned static SQL and PL/SQL adapter
+    oracle/database/    planned live dictionary and PL/Scope adapter
+    ords/               planned ORDS metadata adapter
+    vcs/                optional version-control provenance
+  resolvers/
+    crossLanguage/      planned evidence-backed joins between adapter facts
+  transports/
+    mcp/                stdio MCP server and tool contracts
+    cli/                operational command surface
+    console/            loopback HTTP server and service
+  ui/
+    console/            browser console application
+  entries/              executable composition roots
+```
+
+`core` must not import a compiler, parser, database driver, package-manager
+API, version-control client, or browser framework. Adapters may use those
+libraries internally but publish serializable facts only. Transports call core
+operations; they contain no indexing logic. Resolvers consume already extracted
+facts and never invoke an adapter's external system directly.
 
 ## 4. Generation lifecycle
 
@@ -184,9 +227,11 @@ An adapter may be configured as optional only when query coverage reports its
 absence explicitly. Failure of a required adapter fails the candidate and retains
 the previous published generation.
 
-## 8. Extractor contract
+## 8. Adapter contract
 
-An adapter owns everything that needs a language compiler and emits only plain,
+The shipped source-language contract is `ExtractorType`. Metadata and routing
+adapters will implement narrower contracts that share the same ingestion boundary.
+An adapter owns everything that needs an external authority and emits only plain,
 serializable facts:
 
 ```ts

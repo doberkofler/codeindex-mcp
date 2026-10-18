@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {buildAnalyticsDashboard} from '../src/analytics/dashboard.ts';
+import {buildAnalyticsDashboard} from '../src/core/analytics/dashboard.ts';
 
 type EventFieldsType = Readonly<Record<string, unknown>>;
 

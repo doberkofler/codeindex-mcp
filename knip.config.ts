@@ -1,8 +1,8 @@
 import {type KnipConfig} from 'knip';
 
 const config: KnipConfig = {
-	entry: ['src/entries/*.ts', 'test/**/*.test.ts', 'console/src/main.tsx'],
-	project: ['src/**/*.ts', 'console/src/**/*.{ts,tsx}', 'test/**/*.ts'],
+	entry: ['src/entries/*.ts', 'test/**/*.test.ts', 'src/ui/console/main.tsx'],
+	project: ['src/**/*.ts', 'src/ui/console/**/*.{ts,tsx}', 'test/**/*.ts'],
 	ignore: ['dist/**', 'test/fixtures/**'],
 };
 

@@ -1,7 +1,7 @@
 import {once} from 'node:events';
 import {setImmediate as immediate} from 'node:timers/promises';
 import {describe, expect, it} from 'vitest';
-import {RefreshCoordinator, type ClockType} from '../src/index/refreshCoordinator.ts';
+import {RefreshCoordinator, type ClockType} from '../src/core/freshness/refreshCoordinator.ts';
 import {silentLogger} from './helpers/fixture.ts';
 
 type TimerType = ReturnType<typeof setTimeout> & Readonly<{id: number}>;

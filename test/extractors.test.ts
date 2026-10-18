@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {availableExtractors, extractorFor} from '../src/extractors/registry.ts';
+import {availableExtractors, extractorFor} from '../src/adapters/registry.ts';
 import {createFixtureIndex} from './helpers/fixture.ts';
 
 describe('extractor registry', () => {

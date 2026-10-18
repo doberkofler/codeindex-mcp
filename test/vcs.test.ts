@@ -3,7 +3,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {readVcsProvenance} from '../src/index/vcsProvenance.ts';
+import {readVcsProvenance} from '../src/adapters/vcs/vcsProvenance.ts';
 
 const hasCommand = (command: string): boolean => spawnSync(command, ['--version'], {stdio: 'ignore'}).status === 0;
 

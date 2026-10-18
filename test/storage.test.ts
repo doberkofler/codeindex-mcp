@@ -4,9 +4,9 @@ import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {setTimeout as delay} from 'node:timers/promises';
 import {afterEach, describe, expect, it} from 'vitest';
-import {type IndexedSymbolType, type SourceFileType} from '../src/index/model.ts';
-import {createSourceFileRecord} from '../src/index/sourceFiles.ts';
-import {IndexDatabase} from '../src/storage/database.ts';
+import {type IndexedSymbolType, type SourceFileType} from '../src/core/model.ts';
+import {createSourceFileRecord} from '../src/core/generation/sourceFiles.ts';
+import {IndexDatabase} from '../src/core/storage/database.ts';
 
 type GenerationInputType = Readonly<{
 	id: string;

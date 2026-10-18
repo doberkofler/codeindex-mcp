@@ -1,11 +1,11 @@
 import {cpSync, mkdtempSync, realpathSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {type ConfigType} from '../../src/config/config.ts';
-import {createCodeIndex, type CodeIndex} from '../../src/index/codeIndex.ts';
-import {buildGeneration} from '../../src/index/buildGeneration.ts';
-import {type LoggerType} from '../../src/logging/logger.ts';
-import {IndexDatabase} from '../../src/storage/database.ts';
+import {type ConfigType} from '../../src/core/config/config.ts';
+import {createCodeIndex, type CodeIndex} from '../../src/core/generation/codeIndex.ts';
+import {buildGeneration} from '../../src/core/generation/buildGeneration.ts';
+import {type LoggerType} from '../../src/core/logging/logger.ts';
+import {IndexDatabase} from '../../src/core/storage/database.ts';
 
 const silence = (): void => {
 	void 0;
