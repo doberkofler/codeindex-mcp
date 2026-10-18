@@ -1,0 +1,12 @@
+export const alpha01 = 1;
+export const alpha02 = 2;
+export const alpha03 = 3;
+export const alpha04 = 4;
+export const alpha05 = 5;
+export const alpha06 = 6;
+export const alpha07 = 7;
+export const alpha08 = 8;
+export const alpha09 = 9;
+export const alpha10 = 10;
+export const alpha11 = 11;
+export const alpha12 = 12;

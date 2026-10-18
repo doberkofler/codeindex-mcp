@@ -1,0 +1,83 @@
+{
+	"name": "codeindex-mcp",
+	"version": "0.0.0",
+	"private": false,
+	"description": "Local, language-neutral code index exposed to MCP clients.",
+	"homepage": "https://github.com/doberkofler/codeindex-mcp",
+	"bugs": {
+		"url": "https://github.com/doberkofler/codeindex-mcp/issues"
+	},
+	"license": "MIT",
+	"author": "Dieter Oberkofler",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/doberkofler/codeindex-mcp.git"
+	},
+	"bin": {
+		"codeindex-cli": "dist/cli.mjs",
+		"codeindex-console": "dist/console.mjs",
+		"codeindex-mcp": "dist/mcp.mjs"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"CHANGELOG.md"
+	],
+	"type": "module",
+	"exports": {
+		"./mcp": "./dist/mcp.mjs",
+		"./cli": "./dist/cli.mjs",
+		"./console": "./dist/console.mjs",
+		"./package.json": "./package.json"
+	},
+	"scripts": {
+		"prepare": "node scripts/build.mjs",
+		"build": "node scripts/build.mjs",
+		"console": "node dist/console.mjs",
+		"status": "node dist/cli.mjs status",
+		"update": "node dist/cli.mjs update",
+		"rebuild": "node dist/cli.mjs rebuild",
+		"typecheck": "tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.console.json",
+		"lint": "oxlint",
+		"knip": "knip",
+		"format": "oxfmt --write",
+		"format:check": "oxfmt --check",
+		"test": "vitest run",
+		"verify:references": "node dist/cli.mjs verify-references",
+		"index:verify": "node dist/cli.mjs verify",
+		"verify": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run format:check && pnpm run test"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/server": "2.3.1",
+		"commander": "15.0.0",
+		"debug": "4.4.3",
+		"jsonc-parser": "3.3.1",
+		"typescript": "6.0.3",
+		"zod": "4.6.7"
+	},
+	"devDependencies": {
+		"@emotion/react": "11.14.0",
+		"@emotion/styled": "11.14.1",
+		"@modelcontextprotocol/client": "2.3.1",
+		"@mui/icons-material": "9.5.0",
+		"@mui/material": "9.5.0",
+		"@tanstack/react-query": "5.104.3",
+		"@types/debug": "4.1.13",
+		"@types/node": "26.6.5",
+		"@types/react": "19.2.2",
+		"@types/react-dom": "19.2.2",
+		"eslint-plugin-regexp": "3.3.1",
+		"knip": "6.41.0",
+		"oxfmt": "0.73.0",
+		"oxlint": "1.88.0",
+		"oxlint-tsgolint": "7.0.2004",
+		"react": "19.3.1",
+		"react-dom": "19.3.1",
+		"vite": "8.3.4",
+		"vitest": "5.0.5"
+	},
+	"engines": {
+		"node": ">=26"
+	}
+}
