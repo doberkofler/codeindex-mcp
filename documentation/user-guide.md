@@ -217,7 +217,11 @@ codeindex-cli verify-references --config ./codeindex.config.json
 ```
 
 This compares a stratified sample of indexed references against the TypeScript
-language service. It is available only for the TypeScript extractor.
+language service. It is available only for the TypeScript extractor. The command
+exits successfully only when the configured project supplies at least 200 sampled
+symbols covering every required construct with at least 99.5% recall, 100%
+precision, and no skipped or mismatched symbols. The checked-in qualification
+corpus is `test/fixtures/reference-corpus/`.
 
 ### Cache cleanup
 

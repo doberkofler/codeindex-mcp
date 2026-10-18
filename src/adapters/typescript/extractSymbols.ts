@@ -110,6 +110,19 @@ const declarationName = (node: ts.Node): ts.Identifier | undefined => {
 	return name;
 };
 
+/**
+ * Returns the identifier the extractor treats as a candidate declaration name.
+ *
+ * Variable and binding declarations use their bound identifier; export
+ * specifiers expose the authored export alias. Every other candidate must be a
+ * supported named declaration.
+ *
+ * @param node - Candidate declaration node.
+ * @returns The candidate name node, or undefined when the node is not a candidate.
+ */
+export const candidateNameNode = (node: ts.Node): ts.Identifier | undefined =>
+	declarationName(node) ?? (ts.isExportSpecifier(node) && ts.isIdentifier(node.name) ? node.name : undefined);
+
 const hasAuthoredDeclaration = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean =>
 	(symbol.declarations ?? []).some((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
 
@@ -134,8 +147,7 @@ const collectCandidates = (input: ExtractionInputType, authoredPaths: ReadonlySe
 		}
 
 		walkSourceFile(sourceFile, (node) => {
-			const declaredName = declarationName(node);
-			const nameNode = declaredName ?? (ts.isExportSpecifier(node) && ts.isIdentifier(node.name) ? node.name : undefined);
+			const nameNode = candidateNameNode(node);
 
 			if (nameNode === undefined) {
 				return;

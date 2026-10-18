@@ -1,0 +1,16 @@
+export const jsFn01 = () => 1;
+export const jsFn02 = () => 2;
+export const jsFn03 = () => 3;
+export const jsFn04 = () => 4;
+export const jsFn05 = () => 5;
+export const jsFn06 = () => 6;
+export const jsFn07 = () => 7;
+export const jsFn08 = () => 8;
+export const jsFn09 = () => 9;
+export const jsFn10 = () => 10;
+export const jsFn11 = () => 11;
+export const jsFn12 = () => 12;
+export const jsValue01 = 'js-01';
+export const jsValue02 = 'js-02';
+export const jsValue03 = 'js-03';
+export const jsValue04 = 'js-04';

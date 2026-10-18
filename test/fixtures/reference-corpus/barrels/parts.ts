@@ -1,0 +1,12 @@
+export const barrelFn01 = (): number => 1;
+export const barrelFn02 = (): number => 2;
+export const barrelFn03 = (): number => 3;
+export const barrelFn04 = (): number => 4;
+export const barrelFn05 = (): number => 5;
+export const barrelFn06 = (): number => 6;
+export const barrelFn07 = (): number => 7;
+export const barrelFn08 = (): number => 8;
+export const barrelFn09 = (): number => 9;
+export const barrelFn10 = (): number => 10;
+export const barrelFn11 = (): number => 11;
+export const barrelFn12 = (): number => 12;

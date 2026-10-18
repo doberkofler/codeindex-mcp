@@ -1,0 +1,12 @@
+export const sourceFn01 = (): number => 1;
+export const sourceFn02 = (): number => 2;
+export const sourceFn03 = (): number => 3;
+export const sourceFn04 = (): number => 4;
+export const sourceFn05 = (): number => 5;
+export const sourceFn06 = (): number => 6;
+export const sourceFn07 = (): number => 7;
+export const sourceFn08 = (): number => 8;
+export const sourceFn09 = (): number => 9;
+export const sourceFn10 = (): number => 10;
+export const sourceFn11 = (): number => 11;
+export const sourceFn12 = (): number => 12;

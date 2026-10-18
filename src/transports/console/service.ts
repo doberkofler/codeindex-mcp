@@ -10,7 +10,7 @@ import {type IndexStatusType} from '../../core/model.ts';
 import {createLogger, type LoggerType} from '../../core/logging/logger.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
 import {SCHEMA_VERSION} from '../../core/storage/schema.ts';
-import {runReferenceVerification} from '../../adapters/typescript/verifyReferences.ts';
+import {verifyTypeScriptReferences} from '../../adapters/typescript/verifyReferences.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {
 	CONSOLE_OPERATIONS,
@@ -222,23 +222,27 @@ export class ConsoleService {
 				return this.installMcp();
 			}
 			case 'verify-references': {
-				const report = runReferenceVerification(this.#config);
+				const report = verifyTypeScriptReferences(this.#config);
 
 				return {
-					samples: report.samples,
-					recall: Number(report.recall.toFixed(4)),
-					precision: Number(report.precision.toFixed(4)),
-					disagreements: report.comparisons.filter((comparison) => comparison.missing.length > 0 || comparison.extra.length > 0).length,
-					comparisons: report.comparisons.map((comparison) => ({
-						name: comparison.name,
-						kind: comparison.kind,
-						path: comparison.path,
-						expected: comparison.expectedCount,
-						actual: comparison.actualCount,
-						matched: comparison.matchedCount,
-						missing: comparison.missing.length,
-						extra: comparison.extra.length,
-					})),
+					coverage: report.coverage,
+					accuracy: report.accuracy,
+					gate: report.gate,
+					disagreements: report.comparisons
+						.filter((comparison) => comparison.skip !== null || comparison.missing.length > 0 || comparison.extra.length > 0)
+						.slice(0, 50)
+						.map((comparison) => ({
+							name: comparison.name,
+							kind: comparison.kind,
+							path: comparison.path,
+							tags: comparison.tags,
+							expected: comparison.expectedCount,
+							actual: comparison.actualCount,
+							matched: comparison.matchedCount,
+							missing: comparison.missing.length,
+							extra: comparison.extra.length,
+							skip: comparison.skip,
+						})),
 				};
 			}
 			default: {

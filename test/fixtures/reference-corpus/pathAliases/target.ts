@@ -1,0 +1,12 @@
+export const aliasFn01 = (): number => 1;
+export const aliasFn02 = (): number => 2;
+export const aliasFn03 = (): number => 3;
+export const aliasFn04 = (): number => 4;
+export const aliasFn05 = (): number => 5;
+export const aliasFn06 = (): number => 6;
+export const aliasFn07 = (): number => 7;
+export const aliasFn08 = (): number => 8;
+export const aliasFn09 = (): number => 9;
+export const aliasFn10 = (): number => 10;
+export const aliasFn11 = (): number => 11;
+export const aliasFn12 = (): number => 12;

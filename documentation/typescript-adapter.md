@@ -70,9 +70,9 @@ The compiler-backed extractor emits:
 - bounded compiler/extraction diagnostics.
 
 Canonical declarations, aliases, declaration merging, barrels, re-exports, JSX,
-inheritance, and type/value positions must be verified against the TypeScript
-language service. An authored re-export remains navigable when its canonical
-declaration is external and therefore not publishable.
+inheritance, and type/value positions are covered by the reference gate. An
+authored re-export remains navigable when its canonical declaration is external and
+therefore not publishable.
 
 Current symbol identity is project/path/range based. Moving or structurally
 rewriting a declaration can change its identifier. Cross-generation semantic
@@ -147,16 +147,28 @@ codeindex-cli benchmark --config ./codeindex.config.json
 ```
 
 `verify-references` compares indexed occurrences with the TypeScript language
-service. The current implementation samples at most 50 symbols and exits
-successfully at 95% recall and 95% precision. This is a diagnostic floor, not the
-production target.
+service using exact byte ranges, definition/reference roles, and resolved symbol
+identity. It samples 200 symbols deterministically from the configured project and
+enforces the production gate:
 
-The production target remains:
+- at least 200 sampled symbols;
+- at least three sampled, referenced symbols for every required construct;
+- at least 99.5% recall using unrounded values;
+- exactly 100% precision;
+- no unlocated declarations, skipped samples, or unclassified mismatches.
 
-- at least 200 deterministic symbols stratified by kind and language construct;
-- at least 99.5% recall;
-- 100% precision;
-- every remaining mismatch classified and represented by a focused fixture.
+A sample is only informative when the project exercises the required constructs:
+direct references, named/default/namespace imports, named re-exports, barrels, path
+aliases, JSX components, inheritance, overrides, declaration merging, type-only and
+mixed type/value references, destructuring, shorthand properties, and JavaScript
+with `allowJs`. The adapter's qualification corpus lives in
+`test/fixtures/reference-corpus/`; its expected tags and pinned representatives are
+recorded in `test/helpers/referenceCorpus.ts`.
+
+Running the command against a project that does not supply all constructs fails the
+coverage part of the gate even when recall and precision are perfect. That is
+intentional: the command qualifies the adapter, not the health of an arbitrary
+consumer index.
 
 Benchmark storage execution, core calls, MCP transport, client wrapping, and full
 agent tasks separately. See [Maintainer guide](./maintainer-guide.md).
@@ -174,11 +186,11 @@ plan. Status meanings:
 
 | Package | Status | Current implementation or remaining work |
 | --- | --- | --- |
-| WP0 — baselines and pilot gates | Partial | Build stages, local analytics, offline reports, benchmark command, and reference comparison exist. Missing comprehensive committed edit-to-fresh/resource baselines and the final reference corpus. |
+| WP0 — baselines and pilot gates | Partial | Build stages, local analytics, offline reports, benchmark command, and the final reference corpus exist. Missing comprehensive committed edit-to-fresh/resource baselines. |
 | WP1 — native OpenCode exposure | Partial | MCP installation and current Code Mode behavior are documented and protocol-tested. Retained direct-versus-Code-Mode benchmark and formal normal-session smoke evidence remain open. |
 | WP2 — continuous freshness | Implemented | Coordinator, recursive watcher, 500 ms debounce, 60 s reconciliation, one follow-up build, query freshness, dirty-source rejection, and shutdown ownership are implemented and tested. |
 | WP3 — persistence and writer coordination | Partial | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, and bounded generation cleanup exist. Process-level contention/termination evidence and explicit checkout move/copy/delete semantics remain incomplete. |
-| WP4 — compiler/reference alignment | Partial | Declared compiler identity, drift, TypeScript API extraction, and language-service comparison exist. The ≥200/99.5%/100% gate is not implemented. |
+| WP4 — compiler/reference alignment | Implemented | Declared compiler identity, drift, TypeScript API extraction, and the ≥200-symbol, ≥99.5%-recall, 100%-precision gate with construct stratification and a checked-in corpus exist. |
 | WP5 — edit-to-fresh and resources | Partial | Cached status, local benchmark, build-stage timings, query-plan inspection, analytics, and worker builds exist. Full resource gates, Code Mode comparison, contention evidence, and four-hour soak evidence are incomplete. Incremental compiler state remains conditional. |
 | WP6 — build separation | Superseded/partial | MCP, CLI, console server, and browser bundles are separate. Evaluation code and corpus intentionally remain private; this repository does not emit the original public `evaluation.mjs` artifact. |
 | WP7 — OpenCode installation | Implemented | CLI install/uninstall, explicit MCP bundle/configuration paths, preservation of unrelated JSONC, external project configuration, and user documentation exist. |
@@ -191,8 +203,7 @@ Cross-cutting contracts and performance targets live in
 ### 9.1 Remaining pilot TODOs by work package
 
 - **WP0:** retain machine-readable reference-workstation baselines for startup,
-  cold/warm builds, edit-to-fresh, query layers, RSS, CPU, and storage; replace the
-  50-symbol diagnostic sample with the final deterministic corpus.
+  cold/warm builds, edit-to-fresh, query layers, RSS, CPU, and storage.
 - **WP1:** record a disposable normal OpenCode session invoking every tool without
   a bridge; compare Code Mode and direct exposure with the same model and task;
   retain client version and effective configuration with the result.
@@ -202,8 +213,8 @@ Cross-cutting contracts and performance targets live in
 - **WP3:** add real multi-process contention, owner-termination, and expired-lease
   takeover tests; document and verify checkout move, copy, and deletion behavior;
   prove later adapter contexts do not replace core identity concepts.
-- **WP4:** implement the ≥200-symbol, ≥99.5%-recall, 100%-precision gate and
-  classify every residual mismatch.
+- **WP4:** no known feature TODO; keep the corpus representative when adding new
+  syntax constructs and retain a focused fixture for every mismatch class.
 - **WP5:** complete event-to-publication, MCP, startup, idle CPU, peak memory,
   storage, deep-cursor, contention, restart, and four-hour soak measurements. Add
   incremental compiler state only if a measured gate fails.

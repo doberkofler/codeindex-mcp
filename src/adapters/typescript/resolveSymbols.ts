@@ -31,17 +31,20 @@ export const resolveCanonical = (checker: ts.TypeChecker, node: ts.Node): ts.Sym
 
 const contextualPropertySymbol = (checker: ts.TypeChecker, node: ts.Identifier): ts.Symbol | undefined => {
 	const {parent} = node;
-	let objectLiteral: ts.Node | undefined;
+	let contextualType: ts.Type | undefined;
 
 	if ((ts.isPropertyAssignment(parent) || ts.isShorthandPropertyAssignment(parent) || ts.isMethodDeclaration(parent)) && parent.name === node) {
-		objectLiteral = parent.parent;
+		const objectLiteral = parent.parent;
+
+		if (ts.isObjectLiteralExpression(objectLiteral)) {
+			contextualType = checker.getContextualType(objectLiteral);
+		}
 	}
 
-	if (objectLiteral === undefined || !ts.isObjectLiteralExpression(objectLiteral)) {
-		return undefined;
+	if (ts.isJsxAttribute(parent) && parent.name === node) {
+		contextualType = checker.getContextualType(parent.parent);
 	}
 
-	const contextualType = checker.getContextualType(objectLiteral);
 	return contextualType === undefined ? undefined : checker.getPropertyOfType(contextualType, node.text);
 };
 
