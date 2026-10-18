@@ -228,6 +228,12 @@ verify, benchmark, and reference verification operations.
 - Version-control provenance is optional. Git and SVN are detected when present;
   an unversioned workspace indexes normally.
 
+## Documentation
+
+- [Architecture](./documentation/architecture.md)
+- [User guide](./documentation/user-guide.md)
+- [Evaluation harness methodology](./documentation/evaluation-harness.md)
+
 ## Development
 
 ```bash
