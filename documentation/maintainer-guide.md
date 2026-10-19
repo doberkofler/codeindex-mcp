@@ -179,6 +179,12 @@ Generated workspaces and temporary databases are deleted after the run. Pass
 `--keep-workspace` to retain both paths for inspection; an explicit `--workspace`
 already persists the corpus without that flag.
 
+A generated corpus carries a `.codeindex-benchmark.json` marker recording its
+profile and expected counts. `--workspace` reuses a directory only when that
+marker is present and matches `--profile`; a directory that merely contains a
+`tsconfig.json` is rejected so measurements cannot be attributed to an unrelated
+project.
+
 Artifact reuse is currently measured as zero because extraction artifacts are
 persisted but never consumed. This produces a warning, not a failure; implement
 artifact consumption only when a measured gate requires it.
