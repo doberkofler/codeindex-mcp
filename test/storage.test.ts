@@ -7,6 +7,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {type IndexedSymbolType, type SourceFileType} from '../src/core/model.ts';
 import {createSourceFileRecord} from '../src/core/generation/sourceFiles.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {renewLease} from '../src/core/storage/databaseLease.ts';
 
 type GenerationInputType = Readonly<{
 	id: string;
@@ -149,21 +150,56 @@ describe('index storage coordination and plans', () => {
 		database.close();
 	});
 
-	it('refuses publication without an unexpired build lease', async () => {
+	it('renews the same owner lease at publication after expiry', async () => {
 		const database = open();
-		const generationId = 'generation-lease';
+		const generationId = 'generation-lease-renew';
 		database.createGeneration(generation(generationId));
 		expect(database.tryAcquireBuildLease('owner-a', process.pid, 50)).toBe(true);
 		await delay(60);
 
-		expect(() => database.publish(generationId, undefined, undefined, 'owner-a')).toThrow(/lease/u);
+		database.publish(generationId, undefined, undefined, 'owner-a');
+		expect(database.getPublishedGeneration()?.id).toBe(generationId);
+		database.close();
+	});
+
+	it('refuses publication after another owner takes over', async () => {
+		const database = open();
+		const generationId = 'generation-lease-takeover';
+		database.createGeneration(generation(generationId));
+		expect(database.tryAcquireBuildLease('owner-a', process.pid, 50)).toBe(true);
+		await delay(60);
 		expect(database.tryAcquireBuildLease('owner-b', process.pid, 5000)).toBe(true);
-		expect(() => database.publish(generationId, undefined, undefined, 'owner-a')).toThrow(/lease/u);
+
+		expect(() => database.publish(generationId, undefined, undefined, 'owner-a')).toThrow(/taken over/u);
 		expect(database.getPublishedGeneration()).toBeNull();
 
 		database.publish(generationId, undefined, undefined, 'owner-b');
 		expect(database.getPublishedGeneration()?.id).toBe(generationId);
 		database.close();
+	});
+
+	it('treats a locked writer as a skipped lease renewal', () => {
+		const database = open();
+		expect(database.tryAcquireBuildLease('owner-a', process.pid, 5000)).toBe(true);
+		database.close();
+
+		if (directory === undefined) {
+			throw new Error('Missing test directory');
+		}
+
+		const databasePath = path.join(directory, 'index.sqlite');
+		const renewer = new DatabaseSync(databasePath);
+		renewer.exec('pragma busy_timeout = 0');
+		const blocker = new DatabaseSync(databasePath);
+		blocker.exec('begin immediate');
+
+		try {
+			expect(renewLease(renewer, {projectId: 'storage-test', ownerId: 'owner-a', ttlMs: 5000})).toBe(false);
+		} finally {
+			blocker.exec('rollback');
+			blocker.close();
+			renewer.close();
+		}
 	});
 
 	it('uses intended indexes for hot statements', () => {

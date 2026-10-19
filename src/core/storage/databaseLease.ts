@@ -3,6 +3,12 @@ import {type BuildLeaseType} from '../model.ts';
 import {asNumber, asString} from './databaseRows.ts';
 import {transaction} from './databaseTransaction.ts';
 
+/** Default lifetime of one build lease. */
+export const BUILD_LEASE_TTL_MS = 10_000;
+
+/** Short wait used by opportunistic heartbeat renewal. */
+const LEASE_RENEW_BUSY_TIMEOUT_MS = 250;
+
 const toLease = (row: Readonly<Record<string, unknown>>): BuildLeaseType => ({
 	projectId: asString(row, 'project_id'),
 	ownerId: asString(row, 'owner_id'),
@@ -11,6 +17,44 @@ const toLease = (row: Readonly<Record<string, unknown>>): BuildLeaseType => ({
 	heartbeatAt: asString(row, 'heartbeat_at'),
 	expiresAt: asString(row, 'expires_at'),
 });
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null;
+
+const sqliteErrcode = (error: unknown): number | null => {
+	if (!isRecord(error)) {
+		return null;
+	}
+
+	const code = error['errcode'];
+	return typeof code === 'number' ? code : null;
+};
+
+const isBusyOrLocked = (error: unknown): boolean => {
+	const code = sqliteErrcode(error);
+	return code !== null && ((code & 255) === 5 || (code & 255) === 6);
+};
+
+const writeHeartbeat = (writer: DatabaseSync, input: Readonly<{projectId: string; ownerId: string; ttlMs: number}>): boolean => {
+	const now = Date.now();
+	const result = writer
+		.prepare('update build_lease set heartbeat_at = ?, expires_at = ? where project_id = ? and owner_id = ?')
+		.run(new Date(now).toISOString(), new Date(now + input.ttlMs).toISOString(), input.projectId, input.ownerId);
+
+	return Number(result.changes) > 0;
+};
+
+const withBusyTimeout = <ValueType>(writer: DatabaseSync, busyTimeoutMs: number, action: () => ValueType): ValueType => {
+	const current = writer.prepare('pragma busy_timeout').get();
+	const previousTimeoutMs = current === undefined ? 5000 : asNumber(current, 'timeout');
+
+	writer.exec(`pragma busy_timeout = ${String(busyTimeoutMs)}`);
+
+	try {
+		return action();
+	} finally {
+		writer.exec(`pragma busy_timeout = ${String(previousTimeoutMs)}`);
+	}
+};
 
 export const readLease = (reader: DatabaseSync, projectId: string): BuildLeaseType | null => {
 	const row = reader.prepare('select * from build_lease where project_id = ?').get(projectId);
@@ -56,27 +100,41 @@ export const acquireLease = (writer: DatabaseSync, input: Readonly<{projectId: s
 	return acquired;
 };
 
+/**
+ * Opportunistically renews the lease without blocking the caller.
+ *
+ * A concurrent long write transaction makes the update fail with
+ * `SQLITE_BUSY`. That is not a lost lease: the owner still holds the row, and
+ * publication renews or verifies it inside the publication transaction.
+ *
+ * @param writer - Writer connection.
+ * @param input - Project, owner, and lease lifetime.
+ * @returns True when the heartbeat was written.
+ */
 export const renewLease = (writer: DatabaseSync, input: Readonly<{projectId: string; ownerId: string; ttlMs: number}>): boolean => {
-	const now = Date.now();
-	const result = writer
-		.prepare('update build_lease set heartbeat_at = ?, expires_at = ? where project_id = ? and owner_id = ?')
-		.run(new Date(now).toISOString(), new Date(now + input.ttlMs).toISOString(), input.projectId, input.ownerId);
+	try {
+		return withBusyTimeout(writer, LEASE_RENEW_BUSY_TIMEOUT_MS, () => writeHeartbeat(writer, input));
+	} catch (error) {
+		if (isBusyOrLocked(error)) {
+			return false;
+		}
 
-	return Number(result.changes) > 0;
+		throw error;
+	}
 };
 
 /**
- * Reports whether one owner still holds an unexpired build lease.
+ * Renews the lease inside the publication transaction.
+ *
+ * Renewal is allowed after the previous heartbeat expired as long as this owner
+ * still owns the row. If another owner took over, publication must fail.
  *
  * @param writer - Writer connection.
- * @param input - Project, expected owner, and comparison time.
- * @returns True when the expected owner may publish under the lease.
+ * @param input - Project, owner, and lease lifetime.
+ * @returns True when this owner still owns the lease.
  */
-export const ownsLease = (writer: DatabaseSync, input: Readonly<{projectId: string; ownerId: string; now: number}>): boolean => {
-	const row = writer.prepare('select owner_id, expires_at from build_lease where project_id = ?').get(input.projectId);
-
-	return row !== undefined && asString(row, 'owner_id') === input.ownerId && Date.parse(asString(row, 'expires_at')) > input.now;
-};
+export const renewLeaseStrict = (writer: DatabaseSync, input: Readonly<{projectId: string; ownerId: string; ttlMs: number}>): boolean =>
+	writeHeartbeat(writer, input);
 
 export const releaseLease = (writer: DatabaseSync, projectId: string, ownerId: string): void => {
 	writer.prepare('delete from build_lease where project_id = ? and owner_id = ?').run(projectId, ownerId);

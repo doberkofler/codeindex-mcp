@@ -2,6 +2,7 @@ import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {BenchmarkSuiteSchema, expandHome, loadBenchmarkSuite, resolveProjectsRoot} from '../src/core/benchmark/suiteTypes.ts';
 import {runBenchmarkSuiteCommand} from '../src/core/benchmark/suite.ts';
+import {failureDetail} from '../src/core/benchmark/suiteCommand.ts';
 import {runBenchmarkPrepareCommand} from '../src/core/benchmark/suitePrepare.ts';
 
 const suitePath = (name: string): string => path.resolve(import.meta.dirname, '..', 'benchmark', 'suites', `${name}.json`);
@@ -111,6 +112,14 @@ describe('benchmark suite', () => {
 			path.resolve('/repo', path.join('/home/user', '.cache', 'codeindex-benchmark', 'projects')),
 		);
 		expect(resolveProjectsRoot(suite, 'checkouts', '/home/user', '/repo')).toBe(path.resolve('/repo', 'checkouts'));
+	});
+
+	it('extracts the error line from a crash trailer', () => {
+		const crash = ['at x', 'Error: database is locked', '  code: ERR_SQLITE_ERROR', 'Node.js v26.10.0', ''].join('\n');
+		const plain = ['first', 'second', 'third', 'fourth', ''].join('\n');
+
+		expect(failureDetail(crash)).toBe('Error: database is locked');
+		expect(failureDetail(plain)).toBe('second third fourth');
 	});
 
 	it('prints suite and prepare help without starting work', () => {

@@ -1,7 +1,7 @@
 import {existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {type SuiteStepResultType} from './suiteManifest.ts';
-import {cleanChildEnvironment, lastLines, runCommand} from './suiteCommand.ts';
+import {cleanChildEnvironment, failureDetail, runCommand} from './suiteCommand.ts';
 import {type BenchmarkSuiteGeneratedType, type BenchmarkSuitePublicProjectType, type BenchmarkSuiteType} from './suiteTypes.ts';
 
 const {dirname, join, relative, resolve, sep} = path;
@@ -330,6 +330,6 @@ export const executeStep = (
 		exitCode: result.exitCode,
 		durationMs: result.durationMs,
 		artifacts: input.step.artifacts.map((artifact) => relativePosix(input.outputDir, artifact)),
-		detail: result.exitCode === 0 ? null : lastLines(result.stderr, 3),
+		detail: result.exitCode === 0 ? null : failureDetail(result.stderr),
 	};
 };

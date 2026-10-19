@@ -38,7 +38,7 @@ import {
 	listDependencyBindings as listStoredDependencyBindings,
 } from './databaseDependency.ts';
 import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContextType} from './databaseIdentity.ts';
-import {acquireLease, ownsLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
+import {acquireLease, BUILD_LEASE_TTL_MS, readLease, releaseLease, renewLease, renewLeaseStrict} from './databaseLease.ts';
 import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
@@ -56,6 +56,7 @@ import {transaction} from './databaseTransaction.ts';
 const debug = debugFor('database');
 
 export type {DatabaseOpenContextType} from './databaseIdentity.ts';
+export {BUILD_LEASE_TTL_MS} from './databaseLease.ts';
 
 /**
  * Opens and owns the SQLite index.
@@ -319,8 +320,8 @@ export class IndexDatabase {
 		const publicationStartedAt = performance.now();
 
 		this.#transaction(() => {
-			if (ownerId !== undefined && !ownsLease(this.#writer, {projectId: this.#projectId, ownerId, now: Date.now()})) {
-				throw new CodeIndexError('index_build_failed', 'Build lease was lost or expired before publication');
+			if (ownerId !== undefined && !renewLeaseStrict(this.#writer, {projectId: this.#projectId, ownerId, ttlMs: BUILD_LEASE_TTL_MS})) {
+				throw new CodeIndexError('index_build_failed', 'Build lease was lost or taken over before publication');
 			}
 
 			this.#writer.exec("delete from generation where state in ('superseded', 'failed')");

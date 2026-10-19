@@ -8,7 +8,8 @@ import {extractorFor} from '../../adapters/registry.ts';
 import {type ExtractorType} from '../../adapters/types.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
-import {type IndexDatabase} from '../storage/database.ts';
+import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
+import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
 import {buildGeneration} from './buildGeneration.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
 import {findDependencies as queryDependencies, findReferences as queryReferences, findSymbols as querySymbols} from '../query/queryService.ts';
@@ -43,7 +44,6 @@ import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
 
 const {sep} = path;
 const debug = debugFor('index');
-const LEASE_TTL_MS = 10_000;
 const LEASE_RENEW_MS = 3000;
 
 export type CodeIndexOptionsType = Readonly<{
@@ -171,7 +171,7 @@ export class CodeIndex {
 	async #performRefresh(reason: RefreshReasonType, force: boolean): Promise<BuildReportType> {
 		debug('refresh start', {reason, force});
 		const startedAt = performance.now();
-		const leaseAcquired = this.#database.tryAcquireBuildLease(this.#ownerId, process.pid, LEASE_TTL_MS);
+		const leaseAcquired = this.#database.tryAcquireBuildLease(this.#ownerId, process.pid, BUILD_LEASE_TTL_MS);
 
 		if (!leaseAcquired) {
 			debug('build lease held by another process');
@@ -184,17 +184,15 @@ export class CodeIndex {
 				},
 			});
 		}
-
-		const heartbeat = setInterval(() => {
-			if (!this.#database.renewBuildLease(this.#ownerId, LEASE_TTL_MS)) {
-				debug('build lease renewal failed');
-			}
-		}, LEASE_RENEW_MS);
-		heartbeat.unref();
-
+		const stopHeartbeat = startBuildLeaseHeartbeat({
+			renew: () => this.#database.renewBuildLease(this.#ownerId, BUILD_LEASE_TTL_MS),
+			intervalMs: LEASE_RENEW_MS,
+			onFailure: (failure, error): void => {
+				debug('build lease renewal skipped', {failure, message: error instanceof Error ? error.message : null});
+			},
+		});
 		const sample = startProcessSample();
 		const resources = (): Readonly<Record<string, number>> => ({...sample.stop(), databaseBytes: this.#database.databaseSizeBytes()});
-
 		try {
 			const published = this.#database.getPublishedGeneration();
 			this.#published = published;
@@ -208,7 +206,6 @@ export class CodeIndex {
 					declaredVersion: scan.declaredCompilerVersion,
 				});
 			}
-
 			const report = await this.#rebuild(scan, force);
 
 			if (this.#watchEnabled) {
@@ -247,8 +244,12 @@ export class CodeIndex {
 			});
 			throw error;
 		} finally {
-			clearInterval(heartbeat);
-			this.#database.releaseBuildLease(this.#ownerId);
+			stopHeartbeat();
+			try {
+				this.#database.releaseBuildLease(this.#ownerId);
+			} catch (error) {
+				debug('build lease release failed', {message: error instanceof Error ? error.message : String(error)});
+			}
 		}
 	}
 

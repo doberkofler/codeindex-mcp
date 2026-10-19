@@ -86,17 +86,21 @@ export const cleanChildEnvironment = (environment: NodeJS.ProcessEnv): NodeJS.Pr
 	return {...cleaned, CODE_INDEX_ANALYTICS: 'false', NO_COLOR: '1'};
 };
 
+const lastLines = (value: string, count: number): string => value.trimEnd().split('\n').slice(-count).join(' ');
+
 /**
- * Returns the last lines of a diagnostic as one table-safe string.
+ * Extracts a single table-safe failure line from child diagnostics.
+ *
+ * Uncaught crashes end with a generic `Node.js v…` trailer; the first `Error:`
+ * line carries the actual cause. Fall back to the trailing lines when no error
+ * line is present.
  *
  * @param value - Diagnostic output.
- * @param count - Number of trailing lines to retain.
- * @returns Joined, single-line detail.
+ * @returns One sanitized line.
  */
-export const lastLines = (value: string, count: number): string =>
-	value
-		.trimEnd()
-		.split('\n')
-		.slice(-count)
-		.join(' ')
-		.replaceAll('|', String.raw`\|`);
+export const failureDetail = (value: string): string => {
+	const errorLine = value.split('\n').find((line) => line.startsWith('Error: '));
+	const detail = errorLine ?? lastLines(value, 3);
+
+	return detail.replaceAll('|', String.raw`\|`);
+};
