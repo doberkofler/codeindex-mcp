@@ -197,6 +197,17 @@ describe('console HTTP server', () => {
 		expect(servicePort.operations).toStrictEqual(['verify']);
 	});
 
+	it('accepts same-origin mutations on an allocated port', async () => {
+		const {url} = await start();
+		const response = await authorized(new URL('api/jobs', url), {
+			method: 'POST',
+			headers: {origin: new URL(url).origin},
+			body: JSON.stringify({operation: 'verify'}),
+		});
+
+		expect(response.status).toBe(202);
+	});
+
 	it('rejects cross-origin mutations', async () => {
 		const {url} = await start();
 		const response = await authorized(new URL('api/jobs', url), {

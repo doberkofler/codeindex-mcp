@@ -281,7 +281,9 @@ export const startConsoleServer = async (options: ConsoleServerOptionsType): Pro
 
 		void (async (): Promise<void> => {
 			try {
-				const handled = await handleApi({request, response, url, service: options.service, port: options.port});
+				const address = server.address();
+				const boundPort = typeof address === 'object' && address !== null ? address.port : options.port;
+				const handled = await handleApi({request, response, url, service: options.service, port: boundPort});
 
 				if (!handled) {
 					serveStatic(response, options.staticRoot, url.pathname);
