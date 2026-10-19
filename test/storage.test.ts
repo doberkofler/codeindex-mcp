@@ -153,6 +153,17 @@ describe('index storage identity and content', () => {
 		expect(database.getWorkingCopy()).not.toBeNull();
 		database.close();
 	});
+
+	it('propagates an access failure instead of moving the database aside', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-storage-'));
+		const databasePath = path.join(directory, 'index.sqlite');
+		mkdirSync(databasePath);
+
+		// macOS reports SQLITE_IOERR for a directory, Linux SQLITE_CANTOPEN; both are access failures.
+		expect(() => IndexDatabase.open(databasePath, {projectId: 'storage-test'})).toThrow(/unable to open database file|disk I\/O error/u);
+		expect(existsSync(databasePath)).toBe(true);
+		expect(existsSync(`${databasePath}.schema-unknown.bak`)).toBe(false);
+	});
 });
 
 describe('index storage coordination and plans', () => {

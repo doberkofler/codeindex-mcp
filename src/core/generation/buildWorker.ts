@@ -66,6 +66,7 @@ export const runBuildWorker = (data: BuildWorkerDataType): void => {
 	}
 
 	let database: IndexDatabase | undefined;
+	let message: Readonly<Record<string, unknown>>;
 	debug('build worker start', {rootDir: data.config.rootDir, files: data.scan.files.length, force: data.force});
 
 	try {
@@ -79,11 +80,16 @@ export const runBuildWorker = (data: BuildWorkerDataType): void => {
 		});
 		const report = buildGeneration({config: data.config, database, logger, scan: data.scan, force: data.force, ownerId: data.ownerId});
 		debug('build worker complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
-		parentPort?.postMessage({ok: true, report});
+		message = {ok: true, report};
 	} catch (error) {
 		debug('build worker failed', {message: error instanceof Error ? error.message : String(error)});
-		parentPort?.postMessage({ok: false, message: error instanceof Error ? error.message : String(error)});
+		message = {ok: false, message: error instanceof Error ? error.message : String(error)};
 	} finally {
+		// Completion is reported only after the worker's connections are closed.
+		// The parent closes and reopens the same database as soon as it observes
+		// the report, so an overlap would race the last-connection WAL checkpoint.
 		database?.close();
 	}
+
+	parentPort?.postMessage(message);
 };

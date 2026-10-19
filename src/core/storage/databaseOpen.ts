@@ -7,6 +7,37 @@ import {SCHEMA_SQL, SCHEMA_VERSION} from './schema.ts';
 
 const debug = debugFor('database');
 
+const SQLITE_BUSY = 5;
+const SQLITE_LOCKED = 6;
+const SQLITE_IOERR = 10;
+const SQLITE_FULL = 13;
+const SQLITE_CANTOPEN = 14;
+
+const sqliteCodeOf = (error: unknown): number | null => {
+	if (typeof error !== 'object' || error === null || !('errcode' in error)) {
+		return null;
+	}
+
+	const {errcode} = error;
+	return typeof errcode === 'number' ? errcode & 255 : null;
+};
+
+/**
+ * Reports whether a failure to read the schema version concerns access, not content.
+ *
+ * A database that is busy, locked, unreadable, or on a failing volume carries no
+ * information about its schema. Treating such a failure as an incompatible schema
+ * would move a valid index aside and force a needless rebuild. Only content
+ * failures — an empty file, a foreign file, or a corrupt page — are incompatible.
+ *
+ * @param error - Value thrown while reading the metadata table.
+ * @returns True when the failure must propagate instead of triggering a rebuild.
+ */
+const isAccessFailure = (error: unknown): boolean => {
+	const code = sqliteCodeOf(error);
+	return code === SQLITE_BUSY || code === SQLITE_LOCKED || code === SQLITE_IOERR || code === SQLITE_FULL || code === SQLITE_CANTOPEN;
+};
+
 const existingSchemaVersion = (databasePath: string): string | null => {
 	let database: DatabaseSync | undefined;
 
@@ -14,7 +45,11 @@ const existingSchemaVersion = (databasePath: string): string | null => {
 		database = new DatabaseSync(databasePath, {readOnly: true});
 		const row = database.prepare("select value from metadata where key = 'schema_version'").get();
 		return row === undefined ? null : asString(row, 'value');
-	} catch {
+	} catch (error) {
+		if (isAccessFailure(error)) {
+			throw error;
+		}
+
 		return null;
 	} finally {
 		database?.close();

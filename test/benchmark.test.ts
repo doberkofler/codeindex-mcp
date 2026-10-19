@@ -2,6 +2,7 @@ import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node
 import os from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
+import {phaseOf} from '../src/core/benchmark/benchmarkPhase.ts';
 import {BENCHMARK_CORPUS_MARKER, benchmarkCorpusCounts, createBenchmarkCorpus, prepareBenchmarkWorkspace} from '../src/core/benchmark/corpus.ts';
 import {runCursorScenario} from '../src/core/benchmark/cursorScenario.ts';
 import {runEditScenario} from '../src/core/benchmark/editScenario.ts';
@@ -85,6 +86,12 @@ describe('benchmark report', () => {
 		} finally {
 			fixture.cleanup();
 		}
+	});
+
+	it('names the failing scenario and SQLite result code', async () => {
+		const failure = Object.assign(new Error('disk I/O error'), {errcode: 522, errstr: 'disk I/O error'});
+
+		await expect(phaseOf('warm_reuse', Promise.reject(failure))).rejects.toThrow('warm_reuse failed: disk I/O error (sqlite errcode 522: disk I/O error)');
 	});
 });
 
