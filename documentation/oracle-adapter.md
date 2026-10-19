@@ -218,7 +218,7 @@ redefined.
 paths or credentials in the repository:
 
 ```bash
-pnpm qualify:oracle:live -- --root /path/to/oracle/project
+pnpm qualify:oracle:live --root /path/to/oracle/project
 ```
 
 The command generates an external manifest for every supported O1 source file
@@ -243,7 +243,7 @@ generated SQL, then apply the same plan:
 ORACLE_SERVER=<connect-identifier> \
 ORACLE_USER=<user> \
 ORACLE_PASSWORD=<password> \
-pnpm qualify:oracle:live -- --root /path/to/oracle/project --approval <hash>
+pnpm qualify:oracle:live --root /path/to/oracle/project --approval <hash>
 ```
 
 The generated manifest uses `ORACLE_USER` as its default schema. Use `--schema`

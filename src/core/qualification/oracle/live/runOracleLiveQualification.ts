@@ -165,16 +165,7 @@ const writeRunMetadata = (plan: LivePlanType, settings: OracleLiveSettingsType, 
 const commandArgument = (value: string): string => (value.includes(' ') ? JSON.stringify(value) : value);
 
 const applyCommand = (options: OracleLiveQualificationOptionsType, rootDir: string, outputDir: string, approval: string): string => {
-	const values = [
-		'pnpm',
-		'qualify:oracle:live',
-		'--',
-		'--root',
-		rootDir,
-		...(options.output === undefined ? [] : ['--output', outputDir]),
-		'--approval',
-		approval,
-	];
+	const values = ['pnpm', 'qualify:oracle:live', '--root', rootDir, ...(options.output === undefined ? [] : ['--output', outputDir]), '--approval', approval];
 
 	return values.map((value) => commandArgument(value)).join(' ');
 };

@@ -446,6 +446,8 @@ describe('Oracle live qualification command', () => {
 			expect(captured.stdout.join('\n')).toContain('WARNING: ORACLE DATABASE CHANGES');
 			expect(captured.stdout.join('\n')).toContain('No database connection has been made');
 			expect(captured.stdout.join('\n')).toContain('Approval:');
+			expect(captured.stdout.join('\n')).toMatch(/To apply: pnpm qualify:oracle:live --root /u);
+			expect(captured.stdout.join('\n')).not.toContain('-- --root');
 
 			const plan = readFileSync(path.join(outputDir, 'plan.json'), 'utf8');
 			expect(plan).toContain('"path": "manifests/0-oracle-index.json"');
