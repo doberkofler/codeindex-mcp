@@ -25,6 +25,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {type ConsoleJobType, type ConsoleOperationType, type ConsoleSnapshotType} from '../../transports/console/contracts.ts';
 import {formatDuration, formatTimestamp} from './format.ts';
+import {rememberOverlayTrigger, restoreOverlayTrigger} from './overlayFocus.ts';
 
 type OperationsPagePropsType = Readonly<{
 	snapshot: ConsoleSnapshotType;
@@ -124,7 +125,8 @@ const JobsTable = ({jobs, onShowResult}: Readonly<{jobs: readonly ConsoleJobType
 								<Button
 									size="small"
 									disabled={job.result === null}
-									onClick={() => {
+									onClick={(event) => {
+										rememberOverlayTrigger(event.currentTarget);
 										onShowResult(job);
 									}}
 								>
@@ -162,6 +164,7 @@ export const OperationsPage = ({snapshot, activeJob, error, resultJob, onRun, on
 		<Dialog
 			open={resultJob !== null}
 			onClose={() => {
+				restoreOverlayTrigger();
 				onShowResult(null);
 			}}
 			maxWidth="md"
@@ -176,6 +179,7 @@ export const OperationsPage = ({snapshot, activeJob, error, resultJob, onRun, on
 			<DialogActions>
 				<Button
 					onClick={() => {
+						restoreOverlayTrigger();
 						onShowResult(null);
 					}}
 				>

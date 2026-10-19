@@ -2,6 +2,7 @@ import {Box, Dialog, DialogContent, DialogTitle, Divider, Grid, IconButton, Stac
 import CloseIcon from '@mui/icons-material/Close';
 import {type AnalyticsToolType} from '../../../transports/console/contracts.ts';
 import {formatBytes, formatDuration, formatNumber, formatPercent} from '../format.ts';
+import {restoreOverlayTrigger} from '../overlayFocus.ts';
 import {BarList} from './BarList.tsx';
 import {TimeSeriesChart} from './TimeSeriesChart.tsx';
 
@@ -10,11 +11,29 @@ type ToolDialogPropsType = Readonly<{
 	onClose: () => void;
 }>;
 
+const closeDialog = (onClose: () => void): void => {
+	restoreOverlayTrigger();
+	onClose();
+};
+
 export const ToolDialog = ({tool, onClose}: ToolDialogPropsType) => (
-	<Dialog open={tool !== null} onClose={onClose} maxWidth="md" fullWidth>
+	<Dialog
+		open={tool !== null}
+		onClose={() => {
+			closeDialog(onClose);
+		}}
+		maxWidth="md"
+		fullWidth
+	>
 		<DialogTitle sx={{display: 'flex', alignItems: 'center', gap: 1, pr: 6}}>
 			{tool?.name ?? 'Tool'}
-			<IconButton aria-label="Close" onClick={onClose} sx={{position: 'absolute', right: 12, top: 12}}>
+			<IconButton
+				aria-label="Close"
+				onClick={() => {
+					closeDialog(onClose);
+				}}
+				sx={{position: 'absolute', right: 12, top: 12}}
+			>
 				<CloseIcon />
 			</IconButton>
 		</DialogTitle>

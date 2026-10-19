@@ -29,6 +29,7 @@ import {useState, type ReactNode} from 'react';
 import {type ConsoleSnapshotType} from '../../transports/console/contracts.ts';
 import {StatusChip} from './components/StatusChip.tsx';
 import {shortId} from './format.ts';
+import {rememberOverlayTrigger, restoreOverlayTrigger} from './overlayFocus.ts';
 
 export type ViewType = 'overview' | 'analytics' | 'operations' | 'configuration';
 export type ThemeModeType = 'system' | 'light' | 'dark';
@@ -129,6 +130,10 @@ export const AppShell = ({snapshot, view, themeMode, children, onViewChange, onT
 	const theme = useTheme();
 	const desktop = useMediaQuery(theme.breakpoints.up('md'));
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const closeMobileNavigation = (): void => {
+		restoreOverlayTrigger();
+		setMobileOpen(false);
+	};
 
 	return (
 		<Box
@@ -166,7 +171,8 @@ export const AppShell = ({snapshot, view, themeMode, children, onViewChange, onT
 							<IconButton
 								edge="start"
 								aria-label="Open navigation"
-								onClick={() => {
+								onClick={(event) => {
+									rememberOverlayTrigger(event.currentTarget);
 									setMobileOpen(true);
 								}}
 							>
@@ -198,18 +204,8 @@ export const AppShell = ({snapshot, view, themeMode, children, onViewChange, onT
 					{children}
 				</Box>
 			</Box>
-			<Drawer
-				open={mobileOpen}
-				onClose={() => {
-					setMobileOpen(false);
-				}}
-			>
-				<Box
-					sx={{width: 280}}
-					onClick={() => {
-						setMobileOpen(false);
-					}}
-				>
+			<Drawer open={mobileOpen} onClose={closeMobileNavigation}>
+				<Box sx={{width: 280}} onClick={closeMobileNavigation}>
 					<DrawerContent snapshot={snapshot} view={view} onViewChange={onViewChange} />
 				</Box>
 			</Drawer>

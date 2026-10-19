@@ -29,6 +29,7 @@ import {MetricCard} from './components/MetricCard.tsx';
 import {TimeSeriesChart} from './components/TimeSeriesChart.tsx';
 import {ToolDialog} from './components/ToolDialog.tsx';
 import {formatBytes, formatDuration, formatNumber, formatPercent, formatTimestamp} from './format.ts';
+import {rememberOverlayTrigger} from './overlayFocus.ts';
 
 const WINDOWS: readonly AnalyticsWindowType[] = ['1h', '24h', '7d', '30d', 'all'];
 const COLORS = {tools: '#14b8a6', errors: '#ef4444', events: '#8b5cf6', builds: '#f59e0b'};
@@ -135,7 +136,8 @@ const ToolsTable = ({tools, onSelect}: Readonly<{tools: readonly AnalyticsToolTy
 						key={tool.name}
 						hover
 						sx={{cursor: 'pointer'}}
-						onClick={() => {
+						onClick={(event) => {
+							rememberOverlayTrigger(event.currentTarget);
 							onSelect(tool);
 						}}
 					>
