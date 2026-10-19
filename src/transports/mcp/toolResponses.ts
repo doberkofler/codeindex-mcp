@@ -4,6 +4,7 @@ import {debugFor} from '../../core/logging/debug.ts';
 
 const debug = debugFor('mcp');
 const SUCCESS_ENVELOPE_OVERHEAD_BYTES = Buffer.byteLength(JSON.stringify({ok: true, data: null}), 'utf8') - Buffer.byteLength('null', 'utf8');
+const INTERNAL_ERROR_MESSAGE = 'Internal index failure';
 
 export type ToolEnvelopeType = Readonly<{ok: true; data: unknown}> | Readonly<{ok: false; error: Readonly<{code: ErrorCodeType; message: string}>}>;
 
@@ -31,7 +32,44 @@ export const errorEnvelope = (error: unknown): ToolEnvelopeType => {
 		return failureEnvelope(error.code, error.message);
 	}
 
-	return failureEnvelope('internal_error', error instanceof Error ? error.message : 'Unknown index failure');
+	return failureEnvelope('internal_error', INTERNAL_ERROR_MESSAGE);
+};
+
+const byteLength = (text: string): number => Buffer.byteLength(text, 'utf8');
+
+/**
+ * Builds the largest failure envelope whose message fits the response bound.
+ *
+ * @param code - Stable error code.
+ * @param message - Preferred message; shortened when the envelope would exceed the bound.
+ * @param maxResultBytes - Maximum serialized UTF-8 bytes.
+ * @returns A failure envelope and its serialized text.
+ */
+const boundedFailureEnvelope = (code: ErrorCodeType, message: string, maxResultBytes: number): Readonly<{envelope: ToolEnvelopeType; text: string}> => {
+	const serialize = (candidate: string): Readonly<{envelope: ToolEnvelopeType; text: string}> => {
+		const envelope = failureEnvelope(code, candidate);
+		return {envelope, text: JSON.stringify(envelope)};
+	};
+	const full = serialize(message);
+
+	if (byteLength(full.text) <= maxResultBytes) {
+		return full;
+	}
+
+	let low = 0;
+	let high = message.length;
+
+	while (low < high) {
+		const middle = Math.ceil((low + high) / 2);
+
+		if (byteLength(serialize(message.slice(0, middle)).text) <= maxResultBytes) {
+			low = middle;
+		} else {
+			high = middle - 1;
+		}
+	}
+
+	return serialize(message.slice(0, low));
 };
 
 const countItems = (envelope: ToolEnvelopeType): number | null => {
@@ -49,7 +87,7 @@ const countItems = (envelope: ToolEnvelopeType): number | null => {
  * @param envelope - Tool result envelope.
  * @param maxResultBytes - Maximum serialized UTF-8 bytes.
  * @returns The MCP result, serialized byte count, and item count.
- * @throws {never} Never. Oversized successful responses become `response_too_large`
+ * @throws {never} Never. Oversized responses become bounded `response_too_large`
  * envelopes that tell the caller to reduce the limit.
  */
 export const toCallToolResult = (
@@ -58,11 +96,18 @@ export const toCallToolResult = (
 ): Readonly<{result: CallToolResult; bytes: number; itemCount: number | null}> => {
 	let selected = envelope;
 	let text = JSON.stringify(envelope);
+	const initialBytes = byteLength(text);
 
-	if (envelope.ok && Buffer.byteLength(text, 'utf8') > maxResultBytes) {
-		debug('response oversized', {bytes: Buffer.byteLength(text, 'utf8'), maxResultBytes});
-		selected = failureEnvelope('response_too_large', `Response exceeded ${maxResultBytes} bytes; request a smaller limit or read fewer symbols`);
-		text = JSON.stringify(selected);
+	if (initialBytes > maxResultBytes) {
+		debug('response oversized', {bytes: initialBytes, maxResultBytes});
+		const bounded = boundedFailureEnvelope(
+			'response_too_large',
+			`Response exceeded ${maxResultBytes} bytes; request a smaller limit or read fewer symbols`,
+			maxResultBytes,
+		);
+		const {envelope: boundedEnvelope, text: boundedText} = bounded;
+		selected = boundedEnvelope;
+		text = boundedText;
 	}
 
 	const isError = !selected.ok;
@@ -73,7 +118,7 @@ export const toCallToolResult = (
 			structuredContent: selected,
 			isError,
 		},
-		bytes: Buffer.byteLength(text, 'utf8'),
+		bytes: byteLength(text),
 		itemCount: countItems(selected),
 	};
 };
