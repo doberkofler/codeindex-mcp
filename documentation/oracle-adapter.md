@@ -1,6 +1,8 @@
 # Oracle SQL and PL/SQL Adapter
 
-**Status:** static O1 adapter implemented. Oracle-backed truth qualification, performance qualification, and live-database indexing remain pending.
+**Status:** static O1 adapter implemented. An Oracle-backed qualification run on
+2026-10-19 did not meet the promotion gates. Performance qualification and
+live-database indexing remain pending.
 
 ## 1. Scope
 
@@ -139,7 +141,47 @@ pnpm grammar:oracle:download
 pnpm grammar:oracle:generate
 ```
 
-## 7. Limitations
+## 7. Qualification status
+
+The first Oracle-backed run used a production sample project and Oracle
+19.0.0.0.0 with a session-scoped `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`. The
+qualification corpus contained 1,183 files: 592 package specifications, 588
+package bodies, and 3 standalone functions.
+
+| Gate | Result | Required |
+| --- | ---: | ---: |
+| Declaration recall | 96.10% | 99.5% |
+| Declaration precision | 99.88% | 100% |
+| Reference recall | 57.33% | 99.5% |
+| Reference precision | 97.85% | 100% |
+| Package dependency recall | 98.14% | 99.5% |
+| Package dependency precision | 99.91% | 100% |
+
+Excluded from the corpus:
+
+- 7 source-only packages absent from the database;
+- 2 wrapped `ODS_SYS_Encryption` files;
+- 2 deployment scripts that also create a view or object types;
+- 1 package whose source references a missing dependency and whose existing
+  database source was restored.
+
+The comparison excluded 61,492 PL/Scope references to package qualifiers because
+O1 represents those as dependency edges, not symbol occurrences. It also
+rejected PL/Scope rows whose declaration position did not contain the declared
+identifier; this removes `SELECT *` column pseudo-declarations and same-line
+`CREATE OR REPLACE` column offsets.
+
+Remaining reference gaps are concentrated in identifiers inside static SQL,
+record/object-type member chains whose final member is not indexed, and
+parameters or locals used only in those contexts. These are scope gaps, not
+formatting noise.
+
+Qualification evidence, including corpus checksums, exports, and the comparison
+script, is stored outside the repository. The adapter is not promoted, and the
+gates must be re-run after the reference scope is extended or explicitly
+redefined.
+
+## 8. Limitations
 
 - Static source only; deployed state and drift are not evaluated.
 - SQL object lineage, triggers, object types, synonyms, and database links are
