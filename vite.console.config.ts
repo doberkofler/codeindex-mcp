@@ -12,6 +12,15 @@ export default defineConfig({
 		sourcemap: false,
 		chunkSizeWarningLimit: 700,
 		rolldownOptions: {
+			output: {
+				codeSplitting: {
+					groups: [
+						{name: 'react', test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/},
+						{name: 'mui', test: /node_modules[\\/]@mui[\\/]/},
+						{name: 'tanstack', test: /node_modules[\\/]@tanstack[\\/]/},
+					],
+				},
+			},
 			/*
 			 * Ignore "use client" warnings since we are not using SSR.
 			 * see https://github.com/TanStack/query/pull/5161#issuecomment-1477389761
