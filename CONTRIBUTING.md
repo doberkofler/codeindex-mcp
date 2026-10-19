@@ -77,6 +77,43 @@ Do not add a language-specific branch to the core.
 Tests use temporary workspaces and temporary SQLite files. Never point a test at
 a real checkout. Keep test output quiet.
 
+## Dogfooding
+
+This repository registers its own MCP server in `.opencode/opencode.jsonc`. The
+entry runs `node dist/mcp.mjs` from the repository root, so the server and the
+workspace it indexes are the same checkout. `pnpm install` builds `dist/` through
+the `prepare` script; after `pnpm install --ignore-scripts`, run `pnpm build`
+before starting a session.
+
+After changing server code, rebuild and reconnect the server. A running MCP
+process keeps the bundle it started with:
+
+```bash
+pnpm build
+```
+
+Use the index first for symbol-level work: `find_symbol` to locate a declaration,
+`outline` for a known file, `find_references` before editing shared code,
+`find_dependencies` for package usage or module impact, and `read_symbol` for the
+smallest useful source range. Continue with ordinary repository tools for literal
+strings, documentation, configuration keys, and concepts without a known symbol.
+
+Review the local analytics weekly:
+
+```bash
+node dist/cli.mjs analytics --since 7d
+```
+
+Analytics capture tool names, durations, bytes, truncation, freshness, stable
+error codes, builds, and watcher timing. They deliberately exclude queries,
+symbols, source, and paths, so record friction separately: which tool the agent
+chose, whether the result answered the question, the fallback used, and the
+reproducible failure.
+
+Tool-call counts do not measure adoption or benefit. MCP cannot observe fallback
+tools or model turns; use the [evaluation harness](./documentation/evaluation-harness.md)
+for correctness, token, and latency claims.
+
 ## Commits and releases
 
 - Keep history linear and readable.

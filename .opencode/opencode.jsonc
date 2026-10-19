@@ -1,0 +1,14 @@
+{
+	"$schema": "https://opencode.ai/config.json",
+	"mcp": {
+		"servers": {
+			"codeindex": {
+				"type": "local",
+				"command": [
+					"node",
+					"dist/mcp.mjs"
+				]
+			}
+		}
+	}
+}
