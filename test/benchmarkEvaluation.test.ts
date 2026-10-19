@@ -46,8 +46,14 @@ const brokenPlan = (report: BenchmarkReportType): BenchmarkReportType => ({
 
 const referenceOf = (report: BenchmarkReportType): BenchmarkReferenceType =>
 	BenchmarkReferenceSchema.parse({
+		reportSchemaVersion: report.schemaVersion,
 		machine: report.machine,
-		workspace: {fileCount: report.workspace.fileCount, symbolCount: report.workspace.symbolCount},
+		workspace: {
+			kind: report.workspace.kind,
+			profile: report.workspace.profile,
+			fileCount: report.workspace.fileCount,
+			symbolCount: report.workspace.symbolCount,
+		},
 		scenarios: report.scenarios.map((scenario) => ({
 			kind: scenario.kind,
 			name: scenario.name,
@@ -147,6 +153,33 @@ describe('benchmark evaluation', () => {
 
 			expect(evaluation.gates.find((entry) => entry.code === 'compatibility.file_count')?.status).toBe('failure');
 			expect(evaluation.gates.find((entry) => entry.code === 'compatibility.symbol_count')?.status).toBe('pass');
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
+	it('rejects an obsolete or unrelated reference before relative gates run', async () => {
+		const fixture = createFixtureConfig('simple-project');
+
+		try {
+			const report = await runBenchmarkReport({config: fixture.config, iterations: 1, force: false, scenarios: ['warm_reuse']});
+			const base = referenceOf(report);
+			const obsolete = evaluateBenchmark(report, baselineOf({reference: {...base, reportSchemaVersion: 1}, requiredScenarios: []}));
+			const unrelated = evaluateBenchmark(
+				report,
+				baselineOf({
+					reference: {
+						...base,
+						workspace: {kind: 'generated', profile: 'large', ...benchmarkCorpusCounts('large')},
+					},
+					requiredScenarios: [],
+				}),
+			);
+
+			expect(obsolete.gates.find((entry) => entry.code === 'compatibility.reference_schema')?.status).toBe('failure');
+			expect(obsolete.gates.find((entry) => entry.code === 'regression.reference')?.status).toBe('skipped');
+			expect(unrelated.gates.find((entry) => entry.code === 'compatibility.reference_workspace_kind')?.status).toBe('failure');
+			expect(unrelated.gates.find((entry) => entry.code === 'compatibility.reference_workspace_profile')?.status).toBe('failure');
 		} finally {
 			fixture.cleanup();
 		}

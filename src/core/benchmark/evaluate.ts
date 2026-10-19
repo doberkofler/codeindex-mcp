@@ -130,7 +130,101 @@ const corpusCountGates = (report: BenchmarkReportType, baseline: BenchmarkBaseli
 	];
 };
 
-const compatibilityGates = (report: BenchmarkReportType, baseline: BenchmarkBaselineType): readonly BenchmarkGateType[] => {
+const referenceCountGates = (report: BenchmarkReportType, reference: BenchmarkReferenceType, baseline: BenchmarkBaselineType): readonly BenchmarkGateType[] => {
+	if (report.workspace.kind === 'generated' && report.workspace.profile !== null) {
+		const expected = benchmarkCorpusCounts(report.workspace.profile);
+
+		return [
+			driftGate({
+				code: 'compatibility.reference_file_count',
+				message: 'Reference corpus file count drift',
+				current: reference.workspace.fileCount,
+				reference: expected.fileCount,
+				tolerance: baseline.compatibility.fileCountToleranceRatio,
+			}),
+			driftGate({
+				code: 'compatibility.reference_symbol_count',
+				message: 'Reference corpus symbol count drift',
+				current: reference.workspace.symbolCount,
+				reference: expected.symbolCount,
+				tolerance: baseline.compatibility.symbolCountToleranceRatio,
+			}),
+		];
+	}
+
+	return [
+		driftGate({
+			code: 'compatibility.file_count',
+			message: 'Workspace file count drift',
+			current: report.workspace.fileCount,
+			reference: reference.workspace.fileCount,
+			tolerance: baseline.compatibility.fileCountToleranceRatio,
+		}),
+		driftGate({
+			code: 'compatibility.symbol_count',
+			message: 'Workspace symbol count drift',
+			current: report.workspace.symbolCount,
+			reference: reference.workspace.symbolCount,
+			tolerance: baseline.compatibility.symbolCountToleranceRatio,
+		}),
+	];
+};
+
+const referenceCompatibilityGates = (
+	report: BenchmarkReportType,
+	reference: BenchmarkReferenceType,
+	baseline: BenchmarkBaselineType,
+): readonly BenchmarkGateType[] => {
+	const machineMatches =
+		reference.machine.platform === report.machine.platform &&
+		reference.machine.arch === report.machine.arch &&
+		reference.machine.cpuModel === report.machine.cpuModel;
+	const gates: BenchmarkGateType[] = [
+		gate(reference.reportSchemaVersion === report.schemaVersion ? 'pass' : 'failure', 'compatibility.reference_schema', 'compatibility', {
+			message: 'Reference report schema must match the current report',
+			actual: reference.reportSchemaVersion,
+			expected: report.schemaVersion,
+		}),
+		gate(reference.workspace.kind === report.workspace.kind ? 'pass' : 'failure', 'compatibility.reference_workspace_kind', 'compatibility', {
+			message: 'Reference workspace kind must match the current workspace',
+			actual: reference.workspace.kind,
+			expected: report.workspace.kind,
+		}),
+		gate(reference.workspace.profile === report.workspace.profile ? 'pass' : 'failure', 'compatibility.reference_workspace_profile', 'compatibility', {
+			message: 'Reference profile must match the current workspace',
+			actual: reference.workspace.profile ?? 'null',
+			expected: report.workspace.profile ?? 'null',
+		}),
+		gate(machineMatches ? 'pass' : 'warning', 'compatibility.machine', 'compatibility', {
+			message: machineMatches ? 'Reference machine matches' : 'Reference machine differs; compare results cautiously',
+			actual: `${report.machine.platform}/${report.machine.arch}`,
+			expected: `${reference.machine.platform}/${reference.machine.arch}`,
+		}),
+	];
+
+	for (const referenceScenario of reference.scenarios) {
+		const current = report.scenarios.find((scenario) => scenario.name === referenceScenario.name);
+
+		if (current !== undefined && current.kind !== referenceScenario.kind) {
+			gates.push(
+				gate('failure', `compatibility.reference_scenario.${referenceScenario.name}`, 'compatibility', {
+					message: `Reference scenario ${referenceScenario.name} must have the same kind`,
+					actual: current.kind,
+					expected: referenceScenario.kind,
+				}),
+			);
+		}
+	}
+
+	gates.push(...referenceCountGates(report, reference, baseline));
+
+	return gates;
+};
+
+const compatibilityGates = (
+	report: BenchmarkReportType,
+	baseline: BenchmarkBaselineType,
+): Readonly<{gates: readonly BenchmarkGateType[]; referenceCompatible: boolean}> => {
 	const gates: BenchmarkGateType[] = [];
 	const {compatibility} = baseline;
 
@@ -189,38 +283,16 @@ const compatibilityGates = (report: BenchmarkReportType, baseline: BenchmarkBase
 		}
 
 		gates.push(skipped('compatibility.reference', 'No reference measurements supplied; relative regression gates are skipped'));
-		return gates;
+		return {gates, referenceCompatible: true};
 	}
 
 	gates.push(gate('pass', 'compatibility.reference', 'compatibility', {message: 'Reference measurements are present'}));
-	const machineMatches =
-		reference.machine.platform === report.machine.platform &&
-		reference.machine.arch === report.machine.arch &&
-		reference.machine.cpuModel === report.machine.cpuModel;
 
-	gates.push(
-		gate(machineMatches ? 'pass' : 'warning', 'compatibility.machine', 'compatibility', {
-			message: machineMatches ? 'Reference machine matches' : 'Reference machine differs; compare results cautiously',
-			actual: `${report.machine.platform}/${report.machine.arch}`,
-			expected: `${reference.machine.platform}/${reference.machine.arch}`,
-		}),
-		driftGate({
-			code: 'compatibility.file_count',
-			message: 'Workspace file count drift',
-			current: report.workspace.fileCount,
-			reference: reference.workspace.fileCount,
-			tolerance: compatibility.fileCountToleranceRatio,
-		}),
-		driftGate({
-			code: 'compatibility.symbol_count',
-			message: 'Workspace symbol count drift',
-			current: report.workspace.symbolCount,
-			reference: reference.workspace.symbolCount,
-			tolerance: compatibility.symbolCountToleranceRatio,
-		}),
-	);
+	const referenceGates = referenceCompatibilityGates(report, reference, baseline);
 
-	return gates;
+	gates.push(...referenceGates);
+
+	return {gates, referenceCompatible: referenceGates.every((entry) => entry.status !== 'failure')};
 };
 
 const planGates = (report: BenchmarkReportType): readonly BenchmarkGateType[] => {
@@ -508,15 +580,13 @@ const summaryOf = (gates: readonly BenchmarkGateType[]): BenchmarkEvaluationSumm
  * @returns Explicit gate results with an aggregate status.
  */
 export const evaluateBenchmark = (report: BenchmarkReportType, baseline: BenchmarkBaselineType): BenchmarkEvaluationType => {
+	const compatibility = compatibilityGates(report, baseline);
+	const regression =
+		baseline.reference === null || compatibility.referenceCompatible
+			? regressionGates(report, baseline)
+			: [skipped('regression.reference', 'Reference is incompatible; relative regression gates are skipped', 'regression')];
 	const gates = capRelativeFailures(
-		[
-			...compatibilityGates(report, baseline),
-			...planGates(report),
-			...editGates(report, baseline),
-			...queryGates(report, baseline),
-			...hygieneGates(report),
-			...regressionGates(report, baseline),
-		],
+		[...compatibility.gates, ...planGates(report), ...editGates(report, baseline), ...queryGates(report, baseline), ...hygieneGates(report), ...regression],
 		referenceMachineMatches(report, baseline),
 	);
 	const summary = summaryOf(gates);

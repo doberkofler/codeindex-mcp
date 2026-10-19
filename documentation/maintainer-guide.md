@@ -152,7 +152,9 @@ scenarios, thresholds, and an optional reference. `--reference` accepts a previo
 benchmark report and overrides the embedded reference, so an accepted nightly
 report can be compared without editing the baseline. Only machine, workspace,
 scenario, and query measurements are retained. Relative gates activate only when a
-reference is present.
+reference is present. The reference must also match the current report schema,
+workspace kind, profile, and generated corpus counts; an obsolete or unrelated
+reference fails compatibility and its relative gates are skipped.
 
 Every gate has `status: pass | warning | failure | skipped`. The CLI writes
 `<report>.evaluation.json` by default when `--baseline` is supplied. Only

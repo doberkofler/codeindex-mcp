@@ -17,24 +17,40 @@ const ReferenceScenarioSchema = z.object({
 });
 
 const ReferenceQuerySchema = z.object({p95Ms: z.number().min(0).nullable()});
+const BenchmarkProfileSchema = z.enum(['small', 'medium', 'large', 'xl']);
 
-export const BenchmarkReferenceSchema = z.object({
-	machine: z.object({
-		platform: z.string().min(1),
-		arch: z.string().min(1),
-		cpuModel: z.string().min(1),
-	}),
-	workspace: z.object({
-		fileCount: z.number().int().min(0),
-		symbolCount: z.number().int().min(0),
-	}),
-	scenarios: z.array(ReferenceScenarioSchema),
-	queries: z.record(z.string(), ReferenceQuerySchema),
-});
+export const BenchmarkReferenceSchema = z
+	.object({
+		reportSchemaVersion: z.number().int().positive(),
+		machine: z.object({
+			platform: z.string().min(1),
+			arch: z.string().min(1),
+			cpuModel: z.string().min(1),
+		}),
+		workspace: z.object({
+			kind: z.enum(['generated', 'external']),
+			profile: BenchmarkProfileSchema.nullable(),
+			fileCount: z.number().int().min(0),
+			symbolCount: z.number().int().min(0),
+		}),
+		scenarios: z.array(ReferenceScenarioSchema),
+		queries: z.record(z.string(), ReferenceQuerySchema),
+	})
+	.superRefine((reference, context) => {
+		const generated = reference.workspace.kind === 'generated';
+
+		if (generated !== (reference.workspace.profile !== null)) {
+			context.addIssue({
+				code: 'custom',
+				path: ['workspace', 'profile'],
+				message: 'generated references require a profile and external references must not have one',
+			});
+		}
+	});
 
 const CompatibilitySchema = z.object({
 	workspaceKind: z.enum(['generated', 'external']).nullable().default('generated'),
-	profile: z.enum(['small', 'medium', 'large', 'xl']).nullable().default(null),
+	profile: BenchmarkProfileSchema.nullable().default(null),
 	fileCountToleranceRatio: z.number().min(0).max(1).default(0.05),
 	symbolCountToleranceRatio: z.number().min(0).max(1).default(0.05),
 });
