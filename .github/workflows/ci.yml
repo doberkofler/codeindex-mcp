@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -29,6 +31,17 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify commit messages
+        env:
+          COMMITLINT_FROM: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          COMMITLINT_TO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if git cat-file -e "$COMMITLINT_FROM^{commit}" 2>/dev/null; then
+            pnpm commitlint --from "$COMMITLINT_FROM" --to "$COMMITLINT_TO" --verbose
+          else
+            pnpm commitlint --last --verbose
+          fi
 
       - name: Verify
         run: pnpm verify
