@@ -53,5 +53,5 @@ jobs:
         run: pnpm verify:references
         env:
           CODE_INDEX_ROOT: test/fixtures/reference-corpus
-          CODE_INDEX_PROJECT_FILE: tsconfig.json
+          CODE_INDEX_PROJECT_FILE: test/fixtures/reference-corpus/tsconfig.json
           CODE_INDEX_LOG_LEVEL: error
