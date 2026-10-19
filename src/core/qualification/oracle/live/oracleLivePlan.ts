@@ -12,9 +12,10 @@ import {
 	snapshotManifestOf,
 	writeOracleSnapshot,
 } from './oracleLiveCandidates.ts';
+import {oracleDependentsOf, type OracleDependencyRowType, type OracleDependentType} from './oracleDependencies.ts';
 import {recompileStatementOf, type OracleInstalledSourceType, type OracleSourceObjectRefType} from './oracleLiveSource.ts';
 import {type OracleLiveSettingsType} from './oracleLiveSettings.ts';
-import {BACKUP_SQL, DEPENDENCIES_SQL, IDENTIFIERS_SQL, VALIDATE_SQL} from './oracleLiveSql.ts';
+import {BACKUP_SQL, BASELINE_SQL, DEPENDENCIES_SQL, IDENTIFIERS_SQL} from './oracleLiveSql.ts';
 
 const SqlSchema = z.object({
 	path: z.string().min(1),
@@ -33,8 +34,15 @@ const SourceUnitSchema = z.object({
 	candidatePaths: z.array(z.string().min(1)).min(1),
 });
 
+const OracleDependentSchema = z.object({
+	type: z.string().min(1),
+	name: z.string().min(1),
+	compileClause: z.string(),
+	depth: z.number().int().positive(),
+});
+
 const LivePlanSchema = z.object({
-	version: z.literal(4),
+	version: z.literal(5),
 	approval: z.string().regex(/^[a-f0-9]{64}$/u),
 	createdAt: z.string().min(1),
 	project: z.object({
@@ -58,6 +66,8 @@ const LivePlanSchema = z.object({
 		files: z.array(z.object({path: z.string().min(1), sha256: z.string().min(1)})),
 		projectFiles: z.array(z.object({path: z.string().min(1), sha256: z.string().min(1)})),
 		units: z.array(SourceUnitSchema),
+		dependenciesChecked: z.boolean(),
+		dependents: z.array(OracleDependentSchema),
 		installed: z
 			.object({
 				objects: z.number().int().nonnegative(),
@@ -73,14 +83,18 @@ const LivePlanSchema = z.object({
 		identifiers: z.string().min(1),
 		dependencies: z.string().min(1),
 		backup: z.string().min(1),
+		baselineInvalidObjects: z.string().min(1),
 		invalidObjects: z.string().min(1),
 		compileLog: z.string().min(1),
+		dependentCompileLog: z.string().min(1),
 		report: z.string().min(1),
 		run: z.string().min(1),
 	}),
 	sql: z.object({
 		backup: SqlSchema,
+		baseline: SqlSchema,
 		compile: SqlSchema,
+		dependents: SqlSchema,
 		validate: SqlSchema,
 		identifiers: SqlSchema,
 		dependencies: SqlSchema,
@@ -132,13 +146,45 @@ const recompileSql = (units: readonly LivePlanSourceUnitType[]): string => {
 	return lines.join('\n');
 };
 
-const sqlFilesOf = (units: readonly LivePlanSourceUnitType[]): Readonly<Record<LiveSqlNameType, string>> => ({
+const dependentSql = (dependents: readonly OracleDependentType[]): string => {
+	const lines = [header('dependents.log'), 'WHENEVER SQLERROR CONTINUE'];
+
+	for (const object of dependents) {
+		lines.push(`PROMPT RECOMPILE-DEPENDENT:${object.type}:${object.name}`, `${recompileStatementOf(object)};`);
+	}
+
+	lines.push('SPOOL OFF', 'EXIT 0', '');
+	return lines.join('\n');
+};
+
+const sqlFilesOf = (units: readonly LivePlanSourceUnitType[], dependents: readonly OracleDependentType[]): Readonly<Record<LiveSqlNameType, string>> => ({
 	backup: BACKUP_SQL,
+	baseline: BASELINE_SQL,
 	compile: recompileSql(units),
-	validate: VALIDATE_SQL,
+	dependents: dependentSql(dependents),
+	validate: BASELINE_SQL,
 	identifiers: IDENTIFIERS_SQL,
 	dependencies: DEPENDENCIES_SQL,
 });
+
+const writePlanSql = (planDir: string, contents: Readonly<Record<LiveSqlNameType, string>>): LivePlanType['sql'] => {
+	const writeSql = (name: LiveSqlNameType, content: string): LivePlanType['sql'][LiveSqlNameType] => {
+		const sqlPath = path.join(planDir, `${name}.sql`);
+
+		writeFileSync(sqlPath, content, {encoding: 'utf8'});
+		return {path: sqlPath, sha256: sha256(content)};
+	};
+
+	return {
+		backup: writeSql('backup', contents.backup),
+		baseline: writeSql('baseline', contents.baseline),
+		compile: writeSql('compile', contents.compile),
+		dependents: writeSql('dependents', contents.dependents),
+		validate: writeSql('validate', contents.validate),
+		identifiers: writeSql('identifiers', contents.identifiers),
+		dependencies: writeSql('dependencies', contents.dependencies),
+	};
+};
 
 const snapshotProjectPath = (rootDir: string, projectFilePath: string, index: number): string => {
 	const relativePath = path.relative(rootDir, projectFilePath);
@@ -186,6 +232,7 @@ const copySnapshotManifests = (
  * @param config - Resolved Oracle workspace configuration.
  * @param settings - Environment-only live qualification settings.
  * @param installedSources - Installed source keyed by object, or null when planning offline.
+ * @param installedDependencies - Installed dependency edges, or null when planning offline.
  * @returns The written plan, including its approval hash.
  * @throws {Error} When a candidate file cannot be proven to match installed source.
  */
@@ -193,6 +240,7 @@ export const createOracleLivePlan = (
 	config: ConfigType,
 	settings: OracleLiveSettingsType,
 	installedSources: ReadonlyMap<string, OracleInstalledSourceType> | null = null,
+	installedDependencies: readonly OracleDependencyRowType[] | null = null,
 ): LivePlanType => {
 	const {outputDir} = settings;
 	const planDir = path.join(outputDir, 'plan');
@@ -208,6 +256,14 @@ export const createOracleLivePlan = (
 	if (selection.selected.length === 0) {
 		throw new Error('No installed Oracle object matches the qualification source snapshot');
 	}
+
+	const dependents =
+		installedDependencies === null
+			? []
+			: oracleDependentsOf(
+					selection.selected.map((entry) => entry.unit.object),
+					installedDependencies,
+				);
 
 	rmSync(planDir, {recursive: true, force: true});
 	rmSync(snapshotDir, {recursive: true, force: true});
@@ -231,22 +287,9 @@ export const createOracleLivePlan = (
 		throw new Error('Oracle qualification requires at least one project manifest');
 	}
 
-	const contents = sqlFilesOf(snapshot.units);
-	const writeSql = (name: LiveSqlNameType, content: string): LivePlanType['sql'][LiveSqlNameType] => {
-		const sqlPath = path.join(planDir, `${name}.sql`);
-
-		writeFileSync(sqlPath, content, {encoding: 'utf8'});
-		return {path: sqlPath, sha256: sha256(content)};
-	};
-	const sql = {
-		backup: writeSql('backup', contents.backup),
-		compile: writeSql('compile', contents.compile),
-		validate: writeSql('validate', contents.validate),
-		identifiers: writeSql('identifiers', contents.identifiers),
-		dependencies: writeSql('dependencies', contents.dependencies),
-	};
+	const sql = writePlanSql(planDir, sqlFilesOf(snapshot.units, dependents));
 	const planWithoutApproval = {
-		version: 4 as const,
+		version: 5 as const,
 		project: {
 			name: config.projectName,
 			id: config.projectId,
@@ -263,6 +306,8 @@ export const createOracleLivePlan = (
 			files: snapshot.files,
 			projectFiles,
 			units: snapshot.units,
+			dependenciesChecked: installedDependencies !== null,
+			dependents: [...dependents],
 			installed:
 				installedSources === null
 					? null
@@ -279,8 +324,10 @@ export const createOracleLivePlan = (
 			identifiers: path.join(outputDir, 'user-identifiers.csv'),
 			dependencies: path.join(outputDir, 'user-dependencies.csv'),
 			backup: path.join(outputDir, 'user-source-backup.csv'),
+			baselineInvalidObjects: path.join(outputDir, 'baseline-invalid-objects.csv'),
 			invalidObjects: path.join(outputDir, 'invalid-objects.csv'),
 			compileLog: path.join(outputDir, 'compile.log'),
+			dependentCompileLog: path.join(outputDir, 'dependents.log'),
 			report: path.join(outputDir, 'oracle-qualification.json'),
 			run: path.join(outputDir, 'run.json'),
 		},

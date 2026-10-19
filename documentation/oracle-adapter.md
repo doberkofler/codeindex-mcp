@@ -223,10 +223,11 @@ pnpm qualify:oracle:live --root /path/to/oracle/project
 
 The command generates an external manifest for every supported O1 source file
 under the root, including `.sql` package scripts, freezes the source, writes
-`backup.sql`, `compile.sql`, `validate.sql`, `identifiers.sql`, and
-`dependencies.sql`, and prints an approval hash. When credentials are present, it
-opens one read-only `oracledb` session and reads the complete `USER_SOURCE` text;
-no DDL runs before approval. Planning lexes every candidate file into individual
+`backup.sql`, `baseline.sql`, `compile.sql`, `dependents.sql`, `validate.sql`,
+`identifiers.sql`, and `dependencies.sql`, and prints an approval hash. When
+credentials are present, it performs a read-only `oracledb` inventory of the
+complete `USER_SOURCE` text and the schema's `USER_DEPENDENCIES` edges; no DDL
+runs before approval. Planning lexes every candidate file into individual
 package, package-body, function, and procedure units, groups them by object, and
 selects the candidate whose normalized source is exactly the installed source.
 Candidate files that cannot be proven to match abort planning before an approval
@@ -235,6 +236,14 @@ hashes. Multiple identical matches are recorded in the plan. Installed objects
 with no candidate file and wrapped installed objects are excluded from the
 snapshot, and `compile.sql` contains only `ALTER ... COMPILE` statements for the
 remaining installed objects. It never runs authored `CREATE OR REPLACE` scripts.
+
+Planning also computes the transitive non-target dependents of every compiled
+object and binds an ordered `ALTER ... COMPILE` statement for each supported
+dependent type (`VIEW`, `MATERIALIZED VIEW`, `TRIGGER`, `TYPE`, `TYPE BODY`,
+`SYNONYM`, and non-target PL/SQL) in `dependents.sql`. Direct dependents precede
+their dependents so nested views are restored in dependency order. A plan created
+without a database connection records that dependencies were not checked and
+contains an empty `dependents.sql`.
 
 The plan prints a database-change warning with the target schema. Review the
 generated SQL, then apply the same plan:
@@ -261,22 +270,33 @@ candidate paths, and normalized source hash.
 
 Apply performs these steps:
 
-1. Opens one `oracledb` session and backs up `USER_SOURCE`.
-2. Aborts if any installed object is missing or its normalized source hash
-   differs from the approved plan.
+1. Opens one `oracledb` session and captures the complete invalid-object
+   baseline before any DDL in `baseline-invalid-objects.csv`.
+2. Backs up `USER_SOURCE` and aborts if any installed object is missing or its
+   normalized source hash differs from the approved plan.
 3. Recompiles the installed package specifications, package bodies, functions,
    and procedures with `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`.
-4. Fails when `USER_OBJECTS` still contains invalid objects.
-5. Exports `USER_IDENTIFIERS` and `USER_DEPENDENCIES` through the `oracledb`
+4. Recompiles the approved transitive dependents from `dependents.sql`.
+5. Validates qualification target PL/SQL separately and fails when a target
+   remains invalid.
+6. Compares every invalid object with the baseline and fails only when an object
+   that was valid before the run is invalid afterwards.
+7. Exports `USER_IDENTIFIERS` and `USER_DEPENDENCIES` through the `oracledb`
    session.
-6. Rebuilds the snapshot index with the current parser using the plan's unit
+8. Rebuilds the snapshot index with the current parser using the plan's unit
    provenance.
-7. Compares facts and writes `oracle-qualification.json` and `run.json`.
+9. Compares facts and writes `oracle-qualification.json` and `run.json`.
+
+Objects that were already invalid before the run are reported in
+`baseline-invalid-objects.csv` and in the run output, including which ones were
+restored and which remained invalid. They are not attributed to the
+qualification run. A dependent recompile error does not stop the script; the
+independent invalid-object comparison decides whether restoration failed.
 
 Recompilation is database DDL. It does not replace source, but it can invalidate
 dependent objects and discard package state (`ORA-04068`). The command prints
-this warning before applying. Plan version 4 invalidates earlier plans that
-inventoried only object names or qualified files by filename.
+this warning before applying. Plan version 5 invalidates earlier plans that did
+not bind a dependent-recompilation script or a pre-DDL invalid-object baseline.
 
 `oracledb` is an optional dependency used only by live qualification; normal
 indexing and MCP operation never load it. SQL*Plus is retained only because it

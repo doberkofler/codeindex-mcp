@@ -101,14 +101,34 @@ const objectOfUnitKind = (kind: string, name: string): OracleSourceObjectRefType
 
 const quoteIdentifier = (value: string): string => `"${value.replaceAll('"', '""')}"`;
 
+export type OracleCompilableObjectType = Readonly<{
+	type: string;
+	name: string;
+	compileClause: string;
+}>;
+
+const compileTargetOf = (type: string): string => {
+	switch (type.toUpperCase()) {
+		case 'PACKAGE BODY': {
+			return 'PACKAGE';
+		}
+		case 'TYPE BODY': {
+			return 'TYPE';
+		}
+		default: {
+			return type.toUpperCase();
+		}
+	}
+};
+
 /**
  * Builds the exact `ALTER ... COMPILE` statement for one installed object.
  *
  * @param object - Installed object reference.
  * @returns A recompile statement without a trailing semicolon.
  */
-export const recompileStatementOf = (object: OracleSourceObjectRefType): string => {
-	const target = object.type === 'PACKAGE BODY' ? 'PACKAGE' : object.type;
+export const recompileStatementOf = (object: OracleCompilableObjectType): string => {
+	const target = compileTargetOf(object.type);
 	const clause = object.compileClause === '' ? '' : ` ${object.compileClause}`;
 
 	return `ALTER ${target} ${quoteIdentifier(object.name)} COMPILE${clause}`;

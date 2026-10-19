@@ -1,4 +1,5 @@
 import type OracleDB from 'oracledb';
+import {type OracleDependencyRowType} from './oracleDependencies.ts';
 import {oracleObjectKeyOf, type OracleInstalledSourceType} from './oracleLiveSource.ts';
 import {type OracleConnectionType} from './oracleLiveSettings.ts';
 
@@ -75,6 +76,51 @@ export const readInstalledOracleSources = async (connection: OracleConnectionTyp
 		}
 
 		return installed;
+	} finally {
+		await session.close();
+	}
+};
+
+/**
+ * Reads every dependency edge whose referenced object belongs to this schema.
+ *
+ * The rows let planning compute the transitive non-PL/SQL dependents that a
+ * recompile can invalidate. Reading is side-effect free.
+ *
+ * @param connection - Validated Oracle credentials.
+ * @returns Dependency edges in the connected schema.
+ * @throws {Error} When the optional Oracle driver is unavailable or a row is malformed.
+ */
+export const readInstalledOracleDependencies = async (connection: OracleConnectionType): Promise<readonly OracleDependencyRowType[]> => {
+	const driver = await loadDriver();
+	const session = await driver.getConnection({
+		user: connection.user,
+		password: connection.password,
+		connectString: connection.server,
+	});
+
+	try {
+		const result = await session.execute<readonly unknown[]>(
+			`SELECT name, type, referenced_name, referenced_type
+			   FROM user_dependencies
+			  WHERE referenced_owner = USER
+			  ORDER BY name, type, referenced_name, referenced_type`,
+			[],
+			{outFormat: driver.OUT_FORMAT_ARRAY},
+		);
+		const dependencies: OracleDependencyRowType[] = [];
+
+		for (const row of result.rows ?? []) {
+			const [name, type, referencedName, referencedType] = row;
+
+			if (typeof name !== 'string' || typeof type !== 'string' || typeof referencedName !== 'string' || typeof referencedType !== 'string') {
+				throw new TypeError('Installed Oracle dependency inventory contains an unexpected row shape');
+			}
+
+			dependencies.push({name, type, referencedName, referencedType});
+		}
+
+		return dependencies;
 	} finally {
 		await session.close();
 	}

@@ -9,9 +9,9 @@ export const BACKUP_SQL = `SELECT type, name, line, text
  WHERE type IN ('PACKAGE', 'PACKAGE BODY', 'FUNCTION', 'PROCEDURE')
  ORDER BY type, name, line`;
 
-export const VALIDATE_SQL = `SELECT object_type, object_name, status
+export const BASELINE_SQL = `SELECT object_type, object_name, status
   FROM user_objects
- WHERE status = 'INVALID'
+ WHERE status <> 'VALID'
  ORDER BY object_type, object_name`;
 
 export const IDENTIFIERS_SQL = `SELECT object_name, object_type, name, signature, type, usage, usage_id, line, col, usage_context_id

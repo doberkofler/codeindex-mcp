@@ -4,8 +4,8 @@ import path from 'node:path';
 import {DEFAULT_ORACLE_SOURCE_EXTENSIONS, type OracleManifestType} from '../../../../adapters/oracle/manifest.ts';
 import {indexRootDirectory, type ConfigType} from '../../../config/config.ts';
 import {qualifyOracleConfig} from '../runOracleQualification.ts';
-import {applyOracleLivePlan, type OracleLiveDependenciesType} from './oracleDatabase.ts';
-import {readInstalledOracleSources} from './oracleInventory.ts';
+import {applyOracleLivePlan, type OracleLiveApplyResultType, type OracleLiveDependenciesType} from './oracleDatabase.ts';
+import {readInstalledOracleDependencies, readInstalledOracleSources} from './oracleInventory.ts';
 import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from './oracleLivePlan.ts';
 import {readOracleLiveSettings, type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 
@@ -30,7 +30,7 @@ const schemaOf = (environment: NodeJS.ProcessEnv, settings: OracleLiveSettingsTy
 const writeDatabaseWarning = (io: LiveIoType, schema: string, applying: boolean, inventory: boolean): void => {
 	io.stdout('WARNING: ORACLE DATABASE CHANGES');
 	io.stdout(`  Schema: ${schema}`);
-	io.stdout('  Action: recompile installed PL/SQL objects with PLSCOPE_SETTINGS=IDENTIFIERS:ALL.');
+	io.stdout('  Action: recompile installed PL/SQL objects with PLSCOPE_SETTINGS=IDENTIFIERS:ALL, then approved dependents.');
 	io.stdout('  It does not replace source, but it can invalidate dependent objects and discard package state (ORA-04068).');
 
 	if (!applying && inventory) {
@@ -127,7 +127,15 @@ const snapshotConfig = (plan: LivePlanType): ConfigType => {
 	};
 };
 
-const writeRunMetadata = (plan: LivePlanType, settings: OracleLiveSettingsType, result: Awaited<ReturnType<typeof qualifyOracleConfig>>): void => {
+const invalidNames = (objects: OracleLiveApplyResultType['baselineInvalid']): string =>
+	objects.map((object) => `${object.objectType} ${object.objectName}`).join('; ');
+
+const writeRunMetadata = (
+	plan: LivePlanType,
+	settings: OracleLiveSettingsType,
+	applied: OracleLiveApplyResultType,
+	result: Awaited<ReturnType<typeof qualifyOracleConfig>>,
+): void => {
 	writeFileSync(
 		plan.output.run,
 		`${JSON.stringify(
@@ -146,10 +154,17 @@ const writeRunMetadata = (plan: LivePlanType, settings: OracleLiveSettingsType, 
 				completedAt: new Date().toISOString(),
 				generationId: result.report.generationId,
 				gates: result.report.gates,
+				invalidObjects: {
+					baseline: applied.baselineInvalid.length,
+					remainingBaseline: applied.remainingBaselineInvalid.map((object) => `${object.objectType} ${object.objectName}`),
+					restoredBaseline: applied.restoredBaselineInvalid.map((object) => `${object.objectType} ${object.objectName}`),
+				},
 				artifacts: {
 					backup: plan.output.backup,
+					baselineInvalidObjects: plan.output.baselineInvalidObjects,
 					invalidObjects: plan.output.invalidObjects,
 					compileLog: plan.output.compileLog,
+					dependentCompileLog: plan.output.dependentCompileLog,
 					identifiers: plan.output.identifiers,
 					dependencies: plan.output.dependencies,
 					report: plan.output.report,
@@ -205,7 +220,8 @@ export const runOracleLiveQualification = async (
 			const manifestPath = manifestOf(environment, options, outputDir);
 			const config = configOf(rootDir, manifestPath, outputDir, projectId);
 			const installedSources = settings.connection === null ? null : await readInstalledOracleSources(settings.connection);
-			const plan = createOracleLivePlan(config, settings, installedSources);
+			const installedDependencies = settings.connection === null ? null : await readInstalledOracleDependencies(settings.connection);
+			const plan = createOracleLivePlan(config, settings, installedSources, installedDependencies);
 
 			io.stdout(`Oracle qualification plan: ${plan.output.planDir}`);
 			io.stdout(`Source root: ${rootDir}`);
@@ -214,6 +230,7 @@ export const runOracleLiveQualification = async (
 			io.stdout(
 				`Installed objects: ${installedSources === null ? 'not checked' : `${String(installedSources.size)}; missing source: ${String(plan.snapshot.installed?.missingSource ?? 0)}`}`,
 			);
+			io.stdout(`Dependents: ${plan.snapshot.dependenciesChecked ? String(plan.snapshot.dependents.length) : 'not checked (no database connection)'}`);
 			io.stdout(`Files: ${plan.snapshot.files.length}; units: ${plan.snapshot.units.length}; source hash: ${plan.snapshot.sourceHash}`);
 			io.stdout(`Approval: ${plan.approval}`);
 			io.stdout(`To apply: ${applyCommand(options, rootDir, outputDir, plan.approval)}`);
@@ -221,8 +238,17 @@ export const runOracleLiveQualification = async (
 		}
 
 		const plan = readOracleLivePlan(settings);
+		const applied = await applyOracleLivePlan(plan, settings, environment, dependencies);
 
-		await applyOracleLivePlan(plan, settings, environment, dependencies);
+		if (applied.baselineInvalid.length > 0) {
+			io.stdout(`Baseline invalid objects: ${String(applied.baselineInvalid.length)} pre-existing; not attributed to qualification`);
+			io.stdout(`  Restored: ${String(applied.restoredBaselineInvalid.length)}`);
+
+			if (applied.remainingBaselineInvalid.length > 0) {
+				io.stdout(`  Still invalid: ${invalidNames(applied.remainingBaselineInvalid)}`);
+			}
+		}
+
 		const result = await qualifyOracleConfig(snapshotConfig(plan), io, {
 			identifiers: plan.output.identifiers,
 			dependencies: plan.output.dependencies,
@@ -230,7 +256,7 @@ export const runOracleLiveQualification = async (
 			units: plan.snapshot.units,
 		});
 
-		writeRunMetadata(plan, settings, result);
+		writeRunMetadata(plan, settings, applied, result);
 		return result.code;
 	} catch (error) {
 		io.stderr(error instanceof Error ? error.message : String(error));

@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {readInstalledOracleSources} from '../src/core/qualification/oracle/live/oracleInventory.ts';
+import {readInstalledOracleDependencies, readInstalledOracleSources} from '../src/core/qualification/oracle/live/oracleInventory.ts';
 import {oracleObjectKeyOf} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
 
 const mocks = vi.hoisted(() => ({
@@ -54,6 +54,31 @@ describe('Oracle installed source inventory', () => {
 		mocks.execute.mockResolvedValue({rows: [['PACKAGE', 'HR_API', 1]]});
 
 		await expect(readInstalledOracleSources(connection)).rejects.toThrow(/unexpected row shape/u);
+		expect(mocks.close).toHaveBeenCalledWith();
+	});
+
+	it('reads same-schema dependency edges and closes the session', async () => {
+		mocks.execute.mockResolvedValue({
+			rows: [
+				['HR_VIEW', 'VIEW', 'HR_API', 'PACKAGE'],
+				['HR_VIEW_CHILD', 'VIEW', 'HR_VIEW', 'VIEW'],
+			],
+		});
+
+		const dependencies = await readInstalledOracleDependencies(connection);
+
+		expect(dependencies).toStrictEqual([
+			{name: 'HR_VIEW', type: 'VIEW', referencedName: 'HR_API', referencedType: 'PACKAGE'},
+			{name: 'HR_VIEW_CHILD', type: 'VIEW', referencedName: 'HR_VIEW', referencedType: 'VIEW'},
+		]);
+		expect(mocks.execute.mock.calls[0]?.[0]).toContain('referenced_owner = USER');
+		expect(mocks.close).toHaveBeenCalledWith();
+	});
+
+	it('rejects an unexpected dependency row shape', async () => {
+		mocks.execute.mockResolvedValue({rows: [['HR_VIEW', 'VIEW', 'HR_API']]});
+
+		await expect(readInstalledOracleDependencies(connection)).rejects.toThrow(/unexpected row shape/u);
 		expect(mocks.close).toHaveBeenCalledWith();
 	});
 });

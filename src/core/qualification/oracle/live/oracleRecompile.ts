@@ -49,6 +49,36 @@ const defaultSqlplusRunner: SqlplusRunnerType = (request) => {
 
 const tail = (value: string): string => value.trim().slice(-2000);
 
+type ScriptRequestType = Readonly<{
+	plan: LivePlanType;
+	settings: OracleLiveSettingsType;
+	environment: NodeJS.ProcessEnv;
+	runner: SqlplusRunnerType;
+	sqlPath: string;
+	label: string;
+}>;
+
+const runScript = (request: ScriptRequestType): void => {
+	const {plan, settings, environment, runner, sqlPath, label} = request;
+
+	if (settings.connection === null) {
+		throw new Error('Oracle live qualification apply requires a database connection');
+	}
+
+	const result = runner({
+		executable: settings.sqlplus,
+		cwd: plan.output.dir,
+		input: `${connectionLine(settings.connection)}\n@"${sqlPath}"\n`,
+		timeoutMs: settings.timeoutMs,
+		environment,
+	});
+
+	if (result.status !== 0) {
+		const detail = tail(result.stderr) || tail(result.stdout);
+		throw new Error(`${label} failed${detail === '' ? '' : `\n${detail}`}`);
+	}
+};
+
 /**
  * Recompiles the installed qualification objects with PL/Scope enabled.
  *
@@ -67,20 +97,26 @@ export const recompileOracleObjects = (
 	environment: NodeJS.ProcessEnv,
 	runner: SqlplusRunnerType = defaultSqlplusRunner,
 ): void => {
-	if (settings.connection === null) {
-		throw new Error('Oracle live qualification apply requires a database connection');
-	}
+	runScript({plan, settings, environment, runner, sqlPath: plan.sql.compile.path, label: 'Oracle recompile step'});
+};
 
-	const result = runner({
-		executable: settings.sqlplus,
-		cwd: plan.output.dir,
-		input: `${connectionLine(settings.connection)}\n@"${plan.sql.compile.path}"\n`,
-		timeoutMs: settings.timeoutMs,
-		environment,
-	});
-
-	if (result.status !== 0) {
-		const detail = tail(result.stderr) || tail(result.stdout);
-		throw new Error(`Oracle recompile step failed${detail === '' ? '' : `\n${detail}`}`);
-	}
+/**
+ * Recompiles the approved dependent objects after the qualification targets.
+ *
+ * The script deliberately continues after an `ALTER ... COMPILE` error so a
+ * pre-existing invalid dependent cannot hide the target validation that follows.
+ * The independent invalid-object comparison decides whether the run failed.
+ *
+ * @param plan - Approved and hash-verified plan.
+ * @param settings - Settings containing the Oracle connection and SQL*Plus executable.
+ * @param environment - Parent environment forwarded without Oracle credentials.
+ * @param runner - SQL*Plus runner, injectable for tests.
+ */
+export const recompileOracleDependents = (
+	plan: LivePlanType,
+	settings: OracleLiveSettingsType,
+	environment: NodeJS.ProcessEnv,
+	runner: SqlplusRunnerType = defaultSqlplusRunner,
+): void => {
+	runScript({plan, settings, environment, runner, sqlPath: plan.sql.dependents.path, label: 'Oracle dependent recompile step'});
 };

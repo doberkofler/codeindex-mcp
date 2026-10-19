@@ -1,117 +1,10 @@
 import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {scanOracleProject} from '../src/adapters/oracle/scanProject.ts';
 import {applyOracleLivePlan} from '../src/core/qualification/oracle/live/oracleDatabase.ts';
-import {
-	normalizeOracleSource,
-	oracleObjectKeyOf,
-	oracleSourceUnitsOf,
-	type OracleInstalledSourceType,
-} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
+import {normalizeOracleSource, oracleObjectKeyOf, type OracleInstalledSourceType} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
 import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
-import {type SqlplusRequestType} from '../src/core/qualification/oracle/live/oracleRecompile.ts';
-import {readOracleLiveSettings, type OracleLiveSettingsType} from '../src/core/qualification/oracle/live/oracleLiveSettings.ts';
-import {runOracleLiveQualification} from '../src/core/qualification/oracle/live/runOracleLiveQualification.ts';
-import {runCli} from '../src/transports/cli/runCli.ts';
-import {createFixtureConfig} from './helpers/fixture.ts';
-
-const fixture = (): ReturnType<typeof createFixtureConfig> => createFixtureConfig('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
-
-const settingsOf = (outputDir: string, approval: string | null = null): OracleLiveSettingsType => ({
-	outputDir,
-	sqlplus: 'sqlplus',
-	timeoutMs: 1000,
-	approval,
-	connection: approval === null ? null : {server: 'server', user: 'user', password: 'secret'},
-});
-
-const capture = (): Readonly<{stdout: string[]; stderr: string[]; io: Readonly<{stdout: (line: string) => void; stderr: (line: string) => void}>}> => {
-	const stdout: string[] = [];
-	const stderr: string[] = [];
-
-	return {
-		stdout,
-		stderr,
-		io: {
-			stdout: (line) => {
-				stdout.push(line);
-			},
-			stderr: (line) => {
-				stderr.push(line);
-			},
-		},
-	};
-};
-
-type StubDatabaseType = Readonly<{
-	query: (sql: string) => Promise<readonly (readonly unknown[])[]>;
-	close: () => Promise<void>;
-}>;
-
-const stubDatabase =
-	(backup: readonly (readonly unknown[])[] = []): (() => Promise<StubDatabaseType>) =>
-	async (): Promise<StubDatabaseType> => {
-		await Promise.resolve();
-
-		return {
-			query: async (sql: string): Promise<readonly (readonly unknown[])[]> => {
-				await Promise.resolve();
-				return sql.includes('FROM user_source') ? backup : [];
-			},
-			close: async (): Promise<void> => {
-				await Promise.resolve();
-			},
-		};
-	};
-
-const sourceRows = (plan: LivePlanType): readonly (readonly unknown[])[] =>
-	plan.snapshot.units.flatMap((unit) =>
-		normalizeOracleSource(readFileSync(path.join(plan.snapshot.dir, unit.path), 'utf8'), unit)
-			.split('\n')
-			.map((text, index) => [unit.type, unit.name, index + 1, text]),
-	);
-
-const installedSourcesOf = (config: Parameters<typeof scanOracleProject>[0]): ReadonlyMap<string, OracleInstalledSourceType> => {
-	const installed = new Map<string, OracleInstalledSourceType>();
-
-	for (const file of scanOracleProject(config).files) {
-		for (const unit of oracleSourceUnitsOf(file.path, readFileSync(file.absolutePath, 'utf8'))) {
-			installed.set(oracleObjectKeyOf(unit.object.type, unit.object.name), {
-				type: unit.object.type,
-				name: unit.object.name,
-				source: unit.source,
-			});
-		}
-	}
-
-	return installed;
-};
-
-const qualificationConfig = (config: ReturnType<typeof fixture>['config'], manifestPath: string): ReturnType<typeof fixture>['config'] => ({
-	...config,
-	projectFilePath: manifestPath,
-	projects: [{name: 'app', projectFilePath: manifestPath}],
-});
-
-const writeSelectionManifest = (manifestPath: string): void => {
-	writeFileSync(
-		manifestPath,
-		`${JSON.stringify(
-			{
-				schemaVersion: 1,
-				dialect: '19c',
-				defaultSchema: 'APP',
-				extensions: ['.pks', '.pkb', '.sql'],
-				include: ['database/**/*.pks', 'database/**/*.pkb', 'database/**/*.sql'],
-				exclude: [],
-			},
-			null,
-			2,
-		)}\n`,
-		{encoding: 'utf8'},
-	);
-};
+import {fixture, installedSourcesOf, qualificationConfig, settingsOf, sourceRows, writeSelectionManifest} from './helpers/oracleLive.ts';
 
 describe('Oracle live qualification plan', () => {
 	it('creates a frozen snapshot, ordered SQL, and an approval hash without credentials', () => {
@@ -129,10 +22,42 @@ describe('Oracle live qualification plan', () => {
 			expect(compile.indexOf('COMPILE SPECIFICATION')).toBeLessThan(compile.indexOf('COMPILE BODY'));
 			expect(compile).not.toContain('@"');
 			expect(compile).toContain("ALTER SESSION SET PLSCOPE_SETTINGS = 'IDENTIFIERS:ALL';");
+			expect(readFileSync(plan.sql.baseline.path, 'utf8')).toContain("status <> 'VALID'");
+			expect(readFileSync(plan.sql.dependents.path, 'utf8')).toContain('WHENEVER SQLERROR CONTINUE');
 			expect(readFileSync(plan.sql.identifiers.path, 'utf8')).toContain('user_identifiers');
 			expect(readFileSync(plan.sql.dependencies.path, 'utf8')).toContain('user_dependencies');
 			expect(readFileSync(path.join(outputDir, 'plan.json'), 'utf8')).not.toContain('secret');
+			expect(plan.snapshot.dependenciesChecked).toBe(false);
+			expect(plan.snapshot.dependents).toStrictEqual([]);
 			expect(plan.approval).toMatch(/^[a-f0-9]{64}$/u);
+		} finally {
+			context.cleanup();
+		}
+	});
+
+	it('binds transitive dependent recompilation in dependency order', () => {
+		const context = fixture();
+
+		try {
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const dependencies = [
+				{name: 'HR_VIEW', type: 'VIEW', referencedName: 'HR_API', referencedType: 'PACKAGE'},
+				{name: 'HR_VIEW_CHILD', type: 'VIEW', referencedName: 'HR_VIEW', referencedType: 'VIEW'},
+				{name: 'HR_TRIGGER', type: 'TRIGGER', referencedName: 'HR_API', referencedType: 'PACKAGE'},
+				{name: 'HR_VIEW_ON_SALES', type: 'VIEW', referencedName: 'SALES_API', referencedType: 'PACKAGE'},
+				{name: 'HR_TABLE', type: 'TABLE', referencedName: 'HR_API', referencedType: 'PACKAGE'},
+			];
+			const plan = createOracleLivePlan(context.config, settingsOf(outputDir), installedSourcesOf(context.config), dependencies);
+			const dependentSql = readFileSync(plan.sql.dependents.path, 'utf8');
+
+			expect(plan.snapshot.dependenciesChecked).toBe(true);
+			expect(plan.snapshot.dependents.map((dependent) => dependent.name)).toStrictEqual(['HR_TRIGGER', 'HR_VIEW', 'HR_VIEW_ON_SALES', 'HR_VIEW_CHILD']);
+			expect(plan.snapshot.dependents.map((dependent) => dependent.depth)).toStrictEqual([1, 1, 1, 2]);
+			expect(dependentSql).toContain('ALTER TRIGGER "HR_TRIGGER" COMPILE;');
+			expect(dependentSql).toContain('ALTER VIEW "HR_VIEW" COMPILE;');
+			expect(dependentSql).toContain('ALTER VIEW "HR_VIEW_CHILD" COMPILE;');
+			expect(dependentSql).not.toContain('HR_TABLE');
+			expect(dependentSql.indexOf('"HR_VIEW"')).toBeLessThan(dependentSql.indexOf('"HR_VIEW_CHILD"'));
 		} finally {
 			context.cleanup();
 		}
@@ -247,7 +172,7 @@ describe('Oracle live qualification source selection', () => {
 			writeSelectionManifest(manifestPath);
 			mkdirSync(outputDir, {recursive: true});
 
-			const installed = new Map([
+			const installed: ReadonlyMap<string, OracleInstalledSourceType> = new Map([
 				[oracleObjectKeyOf('PACKAGE', 'HR_API'), {type: 'PACKAGE', name: 'HR_API', source: 'PACKAGE HR_API IS\nPROCEDURE missing_from_source;\nEND HR_API;'}],
 			]);
 
@@ -279,71 +204,6 @@ describe('Oracle live qualification approval', () => {
 	});
 });
 
-describe('Oracle live qualification application', () => {
-	it('backs up, compiles, validates, and exports through the injected adapters', async () => {
-		const context = fixture();
-
-		try {
-			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
-			const plan: LivePlanType = createOracleLivePlan(context.config, settingsOf(outputDir));
-			const approved = settingsOf(outputDir, plan.approval);
-			const requests: SqlplusRequestType[] = [];
-			const events: string[] = [];
-
-			await applyOracleLivePlan(
-				plan,
-				approved,
-				{},
-				{
-					sqlplusRunner: (request) => {
-						events.push('compile');
-						requests.push(request);
-						return {status: 0, stdout: '', stderr: ''};
-					},
-					databaseFactory: async (): Promise<{query: (sql: string) => Promise<readonly (readonly unknown[])[]>; close: () => Promise<void>}> => {
-						await Promise.resolve();
-						return {
-							query: async (sql: string): Promise<readonly (readonly unknown[])[]> => {
-								await Promise.resolve();
-								if (sql.includes('FROM user_source')) {
-									events.push('backup');
-									return sourceRows(plan);
-								}
-								if (sql.includes("status = 'INVALID'")) {
-									events.push('validate');
-									return [];
-								}
-								if (sql.includes('FROM user_identifiers')) {
-									events.push('identifiers');
-									return [['HR_API', 'PACKAGE', 'RUN', '', 'PROCEDURE', 'DECLARATION', 1, 1, 9, 1]];
-								}
-								if (sql.includes('FROM user_dependencies')) {
-									events.push('dependencies');
-									return [];
-								}
-								throw new Error(`Unexpected SQL: ${sql}`);
-							},
-							close: async (): Promise<void> => {
-								await Promise.resolve();
-								events.push('close');
-							},
-						};
-					},
-				},
-			);
-
-			expect(events).toStrictEqual(['backup', 'compile', 'validate', 'identifiers', 'dependencies', 'close']);
-			expect(requests).toHaveLength(1);
-			expect(requests[0]?.input).toContain('connect "user"/"secret"@server');
-			expect(readFileSync(plan.output.backup, 'utf8')).toContain('HR_API');
-			expect(readFileSync(plan.output.identifiers, 'utf8')).toContain('RUN');
-			expect(readFileSync(plan.output.invalidObjects, 'utf8')).toBe('');
-		} finally {
-			context.cleanup();
-		}
-	});
-});
-
 describe('Oracle live qualification drift', () => {
 	it('ignores file comments, keyword case, and AS/IS spelling during normalization', () => {
 		const authored = '/*** header ***/\n-- note\nCREATE OR REPLACE\nPackage X as\nPROCEDURE P;\nEND X;\n/\n';
@@ -366,7 +226,7 @@ describe('Oracle live qualification drift', () => {
 
 		try {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
-			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
+			const plan: LivePlanType = createOracleLivePlan(context.config, settingsOf(outputDir));
 			const approved = settingsOf(outputDir, plan.approval);
 			const altered = sourceRows(plan).map((row, index) => (index === 0 ? [row[0], row[1], row[2], String(row[3]).replace('hr_api', 'hr_apx')] : row));
 			let recompiled = false;
@@ -381,7 +241,19 @@ describe('Oracle live qualification drift', () => {
 							recompiled = true;
 							return {status: 0, stdout: '', stderr: ''};
 						},
-						databaseFactory: stubDatabase(altered),
+						databaseFactory: async (): Promise<{query: (sql: string) => Promise<readonly (readonly unknown[])[]>; close: () => Promise<void>}> => {
+							await Promise.resolve();
+
+							return {
+								query: async (sql: string): Promise<readonly (readonly unknown[])[]> => {
+									await Promise.resolve();
+									return sql.includes('FROM user_source') ? altered : [];
+								},
+								close: async (): Promise<void> => {
+									await Promise.resolve();
+								},
+							};
+						},
 					},
 				),
 			).rejects.toThrow(/differs from the snapshot/u);
@@ -390,78 +262,5 @@ describe('Oracle live qualification drift', () => {
 		} finally {
 			context.cleanup();
 		}
-	});
-});
-
-describe('Oracle live qualification run', () => {
-	it('applies an approved plan from the frozen snapshot', async () => {
-		const context = fixture();
-		const captured = capture();
-
-		try {
-			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
-			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
-			const code = await runOracleLiveQualification(
-				{ORACLE_SERVER: 'server', ORACLE_USER: 'user', ORACLE_PASSWORD: 'secret'},
-				{root: context.config.rootDir, output: outputDir, approval: plan.approval},
-				captured.io,
-				{
-					sqlplusRunner: () => ({status: 0, stdout: '', stderr: ''}),
-					databaseFactory: stubDatabase(sourceRows(plan)),
-				},
-			);
-
-			expect(captured.stderr).toStrictEqual([]);
-			expect(existsSync(plan.output.run)).toBe(true);
-			expect([0, 1]).toContain(code);
-		} finally {
-			context.cleanup();
-		}
-	});
-
-	it('requires output outside the indexed workspace', () => {
-		const context = fixture();
-
-		try {
-			expect(() => readOracleLiveSettings({}, {rootDir: context.config.rootDir, outputDir: path.join(context.config.rootDir, 'results')})).toThrow(
-				/outside the indexed workspace/u,
-			);
-		} finally {
-			context.cleanup();
-		}
-	});
-});
-
-describe('Oracle live qualification command', () => {
-	it('creates a plan from only a source root', async () => {
-		const context = fixture();
-		const captured = capture();
-
-		try {
-			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
-			const code = await runCli(['qualify-oracle-live', '--root', context.config.rootDir, '--schema', 'HR', '--output', outputDir], {}, captured.io);
-
-			expect(captured.stderr).toStrictEqual([]);
-			expect(code).toBe(0);
-			expect(captured.stdout.join('\n')).toContain('WARNING: ORACLE DATABASE CHANGES');
-			expect(captured.stdout.join('\n')).toContain('No database connection has been made');
-			expect(captured.stdout.join('\n')).toContain('Approval:');
-			expect(captured.stdout.join('\n')).toMatch(/To apply: pnpm qualify:oracle:live --root /u);
-			expect(captured.stdout.join('\n')).not.toContain('-- --root');
-
-			const plan = readFileSync(path.join(outputDir, 'plan.json'), 'utf8');
-			expect(plan).toContain('"path": "manifests/0-oracle-index.json"');
-			expect(existsSync(path.join(outputDir, 'workspace', 'manifests', '0-oracle-index.json'))).toBe(true);
-		} finally {
-			context.cleanup();
-		}
-	});
-
-	it('requires a source root argument', async () => {
-		const captured = capture();
-		const code = await runCli(['qualify-oracle-live'], {}, captured.io);
-
-		expect(code).toBe(2);
-		expect(captured.stderr.join('\n')).toContain('requires --root');
 	});
 });
