@@ -64,6 +64,7 @@
 	"dependencies": {
 		"@modelcontextprotocol/server": "2.3.1",
 		"antlr4ng": "3.0.16",
+		"chokidar": "5.0.0",
 		"commander": "15.0.0",
 		"debug": "4.4.3",
 		"jsonc-parser": "3.3.1",
