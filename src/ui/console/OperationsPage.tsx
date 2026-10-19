@@ -23,8 +23,6 @@ import BuildIcon from '@mui/icons-material/Build';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import SpeedIcon from '@mui/icons-material/Speed';
-import SettingsIcon from '@mui/icons-material/Settings';
 import {type ConsoleJobType, type ConsoleOperationType, type ConsoleSnapshotType} from '../../transports/console/contracts.ts';
 import {formatDuration, formatTimestamp} from './format.ts';
 
@@ -41,13 +39,6 @@ const OPERATION_CARDS: readonly Readonly<{operation: ConsoleOperationType; title
 	{operation: 'update', title: 'Update index', description: 'Reuse the published generation when nothing changed, otherwise rebuild it.', icon: RefreshIcon},
 	{operation: 'rebuild', title: 'Force rebuild', description: 'Publish a fresh generation even when hashes still match.', icon: BuildIcon},
 	{operation: 'verify', title: 'Verify integrity', description: 'Check SQLite integrity, foreign keys, and persisted row counts.', icon: FactCheckIcon},
-	{
-		operation: 'mcp-install',
-		title: 'Install MCP entry',
-		description: 'Add or repair the project-local codeindex server registration. Uninstall remains CLI-only.',
-		icon: SettingsIcon,
-	},
-	{operation: 'benchmark', title: 'Run benchmark', description: 'Measure build and warm query latency locally without model calls.', icon: SpeedIcon},
 	{
 		operation: 'verify-references',
 		title: 'Verify references',
