@@ -1,6 +1,4 @@
-import {mkdirSync} from 'node:fs';
-import path from 'node:path';
-import {DatabaseSync} from 'node:sqlite';
+import {type DatabaseSync} from 'node:sqlite';
 import {
 	type BuildLeaseType,
 	type DiagnosticType,
@@ -41,7 +39,8 @@ import {
 } from './databaseDependency.ts';
 import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContextType} from './databaseIdentity.ts';
 import {acquireLease, ownsLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
-import {explainQueryPlan, recreateIfIncompatible} from './databaseOpen.ts';
+import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
+import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
 import {asNumber, asString, SYMBOL_COLUMNS, toSymbolSummary} from './databaseRows.ts';
 import {
@@ -53,9 +52,7 @@ import {
 } from './databaseContextQueries.ts';
 import {findReferences as findStoredReferences, findSymbols as findStoredSymbols, outlineQuerySql} from './databaseSymbolQueries.ts';
 import {transaction} from './databaseTransaction.ts';
-import {SCHEMA_SQL, SCHEMA_VERSION} from './schema.ts';
 
-const {dirname} = path;
 const debug = debugFor('database');
 
 export type {DatabaseOpenContextType} from './databaseIdentity.ts';
@@ -72,11 +69,13 @@ export class IndexDatabase {
 	readonly #reader: DatabaseSync;
 	readonly #writer: DatabaseSync;
 	readonly #projectId: string;
+	readonly #owner: ProcessOwnerType | null;
 
-	private constructor(reader: DatabaseSync, writer: DatabaseSync, projectId: string) {
+	private constructor(reader: DatabaseSync, writer: DatabaseSync, projectId: string, owner: ProcessOwnerType | null) {
 		this.#reader = reader;
 		this.#writer = writer;
 		this.#projectId = projectId;
+		this.#owner = owner;
 	}
 
 	/**
@@ -87,31 +86,22 @@ export class IndexDatabase {
 	 * @returns The opened database.
 	 */
 	public static open(databasePath: string, context: DatabaseOpenContextType = {}): IndexDatabase {
-		if (databasePath !== ':memory:') {
-			mkdirSync(dirname(databasePath), {recursive: true});
-			recreateIfIncompatible(databasePath, SCHEMA_VERSION);
+		const owner = databasePath === ':memory:' ? null : registerProcessOwner(databasePath);
+
+		try {
+			const {writer, reader} = openDatabaseConnections(databasePath);
+			const projectId = context.projectId ?? 'default';
+			const database = new IndexDatabase(reader, writer, projectId, owner);
+			ensureMetadata(writer);
+			ensureIdentity({writer, reader, context, databasePath});
+			database.discardIncompleteGenerations();
+			debug('database opened', {path: databasePath, projectId});
+
+			return database;
+		} catch (error) {
+			owner?.release();
+			throw error;
 		}
-
-		const writer = new DatabaseSync(databasePath);
-
-		writer.exec('pragma journal_mode = wal');
-		writer.exec('pragma foreign_keys = on');
-		writer.exec('pragma busy_timeout = 5000');
-		writer.exec(SCHEMA_SQL);
-
-		const reader = databasePath === ':memory:' ? writer : new DatabaseSync(databasePath, {readOnly: true});
-
-		reader.exec('pragma foreign_keys = on');
-		reader.exec('pragma busy_timeout = 5000');
-
-		const projectId = context.projectId ?? 'default';
-		const database = new IndexDatabase(reader, writer, projectId);
-		ensureMetadata(writer);
-		ensureIdentity({writer, reader, context, databasePath});
-		database.discardIncompleteGenerations();
-		debug('database opened', {path: databasePath, projectId});
-
-		return database;
 	}
 
 	public getWorkingCopy(): WorkingCopyIdentityType | null {
@@ -487,11 +477,16 @@ export class IndexDatabase {
 
 	public close(): void {
 		debug('close database');
-		if (this.#reader !== this.#writer) {
-			this.#reader.close();
-		}
 
-		this.#writer.close();
+		try {
+			if (this.#reader !== this.#writer) {
+				this.#reader.close();
+			}
+
+			this.#writer.close();
+		} finally {
+			this.#owner?.release();
+		}
 	}
 
 	#transaction(action: () => void): void {

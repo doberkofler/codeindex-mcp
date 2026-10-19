@@ -1,7 +1,9 @@
-import {existsSync, renameSync, rmSync} from 'node:fs';
+import {existsSync, mkdirSync, renameSync, rmSync} from 'node:fs';
+import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {debugFor} from '../logging/debug.ts';
 import {asString} from './databaseRows.ts';
+import {SCHEMA_SQL, SCHEMA_VERSION} from './schema.ts';
 
 const debug = debugFor('database');
 
@@ -57,7 +59,7 @@ const backupIncompatibleDatabase = (databasePath: string, version: string | null
  * @param databasePath - SQLite file path.
  * @param expectedVersion - Required schema version.
  */
-export const recreateIfIncompatible = (databasePath: string, expectedVersion: string): void => {
+const recreateIfIncompatible = (databasePath: string, expectedVersion: string): void => {
 	if (databasePath === ':memory:' || !existsSync(databasePath)) {
 		return;
 	}
@@ -67,4 +69,33 @@ export const recreateIfIncompatible = (databasePath: string, expectedVersion: st
 	if (version !== expectedVersion) {
 		backupIncompatibleDatabase(databasePath, version);
 	}
+};
+
+/**
+ * Opens the writer and reader connections for one index database.
+ *
+ * Incompatible derived data is moved aside before the writer opens the file.
+ *
+ * @param databasePath - SQLite file path, or `:memory:` for a single connection.
+ * @returns Writer and read-only connections to the current schema.
+ */
+export const openDatabaseConnections = (databasePath: string): Readonly<{writer: DatabaseSync; reader: DatabaseSync}> => {
+	if (databasePath !== ':memory:') {
+		mkdirSync(path.dirname(databasePath), {recursive: true});
+		recreateIfIncompatible(databasePath, SCHEMA_VERSION);
+	}
+
+	const writer = new DatabaseSync(databasePath);
+
+	writer.exec('pragma journal_mode = wal');
+	writer.exec('pragma foreign_keys = on');
+	writer.exec('pragma busy_timeout = 5000');
+	writer.exec(SCHEMA_SQL);
+
+	const reader = databasePath === ':memory:' ? writer : new DatabaseSync(databasePath, {readOnly: true});
+
+	reader.exec('pragma foreign_keys = on');
+	reader.exec('pragma busy_timeout = 5000');
+
+	return {writer, reader};
 };

@@ -1,9 +1,9 @@
-import {spawnSync} from 'node:child_process';
 import {existsSync, lstatSync, readdirSync, rmSync, type Dirent} from 'node:fs';
 import {homedir, tmpdir} from 'node:os';
 import path from 'node:path';
 import {parseArgs} from 'node:util';
 import {indexRootDirectory} from './config/config.ts';
+import {activeProcessOwners} from './storage/processOwnership.ts';
 
 const {isAbsolute, join, relative, resolve} = path;
 
@@ -127,17 +127,27 @@ const childTargets = (root: string, pattern: RegExp, protectedPaths: readonly st
 	});
 };
 
+const assertNoActiveIndexProcesses = (indexRoot: string): void => {
+	const active = activeProcessOwners(indexRoot);
+
+	if (active.length > 0) {
+		throw new Error(`Refusing to clean while code index processes are active:\n${active.map((owner) => `${owner.pid}: ${owner.file}`).join('\n')}`);
+	}
+};
+
 /**
  * Collects code index cache directories that are safe to delete.
  *
  * @param roots - Cache roots and paths that must never be deleted.
  * @param options - Whether to keep index databases.
  * @returns Existing targets with their recursive sizes.
- * @throws {Error} When a root is unsafe or contains a protected path.
+ * @throws {Error} When a root is unsafe, contains a protected path, or a live
+ * process still owns an index database.
  */
 export const collectCleanupTargets = (roots: CleanupRootsType, options: CleanupOptionsType): readonly CleanupTargetType[] => {
 	assertSafeRoot(roots.opencode, 'opencode root', roots.protectedPaths);
 	assertSafeRoot(roots.index, 'index root', roots.protectedPaths);
+	assertNoActiveIndexProcesses(roots.index);
 
 	return [
 		...childTargets(roots.opencode, OPENCODE_PATTERN, roots.protectedPaths),
@@ -161,30 +171,6 @@ export const removeCleanupTargets = (targets: readonly CleanupTargetType[]): num
 			return total;
 		}
 	}, 0);
-
-const runningProcesses = (): readonly string[] => {
-	const result = spawnSync('ps', ['-ax', '-o', 'pid=,command='], {encoding: 'utf8'});
-
-	if (typeof result.stdout !== 'string') {
-		return [];
-	}
-
-	return result.stdout.split('\n').flatMap((line) => {
-		const trimmed = line.trimStart();
-		const separator = trimmed.indexOf(' ');
-		const pid = trimmed.slice(0, separator);
-		const command = trimmed.slice(separator + 1);
-
-		if (separator <= 0 || !/^\d+$/u.test(pid) || Number(pid) === process.pid) {
-			return [];
-		}
-
-		const isMcp = /(?:^|\/)mcp\.mjs\s*$/u.test(command);
-		const isConsole = /(?:^|\/)console\.mjs(?:\s|$)/u.test(command);
-
-		return isMcp || isConsole ? [`${pid}: ${command.trim()}`] : [];
-	});
-};
 
 const formatSize = (bytes: number): string => {
 	const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -230,12 +216,6 @@ export const runCleanup = (argv: readonly string[]): number => {
 
 		if (parsed.positionals.length > 0) {
 			throw new Error(`Unexpected argument: ${parsed.positionals[0] ?? ''}\n\n${usage}`);
-		}
-
-		const running = runningProcesses();
-
-		if (running.length > 0) {
-			throw new Error(`Refusing to clean while code index processes are running:\n${running.join('\n')}`);
 		}
 
 		const options: CleanupOptionsType = {

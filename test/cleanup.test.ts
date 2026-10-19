@@ -53,6 +53,30 @@ describe('cleanup targets', () => {
 		expect(targets.map((target) => path.relative(base, target.path))).toStrictEqual([join('opencode', 'codeindex-smoke')]);
 	});
 
+	it('refuses to clean while an index process owner is alive', () => {
+		const {roots} = fixture();
+		const projectDirectory = join(roots.index, '0123456789abcdef');
+		writeFileSync(
+			join(projectDirectory, `index.sqlite.owner-${String(process.pid)}-deadbeef.json`),
+			JSON.stringify({pid: process.pid, ownerId: 'owner', startedAt: new Date().toISOString()}),
+		);
+
+		expect(() => collectCleanupTargets(roots, options())).toThrow(/code index processes are active/u);
+	});
+
+	it('ignores ownership markers left by dead processes', () => {
+		const {base, roots} = fixture();
+		const projectDirectory = join(roots.index, '0123456789abcdef');
+		writeFileSync(
+			join(projectDirectory, 'index.sqlite.owner-2147483647-deadbeef.json'),
+			JSON.stringify({pid: 2_147_483_647, ownerId: 'owner', startedAt: new Date().toISOString()}),
+		);
+
+		const targets = collectCleanupTargets(roots, options());
+
+		expect(targets.map((target) => path.relative(base, target.path))).toContain(join('index', '0123456789abcdef'));
+	});
+
 	it('removes targets and leaves protected and unrelated directories', () => {
 		const {base, roots} = fixture();
 		const targets = collectCleanupTargets(roots, options());

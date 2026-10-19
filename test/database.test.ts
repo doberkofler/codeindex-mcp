@@ -1,4 +1,4 @@
-import {mkdtempSync, rmSync} from 'node:fs';
+import {mkdtempSync, readdirSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
@@ -87,6 +87,16 @@ describe('IndexDatabase', () => {
 		expect(reopened.getPublishedGeneration()?.id).toBe(generationId);
 		expect(reopened.getSymbol(generationId, symbol.id)?.name).toBe('example');
 		reopened.close();
+	});
+
+	it('registers and releases process ownership', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-db-'));
+		const database = IndexDatabase.open(path.join(directory, 'index.sqlite'));
+		const ownerFiles = (): readonly string[] => readdirSync(directory).filter((name) => name.includes('.owner-'));
+
+		expect(ownerFiles()).toHaveLength(1);
+		database.close();
+		expect(ownerFiles()).toHaveLength(0);
 	});
 
 	it('does not publish a failed generation', () => {
