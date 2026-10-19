@@ -94,7 +94,7 @@ facts and never invoke an adapter's external system directly.
 
 ## 4. Generation lifecycle
 
-1. **Scan.** The adapter resolves the selected project, hashes authored source
+1. **Scan.** The adapter resolves every configured project, hashes authored source
    bytes, and computes a source hash and a configuration hash. Scanning never
    executes or type-checks source.
 2. **Reuse check.** If a published generation has the same source and
@@ -163,12 +163,15 @@ Core tables:
 | --- | --- |
 | `metadata` | Schema version and published generation token |
 | `working_copy` | Workspace identity and optional VCS provenance |
-| `indexed_project` | Extractor, project file, and compiler identity |
+| `indexed_project` | Extractor, primary project file, and compiler identity |
 | `generation` | Build state, hashes, counts, stages, error |
+| `project_context` | Project name, relative project file, and per-context digest |
 | `file` | Generation-relative path, content hash, line count |
 | `content` | Immutable content versions keyed by SHA-256 |
 | `symbol` | Declarations with stable IDs and source ranges |
+| `symbol_context` | Compiler contexts that produced each declaration |
 | `occurrence` | Definition/reference occurrences and enclosing symbol |
+| `occurrence_context` | Compiler contexts that resolved each occurrence |
 | `dependency_edge` | Authored imports/exports and external dependency facts |
 | `dependency_binding` | Imported/exported/local names per edge |
 | `edge` (planned) | Language-neutral relationships between symbols, routes, and database objects |
@@ -179,7 +182,7 @@ Core tables:
 | `build_lease` | Single-writer ownership |
 
 Persisted paths are workspace-relative POSIX paths. Absolute paths appear only in
-`index_status.scope` for the configured root and project file.
+`index_status.scope` for the configured root and project files.
 
 Previous generations are retained as `superseded` for one generation so in-flight
 queries holding a generation identifier can complete. Unreferenced content and
@@ -212,9 +215,12 @@ defects.
 
 ### 7.2 Multi-adapter generations
 
-The current release selects one extractor project. The target configuration may
-select multiple adapter projects in one workspace. Each candidate generation
-records the exact context digest for every participating adapter.
+The current release selects one adapter and one or more projects for it. The
+target configuration may also select multiple adapters in one workspace. Each
+candidate generation records the exact context digest for every participating
+project. TypeScript project contexts share one generation, one database, and one
+publication boundary; a failed required context leaves the previous generation
+published.
 
 Adapters emit typed batches to one ingestion owner. They never publish or open
 independent write transactions. After source and metadata extraction, resolvers
@@ -251,7 +257,7 @@ type ExtractorType = {
 
 The TypeScript/JavaScript adapter uses the TypeScript compiler API. It:
 
-- loads the selected `tsconfig.json` or `jsconfig.json`;
+- loads every configured `tsconfig.json` or `jsconfig.json` context;
 - publishes authored `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and
   `.cjs` files reachable from the project;
 - excludes declaration files and generated output from published facts;
@@ -290,9 +296,9 @@ cursor, and a truncation flag.
 | --- | --- | --- |
 | `index_status` | none | Readiness, scope, counts, freshness, diagnostics, limitations |
 | `outline` | path, kinds, limit, cursor | Source order |
-| `find_symbol` | query, limit, cursor | Exact qualified, exact name, prefix qualified, prefix name |
-| `find_references` | symbol id, role, limit, cursor | Definition/reference occurrences |
-| `find_dependencies` | package, direction, transitive, root, detail, limit, cursor | Direct usage or module impact |
+| `find_symbol` | query, optional context, limit, cursor | Exact qualified, exact name, prefix qualified, prefix name |
+| `find_references` | symbol id, role, optional context, limit, cursor | Definition/reference occurrences |
+| `find_dependencies` | package, optional context, direction, transitive, root, detail, limit, cursor | Direct usage or module impact |
 | `read_symbol` | symbol id, context lines | Verifies current content hash |
 
 Result rules:
@@ -361,7 +367,7 @@ Project configuration is external. The package contains no consumer-specific
 workspace paths. Configuration selects:
 
 - workspace root and project identity;
-- extractor and extractor project file;
+- extractor and extractor project files;
 - storage directory, database, and analytics path;
 - result and read limits;
 - diagnostics mode and log level.
@@ -427,7 +433,7 @@ See [Oracle adapter](./oracle-adapter.md),
 
 - One extractor in 0.1.0: TypeScript/JavaScript.
 - JavaScript requires `allowJs`.
-- Only files reachable from the selected project file are indexed.
+- Only files reachable from the configured project files are indexed.
 - Cross-language edges, Oracle, and ORDS are designed but not shipped.
 - No lexical search or embeddings.
 - Generation-granular reuse; no incremental compiler state.

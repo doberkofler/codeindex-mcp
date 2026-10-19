@@ -25,20 +25,38 @@ export type FixtureContextType = Readonly<{
 	cleanup: () => void;
 }>;
 
-export const createFixtureConfig = (fixtureName: string): Readonly<{config: ConfigType; cleanup: () => void}> => {
+export type FixtureProjectType = Readonly<{
+	name: string;
+	project: string;
+}>;
+
+export const createFixtureConfig = (
+	fixtureName: string,
+	projects: readonly FixtureProjectType[] = [{name: 'root', project: 'tsconfig.json'}],
+): Readonly<{config: ConfigType; cleanup: () => void}> => {
 	const temporaryRoot = mkdtempSync(path.join(tmpdir(), 'code-index-test-'));
 	const workspace = path.join(temporaryRoot, 'workspace');
 
 	cpSync(path.join(import.meta.dirname, '..', 'fixtures', fixtureName), workspace, {recursive: true});
 
 	const rootDir = realpathSync(workspace);
+	const projectContexts = projects.map((project) => ({
+		name: project.name,
+		projectFilePath: path.join(rootDir, project.project),
+	}));
+	const firstProject = projectContexts.at(0);
+
+	if (firstProject === undefined) {
+		throw new Error('A fixture requires at least one project');
+	}
 
 	const config: ConfigType = {
 		projectName: `fixture-${fixtureName}`,
 		rootDir,
 		extractorId: 'typescript',
 		extractorOptions: {},
-		projectFilePath: path.join(rootDir, 'tsconfig.json'),
+		projectFilePath: firstProject.projectFilePath,
+		projects: projectContexts,
 		databasePath: path.join(temporaryRoot, 'index.sqlite'),
 		analyticsEnabled: false,
 		analyticsPath: path.join(temporaryRoot, 'analytics', 'events.jsonl'),
@@ -58,8 +76,8 @@ export const createFixtureConfig = (fixtureName: string): Readonly<{config: Conf
 	};
 };
 
-export const createFixtureIndex = (fixtureName: string): FixtureContextType => {
-	const {config, cleanup} = createFixtureConfig(fixtureName);
+export const createFixtureIndex = (fixtureName: string, projects?: readonly FixtureProjectType[]): FixtureContextType => {
+	const {config, cleanup} = createFixtureConfig(fixtureName, projects);
 	const database = IndexDatabase.open(config.databasePath, {
 		rootDir: config.rootDir,
 		projectFilePath: config.projectFilePath,

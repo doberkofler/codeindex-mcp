@@ -53,6 +53,15 @@ export type BuildStagesType = Readonly<{
 	readonly publicationMs: number;
 }>;
 
+export type ScanProjectResultType = Readonly<{
+	readonly name: string;
+	/** Workspace-relative POSIX path to the project file. */
+	readonly projectFile: string;
+	readonly configHash: string;
+	readonly projectFileCount: number;
+	readonly configDiagnosticCount: number;
+}>;
+
 export type ScanResultType = Readonly<{
 	readonly rootDir: string;
 	readonly projectId: string;
@@ -64,6 +73,7 @@ export type ScanResultType = Readonly<{
 	readonly files: readonly SourceFileType[];
 	readonly sourceHash: string;
 	readonly configHash: string;
+	readonly projects: readonly ScanProjectResultType[];
 	readonly projectFileCount: number;
 	readonly excludedFileCount: number;
 	readonly configDiagnosticCount: number;
@@ -92,6 +102,8 @@ export type IndexedSymbolType = Readonly<{
 	readonly startOffset: number;
 	readonly endOffset: number;
 	readonly enclosingId: string | null;
+	/** Compiler contexts that produced this declaration. */
+	readonly contexts?: readonly string[] | undefined;
 }>;
 
 export type IndexedOccurrenceType = Readonly<{
@@ -105,6 +117,8 @@ export type IndexedOccurrenceType = Readonly<{
 	readonly endOffset: number;
 	readonly role: 'definition' | 'reference';
 	readonly enclosingId: string | null;
+	/** Compiler contexts that resolved this occurrence. */
+	readonly contexts?: readonly string[] | undefined;
 }>;
 
 export type ExtractionResultType = Readonly<{
@@ -120,6 +134,7 @@ export type DependencyBindingKindType = 'default' | 'named' | 'namespace' | 'all
 
 export type IndexedDependencyEdgeType = Readonly<{
 	readonly id: string;
+	readonly context?: string | undefined;
 	readonly sourcePath: string;
 	readonly targetPath: string | null;
 	readonly rawSpecifier: string;
@@ -162,6 +177,7 @@ type DependencyEvidenceType = Readonly<{
 	readonly startColumn: number;
 	readonly endLine: number;
 	readonly endColumn: number;
+	readonly context: string | null;
 	readonly bindings: readonly DependencyEvidenceBindingType[];
 }>;
 
@@ -191,6 +207,7 @@ type DependencyRootSummaryType = Readonly<{
 
 export type FindDependenciesInputType = Readonly<{
 	readonly package: string;
+	readonly context?: string | undefined;
 	readonly direction?: 'consumers' | undefined;
 	readonly transitive?: boolean | undefined;
 	readonly root?: string | undefined;
@@ -257,6 +274,7 @@ export type IndexStatusType = Readonly<{
 		readonly root: string;
 		readonly projectName: string;
 		readonly projectFile: string;
+		readonly projects: readonly Readonly<{readonly name: string; readonly projectFile: string}>[];
 		readonly extractor: Readonly<{
 			readonly id: string;
 			readonly version: string;
@@ -304,6 +322,7 @@ export type SymbolSummaryType = Readonly<{
 	readonly endLine: number;
 	readonly endColumn: number;
 	readonly enclosingId: string | null;
+	readonly contexts: readonly string[];
 }>;
 
 export type OutlineInputType = Readonly<{
@@ -325,6 +344,7 @@ export type OutlineResultType = PagedResultType<SymbolSummaryType>;
 
 export type FindSymbolInputType = Readonly<{
 	readonly query: string;
+	readonly context?: string | undefined;
 	readonly limit: number;
 	readonly cursor?: string | undefined;
 }>;
@@ -339,6 +359,7 @@ export type FindSymbolResultType = PagedResultType<SymbolMatchType>;
 export type FindReferencesInputType = Readonly<{
 	readonly symbolId: string;
 	readonly role?: 'definition' | 'reference' | undefined;
+	readonly context?: string | undefined;
 	readonly limit: number;
 	readonly cursor?: string | undefined;
 }>;
@@ -351,6 +372,7 @@ export type ReferenceType = Readonly<{
 	readonly endColumn: number;
 	readonly role: 'definition' | 'reference';
 	readonly enclosingId: string | null;
+	readonly contexts: readonly string[];
 }>;
 
 export type FindReferencesResultType = PagedResultType<ReferenceType>;

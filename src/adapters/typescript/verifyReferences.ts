@@ -162,9 +162,15 @@ const accuracyOf = (comparisons: readonly ReferenceComparisonType[]): ReferenceA
  * @returns Coverage, accuracy, per-symbol comparisons, and the production gate.
  */
 export const verifyTypeScriptReferences = (config: ConfigType): ReferenceVerificationReportType => {
-	const scan = scanProject(config);
-	const project = loadTypeScriptProject(config);
-	const facts = extractSymbolFacts({project, files: scan.files, projectId: config.projectId, rootDir: config.rootDir});
+	const [context] = config.projects;
+
+	if (context === undefined) {
+		throw new Error('Reference verification requires one configured TypeScript project');
+	}
+
+	const scan = scanProject({...config, projects: [context], projectFilePath: context.projectFilePath});
+	const project = loadTypeScriptProject(config, context.projectFilePath);
+	const facts = extractSymbolFacts({project, files: scan.files, projectId: config.projectId, rootDir: config.rootDir, context: context.name});
 	const service = createLanguageService(config, project.program);
 	const authoredPaths = new Set(scan.files.map((file) => file.path));
 	const authoredAbsolutePaths = new Set(scan.files.map((file) => file.absolutePath));

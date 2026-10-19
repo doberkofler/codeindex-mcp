@@ -9,14 +9,16 @@ extractor contract. It owns the TypeScript compiler API and emits only
 serializable, language-neutral files, symbols, occurrences, dependency facts, and
 diagnostics to the core.
 
-The current registry contains only this adapter. One configuration selects one
-`tsconfig.json` or `jsconfig.json`. The adapter publishes authored:
+The current registry contains only this adapter. One configuration may select one
+or more `tsconfig.json` or `jsconfig.json` project contexts in the same workspace.
+Each context keeps its own compiler options and configuration digest. The adapter
+publishes authored:
 
 - `.ts`, `.tsx`, `.mts`, and `.cts` files;
 - `.js`, `.jsx`, `.mjs`, and `.cjs` files when `allowJs` is enabled.
 
 Declaration files and generated output may participate in compiler resolution but
-are not published as authored source. Files must be reachable from the selected
+are not published as authored source. Files must be reachable from a configured
 project or retained as known imported files from the published generation.
 
 ## 2. Adapter boundary
@@ -38,8 +40,8 @@ language service, and module-resolution cache objects never leave the adapter.
 
 ## 3. Project scanning and context
 
-The scanner uses TypeScript APIs to read and expand the selected project file. It
-collects the effective `extends` chain for watching and includes:
+The scanner uses TypeScript APIs to read and expand every configured project
+file. It collects each effective `extends` chain for watching and includes:
 
 - adapter identity/version;
 - extractor TypeScript version;
@@ -49,14 +51,22 @@ collects the effective `extends` chain for watching and includes:
 - source file digests;
 - adapter exclusion rules.
 
-These inputs form source and configuration fingerprints. A matching published
+These inputs form one configuration fingerprint per context plus a combined
+source fingerprint over the union of authored files. A matching published
 generation may be reused. A major-version difference between the declared compiler
 and extractor compiler is reported as drift; it is not silently ignored.
 
 Scanning reads and hashes source but does not execute or type-check application
-code. Fatal project-configuration diagnostics stop the candidate build. Semantic
-diagnostics are optional because collecting all of them can materially increase
-build cost.
+code. Fatal project-configuration diagnostics in any required context stop the
+candidate build. Semantic diagnostics are optional because collecting all of them
+can materially increase build cost.
+
+The build loads one TypeScript program per context. Declarations use
+context-independent source identity (workspace, path, range, kind, name); each
+declaration records the contexts that produced it. Occurrences retain the context
+that resolved them. Facts are never merged across incompatible programs merely
+because paths match. A shared file therefore appears once as source with
+context-specific compiler facts.
 
 ## 4. Files, symbols, and occurrences
 
@@ -116,8 +126,10 @@ of per-root totals.
 
 Compact dependency items contain path, depth, and direct root. Evidence detail
 adds locations, raw specifiers, edge kind, bindings, and equivalent-edge count.
-`root` filters impact to one direct package consumer. Cursors bind generation,
-package, mode, root, detail level, and position.
+`root` filters impact to one direct package consumer. `context` restricts direct
+usage and impact traversal to one project context; without it, results are the
+union across contexts. Cursors bind generation, package, context, mode, root,
+detail level, and position.
 
 Impact currently proves module reachability, not binding use through a façade.
 
@@ -281,18 +293,21 @@ Add facts only after observed follow-up calls justify them:
 | Export visibility | Public/private ambiguity causes incorrect navigation |
 | Enclosing-symbol summary | Consumers repeatedly resolve opaque enclosing identifiers |
 | Call/read/write/type/import roles | Impact work requires role-specific filtering |
-| Additional project contexts | Daily tasks repeatedly fall outside the selected project |
 | Source-oriented dependency query | Questions require dependencies of an authored source module |
 | Non-literal dynamic import facts | Ranked unresolved sites show material retrieval loss |
 | Fuzzy/full-text retrieval | Exact/prefix lookup plus bounded repository search shows measured recall loss |
 
 ### 11.4 Multiple TypeScript projects
 
-The target multi-adapter generation may include several TypeScript project
-contexts. Each project retains its own effective compiler options and context
-digest. Shared authored files and workspace exports require explicit identity and
-deduplication rules; facts from incompatible programs must not be merged merely
-because paths match.
+Shipped: one generation may contain several TypeScript project contexts. Each
+project retains its own effective compiler options and context digest. Shared
+authored files use one declaration identity with multiple context associations;
+occurrences retain per-context resolution. Facts from incompatible programs are
+not merged merely because paths match.
+
+Remaining work: per-context extraction-artifact reuse is currently keyed by the
+combined configuration digest, so one changed project invalidates all per-file
+artifacts.
 
 ### 11.5 Performance and evaluation
 
@@ -310,8 +325,8 @@ file-read tools.
 
 ## 12. Current limitations
 
-- one selected TypeScript/JavaScript project per configuration;
 - one built-in adapter in the current release;
+- every configured TypeScript project is required for publication;
 - full-generation compiler extraction;
 - path/range-based symbol identity;
 - definition/reference occurrence roles only;

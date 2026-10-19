@@ -24,6 +24,7 @@ type ExtractionInputType = Readonly<{
 	readonly files: readonly SourceFileType[];
 	readonly projectId: string;
 	readonly rootDir: string;
+	readonly context: string;
 }>;
 
 const DEFINITION_DECLARATIONS: readonly ((node: ts.Node) => boolean)[] = [
@@ -214,7 +215,7 @@ const buildQualifiedName = (checker: ts.TypeChecker, symbol: ts.Symbol, primaryN
 	return withoutModule.length > 0 ? withoutModule : primaryName;
 };
 
-const toIndexedSymbol = (checker: ts.TypeChecker, primary: CandidateType, projectId: string): IndexedSymbolType => {
+const toIndexedSymbol = (checker: ts.TypeChecker, primary: CandidateType, projectId: string, context: string): IndexedSymbolType => {
 	const {sourceFile} = primary;
 	const start = sourceFile.getLineAndCharacterOfPosition(primary.startOffset);
 	const end = sourceFile.getLineAndCharacterOfPosition(primary.endOffset);
@@ -238,6 +239,7 @@ const toIndexedSymbol = (checker: ts.TypeChecker, primary: CandidateType, projec
 		startOffset: primary.startOffset,
 		endOffset: primary.endOffset,
 		enclosingId: null,
+		contexts: [context],
 	};
 };
 
@@ -366,6 +368,7 @@ const collectOccurrences = (
 							endOffset: node.end,
 							role,
 							enclosingId: nextEnclosingId,
+							contexts: [input.context],
 						});
 					}
 				}
@@ -391,8 +394,8 @@ const collectOccurrences = (
  * chooses one deterministic primary declaration per canonical symbol. The second
  * resolves identifier occurrences against those primary symbols.
  *
- * @param input - Loaded project, authored files, and project identity.
- * @returns Indexed symbols, occurrences, and diagnostics.
+ * @param input - Loaded project, authored files, project identity, and context.
+ * @returns Indexed symbols, occurrences, and diagnostics tagged with that context.
  */
 export const extractSymbolFacts = (input: ExtractionInputType): ExtractionResultType => {
 	const startedAt = performance.now();
@@ -405,7 +408,7 @@ export const extractSymbolFacts = (input: ExtractionInputType): ExtractionResult
 	const declarationNodes = new Map<ts.Node, IndexedSymbolType>();
 
 	for (const [canonical, primary] of primaries) {
-		const symbol = toIndexedSymbol(checker, primary, input.projectId);
+		const symbol = toIndexedSymbol(checker, primary, input.projectId, input.context);
 		definitions.set(canonical, symbol);
 		declarationNodes.set(primary.declaration, symbol);
 	}

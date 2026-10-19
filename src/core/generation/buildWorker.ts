@@ -42,6 +42,7 @@ export const isBuildWorkerData = (value: unknown): value is BuildWorkerDataType 
 		typeof config['databasePath'] === 'string' &&
 		typeof config['rootDir'] === 'string' &&
 		typeof config['projectFilePath'] === 'string' &&
+		Array.isArray(config['projects']) &&
 		typeof config['extractorId'] === 'string' &&
 		typeof scan['sourceHash'] === 'string' &&
 		typeof scan['configHash'] === 'string' &&

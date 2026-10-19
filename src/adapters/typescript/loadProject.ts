@@ -83,24 +83,25 @@ const collectDiagnostics = (program: ts.Program, config: ConfigType): Readonly<{
  * the configuration hash and reports drift.
  *
  * @param config - Resolved project configuration.
+ * @param projectFilePath - Project file to load; defaults to the first configured project.
  * @returns The loaded program, checker, and diagnostics.
  * @throws {@link Error} When the tsconfig is missing or the program cannot be
  * constructed.
  */
-export const loadTypeScriptProject = (config: ConfigType): LoadedProjectType => {
+export const loadTypeScriptProject = (config: ConfigType, projectFilePath = config.projectFilePath): LoadedProjectType => {
 	const startedAt = performance.now();
 
-	if (!existsSync(config.projectFilePath)) {
-		throw new Error(`TypeScript configuration does not exist: ${config.projectFilePath}`);
+	if (!existsSync(projectFilePath)) {
+		throw new Error(`TypeScript configuration does not exist: ${projectFilePath}`);
 	}
 
-	const configFile = ts.readConfigFile(config.projectFilePath, (fileName) => ts.sys.readFile(fileName));
+	const configFile = ts.readConfigFile(projectFilePath, (fileName) => ts.sys.readFile(fileName));
 
 	if (configFile.error !== undefined) {
-		throw new Error(`Cannot read TypeScript configuration: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
+		throw new Error(`Cannot read TypeScript configuration ${projectFilePath}: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
 	}
 
-	const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(config.projectFilePath), undefined, config.projectFilePath);
+	const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(projectFilePath), undefined, projectFilePath);
 	const program = ts.createProgram({
 		rootNames: parsed.fileNames,
 		options: parsed.options,

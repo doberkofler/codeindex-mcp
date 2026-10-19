@@ -5,7 +5,7 @@ import {type BuildLeaseType, type GenerationRowType, type IndexStatusType, type 
 import {type RefreshCoordinatorSnapshotType} from './refreshCoordinator.ts';
 
 const CORE_EXCLUSIONS: readonly string[] = [
-	'files outside the selected extractor project are not indexed',
+	'files outside the configured extractor projects are not indexed',
 	'cross-language edges are not indexed',
 	'no fuzzy search, embeddings, or full-text search',
 ];
@@ -82,6 +82,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 			root: input.config.rootDir,
 			projectName: input.config.projectName,
 			projectFile: input.config.projectFilePath,
+			projects: input.config.projects.map((project) => ({name: project.name, projectFile: project.projectFilePath})),
 			extractor: {
 				id: input.config.extractorId,
 				version: extractorFor(input.config.extractorId).version,

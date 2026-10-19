@@ -16,8 +16,11 @@ export const OutlineInputSchema = z.object({
 	cursor: CursorSchema,
 });
 
+const ContextSchema = z.string().min(1).optional().describe('Optional project context name from index_status.scope.projects');
+
 export const FindSymbolInputSchema = z.object({
 	query: z.string().min(1).describe('Exact qualified name, exact simple name, or name prefix'),
+	context: ContextSchema,
 	limit: LimitSchema,
 	cursor: CursorSchema,
 });
@@ -25,12 +28,14 @@ export const FindSymbolInputSchema = z.object({
 export const FindReferencesInputSchema = z.object({
 	symbolId: z.string().min(1).describe('Symbol identifier returned by find_symbol or outline'),
 	role: z.enum(['definition', 'reference']).optional(),
+	context: ContextSchema,
 	limit: LimitSchema,
 	cursor: CursorSchema,
 });
 
 export const FindDependenciesInputSchema = z.object({
 	package: z.string().min(1).describe('Normalized npm package name, for example lodash or @mui/material'),
+	context: ContextSchema,
 	direction: z.literal('consumers').default('consumers').describe('Dependency direction; consumers is the only supported direction'),
 	transitive: z.boolean().default(false).describe('false (default) returns direct package usage; true returns module impact through authored imports'),
 	root: z.string().min(1).optional().describe('Direct package consumer used to filter module impact; requires transitive: true'),

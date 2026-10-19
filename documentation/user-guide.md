@@ -9,16 +9,18 @@ non-destructive operational jobs.
 
 ## Scope
 
-Version 0.1.0 indexes authored source selected by one extractor project:
+Version 0.1.0 indexes authored source selected by one or more extractor projects:
 
 - TypeScript and JavaScript, using the TypeScript compiler API;
-- JavaScript only when the project enables `allowJs`.
+- JavaScript only when the project enables `allowJs`;
+- several TypeScript project contexts in one atomic generation, each retaining its
+  own compiler options and configuration digest.
 
 It does not index:
 
 - declaration files (`.d.ts`, `.d.mts`, `.d.cts`) as authored source;
 - generated output or vendored dependencies;
-- files not reachable from the selected project file;
+- files not reachable from any configured project file;
 - other languages or cross-language relationships;
 - runtime behavior, full-text search, fuzzy search, or embeddings.
 
@@ -27,7 +29,9 @@ external dependency usage or downstream module impact.
 
 Current constraints:
 
-- one extractor project and one local workspace per configuration;
+- one local workspace per configuration; one or more TypeScript project contexts;
+- every configured project must build successfully before the generation is
+  published;
 - full-generation rebuilds rather than incremental compiler state;
 - path/range-based symbol identity;
 - exact and prefix symbol search only;
@@ -68,7 +72,11 @@ Create `codeindex.config.json` next to your launcher or project tooling:
 	},
 	"extractor": {
 		"id": "typescript",
-		"project": "tsconfig.json"
+		"projects": [
+			{ "name": "browser", "project": "tsconfig.json" },
+			{ "name": "contracts", "project": "contracts/tsconfig.json" },
+			{ "name": "server", "project": "server/tsconfig.json" }
+		]
 	},
 	"limits": {
 		"maxResultBytes": 32768,
@@ -83,9 +91,16 @@ Create `codeindex.config.json` next to your launcher or project tooling:
 }
 ```
 
-Paths inside the file resolve against the file directory. `extractor.project`
-must stay inside `project.root`. Storage paths must stay outside the indexed
-workspace.
+Paths inside the file resolve against the file directory. Every
+`extractor.projects[].project` must stay inside `project.root`. Use either the
+single `extractor.project` form or the `projects` array, not both. Context names
+must be unique; omit a name to derive it from the project directory. Storage paths
+must stay outside the indexed workspace.
+
+All contexts share one database and one published generation. Results report the
+contexts that produced each symbol or reference, and `find_symbol` and
+`find_references` accept an optional `context` filter. Facts are not merged across
+incompatible compiler programs; only identical source locations are grouped.
 
 Defaults:
 
@@ -161,9 +176,9 @@ The server exposes six read-only tools:
 | --- | --- |
 | `index_status` | Readiness, indexed scope, freshness, counts, diagnostics, limitations |
 | `outline` | Declarations in one workspace-relative file, in source order |
-| `find_symbol` | Exact or prefix symbol lookup |
-| `find_references` | Definitions and references for one symbol |
-| `find_dependencies` | Direct dependency usage or grouped module impact |
+| `find_symbol` | Exact or prefix symbol lookup; optional project-context filter |
+| `find_references` | Definitions and references for one symbol; optional project-context filter |
+| `find_dependencies` | Direct dependency usage or grouped module impact; optional project-context filter |
 | `read_symbol` | Bounded source for one symbol, rejecting stale files |
 
 Each query reports its generation and freshness:
@@ -217,7 +232,8 @@ codeindex-cli verify-references --config ./codeindex.config.json
 ```
 
 This compares a stratified sample of indexed references against the TypeScript
-language service. It is available only for the TypeScript extractor. The command
+language service. It is available only for the TypeScript extractor; when several
+project contexts are configured, it verifies the first context. The command
 exits successfully only when the configured project supplies at least 200 sampled
 symbols covering every required construct with at least 99.5% recall, 100%
 precision, and no skipped or mismatched symbols. The checked-in qualification
@@ -306,7 +322,7 @@ Set `CODE_INDEX_ANALYTICS=false` to disable writes.
 | `CODE_INDEX_CONFIG` | none | Configuration file |
 | `CODE_INDEX_ROOT` | `.` | Workspace root |
 | `CODE_INDEX_EXTRACTOR` | `typescript` | Extractor identifier |
-| `CODE_INDEX_PROJECT_FILE` | `tsconfig.json` | Extractor project file |
+| `CODE_INDEX_PROJECT_FILE` | `tsconfig.json` | Single extractor project file override; replaces the configured `projects` array |
 | `CODE_INDEX_DATABASE` | derived | Index database; must be outside the workspace |
 | `CODE_INDEX_ANALYTICS` | `true` | Whether to persist analytics |
 | `CODE_INDEX_ANALYTICS_PATH` | derived | Analytics JSONL path; must be outside the workspace |
@@ -337,7 +353,7 @@ a bounded diagnostic. The server is local stdio without authentication.
   build, then check `index_status` or `codeindex-cli status`.
 - **A query reports stale or unknown freshness:** fall back to repository tools
   and inspect status.
-- **A symbol is absent:** confirm it is authored source in the selected project.
+- **A symbol is absent:** confirm it is authored source in a configured project context.
   The index does not perform arbitrary text, filename, package, or
   cross-language searches.
 - **Need diagnostics:** run `codeindex-cli status --debug` or set

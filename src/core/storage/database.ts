@@ -10,6 +10,7 @@ import {
 	type IndexedOccurrenceType,
 	type IndexedSymbolType,
 	type ReferenceType,
+	type ScanProjectResultType,
 	type SourceFileType,
 	type StoredDependencyEdgeType,
 	type SymbolMatchType,
@@ -40,6 +41,13 @@ import {acquireLease, readLease, releaseLease, renewLease} from './databaseLease
 import {explainQueryPlan, recreateIfIncompatible} from './databaseOpen.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
 import {asNumber, asString, placeholders, SYMBOL_COLUMNS, toSymbolSummary} from './databaseRows.ts';
+import {
+	insertOccurrenceContexts,
+	insertProjectContexts,
+	insertSymbolContexts,
+	listProjectContextNames as listStoredProjectContextNames,
+	listSymbolContexts,
+} from './databaseContextQueries.ts';
 import {findReferences as findStoredReferences, findSymbols as findStoredSymbols} from './databaseSymbolQueries.ts';
 import {transaction} from './databaseTransaction.ts';
 import {SCHEMA_SQL, SCHEMA_VERSION} from './schema.ts';
@@ -151,14 +159,16 @@ export class IndexDatabase {
 		return inserted;
 	}
 
-	public insertFiles(generationId: string, files: readonly SourceFileType[]): void {
-		debug('insert files', {generationId, files: files.length});
+	public insertFiles(generationId: string, files: readonly SourceFileType[], projects: readonly ScanProjectResultType[] = []): void {
+		debug('insert files', {generationId, files: files.length, projects: projects.length});
 		const statement = this.#writer.prepare(
 			`insert into file (generation_id, path, sha256, content_sha256, line_count)
 			 values (?, ?, ?, (select sha256 from content where sha256 = ?), ?)`,
 		);
 
 		this.#transaction(() => {
+			insertProjectContexts(this.#writer, generationId, projects);
+
 			for (const file of files) {
 				statement.run(generationId, file.path, file.sha256, file.sha256, file.lineCount);
 			}
@@ -190,6 +200,8 @@ export class IndexDatabase {
 					symbol.enclosingId,
 				);
 			}
+
+			insertSymbolContexts(this.#writer, generationId, symbols);
 		});
 	}
 
@@ -216,6 +228,8 @@ export class IndexDatabase {
 					occurrence.enclosingId,
 				);
 			}
+
+			insertOccurrenceContexts(this.#writer, generationId, occurrences);
 		});
 	}
 
@@ -380,18 +394,26 @@ export class IndexDatabase {
 	public listFiles(generationId: string): readonly Readonly<{path: string; sha256: string}>[] {
 		return listStoredFiles(this.#reader, generationId);
 	}
+	public listProjectContextNames(generationId: string): readonly string[] {
+		return listStoredProjectContextNames(this.#reader, generationId);
+	}
 
 	public getSymbol(generationId: string, id: string): SymbolSummaryType | null {
 		const row = this.#reader.prepare(`select ${SYMBOL_COLUMNS} from symbol where generation_id = ? and id = ?`).get(generationId, id);
-		return row === undefined ? null : toSymbolSummary(row);
-	}
 
+		return row === undefined ? null : toSymbolSummary(row, listSymbolContexts(this.#reader, generationId, [id]).get(id) ?? []);
+	}
 	public listOutline(
 		input: Readonly<{generationId: string; path: string; kinds: readonly string[]; limit: number; offset: number}>,
 	): readonly SymbolSummaryType[] {
 		const kindClause = input.kinds.length > 0 ? ` and kind in (${placeholders(input.kinds.length)})` : '';
 		const sql = `select ${SYMBOL_COLUMNS} from symbol where generation_id = ? and path = ?${kindClause} order by start_offset, id limit ? offset ?`;
 		const rows = this.#reader.prepare(sql).all(input.generationId, input.path, ...input.kinds, input.limit, input.offset);
+		const contexts = listSymbolContexts(
+			this.#reader,
+			input.generationId,
+			rows.map((row) => asString(row, 'id')),
+		);
 		debug('list outline', {
 			generationId: input.generationId,
 			path: input.path,
@@ -401,25 +423,38 @@ export class IndexDatabase {
 			rows: rows.length,
 		});
 
-		return rows.map((row) => toSymbolSummary(row));
+		return rows.map((row) => {
+			const id = asString(row, 'id');
+
+			return toSymbolSummary(row, contexts.get(id) ?? []);
+		});
 	}
 
-	public findSymbols(generationId: string, query: string, limit: number, offset: number): readonly SymbolMatchType[] {
-		return findStoredSymbols(this.#reader, {generationId, query, limit, offset});
+	public findSymbols(
+		input: Readonly<{generationId: string; query: string; context?: string | undefined; limit: number; offset: number}>,
+	): readonly SymbolMatchType[] {
+		return findStoredSymbols(this.#reader, input);
 	}
 
 	public findReferences(
-		input: Readonly<{generationId: string; symbolId: string; role: 'definition' | 'reference' | undefined; limit: number; offset: number}>,
+		input: Readonly<{
+			generationId: string;
+			symbolId: string;
+			role: 'definition' | 'reference' | undefined;
+			context?: string | undefined;
+			limit: number;
+			offset: number;
+		}>,
 	): readonly ReferenceType[] {
 		return findStoredReferences(this.#reader, input);
 	}
 
-	public findDependencyEdgesByPackage(generationId: string, packageName: string): readonly StoredDependencyEdgeType[] {
-		return findDependencyEdgesByPackage(this.#reader, generationId, packageName);
+	public findDependencyEdgesByPackage(generationId: string, packageName: string, context?: string): readonly StoredDependencyEdgeType[] {
+		return findDependencyEdgesByPackage(this.#reader, generationId, packageName, context);
 	}
 
-	public findDependencyEdgesByTargets(generationId: string, targetPaths: readonly string[]): readonly StoredDependencyEdgeType[] {
-		return findDependencyEdgesByTargets(this.#reader, generationId, targetPaths);
+	public findDependencyEdgesByTargets(generationId: string, targetPaths: readonly string[], context?: string): readonly StoredDependencyEdgeType[] {
+		return findDependencyEdgesByTargets(this.#reader, generationId, targetPaths, context);
 	}
 
 	public listDependencyBindings(generationId: string, edgeIds: readonly string[]): readonly IndexedDependencyBindingType[] {

@@ -111,6 +111,7 @@ const propagateImpact = (
 		generationId: string;
 		rootGroups: RootGroupsType;
 		selectedRoots: readonly string[];
+		context?: string | undefined;
 	}>,
 ): void => {
 	let frontier = new Map<string, Set<string>>();
@@ -125,7 +126,7 @@ const propagateImpact = (
 		const targets = [...frontier.keys()].sort();
 		const next = new Map<string, Set<string>>();
 
-		for (const edge of input.database.findDependencyEdgesByTargets(input.generationId, targets)) {
+		for (const edge of input.database.findDependencyEdgesByTargets(input.generationId, targets, input.context)) {
 			const reachedRoots = frontier.get(edge.targetPath ?? '');
 
 			if (reachedRoots === undefined || edge.sourcePath === edge.targetPath) {
@@ -159,11 +160,12 @@ export const findDependencyConsumers = (
 		database: IndexDatabase;
 		generationId: string;
 		packageName: string;
+		context?: string | undefined;
 		transitive: boolean;
 		root?: string | undefined;
 	}>,
 ): readonly DependencyConsumerMatchType[] => {
-	const direct = input.database.findDependencyEdgesByPackage(input.generationId, input.packageName);
+	const direct = input.database.findDependencyEdgesByPackage(input.generationId, input.packageName, input.context);
 	const directByRoot = directEdgesByRoot(direct);
 	const allRoots = [...directByRoot.keys()].sort();
 
@@ -175,7 +177,7 @@ export const findDependencyConsumers = (
 	const rootGroups = createRootGroups(directByRoot, selectedRoots);
 
 	if (input.transitive) {
-		propagateImpact({database: input.database, generationId: input.generationId, rootGroups, selectedRoots});
+		propagateImpact({database: input.database, generationId: input.generationId, rootGroups, selectedRoots, context: input.context});
 	}
 
 	const consumers: DependencyConsumerMatchType[] = [];
@@ -247,6 +249,7 @@ export const toDependencyEvidenceConsumers = (
 			startColumn: match.edge.startColumn,
 			endLine: match.edge.endLine,
 			endColumn: match.edge.endColumn,
+			context: match.edge.context ?? null,
 			bindings: evidenceBindings(byEdge.get(match.edge.id) ?? []),
 		},
 	}));

@@ -25,7 +25,7 @@ Package manifests and lint or build configuration are outside the indexed worksp
 Every result reports a generation, explicit freshness, and truncation. Treat current freshness as usable, updating as readable but possibly stale, and stale or unknown as a fallback trigger.
 Paginated limits are upper bounds; follow nextCursor whenever truncated is true.
 Fall back to normal repository tools when the index reports stale data, incomplete scope, an unknown symbol, or no match.
-The index covers the sources selected by the configured extractor project; other project contexts and languages are outside its scope.`;
+The index covers the sources selected by the configured extractor projects. Results list the project contexts that produced each fact; pass a context to find_symbol, find_references, or find_dependencies to restrict results. Unconfigured projects and other languages are outside its scope.`;
 
 type ToolRegistrationType = Readonly<{
 	name: string;

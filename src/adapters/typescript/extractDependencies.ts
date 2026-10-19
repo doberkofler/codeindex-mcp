@@ -19,6 +19,7 @@ type DependencyInputType = Readonly<{
 	readonly files: readonly SourceFileType[];
 	readonly projectId: string;
 	readonly rootDir: string;
+	readonly context: string;
 }>;
 
 type PendingBindingType = Omit<IndexedDependencyBindingType, 'edgeId'>;
@@ -238,7 +239,7 @@ const resolvedTargetPath = (
  * authored file. TypeScript path aliases therefore stay authored targets instead
  * of being reported as npm packages.
  *
- * @param input - Loaded program, authored files, and project identity.
+ * @param input - Loaded program, authored files, project identity, and context.
  * @returns Persisted dependency edges and their binding details.
  */
 export const extractDependencyFacts = (input: DependencyInputType): DependencyExtractionResultType => {
@@ -271,10 +272,12 @@ export const extractDependencyFacts = (input: DependencyInputType): DependencyEx
 					startOffset: found.literal.getStart(sourceFile),
 					kind: found.kind,
 					name: found.literal.text,
+					discriminator: input.context,
 				});
 
 				edges.push({
 					id,
+					context: input.context,
 					sourcePath: file.path,
 					targetPath,
 					rawSpecifier: found.literal.text,

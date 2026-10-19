@@ -3,9 +3,9 @@ import {existsSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import {z} from 'zod';
-import {type ConfigType} from '../../core/config/config.ts';
+import {type ConfigType, toRepositoryPath} from '../../core/config/config.ts';
 import {debugFor} from '../../core/logging/debug.ts';
-import {type ScanResultType, type SourceFileType} from '../../core/model.ts';
+import {type ScanProjectResultType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
 import {computeSourceHash, createSourceFileRecord} from '../../core/generation/sourceFiles.ts';
 
 export const TYPESCRIPT_EXTRACTOR_ID = 'typescript';
@@ -70,11 +70,12 @@ const findPackageJson = (startDirectory: string, rootDir: string): string | null
  * dependency is used. The extractor still requires the JavaScript compiler API,
  * so the declared version is only a drift signal.
  *
- * @param config - Resolved project configuration.
+ * @param projectFilePath - Absolute project file.
+ * @param rootDir - Absolute indexed workspace root.
  * @returns The declared version, or null when no package manifest declares one.
  */
-const readDeclaredCompiler = (config: ConfigType): string | null => {
-	const packageJsonPath = findPackageJson(dirname(config.projectFilePath), config.rootDir);
+const readDeclaredCompiler = (projectFilePath: string, rootDir: string): string | null => {
+	const packageJsonPath = findPackageJson(dirname(projectFilePath), rootDir);
 
 	if (packageJsonPath === null) {
 		return null;
@@ -197,80 +198,120 @@ export const collectConfigFiles = (projectFilePath: string, seen: Set<string> = 
 	return [...seen];
 };
 
-/**
- * Discovers, hashes, and fingerprints the configured TypeScript project.
- *
- * The scan reads source bytes but never executes or type-checks them. Its
- * output is deterministic for unchanged source and configuration, which lets the
- * publisher skip a rebuild safely.
- *
- * @param config - Resolved project configuration.
- * @param knownPaths - Files indexed by the current generation. They keep
- * imported files outside the project include, such as shared contracts, in the
- * freshness set.
- * @returns The scanned source manifest and fingerprints.
- * @throws {@link Error} When the project file cannot be read or contains fatal
- * configuration diagnostics.
- */
-export const scanProject = (config: ConfigType, knownPaths: readonly string[] = []): ScanResultType => {
-	const startedAt = performance.now();
-	debug('scan start', {rootDir: config.rootDir, projectFile: config.projectFilePath, knownPaths: knownPaths.length});
-	const projectFileBytes = readFileSync(config.projectFilePath, 'utf8');
-	const configFile = ts.readConfigFile(config.projectFilePath, (fileName) => ts.sys.readFile(fileName));
+type ParsedProjectType = Readonly<{
+	readonly name: string;
+	readonly projectFilePath: string;
+	readonly projectFileBytes: string;
+	readonly parsed: ts.ParsedCommandLine;
+	readonly declaredCompilerVersion: string | null;
+}>;
+
+const parseProject = (rootDir: string, context: ConfigType['projects'][number]): ParsedProjectType => {
+	const projectFileBytes = readFileSync(context.projectFilePath, 'utf8');
+	const configFile = ts.readConfigFile(context.projectFilePath, (fileName) => ts.sys.readFile(fileName));
 
 	if (configFile.error !== undefined) {
-		throw new Error(`Cannot read TypeScript configuration: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
+		throw new Error(`Cannot read TypeScript configuration ${context.projectFilePath}: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
 	}
 
-	const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(config.projectFilePath), undefined, config.projectFilePath);
+	const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(context.projectFilePath), undefined, context.projectFilePath);
 	const fatalErrors = parsed.errors.filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
 
 	if (fatalErrors.length > 0) {
 		const messages = fatalErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')).join('; ');
-		throw new Error(`TypeScript configuration is invalid: ${messages}`);
+		throw new Error(`TypeScript configuration is invalid (${context.name}): ${messages}`);
 	}
 
-	let excludedFileCount = 0;
-	const candidates = new Set(parsed.fileNames);
+	return {
+		name: context.name,
+		projectFilePath: context.projectFilePath,
+		projectFileBytes,
+		parsed,
+		declaredCompilerVersion: readDeclaredCompiler(context.projectFilePath, rootDir),
+	};
+};
 
-	for (const knownPath of knownPaths) {
-		if (isAuthoredSourceFile(resolve(config.rootDir, knownPath), config.rootDir)) {
-			candidates.add(resolve(config.rootDir, knownPath));
-		}
-	}
-
-	const files: SourceFileType[] = [];
-
-	for (const fileName of candidates) {
-		if (!isAuthoredSourceFile(fileName, config.rootDir) || !existsSync(fileName)) {
-			excludedFileCount += 1;
-			continue;
-		}
-
-		files.push(createSourceFileRecord(fileName, config.rootDir));
-	}
-
-	files.sort(sortByPath);
-
-	const sourceHash = computeSourceHash(files);
-	const declaredCompilerVersion = readDeclaredCompiler(config);
-	const compilerDrift = declaredCompilerVersion !== null && majorOf(declaredCompilerVersion) !== majorOf(ts.version);
-	const configHash = hash(
+const projectConfigHash = (project: ParsedProjectType): string =>
+	hash(
 		[
+			`context:${project.name}`,
 			`extractor:${TYPESCRIPT_EXTRACTOR_ID}@${TYPESCRIPT_EXTRACTOR_VERSION}`,
 			`typescript:${ts.version}`,
-			`declared-compiler:${declaredCompilerVersion ?? 'unknown'}`,
-			`project-file:${hash(projectFileBytes)}`,
-			`options:${hashCompilerOptions(parsed.options)}`,
+			`declared-compiler:${project.declaredCompilerVersion ?? 'unknown'}`,
+			`project-file:${hash(project.projectFileBytes)}`,
+			`options:${hashCompilerOptions(project.parsed.options)}`,
 			`exclusions:${TYPESCRIPT_IGNORED_SEGMENTS.join(',')}`,
 		].join('\n'),
 	);
+
+/**
+ * Discovers, hashes, and fingerprints every configured TypeScript project.
+ *
+ * Each project keeps its own parsed options and configuration digest. Source
+ * files are the union of all project file sets plus previously indexed imports,
+ * so shared declarations appear once while retaining one context per program.
+ *
+ * @param config - Resolved project configuration.
+ * @param knownPaths - Files indexed by the current generation. They keep
+ * imported files outside the project include in the freshness set.
+ * @returns The scanned source manifest, per-project digests, and fingerprints.
+ * @throws {@link Error} When a project file cannot be read or contains fatal
+ * configuration diagnostics.
+ */
+export const scanProject = (config: ConfigType, knownPaths: readonly string[] = []): ScanResultType => {
+	const startedAt = performance.now();
+	debug('scan start', {rootDir: config.rootDir, projects: config.projects.map((project) => project.projectFilePath), knownPaths: knownPaths.length});
+	const projects = config.projects.map((project) => parseProject(config.rootDir, project));
+	let excludedFileCount = 0;
+	const candidates = new Set<string>();
+
+	for (const project of projects) {
+		for (const fileName of project.parsed.fileNames) {
+			if (isAuthoredSourceFile(fileName, config.rootDir) && existsSync(fileName)) {
+				candidates.add(fileName);
+			} else {
+				excludedFileCount += 1;
+			}
+		}
+	}
+
+	for (const knownPath of knownPaths) {
+		const absolutePath = resolve(config.rootDir, knownPath);
+
+		if (isAuthoredSourceFile(absolutePath, config.rootDir)) {
+			candidates.add(absolutePath);
+		}
+	}
+
+	const files = [...candidates].map((fileName) => createSourceFileRecord(fileName, config.rootDir)).sort(sortByPath);
+	const sourceHash = computeSourceHash(files);
+	const declaredCompilerVersion = projects.find((project) => project.declaredCompilerVersion !== null)?.declaredCompilerVersion ?? null;
+	const compilerDrift = projects.some(
+		(project) => project.declaredCompilerVersion !== null && majorOf(project.declaredCompilerVersion) !== majorOf(ts.version),
+	);
+	const projectResults: readonly ScanProjectResultType[] = projects.map((project) => ({
+		name: project.name,
+		projectFile: toRepositoryPath(config.rootDir, project.projectFilePath),
+		configHash: projectConfigHash(project),
+		projectFileCount: project.parsed.fileNames.length,
+		configDiagnosticCount: project.parsed.errors.length,
+	}));
+	const configHash = hash(
+		[
+			...[...projectResults].sort((left, right) => left.name.localeCompare(right.name)).map((project) => `${project.name}:${project.configHash}`),
+			`exclusions:${TYPESCRIPT_IGNORED_SEGMENTS.join(',')}`,
+		].join('\n'),
+	);
+	const projectFileCount = projectResults.reduce((total, project) => total + project.projectFileCount, 0);
+	const configDiagnosticCount = projectResults.reduce((total, project) => total + project.configDiagnosticCount, 0);
+
 	debug('scan complete', {
 		files: files.length,
 		candidates: candidates.size,
 		excludedFileCount,
-		projectFileCount: parsed.fileNames.length,
-		configDiagnosticCount: parsed.errors.length,
+		projects: projectResults.map((project) => project.name),
+		projectFileCount,
+		configDiagnosticCount,
 		sourceHash,
 		configHash,
 		declaredCompilerVersion,
@@ -289,9 +330,10 @@ export const scanProject = (config: ConfigType, knownPaths: readonly string[] = 
 		files,
 		sourceHash,
 		configHash,
-		projectFileCount: parsed.fileNames.length,
+		projects: projectResults,
+		projectFileCount,
 		excludedFileCount,
-		configDiagnosticCount: parsed.errors.length,
+		configDiagnosticCount,
 		scanMs: Math.round(performance.now() - startedAt),
 	};
 };

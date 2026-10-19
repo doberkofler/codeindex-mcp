@@ -39,7 +39,7 @@ Version 0.1.0 ships one extractor:
 
 - **TypeScript / JavaScript**, using the TypeScript compiler API.
 
-JavaScript files are indexed when the selected project file enables `allowJs`.
+JavaScript files are indexed when a configured project enables `allowJs`.
 Declaration files (`.d.ts`, `.d.mts`, `.d.cts`) and generated output are used for
 resolution but are not published as authored source.
 
@@ -113,7 +113,11 @@ overrides resolve relative to the current working directory.
 	},
 	"extractor": {
 		"id": "typescript",
-		"project": "tsconfig.json"
+		"projects": [
+			{ "name": "browser", "project": "tsconfig.json" },
+			{ "name": "contracts", "project": "contracts/tsconfig.json" },
+			{ "name": "server", "project": "server/tsconfig.json" }
+		]
 	},
 	"storage": {
 		"analyticsEnabled": true
@@ -128,8 +132,13 @@ overrides resolve relative to the current working directory.
 }
 ```
 
-`extractor.project` must stay inside `project.root`. Storage paths must stay
-outside the indexed workspace.
+Every `extractor.projects[].project` must stay inside `project.root`. The single
+`extractor.project` form remains supported. Storage paths must stay outside the
+indexed workspace.
+
+All project contexts build into one atomic generation. Each declaration and
+occurrence records the contexts that produced it; `find_symbol` and
+`find_references` accept an optional `context` filter.
 
 ### Environment overrides
 
@@ -138,7 +147,7 @@ outside the indexed workspace.
 | `CODE_INDEX_CONFIG` | Configuration file path |
 | `CODE_INDEX_ROOT` | Indexed workspace root |
 | `CODE_INDEX_EXTRACTOR` | Extractor identifier |
-| `CODE_INDEX_PROJECT_FILE` | Extractor project file |
+| `CODE_INDEX_PROJECT_FILE` | Single extractor project file override |
 | `CODE_INDEX_DATABASE` | SQLite index path |
 | `CODE_INDEX_ANALYTICS` | `0` or `false` disables analytics writes |
 | `CODE_INDEX_ANALYTICS_PATH` | Analytics JSONL path |
@@ -255,8 +264,8 @@ Oxlint. Do not weaken a check to make it pass.
 ## Current limitations
 
 - One extractor only: TypeScript / JavaScript.
-- JavaScript requires `allowJs` in the selected project file.
-- Files must be reachable from the selected project file.
+- JavaScript requires `allowJs` in a configured project file.
+- Files must be reachable from at least one configured project file.
 - Oracle, ORDS, and cross-language edges are planned but not shipped.
 - No embeddings, fuzzy search, or full-text search.
 - No incremental delta storage; reuse is generation-granular.

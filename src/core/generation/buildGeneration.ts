@@ -59,13 +59,14 @@ const persistFacts = (
 		database: IndexDatabase;
 		generationId: string;
 		files: readonly SourceFileType[];
+		projects: ScanResultType['projects'];
 		facts: ExtractionResultType;
 		dependencies: DependencyExtractionResultType;
 		diagnostics: readonly DiagnosticType[];
 		sourceHash: string;
 	}>,
 ): void => {
-	input.database.insertFiles(input.generationId, input.files);
+	input.database.insertFiles(input.generationId, input.files, input.projects);
 	input.database.insertSymbols(input.generationId, input.facts.symbols);
 	input.database.insertOccurrences(input.generationId, input.facts.occurrences);
 	input.database.insertDependencyEdges(input.generationId, input.dependencies.edges);
@@ -214,6 +215,7 @@ const executeBuild = (
 		database: input.database,
 		generationId: input.generationId,
 		files: extracted.files,
+		projects: input.scan.projects,
 		facts,
 		dependencies: extracted.dependencies,
 		diagnostics: extracted.diagnostics,

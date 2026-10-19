@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '4';
+export const SCHEMA_VERSION = '5';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -64,6 +64,14 @@ create table if not exists generation (
 	error text
 );
 
+create table if not exists project_context (
+	generation_id text not null references generation(id) on delete cascade,
+	name text not null,
+	project_file text not null,
+	config_hash text not null,
+	primary key (generation_id, name)
+);
+
 create table if not exists file (
 	generation_id text not null references generation(id) on delete cascade,
 	path text not null,
@@ -91,6 +99,16 @@ create table if not exists symbol (
 	foreign key (generation_id, path) references file(generation_id, path) on delete cascade
 );
 
+create table if not exists symbol_context (
+	generation_id text not null,
+	symbol_id text not null,
+	context_name text not null,
+	primary key (generation_id, symbol_id, context_name),
+	foreign key (generation_id, symbol_id) references symbol(generation_id, id) on delete cascade,
+	foreign key (generation_id, context_name) references project_context(generation_id, name) on delete cascade
+);
+
+create index if not exists symbol_context_by_context on symbol_context (generation_id, context_name, symbol_id);
 create index if not exists symbol_by_path on symbol (generation_id, path, start_offset);
 create index if not exists symbol_by_name on symbol (generation_id, name);
 create index if not exists symbol_by_qualified_name on symbol (generation_id, qualified_name);
@@ -111,9 +129,23 @@ create table if not exists occurrence (
 	foreign key (generation_id, path) references file(generation_id, path) on delete cascade
 );
 
+create table if not exists occurrence_context (
+	generation_id text not null,
+	symbol_id text not null,
+	path text not null,
+	start_offset integer not null,
+	role text not null check (role in ('definition', 'reference')),
+	context_name text not null,
+	primary key (generation_id, symbol_id, path, start_offset, role, context_name),
+	foreign key (generation_id, symbol_id, path, start_offset, role) references occurrence(generation_id, symbol_id, path, start_offset, role) on delete cascade,
+	foreign key (generation_id, context_name) references project_context(generation_id, name) on delete cascade
+);
+
+create index if not exists occurrence_context_by_context on occurrence_context (generation_id, context_name, symbol_id);
 create table if not exists dependency_edge (
 	generation_id text not null references generation(id) on delete cascade,
 	id text not null,
+	context_name text,
 	source_path text not null,
 	target_path text,
 	raw_specifier text not null,

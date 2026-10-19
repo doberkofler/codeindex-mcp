@@ -18,6 +18,18 @@ export type QueryContextType = Readonly<{
 	readonly freshness: QueryFreshnessType;
 }>;
 
+const assertKnownContext = (context: QueryContextType, requested: string | undefined): void => {
+	if (requested === undefined) {
+		return;
+	}
+
+	const known = context.database.listProjectContextNames(context.generationId);
+
+	if (!known.includes(requested)) {
+		throw new CodeIndexError('invalid_argument', `Unknown project context: ${requested}. Available contexts: ${known.join(', ')}`);
+	}
+};
+
 /**
  * Finds declarations by exact or prefix name.
  *
@@ -34,8 +46,15 @@ export const findSymbols = (context: QueryContextType, input: FindSymbolInputTyp
 		throw new CodeIndexError('invalid_argument', 'Query must not be empty');
 	}
 
+	assertKnownContext(context, input.context);
 	const offset = decodeCursor(input.cursor, context.generationId, 'find_symbol').o;
-	const rows = context.database.findSymbols(context.generationId, query, input.limit + 1, offset);
+	const rows = context.database.findSymbols({
+		generationId: context.generationId,
+		query,
+		context: input.context,
+		limit: input.limit + 1,
+		offset,
+	});
 	const items = rows.slice(0, input.limit);
 
 	return boundedPagedResult({
@@ -63,11 +82,13 @@ export const findReferences = (context: QueryContextType, input: FindReferencesI
 		throw new CodeIndexError('symbol_not_found', `Unknown symbol: ${input.symbolId}`);
 	}
 
+	assertKnownContext(context, input.context);
 	const offset = decodeCursor(input.cursor, context.generationId, 'find_references').o;
 	const rows = context.database.findReferences({
 		generationId: context.generationId,
 		symbolId: input.symbolId,
 		role: input.role,
+		context: input.context,
 		limit: input.limit + 1,
 		offset,
 	});
@@ -147,12 +168,22 @@ export const findDependencies = (context: QueryContextType, input: FindDependenc
 		throw new CodeIndexError('invalid_argument', 'root requires transitive: true');
 	}
 
-	const queryKind = JSON.stringify(['find_dependencies', direction, transitive ? 'impact' : 'direct', detail, packageName, root ?? null]);
+	assertKnownContext(context, input.context);
+	const queryKind = JSON.stringify([
+		'find_dependencies',
+		direction,
+		transitive ? 'impact' : 'direct',
+		detail,
+		packageName,
+		root ?? null,
+		input.context ?? null,
+	]);
 	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
 	const matches = findDependencyConsumers({
 		database: context.database,
 		generationId: context.generationId,
 		packageName,
+		context: input.context,
 		transitive,
 		root,
 	});

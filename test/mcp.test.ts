@@ -2,7 +2,7 @@ import {Client} from '@modelcontextprotocol/client';
 import {InMemoryTransport} from '@modelcontextprotocol/server';
 import {afterEach, describe, expect, it} from 'vitest';
 import {buildMcpServer} from '../src/transports/mcp/buildMcpServer.ts';
-import {createFixtureIndex, silentLogger} from './helpers/fixture.ts';
+import {createFixtureIndex, silentLogger, type FixtureProjectType} from './helpers/fixture.ts';
 
 type EnvelopeType = Readonly<{ok: boolean; data?: unknown; error?: Readonly<{code: string; message: string}>}>;
 
@@ -18,8 +18,8 @@ const textOf = (result: Readonly<{content: readonly {type: string; text?: string
 	return content.text;
 };
 
-const openFixture = async (fixtureName: string, maxResultBytes: number): Promise<ConnectionType> => {
-	const fixture = createFixtureIndex(fixtureName);
+const openFixture = async (fixtureName: string, maxResultBytes: number, projects?: readonly FixtureProjectType[]): Promise<ConnectionType> => {
+	const fixture = createFixtureIndex(fixtureName, projects);
 	const server = buildMcpServer({index: fixture.index, logger: silentLogger, maxResultBytes});
 	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
@@ -47,8 +47,8 @@ describe('MCP adapter', () => {
 		connection = undefined;
 	});
 
-	const connect = async (fixtureName = 'simple-project', maxResultBytes = 32_768): Promise<Client> => {
-		connection = await openFixture(fixtureName, maxResultBytes);
+	const connect = async (fixtureName = 'simple-project', maxResultBytes = 32_768, projects?: readonly FixtureProjectType[]): Promise<Client> => {
+		connection = await openFixture(fixtureName, maxResultBytes, projects);
 		return connection.client;
 	};
 
@@ -107,6 +107,21 @@ describe('MCP adapter', () => {
 		expect(result.isError).toBe(true);
 		expect(envelope.ok).toBe(false);
 		expect(envelope.error?.code).toBe('symbol_not_found');
+	});
+
+	it('filters symbols by project context through the protocol', async () => {
+		const client = await connect('multi-project', 32_768, [
+			{name: 'browser', project: 'tsconfig.json'},
+			{name: 'contracts', project: 'contracts/tsconfig.json'},
+			{name: 'server', project: 'server/tsconfig.json'},
+		]);
+		const result = await client.callTool({name: 'find_symbol', arguments: {query: 'ServiceRequest', context: 'server', limit: 1}});
+		const envelope = JSON.parse(textOf(result)) as EnvelopeType & {
+			data: {items: readonly {name: string; contexts: readonly string[]}[]};
+		};
+
+		expect(envelope.ok).toBe(true);
+		expect(envelope.data.items[0]).toMatchObject({name: 'ServiceRequest', contexts: ['browser', 'contracts', 'server']});
 	});
 
 	it('reports status through the protocol', async () => {

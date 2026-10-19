@@ -1,5 +1,5 @@
-import {type ConfigType} from '../../core/config/config.ts';
-import {type ScanResultType, type SourceFileType} from '../../core/model.ts';
+import {type ConfigType, type ProjectContextConfigType} from '../../core/config/config.ts';
+import {type DiagnosticType, type IndexedOccurrenceType, type IndexedSymbolType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
 import {createSourceFileRecord} from '../../core/generation/sourceFiles.ts';
 import {type ExtractorBuildType, type ExtractorType} from '../types.ts';
 import {extractDependencyFacts} from './extractDependencies.ts';
@@ -19,7 +19,8 @@ const SOURCE_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.mts', '.cts', '.j
 const LIMITATIONS: readonly string[] = [
 	'JavaScript indexing requires allowJs in the selected project file',
 	'declaration files and generated output are resolution-only',
-	'only files reachable from the selected project file are indexed',
+	'only files reachable from the configured project files are indexed',
+	'compiler facts are kept per project context and are not merged across incompatible programs',
 	'other languages and cross-language edges are not indexed',
 	'no fuzzy search, embeddings, or full-text search',
 ];
@@ -42,22 +43,142 @@ const mergeProjectFiles = (config: ConfigType, scan: ScanResultType, project: Lo
 	return [...mergedFiles.values()].sort((left, right) => left.path.localeCompare(right.path));
 };
 
+const occurrenceKey = (occurrence: IndexedOccurrenceType): string =>
+	[occurrence.symbolId, occurrence.path, String(occurrence.startOffset), String(occurrence.endOffset), occurrence.role].join('\u0000');
+
+const sortedContexts = (left: readonly string[] | undefined, right: readonly string[] | undefined): readonly string[] =>
+	[...new Set([...(left ?? []), ...(right ?? [])])].sort();
+
+const mergeSymbols = (symbols: readonly IndexedSymbolType[]): readonly IndexedSymbolType[] => {
+	const merged = new Map<string, IndexedSymbolType>();
+
+	for (const symbol of symbols) {
+		const existing = merged.get(symbol.id);
+		const base = existing === undefined || symbol.qualifiedName < existing.qualifiedName ? symbol : existing;
+
+		merged.set(symbol.id, {
+			...base,
+			contexts: sortedContexts(existing?.contexts, symbol.contexts),
+		});
+	}
+
+	return [...merged.values()].sort(
+		(left, right) => left.path.localeCompare(right.path) || left.startOffset - right.startOffset || left.id.localeCompare(right.id),
+	);
+};
+
+const mergeOccurrences = (occurrences: readonly IndexedOccurrenceType[]): readonly IndexedOccurrenceType[] => {
+	const merged = new Map<string, IndexedOccurrenceType>();
+
+	for (const occurrence of occurrences) {
+		const key = occurrenceKey(occurrence);
+		const existing = merged.get(key);
+
+		merged.set(key, {
+			...(existing ?? occurrence),
+			contexts: sortedContexts(existing?.contexts, occurrence.contexts),
+		});
+	}
+
+	return [...merged.values()].sort(
+		(left, right) =>
+			left.path.localeCompare(right.path) ||
+			left.startOffset - right.startOffset ||
+			left.symbolId.localeCompare(right.symbolId) ||
+			left.role.localeCompare(right.role),
+	);
+};
+
+const diagnosticKey = (diagnostic: DiagnosticType): string =>
+	[
+		diagnostic.category,
+		String(diagnostic.code),
+		diagnostic.message,
+		diagnostic.path ?? '',
+		String(diagnostic.startLine ?? 0),
+		String(diagnostic.startColumn ?? 0),
+	].join('\u0000');
+
+const mergeDiagnostics = (contexts: readonly ContextBuildType[]): readonly DiagnosticType[] => {
+	const merged = new Map<string, DiagnosticType>();
+
+	for (const context of contexts) {
+		for (const diagnostic of [...context.project.diagnostics, ...context.facts.diagnostics]) {
+			merged.set(diagnosticKey(diagnostic), diagnostic);
+		}
+	}
+
+	return [...merged.values()];
+};
+
+const mergeContextFiles = (contexts: readonly ContextBuildType[]): readonly SourceFileType[] => {
+	const merged = new Map<string, SourceFileType>();
+
+	for (const context of contexts) {
+		for (const file of context.files) {
+			merged.set(file.path, file);
+		}
+	}
+
+	return [...merged.values()].sort((left, right) => left.path.localeCompare(right.path));
+};
+
+type LoadedContextType = Readonly<{
+	readonly config: ProjectContextConfigType;
+	readonly project: LoadedProjectType;
+	readonly files: readonly SourceFileType[];
+}>;
+
+type ContextBuildType = LoadedContextType &
+	Readonly<{
+		readonly facts: ReturnType<typeof extractSymbolFacts>;
+		readonly dependencies: ReturnType<typeof extractDependencyFacts>;
+	}>;
+
+const loadContext = (config: ConfigType, scan: ScanResultType, context: ProjectContextConfigType): LoadedContextType => {
+	const project = loadTypeScriptProject(config, context.projectFilePath);
+
+	return {config: context, project, files: mergeProjectFiles(config, scan, project)};
+};
+
+const extractContext = (config: ConfigType, context: LoadedContextType): ContextBuildType => ({
+	...context,
+	facts: extractSymbolFacts({
+		project: context.project,
+		files: context.files,
+		projectId: config.projectId,
+		rootDir: config.rootDir,
+		context: context.config.name,
+	}),
+	dependencies: extractDependencyFacts({
+		project: context.project,
+		files: context.files,
+		projectId: config.projectId,
+		rootDir: config.rootDir,
+		context: context.config.name,
+	}),
+});
+
 const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => {
 	const compilerStartedAt = performance.now();
-	const project = loadTypeScriptProject(config);
+	const loaded = config.projects.map((context) => loadContext(config, scan, context));
 	const compilerMs = Math.round(performance.now() - compilerStartedAt);
-	const files = mergeProjectFiles(config, scan, project);
 	const extractionStartedAt = performance.now();
-	const facts = extractSymbolFacts({project, files, projectId: config.projectId, rootDir: config.rootDir});
-	const dependencies = extractDependencyFacts({project, files, projectId: config.projectId, rootDir: config.rootDir});
+	const contexts = loaded.map((context) => extractContext(config, context));
+	const symbols = mergeSymbols(contexts.flatMap((context) => context.facts.symbols));
+	const occurrences = mergeOccurrences(contexts.flatMap((context) => context.facts.occurrences));
+	const dependencies = {
+		edges: contexts.flatMap((context) => context.dependencies.edges),
+		bindings: contexts.flatMap((context) => context.dependencies.bindings),
+	};
 	const extractionMs = Math.round(performance.now() - extractionStartedAt);
 
 	return {
-		files,
-		symbols: facts.symbols,
-		occurrences: facts.occurrences,
+		files: mergeContextFiles(contexts),
+		symbols,
+		occurrences,
 		dependencies,
-		diagnostics: [...project.diagnostics, ...facts.diagnostics],
+		diagnostics: mergeDiagnostics(contexts),
 		compilerMs,
 		extractionMs,
 	};
@@ -77,6 +198,6 @@ export const typeScriptExtractor: ExtractorType = {
 	limitations: LIMITATIONS,
 	scan: scanProject,
 	build,
-	configFiles: (config) => collectConfigFiles(config.projectFilePath),
+	configFiles: (config) => [...new Set(config.projects.flatMap((project) => collectConfigFiles(project.projectFilePath)))],
 	isSourceFile: isAuthoredSourceFile,
 };

@@ -86,7 +86,7 @@ export const toGeneration = (row: SqlRowType): GenerationRowType => ({
 	error: asNullableString(row, 'error'),
 });
 
-export const toSymbolSummary = (row: SqlRowType): SymbolSummaryType => ({
+export const toSymbolSummary = (row: SqlRowType, contexts: readonly string[] = []): SymbolSummaryType => ({
 	id: asString(row, 'id'),
 	name: asString(row, 'name'),
 	qualifiedName: asString(row, 'qualified_name'),
@@ -97,9 +97,10 @@ export const toSymbolSummary = (row: SqlRowType): SymbolSummaryType => ({
 	endLine: asNumber(row, 'end_line'),
 	endColumn: asNumber(row, 'end_column'),
 	enclosingId: asNullableString(row, 'enclosing_id'),
+	contexts,
 });
 
-export const toReference = (row: SqlRowType): ReferenceType => ({
+export const toReference = (row: SqlRowType, contexts: readonly string[] = []): ReferenceType => ({
 	path: asString(row, 'path'),
 	startLine: asNumber(row, 'start_line'),
 	startColumn: asNumber(row, 'start_column'),
@@ -107,6 +108,7 @@ export const toReference = (row: SqlRowType): ReferenceType => ({
 	endColumn: asNumber(row, 'end_column'),
 	role: asString(row, 'role') === 'definition' ? 'definition' : 'reference',
 	enclosingId: asNullableString(row, 'enclosing_id'),
+	contexts,
 });
 
 const dependencyKinds: readonly DependencyKindType[] = ['import', 'side-effect', 'export', 'export-all', 'dynamic-import', 'import-type', 'import-equals'];
@@ -136,6 +138,7 @@ const dependencyBindingKindOf = (value: string): DependencyBindingKindType => {
 export const toDependencyEdge = (row: SqlRowType, generationId: string): StoredDependencyEdgeType => ({
 	generationId,
 	id: asString(row, 'id'),
+	context: asNullableString(row, 'context_name') ?? undefined,
 	sourcePath: asString(row, 'source_path'),
 	targetPath: asNullableString(row, 'target_path'),
 	rawSpecifier: asString(row, 'raw_specifier'),
@@ -161,7 +164,7 @@ export const toDependencyBinding = (row: SqlRowType): IndexedDependencyBindingTy
 });
 
 export const DEPENDENCY_EDGE_COLUMNS =
-	'id, source_path, target_path, raw_specifier, normalized_package, kind, type_only, start_line, start_column, end_line, end_column, start_offset, end_offset';
+	'id, context_name, source_path, target_path, raw_specifier, normalized_package, kind, type_only, start_line, start_column, end_line, end_column, start_offset, end_offset';
 
 export const DEPENDENCY_BINDING_COLUMNS = 'edge_id, position, kind, imported_name, exported_name, local_name, type_only';
 

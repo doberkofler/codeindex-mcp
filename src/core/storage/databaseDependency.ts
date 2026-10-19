@@ -14,9 +14,9 @@ const TARGET_CHUNK_SIZE = 400;
  */
 export const insertDependencyEdges = (writer: DatabaseSync, generationId: string, edges: readonly IndexedDependencyEdgeType[]): void => {
 	const statement = writer.prepare(
-		`insert into dependency_edge (generation_id, id, source_path, target_path, raw_specifier, normalized_package, kind, type_only,
+		`insert into dependency_edge (generation_id, id, context_name, source_path, target_path, raw_specifier, normalized_package, kind, type_only,
 		 start_line, start_column, end_line, end_column, start_offset, end_offset)
-		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	);
 
 	transaction(writer, () => {
@@ -24,6 +24,7 @@ export const insertDependencyEdges = (writer: DatabaseSync, generationId: string
 			statement.run(
 				generationId,
 				edge.id,
+				edge.context ?? null,
 				edge.sourcePath,
 				edge.targetPath,
 				edge.rawSpecifier,
@@ -76,18 +77,28 @@ export const insertDependencyBindings = (writer: DatabaseSync, generationId: str
  * @param reader - Reader connection.
  * @param generationId - Published generation.
  * @param packageName - Normalized npm package name.
+ * @param context - Optional project-context filter.
  * @returns Edges in source and position order.
  */
-export const findDependencyEdgesByPackage = (reader: DatabaseSync, generationId: string, packageName: string): readonly StoredDependencyEdgeType[] =>
-	reader
+export const findDependencyEdgesByPackage = (
+	reader: DatabaseSync,
+	generationId: string,
+	packageName: string,
+	context?: string,
+): readonly StoredDependencyEdgeType[] => {
+	const contextClause = context === undefined ? '' : ' and context_name = ?';
+	const parameters = context === undefined ? [generationId, packageName] : [generationId, packageName, context];
+
+	return reader
 		.prepare(
 			`select ${DEPENDENCY_EDGE_COLUMNS}
 			 from dependency_edge
-			 where generation_id = ? and normalized_package = ?
+			 where generation_id = ? and normalized_package = ?${contextClause}
 			 order by source_path, start_offset, id`,
 		)
-		.all(generationId, packageName)
+		.all(...parameters)
 		.map((row) => toDependencyEdge(row, generationId));
+};
 
 /**
  * Lists edges whose resolved authored target is in one module frontier.
@@ -95,14 +106,18 @@ export const findDependencyEdgesByPackage = (reader: DatabaseSync, generationId:
  * @param reader - Reader connection.
  * @param generationId - Published generation.
  * @param targetPaths - Repository-relative module paths.
+ * @param context - Optional project-context filter.
  * @returns Edges in source and position order.
  */
 export const findDependencyEdgesByTargets = (
 	reader: DatabaseSync,
 	generationId: string,
 	targetPaths: readonly string[],
+	context?: string,
 ): readonly StoredDependencyEdgeType[] => {
 	const edges: StoredDependencyEdgeType[] = [];
+	const contextClause = context === undefined ? '' : ' and context_name = ?';
+	const contextParameters = context === undefined ? [] : [context];
 
 	for (let offset = 0; offset < targetPaths.length; offset += TARGET_CHUNK_SIZE) {
 		const chunk = targetPaths.slice(offset, offset + TARGET_CHUNK_SIZE);
@@ -110,10 +125,10 @@ export const findDependencyEdgesByTargets = (
 			.prepare(
 				`select ${DEPENDENCY_EDGE_COLUMNS}
 				 from dependency_edge
-				 where generation_id = ? and target_path in (${placeholders(chunk.length)})
+				 where generation_id = ? and target_path in (${placeholders(chunk.length)})${contextClause}
 				 order by source_path, start_offset, id`,
 			)
-			.all(generationId, ...chunk);
+			.all(generationId, ...chunk, ...contextParameters);
 
 		edges.push(...rows.map((row) => toDependencyEdge(row, generationId)));
 	}
