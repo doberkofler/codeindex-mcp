@@ -278,7 +278,7 @@ export const scanProject = (config: ConfigType, knownPaths: readonly string[] = 
 	for (const knownPath of knownPaths) {
 		const absolutePath = resolve(config.rootDir, knownPath);
 
-		if (isAuthoredSourceFile(absolutePath, config.rootDir)) {
+		if (isAuthoredSourceFile(absolutePath, config.rootDir) && existsSync(absolutePath)) {
 			candidates.add(absolutePath);
 		}
 	}

@@ -1,4 +1,4 @@
-import {appendFileSync} from 'node:fs';
+import {appendFileSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {CodeIndexError, StaleFileError} from '../src/core/errors/errors.ts';
@@ -363,6 +363,18 @@ describe('CodeIndex freshness', () => {
 
 		expect(() => index.getOutline({path: 'src/missing.ts', limit: 10})).toThrow(CodeIndexError);
 		expect(() => index.getOutline({path: '../outside.ts', limit: 10})).toThrow(CodeIndexError);
+	});
+
+	it('recovers after indexed files are deleted', async () => {
+		fixture = createFixtureIndex('simple-project');
+		rmSync(path.join(fixture.config.rootDir, 'src', 'summary.ts'));
+		rmSync(path.join(fixture.config.rootDir, 'shared', 'contracts.ts'));
+
+		const rebuild = await fixture.index.ensureReady();
+
+		expect(rebuild.reused).toBe(false);
+		expect(rebuild.fileCount).toBe(2);
+		expect(fixture.index.getStatus().counts.files).toBe(2);
 	});
 
 	it('indexes imported files outside the tsconfig include', async () => {
