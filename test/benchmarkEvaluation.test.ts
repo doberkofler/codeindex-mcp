@@ -157,7 +157,9 @@ describe('benchmark evaluation', () => {
 			fixture.cleanup();
 		}
 	});
+});
 
+describe('benchmark reference gates', () => {
 	it('rejects an obsolete or unrelated reference before relative gates run', async () => {
 		const fixture = createFixtureConfig('simple-project');
 
