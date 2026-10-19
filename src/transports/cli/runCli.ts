@@ -1,22 +1,24 @@
-import {Command, CommanderError} from 'commander';
+import {Command} from 'commander';
 import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
-import {runBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
-import {runBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
-import {runBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
-import {runOracleLiveQualification, type OracleLiveQualificationOptionsType} from '../../core/qualification/oracle/live/runOracleLiveQualification.ts';
-import {runQualifyCommand} from '../../core/qualification/qualifyCommand.ts';
+import {addBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
+import {addBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
+import {addBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
 import {loadConfig} from '../../core/config/config.ts';
-import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
 import {isCodeIndexError} from '../../core/errors/errors.ts';
-import {type BuildReportType, type IndexStatusType, type IndexVerificationType} from '../../core/model.ts';
+import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
 import {debugFor, enableDebug} from '../../core/logging/debug.ts';
 import {createLogger} from '../../core/logging/logger.ts';
+import {type BuildReportType, type IndexStatusType, type IndexVerificationType} from '../../core/model.ts';
+import {addQualifyCommand, addVerifyReferencesCommand} from '../../core/qualification/qualifyCommand.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
-import {runAnalyticsCommand} from './analyticsCommand.ts';
+import {addAnalyticsCommand} from './analyticsCommand.ts';
+import {messageOf, parseCommandAsync} from './commanderSupport.ts';
+import {addOracleLiveCommand} from './oracleLiveCommand.ts';
 
 const debug = debugFor('cli');
+const BANNER_COMMANDS: ReadonlySet<string> = new Set(['update', 'refresh', 'rebuild', 'status', 'verify']);
 
 export type CliIoType = Readonly<{
 	readonly stdout: (line: string) => void;
@@ -192,6 +194,10 @@ const buildProgram = (context: CliContextType): Command => {
 			},
 		})
 		.hook('preAction', (_thisCommand, actionCommand) => {
+			if (!BANNER_COMMANDS.has(actionCommand.name())) {
+				return;
+			}
+
 			const options = actionCommand.opts<CommonOptionsType>();
 
 			if (options.json !== true) {
@@ -259,109 +265,18 @@ const buildProgram = (context: CliContextType): Command => {
 			}),
 	);
 
+	addAnalyticsCommand(program, context.environment, context.io);
+	addBenchmarkCommand(program, context.environment, context.io);
+	addBenchmarkSuiteCommand(program, context.environment, context.io, {cliPath: process.argv[1] ?? ''});
+	addBenchmarkPrepareCommand(program, context.io);
+	addQualifyCommand(program, context.environment, context.io);
+	addOracleLiveCommand(program, context.environment, context.io);
+	addVerifyReferencesCommand(program, context.environment, context.io);
+
 	return program;
 };
 
-const ORACLE_LIVE_USAGE = 'Usage: codeindex-cli qualify-oracle-live --root <path> [--manifest <path>] [--output <path>] [--approval <hash>] [--schema <name>]';
-
-type OracleLiveArgumentsType = Readonly<{help: true} | {help: false; options: OracleLiveQualificationOptionsType}>;
-
-type OracleLiveValuesType = {root?: string; manifest?: string; output?: string; approval?: string; schema?: string};
-
-const ORACLE_LIVE_OPTION_KEYS: Readonly<Record<string, keyof OracleLiveValuesType>> = {
-	'--root': 'root',
-	'--manifest': 'manifest',
-	'--output': 'output',
-	'--approval': 'approval',
-	'--schema': 'schema',
-};
-
-const oracleLiveArguments = (argv: readonly string[]): OracleLiveArgumentsType => {
-	const values: OracleLiveValuesType = {};
-
-	for (let index = 0; index < argv.length; index += 1) {
-		const name = argv[index];
-
-		if (name === '--help' || name === '-h') {
-			return {help: true};
-		}
-
-		const key = name === undefined ? undefined : ORACLE_LIVE_OPTION_KEYS[name];
-
-		if (key === undefined) {
-			throw new Error(`Unknown option: ${name ?? ''}`);
-		}
-
-		const value = argv[index + 1];
-
-		if (value === undefined || value.startsWith('--')) {
-			throw new Error(`Missing value for ${name ?? ''}`);
-		}
-
-		values[key] = value;
-		index += 1;
-	}
-
-	if (values.root === undefined) {
-		throw new Error('Oracle live qualification requires --root');
-	}
-
-	return {
-		help: false,
-		options: {
-			root: values.root,
-			manifest: values.manifest,
-			output: values.output,
-			approval: values.approval,
-			schema: values.schema,
-		},
-	};
-};
-
-const runSpecialCommand = (argv: readonly string[], environment: NodeJS.ProcessEnv, io: CliIoType): number | null | Promise<number> => {
-	if (argv[0] === 'analytics') {
-		return runAnalyticsCommand(argv.slice(1), environment, io);
-	}
-
-	if (argv[0] === 'benchmark') {
-		return runBenchmarkCommand(argv.slice(1), environment, io);
-	}
-
-	if (argv[0] === 'benchmark-suite') {
-		return runBenchmarkSuiteCommand(argv.slice(1), environment, io, {cliPath: process.argv[1] ?? ''});
-	}
-
-	if (argv[0] === 'benchmark-prepare') {
-		return runBenchmarkPrepareCommand(argv.slice(1), io);
-	}
-
-	if (argv[0] === 'qualify') {
-		return runQualifyCommand(argv.slice(1), environment, io);
-	}
-
-	if (argv[0] === 'qualify-oracle-live') {
-		try {
-			const parsed = oracleLiveArguments(argv.slice(1));
-
-			if (parsed.help) {
-				io.stdout(ORACLE_LIVE_USAGE);
-				return 0;
-			}
-
-			return runOracleLiveQualification(environment, parsed.options, io);
-		} catch (error) {
-			io.stderr(error instanceof Error ? error.message : String(error));
-			io.stderr(ORACLE_LIVE_USAGE);
-			return 2;
-		}
-	}
-
-	if (argv[0] === 'verify-references') {
-		return runQualifyCommand(['--extractor', 'typescript', ...argv.slice(1)], environment, io);
-	}
-
-	return null;
-};
+const formatCommandError = (error: unknown): string => (isCodeIndexError(error) ? `${error.code}: ${error.message}` : messageOf(error));
 
 /**
  * Runs one operational command against a real working copy.
@@ -377,12 +292,6 @@ const runSpecialCommand = (argv: readonly string[], environment: NodeJS.ProcessE
  * @returns Process exit code.
  */
 export const runCli = async (argv: readonly string[], environment: NodeJS.ProcessEnv, io: CliIoType, options: CodeIndexOptionsType = {}): Promise<number> => {
-	const special = await runSpecialCommand(argv, environment, io);
-
-	if (special !== null) {
-		return special;
-	}
-
 	const program = buildProgram({environment, io, ...options});
 	debug('cli start', {argv: [...argv]});
 
@@ -391,23 +300,7 @@ export const runCli = async (argv: readonly string[], environment: NodeJS.Proces
 		return 0;
 	}
 
-	try {
-		await program.parseAsync([...argv], {from: 'user'});
-		debug('cli complete', {result: 0});
-		return 0;
-	} catch (error) {
-		if (error instanceof CommanderError) {
-			debug('cli commander error', {exitCode: error.exitCode, message: error.message});
-			return error.exitCode === 0 ? 0 : 2;
-		}
-
-		debug('cli failed', {message: error instanceof Error ? error.message : String(error)});
-		if (isCodeIndexError(error)) {
-			io.stderr(`${error.code}: ${error.message}`);
-		} else {
-			io.stderr(error instanceof Error ? error.message : String(error));
-		}
-
-		return 1;
-	}
+	const code = await parseCommandAsync(program, argv, io, {usageExitCode: 2, formatError: formatCommandError});
+	debug('cli complete', {result: code});
+	return code;
 };

@@ -2,22 +2,17 @@ import {spawnSync} from 'node:child_process';
 import {existsSync, mkdirSync, renameSync, writeFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {parseArgs} from 'node:util';
+import {Command} from 'commander';
+import {configureCommand, parseCommand} from '../../transports/cli/commanderSupport.ts';
 import {type BenchmarkIoType} from './finalize.ts';
 import {git, lockfileOf, sha256File} from './suiteManifest.ts';
 import {loadBenchmarkSuite, resolveProjectsRoot, type BenchmarkSuitePublicProjectType} from './suiteTypes.ts';
 
-const prepareUsage = `Usage: codeindex-cli benchmark-prepare --suite <path> [options]
-
-Clones the suite's pinned public projects and installs their dependencies.
-Checkout and dependency setup are not part of any measured scenario.
-
-Options:
-  --suite <path>         Suite manifest (default: benchmark/suites/typescript-public.json)
-  --projects-root <path> Override the checkout root
-  --skip-install         Clone and check out only
-  --help                 Print this message
-`;
+type PrepareOptionsType = Readonly<{
+	suite?: string | undefined;
+	projectsRoot?: string | undefined;
+	skipInstall: boolean;
+}>;
 
 const checkout = (project: BenchmarkSuitePublicProjectType, directory: string, io: BenchmarkIoType): void => {
 	if (existsSync(directory)) {
@@ -151,6 +146,51 @@ const writePreparedManifest = (
 	renameSync(temporaryPath, filePath);
 };
 
+const executePrepare = (values: PrepareOptionsType, io: BenchmarkIoType, options: Readonly<{cwd?: string; home?: string}>): void => {
+	const cwd = options.cwd ?? process.cwd();
+	const home = options.home ?? os.homedir();
+	const suitePath = path.resolve(cwd, values.suite ?? 'benchmark/suites/typescript-public.json');
+	const suite = loadBenchmarkSuite(suitePath);
+	const projectsRoot = resolveProjectsRoot(suite, values.projectsRoot, home, cwd);
+
+	mkdirSync(projectsRoot, {recursive: true});
+
+	for (const project of suite.publicProjects) {
+		const directory = path.join(projectsRoot, project.directory);
+		checkout(project, directory, io);
+
+		if (!values.skipInstall) {
+			installDependencies(project, directory, io);
+		}
+	}
+
+	writePreparedManifest({suitePath, projectsRoot, projects: suite.publicProjects});
+	io.stdout(`Prepared ${String(suite.publicProjects.length)} project(s) in ${projectsRoot}`);
+};
+
+const prepareCommand = (io: BenchmarkIoType, options: Readonly<{cwd?: string; home?: string}>): Command =>
+	configureCommand(
+		new Command('benchmark-prepare')
+			.description('Clone the suite pinned public projects and install their dependencies; checkout and dependency setup are not measured')
+			.option('--suite <path>', 'suite manifest (default: benchmark/suites/typescript-public.json)')
+			.option('--projects-root <path>', 'override the checkout root')
+			.option('--skip-install', 'clone and check out only', false),
+		io,
+	).action((values: PrepareOptionsType) => {
+		executePrepare(values, io, options);
+	});
+
+/**
+ * Registers the public-project preparation command.
+ *
+ * @param program - Root CLI program.
+ * @param io - Output sinks.
+ * @param options - Injected working and home directories.
+ */
+export const addBenchmarkPrepareCommand = (program: Command, io: BenchmarkIoType, options: Readonly<{cwd?: string; home?: string}> = {}): void => {
+	program.addCommand(prepareCommand(io, options));
+};
+
 /**
  * Clones and installs pinned public benchmark projects.
  *
@@ -160,46 +200,8 @@ const writePreparedManifest = (
  * @returns Process exit code.
  */
 export const runBenchmarkPrepareCommand = (argv: readonly string[], io: BenchmarkIoType, options: Readonly<{cwd?: string; home?: string}> = {}): number => {
-	try {
-		const separator = argv.indexOf('--');
-		const {values} = parseArgs({
-			args: [...(separator === -1 ? argv : [...argv.slice(0, separator), ...argv.slice(separator + 1)])],
-			options: {
-				suite: {type: 'string'},
-				'projects-root': {type: 'string'},
-				'skip-install': {type: 'boolean', default: false},
-				help: {type: 'boolean', default: false},
-			},
-			allowPositionals: false,
-		});
+	const program = new Command('codeindex-cli');
+	program.addCommand(prepareCommand(io, options));
 
-		if (values.help) {
-			io.stdout(prepareUsage.trimEnd());
-			return 0;
-		}
-
-		const cwd = options.cwd ?? process.cwd();
-		const home = options.home ?? os.homedir();
-		const suitePath = path.resolve(cwd, values.suite ?? 'benchmark/suites/typescript-public.json');
-		const suite = loadBenchmarkSuite(suitePath);
-		const projectsRoot = resolveProjectsRoot(suite, values['projects-root'], home, cwd);
-
-		mkdirSync(projectsRoot, {recursive: true});
-
-		for (const project of suite.publicProjects) {
-			const directory = path.join(projectsRoot, project.directory);
-			checkout(project, directory, io);
-
-			if (!values['skip-install']) {
-				installDependencies(project, directory, io);
-			}
-		}
-
-		writePreparedManifest({suitePath, projectsRoot, projects: suite.publicProjects});
-		io.stdout(`Prepared ${String(suite.publicProjects.length)} project(s) in ${projectsRoot}`);
-		return 0;
-	} catch (error) {
-		io.stderr(error instanceof Error ? error.message : String(error));
-		return 1;
-	}
+	return parseCommand(program, ['benchmark-prepare', ...argv], io, {usageExitCode: 1});
 };

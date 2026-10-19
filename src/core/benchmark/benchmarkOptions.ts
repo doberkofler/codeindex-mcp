@@ -1,40 +1,38 @@
 import path from 'node:path';
-import {parseArgs} from 'node:util';
+import {type Command} from 'commander';
 import {type BenchmarkProfileType, type BenchmarkScenarioNameType} from './benchTypes.ts';
 import {isBenchmarkProfile} from './corpus.ts';
 
 const {join} = path;
 const DEFAULT_SCENARIOS: readonly BenchmarkScenarioNameType[] = ['cold_build', 'warm_reuse', 'warm_rebuild', 'deep_cursor'];
 
-export const benchmarkUsage = `Usage: codeindex-cli benchmark [options]
-
-Measures local build, edit-to-fresh, resource, storage, and query behavior.
-Performs no model calls. Cold builds use a temporary database.
-
-Options:
-  --profile <name>       Generate a corpus: small, medium, large, or xl
-  --workspace <path>     Destination or existing corpus for --profile
-  --scenarios <list>     Comma-separated: cold, warm, rebuild, edit, deep, queries
-  --iterations <n>       Query iterations (default 20)
-  --edit-rounds <n>      One-file edits measured (default 5)
-  --max-depth <n>        Deep cursor maximum offset (default 10000)
-  --page-limit <n>       Deep cursor page size (default 200)
-  --rebuild              Alias for the warm rebuild scenario
-  --keep-workspace       Retain generated workspace and temporary database
-  --baseline <path>      Versioned gate configuration
-  --reference <path>     Accepted report for relative regression gates
-  --evaluation <path>    Evaluation JSON sidecar (default beside the report)
-  --summary <path>       Markdown summary, for example GITHUB_STEP_SUMMARY
-  --output <path>        Write JSON results to this path
-  --config <path>        Load a JSON configuration file
-  --root <path>          Measure an external indexed workspace
-  --extractor <id>       Override the selected extractor
-  --project-file <path>  Override the extractor project file
-  --database <path>      Override the benchmark database path
-  --help                 Print this message
-
-Edit-to-fresh mutates source and is allowed only for a generated corpus.
-`;
+/**
+ * Adds the benchmark flags to a Commander command.
+ *
+ * @param command - Command to extend.
+ * @returns The same command with benchmark options.
+ */
+export const addBenchmarkOptions = (command: Command): Command =>
+	command
+		.option('--profile <name>', 'generate a corpus: small, medium, large, or xl')
+		.option('--workspace <path>', 'destination or existing corpus for --profile')
+		.option('--scenarios <list>', 'comma-separated: cold, warm, rebuild, edit, deep, queries')
+		.option('--iterations <n>', 'query iterations', '20')
+		.option('--edit-rounds <n>', 'one-file edits measured', '5')
+		.option('--max-depth <n>', 'deep cursor maximum offset', '10000')
+		.option('--page-limit <n>', 'deep cursor page size', '200')
+		.option('--rebuild', 'alias for the warm rebuild scenario')
+		.option('--keep-workspace', 'retain generated workspace and temporary database')
+		.option('--baseline <path>', 'versioned gate configuration')
+		.option('--reference <path>', 'accepted report for relative regression gates')
+		.option('--evaluation <path>', 'evaluation JSON sidecar (default beside the report)')
+		.option('--summary <path>', 'markdown summary, for example GITHUB_STEP_SUMMARY')
+		.option('--output <path>', 'write JSON results to this path')
+		.option('--config <path>', 'load a JSON configuration file')
+		.option('--root <path>', 'measure an external indexed workspace')
+		.option('--extractor <id>', 'override the selected extractor')
+		.option('--project-file <path>', 'override the extractor project file')
+		.option('--database <path>', 'override the benchmark database path');
 
 const scenarioMap: Readonly<Record<string, BenchmarkScenarioNameType>> = {
 	cold: 'cold_build',
@@ -73,7 +71,27 @@ const parseScenarios = (value: string | undefined, rebuild: boolean): readonly B
 	return [...selected];
 };
 
-export type BenchmarkOptionValuesType = Readonly<Record<string, string | boolean | undefined>>;
+export type BenchmarkOptionValuesType = Readonly<{
+	profile?: string | undefined;
+	workspace?: string | undefined;
+	scenarios?: string | undefined;
+	iterations: string;
+	editRounds: string;
+	maxDepth: string;
+	pageLimit: string;
+	rebuild: boolean;
+	keepWorkspace: boolean;
+	baseline?: string | undefined;
+	reference?: string | undefined;
+	evaluation?: string | undefined;
+	summary?: string | undefined;
+	output?: string | undefined;
+	config?: string | undefined;
+	root?: string | undefined;
+	extractor?: string | undefined;
+	projectFile?: string | undefined;
+	database?: string | undefined;
+}>;
 
 export const prepareEnvironment = (
 	input: Readonly<{
@@ -90,20 +108,20 @@ export const prepareEnvironment = (
 	if (input.profile !== null && input.workspaceRoot !== null) {
 		overrides['CODE_INDEX_ROOT'] = input.workspaceRoot;
 		overrides['CODE_INDEX_PROJECT_FILE'] = join(input.workspaceRoot, 'tsconfig.json');
-	} else if (typeof values['root'] === 'string') {
-		overrides['CODE_INDEX_ROOT'] = values['root'];
+	} else if (values.root !== undefined) {
+		overrides['CODE_INDEX_ROOT'] = values.root;
 	}
 
 	for (const [name, value] of [
-		['CODE_INDEX_EXTRACTOR', values['extractor']],
-		['CODE_INDEX_PROJECT_FILE', values['project-file']],
+		['CODE_INDEX_EXTRACTOR', values.extractor],
+		['CODE_INDEX_PROJECT_FILE', values.projectFile],
 	] as const) {
-		if (typeof value === 'string') {
+		if (value !== undefined) {
 			overrides[name] = value;
 		}
 	}
 
-	return {...input.environment, ...overrides, ...(typeof values['config'] === 'string' ? {CODE_INDEX_CONFIG: values['config']} : {})};
+	return {...input.environment, ...overrides, ...(values.config === undefined ? {} : {CODE_INDEX_CONFIG: values.config})};
 };
 
 export type BenchmarkOptionsType = Readonly<{
@@ -117,10 +135,10 @@ export type BenchmarkOptionsType = Readonly<{
 
 const numericOptions = (values: BenchmarkOptionValuesType): Readonly<{iterations: number; editRounds: number; maxDepth: number; pageLimit: number}> => {
 	const options = {
-		iterations: Number(values['iterations']),
-		editRounds: Number(values['edit-rounds']),
-		maxDepth: Number(values['max-depth']),
-		pageLimit: Number(values['page-limit']),
+		iterations: Number(values.iterations),
+		editRounds: Number(values.editRounds),
+		maxDepth: Number(values.maxDepth),
+		pageLimit: Number(values.pageLimit),
 	};
 
 	for (const [name, value, maximum] of [
@@ -138,7 +156,7 @@ const numericOptions = (values: BenchmarkOptionValuesType): Readonly<{iterations
 };
 
 const validateScenarios = (profile: BenchmarkProfileType | null, scenarios: readonly BenchmarkScenarioNameType[], values: BenchmarkOptionValuesType): void => {
-	if (profile === null && values['workspace'] !== undefined) {
+	if (profile === null && values.workspace !== undefined) {
 		throw new Error('--workspace requires --profile');
 	}
 
@@ -146,63 +164,30 @@ const validateScenarios = (profile: BenchmarkProfileType | null, scenarios: read
 		throw new Error('edit-to-fresh requires a generated corpus; pass --profile');
 	}
 
-	if (values['database'] !== undefined && (scenarios.includes('cold_build') || scenarios.includes('warm_rebuild'))) {
+	if (values.database !== undefined && (scenarios.includes('cold_build') || scenarios.includes('warm_rebuild'))) {
 		throw new Error('cold and rebuild scenarios require a disposable database; omit --database');
 	}
 
-	if (values['reference'] !== undefined && values['baseline'] === undefined) {
+	if (values.reference !== undefined && values.baseline === undefined) {
 		throw new Error('--reference requires --baseline');
 	}
 
-	if (values['evaluation'] !== undefined && values['baseline'] === undefined) {
+	if (values.evaluation !== undefined && values.baseline === undefined) {
 		throw new Error('--evaluation requires --baseline');
 	}
 };
 
 export const parseBenchmarkOptions = (values: BenchmarkOptionValuesType): BenchmarkOptionsType => {
-	const profileValue = values['profile'];
+	const profileValue = values.profile;
 
-	if (typeof profileValue === 'string' && !isBenchmarkProfile(profileValue)) {
+	if (profileValue !== undefined && !isBenchmarkProfile(profileValue)) {
 		throw new Error('--profile must be one of: small, medium, large, xl');
 	}
 
-	const profile = typeof profileValue === 'string' ? profileValue : null;
-	const scenarios = parseScenarios(typeof values['scenarios'] === 'string' ? values['scenarios'] : undefined, values['rebuild'] === true);
+	const profile = profileValue ?? null;
+	const scenarios = parseScenarios(values.scenarios, values.rebuild);
 	const numbers = numericOptions(values);
 	validateScenarios(profile, scenarios, values);
 
 	return {profile, scenarios, ...numbers};
-};
-
-export const parseBenchmarkArgs = (argv: readonly string[]): BenchmarkOptionValuesType => {
-	const separator = argv.indexOf('--');
-	const args = separator === -1 ? [...argv] : [...argv.slice(0, separator), ...argv.slice(separator + 1)];
-	const {values} = parseArgs({
-		args,
-		options: {
-			iterations: {type: 'string', default: '20'},
-			'edit-rounds': {type: 'string', default: '5'},
-			'max-depth': {type: 'string', default: '10000'},
-			'page-limit': {type: 'string', default: '200'},
-			rebuild: {type: 'boolean', default: false},
-			'keep-workspace': {type: 'boolean', default: false},
-			profile: {type: 'string'},
-			workspace: {type: 'string'},
-			scenarios: {type: 'string'},
-			baseline: {type: 'string'},
-			reference: {type: 'string'},
-			evaluation: {type: 'string'},
-			summary: {type: 'string'},
-			output: {type: 'string'},
-			config: {type: 'string'},
-			root: {type: 'string'},
-			extractor: {type: 'string'},
-			'project-file': {type: 'string'},
-			database: {type: 'string'},
-			help: {type: 'boolean', default: false},
-		},
-		allowPositionals: false,
-	});
-
-	return values;
 };

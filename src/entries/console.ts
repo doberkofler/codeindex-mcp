@@ -2,37 +2,25 @@ import {randomBytes} from 'node:crypto';
 import {existsSync} from 'node:fs';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {parseArgs} from 'node:util';
+import {Command, CommanderError} from 'commander';
 import {loadConfig} from '../core/config/config.ts';
-import {startConsoleServer} from '../transports/console/server.ts';
-import {ConsoleService} from '../transports/console/service.ts';
 import {createLogger} from '../core/logging/logger.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../core/version.ts';
+import {startConsoleServer} from '../transports/console/server.ts';
+import {ConsoleService} from '../transports/console/service.ts';
+import {messageOf} from '../transports/cli/commanderSupport.ts';
 
-const usage = `Usage: codeindex-console [options]
+type ConsoleOptionsType = Readonly<{
+	port: string;
+	open: boolean;
+	config?: string | undefined;
+	root?: string | undefined;
+	extractor?: string | undefined;
+	projectFile?: string | undefined;
+	database?: string | undefined;
+}>;
 
-Starts the loopback-only web console for the configured code index.
-
-Options:
-  --port <port>          Listen port on 127.0.0.1 (default 4317; 0 selects one)
-  --open                 Open the URL in the default browser
-  --config <path>        Load a JSON configuration file
-  --root <path>          Override the indexed workspace root
-  --extractor <id>       Override the selected extractor
-  --project-file <path>  Override the extractor project file
-  --database <path>      Override the index database path
-  --help                 Print this message
-`;
-
-const environmentOf = (
-	options: Readonly<{
-		config?: string | undefined;
-		root?: string | undefined;
-		extractor?: string | undefined;
-		projectFile?: string | undefined;
-		database?: string | undefined;
-	}>,
-): NodeJS.ProcessEnv => {
+const environmentOf = (options: ConsoleOptionsType): NodeJS.ProcessEnv => {
 	const environment: NodeJS.ProcessEnv = {...process.env};
 	const assignments: readonly (readonly [string, string | undefined])[] = [
 		['CODE_INDEX_CONFIG', options.config],
@@ -58,31 +46,11 @@ const openBrowser = (url: string): void => {
 	child.unref();
 };
 
-const main = async (): Promise<void> => {
-	const parsed = parseArgs({
-		args: process.argv.slice(2),
-		options: {
-			port: {type: 'string', default: '4317'},
-			open: {type: 'boolean', default: false},
-			config: {type: 'string'},
-			root: {type: 'string'},
-			extractor: {type: 'string'},
-			'project-file': {type: 'string'},
-			database: {type: 'string'},
-			help: {type: 'boolean', default: false},
-		},
-		allowPositionals: false,
-	});
-
-	if (parsed.values.help) {
-		process.stdout.write(usage);
-		return;
-	}
-
-	const port = Number(parsed.values.port);
+const executeConsole = async (options: ConsoleOptionsType): Promise<void> => {
+	const port = Number(options.port);
 
 	if (!Number.isInteger(port) || port < 0 || port > 65_535) {
-		throw new Error(`Invalid port: ${parsed.values.port}`);
+		throw new Error(`Invalid port: ${options.port}`);
 	}
 
 	const staticRoot = fileURLToPath(new URL('console', import.meta.url));
@@ -91,15 +59,7 @@ const main = async (): Promise<void> => {
 		throw new Error(`Console bundle is missing at ${staticRoot}; run pnpm build:console first`);
 	}
 
-	const config = loadConfig(
-		environmentOf({
-			config: parsed.values.config,
-			root: parsed.values.root,
-			extractor: parsed.values.extractor,
-			projectFile: parsed.values['project-file'],
-			database: parsed.values.database,
-		}),
-	);
+	const config = loadConfig(environmentOf(options));
 	const logger = createLogger({minimumLevel: config.logLevel});
 	const service = ConsoleService.open({config, logger, mcpPath: fileURLToPath(new URL('mcp.mjs', import.meta.url))});
 	const token = randomBytes(32).toString('hex');
@@ -117,7 +77,7 @@ const main = async (): Promise<void> => {
 	process.stdout.write(`Console: ${url}\n`);
 	process.stdout.write('Press Ctrl+C to stop.\n');
 
-	if (parsed.values.open) {
+	if (options.open) {
 		openBrowser(url);
 	}
 
@@ -135,7 +95,7 @@ const main = async (): Promise<void> => {
 				await service.close();
 				process.exit(0);
 			} catch (error) {
-				process.stderr.write(`Console shutdown failed: ${error instanceof Error ? error.message : String(error)}\n`);
+				process.stderr.write(`Console shutdown failed: ${messageOf(error)}\n`);
 				process.exit(1);
 			}
 		})();
@@ -149,9 +109,37 @@ const main = async (): Promise<void> => {
 	});
 };
 
+const program = new Command('codeindex-console')
+	.description('Starts the loopback-only web console for the configured code index.')
+	.usage('[options]')
+	.exitOverride()
+	.showHelpAfterError()
+	.configureOutput({
+		writeOut: (text) => {
+			process.stdout.write(`${text.trimEnd()}\n`);
+		},
+		writeErr: (text) => {
+			process.stderr.write(`${text.trimEnd()}\n`);
+		},
+	})
+	.option('--port <port>', 'listen port on 127.0.0.1; 0 selects one', '4317')
+	.option('--open', 'open the URL in the default browser', false)
+	.option('--config <path>', 'load a JSON configuration file')
+	.option('--root <path>', 'override the indexed workspace root')
+	.option('--extractor <id>', 'override the selected extractor')
+	.option('--project-file <path>', 'override the extractor project file')
+	.option('--database <path>', 'override the index database path')
+	.action(async (options: ConsoleOptionsType) => {
+		await executeConsole(options);
+	});
+
 try {
-	await main();
+	await program.parseAsync(process.argv.slice(2), {from: 'user'});
 } catch (error) {
-	process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-	process.exitCode = 1;
+	if (error instanceof CommanderError) {
+		process.exitCode = error.exitCode === 0 ? 0 : 1;
+	} else {
+		process.stderr.write(`${messageOf(error)}\n`);
+		process.exitCode = 1;
+	}
 }

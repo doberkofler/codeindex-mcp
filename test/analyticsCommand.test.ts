@@ -94,4 +94,21 @@ describe('analytics command', () => {
 		expect(captured.stdout).toStrictEqual([`Analytics written to ${htmlPath}`]);
 		expect(readFileSync(htmlPath, 'utf8')).toContain('<html');
 	});
+
+	it('applies configuration overrides and rejects unknown options', () => {
+		const {analyticsPath, recorder} = recorderIn();
+		const captured = capture();
+		recorder.record('process_start', {});
+		recorder.close();
+
+		expect(
+			runAnalyticsCommand(['--analytics', analyticsPath, '--config', 'config.json', '--root', '.', '--project-file', 'tsconfig.json'], {}, captured.io),
+		).toBe(0);
+		expect(captured.stderr).toStrictEqual([]);
+		expect(captured.stdout.join('\n').split('\n')[0]).toBe(`analyticsPath: ${analyticsPath}`);
+
+		const invalid = capture();
+		expect(runAnalyticsCommand(['--unknown'], {}, invalid.io)).toBe(1);
+		expect(invalid.stderr.join('\n')).toContain("unknown option '--unknown'");
+	});
 });

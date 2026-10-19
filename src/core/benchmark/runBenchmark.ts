@@ -2,13 +2,15 @@ import {existsSync, mkdtempSync, rmSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {Command} from 'commander';
+import {CommandExitError, configureCommand, parseCommandAsync} from '../../transports/cli/commanderSupport.ts';
 import {type ConfigType, loadConfig} from '../config/config.ts';
 import {createCodeIndex} from '../generation/codeIndex.ts';
 import {debugFor} from '../logging/debug.ts';
 import {createLogger} from '../logging/logger.ts';
 import {IndexDatabase} from '../storage/database.ts';
 import {loadBenchmarkBaseline, loadBenchmarkReference} from './baseline.ts';
-import {type BenchmarkOptionValuesType, benchmarkUsage, parseBenchmarkArgs, parseBenchmarkOptions, prepareEnvironment} from './benchmarkOptions.ts';
+import {addBenchmarkOptions, type BenchmarkOptionValuesType, parseBenchmarkOptions, prepareEnvironment} from './benchmarkOptions.ts';
 import {phaseOf} from './benchmarkPhase.ts';
 import {
 	type BenchmarkMachineType,
@@ -213,9 +215,9 @@ const prepareBenchmarkPaths = (
 ): Readonly<{workspaceRoot: string | null; databasePath: string}> => {
 	const {workspaceRoot, temporaryWorkspace} = prepareBenchmarkWorkspace({
 		profile: input.profile,
-		workspace: typeof input.values['workspace'] === 'string' ? input.values['workspace'] : undefined,
+		workspace: input.values.workspace,
 	});
-	const explicitDatabase = typeof input.values['database'] === 'string' ? path.resolve(input.values['database']) : null;
+	const explicitDatabase = input.values.database === undefined ? null : path.resolve(input.values.database);
 	let databasePath: string;
 
 	if (!input.keepWorkspace && temporaryWorkspace !== null) {
@@ -239,9 +241,9 @@ const prepareBenchmarkPaths = (
 
 const executeBenchmark = async (values: BenchmarkOptionValuesType, environment: NodeJS.ProcessEnv, io: BenchmarkIoType, cleanup: string[]): Promise<number> => {
 	const options = parseBenchmarkOptions(values);
-	const keepWorkspace = Boolean(values['keep-workspace']);
-	const loadedBaseline = typeof values['baseline'] === 'string' ? loadBenchmarkBaseline(path.resolve(values['baseline'])) : null;
-	const reference = typeof values['reference'] === 'string' ? loadBenchmarkReference(path.resolve(values['reference'])) : (loadedBaseline?.reference ?? null);
+	const {keepWorkspace} = values;
+	const loadedBaseline = values.baseline === undefined ? null : loadBenchmarkBaseline(path.resolve(values.baseline));
+	const reference = values.reference === undefined ? (loadedBaseline?.reference ?? null) : loadBenchmarkReference(path.resolve(values.reference));
 	const baseline = loadedBaseline === null ? null : {...loadedBaseline, reference};
 	const {workspaceRoot, databasePath} = prepareBenchmarkPaths({values, profile: options.profile, keepWorkspace, cleanup});
 	const sourceEnvironment = prepareEnvironment({values, environment, profile: options.profile, workspaceRoot, databasePath});
@@ -260,9 +262,9 @@ const executeBenchmark = async (values: BenchmarkOptionValuesType, environment: 
 		return finalizeBenchmark({
 			report,
 			baseline,
-			output: typeof values['output'] === 'string' ? values['output'] : undefined,
-			evaluationPath: typeof values['evaluation'] === 'string' ? path.resolve(values['evaluation']) : undefined,
-			summaryPath: typeof values['summary'] === 'string' ? path.resolve(values['summary']) : undefined,
+			output: values.output,
+			evaluationPath: values.evaluation === undefined ? undefined : path.resolve(values.evaluation),
+			summaryPath: values.summary === undefined ? undefined : path.resolve(values.summary),
 			io,
 		});
 	} finally {
@@ -271,6 +273,40 @@ const executeBenchmark = async (values: BenchmarkOptionValuesType, environment: 
 			io.stdout(`Database: ${databasePath}`);
 		}
 	}
+};
+
+const benchmarkCommand = (environment: NodeJS.ProcessEnv, io: BenchmarkIoType): Command => {
+	const cleanup: string[] = [];
+
+	return addBenchmarkOptions(
+		configureCommand(new Command('benchmark').description('Measure local build, edit-to-fresh, resource, storage, and query behavior'), io),
+	).action(async (values: BenchmarkOptionValuesType) => {
+		try {
+			const code = await executeBenchmark(values, environment, io, cleanup);
+
+			if (code !== 0) {
+				throw new CommandExitError(code);
+			}
+		} catch (error) {
+			debug('benchmark failed', {error: error instanceof Error ? error.stack : String(error)});
+			throw error;
+		} finally {
+			for (const directory of cleanup) {
+				rmSync(directory, {recursive: true, force: true});
+			}
+		}
+	});
+};
+
+/**
+ * Registers the local benchmark command.
+ *
+ * @param program - Root CLI program.
+ * @param environment - Environment validated by `loadConfig`.
+ * @param io - Output sinks.
+ */
+export const addBenchmarkCommand = (program: Command, environment: NodeJS.ProcessEnv, io: BenchmarkIoType): void => {
+	program.addCommand(benchmarkCommand(environment, io));
 };
 
 /**
@@ -282,25 +318,9 @@ const executeBenchmark = async (values: BenchmarkOptionValuesType, environment: 
  * @returns Process exit code.
  */
 export const runBenchmarkCommand = async (argv: readonly string[], environment: NodeJS.ProcessEnv, io: BenchmarkIoType): Promise<number> => {
-	const cleanup: string[] = [];
+	const program = new Command('codeindex-cli');
+	program.addCommand(benchmarkCommand(environment, io));
+	const code = await parseCommandAsync(program, ['benchmark', ...argv], io, {usageExitCode: 1});
 
-	try {
-		const values = parseBenchmarkArgs(argv);
-		const showHelp = Boolean(values['help']);
-
-		if (showHelp) {
-			io.stdout(benchmarkUsage.trimEnd());
-			return 0;
-		}
-
-		return await executeBenchmark(values, environment, io, cleanup);
-	} catch (error) {
-		debug('benchmark failed', {error: error instanceof Error ? error.stack : String(error)});
-		io.stderr(error instanceof Error ? error.message : String(error));
-		return 1;
-	} finally {
-		for (const directory of cleanup) {
-			rmSync(directory, {recursive: true, force: true});
-		}
-	}
+	return code;
 };

@@ -1,7 +1,8 @@
 import {existsSync, lstatSync, readdirSync, rmSync, type Dirent} from 'node:fs';
 import {homedir, tmpdir} from 'node:os';
 import path from 'node:path';
-import {parseArgs} from 'node:util';
+import {Command} from 'commander';
+import {type CommandIoType, configureCommand, parseCommand} from '../transports/cli/commanderSupport.ts';
 import {indexRootDirectory} from './config/config.ts';
 import {activeProcessOwners} from './storage/processOwnership.ts';
 
@@ -26,16 +27,14 @@ export type CleanupTargetType = Readonly<{
 const OPENCODE_PATTERN = /^codeindex-/u;
 const INDEX_PATTERN = /^[0-9a-f]{16}$/u;
 
-const usage = `Usage: codeindex-cli clean [options]
-
-Removes local code index caches. The repository and dist are never touched.
-The default is a dry run.
-
-Options:
-  --yes                Delete the listed targets
-  --keep-index         Keep project index databases
-  --help               Print this message
-`;
+const processIo: CommandIoType = {
+	stdout: (line) => {
+		process.stdout.write(`${line}\n`);
+	},
+	stderr: (line) => {
+		process.stderr.write(`${line}\n`);
+	},
+};
 
 const isWithin = (parent: string, child: string): boolean => {
 	const relativePath = relative(resolve(parent), resolve(child));
@@ -191,6 +190,47 @@ const defaultRoots = (): CleanupRootsType => ({
 	protectedPaths: [process.cwd()],
 });
 
+const executeCleanup = (options: CleanupOptionsType): void => {
+	const targets = collectCleanupTargets(defaultRoots(), options);
+	const total = targets.reduce((sum, target) => sum + target.bytes, 0);
+
+	if (targets.length === 0) {
+		process.stdout.write('Nothing to clean.\n');
+		return;
+	}
+
+	for (const target of targets) {
+		process.stdout.write(`${options.yes ? 'remove' : 'would remove'} ${target.path} (${formatSize(target.bytes)})\n`);
+	}
+
+	if (!options.yes) {
+		process.stdout.write(`Dry run: ${formatSize(total)} in ${targets.length} target(s). Pass --yes to delete.\n`);
+		return;
+	}
+
+	const removed = removeCleanupTargets(targets);
+	process.stdout.write(`Removed ${targets.length} target(s), ${formatSize(removed)}.\n`);
+};
+
+const cleanupCommand = (): Command => {
+	const command = configureCommand(
+		new Command('clean')
+			.description('Remove local code index caches. The repository and dist are never touched. The default is a dry run.')
+			.option('--yes', 'delete the listed targets')
+			.option('--keep-index', 'keep project index databases')
+			.allowExcessArguments(true),
+		processIo,
+	).action((options: Readonly<{yes?: boolean | undefined; keepIndex?: boolean | undefined}>) => {
+		if (command.args.length > 0) {
+			throw new Error(`Unexpected argument: ${command.args[0] ?? ''}\n\n${command.helpInformation().trimEnd()}`);
+		}
+
+		executeCleanup({yes: options.yes === true, keepIndex: options.keepIndex === true});
+	});
+
+	return command;
+};
+
 /**
  * Runs the `clean` subcommand.
  *
@@ -198,52 +238,8 @@ const defaultRoots = (): CleanupRootsType => ({
  * @returns Process exit code.
  */
 export const runCleanup = (argv: readonly string[]): number => {
-	try {
-		const parsed = parseArgs({
-			args: [...argv],
-			options: {
-				yes: {type: 'boolean', default: false},
-				'keep-index': {type: 'boolean', default: false},
-				help: {type: 'boolean', default: false},
-			},
-			allowPositionals: true,
-		});
+	const program = new Command('codeindex-cli');
+	program.addCommand(cleanupCommand());
 
-		if (parsed.values.help) {
-			process.stdout.write(usage);
-			return 0;
-		}
-
-		if (parsed.positionals.length > 0) {
-			throw new Error(`Unexpected argument: ${parsed.positionals[0] ?? ''}\n\n${usage}`);
-		}
-
-		const options: CleanupOptionsType = {
-			yes: parsed.values.yes,
-			keepIndex: parsed.values['keep-index'],
-		};
-		const targets = collectCleanupTargets(defaultRoots(), options);
-		const total = targets.reduce((sum, target) => sum + target.bytes, 0);
-
-		if (targets.length === 0) {
-			process.stdout.write('Nothing to clean.\n');
-			return 0;
-		}
-
-		for (const target of targets) {
-			process.stdout.write(`${options.yes ? 'remove' : 'would remove'} ${target.path} (${formatSize(target.bytes)})\n`);
-		}
-
-		if (!options.yes) {
-			process.stdout.write(`Dry run: ${formatSize(total)} in ${targets.length} target(s). Pass --yes to delete.\n`);
-			return 0;
-		}
-
-		const removed = removeCleanupTargets(targets);
-		process.stdout.write(`Removed ${targets.length} target(s), ${formatSize(removed)}.\n`);
-		return 0;
-	} catch (error) {
-		process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-		return 1;
-	}
+	return parseCommand(program, ['clean', ...argv], processIo, {usageExitCode: 1});
 };

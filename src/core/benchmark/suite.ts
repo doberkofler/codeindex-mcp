@@ -1,7 +1,8 @@
 import {existsSync, mkdirSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {parseArgs} from 'node:util';
+import {Command} from 'commander';
+import {CommandExitError, configureCommand, parseCommandAsync} from '../../transports/cli/commanderSupport.ts';
 import {type BenchmarkIoType} from './finalize.ts';
 import {
 	artifactsExist,
@@ -22,58 +23,27 @@ import {expandHome, loadBenchmarkSuite, resolveProjectsRoot, type BenchmarkSuite
 
 const {isAbsolute, join, relative, resolve, sep} = path;
 
-const usage = `Usage: codeindex-cli benchmark-suite --suite <path> [options]
-
-Runs a declarative benchmark suite: generated profiles and pinned public
-projects. Optional adapter qualification steps reuse the same evidence
-directory. Writes an immutable manifest, reports, and checksums.
-
-Options:
-  --suite <path>         Suite manifest (default: benchmark/suites/typescript-generated.json)
-  --output <path>        Evidence directory (default: ~/codeindex-evidence/<suite>-<timestamp>)
-  --resume               Reuse passed steps from an existing evidence directory
-  --allow-dirty          Permit a dirty CodeIndex checkout
-  --keep-workspace       Retain generated corpora after the run
-  --fail-fast            Stop after the first failed step
-  --projects-root <path> Override the public-project checkout root
-  --iterations <n>       Override query iterations for every step
-  --help                 Print this message
-`;
-
 type SuiteOptionsType = Readonly<{
 	suite?: string | undefined;
 	output?: string | undefined;
 	resume: boolean;
-	'allow-dirty': boolean;
-	'keep-workspace': boolean;
-	'fail-fast': boolean;
-	'projects-root'?: string | undefined;
+	allowDirty: boolean;
+	keepWorkspace: boolean;
+	failFast: boolean;
+	projectsRoot?: string | undefined;
 	iterations?: string | undefined;
-	help: boolean;
 }>;
 
-const withoutSeparator = (argv: readonly string[]): readonly string[] => {
-	const separator = argv.indexOf('--');
-
-	return separator === -1 ? argv : [...argv.slice(0, separator), ...argv.slice(separator + 1)];
-};
-
-const parseSuiteArgs = (argv: readonly string[]): SuiteOptionsType =>
-	parseArgs({
-		args: [...withoutSeparator(argv)],
-		options: {
-			suite: {type: 'string'},
-			output: {type: 'string'},
-			resume: {type: 'boolean', default: false},
-			'allow-dirty': {type: 'boolean', default: false},
-			'keep-workspace': {type: 'boolean', default: false},
-			'fail-fast': {type: 'boolean', default: false},
-			'projects-root': {type: 'string'},
-			iterations: {type: 'string'},
-			help: {type: 'boolean', default: false},
-		},
-		allowPositionals: false,
-	}).values;
+const addSuiteOptions = (command: Command): Command =>
+	command
+		.option('--suite <path>', 'suite manifest (default: benchmark/suites/typescript-generated.json)')
+		.option('--output <path>', 'evidence directory (default: ~/codeindex-evidence/<suite>-<timestamp>)')
+		.option('--resume', 'reuse passed steps from an existing evidence directory', false)
+		.option('--allow-dirty', 'permit a dirty CodeIndex checkout', false)
+		.option('--keep-workspace', 'retain generated corpora after the run', false)
+		.option('--fail-fast', 'stop after the first failed step', false)
+		.option('--projects-root <path>', 'override the public-project checkout root')
+		.option('--iterations <n>', 'override query iterations for every step');
 
 type RunInputsType = Readonly<{
 	values: SuiteOptionsType;
@@ -161,7 +131,7 @@ const resolveRunInputs = (
 	const suite = loadBenchmarkSuite(suitePath);
 	const repositoryRoot = repositoryRootOf(input.cwd);
 	const outputDir = resolve(input.cwd, expandHome(input.values.output ?? defaultOutputDir(suite.id, input.home), input.home));
-	const projectsRoot = resolveProjectsRoot(suite, input.values['projects-root'], input.home, input.cwd);
+	const projectsRoot = resolveProjectsRoot(suite, input.values.projectsRoot, input.home, input.cwd);
 
 	return {
 		values: input.values,
@@ -183,7 +153,7 @@ const baselinePathsOf = (suite: BenchmarkSuiteType, repositoryRoot: string): rea
 ];
 
 const validateRun = (inputs: RunInputsType, cliPath: string): readonly string[] => {
-	if (inputs.dirty && !inputs.values['allow-dirty'] && !inputs.values.resume) {
+	if (inputs.dirty && !inputs.values.allowDirty && !inputs.values.resume) {
 		throw new Error('CodeIndex checkout is dirty; commit or stash changes, or pass --allow-dirty');
 	}
 
@@ -354,11 +324,11 @@ const runSuite = async (
 		environment: input.environment,
 		repositoryRoot: inputs.repositoryRoot,
 		outputDir: inputs.outputDir,
-		failFast: inputs.values['fail-fast'],
+		failFast: inputs.values.failFast,
 		io: input.io,
 	});
 
-	if (!inputs.values['keep-workspace'] && !result.failed) {
+	if (!inputs.values.keepWorkspace && !result.failed) {
 		rmSync(join(inputs.outputDir, 'work'), {recursive: true, force: true});
 	}
 
@@ -371,6 +341,46 @@ const runSuite = async (
 	input.io.stdout(`Status: ${completedManifest.status}`);
 
 	return result.failed ? 1 : 0;
+};
+
+const suiteCommand = (environment: NodeJS.ProcessEnv, io: BenchmarkIoType, options: Readonly<{cliPath: string; cwd?: string; home?: string}>): Command =>
+	configureCommand(
+		addSuiteOptions(
+			new Command('benchmark-suite').description(
+				'Run a declarative benchmark suite of generated profiles and pinned public projects, with optional adapter qualification steps sharing the same evidence directory',
+			),
+		),
+		io,
+	).action(async (values: SuiteOptionsType) => {
+		const code = await runSuite({
+			values,
+			environment,
+			io,
+			cliPath: resolve(options.cliPath),
+			cwd: options.cwd ?? process.cwd(),
+			home: options.home ?? os.homedir(),
+		});
+
+		if (code !== 0) {
+			throw new CommandExitError(code);
+		}
+	});
+
+/**
+ * Registers the declarative benchmark suite command.
+ *
+ * @param program - Root CLI program.
+ * @param environment - Environment source passed to child processes.
+ * @param io - Output sinks.
+ * @param options - Injected CLI path, working directory, and home directory.
+ */
+export const addBenchmarkSuiteCommand = (
+	program: Command,
+	environment: NodeJS.ProcessEnv,
+	io: BenchmarkIoType,
+	options: Readonly<{cliPath: string; cwd?: string; home?: string}>,
+): void => {
+	program.addCommand(suiteCommand(environment, io, options));
 };
 
 /**
@@ -392,24 +402,9 @@ export const runBenchmarkSuiteCommand = async (
 	io: BenchmarkIoType,
 	options: Readonly<{cliPath: string; cwd?: string; home?: string}>,
 ): Promise<number> => {
-	try {
-		const values = parseSuiteArgs(argv);
+	const program = new Command('codeindex-cli');
+	program.addCommand(suiteCommand(environment, io, options));
+	const code = await parseCommandAsync(program, ['benchmark-suite', ...argv], io, {usageExitCode: 1});
 
-		if (values.help) {
-			io.stdout(usage.trimEnd());
-			return 0;
-		}
-
-		return await runSuite({
-			values,
-			environment,
-			io,
-			cliPath: resolve(options.cliPath),
-			cwd: options.cwd ?? process.cwd(),
-			home: options.home ?? os.homedir(),
-		});
-	} catch (error) {
-		io.stderr(error instanceof Error ? error.message : String(error));
-		return 1;
-	}
+	return code;
 };

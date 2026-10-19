@@ -42,6 +42,10 @@ describe('operational CLI', () => {
 			await expect(runCli(['update', '--json'], environment, second.io)).resolves.toBe(0);
 			expect(JSON.parse(second.stdout())).toMatchObject({reused: true, fileCount: 4});
 
+			const refreshed = captureIo();
+			await expect(runCli(['refresh', '--json'], environment, refreshed.io)).resolves.toBe(0);
+			expect(JSON.parse(refreshed.stdout())).toMatchObject({reused: true, fileCount: 4});
+
 			const forced = captureIo();
 			await expect(runCli(['rebuild', '--json'], environment, forced.io)).resolves.toBe(0);
 			expect(JSON.parse(forced.stdout())).toMatchObject({reused: false, fileCount: 4});
@@ -116,5 +120,13 @@ describe('operational CLI', () => {
 		const invalid = captureIo();
 		await expect(runCli(['explode'], environment, invalid.io)).resolves.toBe(2);
 		expect(invalid.stderr()).toContain("unknown command 'explode'");
+	});
+
+	it('returns a failure code from the TypeScript reference alias', async () => {
+		const captured = captureIo();
+		const environment: NodeJS.ProcessEnv = {CODE_INDEX_LOG_LEVEL: 'error'};
+
+		await expect(runCli(['verify-references', '--root', '/definitely/missing-root'], environment, captured.io)).resolves.toBe(1);
+		expect(captured.stderr()).not.toBe('');
 	});
 });
