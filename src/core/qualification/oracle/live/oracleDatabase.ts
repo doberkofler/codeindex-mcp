@@ -176,6 +176,13 @@ export const applyOracleLivePlan = async (
 			throw new Error(`Oracle qualification left invalid target PL/SQL: ${invalidSummary(invalidTargets)}`);
 		}
 
+		const dependentKeys = new Set(plan.snapshot.dependents.map((dependent) => oracleObjectKeyOf(dependent.type, dependent.name)));
+		const invalidDependents = invalid.filter((row) => dependentKeys.has(invalidObjectKeyOf(invalidObjectOf(row))));
+
+		if (invalidDependents.length > 0) {
+			throw new Error(`Oracle qualification failed to restore dependent objects: ${invalidSummary(invalidDependents)}`);
+		}
+
 		const newInvalid = invalid.filter((row) => {
 			const object = invalidObjectOf(row);
 			return !baselineKeys.has(invalidObjectKeyOf(object));

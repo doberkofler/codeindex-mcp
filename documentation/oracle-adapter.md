@@ -279,18 +279,20 @@ Apply performs these steps:
 4. Recompiles the approved transitive dependents from `dependents.sql`.
 5. Validates qualification target PL/SQL separately and fails when a target
    remains invalid.
-6. Compares every invalid object with the baseline and fails only when an object
-   that was valid before the run is invalid afterwards.
-7. Exports `USER_IDENTIFIERS` and `USER_DEPENDENCIES` through the `oracledb`
+6. Fails when an approved dependent is still invalid after recompilation.
+7. Compares every remaining invalid object with the baseline and fails only when
+   an object that was valid before the run is invalid afterwards.
+8. Exports `USER_IDENTIFIERS` and `USER_DEPENDENCIES` through the `oracledb`
    session.
-8. Rebuilds the snapshot index with the current parser using the plan's unit
+9. Rebuilds the snapshot index with the current parser using the plan's unit
    provenance.
-9. Compares facts and writes `oracle-qualification.json` and `run.json`.
+10. Compares facts and writes `oracle-qualification.json` and `run.json`.
 
 Objects that were already invalid before the run are reported in
 `baseline-invalid-objects.csv` and in the run output, including which ones were
 restored and which remained invalid. They are not attributed to the
-qualification run. A dependent recompile error does not stop the script; the
+qualification run, unless the plan explicitly approved their restoration and
+they remain invalid. A dependent recompile error does not stop the script; the
 independent invalid-object comparison decides whether restoration failed.
 
 Recompilation is database DDL. It does not replace source, but it can invalidate

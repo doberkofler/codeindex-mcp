@@ -132,6 +132,31 @@ describe('Oracle live qualification invalid-object comparison', () => {
 		}
 	});
 
+	it('fails when an approved dependent is still invalid after restoration', async () => {
+		const context = fixture();
+
+		try {
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const dependencies = [{name: 'HR_VIEW', type: 'VIEW', referencedName: 'HR_API', referencedType: 'PACKAGE'}];
+			const plan = createOracleLivePlan(context.config, settingsOf(outputDir), installedSourcesOf(context.config), dependencies);
+			const baseline = [['VIEW', 'HR_VIEW', 'INVALID']];
+
+			await expect(
+				applyOracleLivePlan(
+					plan,
+					settingsOf(outputDir, plan.approval),
+					{},
+					{
+						sqlplusRunner: () => ({status: 0, stdout: '', stderr: ''}),
+						databaseFactory: inventoryDatabase({backup: sourceRows(plan), baseline, invalid: baseline}),
+					},
+				),
+			).rejects.toThrow(/failed to restore dependent objects: VIEW HR_VIEW INVALID/u);
+		} finally {
+			context.cleanup();
+		}
+	});
+
 	it('fails when a new invalid object appears compared with the baseline', async () => {
 		const context = fixture();
 
