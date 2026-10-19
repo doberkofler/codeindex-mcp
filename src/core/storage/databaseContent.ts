@@ -118,6 +118,29 @@ export const countReferences = (reader: DatabaseSync, generationId: string, symb
 };
 
 /**
+ * Lists immutable content hashes currently retained by the database.
+ *
+ * @param reader - Reader connection.
+ * @returns Stored content hashes.
+ */
+export const listContentHashes = (reader: DatabaseSync): readonly string[] =>
+	reader
+		.prepare('select sha256 from content')
+		.all()
+		.map((row) => asString(row, 'sha256'));
+
+/**
+ * Counts stored extraction artifacts.
+ *
+ * @param reader - Reader connection.
+ * @returns Artifact row count.
+ */
+export const countExtractionArtifacts = (reader: DatabaseSync): number => {
+	const row = reader.prepare('select count(*) as total from extraction_artifact').get();
+	return row === undefined ? 0 : asNumber(row, 'total');
+};
+
+/**
  * Reports the current SQLite file size in bytes.
  *
  * @param reader - Reader connection.

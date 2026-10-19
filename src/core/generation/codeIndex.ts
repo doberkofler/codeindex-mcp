@@ -35,6 +35,7 @@ import {
 } from '../model.ts';
 import {boundedPagedResult, decodeCursor, normalizeRelativePath} from '../query/querySupport.ts';
 import {publishedFiles} from './publishedFiles.ts';
+import {startProcessSample} from '../resources/processSample.ts';
 import {readSymbolSource} from '../query/readSymbolSource.ts';
 import {hashContent} from './sourceFiles.ts';
 import {type ClockType, RefreshCoordinator, type RefreshReasonType} from '../freshness/refreshCoordinator.ts';
@@ -184,6 +185,9 @@ export class CodeIndex {
 		}, LEASE_RENEW_MS);
 		heartbeat.unref();
 
+		const sample = startProcessSample();
+		const resources = (): Readonly<Record<string, number>> => ({...sample.stop(), databaseBytes: this.#database.databaseSizeBytes()});
+
 		try {
 			const published = this.#database.getPublishedGeneration();
 			this.#published = published;
@@ -224,6 +228,7 @@ export class CodeIndex {
 				symbolCount: report.symbolCount,
 				occurrenceCount: report.occurrenceCount,
 				stages: report.stages,
+				...resources(),
 			});
 
 			return report;
@@ -234,6 +239,7 @@ export class CodeIndex {
 			this.#analytics?.record('build_failed', {
 				reason,
 				durationMs: Math.round(performance.now() - startedAt),
+				...resources(),
 			});
 			throw error;
 		} finally {
@@ -457,7 +463,6 @@ export class CodeIndex {
 		this.#analytics?.close();
 		this.#database.close();
 	}
-
 	async #rebuild(scan: ScanResultType, force: boolean): Promise<BuildReportType> {
 		const workerPath = this.#workerEntry;
 		debug('rebuild requested', {force, worker: workerPath, files: scan.files.length});

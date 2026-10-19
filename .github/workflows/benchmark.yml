@@ -1,0 +1,59 @@
+name: Benchmark
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Generated corpus profile
+        required: true
+        default: large
+        type: choice
+        options: [small, medium, large, xl]
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Model-free benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Measure
+        run: >-
+          node dist/cli.mjs benchmark
+          --profile ${{ github.event.inputs.profile || 'large' }}
+          --scenarios cold,warm,rebuild,edit,deep
+          --iterations 20
+          --edit-rounds 5
+          --output benchmark/results/nightly.json
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ github.run_id }}
+          path: benchmark/results/nightly.json
+          if-no-files-found: error
+          retention-days: 90

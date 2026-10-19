@@ -20,10 +20,12 @@ import {
 import {debugFor} from '../logging/debug.ts';
 import {
 	countContentVersions,
+	countExtractionArtifacts as countStoredExtractionArtifacts,
 	countReferences as countStoredReferences,
 	databaseSizeBytes as readDatabaseSizeBytes,
 	getExtractionArtifact,
 	insertContents,
+	listContentHashes as listStoredContentHashes,
 	listFiles as listStoredFiles,
 	putExtractionArtifact,
 	readFile,
@@ -40,7 +42,7 @@ import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContex
 import {acquireLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
 import {explainQueryPlan, recreateIfIncompatible} from './databaseOpen.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
-import {asNumber, asString, placeholders, SYMBOL_COLUMNS, toSymbolSummary} from './databaseRows.ts';
+import {asNumber, asString, SYMBOL_COLUMNS, toSymbolSummary} from './databaseRows.ts';
 import {
 	insertOccurrenceContexts,
 	insertProjectContexts,
@@ -48,7 +50,7 @@ import {
 	listProjectContextNames as listStoredProjectContextNames,
 	listSymbolContexts,
 } from './databaseContextQueries.ts';
-import {findReferences as findStoredReferences, findSymbols as findStoredSymbols} from './databaseSymbolQueries.ts';
+import {findReferences as findStoredReferences, findSymbols as findStoredSymbols, outlineQuerySql} from './databaseSymbolQueries.ts';
 import {transaction} from './databaseTransaction.ts';
 import {SCHEMA_SQL, SCHEMA_VERSION} from './schema.ts';
 
@@ -406,9 +408,7 @@ export class IndexDatabase {
 	public listOutline(
 		input: Readonly<{generationId: string; path: string; kinds: readonly string[]; limit: number; offset: number}>,
 	): readonly SymbolSummaryType[] {
-		const kindClause = input.kinds.length > 0 ? ` and kind in (${placeholders(input.kinds.length)})` : '';
-		const sql = `select ${SYMBOL_COLUMNS} from symbol where generation_id = ? and path = ?${kindClause} order by start_offset, id limit ? offset ?`;
-		const rows = this.#reader.prepare(sql).all(input.generationId, input.path, ...input.kinds, input.limit, input.offset);
+		const rows = this.#reader.prepare(outlineQuerySql(input.kinds.length)).all(input.generationId, input.path, ...input.kinds, input.limit, input.offset);
 		const contexts = listSymbolContexts(
 			this.#reader,
 			input.generationId,
@@ -465,13 +465,6 @@ export class IndexDatabase {
 		return countStoredReferences(this.#reader, generationId, symbolId);
 	}
 
-	/**
-	 * Returns SQLite's chosen access path for one statement.
-	 *
-	 * @param sql - Statement to explain.
-	 * @param parameters - Bound parameters.
-	 * @returns The flattened query-plan detail rows.
-	 */
 	public explainQueryPlan(sql: string, parameters: readonly (string | number)[] = []): readonly string[] {
 		return explainQueryPlan(this.#reader, sql, parameters);
 	}
@@ -482,6 +475,14 @@ export class IndexDatabase {
 
 	public contentVersionCount(): number {
 		return countContentVersions(this.#reader);
+	}
+
+	public contentHashes(): readonly string[] {
+		return listStoredContentHashes(this.#reader);
+	}
+
+	public extractionArtifactCount(): number {
+		return countStoredExtractionArtifacts(this.#reader);
 	}
 
 	public close(): void {

@@ -80,6 +80,7 @@ export class RefreshCoordinator {
 	#lastRefreshCompletedAt: string | null = null;
 	#lastError: string | null = null;
 	#lastReason: RefreshReasonType | null = null;
+	#firstEventAt: number | null = null;
 
 	public constructor(options: RefreshCoordinatorOptionsType) {
 		this.#runRefresh = options.runRefresh;
@@ -100,6 +101,7 @@ export class RefreshCoordinator {
 			this.requestReconcile();
 		}, this.#reconcileIntervalMs);
 		this.#reconcileTimer.unref();
+		this.#firstEventAt ??= this.#clock.now();
 		this.#schedule('startup');
 	}
 
@@ -109,6 +111,7 @@ export class RefreshCoordinator {
 		}
 
 		this.#checkedAt = new Date().toISOString();
+		this.#firstEventAt ??= this.#clock.now();
 
 		if (paths === null) {
 			this.#projectWideInvalidation = true;
@@ -146,6 +149,7 @@ export class RefreshCoordinator {
 		}
 
 		this.#checkedAt = new Date().toISOString();
+		this.#firstEventAt ??= this.#clock.now();
 		this.#state = 'dirty';
 		this.#record('watcher_reconcile');
 		this.#schedule('reconcile');
@@ -171,6 +175,7 @@ export class RefreshCoordinator {
 		this.#dirtyPaths.clear();
 		this.#projectWideInvalidation = false;
 		this.#refreshAgain = false;
+		this.#firstEventAt = null;
 		this.#lastRefreshCompletedAt = new Date(this.#clock.now()).toISOString();
 	}
 
@@ -264,11 +269,13 @@ export class RefreshCoordinator {
 	async #execute(startedAt: number): Promise<void> {
 		try {
 			await this.#runRefresh(this.#lastReason ?? 'manual');
-			this.#lastRefreshCompletedAt = new Date(this.#clock.now()).toISOString();
+			const completedAt = this.#clock.now();
+			this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
 			this.#lastError = null;
 			this.#record('refresh_published', {
 				reason: this.#lastReason,
-				durationMs: Math.round(this.#clock.now() - startedAt),
+				durationMs: Math.round(completedAt - startedAt),
+				eventToPublicationMs: Math.round(completedAt - (this.#firstEventAt ?? startedAt)),
 				dirtyFileCount: this.#projectWideInvalidation ? null : this.#dirtyPaths.size,
 			});
 
@@ -280,15 +287,20 @@ export class RefreshCoordinator {
 			}
 
 			this.#state = 'current';
+			this.#firstEventAt = null;
 			this.#dirtyPaths.clear();
 			this.#projectWideInvalidation = false;
 		} catch (error) {
 			this.#lastError = error instanceof Error ? error.message : String(error);
-			this.#lastRefreshCompletedAt = new Date(this.#clock.now()).toISOString();
+			const completedAt = this.#clock.now();
+			const eventToPublicationMs = completedAt - (this.#firstEventAt ?? startedAt);
+			this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
 			this.#state = 'failed';
+			this.#firstEventAt = null;
 			this.#record('refresh_failed', {
 				reason: this.#lastReason,
-				durationMs: Math.round(this.#clock.now() - startedAt),
+				durationMs: Math.round(completedAt - startedAt),
+				eventToPublicationMs: Math.round(eventToPublicationMs),
 				dirtyFileCount: this.#projectWideInvalidation ? null : this.#dirtyPaths.size,
 			});
 			this.#logger.error('refresh_failed', {message: this.#lastError});

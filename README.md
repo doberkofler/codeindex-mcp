@@ -191,13 +191,15 @@ codeindex-cli rebuild    # force a new generation
 codeindex-cli status     # generation, counts, freshness, scope
 codeindex-cli verify     # SQLite integrity and stored counts
 codeindex-cli analytics  # offline analytics report (text, json, html)
-codeindex-cli benchmark  # local build and query latency
+codeindex-cli benchmark  # cold/warm build, edit-to-fresh, resources, deep cursors
 codeindex-cli verify-references  # TypeScript reference cross-check
 codeindex-cli clean      # remove local caches (dry run by default)
 ```
 
 All commands accept `--config`, `--root`, `--extractor`, `--project-file`, and
-`--database`.
+`--database`. The benchmark command also accepts a generated corpus profile or a
+disposable database path; see the
+[maintainer guide](./documentation/maintainer-guide.md#7-performance-verification).
 
 ### `codeindex-console`
 

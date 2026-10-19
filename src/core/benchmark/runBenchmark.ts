@@ -1,182 +1,395 @@
-import {mkdirSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {type ConfigType, loadConfig} from '../config/config.ts';
 import {createCodeIndex} from '../generation/codeIndex.ts';
-import {type BuildStagesType, type QueryFreshnessType} from '../model.ts';
 import {createLogger} from '../logging/logger.ts';
 import {IndexDatabase} from '../storage/database.ts';
+import {
+	type BenchmarkMachineType,
+	type BenchmarkPercentilesType,
+	type BenchmarkProfileType,
+	type BenchmarkReportType,
+	type BenchmarkScenarioNameType,
+	type BenchmarkScenarioResultType,
+	type BenchmarkWorkspaceType,
+} from './benchTypes.ts';
+import {runBuildScenario} from './buildScenarios.ts';
+import {createBenchmarkCorpus, hasBenchmarkProject, isBenchmarkProfile} from './corpus.ts';
+import {runCursorScenario} from './cursorScenario.ts';
+import {runEditScenario} from './editScenario.ts';
+import {measureQueries, summarizeQueries} from './queries.ts';
 
 const {join} = path;
+const LOGGER = createLogger({minimumLevel: 'error'});
+const DEFAULT_SCENARIOS: readonly BenchmarkScenarioNameType[] = ['cold_build', 'warm_reuse', 'warm_rebuild', 'deep_cursor'];
 
-type BenchmarkPercentilesType = Readonly<{
-	readonly count: number;
-	readonly p50Ms: number | null;
-	readonly p95Ms: number | null;
-	readonly maxMs: number | null;
-}>;
-
-export type BenchmarkReportType = Readonly<{
-	readonly generatedAt: string;
-	readonly version: number;
-	readonly nodeVersion: string;
-	readonly platform: string;
-	readonly arch: string;
-	readonly iterations: number;
-	readonly scope: Readonly<{projectId: string; fileCount: number; symbolCount: number; occurrenceCount: number}>;
-	readonly build: Readonly<{reused: boolean; durationMs: number; stages: BuildStagesType | null}>;
-	readonly freshness: QueryFreshnessType;
-	readonly queries: Readonly<Record<string, BenchmarkPercentilesType>>;
-}>;
-
-const percentile = (values: readonly number[], fraction: number): number | null => {
-	if (values.length === 0) {
-		return null;
-	}
-
-	const sorted = [...values].sort((left, right) => left - right);
-	const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(fraction * sorted.length) - 1));
-	return Math.round(sorted[index] ?? 0);
-};
-
-const summarize = (values: readonly number[]): BenchmarkPercentilesType => ({
-	count: values.length,
-	p50Ms: percentile(values, 0.5),
-	p95Ms: percentile(values, 0.95),
-	maxMs: values.length === 0 ? null : Math.max(...values),
+const machineOf = (): BenchmarkMachineType => ({
+	nodeVersion: process.version,
+	platform: process.platform,
+	arch: process.arch,
+	cpuModel: os.cpus().at(0)?.model ?? 'unknown',
+	totalMemoryBytes: os.totalmem(),
 });
 
-const measure = (action: () => void): number => {
-	const startedAt = performance.now();
-	action();
-	return performance.now() - startedAt;
-};
+const databaseContextOf = (config: ConfigType): Readonly<{rootDir: string; projectFilePath: string; extractorId: string; projectId: string}> => ({
+	rootDir: config.rootDir,
+	projectFilePath: config.projectFilePath,
+	extractorId: config.extractorId,
+	projectId: config.projectId,
+});
 
-const measureQueries = (
-	index: ReturnType<typeof createCodeIndex>,
-	outlinePath: string,
-	sample: Readonly<{id: string}> | undefined,
-	iterations: number,
-): Readonly<Record<string, number[]>> => {
-	const queries: Record<string, number[]> = {
-		status: [],
-		find_symbol: [],
-		outline: [],
-		find_references: [],
-		read_symbol: [],
-	};
-
-	for (let iteration = 0; iteration < iterations; iteration += 1) {
-		queries['status']?.push(
-			measure(() => {
-				index.getStatus();
-			}),
-		);
-		queries['find_symbol']?.push(
-			measure(() => {
-				index.findSymbols({query: 'a', limit: 10});
-			}),
-		);
-		queries['outline']?.push(
-			measure(() => {
-				index.getOutline({path: outlinePath, limit: 50});
-			}),
-		);
-
-		if (sample !== undefined) {
-			queries['find_references']?.push(
-				measure(() => {
-					index.findReferences({symbolId: sample.id, limit: 50});
-				}),
-			);
-			queries['read_symbol']?.push(
-				measure(() => {
-					index.readSymbol({symbolId: sample.id, contextLines: 0});
-				}),
-			);
-		}
+const removeDatabase = (databasePath: string): void => {
+	for (const filePath of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`]) {
+		rmSync(filePath, {force: true});
 	}
-
-	return queries;
 };
 
-/**
- * Measures build, status, and query latency without any model calls.
- *
- * @param input - Resolved configuration and iteration count.
- * @returns Machine-readable benchmark results.
- * @throws {@link Error} When the index cannot be built or queried.
- */
-export const runBenchmarkReport = async (input: Readonly<{config: ConfigType; iterations: number; force: boolean}>): Promise<BenchmarkReportType> => {
-	const {config} = input;
-	const logger = createLogger({minimumLevel: 'error'});
-	const database = IndexDatabase.open(config.databasePath, {
-		rootDir: config.rootDir,
-		projectFilePath: config.projectFilePath,
-		extractorId: config.extractorId,
-		projectId: config.projectId,
-	});
-	const index = createCodeIndex(config, database, logger, {watch: false});
+const readWorkspace = (config: ConfigType, profile: BenchmarkProfileType | null): BenchmarkWorkspaceType => {
+	const database = IndexDatabase.open(config.databasePath, databaseContextOf(config));
 
 	try {
-		const build = await index.ensureReady({force: input.force});
-		const sample = index.findSymbols({query: 'a', limit: 1}).items.at(0);
-		const outlinePath = sample?.path ?? database.listFiles(build.generationId).at(0)?.path;
+		const published = database.getPublishedGeneration();
+
+		if (published === null) {
+			throw new Error('Benchmark did not publish a generation');
+		}
+
+		return {
+			kind: profile === null ? 'external' : 'generated',
+			profile,
+			projectId: config.projectId,
+			projectName: config.projectName,
+			fileCount: published.fileCount,
+			symbolCount: published.symbolCount,
+			occurrenceCount: published.occurrenceCount,
+			dependencyEdgeCount: published.dependencyEdgeCount,
+			sourceHash: published.sourceHash,
+			configHash: published.configHash,
+		};
+	} finally {
+		database.close();
+	}
+};
+
+const workerEntryOf = (): string | undefined => {
+	const entry = new URL('mcp.mjs', import.meta.url);
+	return existsSync(entry) ? fileURLToPath(entry) : undefined;
+};
+
+const measureQueryScenario = async (
+	config: ConfigType,
+	iterations: number,
+	workerEntry: string | undefined,
+): Promise<
+	Readonly<{
+		readonly queries: Readonly<Record<string, BenchmarkPercentilesType>>;
+		readonly freshness: ReturnType<ReturnType<typeof createCodeIndex>['getFreshness']>;
+	}>
+> => {
+	const database = IndexDatabase.open(config.databasePath, databaseContextOf(config));
+	const index = createCodeIndex(config, database, LOGGER, {watch: false, ...(workerEntry === undefined ? {} : {workerEntry})});
+
+	try {
+		const build = await index.ensureReady();
+		const files = database.listFiles(build.generationId);
+		const outlinePath = files.find((file) => file.path.endsWith('outline.ts'))?.path ?? files.at(0)?.path;
 
 		if (outlinePath === undefined) {
 			throw new Error('Benchmark requires at least one indexed file');
 		}
 
-		const queries = measureQueries(index, outlinePath, sample, input.iterations);
+		const sample = index.getOutline({path: outlinePath, limit: 1}).items.at(0);
 
 		return {
-			generatedAt: new Date().toISOString(),
-			version: 1,
-			nodeVersion: process.version,
-			platform: process.platform,
-			arch: process.arch,
-			iterations: input.iterations,
-			scope: {
-				projectId: config.projectId,
-				fileCount: build.fileCount,
-				symbolCount: build.symbolCount,
-				occurrenceCount: build.occurrenceCount,
-			},
-			build: {reused: build.reused, durationMs: build.durationMs, stages: build.stages},
+			queries: summarizeQueries(measureQueries(index, outlinePath, sample, iterations)),
 			freshness: index.getFreshness(),
-			queries: {
-				status: summarize(queries['status'] ?? []),
-				find_symbol: summarize(queries['find_symbol'] ?? []),
-				outline: summarize(queries['outline'] ?? []),
-				find_references: summarize(queries['find_references'] ?? []),
-				read_symbol: summarize(queries['read_symbol'] ?? []),
-			},
 		};
 	} finally {
 		await index.close();
 	}
 };
 
+export type BenchmarkReportInputType = Readonly<{
+	readonly config: ConfigType;
+	readonly iterations: number;
+	readonly force: boolean;
+	readonly scenarios?: readonly BenchmarkScenarioNameType[];
+	readonly profile?: BenchmarkProfileType | null;
+	readonly editRounds?: number;
+	readonly maxDepth?: number;
+	readonly pageLimit?: number;
+	readonly workerEntry?: string | undefined;
+}>;
+
+const runInitialBuild = async (
+	input: BenchmarkReportInputType,
+	selected: ReadonlySet<BenchmarkScenarioNameType>,
+	workerEntry: string | undefined,
+): Promise<BenchmarkScenarioResultType> => {
+	if (selected.has('cold_build') || !existsSync(input.config.databasePath)) {
+		removeDatabase(input.config.databasePath);
+		const report = await runBuildScenario({config: input.config, name: 'cold_build', force: false, workerEntry});
+		return report;
+	}
+
+	const report = await runBuildScenario({config: input.config, name: input.force ? 'warm_rebuild' : 'warm_reuse', force: input.force, workerEntry});
+	return report;
+};
+
+const runOptionalScenarios = async (
+	input: BenchmarkReportInputType,
+	selected: ReadonlySet<BenchmarkScenarioNameType>,
+	workerEntry: string | undefined,
+): Promise<readonly BenchmarkScenarioResultType[]> => {
+	const results: BenchmarkScenarioResultType[] = [];
+
+	if (selected.has('warm_reuse') && selected.has('cold_build')) {
+		results.push(await runBuildScenario({config: input.config, name: 'warm_reuse', force: false, workerEntry}));
+	}
+
+	if (selected.has('warm_rebuild') && !input.force) {
+		results.push(await runBuildScenario({config: input.config, name: 'warm_rebuild', force: true, workerEntry}));
+	}
+
+	if (selected.has('edit_to_fresh')) {
+		results.push(await runEditScenario({config: input.config, rounds: input.editRounds ?? 5, workerEntry}));
+	}
+
+	if (selected.has('deep_cursor')) {
+		results.push(await runCursorScenario({config: input.config, maxDepth: input.maxDepth, pageLimit: input.pageLimit, workerEntry}));
+	}
+
+	return results;
+};
+
+/**
+ * Runs model-free build, freshness, and query measurements.
+ *
+ * The configured database is owned by the benchmark caller and may be removed
+ * for the cold build. Never pass a production index path.
+ *
+ * @param input - Resolved configuration and scenario selection.
+ * @returns Machine-readable benchmark results.
+ * @throws {@link Error} When a build, edit, or query cannot complete.
+ */
+export const runBenchmarkReport = async (input: BenchmarkReportInputType): Promise<BenchmarkReportType> => {
+	const selected = new Set<BenchmarkScenarioNameType>(input.scenarios ?? ['warm_reuse']);
+	const workerEntry = input.workerEntry ?? workerEntryOf();
+	const initial = await runInitialBuild(input, selected, workerEntry);
+	const results = [initial, ...(await runOptionalScenarios(input, selected, workerEntry))];
+	const measured = await measureQueryScenario(input.config, input.iterations, workerEntry);
+
+	return {
+		schemaVersion: 2,
+		generatedAt: new Date().toISOString(),
+		machine: machineOf(),
+		runtime: {workerEntry: workerEntry !== undefined, scenariosInProcess: true},
+		workspace: readWorkspace(input.config, input.profile ?? null),
+		iterations: input.iterations,
+		freshness: measured.freshness,
+		scenarios: results,
+		queries: measured.queries,
+	};
+};
+
 const usage = `Usage: codeindex-cli benchmark [options]
 
-Measures local build, status, and query latency. Performs no model calls.
+Measures local build, edit-to-fresh, resource, storage, and query behavior.
+Performs no model calls. Cold builds use a temporary database.
 
 Options:
-  --iterations <n>     Query iterations (default 20)
-  --rebuild            Force one full rebuild before measuring
-  --output <path>      Write JSON results to this path
-  --config <path>      Load a JSON configuration file
-  --root <path>        Override the indexed workspace root
-  --extractor <id>     Override the selected extractor
-  --project-file <path> Override the extractor project file
-  --database <path>    Override the index database path
-  --help               Print this message
+  --profile <name>       Generate a corpus: small, medium, large, or xl
+  --workspace <path>     Destination or existing corpus for --profile
+  --scenarios <list>     Comma-separated: cold, warm, rebuild, edit, deep, queries
+  --iterations <n>       Query iterations (default 20)
+  --edit-rounds <n>      One-file edits measured (default 5)
+  --max-depth <n>        Deep cursor maximum offset (default 10000)
+  --page-limit <n>       Deep cursor page size (default 200)
+  --rebuild              Alias for the warm rebuild scenario
+  --keep-workspace       Retain generated workspace and database
+  --output <path>        Write JSON results to this path
+  --config <path>        Load a JSON configuration file
+  --root <path>          Measure an external indexed workspace
+  --extractor <id>       Override the selected extractor
+  --project-file <path>  Override the extractor project file
+  --database <path>      Override the benchmark database path
+  --help                 Print this message
+
+Edit-to-fresh mutates source and is allowed only for a generated corpus.
 `;
 
 export type BenchmarkIoType = Readonly<{
 	readonly stdout: (line: string) => void;
 	readonly stderr: (line: string) => void;
 }>;
+
+const scenarioMap: Readonly<Record<string, BenchmarkScenarioNameType>> = {
+	cold: 'cold_build',
+	warm: 'warm_reuse',
+	rebuild: 'warm_rebuild',
+	edit: 'edit_to_fresh',
+	deep: 'deep_cursor',
+};
+
+const parseScenarios = (value: string | undefined, rebuild: boolean): readonly BenchmarkScenarioNameType[] => {
+	const selected = new Set<BenchmarkScenarioNameType>(value === undefined ? DEFAULT_SCENARIOS : []);
+	const names =
+		value
+			?.split(',')
+			.map((name) => name.trim())
+			.filter((name) => name.length > 0) ?? [];
+
+	for (const name of names) {
+		if (name === 'queries') {
+			continue;
+		}
+
+		const scenario = scenarioMap[name];
+
+		if (scenario === undefined) {
+			throw new Error(`Unknown scenario: ${name}`);
+		}
+
+		selected.add(scenario);
+	}
+
+	if (rebuild) {
+		selected.add('warm_rebuild');
+	}
+
+	return [...selected];
+};
+
+type BenchmarkOptionValuesType = Readonly<Record<string, string | boolean | undefined>>;
+
+const prepareEnvironment = (
+	input: Readonly<{
+		values: BenchmarkOptionValuesType;
+		environment: NodeJS.ProcessEnv;
+		profile: BenchmarkProfileType | null;
+		workspaceRoot: string | null;
+		databasePath: string;
+	}>,
+): NodeJS.ProcessEnv => {
+	const overrides: NodeJS.ProcessEnv = {CODE_INDEX_ANALYTICS: 'false', CODE_INDEX_DATABASE: input.databasePath};
+	const {values} = input;
+
+	if (input.profile !== null && input.workspaceRoot !== null) {
+		overrides['CODE_INDEX_ROOT'] = input.workspaceRoot;
+		overrides['CODE_INDEX_PROJECT_FILE'] = join(input.workspaceRoot, 'tsconfig.json');
+	} else if (typeof values['root'] === 'string') {
+		overrides['CODE_INDEX_ROOT'] = values['root'];
+	}
+
+	for (const [name, value] of [
+		['CODE_INDEX_EXTRACTOR', values['extractor']],
+		['CODE_INDEX_PROJECT_FILE', values['project-file']],
+	] as const) {
+		if (typeof value === 'string') {
+			overrides[name] = value;
+		}
+	}
+
+	return {...input.environment, ...overrides, ...(typeof values['config'] === 'string' ? {CODE_INDEX_CONFIG: values['config']} : {})};
+};
+
+const prepareWorkspace = (
+	input: Readonly<{
+		profile: BenchmarkProfileType | null;
+		workspace: string | undefined;
+	}>,
+): Readonly<{workspaceRoot: string | null; temporaryWorkspace: string | null}> => {
+	if (input.profile === null) {
+		return {workspaceRoot: null, temporaryWorkspace: null};
+	}
+
+	const workspaceRoot = input.workspace === undefined ? mkdtempSync(join(os.tmpdir(), 'codeindex-benchmark-workspace-')) : path.resolve(input.workspace);
+
+	if (!hasBenchmarkProject(workspaceRoot)) {
+		if (existsSync(workspaceRoot) && readdirSync(workspaceRoot).length > 0) {
+			throw new Error('--workspace must be empty or contain a benchmark tsconfig.json');
+		}
+
+		createBenchmarkCorpus({directory: workspaceRoot, profile: input.profile});
+	}
+
+	return {workspaceRoot, temporaryWorkspace: input.workspace === undefined ? workspaceRoot : null};
+};
+
+type BenchmarkOptionsType = Readonly<{
+	profile: BenchmarkProfileType | null;
+	scenarios: readonly BenchmarkScenarioNameType[];
+	iterations: number;
+	editRounds: number;
+	maxDepth: number;
+	pageLimit: number;
+}>;
+
+const numericOptions = (values: BenchmarkOptionValuesType): Readonly<{iterations: number; editRounds: number; maxDepth: number; pageLimit: number}> => {
+	const options = {
+		iterations: Number(values['iterations']),
+		editRounds: Number(values['edit-rounds']),
+		maxDepth: Number(values['max-depth']),
+		pageLimit: Number(values['page-limit']),
+	};
+
+	for (const [name, value, maximum] of [
+		['--iterations', options.iterations, 10_000],
+		['--edit-rounds', options.editRounds, 1000],
+		['--max-depth', options.maxDepth, 10_000_000],
+		['--page-limit', options.pageLimit, 10_000],
+	] as const) {
+		if (!Number.isInteger(value) || value < 1 || value > maximum) {
+			throw new Error(`${name} must be an integer between 1 and ${String(maximum)}`);
+		}
+	}
+
+	return options;
+};
+
+const validateScenarios = (profile: BenchmarkProfileType | null, scenarios: readonly BenchmarkScenarioNameType[], values: BenchmarkOptionValuesType): void => {
+	if (profile === null && values['workspace'] !== undefined) {
+		throw new Error('--workspace requires --profile');
+	}
+
+	if (profile === null && scenarios.includes('edit_to_fresh')) {
+		throw new Error('edit-to-fresh requires a generated corpus; pass --profile');
+	}
+
+	if (values['database'] !== undefined && (scenarios.includes('cold_build') || scenarios.includes('warm_rebuild'))) {
+		throw new Error('cold and rebuild scenarios require a disposable database; omit --database');
+	}
+};
+
+const parseBenchmarkOptions = (values: BenchmarkOptionValuesType): BenchmarkOptionsType => {
+	const profileValue = values['profile'];
+
+	if (typeof profileValue === 'string' && !isBenchmarkProfile(profileValue)) {
+		throw new Error('--profile must be one of: small, medium, large, xl');
+	}
+
+	const profile = typeof profileValue === 'string' ? profileValue : null;
+	const scenarios = parseScenarios(typeof values['scenarios'] === 'string' ? values['scenarios'] : undefined, values['rebuild'] === true);
+	const numbers = numericOptions(values);
+	validateScenarios(profile, scenarios, values);
+
+	return {profile, scenarios, ...numbers};
+};
+
+const writeReport = (input: Readonly<{report: BenchmarkReportType; output: string | undefined; io: BenchmarkIoType}>): string => {
+	const outputPath = input.output ?? join(process.cwd(), 'benchmark', 'results', `${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}.json`);
+
+	mkdirSync(path.dirname(outputPath), {recursive: true});
+	writeFileSync(outputPath, `${JSON.stringify(input.report, null, 2)}\n`, {encoding: 'utf8'});
+	input.io.stdout(`Benchmark written to ${outputPath}`);
+	input.io.stdout(
+		JSON.stringify({scenarios: input.report.scenarios.map((scenario) => ({name: scenario.name, kind: scenario.kind})), queries: input.report.queries}, null, 2),
+	);
+	return outputPath;
+};
 
 /**
  * Runs the local benchmark command.
@@ -187,12 +400,21 @@ export type BenchmarkIoType = Readonly<{
  * @returns Process exit code.
  */
 export const runBenchmarkCommand = async (argv: readonly string[], environment: NodeJS.ProcessEnv, io: BenchmarkIoType): Promise<number> => {
+	const cleanup: string[] = [];
+
 	try {
 		const parsed = parseArgs({
 			args: [...argv],
 			options: {
 				iterations: {type: 'string', default: '20'},
+				'edit-rounds': {type: 'string', default: '5'},
+				'max-depth': {type: 'string', default: '10000'},
+				'page-limit': {type: 'string', default: '200'},
 				rebuild: {type: 'boolean', default: false},
+				'keep-workspace': {type: 'boolean', default: false},
+				profile: {type: 'string'},
+				workspace: {type: 'string'},
+				scenarios: {type: 'string'},
 				output: {type: 'string'},
 				config: {type: 'string'},
 				root: {type: 'string'},
@@ -203,43 +425,43 @@ export const runBenchmarkCommand = async (argv: readonly string[], environment: 
 			},
 			allowPositionals: false,
 		});
+		const {values} = parsed;
 
-		if (parsed.values.help) {
+		if (values.help) {
 			io.stdout(usage.trimEnd());
 			return 0;
 		}
 
-		const overrides: Record<string, string> = {};
+		const options = parseBenchmarkOptions(values);
+		const {workspaceRoot, temporaryWorkspace} = prepareWorkspace({
+			profile: options.profile,
+			workspace: typeof values.workspace === 'string' ? values.workspace : undefined,
+		});
+		const temporaryDatabase = mkdtempSync(join(os.tmpdir(), 'codeindex-benchmark-database-'));
+		cleanup.push(temporaryDatabase);
 
-		for (const [name, value] of [
-			['CODE_INDEX_CONFIG', parsed.values.config],
-			['CODE_INDEX_ROOT', parsed.values.root],
-			['CODE_INDEX_EXTRACTOR', parsed.values.extractor],
-			['CODE_INDEX_PROJECT_FILE', parsed.values['project-file']],
-			['CODE_INDEX_DATABASE', parsed.values.database],
-		] as const) {
-			if (value !== undefined) {
-				overrides[name] = value;
-			}
+		if (temporaryWorkspace !== null) {
+			cleanup.push(temporaryWorkspace);
 		}
 
-		const iterations = Number(parsed.values.iterations);
+		const databasePath = typeof values.database === 'string' ? path.resolve(values.database) : join(temporaryDatabase, 'index.sqlite');
+		const sourceEnvironment = prepareEnvironment({values, environment, profile: options.profile, workspaceRoot, databasePath});
+		const config = {...loadConfig(sourceEnvironment), analyticsEnabled: false, databasePath};
+		const report = await runBenchmarkReport({config, force: false, ...options});
+		writeReport({report, output: typeof values.output === 'string' ? values.output : undefined, io});
 
-		if (!Number.isInteger(iterations) || iterations < 1 || iterations > 10_000) {
-			throw new Error('--iterations must be an integer between 1 and 10000');
+		if (values['keep-workspace']) {
+			io.stdout(`Workspace: ${workspaceRoot ?? config.rootDir}`);
+			io.stdout(`Database: ${databasePath}`);
 		}
 
-		const report = await runBenchmarkReport({config: loadConfig({...environment, ...overrides}), iterations, force: parsed.values.rebuild});
-		const outputPath =
-			parsed.values.output ?? join(process.cwd(), 'benchmark', 'results', `${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}.json`);
-
-		mkdirSync(path.dirname(outputPath), {recursive: true});
-		writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`, {encoding: 'utf8'});
-		io.stdout(`Benchmark written to ${outputPath}`);
-		io.stdout(JSON.stringify(report.queries, null, 2));
 		return 0;
 	} catch (error) {
 		io.stderr(error instanceof Error ? error.message : String(error));
 		return 1;
+	} finally {
+		for (const directory of cleanup) {
+			rmSync(directory, {recursive: true, force: true});
+		}
 	}
 };

@@ -113,6 +113,58 @@ Every hot query must have an intended bounded `EXPLAIN QUERY PLAN`. Replace offs
 pagination when latency grows with cursor depth. Apply SQLite tuning only after a
 benchmark proves benefit without weakening publication safety.
 
+### 7.1 Model-free benchmark command
+
+```bash
+# Generated corpus; cold, no-change, forced rebuild, deep cursor, and queries
+codeindex-cli benchmark --profile small --scenarios cold,warm,rebuild,deep
+
+# Add one-file edit-to-fresh rounds (generated corpora only; source is mutated)
+codeindex-cli benchmark --profile medium --scenarios cold,edit --edit-rounds 5
+
+# External checkout; only non-mutating scenarios. Database stays temporary.
+codeindex-cli benchmark --root /path/to/project --scenarios cold,warm,rebuild,deep
+```
+
+The report schema is version 2 and is written to `benchmark/results/` by default.
+Scenarios share one process. For process-cold RSS and allocator state, invoke one
+scenario per process, for example `--scenarios cold`.
+Each scenario records wall time, CPU user/system time, RSS start/peak/end,
+database plus WAL/SHM bytes, content and extraction-artifact counts, build
+stages, and generation/content reuse. Edit-to-fresh records every write-to-fresh
+latency plus p50/p95/p99/max. Deep cursor samples record the exact production
+statement's plan, whether the intended index was used, and whether SQLite built a
+temporary B-tree.
+
+Artifact reuse is currently measured as zero because extraction artifacts are
+persisted but never consumed. Report this explicitly; implement artifact
+consumption only when a measured gate fails.
+
+Generated profiles are deterministic and disposable: `small`, `medium`, `large`,
+and `xl`. Real-project runs use a pinned public checkout, recorded revision,
+project file, dependency-lock hash, and Node identity. Edit-to-fresh refuses an
+external root so a benchmark never modifies a user checkout.
+
+Run small profiles in ordinary development. Run `large` or `xl` and pinned public
+projects in the nightly job with broad order-of-magnitude bounds. Hard latency and
+resource gates use a stable reference machine; hosted CI numbers are directional.
+
+Nightly public-project set:
+
+| Project | Selected project file | Coverage |
+| --- | --- | --- |
+| `microsoft/TypeScript` | compiler project discovered during qualification | compiler-heavy, dense references |
+| `microsoft/vscode` | `src/tsconfig.json` | large application graph |
+| `mui/material-ui` | `packages/mui-material/tsconfig.json` | TSX, re-exports, package boundaries |
+
+Each run records the repository URL, exact revision, project file, dependency-lock
+hash, and Node identity. Checkouts and dependency setup happen outside the measured
+scenario. Do not commit checkouts, installed dependencies, or derived databases.
+
+The scheduled [benchmark workflow](../.github/workflows/benchmark.yml) runs the
+generated corpus nightly and uploads the JSON report. It detects large regressions;
+reference-machine gates remain authoritative.
+
 Reference-machine targets:
 
 | Dimension | Gate |

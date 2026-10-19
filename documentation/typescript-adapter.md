@@ -156,6 +156,8 @@ pnpm verify
 pnpm build
 pnpm verify:references
 codeindex-cli benchmark --config ./codeindex.config.json
+codeindex-cli benchmark --profile large --scenarios cold,warm,rebuild,deep
+codeindex-cli benchmark --profile medium --scenarios cold,edit --edit-rounds 5
 ```
 
 `verify-references` compares indexed occurrences with the TypeScript language
@@ -198,12 +200,12 @@ plan. Status meanings:
 
 | Package | Status | Current implementation or remaining work |
 | --- | --- | --- |
-| WP0 — baselines and pilot gates | Partial | Build stages, local analytics, offline reports, benchmark command, and the final reference corpus exist. Missing comprehensive committed edit-to-fresh/resource baselines. |
+| WP0 — baselines and pilot gates | Partial | Build stages, local analytics, offline reports, the version-2 model-free benchmark, deterministic large-project profiles, and the final reference corpus exist. Missing retained reference-machine baselines and pinned public-project runs. |
 | WP1 — native OpenCode exposure | Partial | MCP installation and current Code Mode behavior are documented and protocol-tested. Retained direct-versus-Code-Mode benchmark and formal normal-session smoke evidence remain open. |
 | WP2 — continuous freshness | Implemented | Coordinator, recursive watcher, 500 ms debounce, 60 s reconciliation, one follow-up build, query freshness, dirty-source rejection, and shutdown ownership are implemented and tested. |
 | WP3 — persistence and writer coordination | Partial | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, and bounded generation cleanup exist. Process-level contention/termination evidence and explicit checkout move/copy/delete semantics remain incomplete. |
 | WP4 — compiler/reference alignment | Implemented | Declared compiler identity, drift, TypeScript API extraction, and the ≥200-symbol, ≥99.5%-recall, 100%-precision gate with construct stratification and a checked-in corpus exist. |
-| WP5 — edit-to-fresh and resources | Partial | Cached status, local benchmark, build-stage timings, query-plan inspection, analytics, and worker builds exist. Full resource gates, Code Mode comparison, contention evidence, and four-hour soak evidence are incomplete. Incremental compiler state remains conditional. |
+| WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, analytics, and worker builds exist. Reference-machine gates, Code Mode comparison, contention evidence, and four-hour soak evidence remain incomplete. Incremental compiler state remains conditional. |
 | WP6 — build separation | Superseded/partial | MCP, CLI, console server, and browser bundles are separate. Evaluation code and corpus intentionally remain private; this repository does not emit the original public `evaluation.mjs` artifact. |
 | WP7 — OpenCode installation | Implemented | CLI install/uninstall, explicit MCP bundle/configuration paths, preservation of unrelated JSONC, external project configuration, and user documentation exist. |
 | WP8 — interactive pilot | Open | No retained public evidence proves the required representative-session count, adoption denominator, all latency/resource gates, or soak completion. |
@@ -311,9 +313,9 @@ artifacts.
 
 ### 11.5 Performance and evaluation
 
-- add a model-free edit-to-fresh benchmark;
-- retain machine-readable startup, build, query, CPU, memory, and storage results;
-- verify deep cursor query plans at production cardinalities;
+- add a model-free edit-to-fresh benchmark; **done**
+- retain machine-readable startup, build, query, CPU, memory, and storage results; **command implemented; baselines still need retention**
+- verify deep cursor query plans at production cardinalities; **sampling implemented; production-cardinality runs still need retention**
 - compare direct MCP and Code Mode wrapping;
 - complete restart, two-process, lease takeover, and four-hour soak runs;
 - implement private controlled cases for direct dependency usage, grouped impact,

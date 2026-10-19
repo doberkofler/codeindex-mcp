@@ -166,3 +166,31 @@ describe('RefreshCoordinator', () => {
 		await coordinator.close();
 	});
 });
+
+describe('RefreshCoordinator publication timing', () => {
+	it('records event-to-publication from the first dirty event', async () => {
+		const {clock, advance} = createClock();
+		const events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[] = [];
+		const coordinator = new RefreshCoordinator({
+			runRefresh: async (): Promise<void> => {
+				await Promise.resolve();
+			},
+			logger: silentLogger,
+			clock,
+			debounceMs: 500,
+			record: (event, fields): void => {
+				events.push({event, fields});
+			},
+		});
+
+		coordinator.start();
+		await advance(500);
+		coordinator.notify(['src/a.ts']);
+		await advance(500);
+
+		const published = events.find((entry) => entry.event === 'refresh_published');
+		const {eventToPublicationMs} = published?.fields ?? {};
+		expect(eventToPublicationMs).toBe(500);
+		await coordinator.close();
+	});
+});

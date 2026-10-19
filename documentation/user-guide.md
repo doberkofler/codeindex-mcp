@@ -199,7 +199,7 @@ codeindex-cli rebuild     # force a new generation
 codeindex-cli status      # generation, counts, freshness, scope
 codeindex-cli verify      # SQLite integrity and persisted counts
 codeindex-cli analytics   # offline analytics report
-codeindex-cli benchmark   # local build and query latency
+codeindex-cli benchmark   # cold/warm build, edit-to-fresh, resources, deep cursors
 codeindex-cli clean       # remove local caches (dry run by default)
 ```
 
