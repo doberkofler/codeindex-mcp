@@ -145,23 +145,30 @@ export class CodeIndex {
 	 * @throws {@link Error} When scanning or building fails.
 	 */
 	public async ensureReady(options: Readonly<{force?: boolean}> = {}): Promise<BuildReportType> {
-		if (this.#refreshing !== null) {
-			debug('refresh already in progress');
-			return this.#refreshing;
-		}
-
-		this.#refreshing = this.#refresh('manual', options.force === true);
-
-		try {
-			const report = await this.#refreshing;
-			this.#coordinator.markCurrent();
-			return report;
-		} finally {
-			this.#refreshing = null;
-		}
+		const report = await this.#refresh('manual', options.force === true);
+		this.#coordinator.markCurrent();
+		return report;
 	}
 
 	async #refresh(reason: RefreshReasonType, force: boolean): Promise<BuildReportType> {
+		if (this.#refreshing !== null) {
+			debug('refresh already in progress', {reason});
+			return this.#refreshing;
+		}
+
+		const refreshing = this.#performRefresh(reason, force);
+		this.#refreshing = refreshing;
+
+		try {
+			return await refreshing;
+		} finally {
+			if (this.#refreshing === refreshing) {
+				this.#refreshing = null;
+			}
+		}
+	}
+
+	async #performRefresh(reason: RefreshReasonType, force: boolean): Promise<BuildReportType> {
 		debug('refresh start', {reason, force});
 		const startedAt = performance.now();
 		const leaseAcquired = this.#database.tryAcquireBuildLease(this.#ownerId, process.pid, LEASE_TTL_MS);
@@ -195,10 +202,7 @@ export class CodeIndex {
 			const scan = this.#extractor.scan(this.#config, knownPaths);
 
 			if (scan.compilerDrift) {
-				this.#logger.warn('compiler_drift', {
-					extractorCompiler: scan.compilerVersion,
-					declaredCompiler: scan.declaredCompilerVersion,
-				});
+				this.#logger.warn('compiler_drift', {extractorCompiler: scan.compilerVersion, declaredCompiler: scan.declaredCompilerVersion});
 				this.#analytics?.record('compiler_drift', {
 					extractorVersion: scan.compilerVersion,
 					declaredVersion: scan.declaredCompilerVersion,
@@ -259,12 +263,7 @@ export class CodeIndex {
 			workingCopyId: this.#database.getWorkingCopy()?.id ?? null,
 			lastError: null,
 		});
-		debug('status', {
-			state: status.state,
-			refresh: status.refresh,
-			published: published?.id ?? null,
-			dirtyFiles: status.freshness.dirtyFileCount,
-		});
+		debug('status', {state: status.state, refresh: status.refresh, published: published?.id ?? null, dirtyFiles: status.freshness.dirtyFileCount});
 
 		return status;
 	}
