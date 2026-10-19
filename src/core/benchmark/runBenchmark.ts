@@ -20,7 +20,7 @@ import {
 import {runBuildScenario} from './buildScenarios.ts';
 import {isBenchmarkProfile, prepareBenchmarkWorkspace} from './corpus.ts';
 import {runCursorScenario} from './cursorScenario.ts';
-import {runEditScenario} from './editScenario.ts';
+import {editProgressMessage, runEditScenario, type BenchmarkEditProgressType} from './editScenario.ts';
 import {finalizeBenchmark, type BenchmarkIoType} from './finalize.ts';
 import {measureQueries, summarizeQueries} from './queries.ts';
 
@@ -124,6 +124,7 @@ export type BenchmarkReportInputType = Readonly<{
 	readonly maxDepth?: number;
 	readonly pageLimit?: number;
 	readonly workerEntry?: string | undefined;
+	readonly onProgress?: ((progress: BenchmarkEditProgressType) => void) | undefined;
 }>;
 
 const runInitialBuild = async (
@@ -157,7 +158,7 @@ const runOptionalScenarios = async (
 	}
 
 	if (selected.has('edit_to_fresh')) {
-		results.push(await runEditScenario({config: input.config, rounds: input.editRounds ?? 5, workerEntry}));
+		results.push(await runEditScenario({config: input.config, rounds: input.editRounds ?? 5, workerEntry, onProgress: input.onProgress}));
 	}
 
 	if (selected.has('deep_cursor')) {
@@ -441,7 +442,14 @@ const executeBenchmark = async (values: BenchmarkOptionValuesType, environment: 
 	const config = {...loadConfig(sourceEnvironment), analyticsEnabled: false, databasePath};
 
 	try {
-		const report = await runBenchmarkReport({config, force: false, ...options});
+		const report = await runBenchmarkReport({
+			config,
+			force: false,
+			...options,
+			onProgress: (progress): void => {
+				io.stderr(editProgressMessage(progress));
+			},
+		});
 
 		return finalizeBenchmark({
 			report,

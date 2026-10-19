@@ -112,13 +112,18 @@ describe('benchmark edit-to-fresh', () => {
 		try {
 			createBenchmarkCorpus({directory: root, profile: 'small'});
 			const config = generatedConfig(root, path.join(databaseDirectory, 'index.sqlite'));
+			const progress: number[] = [];
 			const scenario = await runEditScenario({
 				config,
 				rounds: 1,
 				timeoutMs: 30_000,
 				targetPath: 'src/features/feature00001.ts',
+				onProgress: (sample) => {
+					progress.push(sample.iteration);
+				},
 			});
 
+			expect(progress).toStrictEqual([1]);
 			expect(scenario.samples).toHaveLength(1);
 			expect(scenario.samples[0]?.latencyMs).toBeGreaterThanOrEqual(0);
 			expect(scenario.percentiles.p50Ms).not.toBeNull();

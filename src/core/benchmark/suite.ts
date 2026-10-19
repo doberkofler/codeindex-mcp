@@ -16,6 +16,7 @@ import {
 	type SuiteManifestType,
 } from './suiteManifest.ts';
 import {executeStep, resolveStepPaths} from './suiteSteps.ts';
+import {estimateStep, formatDuration, recordStepDuration, remainingEstimate} from './suiteProgress.ts';
 import {buildSuiteSummary} from './suiteSummary.ts';
 import {expandHome, loadBenchmarkSuite, resolveProjectsRoot, type BenchmarkSuiteType} from './suiteTypes.ts';
 
@@ -205,7 +206,7 @@ const validateRun = (inputs: RunInputsType, cliPath: string): readonly string[] 
 	return baselines;
 };
 
-const completeSteps = (
+const completeSteps = async (
 	input: Readonly<{
 		manifest: SuiteManifestType;
 		steps: ReturnType<typeof resolveStepPaths>;
@@ -217,30 +218,60 @@ const completeSteps = (
 		failFast: boolean;
 		io: BenchmarkIoType;
 	}>,
-): Readonly<{manifest: SuiteManifestType; failed: boolean}> => {
+): Promise<Readonly<{manifest: SuiteManifestType; failed: boolean}>> => {
 	const manifest: SuiteManifestType = {...input.manifest, steps: [...input.manifest.steps]};
+	const history = new Map<string, number[]>();
+	const total = input.steps.length;
 	let failed = false;
 
-	for (const step of input.steps) {
+	for (const [index, step] of input.steps.entries()) {
 		const existing = input.completed.get(step.id);
 
 		if (existing !== undefined) {
 			manifest.steps.push(existing);
-			input.io.stdout(`[skip] ${step.id} (resume)`);
+			recordStepDuration(history, step, existing.durationMs);
+			input.io.stdout(`[skip] ${String(index + 1)}/${String(total)} ${step.id} (resume)`);
 			continue;
 		}
 
-		input.io.stdout(`[run]  ${step.id} — ${step.title}`);
-		const result = executeStep({
-			step,
-			cliPath: input.cliPath,
-			environment: input.environment,
-			outputDir: input.outputDir,
-			repositoryRoot: input.repositoryRoot,
-		});
+		const estimate = estimateStep(step, history);
+		const estimateText = estimate === null ? '' : ` (ETA ~${formatDuration(estimate)})`;
+		const startedAt = performance.now();
+		input.io.stdout(`[run]   ${String(index + 1)}/${String(total)} ${step.id} — ${step.title}${estimateText}`);
+		const heartbeat = setInterval(() => {
+			const elapsedMs = performance.now() - startedAt;
+			const remainingMs = estimate === null ? null : Math.max(0, estimate - elapsedMs);
+			const remainingText = remainingMs === null ? '' : `, ETA ~${formatDuration(remainingMs)}`;
+			input.io.stdout(`[wait] ${String(index + 1)}/${String(total)} ${step.id} ${formatDuration(elapsedMs)} elapsed${remainingText}`);
+		}, 10_000);
+		heartbeat.unref();
+
+		let result: SuiteManifestType['steps'][number];
+
+		try {
+			result = await executeStep({
+				step,
+				cliPath: input.cliPath,
+				environment: input.environment,
+				outputDir: input.outputDir,
+				repositoryRoot: input.repositoryRoot,
+				onLine: (line): void => {
+					if (line.startsWith('[benchmark]')) {
+						input.io.stdout(`       ${line}`);
+					}
+				},
+			});
+		} finally {
+			clearInterval(heartbeat);
+		}
+
 		manifest.steps.push(result);
+		recordStepDuration(history, step, result.durationMs);
 		writeManifest(input.outputDir, manifest);
-		input.io.stdout(`[${result.status === 'passed' ? 'ok' : 'fail'}] ${step.id} (${(result.durationMs / 1000).toFixed(1)} s)`);
+		const remaining = remainingEstimate(input.steps.slice(index + 1), history);
+		const remainingText = remaining === null ? '' : `, ~${formatDuration(remaining)} remaining`;
+		const label = result.status === 'passed' ? '[ok]  ' : '[fail]';
+		input.io.stdout(`${label} ${String(index + 1)}/${String(total)} ${step.id} (${(result.durationMs / 1000).toFixed(1)} s${remainingText})`);
 
 		if (result.status === 'failed') {
 			failed = true;
@@ -258,7 +289,7 @@ const completeSteps = (
 	return {manifest, failed};
 };
 
-const runSuite = (
+const runSuite = async (
 	input: Readonly<{
 		values: SuiteOptionsType;
 		environment: NodeJS.ProcessEnv;
@@ -267,7 +298,7 @@ const runSuite = (
 		cwd: string;
 		home: string;
 	}>,
-): number => {
+): Promise<number> => {
 	const inputs = resolveRunInputs({values: input.values, cwd: input.cwd, home: input.home});
 	const baselinePaths = validateRun(inputs, input.cliPath);
 	const projects = inputs.effectiveSuite.publicProjects.map((entry) => verifyPublicProject({entry, projectsRoot: inputs.projectsRoot}));
@@ -314,7 +345,7 @@ const runSuite = (
 		outputDir: inputs.outputDir,
 		projectsRoot: inputs.projectsRoot,
 	});
-	const result = completeSteps({
+	const result = await completeSteps({
 		manifest: initialManifest,
 		steps,
 		completed,
@@ -354,12 +385,12 @@ const runSuite = (
  * @param options - Injected CLI path, working directory, and home directory.
  * @returns Process exit code: 1 when any step failed.
  */
-export const runBenchmarkSuiteCommand = (
+export const runBenchmarkSuiteCommand = async (
 	argv: readonly string[],
 	environment: NodeJS.ProcessEnv,
 	io: BenchmarkIoType,
 	options: Readonly<{cliPath: string; cwd?: string; home?: string}>,
-): number => {
+): Promise<number> => {
 	try {
 		const values = parseSuiteArgs(argv);
 
@@ -368,7 +399,7 @@ export const runBenchmarkSuiteCommand = (
 			return 0;
 		}
 
-		return runSuite({
+		return await runSuite({
 			values,
 			environment,
 			io,

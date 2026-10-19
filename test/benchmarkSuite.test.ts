@@ -3,6 +3,8 @@ import {describe, expect, it} from 'vitest';
 import {BenchmarkSuiteSchema, expandHome, loadBenchmarkSuite, resolveProjectsRoot} from '../src/core/benchmark/suiteTypes.ts';
 import {runBenchmarkSuiteCommand} from '../src/core/benchmark/suite.ts';
 import {failureDetail} from '../src/core/benchmark/suiteCommand.ts';
+import {estimateStep, formatDuration, remainingEstimate} from '../src/core/benchmark/suiteProgress.ts';
+import {benchmarkCorpusCounts} from '../src/core/benchmark/corpus.ts';
 import {runBenchmarkPrepareCommand} from '../src/core/benchmark/suitePrepare.ts';
 
 const suitePath = (name: string): string => path.resolve(import.meta.dirname, '..', 'benchmark', 'suites', `${name}.json`);
@@ -122,15 +124,37 @@ describe('benchmark suite', () => {
 		expect(failureDetail(plain)).toBe('second third fourth');
 	});
 
-	it('prints suite and prepare help without starting work', () => {
+	it('prints suite and prepare help without starting work', async () => {
 		const suiteIo = capture();
 		const prepareIo = capture();
 
-		expect(runBenchmarkSuiteCommand(['--suite', 'missing.json', '--', '--help'], {}, suiteIo.io, {cliPath: '/missing/cli.mjs'})).toBe(0);
+		await expect(runBenchmarkSuiteCommand(['--suite', 'missing.json', '--', '--help'], {}, suiteIo.io, {cliPath: '/missing/cli.mjs'})).resolves.toBe(0);
 		expect(suiteIo.stdout.join('\n')).toContain('benchmark-suite');
 		expect(suiteIo.stderr).toStrictEqual([]);
 		expect(runBenchmarkPrepareCommand(['--suite', 'missing.json', '--', '--help'], prepareIo.io)).toBe(0);
 		expect(prepareIo.stdout.join('\n')).toContain('benchmark-prepare');
 		expect(prepareIo.stderr).toStrictEqual([]);
+	});
+});
+
+describe('benchmark suite progress', () => {
+	it('formats durations for progress output', () => {
+		expect(formatDuration(950)).toBe('1s');
+		expect(formatDuration(59_400)).toBe('59s');
+		expect(formatDuration(60_000)).toBe('1m 00s');
+		expect(formatDuration(71_200)).toBe('1m 11s');
+	});
+
+	it('scales estimates across generated profiles and sums remaining work', () => {
+		const large = {id: 'generated:large:run:01', kind: 'generated' as const};
+		const xl = {id: 'generated:xl:run:01', kind: 'generated' as const};
+		const history = new Map<string, number[]>([['generated:large:run', [20_000]]]);
+		const expected = (20_000 * benchmarkCorpusCounts('xl').fileCount) / benchmarkCorpusCounts('large').fileCount;
+
+		expect(estimateStep(large, history)).toBe(20_000);
+		expect(estimateStep(xl, history)).toBeCloseTo(expected);
+		expect(remainingEstimate([large, xl], history)).toBeCloseTo(20_000 + expected);
+		expect(estimateStep({id: 'public:vscode:run:01', kind: 'public'}, history)).toBeNull();
+		expect(estimateStep(large, new Map([['generated:large:cold', [2000]]]))).toBe(20_000);
 	});
 });

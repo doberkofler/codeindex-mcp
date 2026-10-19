@@ -10,11 +10,23 @@ import {type BenchmarkBuildType, type BenchmarkEditSampleType, type BenchmarkEdi
 import {reuseOf} from './buildScenarios.ts';
 import {summarize} from './percentiles.ts';
 import {readStorage, startResourceSampler} from './resources.ts';
+import {formatDuration} from './suiteProgress.ts';
 
 const LOGGER = createLogger({minimumLevel: 'error'});
 const DEFAULT_DEBOUNCE_MS = 500;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 10;
+
+export type BenchmarkEditProgressType = Readonly<{
+	iteration: number;
+	rounds: number;
+	latencyMs: number;
+	etaMs: number;
+}>;
+
+// Formats one edit-round progress line for the benchmark CLI.
+export const editProgressMessage = (progress: BenchmarkEditProgressType): string =>
+	`[benchmark] edit ${String(progress.iteration)}/${String(progress.rounds)}: ${(progress.latencyMs / 1000).toFixed(1)} s, ETA ~${formatDuration(progress.etaMs)}`;
 
 const waitFor = async <ValueType>(
 	input: Readonly<{
@@ -76,6 +88,7 @@ export const runEditScenario = async (
 		targetPath?: string;
 		debounceMs?: number;
 		workerEntry?: string | undefined;
+		onProgress?: ((progress: BenchmarkEditProgressType) => void) | undefined;
 	}>,
 ): Promise<BenchmarkEditScenarioType> => {
 	const debounceMs = input.debounceMs ?? DEFAULT_DEBOUNCE_MS;
@@ -121,10 +134,19 @@ export const runEditScenario = async (
 				label: `edit ${String(iteration)} publication`,
 			});
 
-			samples.push({
+			const sample = {
 				iteration,
 				latencyMs: Math.round(performance.now() - startedAt),
 				generationId: status.generationId ?? '',
+			};
+			samples.push(sample);
+			const elapsedMs = samples.reduce((sum, entry) => sum + entry.latencyMs, 0);
+			const averageMs = elapsedMs / samples.length;
+			input.onProgress?.({
+				iteration,
+				rounds: input.rounds,
+				latencyMs: sample.latencyMs,
+				etaMs: Math.round(averageMs * (input.rounds - samples.length)),
 			});
 			return runRound(iteration + 1);
 		};

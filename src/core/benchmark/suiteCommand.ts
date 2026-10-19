@@ -1,4 +1,5 @@
-import {spawnSync} from 'node:child_process';
+import {spawn} from 'node:child_process';
+import {once} from 'node:events';
 import {mkdirSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 
@@ -11,41 +12,72 @@ export type CliResultType = Readonly<{
 	durationMs: number;
 }>;
 
+const appendBounded = (current: string, chunk: string): string => (current.length >= MAX_LOG_BYTES ? current : (current + chunk).slice(0, MAX_LOG_BYTES));
+
 /**
  * Runs one child process and persists a bounded log.
  *
- * The child receives a clean environment without inherited `CODE_INDEX_*`
- * overrides, so every step measures the same configuration.
+ * Stderr lines are forwarded to the optional progress callback so a long step
+ * can report scenario and edit-round progress while it runs. The child receives
+ * a clean environment without inherited `CODE_INDEX_*` overrides, so every step
+ * measures the same configuration.
  *
- * @param input - Command, working directory, environment, and log path.
+ * @param input - Command, working directory, environment, log path, and progress sink.
  * @returns Exit code, captured output, and duration.
  */
-export const runCommand = (
+export const runCommand = async (
 	input: Readonly<{
 		command: string;
 		args: readonly string[];
 		cwd: string;
 		environment: NodeJS.ProcessEnv;
 		logPath: string;
+		onLine?: (line: string) => void;
 	}>,
-): CliResultType => {
+): Promise<CliResultType> => {
 	const started = performance.now();
-	const result = spawnSync(input.command, [...input.args], {
+	const child = spawn(input.command, [...input.args], {
 		cwd: input.cwd,
 		env: input.environment,
-		encoding: 'utf8',
-		maxBuffer: MAX_LOG_BYTES,
+		stdio: ['ignore', 'pipe', 'pipe'],
 	});
+	let stdout = '';
+	let stderr = '';
+	let pending = '';
+
+	child.stdout.setEncoding('utf8');
+	child.stderr.setEncoding('utf8');
+	child.stdout.on('data', (chunk: string) => {
+		stdout = appendBounded(stdout, chunk);
+	});
+	child.stderr.on('data', (chunk: string) => {
+		stderr = appendBounded(stderr, chunk);
+		pending += chunk;
+		const lines = pending.split('\n');
+		pending = lines.pop() ?? '';
+
+		for (const line of lines) {
+			input.onLine?.(line);
+		}
+	});
+
+	let exitCode = 1;
+	let extra: string | null = null;
+
+	try {
+		await once(child, 'close');
+		exitCode = child.exitCode ?? 1;
+	} catch (error) {
+		extra = error instanceof Error ? error.message : String(error);
+	}
+
 	const durationMs = performance.now() - started;
-	const {stdout} = result;
-	const stderr = result.error === undefined ? result.stderr : `${result.stderr}\n${result.error.message}`;
-	const {status} = result;
-	const cliResult = {
-		exitCode: status ?? 1,
-		stdout,
-		stderr,
-		durationMs,
-	};
+
+	if (pending.length > 0) {
+		input.onLine?.(pending);
+	}
+
+	const finalStderr = extra === null ? stderr : `${stderr}\n${extra}`;
 
 	mkdirSync(path.dirname(input.logPath), {recursive: true});
 	writeFileSync(
@@ -53,19 +85,19 @@ export const runCommand = (
 		[
 			`$ ${input.command} ${input.args.join(' ')}`,
 			`cwd: ${input.cwd}`,
-			`exit: ${String(cliResult.exitCode)}`,
+			`exit: ${String(exitCode)}`,
 			`duration: ${durationMs.toFixed(1)} ms`,
 			'',
 			'--- stdout ---',
 			stdout,
 			'--- stderr ---',
-			stderr,
+			finalStderr,
 			'',
 		].join('\n'),
 		{encoding: 'utf8'},
 	);
 
-	return cliResult;
+	return {exitCode, stdout, stderr: finalStderr, durationMs};
 };
 
 /**

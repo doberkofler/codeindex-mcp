@@ -293,24 +293,26 @@ export const resolveStepPaths = (
  * @param input - Step, CLI bundle, environment, evidence directory, and repository root.
  * @returns Recorded step result.
  */
-export const executeStep = (
+export const executeStep = async (
 	input: Readonly<{
 		step: PlannedStepType;
 		cliPath: string;
 		environment: NodeJS.ProcessEnv;
 		outputDir: string;
 		repositoryRoot: string;
+		onLine?: (line: string) => void;
 	}>,
-): SuiteStepResultType => {
+): Promise<SuiteStepResultType> => {
 	const referencePath = input.step.referencePath !== null && existsSync(input.step.referencePath) ? input.step.referencePath : null;
 	const args = input.step.args({cliPath: input.cliPath, baselinePath: input.step.baselinePath, referencePath});
 	const environment = {...cleanChildEnvironment(input.environment), ...input.step.environment};
-	const result = runCommand({
+	const result = await runCommand({
 		command: process.execPath,
 		args,
 		cwd: input.step.cwd ?? input.repositoryRoot,
 		environment,
 		logPath: input.step.logPath,
+		...(input.onLine === undefined ? {} : {onLine: input.onLine}),
 	});
 
 	if (input.step.stdoutPath !== undefined && result.stdout.length > 0) {
