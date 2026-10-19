@@ -43,7 +43,7 @@ const OracleDependentSchema = z.object({
 });
 
 const LivePlanSchema = z.object({
-	version: z.literal(5),
+	version: z.literal(6),
 	approval: z.string().regex(/^[a-f0-9]{64}$/u),
 	createdAt: z.string().min(1),
 	project: z.object({
@@ -264,7 +264,7 @@ export const createOracleLivePlan = (
 
 	const sql = writePlanSql(planDir, sqlFilesOf(snapshot.units, dependents));
 	const planWithoutApproval = {
-		version: 5 as const,
+		version: 6 as const,
 		project: {
 			name: config.projectName,
 			id: config.projectId,

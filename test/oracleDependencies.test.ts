@@ -60,6 +60,36 @@ describe('Oracle dependent closure', () => {
 		expect(dependents).toStrictEqual([{type: 'VIEW', name: 'HR_VIEW', compileClause: '', depth: 1}]);
 	});
 
+	it('orders a shared dependent after every object that invalidates it', () => {
+		const dependents = oracleDependentsOf(
+			[{type: 'PACKAGE', name: 'HR_API'}],
+			[edge('HR_ALPHA', 'VIEW', 'HR_API', 'PACKAGE'), edge('HR_ZETA', 'VIEW', 'HR_API', 'PACKAGE'), edge('HR_ALPHA', 'VIEW', 'HR_ZETA', 'VIEW')],
+		);
+
+		expect(dependents.map((dependent) => dependent.name)).toStrictEqual(['HR_ZETA', 'HR_ALPHA']);
+		expect(dependents.map((dependent) => dependent.depth)).toStrictEqual([1, 2]);
+	});
+
+	it('is independent of dependency row order', () => {
+		const targets = [{type: 'PACKAGE', name: 'HR_API'}];
+		const edges = [edge('HR_ALPHA', 'VIEW', 'HR_API', 'PACKAGE'), edge('HR_ZETA', 'VIEW', 'HR_API', 'PACKAGE'), edge('HR_ALPHA', 'VIEW', 'HR_ZETA', 'VIEW')];
+
+		const reversedEdges: OracleDependencyRowType[] = [];
+
+		for (let index = edges.length - 1; index >= 0; index -= 1) {
+			const edgeRow = edges.at(index);
+
+			if (edgeRow !== undefined) {
+				reversedEdges.push(edgeRow);
+			}
+		}
+
+		const forward = oracleDependentsOf(targets, edges).map((dependent) => dependent.name);
+		const reversed = oracleDependentsOf(targets, reversedEdges).map((dependent) => dependent.name);
+
+		expect(reversed).toStrictEqual(forward);
+	});
+
 	it('keeps same-named objects of different types distinct', () => {
 		const dependents = oracleDependentsOf(
 			[{type: 'PACKAGE', name: 'HR_API'}],

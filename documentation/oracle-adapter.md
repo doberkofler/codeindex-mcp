@@ -240,8 +240,10 @@ remaining installed objects. It never runs authored `CREATE OR REPLACE` scripts.
 Planning also computes the transitive non-target dependents of every compiled
 object and binds an ordered `ALTER ... COMPILE` statement for each supported
 dependent type (`VIEW`, `MATERIALIZED VIEW`, `TRIGGER`, `TYPE`, `TYPE BODY`,
-`SYNONYM`, and non-target PL/SQL) in `dependents.sql`. Direct dependents precede
-their dependents so nested views are restored in dependency order. A plan created
+`SYNONYM`, and non-target PL/SQL) in `dependents.sql`. Dependents are ordered
+topologically: an object that invalidates another object compiles before it, so a
+shared dependent is restored after every predecessor. Dependency cycles collapse
+into one depth because no recompilation order can satisfy them. A plan created
 without a database connection records that dependencies were not checked and
 contains an empty `dependents.sql`.
 
@@ -305,8 +307,8 @@ independent invalid-object comparison decides whether restoration failed.
 
 Recompilation is database DDL. It does not replace source, but it can invalidate
 dependent objects and discard package state (`ORA-04068`). The command prints
-this warning before applying. Plan version 5 invalidates earlier plans that did
-not bind a dependent-recompilation script or a pre-DDL invalid-object baseline.
+this warning before applying. Plan version 6 invalidates earlier plans that
+ordered dependent restoration by discovery depth instead of dependency order.
 
 `oracledb` is an optional dependency used only by live qualification; normal
 indexing and MCP operation never load it. All database work, including the

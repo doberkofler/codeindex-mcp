@@ -3,7 +3,73 @@ import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {applyOracleLivePlan} from '../src/core/qualification/oracle/live/oracleDatabase.ts';
 import {createOracleLivePlan, type LivePlanType} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
-import {fixture, installedSourcesOf, inventoryDatabase, settingsOf, sourceRows} from './helpers/oracleLive.ts';
+import {fixture, installedSourcesOf, inventoryDatabase, settingsOf, sourceRows, type StubDatabaseType} from './helpers/oracleLive.ts';
+
+type InvalidationEdgeType = Readonly<{name: string; referencedName: string}>;
+
+const recompileWithInvalidation = (sql: string, edges: readonly InvalidationEdgeType[], invalid: Set<string>, executed: string[]): void => {
+	executed.push(sql);
+	const openingQuote = sql.indexOf('"');
+	const closingQuote = sql.indexOf('"', openingQuote + 1);
+	const name = openingQuote === -1 || closingQuote === -1 ? undefined : sql.slice(openingQuote + 1, closingQuote);
+
+	if (name === undefined) {
+		return;
+	}
+
+	for (const edge of edges) {
+		if (edge.referencedName === name) {
+			invalid.add(edge.name);
+		}
+	}
+
+	invalid.delete(name);
+};
+
+/**
+ * Creates a database stub where recompiling an object invalidates its dependents.
+ *
+ * @param plan - Approved plan whose backup must match the frozen snapshot.
+ * @param edges - Referenced-object to dependent edges.
+ * @param invalid - Mutable simulated invalid-object set.
+ * @param executed - Mutable list of executed statements.
+ * @returns A database factory for the apply workflow.
+ */
+const invalidatingDatabase =
+	(plan: LivePlanType, edges: readonly InvalidationEdgeType[], invalid: Set<string>, executed: string[]): (() => Promise<StubDatabaseType>) =>
+	async (): Promise<StubDatabaseType> => {
+		await Promise.resolve();
+		let invalidQueries = 0;
+
+		return {
+			query: async (sql: string): Promise<readonly (readonly unknown[])[]> => {
+				await Promise.resolve();
+
+				if (sql.includes('FROM user_source')) {
+					return sourceRows(plan);
+				}
+
+				if (sql.includes("status <> 'VALID'")) {
+					invalidQueries += 1;
+
+					return invalidQueries === 1 ? [] : [...invalid].map((name) => ['VIEW', name, 'INVALID']);
+				}
+
+				if (sql.includes('FROM user_identifiers') || sql.includes('FROM user_dependencies')) {
+					return [];
+				}
+
+				throw new Error(`Unexpected SQL: ${sql}`);
+			},
+			execute: async (sql: string): Promise<void> => {
+				await Promise.resolve();
+				recompileWithInvalidation(sql, edges, invalid, executed);
+			},
+			close: async (): Promise<void> => {
+				await Promise.resolve();
+			},
+		};
+	};
 
 describe('Oracle live qualification application', () => {
 	it('backs up, compiles, validates, and exports through one injected session', async () => {
@@ -76,6 +142,37 @@ describe('Oracle live qualification application', () => {
 			expect(readFileSync(plan.output.baselineInvalidObjects, 'utf8')).toBe('');
 			expect(readFileSync(plan.output.invalidObjects, 'utf8')).toBe('');
 			expect(readFileSync(plan.output.compileLog, 'utf8')).toContain('ALTER PACKAGE "HR_API" COMPILE SPECIFICATION;');
+		} finally {
+			context.cleanup();
+		}
+	});
+});
+
+describe('Oracle live qualification dependent restoration', () => {
+	it('restores a shared dependent after every object that invalidates it', async () => {
+		const context = fixture();
+
+		try {
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const dependencies = [
+				{name: 'HR_ZETA', type: 'VIEW', referencedName: 'HR_API', referencedType: 'PACKAGE'},
+				{name: 'HR_ALPHA', type: 'VIEW', referencedName: 'HR_API', referencedType: 'PACKAGE'},
+				{name: 'HR_ALPHA', type: 'VIEW', referencedName: 'HR_ZETA', referencedType: 'VIEW'},
+			];
+			const plan = createOracleLivePlan(context.config, settingsOf(outputDir), installedSourcesOf(context.config), dependencies);
+			const invalid = new Set<string>();
+			const executed: string[] = [];
+
+			await applyOracleLivePlan(plan, settingsOf(outputDir, plan.approval), {
+				databaseFactory: invalidatingDatabase(plan, dependencies, invalid, executed),
+			});
+
+			const zeta = executed.findIndex((sql) => sql.includes('"HR_ZETA"'));
+			const alpha = executed.findIndex((sql) => sql.includes('"HR_ALPHA"'));
+
+			expect(zeta).toBeGreaterThan(0);
+			expect(alpha).toBeGreaterThan(zeta);
+			expect(invalid.size).toBe(0);
 		} finally {
 			context.cleanup();
 		}
