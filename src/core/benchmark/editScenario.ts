@@ -23,7 +23,9 @@ const waitFor = async <ValueType>(
 		label: string;
 	}>,
 ): Promise<ValueType> => {
-	const poll = async (deadline: number): Promise<ValueType> => {
+	const deadline = performance.now() + input.timeoutMs;
+
+	for (;;) {
 		const value = input.attempt();
 
 		if (value !== null) {
@@ -35,11 +37,7 @@ const waitFor = async <ValueType>(
 		}
 
 		await delay(POLL_INTERVAL_MS);
-		return poll(deadline);
-	};
-
-	const result = await poll(performance.now() + input.timeoutMs);
-	return result;
+	}
 };
 
 const buildOf = (build: IndexStatusType['build']): BenchmarkBuildType | null =>
