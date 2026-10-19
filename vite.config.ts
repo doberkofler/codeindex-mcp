@@ -1,5 +1,6 @@
 import path from 'node:path';
 import {defineConfig} from 'vitest/config';
+import packageManifest from './package.json' with {type: 'json'};
 
 const ENTRY_NAMES = ['mcp', 'cli', 'console'] as const;
 type EntryNameType = (typeof ENTRY_NAMES)[number];
@@ -17,6 +18,9 @@ const requireEntryName = (value: string): EntryNameType => {
 const entryName = requireEntryName(process.env['CODE_INDEX_ENTRY'] ?? 'mcp');
 
 export default defineConfig({
+	define: {
+		PROGRAM_VERSION_AT_BUILD: JSON.stringify(packageManifest.version),
+	},
 	build: {
 		ssr: true,
 		lib: {

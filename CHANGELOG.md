@@ -18,6 +18,10 @@ All notable changes to this project are documented here. The format follows
 
 * document multi-language adapter roadmap ([515f887](https://github.com/doberkofler/codeindex-mcp/commit/515f887e0921bc15b967058a47586ee8dbf5ed91))
 
+### Fixed
+
+* derive the reported version from the package manifest instead of a stale literal
+
 ## [0.1.3](https://github.com/doberkofler/codeindex-mcp/compare/v0.1.2...v0.1.3) (2026-10-18)
 
 ### Fixed

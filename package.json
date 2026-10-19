@@ -48,7 +48,8 @@
 		"test": "vitest run",
 		"verify:references": "node dist/cli.mjs verify-references",
 		"index:verify": "node dist/cli.mjs verify",
-		"verify": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run format:check && pnpm run test"
+		"verify": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run format:check && pnpm run test",
+		"verify:release": "pnpm run verify && pnpm run build && node scripts/check-release-version.mjs"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/server": "2.3.1",

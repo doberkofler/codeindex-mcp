@@ -31,11 +31,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify
-        run: pnpm verify
-
-      - name: Build
-        run: pnpm build
+      - name: Verify and build
+        run: pnpm verify:release
 
       - name: Create GitHub release
         env:
