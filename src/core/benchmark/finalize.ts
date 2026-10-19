@@ -1,4 +1,4 @@
-import {mkdirSync, writeFileSync} from 'node:fs';
+import {appendFileSync, mkdirSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {type BenchmarkBaselineType} from './baseline.ts';
 import {type BenchmarkReportType} from './benchTypes.ts';
@@ -40,7 +40,8 @@ export type BenchmarkFinalizeInputType = Readonly<{
  * Writes benchmark artifacts, evaluates optional gates, and reports status.
  *
  * The JSON report is always written. An evaluation sidecar is written when a
- * baseline is supplied. Markdown is written only when a summary path is given.
+ * baseline is supplied. Markdown is appended only when a summary path is given;
+ * GitHub step summaries are append-only sinks shared by earlier steps.
  *
  * @param input - Report, baseline, artifact paths, and output sinks.
  * @returns Process exit code: 1 only when a gate failed.
@@ -59,7 +60,7 @@ export const finalizeBenchmark = (input: BenchmarkFinalizeInputType): number => 
 
 	if (input.summaryPath !== undefined) {
 		mkdirSync(path.dirname(input.summaryPath), {recursive: true});
-		writeFileSync(input.summaryPath, buildBenchmarkSummary(input.report, evaluation), {encoding: 'utf8'});
+		appendFileSync(input.summaryPath, buildBenchmarkSummary(input.report, evaluation), {encoding: 'utf8'});
 		input.io.stdout(`Benchmark summary written to ${input.summaryPath}`);
 	}
 

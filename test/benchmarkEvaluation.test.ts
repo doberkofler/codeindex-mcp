@@ -1,4 +1,4 @@
-import {existsSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
@@ -278,6 +278,7 @@ describe('benchmark workspace retention', () => {
 				requiredScenarios: ['cold_build'],
 				thresholds: {},
 			});
+			writeFileSync(summaryPath, 'Existing summary\n', 'utf8');
 			const exitCode = await runBenchmarkCommand(
 				[
 					'--profile',
@@ -314,6 +315,7 @@ describe('benchmark workspace retention', () => {
 			expect(existsSync(output)).toBe(true);
 			expect(existsSync(evaluationPath)).toBe(true);
 			expect(existsSync(summaryPath)).toBe(true);
+			expect(readFileSync(summaryPath, 'utf8').startsWith('Existing summary\n')).toBe(true);
 			expect(workspace).toBeDefined();
 			expect(database).toBeDefined();
 			expect(existsSync(workspace ?? '')).toBe(true);
