@@ -1,8 +1,8 @@
 import {existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
-import {tmpdir} from 'node:os';
+import {homedir, tmpdir} from 'node:os';
 import path from 'node:path';
-import {afterEach, describe, expect, it} from 'vitest';
-import {collectCleanupTargets, removeCleanupTargets, type CleanupOptionsType, type CleanupRootsType} from '../src/core/cleanup.ts';
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import {collectCleanupTargets, removeCleanupTargets, runCleanup, type CleanupOptionsType, type CleanupRootsType} from '../src/core/cleanup.ts';
 
 const {join} = path;
 const temporaryDirectories: string[] = [];
@@ -31,12 +31,14 @@ const fixture = (): Readonly<{base: string; roots: CleanupRootsType}> => {
 	return {base, roots: {opencode, index, protectedPaths: [results]}};
 };
 
+const removeTemporaryDirectories = (): void => {
+	for (const directory of temporaryDirectories.splice(0)) {
+		rmSync(directory, {recursive: true, force: true});
+	}
+};
+
 describe('cleanup targets', () => {
-	afterEach(() => {
-		for (const directory of temporaryDirectories.splice(0)) {
-			rmSync(directory, {recursive: true, force: true});
-		}
-	});
+	afterEach(removeTemporaryDirectories);
 
 	it('collects only known code index caches', () => {
 		const {base, roots} = fixture();
@@ -113,5 +115,55 @@ describe('cleanup targets', () => {
 
 		expect(targets.map((target) => target.path)).not.toContain(link);
 		expect(existsSync(join(base, 'results', 'report.md'))).toBe(true);
+	});
+});
+
+describe('cleanup safety', () => {
+	afterEach(removeTemporaryDirectories);
+
+	it('sums nested directories and ignores nested links', () => {
+		const {base, roots} = fixture();
+		const nested = join(roots.index, 'fedcba9876543210');
+		mkdirSync(join(nested, 'nested'), {recursive: true});
+		writeFileSync(join(nested, 'nested', 'file.bin'), 'x'.repeat(512));
+		symlinkSync(join(base, 'results'), join(nested, 'linked'));
+
+		const target = collectCleanupTargets(roots, options()).find((candidate) => candidate.path === nested);
+
+		expect(target?.bytes).toBe(512);
+	});
+
+	it('returns no targets when cache roots do not exist', () => {
+		const {base, roots} = fixture();
+		const targets = collectCleanupTargets(
+			{opencode: join(base, 'missing-opencode'), index: join(base, 'missing-index'), protectedPaths: roots.protectedPaths},
+			options(),
+		);
+
+		expect(targets).toStrictEqual([]);
+	});
+
+	it('refuses relative, filesystem, and home roots', () => {
+		const {base, roots} = fixture();
+
+		expect(() => collectCleanupTargets({...roots, opencode: 'relative/path'}, options())).toThrow(/unsafe root/u);
+		expect(() => collectCleanupTargets({...roots, opencode: path.parse(base).root}, options())).toThrow(/unsafe root/u);
+		expect(() => collectCleanupTargets({...roots, opencode: homedir()}, options())).toThrow(/home directory/u);
+	});
+
+	it('reports usage and rejects unexpected arguments', () => {
+		const stdout = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+		const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+		try {
+			expect(runCleanup(['--help'])).toBe(0);
+			expect(stdout).toHaveBeenCalledWith(expect.stringContaining('Usage: codeindex-cli clean'));
+
+			expect(runCleanup(['unexpected'])).toBe(1);
+			expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Unexpected argument: unexpected'));
+		} finally {
+			stdout.mockRestore();
+			stderr.mockRestore();
+		}
 	});
 });
