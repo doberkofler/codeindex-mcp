@@ -164,10 +164,14 @@ Every gate has `status: pass | warning | failure | skipped`. The CLI writes
 therefore fail on major regressions, incompatible corpora, or invalid deep-cursor
 plans, not on advisory debt.
 
-The committed baseline applies absolute gates for edit-to-fresh p95 (warning
-above 5 s, failure above 15 s) and query p95 (warning above 25 ms, failure above
-100 ms). Deep-cursor samples fail when an intended index is missing and warn when
-SQLite uses a temporary B-tree. Relative build, edit, query, RSS, CPU, and storage
+The committed baseline applies absolute gates for edit-to-fresh p95 and query p95
+(warning above 25 ms, failure above 100 ms). Edit-to-fresh budgets scale with the
+generated corpus: `small`, `medium`, and `large` warn above 5 s and fail above
+15 s, while `xl` — roughly four times the `large` file count — warns above 20 s
+and fails above 40 s. A budget that ignores corpus size fails on corpus growth
+rather than on a regression. Deep-cursor samples fail when an intended index is
+missing and warn when SQLite uses a temporary B-tree. Relative build, edit,
+query, RSS, CPU, and storage
 gates use the configured ratios and slack values. Generated corpus file and
 symbol counts are checked against deterministic profile expectations, so they
 must stay within the compatibility tolerance even when no reference exists. An
