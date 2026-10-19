@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.4.0...v0.5.0) (2026-10-19)
+
+### Added
+
+* **oracle:** add live qualification workflow ([5063f21](https://github.com/doberkofler/codeindex-mcp/commit/5063f21f660ad7beda6fd5729002a4e5df2cdbf9))
+* **oracle:** add static oracle 19c adapter ([e4d6c09](https://github.com/doberkofler/codeindex-mcp/commit/e4d6c099a04cf93e23ec05322936bce3b4b4e394))
+
+### Fixed
+
+* **oracle:** anchor member references at the member name ([ea8f1c9](https://github.com/doberkofler/codeindex-mcp/commit/ea8f1c902cc0f9168b588af326930ffc31f08e4b))
+* **oracle:** skip disabled branches and recover case blocks ([7592eac](https://github.com/doberkofler/codeindex-mcp/commit/7592eacfbc899092c2a52589840301d5ff2fd9cf))
+* **oracle:** skip named-argument labels as references ([12b4723](https://github.com/doberkofler/codeindex-mcp/commit/12b4723af8dfb6cb4a1f84e82d28b754bc230824))
+
+### Changed
+
+* **cli:** use operation-adapter command names ([aa46321](https://github.com/doberkofler/codeindex-mcp/commit/aa463217c3c3cefcdafb157e0c22986499f5a62c))
+
+### Documentation
+
+* **oracle:** record failed qualification gates ([5a2848c](https://github.com/doberkofler/codeindex-mcp/commit/5a2848c65d593716490339a57f0e14ae74ab25ec))
+
 ## [0.4.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.3.0...v0.4.0) (2026-10-19)
 
 ### Added
