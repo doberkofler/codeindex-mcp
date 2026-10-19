@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.3.0...v0.4.0) (2026-10-19)
+
+### Added
+
+* **benchmark:** add resumable reference qualification suites ([2a236f0](https://github.com/doberkofler/codeindex-mcp/commit/2a236f0c4e716aa7164c24966aebc81eafe4ea04))
+* **benchmark:** report progress and ETA during suites ([20b0a76](https://github.com/doberkofler/codeindex-mcp/commit/20b0a762419ef9fa923ea65fd2f6f4acfcf1dc29))
+
+### Fixed
+
+* **benchmark:** size the xl edit-to-fresh gate for the xl corpus ([5f655ed](https://github.com/doberkofler/codeindex-mcp/commit/5f655ed2922c7650a5f9ec8d0f2432a08cc098f3))
+* **benchmark:** skip lifecycle scripts when preparing public projects ([8de8486](https://github.com/doberkofler/codeindex-mcp/commit/8de8486ad1a8424742945fa761e92275f9d9902f))
+* **benchmark:** strip forwarded argument separators ([0d2f6eb](https://github.com/doberkofler/codeindex-mcp/commit/0d2f6ebfa01102edfe3017ee9eab1e07aca24158))
+* **ci:** resolve reference corpus project file inside the configured root ([e30fdcf](https://github.com/doberkofler/codeindex-mcp/commit/e30fdcfa7cfd6785e29ef63ad27c2bd1ea0543bd))
+* **ci:** select benchmark baseline and reference by profile ([048f580](https://github.com/doberkofler/codeindex-mcp/commit/048f5801b38c277e2ba167a8c6d7c98e39b8214d))
+* **extractor:** bound build memory for large TypeScript projects ([b9c3596](https://github.com/doberkofler/codeindex-mcp/commit/b9c35968c7fc13a360fc2782ccff77a73c107a0e))
+* **storage:** close worker connections before reporting build completion ([382ec40](https://github.com/doberkofler/codeindex-mcp/commit/382ec4054f98cc58d882d774ecf5bbed36aeb1d8))
+* **storage:** keep lease heartbeat alive under write contention ([1c2e451](https://github.com/doberkofler/codeindex-mcp/commit/1c2e451470f21a26f90955f6af1fc51fcb0397d3))
+
+### Changed
+
+* **storage:** cut edit-to-fresh latency on large indexes ([3d51e7d](https://github.com/doberkofler/codeindex-mcp/commit/3d51e7d4a0769fc312f6078e2f3ed458fc24e8b6))
+
 ## [0.3.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.2.0...v0.3.0) (2026-10-19)
 
 ### Added
