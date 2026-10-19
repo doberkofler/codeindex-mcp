@@ -15,9 +15,9 @@ export default defineConfig({
 			output: {
 				codeSplitting: {
 					groups: [
-						{name: 'react', test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/},
-						{name: 'mui', test: /node_modules[\\/]@mui[\\/]/},
-						{name: 'tanstack', test: /node_modules[\\/]@tanstack[\\/]/},
+						{name: 'react', test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/u},
+						{name: 'mui', test: /node_modules[\\/]@mui[\\/]/u},
+						{name: 'tanstack', test: /node_modules[\\/]@tanstack[\\/]/u},
 					],
 				},
 			},
