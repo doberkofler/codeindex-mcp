@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {z} from 'zod';
@@ -248,7 +248,8 @@ const verifyCorpusWorkspace = (rootDir: string, profile: BenchmarkProfileType): 
  * @param input - Selected profile and optional explicit workspace.
  * @returns Workspace root and the temporary root when one was created.
  * @throws {@link Error} When an explicit workspace is not an empty directory or
- * a generated corpus for the selected profile.
+ * a generated corpus for the selected profile. A failed temporary workspace is
+ * removed before the error propagates.
  */
 export const prepareBenchmarkWorkspace = (
 	input: Readonly<{
@@ -260,17 +261,26 @@ export const prepareBenchmarkWorkspace = (
 		return {workspaceRoot: null, temporaryWorkspace: null};
 	}
 
-	const workspaceRoot = input.workspace === undefined ? mkdtempSync(join(tmpdir(), 'codeindex-benchmark-workspace-')) : path.resolve(input.workspace);
+	const temporary = input.workspace === undefined;
+	const workspaceRoot = temporary ? mkdtempSync(join(tmpdir(), 'codeindex-benchmark-workspace-')) : path.resolve(input.workspace);
 
-	if (existsSync(join(workspaceRoot, BENCHMARK_CORPUS_MARKER))) {
-		verifyCorpusWorkspace(workspaceRoot, input.profile);
-	} else {
-		if (existsSync(workspaceRoot) && readdirSync(workspaceRoot).length > 0) {
-			throw new Error(`--workspace must be empty or contain a generated benchmark corpus (missing ${BENCHMARK_CORPUS_MARKER})`);
+	try {
+		if (existsSync(join(workspaceRoot, BENCHMARK_CORPUS_MARKER))) {
+			verifyCorpusWorkspace(workspaceRoot, input.profile);
+		} else {
+			if (existsSync(workspaceRoot) && readdirSync(workspaceRoot).length > 0) {
+				throw new Error(`--workspace must be empty or contain a generated benchmark corpus (missing ${BENCHMARK_CORPUS_MARKER})`);
+			}
+
+			createBenchmarkCorpus({directory: workspaceRoot, profile: input.profile});
+		}
+	} catch (error) {
+		if (temporary) {
+			rmSync(workspaceRoot, {recursive: true, force: true});
 		}
 
-		createBenchmarkCorpus({directory: workspaceRoot, profile: input.profile});
+		throw error;
 	}
 
-	return {workspaceRoot, temporaryWorkspace: input.workspace === undefined ? workspaceRoot : null};
+	return {workspaceRoot, temporaryWorkspace: temporary ? workspaceRoot : null};
 };

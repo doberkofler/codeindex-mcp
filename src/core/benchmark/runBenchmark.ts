@@ -409,24 +409,22 @@ const prepareBenchmarkPaths = (
 		workspace: typeof input.values['workspace'] === 'string' ? input.values['workspace'] : undefined,
 	});
 	const explicitDatabase = typeof input.values['database'] === 'string' ? path.resolve(input.values['database']) : null;
-	let temporaryDatabase: string | null = null;
 	let databasePath: string;
 
-	if (explicitDatabase === null) {
-		temporaryDatabase = mkdtempSync(join(os.tmpdir(), 'codeindex-benchmark-database-'));
-		databasePath = join(temporaryDatabase, 'index.sqlite');
-	} else {
-		databasePath = explicitDatabase;
+	if (!input.keepWorkspace && temporaryWorkspace !== null) {
+		input.cleanup.push(temporaryWorkspace);
 	}
 
-	if (!input.keepWorkspace) {
-		if (temporaryDatabase !== null) {
+	if (explicitDatabase === null) {
+		const temporaryDatabase = mkdtempSync(join(os.tmpdir(), 'codeindex-benchmark-database-'));
+
+		if (!input.keepWorkspace) {
 			input.cleanup.push(temporaryDatabase);
 		}
 
-		if (temporaryWorkspace !== null) {
-			input.cleanup.push(temporaryWorkspace);
-		}
+		databasePath = join(temporaryDatabase, 'index.sqlite');
+	} else {
+		databasePath = explicitDatabase;
 	}
 
 	return {workspaceRoot, databasePath};
