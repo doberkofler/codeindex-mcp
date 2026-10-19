@@ -13,6 +13,24 @@ const countLines = (content: string): number => {
 	return content.split('\n').length;
 };
 
+const decodeSourceBytes = (bytes: Buffer): string => {
+	if (bytes.length >= 3 && bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191) {
+		return bytes.toString('utf8', 3);
+	}
+
+	if (bytes.length >= 2 && bytes[0] === 255 && bytes[1] === 254) {
+		return bytes.toString('utf16le', 2);
+	}
+
+	if (bytes.length >= 2 && bytes[0] === 254 && bytes[1] === 255) {
+		const content = Buffer.from(bytes.subarray(2, bytes.length - (bytes.length % 2)));
+		content.swap16();
+		return content.toString('utf16le');
+	}
+
+	return bytes.toString('utf8');
+};
+
 /**
  * Creates one hashed source record for an authored file.
  *
@@ -26,6 +44,36 @@ export const createSourceFileRecord = (absolutePath: string, rootDir: string): S
 
 	return {
 		path: toRepositoryPath(rootDir, absolutePath),
+		absolutePath,
+		sha256: hash(bytes),
+		byteCount: bytes.byteLength,
+		lineCount: countLines(content),
+	};
+};
+
+/**
+ * Creates a source record whose bytes decode to the exact compiler text.
+ *
+ * The digest describes the same content the compiler parsed, so AST offsets
+ * cannot be paired with a later version of the file.
+ *
+ * @param absolutePath - Absolute authored source path.
+ * @param rootDir - Absolute indexed workspace root.
+ * @param compilerText - Source text held by the loaded compiler program.
+ * @returns The verified source record.
+ * @throws {Error} When the file changed after the compiler read it.
+ */
+export const createVerifiedSourceFileRecord = (absolutePath: string, rootDir: string, compilerText: string): SourceFileType => {
+	const bytes = readFileSync(absolutePath);
+	const content = decodeSourceBytes(bytes);
+	const path = toRepositoryPath(rootDir, absolutePath);
+
+	if (content !== compilerText) {
+		throw new Error(`Source changed during index build: ${path}`);
+	}
+
+	return {
+		path,
 		absolutePath,
 		sha256: hash(bytes),
 		byteCount: bytes.byteLength,

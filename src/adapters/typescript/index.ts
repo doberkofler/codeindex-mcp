@@ -1,6 +1,6 @@
-import {type ConfigType, type ProjectContextConfigType} from '../../core/config/config.ts';
+import {type ConfigType, toRepositoryPath, type ProjectContextConfigType} from '../../core/config/config.ts';
 import {type DiagnosticType, type IndexedOccurrenceType, type IndexedSymbolType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
-import {createSourceFileRecord} from '../../core/generation/sourceFiles.ts';
+import {createVerifiedSourceFileRecord} from '../../core/generation/sourceFiles.ts';
 import {type ExtractorBuildType, type ExtractorType} from '../types.ts';
 import {extractDependencyFacts} from './extractDependencies.ts';
 import {extractSymbolFacts} from './extractSymbols.ts';
@@ -33,10 +33,10 @@ const mergeProjectFiles = (config: ConfigType, scan: ScanResultType, project: Lo
 			continue;
 		}
 
-		const record = createSourceFileRecord(sourceFile.fileName, config.rootDir);
+		const path = toRepositoryPath(config.rootDir, sourceFile.fileName);
 
-		if (!mergedFiles.has(record.path)) {
-			mergedFiles.set(record.path, record);
+		if (!mergedFiles.has(path)) {
+			mergedFiles.set(path, createVerifiedSourceFileRecord(sourceFile.fileName, config.rootDir, sourceFile.text));
 		}
 	}
 

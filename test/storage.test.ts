@@ -157,7 +157,7 @@ describe('index storage coordination and plans', () => {
 		await delay(60);
 
 		expect(() => database.publish(generationId, undefined, undefined, 'owner-a')).toThrow(/lease/u);
-		expect(database.tryAcquireBuildLease('owner-b', process.pid, 5_000)).toBe(true);
+		expect(database.tryAcquireBuildLease('owner-b', process.pid, 5000)).toBe(true);
 		expect(() => database.publish(generationId, undefined, undefined, 'owner-a')).toThrow(/lease/u);
 		expect(database.getPublishedGeneration()).toBeNull();
 
