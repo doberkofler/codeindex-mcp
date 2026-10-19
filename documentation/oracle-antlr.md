@@ -1,13 +1,14 @@
 # Oracle ANTLR Usage
 
 **Status:** production uses the pinned ANTLR lexer plus a tolerant structural
-scanner. Phases 1–6 of the implementation plan are now in the repository: the
+scanner. Phases 1–7 of the implementation plan are now in the repository: the
 pinned parser grammar, generated parser and visitor, parser base, an internal
 ANTLR parser adapter with conditional-compilation handling and segment
 recovery, the declaration visitor, the reference visitor with lexical scope
-resolution, the dependency visitor, and qualification policy v2. The adapter is
+resolution, the dependency visitor, qualification policy v2, and opt-in
+performance instrumentation with an SLL-first parse strategy. The adapter is
 not wired into production; the structural parser remains authoritative.
-Performance and adoption work remain open.
+Adoption work remains open, and the full-build performance gate is not met.
 
 See the [implementation plan](./oracle-antlr-plan.md) for the phased path from
 the current adapter to a production decision.
@@ -417,6 +418,57 @@ cannot confirm.
 The frozen Phase 0 report remains a `v1` measurement. To reproduce it, pass
 `--truth-policy v1`; a default run uses `v2`.
 
+### 6.5 Phase 7 performance
+
+The Phase 7 harness is `scripts/benchmarkOracleAntlr.mjs`; the checked-in report
+is [`benchmark/oracle-phase7/report.json`](../benchmark/oracle-phase7/report.json).
+It bundles only the ANTLR adapter, parses the frozen 1,237-file corpus, and
+measures sequential and 4/8-worker runs on an Apple M5 Max with 64 GB and Node
+`v26.10.0`.
+
+| Metric | Sequential | 4 workers | 8 workers |
+| --- | ---: | ---: | ---: |
+| Wall time | 148.0 s | 61.8 s | 46.2 s |
+| Peak RSS | 4.67 GB | 8.27 GB | 11.47 GB |
+| p50 file | 3.32 ms | 3.92 ms | 5.46 ms |
+| p95 file | 539.7 ms | 830.4 ms | 1,192.8 ms |
+| p99 file | 1,794 ms | 2,734 ms | 4,255 ms |
+| Max file | 6,461 ms | 9,830 ms | 11,888 ms |
+
+Prediction dominates. Sequential phase totals are 1.24 s tokenization, 0.71 s
+lexer fill, 60.85 s SLL prediction, 81.18 s LL prediction, 2.60 s total visitor
+work, and a 4.01 s recovery span that overlaps the child SLL/LL phases. Warm LL
+parses with and without parse-tree construction differ by about 1%, so visitors
+and tree construction are not the bottleneck; full-context prediction is.
+
+The SLL-first strategy succeeds on 1,106 files and falls back to LL on 131. The
+131 failed probes consume 28.27 s; that overhead is accepted because the 1,106
+successful SLL parses avoid full LL prediction.
+
+Warm one-file reconciliation is 0.95 ms for the median-size file and 1.89 s for
+the largest 370 KB file. The sequential p95 of 540 ms fits the edit-to-fresh
+warning gate, but the 6.46 s maximum exceeds the 5 s warning threshold and
+remains below the 15 s failure threshold. This supports evaluating an
+incremental-only rollout, not a full-build rollout.
+
+Against the frozen Phase 0 baseline:
+
+| Comparison | Ratio |
+| --- | ---: |
+| Parser-only time / structural compiler stage (2,893 ms) | 50.86× |
+| Sequential wall / cold build wall (9,109 ms) | 16.25× |
+| Sequential wall / warm rebuild wall (10,037 ms) | 14.75× |
+
+The candidate bundle is 9.54 MB raw and 1.50 MB gzip. The baseline MCP bundle is
+2.04 MB raw and 0.31 MB gzip; the CLI bundle is 2.21 MB raw and 0.35 MB gzip.
+The candidate contains only the ANTLR adapter, so no measurement in this report
+mixes both parsers.
+
+A PL/SQL-focused grammar subset was evaluated and rejected for this phase.
+Decision profiling attributes the tail to core name and expression decisions
+(`general_element_part`, `routine_name`, and `general_element`), not to unused
+DDL rules. Removing DDL surface would not address the measured cost.
+
 ## 7. Known Grammar Gaps
 
 The remaining failures are concentrated in identifiable grammar and lexing
@@ -519,16 +571,27 @@ Adopt the full ANTLR parser only when all of the following hold:
 - `pnpm verify` passes;
 - source provenance and live-qualification object matching remain unchanged.
 
+Phase 7 does not change this decision. Full-build ANTLR parsing is 50.86× the
+structural compiler stage, and 8-worker parsing still takes 46.2 s with
+11.47 GB peak RSS. Full-build adoption is rejected on the measured evidence.
+Incremental-only adoption remains an open Phase 8 decision; it still needs
+parser-selection identity in `compilerVersion` and `configHash`, plus
+edit-to-fresh evidence that includes scan, storage, and publication.
+
 Until then, the ANTLR adapter remains non-production. The structural parser
 stays in production.
 
 ## 12. Open Questions
 
-- Can SLL prediction with LL fallback reduce the tail without losing recovery?
-- Can a PL/SQL-focused grammar subset remove unused DDL surface?
-- Can per-file parsing be parallelized without exceeding memory bounds?
+- SLL prediction with LL fallback resolves 1,106 of 1,237 files and costs
+  28.27 s in failed probes. It reduces work on the common case but does not
+  remove the LL tail.
+- A PL/SQL-focused grammar subset was rejected: the measured decisions are in
+  core name and expression rules, not unused DDL surface.
+- Per-file parsing scales to 3.2× with 8 workers, but peak RSS reaches 11.47 GB
+  and wall time remains 46.2 s. More workers do not close the full-build gap.
 - Which grammar gaps are fixed upstream, and which require a local fork?
 - Should conditional directives be filtered, grammar-supported, or handled by a
   preprocessing phase that reports unbalanced blocks?
-- Is the full grammar fast enough for cold rebuilds, or is ANTLR only viable for
-  one-file incremental reconciliation and reference repair?
+- Full cold-rebuild adoption is not viable on this grammar. Incremental-only
+  reconciliation remains the only open performance path.

@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {antlrOracleParser, parseWithAntlr} from '../src/adapters/oracle/antlrParser.ts';
+import {antlrOracleParser, parseWithAntlr, parseWithAntlrProfiled, type OracleAntlrProfileType} from '../src/adapters/oracle/antlrParser.ts';
 import {ORACLE_DIAGNOSTIC} from '../src/adapters/oracle/diagnostics.ts';
 import {type OracleParseResultType} from '../src/adapters/oracle/syntax.ts';
 
@@ -195,5 +195,27 @@ end good;
 		const codes = result.diagnostics.map((diagnostic) => diagnostic.code);
 
 		expect(codes).toContain(ORACLE_DIAGNOSTIC.parse);
+	});
+
+	it('returns identical facts with opt-in phase profiling', () => {
+		const input = {source: 'create package p as procedure q; end p;\n/\n', path: 'profile.sql', defaultSchema: 'APP'};
+		const profiled = parseWithAntlrProfiled(input);
+		const profile: OracleAntlrProfileType = profiled.profile;
+
+		expect(profiled.result).toStrictEqual(parseWithAntlr(input));
+		expect(profile).toMatchObject({prediction: 'sll', recovered: false, sllAttempts: 1, llAttempts: 0});
+		expect(profile.totalMs).toBeGreaterThanOrEqual(0);
+	});
+
+	it('reports an LL fallback without leaking SLL diagnostics', () => {
+		const source = readFileSync(path.join(import.meta.dirname, 'fixtures', 'oracle-grammar-gaps', 'constant-size-type.pks'), 'utf8');
+		const profiled = parseWithAntlrProfiled({source, path: 'constant-size-type.pks', defaultSchema: 'APP'});
+		const plain = parseWithAntlr({source, path: 'constant-size-type.pks', defaultSchema: 'APP'});
+
+		expect(profiled.profile.prediction).toBe('sll-fallback-ll');
+		expect(profiled.profile.sllAttempts).toBeGreaterThanOrEqual(1);
+		expect(profiled.profile.llAttempts).toBeGreaterThanOrEqual(1);
+		expect(profiled.profile.sllParseMs).toBeGreaterThan(0);
+		expect(profiled.result).toStrictEqual(plain);
 	});
 });

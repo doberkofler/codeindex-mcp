@@ -6,3 +6,4 @@ benchmark/results/
 *.tsbuildinfo
 .DS_Store
 .vite/
+.oracle-antlr-benchmark-*/

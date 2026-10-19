@@ -31,6 +31,10 @@ const config = {
 		'src/adapters/oracle/generated/**',
 		'src/adapters/oracle/plSqlLexerBase.ts',
 		'src/adapters/oracle/plSqlParserBase.ts',
+		// Standalone Phase 7 harness: runs outside the TypeScript project and
+		// consumes dynamic worker messages, so it is not authored application code.
+		'scripts/benchmarkOracleAntlr.mjs',
+		'scripts/oracleAntlrBenchmarkWorker.mjs',
 	],
 };
 

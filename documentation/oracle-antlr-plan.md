@@ -1,6 +1,6 @@
 # Oracle ANTLR Implementation Plan
 
-**Status:** proposed. Phase 0 is frozen, and Phases 1–6 are implemented behind an
+**Status:** proposed. Phase 0 is frozen, and Phases 1–7 are implemented behind an
 unwired adapter seam. No production switch is approved. The structural parser
 remains authoritative until every adoption gate in
 [`oracle-antlr.md`](./oracle-antlr.md) passes.
@@ -16,7 +16,7 @@ remains authoritative until every adoption gate in
 | 4 — References and scope | Implemented; procedural and SQL sites, lexical scopes, anchors, member chains |
 | 5 — Dependencies | Implemented; package calls, package references, type references, external targets |
 | 6 — Qualification v2 | Implemented; versioned truth policy, extra classes, strata, golden facts |
-| 7 — Performance | Open |
+| 7 — Performance | Implemented; evidence in `benchmark/oracle-phase7`; full-build parity not met |
 | 8 — Integration and rollout | Open; production stays structural |
 
 ## 1. Goal
@@ -312,12 +312,31 @@ cover constructs PL/Scope does not record.
 | Max | — | 5.0 s |
 | Peak RSS (Vitest) | — | 4.1 GB |
 
+**Status:** implemented. Evidence is recorded in
+[`benchmark/oracle-phase7`](../benchmark/oracle-phase7/README.md).
+
+- The adapter parses with SLL prediction and retries in LL only when SLL reports
+  a syntax error. A bailed SLL attempt never contributes facts or diagnostics.
+- `parseWithAntlrProfiled` exposes per-file lexing, prediction, visitor, and
+  recovery timings without adding timers to the normal path.
+- The standalone benchmark measures sequential and 4/8-worker parsing, warm
+  one-file reconciliation, RSS, and a candidate-only bundle.
+- A PL/SQL-focused grammar subset is rejected for this phase: decision profiling
+  attributes the tail to core `general_element`, `routine_name`, and expression
+  decisions, not to unused DDL rules.
+- Production remains structural. The measured full-build cost still misses the
+  cold-build regression gate, and parallel wiring would require an asynchronous
+  extractor seam that Phase 8 has not approved.
+
 **Exit criteria**
 
 - Cold build, warm rebuild, and edit-to-fresh pass the existing regression
   gates, or the adoption decision is explicitly changed with evidence.
 - Peak RSS and bundle-size growth are recorded and accepted.
 - No performance claim is based on a bundle containing both parsers.
+
+The first exit criterion is **not met** for a full build. The evidence supports a
+later incremental-only decision, not production adoption.
 
 ### Phase 8 — Integration and rollout
 
