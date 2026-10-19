@@ -1,51 +1,25 @@
 import {readFileSync} from 'node:fs';
+import {parse} from 'csv-parse/sync';
 
 /**
  * Parses a CSV document without assuming a fixed column count.
  *
+ * Handles quoted fields, embedded newlines, escaped quotes, CRLF/LF/CR record
+ * separators, and an optional UTF-8 BOM. Blank records and records whose fields
+ * are all empty are discarded.
+ *
  * @param text - CSV text.
  * @returns Non-empty rows.
+ * @throws {Error} When the document contains malformed quoting, such as an
+ * unterminated quoted field.
  */
 export const parseCsv = (text: string): readonly (readonly string[])[] => {
-	const rows: string[][] = [];
-	let row: string[] = [];
-	let field = '';
-	let quoted = false;
-
-	for (let index = 0; index < text.length; index += 1) {
-		const character = text[index] ?? '';
-
-		if (quoted) {
-			if (character === '"' && text[index + 1] === '"') {
-				field += '"';
-				index += 1;
-			} else if (character === '"') {
-				quoted = false;
-			} else {
-				field += character;
-			}
-			continue;
-		}
-
-		if (character === '"') {
-			quoted = true;
-		} else if (character === ',') {
-			row.push(field);
-			field = '';
-		} else if (character === '\n') {
-			row.push(field);
-			rows.push(row);
-			row = [];
-			field = '';
-		} else if (character !== '\r') {
-			field += character;
-		}
-	}
-
-	if (field.length > 0 || row.length > 0) {
-		row.push(field);
-		rows.push(row);
-	}
+	const rows = parse(text, {
+		bom: true,
+		record_delimiter: ['\r\n', '\n', '\r'],
+		relax_column_count: true,
+		skip_empty_lines: true,
+	});
 
 	return rows.filter((entry) => entry.some((value) => value.length > 0));
 };
@@ -55,6 +29,7 @@ export const parseCsv = (text: string): readonly (readonly string[])[] => {
  *
  * @param filePath - CSV path.
  * @returns Data rows.
+ * @throws {Error} When the file cannot be read or contains malformed CSV.
  */
 export const readCsv = (filePath: string): readonly (readonly string[])[] => {
 	const rows = parseCsv(readFileSync(filePath, 'utf8'));
