@@ -249,6 +249,7 @@ const completeSteps = async (
 		let result: SuiteManifestType['steps'][number];
 
 		try {
+			// oxlint-disable-next-line eslint/no-await-in-loop -- Steps must run one at a time: they share the machine and the manifest is persisted per step.
 			result = await executeStep({
 				step,
 				cliPath: input.cliPath,
