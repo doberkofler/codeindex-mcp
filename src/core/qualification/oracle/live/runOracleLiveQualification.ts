@@ -130,12 +130,7 @@ const snapshotConfig = (plan: LivePlanType): ConfigType => {
 const invalidNames = (objects: OracleLiveApplyResultType['baselineInvalid']): string =>
 	objects.map((object) => `${object.objectType} ${object.objectName}`).join('; ');
 
-const writeRunMetadata = (
-	plan: LivePlanType,
-	settings: OracleLiveSettingsType,
-	applied: OracleLiveApplyResultType,
-	result: Awaited<ReturnType<typeof qualifyOracleConfig>>,
-): void => {
+const writeRunMetadata = (plan: LivePlanType, applied: OracleLiveApplyResultType, result: Awaited<ReturnType<typeof qualifyOracleConfig>>): void => {
 	writeFileSync(
 		plan.output.run,
 		`${JSON.stringify(
@@ -150,7 +145,6 @@ const writeRunMetadata = (
 					files: plan.snapshot.files.length,
 				},
 				driver: 'oracledb',
-				sqlplus: settings.sqlplus,
 				completedAt: new Date().toISOString(),
 				generationId: result.report.generationId,
 				gates: result.report.gates,
@@ -193,10 +187,10 @@ const applyCommand = (options: OracleLiveQualificationOptionsType, rootDir: stri
  * frozen plan, compiles and exports truth, rebuilds the snapshot index with the
  * current parser, and compares the facts.
  *
- * @param environment - Environment-only Oracle credentials and SQL*Plus settings.
+ * @param environment - Environment-only Oracle credentials and timeout settings.
  * @param options - Source root, optional manifest/output overrides, and approval.
  * @param io - Output sinks.
- * @param dependencies - Injectable compile runner and database factory for tests.
+ * @param dependencies - Injectable database factory and progress sink for tests.
  * @returns Process exit code.
  */
 export const runOracleLiveQualification = async (
@@ -238,7 +232,7 @@ export const runOracleLiveQualification = async (
 		}
 
 		const plan = readOracleLivePlan(settings);
-		const applied = await applyOracleLivePlan(plan, settings, environment, {
+		const applied = await applyOracleLivePlan(plan, settings, {
 			...dependencies,
 			progress: dependencies.progress ?? io.stdout,
 		});
@@ -259,7 +253,7 @@ export const runOracleLiveQualification = async (
 			units: plan.snapshot.units,
 		});
 
-		writeRunMetadata(plan, settings, applied, result);
+		writeRunMetadata(plan, applied, result);
 		return result.code;
 	} catch (error) {
 		io.stderr(error instanceof Error ? error.message : String(error));

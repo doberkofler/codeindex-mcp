@@ -25,8 +25,8 @@ const fieldOf = (value: unknown): string => {
  * Writes query rows as RFC 4180-style CSV without a header row.
  *
  * Output uses `\n` record separators and quotes only fields that require it.
- * Qualification readers tolerate an optional header, but the historical
- * SQL*Plus exports had none, so omitting it keeps evidence stable.
+ * Qualification readers tolerate an optional header, but earlier exports had
+ * none, so omitting it keeps evidence stable.
  *
  * @param filePath - Destination CSV path.
  * @param rows - Row values in query column order.

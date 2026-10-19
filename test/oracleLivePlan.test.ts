@@ -21,9 +21,11 @@ describe('Oracle live qualification plan', () => {
 			expect(compile).toContain('ALTER PACKAGE "HR_API" COMPILE BODY;');
 			expect(compile.indexOf('COMPILE SPECIFICATION')).toBeLessThan(compile.indexOf('COMPILE BODY'));
 			expect(compile).not.toContain('@"');
+			expect(compile).not.toContain('SPOOL');
+			expect(compile).not.toContain('WHENEVER');
 			expect(compile).toContain("ALTER SESSION SET PLSCOPE_SETTINGS = 'IDENTIFIERS:ALL';");
 			expect(readFileSync(plan.sql.baseline.path, 'utf8')).toContain("status <> 'VALID'");
-			expect(readFileSync(plan.sql.dependents.path, 'utf8')).toContain('WHENEVER SQLERROR CONTINUE');
+			expect(readFileSync(plan.sql.dependents.path, 'utf8')).toBe('');
 			expect(readFileSync(plan.sql.identifiers.path, 'utf8')).toContain('user_identifiers');
 			expect(readFileSync(plan.sql.dependencies.path, 'utf8')).toContain('user_dependencies');
 			expect(readFileSync(path.join(outputDir, 'plan.json'), 'utf8')).not.toContain('secret');
@@ -232,30 +234,29 @@ describe('Oracle live qualification drift', () => {
 			let recompiled = false;
 
 			await expect(
-				applyOracleLivePlan(
-					plan,
-					approved,
-					{},
-					{
-						sqlplusRunner: () => {
-							recompiled = true;
-							return {status: 0, stdout: '', stderr: ''};
-						},
-						databaseFactory: async (): Promise<{query: (sql: string) => Promise<readonly (readonly unknown[])[]>; close: () => Promise<void>}> => {
-							await Promise.resolve();
+				applyOracleLivePlan(plan, approved, {
+					databaseFactory: async (): Promise<{
+						query: (sql: string) => Promise<readonly (readonly unknown[])[]>;
+						execute: (sql: string) => Promise<void>;
+						close: () => Promise<void>;
+					}> => {
+						await Promise.resolve();
 
-							return {
-								query: async (sql: string): Promise<readonly (readonly unknown[])[]> => {
-									await Promise.resolve();
-									return sql.includes('FROM user_source') ? altered : [];
-								},
-								close: async (): Promise<void> => {
-									await Promise.resolve();
-								},
-							};
-						},
+						return {
+							query: async (sql: string): Promise<readonly (readonly unknown[])[]> => {
+								await Promise.resolve();
+								return sql.includes('FROM user_source') ? altered : [];
+							},
+							execute: async (): Promise<void> => {
+								await Promise.resolve();
+								recompiled = true;
+							},
+							close: async (): Promise<void> => {
+								await Promise.resolve();
+							},
+						};
 					},
-				),
+				}),
 			).rejects.toThrow(/differs from the snapshot/u);
 
 			expect(recompiled).toBe(false);

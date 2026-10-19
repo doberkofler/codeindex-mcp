@@ -9,7 +9,6 @@ const fixture = (): ReturnType<typeof createFixtureConfig> => createFixtureConfi
 
 const settingsOf = (outputDir: string): OracleLiveSettingsType => ({
 	outputDir,
-	sqlplus: 'sqlplus',
 	timeoutMs: 1000,
 	approval: null,
 	connection: null,

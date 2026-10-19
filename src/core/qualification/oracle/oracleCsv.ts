@@ -25,7 +25,7 @@ export const parseCsv = (text: string): readonly (readonly string[])[] => {
 };
 
 /**
- * Reads a SQL*Plus CSV export, tolerating an optional `OBJECT_NAME` header.
+ * Reads an Oracle CSV export, tolerating an optional `OBJECT_NAME` header.
  *
  * @param filePath - CSV path.
  * @returns Data rows.

@@ -13,7 +13,8 @@ import {
 	writeOracleSnapshot,
 } from './oracleLiveCandidates.ts';
 import {oracleDependentsOf, type OracleDependencyRowType, type OracleDependentType} from './oracleDependencies.ts';
-import {recompileStatementOf, type OracleInstalledSourceType, type OracleSourceObjectRefType} from './oracleLiveSource.ts';
+import {type OracleInstalledSourceType} from './oracleLiveSource.ts';
+import {orderedTargetStatementsOf, recompileStatementsOf, type RecompileStatementType} from './oracleRecompileStatements.ts';
 import {type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 import {BACKUP_SQL, BASELINE_SQL, DEPENDENCIES_SQL, IDENTIFIERS_SQL} from './oracleLiveSql.ts';
 
@@ -118,44 +119,17 @@ const approvalOf = (plan: Omit<LivePlanType, 'approval' | 'createdAt'>): string 
 		}),
 	);
 
-const header = (spool: string | null): string =>
-	[
-		'SET DEFINE OFF',
-		'SET ECHO OFF',
-		'SET FEEDBACK OFF',
-		'SET FLUSH ON',
-		'SET PAGESIZE 0',
-		'SET LINESIZE 32767',
-		'SET TRIMSPOOL ON',
-		'SET SERVEROUTPUT ON SIZE UNLIMITED',
-		...(spool === null ? [] : [`SPOOL ${spool}`]),
-	].join('\n');
+const PLSCOPE_SQL = "ALTER SESSION SET PLSCOPE_SETTINGS = 'IDENTIFIERS:ALL'";
 
-const typePriority = (type: OracleSourceObjectRefType['type']): number => (type === 'PACKAGE' ? 0 : type === 'PACKAGE BODY' ? 1 : type === 'FUNCTION' ? 2 : 3);
+const statementLinesOf = (statements: readonly RecompileStatementType[]): readonly string[] => statements.map((statement) => `${statement.sql};`);
 
-const recompileSql = (units: readonly LivePlanSourceUnitType[]): string => {
-	const ordered = units
-		.map((unit) => ({type: unit.type, name: unit.name, compileClause: unit.compileClause}))
-		.sort((left, right) => typePriority(left.type) - typePriority(right.type) || left.name.localeCompare(right.name));
-	const lines = [header('compile.log'), 'WHENEVER SQLERROR EXIT SQL.SQLCODE', "ALTER SESSION SET PLSCOPE_SETTINGS = 'IDENTIFIERS:ALL';"];
-
-	for (const object of ordered) {
-		lines.push(`PROMPT RECOMPILE:${object.type}:${object.name}`, `${recompileStatementOf(object)};`);
-	}
-
-	lines.push('SPOOL OFF', 'EXIT SQL.SQLCODE', '');
-	return lines.join('\n');
-};
+const recompileSql = (units: readonly LivePlanSourceUnitType[]): string =>
+	[`${PLSCOPE_SQL};`, ...statementLinesOf(orderedTargetStatementsOf(units)), ''].join('\n');
 
 const dependentSql = (dependents: readonly OracleDependentType[]): string => {
-	const lines = [header('dependents.log'), 'WHENEVER SQLERROR CONTINUE'];
+	const lines = statementLinesOf(recompileStatementsOf(dependents));
 
-	for (const object of dependents) {
-		lines.push(`PROMPT RECOMPILE-DEPENDENT:${object.type}:${object.name}`, `${recompileStatementOf(object)};`);
-	}
-
-	lines.push('SPOOL OFF', 'EXIT 0', '');
-	return lines.join('\n');
+	return lines.length === 0 ? '' : [...lines, ''].join('\n');
 };
 
 const sqlFilesOf = (units: readonly LivePlanSourceUnitType[], dependents: readonly OracleDependentType[]): Readonly<Record<LiveSqlNameType, string>> => ({

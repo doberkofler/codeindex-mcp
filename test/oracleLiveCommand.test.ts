@@ -19,10 +19,7 @@ describe('Oracle live qualification run', () => {
 				{ORACLE_SERVER: 'server', ORACLE_USER: 'user', ORACLE_PASSWORD: 'secret'},
 				{root: context.config.rootDir, output: outputDir, approval: plan.approval},
 				captured.io,
-				{
-					sqlplusRunner: () => ({status: 0, stdout: '', stderr: ''}),
-					databaseFactory: stubDatabase(sourceRows(plan)),
-				},
+				{databaseFactory: stubDatabase(sourceRows(plan))},
 			);
 
 			expect(captured.stderr).toStrictEqual([]);

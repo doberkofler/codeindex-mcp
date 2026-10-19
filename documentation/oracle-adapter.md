@@ -288,15 +288,19 @@ Apply performs these steps:
    provenance.
 10. Compares facts and writes `oracle-qualification.json` and `run.json`.
 
-Apply streams SQL*Plus output and reports only phase progress: a counted line
-with an ETA in roughly twenty steps per phase, phase timings, and total database
-time. Object names never appear in the progress output.
+Apply reports only phase progress: a counted line with an ETA in roughly twenty
+steps per phase, phase timings, and total database time. Object names never
+appear in the progress output.
+
+`plan/compile.sql` and `plan/dependents.sql` record the exact statements derived
+from the approved snapshot. Apply verifies those files and executes the same
+statements through the driver session.
 
 Objects that were already invalid before the run are reported in
 `baseline-invalid-objects.csv` and in the run output, including which ones were
 restored and which remained invalid. They are not attributed to the
 qualification run, unless the plan explicitly approved their restoration and
-they remain invalid. A dependent recompile error does not stop the script; the
+they remain invalid. A dependent recompile error does not stop the run; the
 independent invalid-object comparison decides whether restoration failed.
 
 Recompilation is database DDL. It does not replace source, but it can invalidate
@@ -305,12 +309,11 @@ this warning before applying. Plan version 5 invalidates earlier plans that did
 not bind a dependent-recompilation script or a pre-DDL invalid-object baseline.
 
 `oracledb` is an optional dependency used only by live qualification; normal
-indexing and MCP operation never load it. SQL*Plus is retained only because it
-already handles Oracle script terminators and SQL*Plus directives in authored
-source. Set `CODE_INDEX_ORACLE_SQLPLUS` when `sqlplus` is not on `PATH`, and
-`CODE_INDEX_ORACLE_SQLPLUS_TIMEOUT_MS` to override the default 600-second
-compile timeout. SQL*Plus receives its connection over standard input; the
-`oracledb` session receives credentials directly in memory.
+indexing and MCP operation never load it. All database work, including the
+`ALTER ... COMPILE` statements, uses one `oracledb` session. Set
+`CODE_INDEX_ORACLE_TIMEOUT_MS` to override the default 600-second per-call
+timeout. Credentials are passed to the driver in memory and never written to
+the plan, SQL, or evidence files.
 
 Use a dedicated qualification schema that contains only the snapshot corpus.
 The workflow recompiles objects but does not drop unrelated ones; a leftover

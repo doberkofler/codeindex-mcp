@@ -2,20 +2,20 @@ import {readFileSync} from 'node:fs';
 import type OracleDB from 'oracledb';
 import {writeCsvRows} from './oracleCsvExport.ts';
 import {type LivePlanType} from './oracleLivePlan.ts';
-import {recompileOracleDependents, recompileOracleObjects, type SqlplusRunnerType} from './oracleRecompile.ts';
+import {recompileOracleDependents, recompileOracleObjects, type OracleStatementExecutorType} from './oracleRecompile.ts';
 import {type OracleConnectionType, type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 import {assertOracleSourceMatchesSnapshot, oracleObjectKeyOf} from './oracleLiveSource.ts';
 import {formatDuration} from './oracleProgress.ts';
 
-type OracleDatabaseType = Readonly<{
-	query: (sql: string) => Promise<readonly (readonly unknown[])[]>;
-	close: () => Promise<void>;
-}>;
+type OracleDatabaseType = OracleStatementExecutorType &
+	Readonly<{
+		query: (sql: string) => Promise<readonly (readonly unknown[])[]>;
+		close: () => Promise<void>;
+	}>;
 
-type OracleDatabaseFactoryType = (connection: OracleConnectionType) => Promise<OracleDatabaseType>;
+type OracleDatabaseFactoryType = (connection: OracleConnectionType, timeoutMs: number) => Promise<OracleDatabaseType>;
 
 export type OracleLiveDependenciesType = Readonly<{
-	sqlplusRunner?: SqlplusRunnerType;
 	databaseFactory?: OracleDatabaseFactoryType;
 	progress?: (line: string) => void;
 }>;
@@ -34,6 +34,9 @@ const databaseOf = (connection: OracleDB.Connection): OracleDatabaseType => ({
 		const result = await connection.execute<readonly unknown[]>(sql);
 		return result.rows ?? [];
 	},
+	execute: async (sql) => {
+		await connection.execute(sql);
+	},
 	close: async () => {
 		await connection.close();
 	},
@@ -46,15 +49,18 @@ const databaseOf = (connection: OracleDB.Connection): OracleDatabaseType => ({
  * requires the driver or its native bindings.
  *
  * @param connection - Validated Oracle credentials.
- * @returns A query-only database session.
+ * @param timeoutMs - Per-call driver timeout.
+ * @returns A database session for evidence queries and recompilation.
  */
-const openOracleDatabase: OracleDatabaseFactoryType = async (connection) => {
+const openOracleDatabase: OracleDatabaseFactoryType = async (connection, timeoutMs) => {
 	const driver = await loadDriver();
 	const session = await driver.getConnection({
 		user: connection.user,
 		password: connection.password,
 		connectString: connection.server,
 	});
+
+	session.callTimeout = timeoutMs;
 
 	return databaseOf(session);
 };
@@ -152,16 +158,14 @@ const assertInvalidObjectsAllowed = (plan: LivePlanType, baselineKeys: ReadonlyS
  * invalid compared with the baseline.
  *
  * @param plan - Approved and hash-verified plan.
- * @param settings - Oracle connection and SQL*Plus settings.
- * @param environment - Parent environment forwarded without Oracle credentials.
- * @param dependencies - Injectable recompile runner and database factory for tests.
+ * @param settings - Oracle connection and timeout settings.
+ * @param dependencies - Injectable database factory and progress sink for tests.
  * @returns Baseline-invalid and restored counts for reporting.
  * @throws {Error} When source drift, recompilation failure, an invalid target, or new invalid objects remain.
  */
 export const applyOracleLivePlan = async (
 	plan: LivePlanType,
 	settings: OracleLiveSettingsType,
-	environment: NodeJS.ProcessEnv,
 	dependencies: OracleLiveDependenciesType = {},
 ): Promise<OracleLiveApplyResultType> => {
 	const {connection} = settings;
@@ -172,7 +176,7 @@ export const applyOracleLivePlan = async (
 
 	const progress: (line: string) => void = dependencies.progress ?? ignoreProgress;
 	const startedAt = Date.now();
-	const database = await (dependencies.databaseFactory ?? openOracleDatabase)(connection);
+	const database = await (dependencies.databaseFactory ?? openOracleDatabase)(connection, settings.timeoutMs);
 
 	try {
 		const baselineStart = Date.now();
@@ -194,10 +198,10 @@ export const applyOracleLivePlan = async (
 		assertOracleSourceMatchesSnapshot(plan, backup);
 		progress(`Source verified (${formatDuration(Date.now() - sourceStart)})`);
 
-		await recompileOracleObjects(plan, settings, environment, {runner: dependencies.sqlplusRunner, progress});
+		await recompileOracleObjects(plan, database, {progress});
 
 		if (plan.snapshot.dependents.length > 0) {
-			await recompileOracleDependents(plan, settings, environment, {runner: dependencies.sqlplusRunner, progress});
+			await recompileOracleDependents(plan, database, {progress});
 		}
 
 		const validationStart = Date.now();

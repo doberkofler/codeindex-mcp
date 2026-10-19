@@ -1,38 +1,29 @@
-import {writeFileSync} from 'node:fs';
+import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {createOracleLivePlan} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
 import {recompileOracleDependents, recompileOracleObjects} from '../src/core/qualification/oracle/live/oracleRecompile.ts';
-import {createFixtureConfig} from './helpers/fixture.ts';
-import {installedSourcesOf, settingsOf} from './helpers/oracleLive.ts';
+import {fixture, installedSourcesOf, settingsOf} from './helpers/oracleLive.ts';
 
-const fixture = (): ReturnType<typeof createFixtureConfig> => createFixtureConfig('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+const executorOf = (execute: (sql: string) => Promise<void>): Readonly<{execute: (sql: string) => Promise<void>}> => ({execute});
 
-const scriptOf = (rootDir: string, name: string, content: string): string => {
-	const scriptPath = path.join(rootDir, name);
-
-	writeFileSync(scriptPath, content, {encoding: 'utf8', mode: 0o755});
-	return scriptPath;
-};
-
-describe.skipIf(process.platform === 'win32')('Oracle SQL*Plus runner', () => {
-	it('streams output lines and reports counted progress without object names', async () => {
+describe('Oracle recompilation', () => {
+	it('recompiles targets with PL/Scope and reports counted progress without object names', async () => {
 		const context = fixture();
 
 		try {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
 			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
-			const sqlplus = scriptOf(
-				context.config.rootDir,
-				'sqlplus-stream.sh',
-				"#!/bin/sh\ncat > /dev/null\nprintf 'RECOMPILE:PACKAGE:HR_API\\n'\nprintf 'RECOMPILE:PACKAGE BODY:HR_API'\n",
-			);
+			const executed: string[] = [];
 			const progress: string[] = [];
+			const total = plan.snapshot.units.length;
 
 			await recompileOracleObjects(
 				plan,
-				{...settingsOf(outputDir, plan.approval), sqlplus},
-				{},
+				executorOf(async (sql) => {
+					executed.push(sql);
+					await Promise.resolve();
+				}),
 				{
 					progress: (line) => {
 						progress.push(line);
@@ -40,12 +31,13 @@ describe.skipIf(process.platform === 'win32')('Oracle SQL*Plus runner', () => {
 				},
 			);
 
-			const total = plan.snapshot.units.length;
-
+			expect(executed[0]).toBe("ALTER SESSION SET PLSCOPE_SETTINGS = 'IDENTIFIERS:ALL'");
+			expect(executed).toHaveLength(total + 1);
 			expect(progress).toContain(`Recompiling ${String(total)} target objects...`);
 			expect(progress.some((line) => line.startsWith(`Targets: 1/${String(total)}, ETA ~`))).toBe(true);
-			expect(progress.some((line) => line.startsWith(`Targets: 2/${String(total)}, ETA ~`))).toBe(true);
+			expect(progress).toContain(`Targets: ${String(total)}/${String(total)} complete in 0s`);
 			expect(progress.some((line) => line.includes('HR_API'))).toBe(false);
+			expect(readFileSync(plan.output.compileLog, 'utf8')).toContain('ALTER PACKAGE "HR_API" COMPILE SPECIFICATION;');
 		} finally {
 			context.cleanup();
 		}
@@ -58,13 +50,15 @@ describe.skipIf(process.platform === 'win32')('Oracle SQL*Plus runner', () => {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
 			const dependencies = [{name: 'HR_VIEW', type: 'VIEW', referencedName: 'HR_API', referencedType: 'PACKAGE'}];
 			const plan = createOracleLivePlan(context.config, settingsOf(outputDir), installedSourcesOf(context.config), dependencies);
-			const sqlplus = scriptOf(context.config.rootDir, 'sqlplus-dependent.sh', "#!/bin/sh\ncat > /dev/null\nprintf 'RECOMPILE-DEPENDENT:VIEW:HR_VIEW\\n'\n");
+			const executed: string[] = [];
 			const progress: string[] = [];
 
 			await recompileOracleDependents(
 				plan,
-				{...settingsOf(outputDir, plan.approval), sqlplus},
-				{},
+				executorOf(async (sql) => {
+					executed.push(sql);
+					await Promise.resolve();
+				}),
 				{
 					progress: (line) => {
 						progress.push(line);
@@ -72,83 +66,87 @@ describe.skipIf(process.platform === 'win32')('Oracle SQL*Plus runner', () => {
 				},
 			);
 
+			expect(executed).toStrictEqual(['ALTER VIEW "HR_VIEW" COMPILE']);
 			expect(progress).toContain('Recompiling 1 dependent objects...');
 			expect(progress).toContain('Dependents: 1/1 complete in 0s');
 			expect(progress.some((line) => line.includes('HR_VIEW'))).toBe(false);
+			expect(readFileSync(plan.output.dependentCompileLog, 'utf8')).toContain('ALTER VIEW "HR_VIEW" COMPILE;');
 		} finally {
 			context.cleanup();
 		}
 	});
 
-	it('does not start SQL*Plus when a plan has no dependents', async () => {
+	it('does not execute anything when a plan has no dependents', async () => {
 		const context = fixture();
 
 		try {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
 			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
-			let started = false;
+			let executed = false;
 
 			await recompileOracleDependents(
 				plan,
-				settingsOf(outputDir, plan.approval),
-				{},
-				{
-					runner: () => {
-						started = true;
-						return {status: 0, stdout: '', stderr: ''};
-					},
-				},
+				executorOf(async () => {
+					executed = true;
+					await Promise.resolve();
+				}),
 			);
 
-			expect(started).toBe(false);
+			expect(executed).toBe(false);
 		} finally {
 			context.cleanup();
 		}
 	});
 });
 
-describe.skipIf(process.platform === 'win32')('Oracle SQL*Plus runner failures', () => {
-	it('reports SQL*Plus stderr when recompilation fails', async () => {
+describe('Oracle recompilation failures', () => {
+	it('reports the driver error when target recompilation fails', async () => {
 		const context = fixture();
 
 		try {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
 			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
-			const sqlplus = scriptOf(context.config.rootDir, 'sqlplus-fail.sh', "#!/bin/sh\ncat > /dev/null\nprintf 'ORA-04063: view has errors\\n' >&2\nexit 1\n");
 
-			await expect(recompileOracleObjects(plan, {...settingsOf(outputDir, plan.approval), sqlplus}, {})).rejects.toThrow(
-				/Oracle recompile step failed[\s\S]*ORA-04063/u,
-			);
+			await expect(
+				recompileOracleObjects(
+					plan,
+					executorOf(async () => {
+						await Promise.resolve();
+						throw new Error('ORA-04063: view has errors');
+					}),
+				),
+			).rejects.toThrow(/Oracle recompile step failed[\s\S]*ORA-04063/u);
 		} finally {
 			context.cleanup();
 		}
 	});
 
-	it('reports a spawn failure', async () => {
+	it('continues after a dependent error and records it in the log', async () => {
 		const context = fixture();
 
 		try {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
-			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
-			const sqlplus = path.join(context.config.rootDir, 'missing-sqlplus');
+			const dependencies = [
+				{name: 'HR_VIEW', type: 'VIEW', referencedName: 'HR_API', referencedType: 'PACKAGE'},
+				{name: 'HR_VIEW_CHILD', type: 'VIEW', referencedName: 'HR_VIEW', referencedType: 'VIEW'},
+			];
+			const plan = createOracleLivePlan(context.config, settingsOf(outputDir), installedSourcesOf(context.config), dependencies);
+			const executed: string[] = [];
 
-			await expect(recompileOracleObjects(plan, {...settingsOf(outputDir, plan.approval), sqlplus}, {})).rejects.toThrow(/Oracle recompile step failed/u);
-		} finally {
-			context.cleanup();
-		}
-	});
+			await recompileOracleDependents(
+				plan,
+				executorOf(async (sql) => {
+					executed.push(sql);
+					await Promise.resolve();
 
-	it('terminates SQL*Plus on timeout', async () => {
-		const context = fixture();
-
-		try {
-			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
-			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
-			const sqlplus = scriptOf(context.config.rootDir, 'sqlplus-slow.sh', '#!/bin/sh\ncat > /dev/null\nexec sleep 5\n');
-
-			await expect(recompileOracleObjects(plan, {...settingsOf(outputDir, plan.approval), sqlplus, timeoutMs: 50}, {})).rejects.toThrow(
-				/Oracle recompile step failed[\s\S]*timed out/u,
+					if (sql.includes('"HR_VIEW"')) {
+						throw new Error('ORA-04063: view has errors');
+					}
+				}),
 			);
+
+			expect(executed).toHaveLength(2);
+			expect(readFileSync(plan.output.dependentCompileLog, 'utf8')).toContain('-- ERROR: ORA-04063: view has errors');
 		} finally {
 			context.cleanup();
 		}

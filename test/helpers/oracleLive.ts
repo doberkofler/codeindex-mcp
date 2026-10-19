@@ -16,7 +16,6 @@ export const fixture = (): ReturnType<typeof createFixtureConfig> =>
 
 export const settingsOf = (outputDir: string, approval: string | null = null): OracleLiveSettingsType => ({
 	outputDir,
-	sqlplus: 'sqlplus',
 	timeoutMs: 1000,
 	approval,
 	connection: approval === null ? null : {server: 'server', user: 'user', password: 'secret'},
@@ -46,6 +45,7 @@ export const capture = (): Readonly<{
 
 export type StubDatabaseType = Readonly<{
 	query: (sql: string) => Promise<readonly (readonly unknown[])[]>;
+	execute: (sql: string) => Promise<void>;
 	close: () => Promise<void>;
 }>;
 
@@ -58,6 +58,9 @@ export const stubDatabase =
 			query: async (sql: string): Promise<readonly (readonly unknown[])[]> => {
 				await Promise.resolve();
 				return sql.includes('FROM user_source') ? backup : [];
+			},
+			execute: async (): Promise<void> => {
+				await Promise.resolve();
 			},
 			close: async (): Promise<void> => {
 				await Promise.resolve();
@@ -72,6 +75,7 @@ export const inventoryDatabase =
 			baseline: readonly (readonly unknown[])[];
 			invalid: readonly (readonly unknown[])[];
 		}>,
+		onExecute?: (sql: string) => void,
 	): (() => Promise<StubDatabaseType>) =>
 	async (): Promise<StubDatabaseType> => {
 		await Promise.resolve();
@@ -99,6 +103,10 @@ export const inventoryDatabase =
 				}
 
 				throw new Error(`Unexpected SQL: ${sql}`);
+			},
+			execute: async (sql: string): Promise<void> => {
+				await Promise.resolve();
+				onExecute?.(sql);
 			},
 			close: async (): Promise<void> => {
 				await Promise.resolve();
