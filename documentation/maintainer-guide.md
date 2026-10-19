@@ -164,11 +164,13 @@ The committed baseline applies absolute gates for edit-to-fresh p95 (warning
 above 5 s, failure above 15 s) and query p95 (warning above 25 ms, failure above
 100 ms). Deep-cursor samples fail when an intended index is missing and warn when
 SQLite uses a temporary B-tree. Relative build, edit, query, RSS, CPU, and storage
-gates use the configured ratios and slack values. Workspace file and symbol
-counts must stay within the compatibility tolerance. Reference-machine mismatches
-warn, and relative gate failures are downgraded to warnings because hosted CI
-numbers are not authoritative. Absolute gates and invalid plans still fail on any
-machine.
+gates use the configured ratios and slack values. Generated corpus file and
+symbol counts are checked against deterministic profile expectations, so they
+must stay within the compatibility tolerance even when no reference exists. An
+external workspace still needs a reference for its count drift to be meaningful.
+Reference-machine mismatches warn, and relative gate failures are downgraded to
+warnings because hosted CI numbers are not authoritative. Absolute gates and
+invalid plans still fail on any machine.
 
 `--summary <path>` writes GitHub-flavoured Markdown derived from the same JSON
 report and evaluation. The report and evaluation JSON remain authoritative. The

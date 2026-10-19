@@ -10,6 +10,7 @@ import {
 	type BenchmarkReferenceType,
 } from '../src/core/benchmark/baseline.ts';
 import {type BenchmarkReportType} from '../src/core/benchmark/benchTypes.ts';
+import {benchmarkCorpusCounts} from '../src/core/benchmark/corpus.ts';
 import {runBenchmarkCommand, runBenchmarkReport} from '../src/core/benchmark/runBenchmark.ts';
 import {evaluateBenchmark} from '../src/core/benchmark/evaluate.ts';
 import {buildBenchmarkSummary} from '../src/core/benchmark/summary.ts';
@@ -123,6 +124,29 @@ describe('benchmark evaluation', () => {
 			expect(evaluation.status).toBe('failure');
 			expect(evaluation.gates.find((entry) => entry.code === 'compatibility.workspace_kind')?.status).toBe('failure');
 			expect(evaluation.gates.find((entry) => entry.code === 'compatibility.workspace_profile')?.status).toBe('failure');
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
+	it('checks generated corpus counts without a reference', async () => {
+		const fixture = createFixtureConfig('simple-project');
+
+		try {
+			const report = await runBenchmarkReport({config: fixture.config, iterations: 1, force: false, scenarios: ['warm_reuse']});
+			const expected = benchmarkCorpusCounts('small');
+			const baseline = baselineOf({
+				compatibility: {workspaceKind: 'generated', profile: 'small', fileCountToleranceRatio: 0.05, symbolCountToleranceRatio: 0.05},
+				requiredScenarios: [],
+			});
+			const drifted: BenchmarkReportType = {
+				...report,
+				workspace: {...report.workspace, kind: 'generated', profile: 'small', fileCount: expected.fileCount + 100, symbolCount: expected.symbolCount},
+			};
+			const evaluation = evaluateBenchmark(drifted, baseline);
+
+			expect(evaluation.gates.find((entry) => entry.code === 'compatibility.file_count')?.status).toBe('failure');
+			expect(evaluation.gates.find((entry) => entry.code === 'compatibility.symbol_count')?.status).toBe('pass');
 		} finally {
 			fixture.cleanup();
 		}

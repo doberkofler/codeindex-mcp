@@ -1,5 +1,6 @@
 import {type BenchmarkBaselineType, type BenchmarkReferenceScenarioType, type BenchmarkReferenceType} from './baseline.ts';
 import {type BenchmarkReportType, type BenchmarkScenarioResultType} from './benchTypes.ts';
+import {benchmarkCorpusCounts} from './corpus.ts';
 import {
 	type BenchmarkEvaluationSummaryType,
 	type BenchmarkEvaluationType,
@@ -104,6 +105,31 @@ const driftGate = (
 	});
 };
 
+const corpusCountGates = (report: BenchmarkReportType, baseline: BenchmarkBaselineType): readonly BenchmarkGateType[] => {
+	if (report.workspace.kind !== 'generated' || report.workspace.profile === null) {
+		return [];
+	}
+
+	const expected = benchmarkCorpusCounts(report.workspace.profile);
+
+	return [
+		driftGate({
+			code: 'compatibility.file_count',
+			message: 'Corpus file count drift',
+			current: report.workspace.fileCount,
+			reference: expected.fileCount,
+			tolerance: baseline.compatibility.fileCountToleranceRatio,
+		}),
+		driftGate({
+			code: 'compatibility.symbol_count',
+			message: 'Corpus symbol count drift',
+			current: report.workspace.symbolCount,
+			reference: expected.symbolCount,
+			tolerance: baseline.compatibility.symbolCountToleranceRatio,
+		}),
+	];
+};
+
 const compatibilityGates = (report: BenchmarkReportType, baseline: BenchmarkBaselineType): readonly BenchmarkGateType[] => {
 	const gates: BenchmarkGateType[] = [];
 	const {compatibility} = baseline;
@@ -150,9 +176,18 @@ const compatibilityGates = (report: BenchmarkReportType, baseline: BenchmarkBase
 				}),
 	);
 
+	gates.push(...corpusCountGates(report, baseline));
+
 	const {reference} = baseline;
 
 	if (reference === null) {
+		if (report.workspace.kind !== 'generated') {
+			gates.push(
+				skipped('compatibility.file_count', 'External workspace count drift requires a reference', 'compatibility'),
+				skipped('compatibility.symbol_count', 'External workspace count drift requires a reference', 'compatibility'),
+			);
+		}
+
 		gates.push(skipped('compatibility.reference', 'No reference measurements supplied; relative regression gates are skipped'));
 		return gates;
 	}
