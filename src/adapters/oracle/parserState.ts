@@ -286,6 +286,14 @@ export const collectReferences = (input: Readonly<{state: OracleParserStateType;
 			continue;
 		}
 
+		const after = state.cursor.next(name.endIndex);
+		const namedAssociation = state.cursor.text(after) === '=>' || (state.cursor.text(after) === '=' && state.cursor.text(state.cursor.next(after)) === '>');
+
+		if (namedAssociation) {
+			index = state.cursor.next(name.endIndex);
+			continue;
+		}
+
 		index = state.cursor.next(addNameSite(state, {name, index, unit, enclosing}));
 	}
 };

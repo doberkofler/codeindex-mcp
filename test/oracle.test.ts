@@ -177,6 +177,15 @@ describe('Oracle index integration', () => {
 
 		expect(qualifiedCall?.startColumn).toBe(10);
 
+		const namedParameter = fixture.index.findSymbols({query: 'APP.HR_API.FIND_EMPLOYEE.P_NAME', limit: 10}).items.find((item) => item.kind === 'parameter');
+
+		expect(namedParameter).toBeDefined();
+		expect(
+			fixture.index
+				.findReferences({symbolId: namedParameter?.id ?? '', limit: 100})
+				.items.some((item) => item.path === 'database/hr_api.pkb' && item.startLine === 41 && item.startColumn === 24),
+		).toBe(false);
+
 		const packageSymbol = firstSymbol('APP.HR_API');
 		const packageReferences = fixture.index.findReferences({symbolId: packageSymbol.id, limit: 100}).items;
 
