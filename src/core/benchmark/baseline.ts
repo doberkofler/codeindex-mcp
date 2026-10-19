@@ -17,7 +17,48 @@ const ReferenceScenarioSchema = z.object({
 });
 
 const ReferenceQuerySchema = z.object({p95Ms: z.number().min(0).nullable()});
+const ReferencePercentilesSchema = z.object({p95Ms: z.number().min(0).nullable()});
+const ReferenceSampleSchema = z.object({elapsedMs: z.number().min(0)});
+const ReportSampleSchema = z.union([ReferenceSampleSchema, z.object({latencyMs: z.number().min(0)})]);
 const BenchmarkProfileSchema = z.enum(['small', 'medium', 'large', 'xl']);
+
+/**
+ * Report fields required to derive relative reference measurements.
+ *
+ * A stored reference and a raw benchmark report describe the same measurements
+ * under different field names; accepting both keeps the documented
+ * `--reference <report.json>` workflow working.
+ */
+const BenchmarkReportSourceSchema = z.object({
+	schemaVersion: z.number().int().positive(),
+	machine: z.object({
+		platform: z.string().min(1),
+		arch: z.string().min(1),
+		cpuModel: z.string().min(1),
+	}),
+	workspace: z.object({
+		kind: z.enum(['generated', 'external']),
+		profile: BenchmarkProfileSchema.nullable(),
+		fileCount: z.number().int().min(0),
+		symbolCount: z.number().int().min(0),
+	}),
+	scenarios: z.array(
+		z.object({
+			kind: z.enum(['build', 'edit', 'cursor']),
+			name: z.string().min(1),
+			wallMs: z.number().min(0),
+			resources: z.object({
+				cpuUserMs: z.number().min(0),
+				cpuSystemMs: z.number().min(0),
+				rssPeakBytes: z.number().min(0),
+			}),
+			storage: z.object({totalBytes: z.number().min(0)}),
+			percentiles: ReferencePercentilesSchema.optional(),
+			samples: z.array(ReportSampleSchema).optional(),
+		}),
+	),
+	queries: z.record(z.string(), ReferenceQuerySchema),
+});
 
 export const BenchmarkReferenceSchema = z
 	.object({
@@ -152,14 +193,50 @@ const parseJsonFile = <SchemaType extends z.ZodType>(filePath: string, schema: S
  */
 export const loadBenchmarkBaseline = (filePath: string): BenchmarkBaselineType => parseJsonFile(filePath, BenchmarkBaselineSchema, 'benchmark baseline');
 
+const referenceScenarioFromReport = (scenario: z.infer<typeof BenchmarkReportSourceSchema>['scenarios'][number]): BenchmarkReferenceScenarioType => ({
+	kind: scenario.kind,
+	name: scenario.name,
+	wallMs: scenario.wallMs,
+	resources: scenario.resources,
+	storage: scenario.storage,
+	...(scenario.percentiles === undefined ? {} : {percentiles: scenario.percentiles}),
+	...(scenario.kind === 'cursor' && scenario.samples !== undefined
+		? {samples: scenario.samples.flatMap((sample) => ('elapsedMs' in sample ? [{elapsedMs: sample.elapsedMs}] : []))}
+		: {}),
+});
+
+const referenceFromReport = (report: z.infer<typeof BenchmarkReportSourceSchema>): BenchmarkReferenceType => ({
+	reportSchemaVersion: report.schemaVersion,
+	machine: report.machine,
+	workspace: report.workspace,
+	scenarios: report.scenarios.map(referenceScenarioFromReport),
+	queries: report.queries,
+});
+
 /**
  * Loads an accepted benchmark report as a relative-regression reference.
  *
- * Extra report fields are ignored; the report schema version, machine, workspace
+ * Both a raw benchmark report and a stored reference object are accepted.
+ * Extra fields are ignored; the report schema version, machine, workspace
  * identity, scenario, and query measurements are retained.
  *
- * @param filePath - Benchmark report JSON file.
+ * @param filePath - Benchmark report or reference JSON file.
  * @returns Parsed reference measurements.
  * @throws {@link Error} When the file is unreadable or invalid.
  */
-export const loadBenchmarkReference = (filePath: string): BenchmarkReferenceType => parseJsonFile(filePath, BenchmarkReferenceSchema, 'benchmark reference');
+export const loadBenchmarkReference = (filePath: string): BenchmarkReferenceType => {
+	const parsed: unknown = JSON.parse(readFileSync(filePath, 'utf8'));
+	const reference = BenchmarkReferenceSchema.safeParse(parsed);
+
+	if (reference.success) {
+		return reference.data;
+	}
+
+	const report = BenchmarkReportSourceSchema.safeParse(parsed);
+
+	if (report.success) {
+		return BenchmarkReferenceSchema.parse(referenceFromReport(report.data));
+	}
+
+	throw new Error(`Invalid benchmark reference ${filePath}:\n${z.prettifyError(reference.error)}`, {cause: reference.error});
+};

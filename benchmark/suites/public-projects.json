@@ -1,0 +1,45 @@
+{
+	"schemaVersion": 1,
+	"id": "public-projects",
+	"description": "Pinned public TypeScript projects for directional compatibility and relative regression evidence.",
+	"projectsRoot": "~/.cache/codeindex-benchmark/projects",
+	"generated": [],
+	"publicProjects": [
+		{
+			"name": "typescript",
+			"repository": "https://github.com/microsoft/TypeScript.git",
+			"revision": "050880ce59e30b356b686bd3144efe24f875ebc8",
+			"directory": "typescript",
+			"projectFile": "src/compiler/tsconfig.json",
+			"scenarios": ["cold", "warm", "rebuild", "deep", "queries"],
+			"iterations": 20,
+			"runs": 2,
+			"baseline": "benchmark/baseline-external.json",
+			"reference": "first-run"
+		},
+		{
+			"name": "vscode",
+			"repository": "https://github.com/microsoft/vscode.git",
+			"revision": "072586267e68ece9a47aa43f8c108e0dcbf44622",
+			"directory": "vscode",
+			"projectFile": "src/tsconfig.json",
+			"scenarios": ["cold", "warm", "rebuild", "deep", "queries"],
+			"iterations": 20,
+			"runs": 2,
+			"baseline": "benchmark/baseline-external.json",
+			"reference": "first-run"
+		},
+		{
+			"name": "material-ui",
+			"repository": "https://github.com/mui/material-ui.git",
+			"revision": "28eadba9ec2899226ecbf4058b8fba1ddeab9e6d",
+			"directory": "material-ui",
+			"projectFile": "packages/mui-material/tsconfig.json",
+			"scenarios": ["cold", "warm", "rebuild", "deep", "queries"],
+			"iterations": 20,
+			"runs": 2,
+			"baseline": "benchmark/baseline-external.json",
+			"reference": "first-run"
+		}
+	]
+}

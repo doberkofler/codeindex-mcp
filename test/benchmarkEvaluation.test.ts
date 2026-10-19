@@ -6,6 +6,7 @@ import {
 	BenchmarkBaselineSchema,
 	BenchmarkReferenceSchema,
 	loadBenchmarkBaseline,
+	loadBenchmarkReference,
 	type BenchmarkBaselineType,
 	type BenchmarkReferenceType,
 } from '../src/core/benchmark/baseline.ts';
@@ -91,6 +92,26 @@ describe('benchmark baseline', () => {
 			writeJson(baselinePath, {schemaVersion: 2});
 			expect(() => loadBenchmarkBaseline(baselinePath)).toThrow(/Invalid benchmark baseline/u);
 		} finally {
+			rmSync(directory, {recursive: true, force: true});
+		}
+	});
+
+	it('loads a raw benchmark report as a relative reference', async () => {
+		const fixture = createFixtureConfig('simple-project');
+		const directory = tempDirectory('codeindex-benchmark-report-reference-');
+		const reportPath = path.join(directory, 'report.json');
+
+		try {
+			const report = await runBenchmarkReport({config: fixture.config, iterations: 1, force: false, scenarios: ['deep_cursor']});
+			writeJson(reportPath, report);
+			const reference = loadBenchmarkReference(reportPath);
+
+			expect(reference.reportSchemaVersion).toBe(report.schemaVersion);
+			expect(reference.workspace.fileCount).toBe(report.workspace.fileCount);
+			expect(Object.keys(reference.queries)).toStrictEqual(Object.keys(report.queries));
+			expect(reference.scenarios.map((scenario) => scenario.name)).toStrictEqual(report.scenarios.map((scenario) => scenario.name));
+		} finally {
+			fixture.cleanup();
 			rmSync(directory, {recursive: true, force: true});
 		}
 	});

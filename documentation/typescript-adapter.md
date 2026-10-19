@@ -200,12 +200,12 @@ plan. Status meanings:
 
 | Package | Status | Current implementation or remaining work |
 | --- | --- | --- |
-| WP0 — baselines and pilot gates | Partial | Build stages, local analytics, offline reports, the version-2 model-free benchmark, deterministic large-project profiles, a versioned baseline, explicit gates, an evaluation sidecar, Markdown summaries, and the final reference corpus exist. Missing retained reference-machine measurements and pinned public-project runs. |
+| WP0 — baselines and pilot gates | Partial | Build stages, local analytics, offline reports, the version-2 model-free benchmark, deterministic large-project profiles, a versioned baseline, explicit gates, an evaluation sidecar, Markdown summaries, the final reference corpus, and a declarative qualification suite for generated and pinned public-project runs exist. Missing retained reference-machine measurements. |
 | WP1 — native OpenCode exposure | Partial | MCP installation and current Code Mode behavior are documented and protocol-tested. Retained direct-versus-Code-Mode benchmark and formal normal-session smoke evidence remain open. |
 | WP2 — continuous freshness | Implemented | Coordinator, recursive watcher, 500 ms debounce, 60 s reconciliation, one follow-up build, query freshness, dirty-source rejection, and shutdown ownership are implemented and tested. |
 | WP3 — persistence and writer coordination | Partial | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, and bounded generation cleanup exist. Process-level contention/termination evidence and explicit checkout move/copy/delete semantics remain incomplete. |
 | WP4 — compiler/reference alignment | Implemented | Declared compiler identity, drift, TypeScript API extraction, and the ≥200-symbol, ≥99.5%-recall, 100%-precision gate with construct stratification and a checked-in corpus exist. |
-| WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, and worker builds exist. Retained reference-machine measurements, Code Mode comparison, contention evidence, and four-hour soak evidence remain incomplete. Incremental compiler state remains conditional. |
+| WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, worker builds, and a resumable per-run evidence suite exist. Retained reference-machine measurements, Code Mode comparison, contention evidence, and four-hour soak evidence remain incomplete. Incremental compiler state remains conditional. |
 | WP6 — build separation | Superseded/partial | MCP, CLI, console server, and browser bundles are separate. Evaluation code and corpus intentionally remain private; this repository does not emit the original public `evaluation.mjs` artifact. |
 | WP7 — OpenCode installation | Implemented | CLI install/uninstall, explicit MCP bundle/configuration paths, preservation of unrelated JSONC, external project configuration, and user documentation exist. |
 | WP8 — interactive pilot | Open | No retained public evidence proves the required representative-session count, adoption denominator, all latency/resource gates, or soak completion. |
@@ -217,7 +217,8 @@ Cross-cutting contracts and performance targets live in
 ### 9.1 Remaining pilot TODOs by work package
 
 - **WP0:** retain machine-readable reference-workstation baselines for startup,
-  cold/warm builds, edit-to-fresh, query layers, RSS, CPU, and storage.
+  cold/warm builds, edit-to-fresh, query layers, RSS, CPU, and storage using
+  `benchmark-suite`; generated and pinned public-project execution is automated.
 - **WP1:** record a disposable normal OpenCode session invoking every tool without
   a bridge; compare Code Mode and direct exposure with the same model and task;
   retain client version and effective configuration with the result.

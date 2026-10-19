@@ -222,6 +222,47 @@ and publishes the Markdown summary. Relative build, RSS, CPU, storage, and query
 gates are therefore active on scheduled runs; reference-machine gates remain
 authoritative when a retained report is supplied explicitly.
 
+### 7.3 Reference qualification suite
+
+A qualifying run is orchestrated from a declarative suite rather than a sequence
+of shell commands. Two suites are committed:
+
+- `benchmark/suites/reference.json` runs generated `large` twice and `xl` once,
+  measures `large` cold builds in a fresh process, and runs the TypeScript
+  compiler reference gate against `test/fixtures/reference-corpus/`.
+- `benchmark/suites/public-projects.json` pins TypeScript, VS Code, and Material
+  UI revisions and runs non-mutating scenarios twice per project.
+
+```bash
+pnpm benchmark:reference -- --output ~/codeindex-evidence/reference
+pnpm benchmark:prepare
+pnpm benchmark:public -- --output ~/codeindex-evidence/public
+```
+
+Each step runs the built CLI in a fresh process. Generated profiles use a fresh
+corpus per run because edit-to-fresh mutates source. Public projects must already
+be checked out at the pinned revision; `benchmark-prepare` clones and installs
+them outside the measured interval and never mutates them during a run.
+
+The evidence directory contains:
+
+- `manifest.json` with suite hash, CodeIndex commit, CLI SHA-256, Node/SQLite and
+  machine identity, baseline hashes, public-project revisions, and per-step
+  results;
+- per-run reports, evaluation sidecars, and Markdown summaries;
+- the reference-verification report;
+- `summary.md` and `checksums.sha256`.
+
+The evidence directory must be outside the repository. `--resume` reuses passed
+steps only when the suite content, CodeIndex commit, working-tree status, CLI
+bundle, and machine identity are unchanged. `--allow-dirty` is required for an
+uncommitted checkout. Generated corpora and databases are removed after a
+successful run unless `--keep-workspace` is supplied.
+
+Hosted CI keeps its nightly generated-`large` regression job. Authoritative
+reference-machine evidence is produced by this suite on stable hardware and
+retained explicitly; hosted runner numbers remain directional.
+
 Reference-machine targets:
 
 | Dimension | Gate |

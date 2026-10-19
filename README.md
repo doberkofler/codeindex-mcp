@@ -192,6 +192,8 @@ codeindex-cli status     # generation, counts, freshness, scope
 codeindex-cli verify     # SQLite integrity and stored counts
 codeindex-cli analytics  # offline analytics report (text, json, html)
 codeindex-cli benchmark  # cold/warm build, edit-to-fresh, resources, deep cursors
+codeindex-cli benchmark-suite    # run a declarative qualification suite
+codeindex-cli benchmark-prepare  # clone and install pinned public projects
 codeindex-cli verify-references  # TypeScript reference cross-check
 codeindex-cli clean      # remove local caches (dry run by default)
 ```
@@ -200,8 +202,20 @@ All commands accept `--config`, `--root`, `--extractor`, `--project-file`, and
 `--database`. The benchmark command also accepts a generated corpus profile or a
 disposable database path. With `--baseline`, it writes an evaluation sidecar and
 fails only for `failure` gates; warnings remain successful. `--summary` writes
-Markdown. See the
+Markdown. `--reference` accepts a previous benchmark report or a stored reference.
+See the
 [maintainer guide](./documentation/maintainer-guide.md#7-performance-verification).
+
+Repeated qualification runs are orchestrated by a suite manifest. Each generated
+run starts from a pristine corpus, every step executes in a fresh process, and
+the evidence directory records identity, reports, gates, checksums, and a
+Markdown summary:
+
+```bash
+pnpm benchmark:reference -- --output ~/codeindex-evidence/reference
+pnpm benchmark:prepare
+pnpm benchmark:public -- --output ~/codeindex-evidence/public
+```
 
 ### `codeindex-console`
 

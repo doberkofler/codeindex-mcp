@@ -1,6 +1,8 @@
 import {Command, CommanderError} from 'commander';
 import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
 import {runBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
+import {runBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
+import {runBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
 import {loadConfig} from '../../core/config/config.ts';
 import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
 import {isCodeIndexError} from '../../core/errors/errors.ts';
@@ -278,6 +280,14 @@ export const runCli = async (argv: readonly string[], environment: NodeJS.Proces
 
 	if (argv[0] === 'benchmark') {
 		return runBenchmarkCommand(argv.slice(1), environment, io);
+	}
+
+	if (argv[0] === 'benchmark-suite') {
+		return runBenchmarkSuiteCommand(argv.slice(1), environment, io, {cliPath: process.argv[1] ?? ''});
+	}
+
+	if (argv[0] === 'benchmark-prepare') {
+		return runBenchmarkPrepareCommand(argv.slice(1), io);
 	}
 
 	const program = buildProgram({environment, io, ...options});
