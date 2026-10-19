@@ -227,19 +227,31 @@ version and diagnostics to stderr because stdout is reserved for MCP framing.
 Commands return `0` on success, `1` on a build or verification failure, and `2`
 for invalid arguments.
 
-### TypeScript reference verification
+### Semantic qualification
 
 ```bash
-codeindex-cli verify-references --config ./codeindex.config.json
+codeindex-cli qualify --extractor typescript --config ./codeindex.config.json
+
+codeindex-cli qualify --extractor oracle \
+  --root /path/to/workspace \
+  --project-file /path/to/workspace/oracle-index.json \
+  --identifiers /path/to/user-identifiers.csv \
+  --dependencies /path/to/user-dependencies.csv
 ```
 
-This compares a stratified sample of indexed references against the TypeScript
-language service. It is available only for the TypeScript extractor; when several
-project contexts are configured, it verifies the first context. The command
-exits successfully only when the configured project supplies at least 200 sampled
-symbols covering every required construct with at least 99.5% recall, 100%
-precision, and no skipped or mismatched symbols. The checked-in qualification
-corpus is `test/fixtures/reference-corpus/`.
+`qualify` dispatches to the selected adapter and exits non-zero when that
+adapter's gate fails.
+
+For TypeScript, it compares a stratified sample of indexed references against
+the language service. When several project contexts are configured, it verifies
+the first context. The command exits successfully only when the configured
+project supplies at least 200 sampled symbols covering every required construct
+with at least 99.5% recall, 100% precision, and no skipped or mismatched symbols.
+The checked-in qualification corpus is `test/fixtures/reference-corpus/`.
+
+For Oracle, it compares the published index with exported `USER_IDENTIFIERS` and
+`USER_DEPENDENCIES` CSV files. It does not connect to Oracle; database
+preparation and export remain separate, approved operations.
 
 ### Cache cleanup
 

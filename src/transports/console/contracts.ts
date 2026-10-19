@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {type AnalyticsDashboardType, type AnalyticsWindowType} from '../../core/analytics/contracts.ts';
 import {type IndexStatusType} from '../../core/model.ts';
 
-export const CONSOLE_OPERATIONS = ['update', 'rebuild', 'verify', 'benchmark', 'verify-references', 'mcp-install'] as const;
+export const CONSOLE_OPERATIONS = ['update', 'rebuild', 'verify', 'benchmark', 'qualify', 'mcp-install'] as const;
 
 export type ConsoleOperationType = (typeof CONSOLE_OPERATIONS)[number];
 

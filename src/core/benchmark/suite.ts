@@ -24,12 +24,12 @@ const {isAbsolute, join, relative, resolve, sep} = path;
 
 const usage = `Usage: codeindex-cli benchmark-suite --suite <path> [options]
 
-Runs a declarative reference qualification suite: generated profiles,
-pinned public projects, and TypeScript reference verification. Writes an
-immutable evidence directory with a manifest, reports, and checksums.
+Runs a declarative benchmark suite: generated profiles and pinned public
+projects. Optional adapter qualification steps reuse the same evidence
+directory. Writes an immutable manifest, reports, and checksums.
 
 Options:
-  --suite <path>         Suite manifest (default: benchmark/suites/reference.json)
+  --suite <path>         Suite manifest (default: benchmark/suites/typescript-generated.json)
   --output <path>        Evidence directory (default: ~/codeindex-evidence/<suite>-<timestamp>)
   --resume               Reuse passed steps from an existing evidence directory
   --allow-dirty          Permit a dirty CodeIndex checkout
@@ -157,7 +157,7 @@ const resolveRunInputs = (
 		home: string;
 	}>,
 ): RunInputsType => {
-	const suitePath = resolve(input.cwd, input.values.suite ?? 'benchmark/suites/reference.json');
+	const suitePath = resolve(input.cwd, input.values.suite ?? 'benchmark/suites/typescript-generated.json');
 	const suite = loadBenchmarkSuite(suitePath);
 	const repositoryRoot = repositoryRootOf(input.cwd);
 	const outputDir = resolve(input.cwd, expandHome(input.values.output ?? defaultOutputDir(suite.id, input.home), input.home));
@@ -374,7 +374,7 @@ const runSuite = async (
 };
 
 /**
- * Runs a declarative reference qualification suite.
+ * Runs a declarative benchmark suite.
  *
  * Every step spawns the installed CLI bundle in a fresh process. Passed steps
  * are reusable only when the suite, CLI artifact, commit, and machine identity

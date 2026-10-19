@@ -8,6 +8,6 @@ if [[ "${CODEINDEX_SKIP_BUILD:-0}" != "1" ]]; then
 	pnpm build
 fi
 
-exec node dist/cli.mjs benchmark-prepare \
-	--suite benchmark/suites/public-projects.json \
+exec node dist/cli.mjs benchmark-suite \
+	--suite benchmark/suites/typescript-generated.json \
 	"$@"

@@ -155,15 +155,15 @@ generation.
 ```bash
 pnpm verify
 pnpm build
-pnpm verify:references
+pnpm qualify:typescript
 codeindex-cli benchmark --config ./codeindex.config.json
 codeindex-cli benchmark --profile large --scenarios cold,warm,rebuild,deep
 codeindex-cli benchmark --profile medium --scenarios cold,edit --edit-rounds 5
 ```
 
-`verify-references` compares indexed occurrences with the TypeScript language
-service using exact byte ranges, definition/reference roles, and resolved symbol
-identity. It samples 200 symbols deterministically from the configured project and
+`qualify --extractor typescript` compares indexed occurrences with the
+TypeScript language service using exact byte ranges, definition/reference roles,
+and resolved symbol identity. It samples 200 symbols deterministically from the configured project and
 enforces the production gate:
 
 - at least 200 sampled symbols;
@@ -188,7 +188,7 @@ consumer index. Run it against the qualification corpus with:
 ```bash
 CODE_INDEX_ROOT=test/fixtures/reference-corpus \
 CODE_INDEX_PROJECT_FILE=test/fixtures/reference-corpus/tsconfig.json \
-pnpm verify:references
+pnpm qualify:typescript
 ```
 
 Benchmark storage execution, core calls, MCP transport, client wrapping, and full
@@ -207,7 +207,7 @@ plan. Status meanings:
 
 | Package | Status | Current implementation or remaining work |
 | --- | --- | --- |
-| WP0 — baselines and pilot gates | Partial | Build stages, local analytics, offline reports, the version-2 model-free benchmark, deterministic large-project profiles, a versioned baseline, explicit gates, an evaluation sidecar, Markdown summaries, the final reference corpus, and a declarative qualification suite for generated and pinned public-project runs exist. Missing retained reference-machine measurements. |
+| WP0 — baselines and pilot gates | Partial | Build stages, local analytics, offline reports, the version-2 model-free benchmark, deterministic large-project profiles, a versioned baseline, explicit gates, an evaluation sidecar, Markdown summaries, the final reference corpus, and declarative suites for generated and pinned public-project benchmark runs exist. Missing retained reference-machine measurements. |
 | WP1 — native OpenCode exposure | Partial | MCP installation and current Code Mode behavior are documented and protocol-tested. Retained direct-versus-Code-Mode benchmark and formal normal-session smoke evidence remain open. |
 | WP2 — continuous freshness | Implemented | Coordinator, recursive watcher, 500 ms debounce, 60 s reconciliation, one follow-up build, query freshness, dirty-source rejection, and shutdown ownership are implemented and tested. |
 | WP3 — persistence and writer coordination | Partial | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, and bounded generation cleanup exist. Process-level contention/termination evidence and explicit checkout move/copy/delete semantics remain incomplete. |

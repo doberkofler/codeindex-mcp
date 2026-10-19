@@ -38,13 +38,13 @@ const capture = (): Readonly<{stdout: string[]; stderr: string[]; io: Readonly<{
 };
 
 describe('benchmark suite', () => {
-	it('loads the committed reference and public-project suites', () => {
-		const reference = loadBenchmarkSuite(suitePath('reference'));
-		const publicProjects = loadBenchmarkSuite(suitePath('public-projects'));
+	it('loads the committed TypeScript generated and public-project suites', () => {
+		const generated = loadBenchmarkSuite(suitePath('typescript-generated'));
+		const publicProjects = loadBenchmarkSuite(suitePath('typescript-public'));
 
-		expect(reference.id).toBe('reference-workstation');
-		expect(reference.generated.map((entry) => entry.profile)).toStrictEqual(['large', 'xl']);
-		expect(reference.referenceVerification?.enabled).toBe(true);
+		expect(generated.id).toBe('typescript-generated');
+		expect(generated.generated.map((entry) => entry.profile)).toStrictEqual(['large', 'xl']);
+		expect(generated.referenceVerification).toBeUndefined();
 		expect(publicProjects.publicProjects.map((project) => project.name)).toStrictEqual(['typescript', 'vscode', 'material-ui']);
 
 		for (const project of publicProjects.publicProjects) {
@@ -110,7 +110,7 @@ describe('benchmark suite', () => {
 		expect(expandHome('~/projects', '/home/user')).toBe(path.join('/home/user', 'projects'));
 		expect(expandHome('/absolute/projects', '/home/user')).toBe('/absolute/projects');
 
-		const suite = loadBenchmarkSuite(suitePath('public-projects'));
+		const suite = loadBenchmarkSuite(suitePath('typescript-public'));
 
 		expect(resolveProjectsRoot(suite, undefined, '/home/user', '/repo')).toBe(
 			path.resolve('/repo', path.join('/home/user', '.cache', 'codeindex-benchmark', 'projects')),

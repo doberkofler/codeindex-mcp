@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 1,
-	"id": "reference-workstation",
-	"description": "Generated large and xl corpora plus TypeScript compiler reference verification.",
+	"id": "typescript-generated",
+	"description": "Generated large and xl TypeScript corpora for performance and regression evidence.",
 	"projectsRoot": "~/.cache/codeindex-benchmark/projects",
 	"generated": [
 		{
@@ -24,10 +24,5 @@
 			"reference": "first-run",
 			"coldProcess": false
 		}
-	],
-	"referenceVerification": {
-		"enabled": true,
-		"root": "test/fixtures/reference-corpus",
-		"projectFile": "tsconfig.json"
-	}
+	]
 }

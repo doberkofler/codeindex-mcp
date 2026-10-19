@@ -74,6 +74,10 @@ describe('operational CLI', () => {
 		await expect(runCli(['--help'], environment, help.io)).resolves.toBe(0);
 		expect(help.stdout()).toContain('Operational commands');
 
+		const qualify = captureIo();
+		await expect(runCli(['qualify', '--help'], environment, qualify.io)).resolves.toBe(0);
+		expect(qualify.stdout()).toContain('--extractor <id>');
+
 		const invalid = captureIo();
 		await expect(runCli(['explode'], environment, invalid.io)).resolves.toBe(2);
 		expect(invalid.stderr()).toContain("unknown command 'explode'");

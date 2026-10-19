@@ -157,6 +157,28 @@ package bodies, and 3 standalone functions.
 | Package dependency recall | 98.14% | 99.5% |
 | Package dependency precision | 100% | 100% |
 
+Run the comparison without connecting to Oracle:
+
+```bash
+pnpm qualify:oracle
+```
+
+The command reads `CODE_INDEX_ROOT`, `CODE_INDEX_PROJECT_FILE`,
+`CODE_INDEX_ORACLE_IDENTIFIERS`, and `CODE_INDEX_ORACLE_DEPENDENCIES`, or accepts
+the corresponding `--root`, `--project-file`, `--identifiers`, and
+`--dependencies` options. It exits non-zero when any gate fails.
+
+Performance measurement is separate:
+
+```bash
+CODE_INDEX_ROOT=/path/to/oracle/workspace \
+CODE_INDEX_PROJECT_FILE=/path/to/oracle/workspace/oracle-index.json \
+pnpm benchmark:oracle:corpus
+```
+
+It runs the normal `benchmark` command with the Oracle extractor and never
+connects to Oracle.
+
 Excluded from the corpus:
 
 - 7 source-only packages absent from the database;

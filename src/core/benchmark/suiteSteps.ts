@@ -237,8 +237,8 @@ const referenceStep = (
 	return {
 		id: 'reference:typescript',
 		kind: 'reference',
-		title: 'TypeScript compiler reference verification',
-		args: ({cliPath}) => [cliPath, 'verify-references'],
+		title: 'TypeScript language-service qualification',
+		args: ({cliPath}) => [cliPath, 'qualify', '--extractor', 'typescript'],
 		baselinePath: null,
 		referencePath: null,
 		environment: {

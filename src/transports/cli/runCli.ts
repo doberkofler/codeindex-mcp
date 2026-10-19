@@ -3,6 +3,7 @@ import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
 import {runBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
 import {runBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
 import {runBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
+import {runQualifyCommand} from '../../core/qualification/qualifyCommand.ts';
 import {loadConfig} from '../../core/config/config.ts';
 import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
 import {isCodeIndexError} from '../../core/errors/errors.ts';
@@ -260,20 +261,7 @@ const buildProgram = (context: CliContextType): Command => {
 	return program;
 };
 
-/**
- * Runs one operational command against a real working copy.
- *
- * Commander owns argument parsing, subcommand help, and usage errors. The CLI
- * emits status to stdout and diagnostics to stderr; it never touches the MCP
- * transport.
- *
- * @param argv - Arguments after the executable name.
- * @param environment - Environment source validated by `loadConfig`.
- * @param io - Output sinks used by tests.
- * @param options - Runtime injection points, including the bundled worker entry.
- * @returns Process exit code.
- */
-export const runCli = async (argv: readonly string[], environment: NodeJS.ProcessEnv, io: CliIoType, options: CodeIndexOptionsType = {}): Promise<number> => {
+const runSpecialCommand = (argv: readonly string[], environment: NodeJS.ProcessEnv, io: CliIoType): number | null | Promise<number> => {
 	if (argv[0] === 'analytics') {
 		return runAnalyticsCommand(argv.slice(1), environment, io);
 	}
@@ -288,6 +276,37 @@ export const runCli = async (argv: readonly string[], environment: NodeJS.Proces
 
 	if (argv[0] === 'benchmark-prepare') {
 		return runBenchmarkPrepareCommand(argv.slice(1), io);
+	}
+
+	if (argv[0] === 'qualify') {
+		return runQualifyCommand(argv.slice(1), environment, io);
+	}
+
+	if (argv[0] === 'verify-references') {
+		return runQualifyCommand(['--extractor', 'typescript', ...argv.slice(1)], environment, io);
+	}
+
+	return null;
+};
+
+/**
+ * Runs one operational command against a real working copy.
+ *
+ * Commander owns argument parsing, subcommand help, and usage errors. The CLI
+ * emits status to stdout and diagnostics to stderr; it never touches the MCP
+ * transport.
+ *
+ * @param argv - Arguments after the executable name.
+ * @param environment - Environment source validated by `loadConfig`.
+ * @param io - Output sinks used by tests.
+ * @param options - Runtime injection points, including the bundled worker entry.
+ * @returns Process exit code.
+ */
+export const runCli = async (argv: readonly string[], environment: NodeJS.ProcessEnv, io: CliIoType, options: CodeIndexOptionsType = {}): Promise<number> => {
+	const special = await runSpecialCommand(argv, environment, io);
+
+	if (special !== null) {
+		return special;
 	}
 
 	const program = buildProgram({environment, io, ...options});

@@ -175,8 +175,10 @@ export const parseBenchmarkOptions = (values: BenchmarkOptionValuesType): Benchm
 };
 
 export const parseBenchmarkArgs = (argv: readonly string[]): BenchmarkOptionValuesType => {
+	const separator = argv.indexOf('--');
+	const args = separator === -1 ? [...argv] : [...argv.slice(0, separator), ...argv.slice(separator + 1)];
 	const {values} = parseArgs({
-		args: [...argv],
+		args,
 		options: {
 			iterations: {type: 'string', default: '20'},
 			'edit-rounds': {type: 'string', default: '5'},

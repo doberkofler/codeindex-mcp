@@ -72,7 +72,7 @@ const meta: ConsoleMetaType = {
 	logLevel: 'error',
 	loopbackOnly: true,
 	tokenRequired: true,
-	operations: ['update', 'rebuild', 'verify', 'benchmark', 'verify-references'],
+	operations: ['update', 'rebuild', 'verify', 'benchmark', 'qualify'],
 };
 
 const createService = (): Readonly<{service: ConsoleServicePortType; operations: ConsoleOperationType[]}> => {

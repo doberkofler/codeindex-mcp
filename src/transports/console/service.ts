@@ -223,7 +223,7 @@ export class ConsoleService {
 			case 'mcp-install': {
 				return this.installMcp();
 			}
-			case 'verify-references': {
+			case 'qualify': {
 				const report = verifyTypeScriptReferences(this.#config);
 
 				return {

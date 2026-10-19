@@ -49,8 +49,8 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Verify references
-        run: pnpm verify:references
+      - name: Qualify TypeScript references
+        run: node dist/cli.mjs qualify --extractor typescript
         env:
           CODE_INDEX_ROOT: test/fixtures/reference-corpus
           CODE_INDEX_PROJECT_FILE: test/fixtures/reference-corpus/tsconfig.json

@@ -216,9 +216,10 @@ codeindex-cli status     # generation, counts, freshness, scope
 codeindex-cli verify     # SQLite integrity and stored counts
 codeindex-cli analytics  # offline analytics report (text, json, html)
 codeindex-cli benchmark  # cold/warm build, edit-to-fresh, resources, deep cursors
-codeindex-cli benchmark-suite    # run a declarative qualification suite
+codeindex-cli benchmark-suite    # run a declarative benchmark suite
 codeindex-cli benchmark-prepare  # clone and install pinned public projects
-codeindex-cli verify-references  # TypeScript reference cross-check
+codeindex-cli qualify --extractor typescript  # language-service reference cross-check
+codeindex-cli qualify --extractor oracle --identifiers ... --dependencies ...
 codeindex-cli clean      # remove local caches (dry run by default)
 ```
 
@@ -230,15 +231,27 @@ Markdown. `--reference` accepts a previous benchmark report or a stored referenc
 See the
 [maintainer guide](./documentation/maintainer-guide.md#7-performance-verification).
 
-Repeated qualification runs are orchestrated by a suite manifest. Each generated
+Repeated benchmark runs are orchestrated by a suite manifest. Each generated
 run starts from a pristine corpus, every step executes in a fresh process, and
 the evidence directory records identity, reports, gates, checksums, and a
 Markdown summary:
 
 ```bash
-pnpm benchmark:reference -- --output ~/codeindex-evidence/reference
-pnpm benchmark:prepare
-pnpm benchmark:public -- --output ~/codeindex-evidence/public
+pnpm benchmark:typescript:generated -- --output ~/codeindex-evidence/typescript-generated
+pnpm benchmark:typescript:public:prepare
+pnpm benchmark:typescript:public -- --output ~/codeindex-evidence/typescript-public
+pnpm benchmark:oracle:corpus -- --output ~/codeindex-evidence/oracle
+```
+
+Semantic qualification is separate from performance benchmarking:
+
+```bash
+pnpm qualify:typescript
+CODE_INDEX_ROOT=/path/to/oracle/workspace \
+CODE_INDEX_PROJECT_FILE=/path/to/oracle/workspace/oracle-index.json \
+CODE_INDEX_ORACLE_IDENTIFIERS=/path/to/user-identifiers.csv \
+CODE_INDEX_ORACLE_DEPENDENCIES=/path/to/user-dependencies.csv \
+pnpm qualify:oracle
 ```
 
 ### `codeindex-console`
@@ -251,7 +264,7 @@ codeindex-console --config ./codeindex.config.json --open
 
 It binds to `127.0.0.1`, requires a per-run bearer token, and serves a bundled
 frontend. It reports status, freshness, analytics, and runs update, rebuild,
-verify, benchmark, and reference verification operations.
+verify, benchmark, and qualification operations.
 
 ## Freshness and indexing semantics
 
@@ -296,11 +309,12 @@ verify, benchmark, and reference verification operations.
 ```bash
 pnpm install
 pnpm verify              # typecheck, Oxlint, Knip, Oxfmt, Vitest
-pnpm verify:references   # TypeScript reference cross-check against the configured project
+pnpm test:oracle         # Oracle adapter tests
+pnpm qualify:typescript  # TypeScript reference cross-check against the configured project
 # Qualification corpus:
 CODE_INDEX_ROOT=test/fixtures/reference-corpus \
 CODE_INDEX_PROJECT_FILE=test/fixtures/reference-corpus/tsconfig.json \
-pnpm verify:references
+pnpm qualify:typescript
 pnpm build
 ```
 

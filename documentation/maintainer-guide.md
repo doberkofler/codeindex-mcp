@@ -131,7 +131,7 @@ codeindex-cli benchmark --profile large --scenarios cold,warm,rebuild,edit,deep 
   --evaluation benchmark/results/nightly.evaluation.json \
   --summary benchmark/results/nightly.md
 
-# Add --reference benchmark/reference.json when a retained reference exists.
+# Add --reference <retained-report.json> when a retained reference exists.
 ```
 
 The report schema is version 2 and is written to `benchmark/results/` by default.
@@ -230,21 +230,28 @@ Markdown summary. Relative build, RSS, CPU, storage, and query gates are therefo
 active on scheduled runs; reference-machine gates remain authoritative when a
 retained report is supplied explicitly.
 
-### 7.3 Reference qualification suite
+### 7.3 Benchmark suites and qualification
 
-A qualifying run is orchestrated from a declarative suite rather than a sequence
-of shell commands. Two suites are committed:
+A benchmark run is orchestrated from a declarative suite rather than a sequence
+of shell commands. Two TypeScript suites are committed:
 
-- `benchmark/suites/reference.json` runs generated `large` twice and `xl` once,
-  measures `large` cold builds in a fresh process, and runs the TypeScript
-  compiler reference gate against `test/fixtures/reference-corpus/`.
-- `benchmark/suites/public-projects.json` pins TypeScript, VS Code, and Material
-  UI revisions and runs non-mutating scenarios twice per project.
+- `benchmark/suites/typescript-generated.json` runs generated `large` twice and
+  `xl` once, and measures `large` cold builds in a fresh process.
+- `benchmark/suites/typescript-public.json` pins TypeScript, VS Code, and
+  Material UI revisions and runs non-mutating scenarios twice per project.
+
+Semantic accuracy is a separate qualification operation, not a benchmark step:
+
+- `pnpm qualify:typescript` runs the TypeScript language-service gate against
+  `test/fixtures/reference-corpus/`.
+- `pnpm qualify:oracle` compares the indexed Oracle workspace with exported
+  PL/Scope and dependency CSV files. It performs no Oracle connection and no DDL.
 
 ```bash
-pnpm benchmark:reference -- --output ~/codeindex-evidence/reference
-pnpm benchmark:prepare
-pnpm benchmark:public -- --output ~/codeindex-evidence/public
+pnpm benchmark:typescript:generated -- --output ~/codeindex-evidence/typescript-generated
+pnpm benchmark:typescript:public:prepare
+pnpm benchmark:typescript:public -- --output ~/codeindex-evidence/typescript-public
+pnpm qualify:typescript
 ```
 
 Each step runs the built CLI in a fresh process. Generated profiles use a fresh
@@ -308,7 +315,7 @@ client event export for that denominator.
 
 ## 9. Release discipline
 
-- run `pnpm verify`, `pnpm verify:references`, and `pnpm build`;
+- run `pnpm verify`, `pnpm qualify:typescript`, and `pnpm build`;
 - keep stdout reserved for MCP framing;
 - inspect bundle contents for accidental evaluation/private code;
 - update architecture, adapter limitations, roadmap status, and changelog;

@@ -84,7 +84,7 @@ const ReferenceVerificationSchema = z.object({
 });
 
 /**
- * Declarative qualification suite.
+ * Declarative benchmark suite.
  *
  * Generated profiles are disposable corpora; public projects are pinned
  * checkouts prepared outside the measured interval. The suite contains no

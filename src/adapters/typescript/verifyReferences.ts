@@ -248,18 +248,19 @@ const serializableComparison = (comparison: ReferenceComparisonType): Readonly<R
 });
 
 /**
- * Runs reference verification and writes its JSON report to stdout.
+ * Runs reference verification and writes its JSON report to the supplied sink.
  *
  * @param environment - Environment source validated by `loadConfig`.
+ * @param io - Output sinks.
  * @returns Process exit code: 0 only when the production gate passes.
  */
-export const runVerification = (environment: NodeJS.ProcessEnv): number => {
+export const runVerification = (environment: NodeJS.ProcessEnv, io: Readonly<{stdout: (line: string) => void}>): number => {
 	const config = loadConfig(environment);
 	debug('verification start', {rootDir: config.rootDir, projectFile: config.projectFilePath});
 	const report = verifyTypeScriptReferences(config);
 
-	process.stdout.write(
-		`${JSON.stringify(
+	io.stdout(
+		JSON.stringify(
 			{
 				coverage: report.coverage,
 				accuracy: report.accuracy,
@@ -270,7 +271,7 @@ export const runVerification = (environment: NodeJS.ProcessEnv): number => {
 			},
 			null,
 			2,
-		)}\n`,
+		),
 	);
 
 	return report.gate.ok ? 0 : 1;

@@ -41,9 +41,9 @@ const OPERATION_CARDS: readonly Readonly<{operation: ConsoleOperationType; title
 	{operation: 'rebuild', title: 'Force rebuild', description: 'Publish a fresh generation even when hashes still match.', icon: BuildIcon},
 	{operation: 'verify', title: 'Verify integrity', description: 'Check SQLite integrity, foreign keys, and persisted row counts.', icon: FactCheckIcon},
 	{
-		operation: 'verify-references',
-		title: 'Verify references',
-		description: 'Compare a deterministic symbol sample with the TypeScript language service.',
+		operation: 'qualify',
+		title: 'Qualify references',
+		description: 'Compare indexed references with the adapter-specific truth source.',
 		icon: FactCheckIcon,
 	},
 ];

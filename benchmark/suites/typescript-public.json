@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 1,
-	"id": "public-projects",
+	"id": "typescript-public",
 	"description": "Pinned public TypeScript projects for directional compatibility and relative regression evidence.",
 	"projectsRoot": "~/.cache/codeindex-benchmark/projects",
 	"generated": [],

@@ -13,7 +13,7 @@ Clones the suite's pinned public projects and installs their dependencies.
 Checkout and dependency setup are not part of any measured scenario.
 
 Options:
-  --suite <path>         Suite manifest (default: benchmark/suites/public-projects.json)
+  --suite <path>         Suite manifest (default: benchmark/suites/typescript-public.json)
   --projects-root <path> Override the checkout root
   --skip-install         Clone and check out only
   --help                 Print this message
@@ -180,7 +180,7 @@ export const runBenchmarkPrepareCommand = (argv: readonly string[], io: Benchmar
 
 		const cwd = options.cwd ?? process.cwd();
 		const home = options.home ?? os.homedir();
-		const suitePath = path.resolve(cwd, values.suite ?? 'benchmark/suites/public-projects.json');
+		const suitePath = path.resolve(cwd, values.suite ?? 'benchmark/suites/typescript-public.json');
 		const suite = loadBenchmarkSuite(suitePath);
 		const projectsRoot = resolveProjectsRoot(suite, values['projects-root'], home, cwd);
 

@@ -9,5 +9,5 @@ if [[ "${CODEINDEX_SKIP_BUILD:-0}" != "1" ]]; then
 fi
 
 exec node dist/cli.mjs benchmark-suite \
-	--suite benchmark/suites/public-projects.json \
+	--suite benchmark/suites/typescript-public.json \
 	"$@"
