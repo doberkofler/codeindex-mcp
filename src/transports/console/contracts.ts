@@ -53,7 +53,7 @@ export type ConsoleSnapshotType = Readonly<{
 const operationSchema = z.enum(CONSOLE_OPERATIONS);
 const jobStateSchema = z.enum(['queued', 'running', 'succeeded', 'failed']);
 
-export const consoleJobSchema = z.object({
+const consoleJobSchema = z.object({
 	id: z.string(),
 	operation: operationSchema,
 	state: jobStateSchema,
@@ -65,7 +65,7 @@ export const consoleJobSchema = z.object({
 	result: z.unknown(),
 }) satisfies z.ZodType<ConsoleJobType>;
 
-export const consoleMetaSchema = z.object({
+const consoleMetaSchema = z.object({
 	program: z.string(),
 	version: z.string(),
 	nodeVersion: z.string(),
@@ -105,7 +105,7 @@ const buildLeaseSchema = z.object({
 	expiresAt: z.string(),
 });
 
-export const indexStatusSchema = z.object({
+const indexStatusSchema = z.object({
 	ready: z.boolean(),
 	state: z.enum(['building', 'published', 'superseded', 'failed', 'absent']),
 	refresh: z.enum(['current', 'dirty', 'building', 'failed', 'unknown', 'stopping']),
@@ -182,7 +182,7 @@ const analyticsToolSchema = z.object({
 	timeline: z.array(z.object({bucketStart: z.string(), calls: z.number(), errors: z.number()})),
 });
 
-export const analyticsWindowSchema = z.enum(['1h', '24h', '7d', '30d', 'all']) satisfies z.ZodType<AnalyticsWindowType>;
+const analyticsWindowSchema = z.enum(['1h', '24h', '7d', '30d', 'all']) satisfies z.ZodType<AnalyticsWindowType>;
 
 export const analyticsDashboardSchema = z.object({
 	generatedAt: z.string(),

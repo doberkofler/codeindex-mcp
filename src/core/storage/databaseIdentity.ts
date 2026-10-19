@@ -97,9 +97,7 @@ export const ensureIdentity = (
 			)
 			.run(randomUUID(), canonicalRoot, vcs.kind, vcs.repository, vcs.revision, vcs.relativeRoot, now, now);
 	} else if (context.vcs === undefined) {
-		writer
-			.prepare('update working_copy set canonical_root = ?, last_seen_at = ? where id = ?')
-			.run(canonicalRoot, now, asString(existing, 'id'));
+		writer.prepare('update working_copy set canonical_root = ?, last_seen_at = ? where id = ?').run(canonicalRoot, now, asString(existing, 'id'));
 	} else {
 		writer
 			.prepare(
