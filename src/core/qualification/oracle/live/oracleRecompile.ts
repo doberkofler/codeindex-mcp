@@ -50,18 +50,18 @@ const defaultSqlplusRunner: SqlplusRunnerType = (request) => {
 const tail = (value: string): string => value.trim().slice(-2000);
 
 /**
- * Compiles the frozen source snapshot through a SQL*Plus script.
+ * Recompiles the installed qualification objects with PL/Scope enabled.
  *
- * SQL*Plus remains the compile-only adapter because it already handles Oracle
- * script terminators and SQL*Plus directives in authored source. Session,
- * validation, and truth export use the Oracle driver instead.
+ * The script contains only `ALTER ... COMPILE` statements for objects named by
+ * the frozen source snapshot. It never runs authored `CREATE OR REPLACE`
+ * scripts, so the installed source remains the qualification source of truth.
  *
  * @param plan - Approved and hash-verified plan.
  * @param settings - Settings containing the Oracle connection and SQL*Plus executable.
  * @param environment - Parent environment forwarded without Oracle credentials.
  * @param runner - SQL*Plus runner, injectable for tests.
  */
-export const compileOracleSources = (
+export const recompileOracleObjects = (
 	plan: LivePlanType,
 	settings: OracleLiveSettingsType,
 	environment: NodeJS.ProcessEnv,
@@ -81,6 +81,6 @@ export const compileOracleSources = (
 
 	if (result.status !== 0) {
 		const detail = tail(result.stderr) || tail(result.stdout);
-		throw new Error(`Oracle compile step failed${detail === '' ? '' : `\n${detail}`}`);
+		throw new Error(`Oracle recompile step failed${detail === '' ? '' : `\n${detail}`}`);
 	}
 };

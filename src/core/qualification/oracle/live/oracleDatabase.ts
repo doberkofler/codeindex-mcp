@@ -1,9 +1,10 @@
 import {readFileSync} from 'node:fs';
 import type OracleDB from 'oracledb';
-import {compileOracleSources, type SqlplusRunnerType} from './oracleCompile.ts';
 import {writeCsvRows} from './oracleCsvExport.ts';
 import {type LivePlanType} from './oracleLivePlan.ts';
+import {recompileOracleObjects, type SqlplusRunnerType} from './oracleRecompile.ts';
 import {type OracleConnectionType, type OracleLiveSettingsType} from './oracleLiveSettings.ts';
+import {assertOracleSourceMatchesSnapshot} from './oracleLiveSource.ts';
 
 type OracleDatabaseType = Readonly<{
 	query: (sql: string) => Promise<readonly (readonly unknown[])[]>;
@@ -86,15 +87,16 @@ const invalidSummary = (rows: readonly (readonly unknown[])[]): string =>
 /**
  * Executes one approved live qualification plan.
  *
- * Order is deliberate: back up source first, compile the frozen snapshot
- * through SQL*Plus, then validate and export truth through the persistent
- * Oracle driver session. The plan is checked before this function is called.
+ * Order is deliberate: back up installed source first, verify it matches the
+ * frozen snapshot, recompile the installed objects with PL/Scope enabled, then
+ * validate and export truth through the persistent Oracle driver session. The
+ * plan is checked before this function is called.
  *
  * @param plan - Approved and hash-verified plan.
  * @param settings - Oracle connection and SQL*Plus settings.
  * @param environment - Parent environment forwarded without Oracle credentials.
- * @param dependencies - Injectable compile runner and database factory for tests.
- * @throws {Error} When compilation fails or any object remains invalid.
+ * @param dependencies - Injectable recompile runner and database factory for tests.
+ * @throws {Error} When source drift, recompilation failure, or invalid objects remain.
  */
 export const applyOracleLivePlan = async (
 	plan: LivePlanType,
@@ -111,8 +113,12 @@ export const applyOracleLivePlan = async (
 	const database = await (dependencies.databaseFactory ?? openOracleDatabase)(connection);
 
 	try {
-		writeCsvRows(plan.output.backup, await queryFile(database, plan.sql.backup.path));
-		compileOracleSources(plan, settings, environment, dependencies.sqlplusRunner);
+		const backup = await queryFile(database, plan.sql.backup.path);
+
+		writeCsvRows(plan.output.backup, backup);
+		assertOracleSourceMatchesSnapshot(plan, backup);
+		recompileOracleObjects(plan, settings, environment, dependencies.sqlplusRunner);
+
 		const invalid = await queryFile(database, plan.sql.validate.path);
 
 		writeCsvRows(plan.output.invalidObjects, invalid);

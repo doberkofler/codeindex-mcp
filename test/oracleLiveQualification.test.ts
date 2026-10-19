@@ -2,8 +2,9 @@ import {existsSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {applyOracleLivePlan} from '../src/core/qualification/oracle/live/oracleDatabase.ts';
-import {type SqlplusRequestType} from '../src/core/qualification/oracle/live/oracleCompile.ts';
+import {oracleSourceObjectOf, normalizeOracleSource} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
 import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
+import {type SqlplusRequestType} from '../src/core/qualification/oracle/live/oracleRecompile.ts';
 import {readOracleLiveSettings, type OracleLiveSettingsType} from '../src/core/qualification/oracle/live/oracleLiveSettings.ts';
 import {runOracleLiveQualification} from '../src/core/qualification/oracle/live/runOracleLiveQualification.ts';
 import {runCli} from '../src/transports/cli/runCli.ts';
@@ -42,19 +43,34 @@ type StubDatabaseType = Readonly<{
 	close: () => Promise<void>;
 }>;
 
-const stubDatabase = async (): Promise<StubDatabaseType> => {
-	await Promise.resolve();
+const stubDatabase =
+	(backup: readonly (readonly unknown[])[] = []): (() => Promise<StubDatabaseType>) =>
+	async (): Promise<StubDatabaseType> => {
+		await Promise.resolve();
 
-	return {
-		query: async (_sql: string): Promise<readonly (readonly unknown[])[]> => {
-			await Promise.resolve();
-			return [];
-		},
-		close: async (): Promise<void> => {
-			await Promise.resolve();
-		},
+		return {
+			query: async (sql: string): Promise<readonly (readonly unknown[])[]> => {
+				await Promise.resolve();
+				return sql.includes('FROM user_source') ? backup : [];
+			},
+			close: async (): Promise<void> => {
+				await Promise.resolve();
+			},
+		};
 	};
-};
+
+const sourceRows = (plan: LivePlanType): readonly (readonly unknown[])[] =>
+	plan.snapshot.files.flatMap((file) => {
+		const object = oracleSourceObjectOf(file.path);
+
+		if (object === null) {
+			return [];
+		}
+
+		return normalizeOracleSource(readFileSync(path.join(plan.snapshot.dir, file.path), 'utf8'))
+			.split('\n')
+			.map((text, index) => [object.type, object.name, index + 1, text]);
+	});
 
 describe('Oracle live qualification plan', () => {
 	it('creates a frozen snapshot, ordered SQL, and an approval hash without credentials', () => {
@@ -67,7 +83,10 @@ describe('Oracle live qualification plan', () => {
 
 			expect(plan.snapshot.files.length).toBeGreaterThan(5);
 			expect(existsSync(path.join(plan.snapshot.dir, 'oracle-index.json'))).toBe(true);
-			expect(compile.indexOf('hr_api.pks')).toBeLessThan(compile.indexOf('hr_api.pkb'));
+			expect(compile).toContain('ALTER PACKAGE "HR_API" COMPILE SPECIFICATION;');
+			expect(compile).toContain('ALTER PACKAGE "HR_API" COMPILE BODY;');
+			expect(compile.indexOf('COMPILE SPECIFICATION')).toBeLessThan(compile.indexOf('COMPILE BODY'));
+			expect(compile).not.toContain('@"');
 			expect(compile).toContain("ALTER SESSION SET PLSCOPE_SETTINGS = 'IDENTIFIERS:ALL';");
 			expect(readFileSync(plan.sql.identifiers.path, 'utf8')).toContain('user_identifiers');
 			expect(readFileSync(plan.sql.dependencies.path, 'utf8')).toContain('user_dependencies');
@@ -118,14 +137,14 @@ describe('Oracle live qualification application', () => {
 						requests.push(request);
 						return {status: 0, stdout: '', stderr: ''};
 					},
-					databaseFactory: async (): Promise<{query: (sql: string) => Promise<readonly unknown[][]>; close: () => Promise<void>}> => {
+					databaseFactory: async (): Promise<{query: (sql: string) => Promise<readonly (readonly unknown[])[]>; close: () => Promise<void>}> => {
 						await Promise.resolve();
 						return {
-							query: async (sql: string): Promise<readonly unknown[][]> => {
+							query: async (sql: string): Promise<readonly (readonly unknown[])[]> => {
 								await Promise.resolve();
 								if (sql.includes('FROM user_source')) {
 									events.push('backup');
-									return [['PACKAGE', 'HR_API', 1, 'x']];
+									return sourceRows(plan);
 								}
 								if (sql.includes("status = 'INVALID'")) {
 									events.push('validate');
@@ -160,7 +179,42 @@ describe('Oracle live qualification application', () => {
 			context.cleanup();
 		}
 	});
+});
 
+describe('Oracle live qualification drift', () => {
+	it('aborts before recompilation when installed source drifted', async () => {
+		const context = fixture();
+
+		try {
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
+			const approved = settingsOf(outputDir, plan.approval);
+			const altered = sourceRows(plan).map((row, index) => (index === 0 ? [row[0], row[1], row[2], `${String(row[3])} -- drift`] : row));
+			let recompiled = false;
+
+			await expect(
+				applyOracleLivePlan(
+					plan,
+					approved,
+					{},
+					{
+						sqlplusRunner: () => {
+							recompiled = true;
+							return {status: 0, stdout: '', stderr: ''};
+						},
+						databaseFactory: stubDatabase(altered),
+					},
+				),
+			).rejects.toThrow(/differs from the snapshot/u);
+
+			expect(recompiled).toBe(false);
+		} finally {
+			context.cleanup();
+		}
+	});
+});
+
+describe('Oracle live qualification run', () => {
 	it('applies an approved plan from the frozen snapshot', async () => {
 		const context = fixture();
 		const captured = capture();
@@ -174,7 +228,7 @@ describe('Oracle live qualification application', () => {
 				captured.io,
 				{
 					sqlplusRunner: () => ({status: 0, stdout: '', stderr: ''}),
-					databaseFactory: stubDatabase,
+					databaseFactory: stubDatabase(sourceRows(plan)),
 				},
 			);
 
@@ -210,6 +264,8 @@ describe('Oracle live qualification command', () => {
 
 			expect(captured.stderr).toStrictEqual([]);
 			expect(code).toBe(0);
+			expect(captured.stdout.join('\n')).toContain('WARNING: ORACLE DATABASE CHANGES');
+			expect(captured.stdout.join('\n')).toContain('No database connection has been made');
 			expect(captured.stdout.join('\n')).toContain('Approval:');
 
 			const plan = readFileSync(path.join(outputDir, 'plan.json'), 'utf8');

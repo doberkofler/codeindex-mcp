@@ -224,8 +224,12 @@ pnpm qualify:oracle:live -- --root /path/to/oracle/project
 The command generates an external manifest for every supported O1 source file
 under the root, freezes the source, writes `backup.sql`, `compile.sql`,
 `validate.sql`, `identifiers.sql`, and `dependencies.sql`, and prints an
-approval hash. It does not connect to Oracle. Review the generated SQL, then
-apply the same plan:
+approval hash. It does not connect to Oracle. `compile.sql` contains only
+`ALTER ... COMPILE` statements for installed objects; it never runs authored
+`CREATE OR REPLACE` scripts.
+
+The plan prints a database-change warning with the target schema. Review the
+generated SQL, then apply the same plan:
 
 ```bash
 ORACLE_SERVER=<connect-identifier> \
@@ -243,13 +247,19 @@ source checkout; it verifies and uses the frozen snapshot.
 Apply performs these steps:
 
 1. Opens one `oracledb` session and backs up `USER_SOURCE`.
-2. Compiles the frozen snapshot through SQL*Plus with
-   `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`.
-3. Fails when `USER_OBJECTS` still contains invalid objects.
-4. Exports `USER_IDENTIFIERS` and `USER_DEPENDENCIES` through the `oracledb`
+2. Aborts if installed source differs from the frozen snapshot.
+3. Recompiles the installed package specifications, package bodies, functions,
+   and procedures with `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`.
+4. Fails when `USER_OBJECTS` still contains invalid objects.
+5. Exports `USER_IDENTIFIERS` and `USER_DEPENDENCIES` through the `oracledb`
    session.
-5. Rebuilds the snapshot index with the current parser.
-6. Compares facts and writes `oracle-qualification.json` and `run.json`.
+6. Rebuilds the snapshot index with the current parser.
+7. Compares facts and writes `oracle-qualification.json` and `run.json`.
+
+Recompilation is database DDL. It does not replace source, but it can invalidate
+dependent objects and discard package state (`ORA-04068`). The command prints
+this warning before applying. Plan version 3 invalidates earlier plans that used
+`CREATE OR REPLACE`.
 
 `oracledb` is an optional dependency used only by live qualification; normal
 indexing and MCP operation never load it. SQL*Plus is retained only because it

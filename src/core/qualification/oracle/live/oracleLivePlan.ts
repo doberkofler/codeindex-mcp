@@ -6,6 +6,7 @@ import {scanOracleProject} from '../../../../adapters/oracle/scanProject.ts';
 import {readVcsProvenance} from '../../../../adapters/vcs/vcsProvenance.ts';
 import {type ConfigType} from '../../../config/config.ts';
 import {createSourceFileRecord} from '../../../generation/sourceFiles.ts';
+import {authoritativeOracleSources, recompileStatementOf, type OracleSourceObjectRefType} from './oracleLiveSource.ts';
 import {type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 import {BACKUP_SQL, DEPENDENCIES_SQL, IDENTIFIERS_SQL, VALIDATE_SQL} from './oracleLiveSql.ts';
 
@@ -15,7 +16,7 @@ const SqlSchema = z.object({
 });
 
 const LivePlanSchema = z.object({
-	version: z.literal(2),
+	version: z.literal(3),
 	approval: z.string().regex(/^[a-f0-9]{64}$/u),
 	createdAt: z.string().min(1),
 	project: z.object({
@@ -87,32 +88,25 @@ const header = (spool: string | null): string =>
 		...(spool === null ? [] : [`SPOOL ${spool}`]),
 	].join('\n');
 
-const compileSql = (files: readonly Readonly<{path: string; absolutePath: string}>[], snapshotDir: string): string => {
-	const specs = files.filter((file) => ['.pks', '.pkg'].includes(path.extname(file.path).toLowerCase()));
-	const bodies = files.filter((file) => !specs.includes(file));
-	const passes = [specs, specs, bodies, bodies];
-	const lines = [
-		header('compile.log'),
-		'WHENEVER SQLERROR EXIT SQL.SQLCODE',
-		"ALTER SESSION SET PLSCOPE_SETTINGS = 'IDENTIFIERS:ALL';",
-		'WHENEVER SQLERROR CONTINUE',
-	];
+const typePriority = (type: OracleSourceObjectRefType['type']): number => (type === 'PACKAGE' ? 0 : type === 'PACKAGE BODY' ? 1 : type === 'FUNCTION' ? 2 : 3);
 
-	for (const pass of passes) {
-		for (const file of pass) {
-			lines.push(`PROMPT FILE:${file.path}`, `@"${path.join(snapshotDir, file.path)}"`);
-		}
+const recompileSql = (files: readonly Readonly<{path: string}>[], snapshotDir: string): string => {
+	const ordered = authoritativeOracleSources(files, snapshotDir)
+		.map((entry) => entry.object)
+		.sort((left, right) => typePriority(left.type) - typePriority(right.type) || left.name.localeCompare(right.name));
+	const lines = [header('compile.log'), 'WHENEVER SQLERROR EXIT SQL.SQLCODE', "ALTER SESSION SET PLSCOPE_SETTINGS = 'IDENTIFIERS:ALL';"];
+
+	for (const object of ordered) {
+		lines.push(`PROMPT RECOMPILE:${object.type}:${object.name}`, `${recompileStatementOf(object)};`);
 	}
 
 	lines.push('SPOOL OFF', 'EXIT SQL.SQLCODE', '');
 	return lines.join('\n');
 };
 
-const sqlFilesOf = (
-	input: Readonly<{snapshotDir: string; files: readonly Readonly<{path: string; absolutePath: string}>[]}>,
-): Readonly<Record<LiveSqlNameType, string>> => ({
+const sqlFilesOf = (input: Readonly<{files: readonly Readonly<{path: string}>[]; snapshotDir: string}>): Readonly<Record<LiveSqlNameType, string>> => ({
 	backup: BACKUP_SQL,
-	compile: compileSql(input.files, input.snapshotDir),
+	compile: recompileSql(input.files, input.snapshotDir),
 	validate: VALIDATE_SQL,
 	identifiers: IDENTIFIERS_SQL,
 	dependencies: DEPENDENCIES_SQL,
@@ -186,7 +180,7 @@ export const createOracleLivePlan = (config: ConfigType, settings: OracleLiveSet
 	}
 
 	const files = created.files.map((file) => ({path: file.path, absolutePath: path.join(snapshotDir, file.path)}));
-	const contents = sqlFilesOf({snapshotDir, files});
+	const contents = sqlFilesOf({files, snapshotDir});
 	const writeSql = (name: LiveSqlNameType, content: string): LivePlanType['sql'][LiveSqlNameType] => {
 		const sqlPath = path.join(planDir, `${name}.sql`);
 
@@ -201,7 +195,7 @@ export const createOracleLivePlan = (config: ConfigType, settings: OracleLiveSet
 		dependencies: writeSql('dependencies', contents.dependencies),
 	};
 	const planWithoutApproval = {
-		version: 2 as const,
+		version: 3 as const,
 		project: {
 			name: config.projectName,
 			id: config.projectId,

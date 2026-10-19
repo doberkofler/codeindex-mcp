@@ -23,6 +23,20 @@ export type OracleLiveQualificationOptionsType = Readonly<{
 
 const projectIdOf = (rootDir: string): string => createHash('sha256').update(`oracle\n${rootDir}`).digest('hex').slice(0, 16);
 
+const schemaOf = (environment: NodeJS.ProcessEnv, settings: OracleLiveSettingsType): string =>
+	settings.connection?.user ?? environment['ORACLE_USER'] ?? '<connected schema>';
+
+const writeDatabaseWarning = (io: LiveIoType, schema: string, applying: boolean): void => {
+	io.stdout('WARNING: ORACLE DATABASE CHANGES');
+	io.stdout(`  Schema: ${schema}`);
+	io.stdout('  Action: recompile installed PL/SQL objects with PLSCOPE_SETTINGS=IDENTIFIERS:ALL.');
+	io.stdout('  It does not replace source, but it can invalidate dependent objects and discard package state (ORA-04068).');
+
+	if (!applying) {
+		io.stdout('  No database connection has been made. Review plan/compile.sql before applying.');
+	}
+};
+
 const resolveRoot = (root: string): string => {
 	const resolved = path.resolve(root);
 
@@ -194,6 +208,8 @@ export const runOracleLiveQualification = async (
 		mkdirSync(outputDir, {recursive: true});
 
 		const settings = readOracleLiveSettings(environment, {rootDir, outputDir, approval: options.approval});
+
+		writeDatabaseWarning(io, schemaOf(environment, settings), settings.approval !== null);
 
 		if (settings.approval === null) {
 			const manifestPath = manifestOf(environment, options, outputDir);
