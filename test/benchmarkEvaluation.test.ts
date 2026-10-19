@@ -210,6 +210,34 @@ describe('benchmark evaluation', () => {
 		}
 	});
 
+	it('enforces relative failures on the same platform despite a CPU-model mismatch', async () => {
+		const fixture = createFixtureConfig('simple-project');
+
+		try {
+			const report = await runBenchmarkReport({config: fixture.config, iterations: 1, force: false, scenarios: ['deep_cursor']});
+			const reference = referenceOf(report);
+			const baseline = (machine: Readonly<Record<string, string>>): BenchmarkBaselineType =>
+				baselineOf({
+					reference: {...reference, machine: {...reference.machine, ...machine}},
+					thresholds: {
+						buildWarningRatio: 1,
+						buildFailureRatio: 1,
+						latencySlackMs: 0,
+						memorySlackBytes: 0,
+						cpuSlackMs: 0,
+						storageSlackBytes: 0,
+					},
+				});
+			const samePlatform = evaluateBenchmark(report, baseline({cpuModel: 'different-cpu'}));
+			const otherPlatform = evaluateBenchmark(report, baseline({platform: 'other-platform'}));
+
+			expect(samePlatform.gates.find((entry) => entry.code === 'regression.cold_build.wall')?.status).toBe('failure');
+			expect(otherPlatform.gates.find((entry) => entry.code === 'regression.cold_build.wall')?.status).toBe('warning');
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
 	it('builds a Markdown summary from the same gate results', async () => {
 		const fixture = createFixtureConfig('simple-project');
 

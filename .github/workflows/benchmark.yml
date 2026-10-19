@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   benchmark:
@@ -41,17 +42,43 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Resolve previous reference
+        id: reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/benchmark.yml/runs?branch=main&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id // empty')
+          if [ -n "$run_id" ]; then
+            echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download previous reference
+        if: steps.reference.outputs.run-id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: benchmark-${{ steps.reference.outputs.run-id }}
+          path: benchmark/reference
+          run-id: ${{ steps.reference.outputs.run-id }}
+          github-token: ${{ github.token }}
+
       - name: Measure
-        run: >-
-          node dist/cli.mjs benchmark
-          --profile ${{ github.event.inputs.profile || 'large' }}
-          --scenarios cold,warm,rebuild,edit,deep
-          --iterations 20
-          --edit-rounds 5
-          --baseline benchmark/baseline.json
-          --evaluation benchmark/results/nightly.evaluation.json
-          --summary "$GITHUB_STEP_SUMMARY"
-          --output benchmark/results/nightly.json
+        run: |
+          reference_args=()
+          if [ -f benchmark/reference/nightly.json ]; then
+            reference_args=(--reference benchmark/reference/nightly.json)
+          fi
+          node dist/cli.mjs benchmark \
+            --profile "${{ github.event.inputs.profile || 'large' }}" \
+            --scenarios cold,warm,rebuild,edit,deep \
+            --iterations 20 \
+            --edit-rounds 5 \
+            --baseline benchmark/baseline.json \
+            "${reference_args[@]}" \
+            --evaluation benchmark/results/nightly.evaluation.json \
+            --summary "$GITHUB_STEP_SUMMARY" \
+            --output benchmark/results/nightly.json
 
       - name: Upload report
         if: always()

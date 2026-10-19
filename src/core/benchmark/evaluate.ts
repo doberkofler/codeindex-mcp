@@ -550,18 +550,13 @@ const regressionGates = (report: BenchmarkReportType, baseline: BenchmarkBaselin
 	return [...gates, ...queryRegressionGates(report, reference, baseline)];
 };
 
-const referenceMachineMatches = (report: BenchmarkReportType, baseline: BenchmarkBaselineType): boolean => {
+const referencePlatformMatches = (report: BenchmarkReportType, baseline: BenchmarkBaselineType): boolean => {
 	const {reference} = baseline;
 
-	return (
-		reference !== null &&
-		reference.machine.platform === report.machine.platform &&
-		reference.machine.arch === report.machine.arch &&
-		reference.machine.cpuModel === report.machine.cpuModel
-	);
+	return reference !== null && reference.machine.platform === report.machine.platform && reference.machine.arch === report.machine.arch;
 };
-const capRelativeFailures = (gates: readonly BenchmarkGateType[], machineMatches: boolean): readonly BenchmarkGateType[] =>
-	machineMatches ? gates : gates.map((entry) => (entry.category === 'regression' && entry.status === 'failure' ? {...entry, status: 'warning'} : entry));
+const capRelativeFailures = (gates: readonly BenchmarkGateType[], platformMatches: boolean): readonly BenchmarkGateType[] =>
+	platformMatches ? gates : gates.map((entry) => (entry.category === 'regression' && entry.status === 'failure' ? {...entry, status: 'warning'} : entry));
 
 const summaryOf = (gates: readonly BenchmarkGateType[]): BenchmarkEvaluationSummaryType => ({
 	pass: gates.filter((entry) => entry.status === 'pass').length,
@@ -587,7 +582,7 @@ export const evaluateBenchmark = (report: BenchmarkReportType, baseline: Benchma
 			: [skipped('regression.reference', 'Reference is incompatible; relative regression gates are skipped', 'regression')];
 	const gates = capRelativeFailures(
 		[...compatibility.gates, ...planGates(report), ...editGates(report, baseline), ...queryGates(report, baseline), ...hygieneGates(report), ...regression],
-		referenceMachineMatches(report, baseline),
+		referencePlatformMatches(report, baseline),
 	);
 	const summary = summaryOf(gates);
 	const status: BenchmarkEvaluationType['status'] = summary.failure > 0 ? 'failure' : summary.warning > 0 ? 'warning' : 'pass';

@@ -170,8 +170,9 @@ gates use the configured ratios and slack values. Generated corpus file and
 symbol counts are checked against deterministic profile expectations, so they
 must stay within the compatibility tolerance even when no reference exists. An
 external workspace still needs a reference for its count drift to be meaningful.
-Reference-machine mismatches warn, and relative gate failures are downgraded to
-warnings because hosted CI numbers are not authoritative. Absolute gates and
+Reference-machine mismatches warn. Relative gate failures are downgraded to
+warnings only when the reference platform or architecture differs; a CPU-model
+difference alone remains enforceable on the same platform. Absolute gates and
 invalid plans still fail on any machine.
 
 `--summary <path>` writes GitHub-flavoured Markdown derived from the same JSON
@@ -215,10 +216,11 @@ hash, and Node identity. Checkouts and dependency setup happen outside the measu
 scenario. Do not commit checkouts, installed dependencies, or derived databases.
 
 The scheduled [benchmark workflow](../.github/workflows/benchmark.yml) runs the
-generated corpus nightly, enforces the committed gates, uploads the report and
-evaluation JSON, and publishes the Markdown summary. Absolute gates and invalid
-plans fail nightly; relative gates require a reference report, and
-reference-machine gates remain authoritative.
+generated corpus nightly, downloads the newest successful nightly report as its
+reference, enforces the committed gates, uploads the report and evaluation JSON,
+and publishes the Markdown summary. Relative build, RSS, CPU, storage, and query
+gates are therefore active on scheduled runs; reference-machine gates remain
+authoritative when a retained report is supplied explicitly.
 
 Reference-machine targets:
 
