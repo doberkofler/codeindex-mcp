@@ -11,6 +11,7 @@ import {type LoggerType} from '../logging/logger.ts';
 import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
 import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
 import {buildGeneration} from './buildGeneration.ts';
+import {type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
 import {findDependencies as queryDependencies, findReferences as queryReferences, findSymbols as querySymbols} from '../query/queryService.ts';
 import {CodeIndexError, IndexNotReadyError, StaleFileError} from '../errors/errors.ts';
@@ -39,28 +40,16 @@ import {publishedFiles} from './publishedFiles.ts';
 import {startProcessSample} from '../resources/processSample.ts';
 import {readSymbolResult} from '../query/readSymbolResult.ts';
 import {hashContent} from './sourceFiles.ts';
-import {type ClockType, RefreshCoordinator, type RefreshReasonType} from '../freshness/refreshCoordinator.ts';
+import {RefreshCoordinator, type RefreshReasonType} from '../freshness/refreshCoordinator.ts';
 import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
 
 const {sep} = path;
 const debug = debugFor('index');
 const LEASE_RENEW_MS = 3000;
 
-export type CodeIndexOptionsType = Readonly<{
-	readonly workerEntry?: string;
-	readonly clock?: ClockType;
-	readonly watch?: boolean;
-	readonly debounceMs?: number;
-	readonly reconcileIntervalMs?: number;
-	readonly analytics?: AnalyticsRecorderType;
-}>;
+export type {CodeIndexOptionsType} from './codeIndexOptions.ts';
 
-/**
- * Deep module owning indexing, freshness, persistence, and bounded queries.
- *
- * MCP is a translation adapter over this interface. Tests exercise the same
- * interface with fixture workspaces and temporary databases.
- */
+/** Deep module owning indexing, freshness, persistence, and bounded queries. */
 export class CodeIndex {
 	readonly #config: ConfigType;
 	readonly #extractor: ExtractorType;
@@ -78,7 +67,7 @@ export class CodeIndex {
 
 	public constructor(config: ConfigType, database: IndexDatabase, logger: LoggerType, options: CodeIndexOptionsType = {}) {
 		this.#config = config;
-		this.#extractor = extractorFor(config.extractorId);
+		this.#extractor = options.extractor ?? extractorFor(config.extractorId);
 		this.#database = database;
 		this.#logger = logger;
 		this.#analytics = options.analytics ?? null;
@@ -86,7 +75,7 @@ export class CodeIndex {
 		this.#watchEnabled = options.watch ?? true;
 
 		const workerPath = fileURLToPath(new URL('buildWorker.js', import.meta.url));
-		this.#workerEntry = options.workerEntry ?? (existsSync(workerPath) ? workerPath : null);
+		this.#workerEntry = options.extractor === undefined ? (options.workerEntry ?? (existsSync(workerPath) ? workerPath : null)) : null;
 
 		this.#coordinator = new RefreshCoordinator({
 			logger,
@@ -468,7 +457,15 @@ export class CodeIndex {
 
 		if (workerPath === null) {
 			debug('building in process');
-			return buildGeneration({config: this.#config, database: this.#database, logger: this.#logger, scan, force, ownerId: this.#ownerId});
+			return buildGeneration({
+				config: this.#config,
+				database: this.#database,
+				logger: this.#logger,
+				scan,
+				force,
+				ownerId: this.#ownerId,
+				extractor: this.#extractor,
+			});
 		}
 
 		const report = await runBuildWorkerThread({

@@ -30,6 +30,7 @@ describe('qualification command', () => {
 		expect(captured.stdout()).toContain('--extractor <id>');
 		expect(captured.stdout()).toContain('--units <path>');
 		expect(captured.stdout()).toContain('--truth-policy <version>');
+		expect(captured.stdout()).toContain('--parser <parser>');
 		expect(captured.stderr()).toBe('');
 	});
 

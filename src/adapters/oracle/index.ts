@@ -12,7 +12,7 @@ import {type ExtractorBuildType, type ExtractorType} from '../types.ts';
 import {extractOracleDependencies} from './extractDependencies.ts';
 import {extractOracleSymbols, type OracleContextSymbolsType, type OracleParsedFileType} from './extractSymbols.ts';
 import {DEFAULT_ORACLE_SOURCE_EXTENSIONS, matchesOracleManifest, readOracleManifest} from './manifest.ts';
-import {parseOracleUnits} from './parseUnits.ts';
+import {assertOracleParserBinding, structuralOracleParserBinding, type OracleParserBindingType} from './parserBinding.ts';
 import {resolveOracleReferences} from './resolveReferences.ts';
 import {
 	collectOracleConfigFiles,
@@ -22,7 +22,6 @@ import {
 	ORACLE_IGNORED_SEGMENTS,
 	scanOracleProject,
 } from './scanProject.ts';
-import {tokenizeOracleSource} from './tokenize.ts';
 
 const debug = debugFor('oracle');
 
@@ -43,7 +42,12 @@ type ContextResultType = Readonly<{
 	parseMs: number;
 }>;
 
-const parseContext = (config: ConfigType, context: ConfigType['projects'][number], scan: ScanResultType): ContextResultType => {
+const parseContext = (
+	config: ConfigType,
+	context: ConfigType['projects'][number],
+	scan: ScanResultType,
+	parser: OracleParserBindingType['parser'],
+): ContextResultType => {
 	const startedAt = performance.now();
 	const manifest = readOracleManifest(context.projectFilePath);
 	const parsed: OracleParsedFileType[] = [];
@@ -51,11 +55,10 @@ const parseContext = (config: ConfigType, context: ConfigType['projects'][number
 
 	for (const file of scan.files.filter((candidate) => matchesOracleManifest(candidate.path, manifest.manifest))) {
 		const source = readFileSync(file.absolutePath, 'utf8');
-		const tokenized = tokenizeOracleSource(source, file.path);
-		const parse = parseOracleUnits({tokens: tokenized.tokens, path: file.path, defaultSchema: manifest.canonicalSchema});
+		const parse = parser({source, path: file.path, defaultSchema: manifest.canonicalSchema});
 
 		parsed.push({path: file.path, parse});
-		diagnostics.push(...tokenized.diagnostics, ...parse.diagnostics);
+		diagnostics.push(...parse.diagnostics);
 	}
 
 	const symbols = extractOracleSymbols({projectId: config.projectId, context: context.name, files: parsed});
@@ -140,9 +143,9 @@ const mergeDiagnostics = (contexts: readonly ContextResultType[]): readonly Diag
 	return [...merged.values()];
 };
 
-const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => {
+const build = (config: ConfigType, scan: ScanResultType, parser: OracleParserBindingType['parser']): ExtractorBuildType => {
 	const startedAt = performance.now();
-	const contexts = config.projects.map((context) => parseContext(config, context, scan));
+	const contexts = config.projects.map((context) => parseContext(config, context, scan, parser));
 	const compilerMs = contexts.reduce((total, context) => total + context.parseMs, 0);
 	const extractionMs = Math.round(performance.now() - startedAt);
 	const result = {
@@ -174,12 +177,15 @@ const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => 
 };
 
 /**
- * Oracle 19c SQL and PL/SQL extractor.
+ * Creates an Oracle extractor bound to one parser implementation.
  *
- * The adapter is static: it never opens a database connection. ANTLR lexer
- * objects stay inside per-file tokenization and only serializable facts leave.
+ * Production binds the structural parser. Qualification binds the ANTLR parser
+ * in a separate, dynamically loaded module.
+ *
+ * @param binding - Parser implementation and its serializable identity.
+ * @returns The adapter bound to that parser.
  */
-export const oracleExtractor: ExtractorType = {
+export const createOracleExtractor = (binding: OracleParserBindingType): ExtractorType => ({
 	id: ORACLE_EXTRACTOR_ID,
 	version: ORACLE_EXTRACTOR_VERSION,
 	displayName: 'Oracle 19c SQL / PL/SQL',
@@ -197,8 +203,22 @@ export const oracleExtractor: ExtractorType = {
 	},
 	ignoredSegments: ORACLE_IGNORED_SEGMENTS,
 	limitations: LIMITATIONS,
-	scan: scanOracleProject,
-	build,
+	scan: (config, knownPaths) => {
+		assertOracleParserBinding(config, binding);
+		return scanOracleProject(config, knownPaths);
+	},
+	build: (config, scan) => {
+		assertOracleParserBinding(config, binding);
+		return build(config, scan, binding.parser);
+	},
 	configFiles: collectOracleConfigFiles,
 	isSourceFile: isOracleAuthoredSourceFile,
-};
+});
+
+/**
+ * Production Oracle 19c SQL and PL/SQL extractor.
+ *
+ * The adapter is static: it never opens a database connection. ANTLR lexer
+ * objects stay inside per-file tokenization and only serializable facts leave.
+ */
+export const oracleExtractor: ExtractorType = createOracleExtractor(structuralOracleParserBinding);

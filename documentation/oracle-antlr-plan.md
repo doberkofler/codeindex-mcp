@@ -1,8 +1,8 @@
 # Oracle ANTLR Implementation Plan
 
-**Status:** proposed. Phase 0 is frozen, and Phases 1–7 are implemented behind an
-unwired adapter seam. No production switch is approved. The structural parser
-remains authoritative until every adoption gate in
+**Status:** proposed. Phase 0 is frozen, and Phases 1–8 are implemented behind a
+qualification-only adapter seam. No production switch is approved. The structural
+parser remains authoritative until every adoption gate in
 [`oracle-antlr.md`](./oracle-antlr.md) passes.
 
 ## Progress
@@ -17,7 +17,7 @@ remains authoritative until every adoption gate in
 | 5 — Dependencies | Implemented; package calls, package references, type references, external targets |
 | 6 — Qualification v2 | Implemented; versioned truth policy, extra classes, strata, golden facts |
 | 7 — Performance | Implemented; evidence in `benchmark/oracle-phase7`; full-build parity not met |
-| 8 — Integration and rollout | Open; production stays structural |
+| 8 — Integration and rollout | Integration implemented; quality evidence in `benchmark/oracle-phase8`; production stays structural |
 
 ## 1. Goal
 
@@ -340,6 +340,18 @@ later incremental-only decision, not production adoption.
 
 ### Phase 8 — Integration and rollout
 
+**Status:** integration implemented. The parser seam accepts an injected
+`OracleParserType`; production is statically bound to the structural parser; the
+qualification command accepts `--parser structural|antlr`; parser identity is
+persisted in `compilerVersion` and folded into `configHash`; a mismatched binding
+is rejected before scanning or extraction. The ANTLR extractor is loaded through
+a dynamic import so MCP and default CLI startup do not load it. Quality evidence
+is recorded in
+[`benchmark/oracle-phase8`](../benchmark/oracle-phase8/README.md): ANTLR improves
+declaration and reference recall but fails the precision gates and regresses
+dependency recall, so production was not switched and the structural parser was
+not removed.
+
 **Tasks**
 
 1. Introduce parser injection at the adapter seam:
@@ -361,6 +373,10 @@ later incremental-only decision, not production adoption.
 - Switching parsers cannot reuse a generation built by the other parser.
 - Production behavior is unchanged until the explicit adoption commit.
 - The old parser can be restored by reverting one binding.
+
+The first three tasks, parser identity, and the qualification selector are done.
+The structural binding is still the production binding. Tasks 6 and 7 remain
+closed until every quality and performance gate passes.
 
 ## 4. Test Matrix
 

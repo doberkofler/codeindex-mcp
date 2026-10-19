@@ -51,6 +51,41 @@ describe('Oracle qualification run', () => {
 		}
 	});
 
+	it('selects the ANTLR parser for qualification', async () => {
+		const fixture = createFixtureConfig('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+		const outputDirectory = temporaryDirectory();
+		const identifiers = writeCsv(outputDirectory, 'identifiers.csv');
+		const dependencies = writeCsv(outputDirectory, 'dependencies.csv');
+		const captured = capture();
+
+		try {
+			const code = await runOracleQualification(
+				environmentOf({
+					rootDir: fixture.config.rootDir,
+					extractorId: 'oracle',
+					projectFilePath: fixture.config.projectFilePath,
+					databasePath: fixture.config.databasePath,
+				}),
+				captured.io,
+				{identifiers, dependencies, parser: 'antlr'},
+			);
+			const report = JSON.parse(captured.stdout.join('\n')) as {
+				parser: {id: string; compilerVersion: string};
+				generationId: string;
+				corpus: {files: number; objects: number};
+				declarations: {actual: number};
+			};
+
+			expect(code).toBe(1);
+			expect(report.parser.id).toBe('antlr');
+			expect(report.parser.compilerVersion).toContain('parser@antlr');
+			expect(report.corpus.files).toBeGreaterThan(5);
+			expect(report.declarations.actual).toBeGreaterThan(0);
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
 	it('requires both truth exports', async () => {
 		const captured = capture();
 

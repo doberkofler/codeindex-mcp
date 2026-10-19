@@ -5,16 +5,15 @@ import {type ConfigType, toRepositoryPath} from '../../core/config/config.ts';
 import {createSourceFileRecord, computeSourceHash} from '../../core/generation/sourceFiles.ts';
 import {type ScanProjectResultType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
 import {discoverOracleFiles, isOracleSourcePath, oracleManifestHash, readOracleManifest} from './manifest.ts';
+import {oracleParserIdOfConfig} from './parserBinding.ts';
+import {oracleParserIdentityOf} from './parserIdentity.ts';
 
 export const ORACLE_EXTRACTOR_ID = 'oracle';
 export const ORACLE_EXTRACTOR_VERSION = '0.1.0';
-const ORACLE_GRAMMAR_REVISION = 'grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd';
-const ORACLE_RUNTIME_VERSION = 'antlr4ng@3.0.16';
 
 const {isAbsolute, relative, sep} = path;
 
 export const ORACLE_IGNORED_SEGMENTS: readonly string[] = ['node_modules', '.git', '.svn', '.hg', 'dist', 'build', 'coverage', 'temp', '.vite'];
-const ORACLE_COMPILER_VERSION = `oracle19c;${ORACLE_RUNTIME_VERSION};grammar@${ORACLE_GRAMMAR_REVISION}`;
 
 const hash = (value: string): string => createHash('sha256').update(value).digest('hex');
 
@@ -63,14 +62,14 @@ const scanContext = (config: ConfigType, context: ConfigType['projects'][number]
 	const manifest = readOracleManifest(context.projectFilePath);
 	const discovery = discoverOracleFiles(config.rootDir, manifest.manifest);
 	const files = discovery.files.map((file) => createSourceFileRecord(file.absolutePath, config.rootDir));
+	const identity = oracleParserIdentityOf(oracleParserIdOfConfig(config));
 	const configHash = oracleManifestHash({
 		manifestBytes: manifest.manifestBytes,
 		canonicalSchema: manifest.canonicalSchema,
 		include: manifest.manifest.include,
 		exclude: manifest.manifest.exclude,
 		extensions: manifest.manifest.extensions,
-		grammarRevision: ORACLE_GRAMMAR_REVISION,
-		runtimeVersion: ORACLE_RUNTIME_VERSION,
+		parserRevision: identity.revision,
 		files,
 	});
 
@@ -98,6 +97,7 @@ const scanContext = (config: ConfigType, context: ConfigType['projects'][number]
  */
 export const scanOracleProject = (config: ConfigType, _knownPaths: readonly string[] = []): ScanResultType => {
 	const startedAt = performance.now();
+	const identity = oracleParserIdentityOf(oracleParserIdOfConfig(config));
 	const contexts = config.projects.map((context) => scanContext(config, context));
 	const merged = new Map<string, SourceFileType>();
 
@@ -121,7 +121,7 @@ export const scanOracleProject = (config: ConfigType, _knownPaths: readonly stri
 		projectId: config.projectId,
 		extractorId: ORACLE_EXTRACTOR_ID,
 		extractorVersion: ORACLE_EXTRACTOR_VERSION,
-		compilerVersion: ORACLE_COMPILER_VERSION,
+		compilerVersion: identity.compilerVersion,
 		declaredCompilerVersion: null,
 		compilerDrift: false,
 		files,

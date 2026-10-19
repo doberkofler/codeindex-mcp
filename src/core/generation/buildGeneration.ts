@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {type ConfigType} from '../config/config.ts';
 import {extractorFor} from '../../adapters/registry.ts';
+import {type ExtractorType} from '../../adapters/types.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {
@@ -25,6 +26,8 @@ type BuildInputType = Readonly<{
 	scan?: ScanResultType;
 	force?: boolean;
 	ownerId?: string;
+	/** Qualification-only adapter override; production resolves from the registry. */
+	extractor?: ExtractorType;
 }>;
 
 type BuildCountsType = Readonly<{
@@ -264,9 +267,10 @@ const executeBuild = (
 		startedAt: number;
 		scanMs: number;
 		ownerId?: string;
+		extractor?: ExtractorType;
 	}>,
 ): BuildReportType => {
-	const extractor = extractorFor(input.config.extractorId);
+	const extractor = input.extractor ?? extractorFor(input.config.extractorId);
 	debugMemory('build-start');
 	const extracted = extractor.build(input.config, input.scan);
 	debugMemory('extracted');
@@ -370,7 +374,7 @@ export const buildGeneration = (input: BuildInputType): BuildReportType => {
 	const published = input.database.getPublishedGeneration();
 	const publishedId = published?.id ?? null;
 	const knownPaths = publishedId === null ? [] : input.database.listFiles(publishedId).map((file) => file.path);
-	const scan = input.scan ?? extractorFor(input.config.extractorId).scan(input.config, knownPaths);
+	const scan = input.scan ?? (input.extractor ?? extractorFor(input.config.extractorId)).scan(input.config, knownPaths);
 	const {scanMs} = scan;
 	const reusable = findReusableGeneration(input.database, scan, input.force);
 	debug('build start', {
@@ -421,6 +425,7 @@ export const buildGeneration = (input: BuildInputType): BuildReportType => {
 			startedAt,
 			scanMs,
 			...(input.ownerId === undefined ? {} : {ownerId: input.ownerId}),
+			...(input.extractor === undefined ? {} : {extractor: input.extractor}),
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

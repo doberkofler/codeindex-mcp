@@ -1,0 +1,6919 @@
+{
+	"extractor": "oracle",
+	"generationId": "293f7def-e3e9-4575-a0c0-edb08d7f7ae4",
+	"parser": {
+		"id": "antlr",
+		"revision": "antlr@1;runtime@antlr4ng@3.0.16;grammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd",
+		"compilerVersion": "oracle19c;parser@antlr;runtime@antlr4ng@3.0.16;grammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd"
+	},
+	"corpus": {
+		"files": 1237,
+		"objects": 1237
+	},
+	"policy": {
+		"version": "v2",
+		"supportedTypes": [
+			"ASSOCIATIVE ARRAY",
+			"CONSTANT",
+			"CURSOR",
+			"EXCEPTION",
+			"FORMAL IN",
+			"FORMAL IN OUT",
+			"FORMAL OUT",
+			"FUNCTION",
+			"INDEX TABLE",
+			"ITERATOR",
+			"NESTED TABLE",
+			"PACKAGE",
+			"PROCEDURE",
+			"RECORD",
+			"RECORD FIELD",
+			"RECORD ITERATOR",
+			"REFCURSOR",
+			"SUBTYPE",
+			"VARIABLE",
+			"VARRAY"
+		],
+		"supportedKinds": [
+			"collection_type",
+			"constant",
+			"cursor",
+			"exception",
+			"field",
+			"function",
+			"package",
+			"parameter",
+			"procedure",
+			"record_type",
+			"subtype",
+			"variable"
+		]
+	},
+	"truth": {
+		"rows": 926164,
+		"invalidDeclarationRows": 9863,
+		"excludedPackageReferences": 63076,
+		"excludedByReason": {
+			"unsupported_identifier_type": 164587,
+			"unmapped_usage": 0,
+			"invalid_declaration": 9843,
+			"package_reference": 63076,
+			"missing_group_declaration": 86639
+		}
+	},
+	"declarations": {
+		"truth": 126844,
+		"actual": 123011,
+		"matched": 122963,
+		"missing": 3881,
+		"extra": 48,
+		"ignoredExtra": 6,
+		"recall": 0.9694033616095361,
+		"precision": 0.9996585504654283,
+		"samplesMissing": [
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 111,
+				"column": 6,
+				"name": "ACISEXIST",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 122,
+				"column": 6,
+				"name": "ACISEXIST",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 34,
+				"name": "JOBSURVEYID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 47,
+				"name": "AGENCYID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 57,
+				"name": "CUSTID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 65,
+				"name": "PRODID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 73,
+				"name": "CAMPID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 81,
+				"name": "JOBID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 88,
+				"name": "JOBEMPLID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 10,
+				"name": "JOBRESPEMPLCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 27,
+				"name": "CUSTMATCHCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 42,
+				"name": "PRODMATCHCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 57,
+				"name": "CAMPMATCHCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 72,
+				"name": "JOBMATCHCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 86,
+				"name": "INTJOBNO",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr01660_view.sql",
+				"line": 213,
+				"column": 7,
+				"name": "ADETAILEDHOURSEXIST",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr01660_view.sql",
+				"line": 222,
+				"column": 28,
+				"name": "JPOSPOSNO",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr01660_view.sql",
+				"line": 222,
+				"column": 39,
+				"name": "EMPLID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr01660_view.sql",
+				"line": 222,
+				"column": 47,
+				"name": "EMPLNAME",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+				"line": 3217,
+				"column": 5,
+				"name": "ISTOSPLITBYAGENCY",
+				"type": "VARIABLE"
+			}
+		],
+		"samplesExtra": [
+			{
+				"path": "PACKAGES/las_mod_order_json.pkb",
+				"line": 2068,
+				"column": 7,
+				"name": "value_array",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_mod_order_json.pks",
+				"symbolLine": 238,
+				"symbolColumn": 51
+			},
+			{
+				"path": "PACKAGES/ods_uti_pdf.pkb",
+				"line": 3745,
+				"column": 24,
+				"name": "t_img",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+				"symbolLine": 3745,
+				"symbolColumn": 24
+			},
+			{
+				"path": "PACKAGES/las_rep_timereportempl.pkb",
+				"line": 1068,
+				"column": 22,
+				"name": "theReportInfo",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_rep_timereportempl.pks",
+				"symbolLine": 41,
+				"symbolColumn": 22
+			},
+			{
+				"path": "PACKAGES/las_rep_timereportstathours.pkb",
+				"line": 2018,
+				"column": 22,
+				"name": "theReportInfo",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_rep_timereportstathours.pks",
+				"symbolLine": 41,
+				"symbolColumn": 22
+			},
+			{
+				"path": "FILL/f_odsresources.sql",
+				"line": 2,
+				"column": 2,
+				"name": "aString",
+				"kind": "variable",
+				"symbolPath": "FILL/f_odsresources.sql",
+				"symbolLine": 2,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_mod_storedreport_run.pkb",
+				"line": 1382,
+				"column": 54,
+				"name": "theParam",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+				"symbolLine": 1382,
+				"symbolColumn": 54
+			},
+			{
+				"path": "PACKAGES/las_mod_storedreport_run.pkb",
+				"line": 1381,
+				"column": 17,
+				"name": "kMaxLen",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+				"symbolLine": 1381,
+				"symbolColumn": 17
+			},
+			{
+				"path": "FILL/f_odsresources.sql",
+				"line": 1,
+				"column": 33,
+				"name": "theLang",
+				"kind": "parameter",
+				"symbolPath": "FILL/f_odsresources.sql",
+				"symbolLine": 1,
+				"symbolColumn": 33
+			},
+			{
+				"path": "PACKAGES/las_rep_sijournal.pkb",
+				"line": 513,
+				"column": 2,
+				"name": "aRec",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+				"symbolLine": 513,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_mod_ceheader_json.pkb",
+				"line": 2216,
+				"column": 7,
+				"name": "value_array",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_mod_ceheader_json.pks",
+				"symbolLine": 165,
+				"symbolColumn": 51
+			},
+			{
+				"path": "PACKAGES/las_mod_storedreport_run.pkb",
+				"line": 1382,
+				"column": 74,
+				"name": "reportNode",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+				"symbolLine": 1382,
+				"symbolColumn": 74
+			},
+			{
+				"path": "PACKAGES/las_rep_timereportovertime.pkb",
+				"line": 1181,
+				"column": 22,
+				"name": "theReportInfo",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_rep_timereportovertime.pks",
+				"symbolLine": 41,
+				"symbolColumn": 22
+			},
+			{
+				"path": "PACKAGES/ods_uti_pdf.pkb",
+				"line": 3745,
+				"column": 75,
+				"name": "t_img",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+				"symbolLine": 3745,
+				"symbolColumn": 75
+			},
+			{
+				"path": "FILL/f_odsresources.sql",
+				"line": 1,
+				"column": 29,
+				"name": "ii",
+				"kind": "procedure",
+				"symbolPath": "FILL/f_odsresources.sql",
+				"symbolLine": 1,
+				"symbolColumn": 1
+			},
+			{
+				"path": "PACKAGES/las_mod_language_data.pkb",
+				"line": 136,
+				"column": 31,
+				"name": "src",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_language_data.pkb",
+				"symbolLine": 136,
+				"symbolColumn": 31
+			},
+			{
+				"path": "PACKAGES/las_mod_storedreport_run.pkb",
+				"line": 1382,
+				"column": 17,
+				"name": "kMaxLen",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+				"symbolLine": 1382,
+				"symbolColumn": 17
+			},
+			{
+				"path": "PACKAGES/las_mod_storedreport_run.pkb",
+				"line": 1381,
+				"column": 54,
+				"name": "theParam",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+				"symbolLine": 1381,
+				"symbolColumn": 54
+			},
+			{
+				"path": "PACKAGES/las_mod_storedreport_run.pkb",
+				"line": 1382,
+				"column": 63,
+				"name": "reportInfo",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+				"symbolLine": 1382,
+				"symbolColumn": 63
+			},
+			{
+				"path": "PACKAGES/las_mod_order_json.pkb",
+				"line": 2067,
+				"column": 25,
+				"name": "name_array",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_mod_order_json.pks",
+				"symbolLine": 238,
+				"symbolColumn": 25
+			},
+			{
+				"path": "PACKAGES/las_rep_cejournal.pkb",
+				"line": 1304,
+				"column": 22,
+				"name": "theReportInfo",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_rep_cejournal.pks",
+				"symbolLine": 41,
+				"symbolColumn": 22
+			}
+		],
+		"extraClasses": {
+			"omitted_by_policy": {
+				"count": 0,
+				"samples": []
+			},
+			"location_mismatch": {
+				"count": 0,
+				"samples": []
+			},
+			"outside_plscope": {
+				"count": 6,
+				"samples": [
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 2,
+						"column": 2,
+						"name": "aString",
+						"kind": "variable",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 2,
+						"symbolColumn": 2
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 1,
+						"column": 33,
+						"name": "theLang",
+						"kind": "parameter",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 33
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 1,
+						"column": 29,
+						"name": "ii",
+						"kind": "procedure",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 1
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 1,
+						"column": 92,
+						"name": "theReplaceTokens",
+						"kind": "parameter",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 92
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 1,
+						"column": 69,
+						"name": "theString",
+						"kind": "parameter",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 69
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 1,
+						"column": 52,
+						"name": "theID",
+						"kind": "parameter",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 52
+					}
+				]
+			},
+			"false_positive": {
+				"count": 42,
+				"samples": [
+					{
+						"path": "PACKAGES/las_mod_order_json.pkb",
+						"line": 2068,
+						"column": 7,
+						"name": "value_array",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_order_json.pks",
+						"symbolLine": 238,
+						"symbolColumn": 51
+					},
+					{
+						"path": "PACKAGES/ods_uti_pdf.pkb",
+						"line": 3745,
+						"column": 24,
+						"name": "t_img",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+						"symbolLine": 3745,
+						"symbolColumn": 24
+					},
+					{
+						"path": "PACKAGES/las_rep_timereportempl.pkb",
+						"line": 1068,
+						"column": 22,
+						"name": "theReportInfo",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_rep_timereportempl.pks",
+						"symbolLine": 41,
+						"symbolColumn": 22
+					},
+					{
+						"path": "PACKAGES/las_rep_timereportstathours.pkb",
+						"line": 2018,
+						"column": 22,
+						"name": "theReportInfo",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_rep_timereportstathours.pks",
+						"symbolLine": 41,
+						"symbolColumn": 22
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_run.pkb",
+						"line": 1382,
+						"column": 54,
+						"name": "theParam",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+						"symbolLine": 1382,
+						"symbolColumn": 54
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_run.pkb",
+						"line": 1381,
+						"column": 17,
+						"name": "kMaxLen",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+						"symbolLine": 1381,
+						"symbolColumn": 17
+					},
+					{
+						"path": "PACKAGES/las_rep_sijournal.pkb",
+						"line": 513,
+						"column": 2,
+						"name": "aRec",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+						"symbolLine": 513,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_mod_ceheader_json.pkb",
+						"line": 2216,
+						"column": 7,
+						"name": "value_array",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_ceheader_json.pks",
+						"symbolLine": 165,
+						"symbolColumn": 51
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_run.pkb",
+						"line": 1382,
+						"column": 74,
+						"name": "reportNode",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+						"symbolLine": 1382,
+						"symbolColumn": 74
+					},
+					{
+						"path": "PACKAGES/las_rep_timereportovertime.pkb",
+						"line": 1181,
+						"column": 22,
+						"name": "theReportInfo",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_rep_timereportovertime.pks",
+						"symbolLine": 41,
+						"symbolColumn": 22
+					},
+					{
+						"path": "PACKAGES/ods_uti_pdf.pkb",
+						"line": 3745,
+						"column": 75,
+						"name": "t_img",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+						"symbolLine": 3745,
+						"symbolColumn": 75
+					},
+					{
+						"path": "PACKAGES/las_mod_language_data.pkb",
+						"line": 136,
+						"column": 31,
+						"name": "src",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_language_data.pkb",
+						"symbolLine": 136,
+						"symbolColumn": 31
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_run.pkb",
+						"line": 1382,
+						"column": 17,
+						"name": "kMaxLen",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+						"symbolLine": 1382,
+						"symbolColumn": 17
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_run.pkb",
+						"line": 1381,
+						"column": 54,
+						"name": "theParam",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+						"symbolLine": 1381,
+						"symbolColumn": 54
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_run.pkb",
+						"line": 1382,
+						"column": 63,
+						"name": "reportInfo",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+						"symbolLine": 1382,
+						"symbolColumn": 63
+					},
+					{
+						"path": "PACKAGES/las_mod_order_json.pkb",
+						"line": 2067,
+						"column": 25,
+						"name": "name_array",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_order_json.pks",
+						"symbolLine": 238,
+						"symbolColumn": 25
+					},
+					{
+						"path": "PACKAGES/las_rep_cejournal.pkb",
+						"line": 1304,
+						"column": 22,
+						"name": "theReportInfo",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_rep_cejournal.pks",
+						"symbolLine": 41,
+						"symbolColumn": 22
+					},
+					{
+						"path": "PACKAGES/las_rep_timereportstat.pkb",
+						"line": 1284,
+						"column": 22,
+						"name": "theReportInfo",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_rep_timereportstat.pks",
+						"symbolLine": 41,
+						"symbolColumn": 22
+					},
+					{
+						"path": "PACKAGES/las_sub_cistatus.pkb",
+						"line": 1885,
+						"column": 59,
+						"name": "theListOfCIHeaderIDs",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_sub_cistatus.pks",
+						"symbolLine": 324,
+						"symbolColumn": 9
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_uti.pkb",
+						"line": 22,
+						"column": 20,
+						"name": "theParam",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+						"symbolLine": 90,
+						"symbolColumn": 20
+					}
+				]
+			}
+		}
+	},
+	"references": {
+		"truth": 471631,
+		"actual": 328612,
+		"matched": 326045,
+		"missing": 145586,
+		"extra": 2567,
+		"ignoredExtra": 566,
+		"recall": 0.6913137601217901,
+		"precision": 0.9939002456972498,
+		"samplesMissing": [
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 41,
+				"column": 2,
+				"name": "ATABLEDATA",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 93,
+				"column": 14,
+				"name": "ATABLEDATA",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 66,
+				"column": 14,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 66,
+				"column": 35,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 71,
+				"column": 23,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 71,
+				"column": 44,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 93,
+				"column": 55,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 94,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 95,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 96,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 97,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 98,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 99,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 100,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 101,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 102,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 103,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 104,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 105,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 106,
+				"column": 16,
+				"name": "AJOBREC",
+				"type": "RECORD ITERATOR"
+			}
+		],
+		"samplesExtra": [
+			{
+				"path": "PACKAGES/las_mod_paymentcondition_data.pkb",
+				"line": 104,
+				"column": 7,
+				"name": "anIsNumeric",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_paymentcondition_data.pkb",
+				"symbolLine": 78,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_sql_job.pkb",
+				"line": 2860,
+				"column": 5,
+				"name": "theIsConnectedCEsModified",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_sql_job.pks",
+				"symbolLine": 599,
+				"symbolColumn": 6
+			},
+			{
+				"path": "PACKAGES/las_mod_pm_workplan_extra.pkb",
+				"line": 313,
+				"column": 8,
+				"name": "anIsFirstEmpl",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_pm_workplan_extra.pkb",
+				"symbolLine": 123,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_mod_order_json.pkb",
+				"line": 2078,
+				"column": 8,
+				"name": "value_array",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_mod_order_json.pks",
+				"symbolLine": 238,
+				"symbolColumn": 51
+			},
+			{
+				"path": "PACKAGES/las_sub_hour.pkb",
+				"line": 2294,
+				"column": 5,
+				"name": "theIsOK",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_sub_hour.pks",
+				"symbolLine": 115,
+				"symbolColumn": 8
+			},
+			{
+				"path": "PACKAGES/las_mod_pos_json.pkb",
+				"line": 7046,
+				"column": 5,
+				"name": "aHasNewDefaultCostCentre",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+				"symbolLine": 6955,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_mod_pos_json.pkb",
+				"line": 7087,
+				"column": 5,
+				"name": "aHasNewDefaultCostCentre",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+				"symbolLine": 6955,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_sub_reportform_ord.pkb",
+				"line": 820,
+				"column": 5,
+				"name": "aPrintBold",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_sub_reportform_ord.pkb",
+				"symbolLine": 817,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_sub_siheader.pkb",
+				"line": 3835,
+				"column": 5,
+				"name": "aCommonTargetExists",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_sub_siheader.pkb",
+				"symbolLine": 3796,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+				"line": 3344,
+				"column": 5,
+				"name": "anExists",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+				"symbolLine": 3330,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_sys_authentication.pkb",
+				"line": 520,
+				"column": 5,
+				"name": "aIsCaseSensitive",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_sys_authentication.pkb",
+				"symbolLine": 509,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_sub_notify_job.pkb",
+				"line": 86,
+				"column": 65,
+				"name": "aIntJobNo",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_sub_notify_job.pkb",
+				"symbolLine": 55,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_sub_notify_job.pkb",
+				"line": 88,
+				"column": 71,
+				"name": "aIntJobNo",
+				"kind": "variable",
+				"symbolPath": "PACKAGES/las_sub_notify_job.pkb",
+				"symbolLine": 55,
+				"symbolColumn": 2
+			},
+			{
+				"path": "PACKAGES/las_jsn_pers.pkb",
+				"line": 90,
+				"column": 6,
+				"name": "theAddEmailFields",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_jsn_pers.pkb",
+				"symbolLine": 68,
+				"symbolColumn": 9
+			},
+			{
+				"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+				"line": 54,
+				"column": 11,
+				"name": "ceid",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+				"symbolLine": 41,
+				"symbolColumn": 49
+			},
+			{
+				"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+				"line": 56,
+				"column": 11,
+				"name": "ceid",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+				"symbolLine": 41,
+				"symbolColumn": 49
+			},
+			{
+				"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+				"line": 56,
+				"column": 97,
+				"name": "ceid",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+				"symbolLine": 41,
+				"symbolColumn": 49
+			},
+			{
+				"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+				"line": 79,
+				"column": 57,
+				"name": "ceid",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+				"symbolLine": 41,
+				"symbolColumn": 49
+			},
+			{
+				"path": "PACKAGES/las_sql_universaltable.pkb",
+				"line": 575,
+				"column": 5,
+				"name": "theFilterHasChanged",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_sql_universaltable.pks",
+				"symbolLine": 251,
+				"symbolColumn": 6
+			},
+			{
+				"path": "PACKAGES/las_sql_jpos.pkb",
+				"line": 3309,
+				"column": 5,
+				"name": "theDoCheckHeader",
+				"kind": "parameter",
+				"symbolPath": "PACKAGES/las_sql_jpos.pkb",
+				"symbolLine": 3243,
+				"symbolColumn": 11
+			}
+		],
+		"extraClasses": {
+			"omitted_by_policy": {
+				"count": 116,
+				"samples": [
+					{
+						"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+						"line": 54,
+						"column": 11,
+						"name": "ceid",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+						"symbolLine": 41,
+						"symbolColumn": 49
+					},
+					{
+						"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+						"line": 56,
+						"column": 11,
+						"name": "ceid",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+						"symbolLine": 41,
+						"symbolColumn": 49
+					},
+					{
+						"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+						"line": 79,
+						"column": 57,
+						"name": "ceid",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+						"symbolLine": 41,
+						"symbolColumn": 49
+					},
+					{
+						"path": "PACKAGES/las_mod_adminsupport_data.pkb",
+						"line": 521,
+						"column": 6,
+						"name": "oracleVersion",
+						"kind": "procedure",
+						"symbolPath": "PACKAGES/las_mod_adminsupport_data.pkb",
+						"symbolLine": 842,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_mod_collaboration.pkb",
+						"line": 152,
+						"column": 59,
+						"name": "userID",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_collaboration.pks",
+						"symbolLine": 62,
+						"symbolColumn": 26
+					},
+					{
+						"path": "PACKAGES/las_mod_collaboration.pkb",
+						"line": 156,
+						"column": 34,
+						"name": "userID",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_collaboration.pks",
+						"symbolLine": 62,
+						"symbolColumn": 26
+					},
+					{
+						"path": "PACKAGES/las_sub_ceheader.pkb",
+						"line": 1423,
+						"column": 4,
+						"name": "IsApproved",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_sub_ceheader.pks",
+						"symbolLine": 119,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_sql_prod.pkb",
+						"line": 42,
+						"column": 9,
+						"name": "isActive",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_sql_prod.pks",
+						"symbolLine": 53,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_sql_prod.pkb",
+						"line": 409,
+						"column": 103,
+						"name": "isActive",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_sql_prod.pks",
+						"symbolLine": 53,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_sql_prod.pkb",
+						"line": 421,
+						"column": 95,
+						"name": "isActive",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_sql_prod.pks",
+						"symbolLine": 53,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_sql_prod.pkb",
+						"line": 433,
+						"column": 102,
+						"name": "isActive",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_sql_prod.pks",
+						"symbolLine": 53,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_mod_client_json.pkb",
+						"line": 1213,
+						"column": 58,
+						"name": "custID",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_client_json.pks",
+						"symbolLine": 111,
+						"symbolColumn": 56
+					},
+					{
+						"path": "PACKAGES/las_mod_client_json.pkb",
+						"line": 1215,
+						"column": 58,
+						"name": "custID",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_client_json.pks",
+						"symbolLine": 111,
+						"symbolColumn": 56
+					},
+					{
+						"path": "PACKAGES/las_mod_projecttaskempl.pkb",
+						"line": 142,
+						"column": 54,
+						"name": "taskID",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_projecttaskempl.pks",
+						"symbolLine": 42,
+						"symbolColumn": 29
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_data.pkb",
+						"line": 211,
+						"column": 10,
+						"name": "reportID",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+						"symbolLine": 345,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_data.pkb",
+						"line": 225,
+						"column": 12,
+						"name": "reportID",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+						"symbolLine": 345,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_data.pkb",
+						"line": 643,
+						"column": 18,
+						"name": "reportID",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+						"symbolLine": 345,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_data.pkb",
+						"line": 816,
+						"column": 10,
+						"name": "reportID",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+						"symbolLine": 345,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_data.pkb",
+						"line": 840,
+						"column": 8,
+						"name": "reportID",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+						"symbolLine": 345,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_mod_storedreport_data.pkb",
+						"line": 883,
+						"column": 9,
+						"name": "reportID",
+						"kind": "function",
+						"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+						"symbolLine": 345,
+						"symbolColumn": 1
+					}
+				]
+			},
+			"location_mismatch": {
+				"count": 442,
+				"samples": [
+					{
+						"path": "PACKAGES/las_mod_pm_workplan_extra.pkb",
+						"line": 313,
+						"column": 8,
+						"name": "anIsFirstEmpl",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_pm_workplan_extra.pkb",
+						"symbolLine": 123,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_sub_notify_job.pkb",
+						"line": 86,
+						"column": 65,
+						"name": "aIntJobNo",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_sub_notify_job.pkb",
+						"symbolLine": 55,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_sub_notify_job.pkb",
+						"line": 88,
+						"column": 71,
+						"name": "aIntJobNo",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_sub_notify_job.pkb",
+						"symbolLine": 55,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_mod_user_json.pkb",
+						"line": 2519,
+						"column": 200,
+						"name": "aNoOfOK",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_user_json.pkb",
+						"symbolLine": 2412,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_sub_cistatus.pkb",
+						"line": 1673,
+						"column": 149,
+						"name": "aTargetCIBookID",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_sub_cistatus.pkb",
+						"symbolLine": 1613,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_sub_importjob.pkb",
+						"line": 497,
+						"column": 6,
+						"name": "anIsFirstRow",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_sub_importjob.pkb",
+						"symbolLine": 482,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_mod_pos_json.pkb",
+						"line": 4388,
+						"column": 8,
+						"name": "anIsFirstTime",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+						"symbolLine": 4332,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_jsn_datalist.pkb",
+						"line": 46,
+						"column": 101,
+						"name": "kDiversID",
+						"kind": "constant",
+						"symbolPath": "PACKAGES/las_jsn_datalist.pkb",
+						"symbolLine": 40,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_mod_messages_page.pkb",
+						"line": 250,
+						"column": 252,
+						"name": "theDaysBack",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_messages_page.pkb",
+						"symbolLine": 232,
+						"symbolColumn": 128
+					},
+					{
+						"path": "PACKAGES/las_mod_messages_page.pkb",
+						"line": 251,
+						"column": 252,
+						"name": "theDaysBack",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_messages_page.pkb",
+						"symbolLine": 232,
+						"symbolColumn": 128
+					},
+					{
+						"path": "PACKAGES/las_rep_jobjournal.pkb",
+						"line": 299,
+						"column": 140,
+						"name": "eDbmsStringType",
+						"kind": "constant",
+						"symbolPath": "PACKAGES/las_rep_jobjournal.pkb",
+						"symbolLine": 16,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_rep_jobjournal.pkb",
+						"line": 301,
+						"column": 143,
+						"name": "eDbmsStringType",
+						"kind": "constant",
+						"symbolPath": "PACKAGES/las_rep_jobjournal.pkb",
+						"symbolLine": 16,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_mod_altaddr_sql.pkb",
+						"line": 198,
+						"column": 110,
+						"name": "aLength",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_altaddr_sql.pkb",
+						"symbolLine": 167,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_mod_reportfont.pkb",
+						"line": 158,
+						"column": 48,
+						"name": "theXmlStyle",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_reportfont.pkb",
+						"symbolLine": 138,
+						"symbolColumn": 7
+					},
+					{
+						"path": "PACKAGES/las_sql_prod.pkb",
+						"line": 576,
+						"column": 220,
+						"name": "eGLFibuSettings",
+						"kind": "constant",
+						"symbolPath": "PACKAGES/ods_sql_dbpref.pks",
+						"symbolLine": 77,
+						"symbolColumn": 1
+					},
+					{
+						"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+						"line": 2729,
+						"column": 256,
+						"name": "theLanguageCodeA2",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+						"symbolLine": 2684,
+						"symbolColumn": 9
+					},
+					{
+						"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+						"line": 2729,
+						"column": 352,
+						"name": "theLanguageCodeA2",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+						"symbolLine": 2684,
+						"symbolColumn": 9
+					},
+					{
+						"path": "PACKAGES/las_sql_ceheader.pkb",
+						"line": 2235,
+						"column": 123,
+						"name": "theLangID",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_sql_ceheader.pks",
+						"symbolLine": 390,
+						"symbolColumn": 7
+					},
+					{
+						"path": "PACKAGES/las_sql_ceheader.pkb",
+						"line": 2243,
+						"column": 151,
+						"name": "theLangID",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_sql_ceheader.pks",
+						"symbolLine": 390,
+						"symbolColumn": 7
+					},
+					{
+						"path": "PACKAGES/las_sql_ceheader.pkb",
+						"line": 2244,
+						"column": 151,
+						"name": "theLangID",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_sql_ceheader.pks",
+						"symbolLine": 390,
+						"symbolColumn": 7
+					}
+				]
+			},
+			"outside_plscope": {
+				"count": 8,
+				"samples": [
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 5,
+						"column": 3,
+						"name": "aString",
+						"kind": "variable",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 2,
+						"symbolColumn": 2
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 7,
+						"column": 3,
+						"name": "aString",
+						"kind": "variable",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 2,
+						"symbolColumn": 2
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 10,
+						"column": 89,
+						"name": "aString",
+						"kind": "variable",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 2,
+						"symbolColumn": 2
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 10,
+						"column": 20,
+						"name": "theLang",
+						"kind": "parameter",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 33
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 4,
+						"column": 5,
+						"name": "theReplaceTokens",
+						"kind": "parameter",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 92
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 5,
+						"column": 22,
+						"name": "theString",
+						"kind": "parameter",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 69
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 7,
+						"column": 14,
+						"name": "theString",
+						"kind": "parameter",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 69
+					},
+					{
+						"path": "FILL/f_odsresources.sql",
+						"line": 10,
+						"column": 29,
+						"name": "theID",
+						"kind": "parameter",
+						"symbolPath": "FILL/f_odsresources.sql",
+						"symbolLine": 1,
+						"symbolColumn": 52
+					}
+				]
+			},
+			"false_positive": {
+				"count": 2001,
+				"samples": [
+					{
+						"path": "PACKAGES/las_mod_paymentcondition_data.pkb",
+						"line": 104,
+						"column": 7,
+						"name": "anIsNumeric",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_paymentcondition_data.pkb",
+						"symbolLine": 78,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_sql_job.pkb",
+						"line": 2860,
+						"column": 5,
+						"name": "theIsConnectedCEsModified",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_sql_job.pks",
+						"symbolLine": 599,
+						"symbolColumn": 6
+					},
+					{
+						"path": "PACKAGES/las_mod_order_json.pkb",
+						"line": 2078,
+						"column": 8,
+						"name": "value_array",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_mod_order_json.pks",
+						"symbolLine": 238,
+						"symbolColumn": 51
+					},
+					{
+						"path": "PACKAGES/las_sub_hour.pkb",
+						"line": 2294,
+						"column": 5,
+						"name": "theIsOK",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_sub_hour.pks",
+						"symbolLine": 115,
+						"symbolColumn": 8
+					},
+					{
+						"path": "PACKAGES/las_mod_pos_json.pkb",
+						"line": 7046,
+						"column": 5,
+						"name": "aHasNewDefaultCostCentre",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+						"symbolLine": 6955,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_mod_pos_json.pkb",
+						"line": 7087,
+						"column": 5,
+						"name": "aHasNewDefaultCostCentre",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+						"symbolLine": 6955,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_sub_reportform_ord.pkb",
+						"line": 820,
+						"column": 5,
+						"name": "aPrintBold",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_sub_reportform_ord.pkb",
+						"symbolLine": 817,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_sub_siheader.pkb",
+						"line": 3835,
+						"column": 5,
+						"name": "aCommonTargetExists",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_sub_siheader.pkb",
+						"symbolLine": 3796,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+						"line": 3344,
+						"column": 5,
+						"name": "anExists",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+						"symbolLine": 3330,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_sys_authentication.pkb",
+						"line": 520,
+						"column": 5,
+						"name": "aIsCaseSensitive",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_sys_authentication.pkb",
+						"symbolLine": 509,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_jsn_pers.pkb",
+						"line": 90,
+						"column": 6,
+						"name": "theAddEmailFields",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_jsn_pers.pkb",
+						"symbolLine": 68,
+						"symbolColumn": 9
+					},
+					{
+						"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+						"line": 56,
+						"column": 97,
+						"name": "ceid",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+						"symbolLine": 41,
+						"symbolColumn": 49
+					},
+					{
+						"path": "PACKAGES/las_sql_universaltable.pkb",
+						"line": 575,
+						"column": 5,
+						"name": "theFilterHasChanged",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_sql_universaltable.pks",
+						"symbolLine": 251,
+						"symbolColumn": 6
+					},
+					{
+						"path": "PACKAGES/las_sql_jpos.pkb",
+						"line": 3309,
+						"column": 5,
+						"name": "theDoCheckHeader",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_sql_jpos.pkb",
+						"symbolLine": 3243,
+						"symbolColumn": 11
+					},
+					{
+						"path": "PACKAGES/las_mod_user_json.pkb",
+						"line": 1076,
+						"column": 5,
+						"name": "aMasterList",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_user_json.pkb",
+						"symbolLine": 1029,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+						"line": 398,
+						"column": 5,
+						"name": "aManualRoundDiffExist",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+						"symbolLine": 382,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_xls_universaltable.pkb",
+						"line": 96,
+						"column": 5,
+						"name": "isAutoFilter",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_xls_universaltable.pks",
+						"symbolLine": 68,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_mod_altaddr_json.pkb",
+						"line": 894,
+						"column": 6,
+						"name": "anIsOK",
+						"kind": "variable",
+						"symbolPath": "PACKAGES/las_mod_altaddr_json.pkb",
+						"symbolLine": 824,
+						"symbolColumn": 2
+					},
+					{
+						"path": "PACKAGES/las_jsn_suppl.pkb",
+						"line": 107,
+						"column": 7,
+						"name": "theAddBlockInfo",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_jsn_suppl.pkb",
+						"symbolLine": 46,
+						"symbolColumn": 10
+					},
+					{
+						"path": "PACKAGES/las_rep_hourstatistic.pkb",
+						"line": 517,
+						"column": 5,
+						"name": "theIsAllEmpl",
+						"kind": "parameter",
+						"symbolPath": "PACKAGES/las_rep_hourstatistic.pkb",
+						"symbolLine": 508,
+						"symbolColumn": 10
+					}
+				]
+			}
+		}
+	},
+	"declarationStrata": {
+		"collection_type": {
+			"truth": 453,
+			"actual": 451,
+			"matched": 451,
+			"missing": 2,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 0.9955849889624724,
+			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 3790,
+					"column": 8,
+					"name": "TP_LZW_DICT",
+					"type": "INDEX TABLE"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4205,
+					"column": 8,
+					"name": "TP_INTEGER_TAB",
+					"type": "NESTED TABLE"
+				}
+			],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"constant": {
+			"truth": 10972,
+			"actual": 10955,
+			"matched": 10955,
+			"missing": 17,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 0.9984506015311703,
+			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_rep_baseselection.pkb",
+					"line": 152,
+					"column": 31,
+					"name": "USEREPORTSETTINGSJS",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_rep_baseselection.pkb",
+					"line": 418,
+					"column": 31,
+					"name": "USEREPORTSETTINGSJS",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_rep_baseselection.pkb",
+					"line": 529,
+					"column": 31,
+					"name": "USEREPORTSETTINGSJS",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_rep_sijournal.pkb",
+					"line": 852,
+					"column": 3,
+					"name": "ADIRID",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_eng.pkb",
+					"line": 4366,
+					"column": 5,
+					"name": "KSHOWVARS",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_eng.pkb",
+					"line": 4374,
+					"column": 5,
+					"name": "KSHOWVIEWS",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 6139,
+					"column": 5,
+					"name": "KSHOWVARS",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 6147,
+					"column": 5,
+					"name": "KSHOWVIEWS",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sys_dbreportsettings.pkb",
+					"line": 207,
+					"column": 6,
+					"name": "LOCALDEBUGON",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sys_dbreportsettings.pkb",
+					"line": 377,
+					"column": 6,
+					"name": "LOCALDEBUGON",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sys_dbreportsettings.pkb",
+					"line": 516,
+					"column": 5,
+					"name": "LOCALDEBUGON",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sys_dbreportsettings.pkb",
+					"line": 545,
+					"column": 5,
+					"name": "LOCALDEBUGON",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sys_dbreportsettings.pkb",
+					"line": 574,
+					"column": 5,
+					"name": "LOCALDEBUGON",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sys_dbreportsettings.pkb",
+					"line": 609,
+					"column": 5,
+					"name": "LOCALDEBUGON",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sys_dbreportsettings.pkb",
+					"line": 642,
+					"column": 5,
+					"name": "LOCALDEBUGON",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_uti_reportpdf.pkb",
+					"line": 509,
+					"column": 2,
+					"name": "KCHARLF",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_uti_reportpdf.pkb",
+					"line": 510,
+					"column": 2,
+					"name": "KCHARCR",
+					"type": "CONSTANT"
+				}
+			],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"cursor": {
+			"truth": 236,
+			"actual": 236,
+			"matched": 236,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"exception": {
+			"truth": 24,
+			"actual": 24,
+			"matched": 24,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"field": {
+			"truth": 6531,
+			"actual": 6173,
+			"matched": 6171,
+			"missing": 360,
+			"extra": 2,
+			"ignoredExtra": 0,
+			"recall": 0.9448782728525493,
+			"precision": 0.999676008423781,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_mod_ciheader_json.pkb",
+					"line": 2059,
+					"column": 25,
+					"name": "ITHASWARNINGS",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_ciheader_json.pkb",
+					"line": 2345,
+					"column": 25,
+					"name": "ITHASWARNINGS",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_ciheader_json.pkb",
+					"line": 2568,
+					"column": 25,
+					"name": "ITHASWARNINGS",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_uti_importholidays.pkb",
+					"line": 62,
+					"column": 19,
+					"name": "DODELETE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_uti_importregion.pkb",
+					"line": 62,
+					"column": 19,
+					"name": "DODELETE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_uti_importrole.pkb",
+					"line": 64,
+					"column": 19,
+					"name": "DODELETE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_importeinvoice_xml.pkb",
+					"line": 1081,
+					"column": 21,
+					"name": "SUCCESS",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_pm_ganttchart_calc.pkb",
+					"line": 451,
+					"column": 15,
+					"name": "ISFIXEDDATERANGE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_pm_ganttchart_calc.pkb",
+					"line": 414,
+					"column": 38,
+					"name": "ISGROUP",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_pm_ganttchart_json.pkb",
+					"line": 109,
+					"column": 15,
+					"name": "ISGROUP",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_pm_ganttchart_calc.pkb",
+					"line": 302,
+					"column": 15,
+					"name": "ISDECISION",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_pm_ganttchart_calc.pkb",
+					"line": 309,
+					"column": 14,
+					"name": "ISLOOP",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_data.pkb",
+					"line": 1961,
+					"column": 14,
+					"name": "HASDEFAULT",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_impexp.pkb",
+					"line": 2128,
+					"column": 16,
+					"name": "INSERTREPORT",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_json.pkb",
+					"line": 141,
+					"column": 12,
+					"name": "REPORTSETTINGS",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_json.pkb",
+					"line": 253,
+					"column": 12,
+					"name": "REPORTSETTINGS",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_json.pkb",
+					"line": 254,
+					"column": 13,
+					"name": "ASFORMAT",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1459,
+					"column": 14,
+					"name": "EVALMODE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1001,
+					"column": 15,
+					"name": "BINDUSERVAR",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_mod_ts_admin_json.pkb",
+					"line": 812,
+					"column": 20,
+					"name": "DOCHANGEJOB",
+					"type": "RECORD FIELD"
+				}
+			],
+			"samplesExtra": [
+				{
+					"path": "PACKAGES/las_rep_sijournal.pkb",
+					"line": 82,
+					"column": 14,
+					"name": "BOOLEAN",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+					"symbolLine": 82,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 92,
+					"column": 18,
+					"name": "PLS_INTEGER",
+					"kind": "field",
+					"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+					"symbolLine": 92,
+					"symbolColumn": 4
+				}
+			],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 2,
+					"samples": [
+						{
+							"path": "PACKAGES/las_rep_sijournal.pkb",
+							"line": 82,
+							"column": 14,
+							"name": "BOOLEAN",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+							"symbolLine": 82,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/ods_uti_pdf.pkb",
+							"line": 92,
+							"column": 18,
+							"name": "PLS_INTEGER",
+							"kind": "field",
+							"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+							"symbolLine": 92,
+							"symbolColumn": 4
+						}
+					]
+				}
+			}
+		},
+		"function": {
+			"truth": 8851,
+			"actual": 8817,
+			"matched": 8817,
+			"missing": 34,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 0.9961586261439386,
+			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 76,
+					"column": 10,
+					"name": "INSERTTIMESHEETSQL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 96,
+					"column": 10,
+					"name": "MODIFYTIMESHEETSQL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/las_mod_language_data.pkb",
+					"line": 182,
+					"column": 10,
+					"name": "CHECK_IF_VALID",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1491,
+					"column": 10,
+					"name": "OPSTATUS",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1675,
+					"column": 10,
+					"name": "EVALSTATUSEXEC",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/las_uti_web_push.pkb",
+					"line": 514,
+					"column": 10,
+					"name": "RETRY_FAILED",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/las_uti_web_push.pkb",
+					"line": 555,
+					"column": 10,
+					"name": "DEACTIVATE_STALE_SUBSCRIPTIONS",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4605,
+					"column": 10,
+					"name": "PAGEWIDTH",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4614,
+					"column": 10,
+					"name": "PAGEHEIGHT",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4623,
+					"column": 10,
+					"name": "PAGECOUNT",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4632,
+					"column": 10,
+					"name": "MARGINTOP",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4641,
+					"column": 10,
+					"name": "MARGINBOTTOM",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4650,
+					"column": 10,
+					"name": "MARGINLEFT",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4659,
+					"column": 10,
+					"name": "MARGINRIGHT",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4668,
+					"column": 10,
+					"name": "POSX",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4677,
+					"column": 10,
+					"name": "POSY",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4686,
+					"column": 10,
+					"name": "FONTSIZE",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4695,
+					"column": 10,
+					"name": "FONTINDEX",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4916,
+					"column": 10,
+					"name": "FOREGROUNDCOLOR",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4927,
+					"column": 10,
+					"name": "BACKGROUNDCOLOR",
+					"type": "FUNCTION"
+				}
+			],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"package": {
+			"truth": 1214,
+			"actual": 1212,
+			"matched": 1212,
+			"missing": 2,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 0.9983525535420099,
+			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 2,
+					"column": 9,
+					"name": "LAS_INT_TIMESHEET",
+					"type": "PACKAGE"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pkb",
+					"line": 2,
+					"column": 14,
+					"name": "LAS_INT_TIMESHEET",
+					"type": "PACKAGE"
+				}
+			],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"parameter": {
+			"truth": 59016,
+			"actual": 58129,
+			"matched": 58106,
+			"missing": 910,
+			"extra": 23,
+			"ignoredExtra": 4,
+			"recall": 0.984580452758574,
+			"precision": 0.9996731182795698,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 56,
+					"column": 19,
+					"name": "SESSIONID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 56,
+					"column": 42,
+					"name": "AGENCYID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 56,
+					"column": 62,
+					"name": "ONLYOPENJOBS",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 27,
+					"name": "SESSIONID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 50,
+					"name": "AGENCYID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 70,
+					"name": "USERID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 90,
+					"name": "JOBNUMBER",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 126,
+					"name": "DATE",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 144,
+					"name": "HOURCATEGORYID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 183,
+					"name": "HOURS",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 202,
+					"name": "IMPORTTAG",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 238,
+					"name": "COMMENT",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 66,
+					"column": 27,
+					"name": "SESSIONID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 66,
+					"column": 50,
+					"name": "HOURID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 66,
+					"column": 68,
+					"name": "HOURCATEGORYID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 66,
+					"column": 94,
+					"name": "HOURS",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 66,
+					"column": 113,
+					"name": "COMMENT",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 71,
+					"column": 35,
+					"name": "SESSIONID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 71,
+					"column": 58,
+					"name": "AGENCYID",
+					"type": "FORMAL IN"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 71,
+					"column": 78,
+					"name": "DATE",
+					"type": "FORMAL IN"
+				}
+			],
+			"samplesExtra": [
+				{
+					"path": "PACKAGES/las_mod_order_json.pkb",
+					"line": 2068,
+					"column": 7,
+					"name": "value_array",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_mod_order_json.pks",
+					"symbolLine": 238,
+					"symbolColumn": 51
+				},
+				{
+					"path": "PACKAGES/las_rep_timereportempl.pkb",
+					"line": 1068,
+					"column": 22,
+					"name": "theReportInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_timereportempl.pks",
+					"symbolLine": 41,
+					"symbolColumn": 22
+				},
+				{
+					"path": "PACKAGES/las_rep_timereportstathours.pkb",
+					"line": 2018,
+					"column": 22,
+					"name": "theReportInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_timereportstathours.pks",
+					"symbolLine": 41,
+					"symbolColumn": 22
+				},
+				{
+					"path": "FILL/f_odsresources.sql",
+					"line": 1,
+					"column": 33,
+					"name": "theLang",
+					"kind": "parameter",
+					"symbolPath": "FILL/f_odsresources.sql",
+					"symbolLine": 1,
+					"symbolColumn": 33
+				},
+				{
+					"path": "PACKAGES/las_mod_ceheader_json.pkb",
+					"line": 2216,
+					"column": 7,
+					"name": "value_array",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_mod_ceheader_json.pks",
+					"symbolLine": 165,
+					"symbolColumn": 51
+				},
+				{
+					"path": "PACKAGES/las_rep_timereportovertime.pkb",
+					"line": 1181,
+					"column": 22,
+					"name": "theReportInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_timereportovertime.pks",
+					"symbolLine": 41,
+					"symbolColumn": 22
+				},
+				{
+					"path": "PACKAGES/las_mod_order_json.pkb",
+					"line": 2067,
+					"column": 25,
+					"name": "name_array",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_mod_order_json.pks",
+					"symbolLine": 238,
+					"symbolColumn": 25
+				},
+				{
+					"path": "PACKAGES/las_rep_cejournal.pkb",
+					"line": 1304,
+					"column": 22,
+					"name": "theReportInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_cejournal.pks",
+					"symbolLine": 41,
+					"symbolColumn": 22
+				},
+				{
+					"path": "PACKAGES/las_rep_timereportstat.pkb",
+					"line": 1284,
+					"column": 22,
+					"name": "theReportInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_timereportstat.pks",
+					"symbolLine": 41,
+					"symbolColumn": 22
+				},
+				{
+					"path": "PACKAGES/las_sub_cistatus.pkb",
+					"line": 1885,
+					"column": 59,
+					"name": "theListOfCIHeaderIDs",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_sub_cistatus.pks",
+					"symbolLine": 324,
+					"symbolColumn": 9
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_uti.pkb",
+					"line": 22,
+					"column": 20,
+					"name": "theParam",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+					"symbolLine": 90,
+					"symbolColumn": 20
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_uti.pkb",
+					"line": 110,
+					"column": 20,
+					"name": "theParam",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+					"symbolLine": 90,
+					"symbolColumn": 20
+				},
+				{
+					"path": "PACKAGES/las_mod_ceheader_json.pkb",
+					"line": 2215,
+					"column": 25,
+					"name": "name_array",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_mod_ceheader_json.pks",
+					"symbolLine": 165,
+					"symbolColumn": 25
+				},
+				{
+					"path": "PACKAGES/las_rep_timereportwk.pkb",
+					"line": 755,
+					"column": 22,
+					"name": "theReportInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_timereportwk.pks",
+					"symbolLine": 48,
+					"symbolColumn": 22
+				},
+				{
+					"path": "FILL/f_odsresources.sql",
+					"line": 1,
+					"column": 92,
+					"name": "theReplaceTokens",
+					"kind": "parameter",
+					"symbolPath": "FILL/f_odsresources.sql",
+					"symbolLine": 1,
+					"symbolColumn": 92
+				},
+				{
+					"path": "PACKAGES/las_sub_cistatus.pkb",
+					"line": 1885,
+					"column": 32,
+					"name": "theListOfCIBookIDs",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_sub_cistatus.pks",
+					"symbolLine": 323,
+					"symbolColumn": 33
+				},
+				{
+					"path": "PACKAGES/las_rep_timereportjob.pkb",
+					"line": 1282,
+					"column": 22,
+					"name": "theReportInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_timereportjob.pks",
+					"symbolLine": 42,
+					"symbolColumn": 22
+				},
+				{
+					"path": "PACKAGES/las_rep_jobsurveyagedwip.pkb",
+					"line": 1418,
+					"column": 22,
+					"name": "theReportInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_jobsurveyagedwip.pks",
+					"symbolLine": 41,
+					"symbolColumn": 22
+				},
+				{
+					"path": "FILL/f_odsresources.sql",
+					"line": 1,
+					"column": 69,
+					"name": "theString",
+					"kind": "parameter",
+					"symbolPath": "FILL/f_odsresources.sql",
+					"symbolLine": 1,
+					"symbolColumn": 69
+				},
+				{
+					"path": "PACKAGES/las_rep_timereporthot.pkb",
+					"line": 763,
+					"column": 22,
+					"name": "theReportInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_timereporthot.pks",
+					"symbolLine": 41,
+					"symbolColumn": 22
+				}
+			],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 4,
+					"samples": [
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 1,
+							"column": 33,
+							"name": "theLang",
+							"kind": "parameter",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 33
+						},
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 1,
+							"column": 92,
+							"name": "theReplaceTokens",
+							"kind": "parameter",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 92
+						},
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 1,
+							"column": 69,
+							"name": "theString",
+							"kind": "parameter",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 69
+						},
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 1,
+							"column": 52,
+							"name": "theID",
+							"kind": "parameter",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 52
+						}
+					]
+				},
+				"false_positive": {
+					"count": 19,
+					"samples": [
+						{
+							"path": "PACKAGES/las_mod_order_json.pkb",
+							"line": 2068,
+							"column": 7,
+							"name": "value_array",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_order_json.pks",
+							"symbolLine": 238,
+							"symbolColumn": 51
+						},
+						{
+							"path": "PACKAGES/las_rep_timereportempl.pkb",
+							"line": 1068,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_timereportempl.pks",
+							"symbolLine": 41,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_rep_timereportstathours.pkb",
+							"line": 2018,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_timereportstathours.pks",
+							"symbolLine": 41,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_mod_ceheader_json.pkb",
+							"line": 2216,
+							"column": 7,
+							"name": "value_array",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_ceheader_json.pks",
+							"symbolLine": 165,
+							"symbolColumn": 51
+						},
+						{
+							"path": "PACKAGES/las_rep_timereportovertime.pkb",
+							"line": 1181,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_timereportovertime.pks",
+							"symbolLine": 41,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_mod_order_json.pkb",
+							"line": 2067,
+							"column": 25,
+							"name": "name_array",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_order_json.pks",
+							"symbolLine": 238,
+							"symbolColumn": 25
+						},
+						{
+							"path": "PACKAGES/las_rep_cejournal.pkb",
+							"line": 1304,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_cejournal.pks",
+							"symbolLine": 41,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_rep_timereportstat.pkb",
+							"line": 1284,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_timereportstat.pks",
+							"symbolLine": 41,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_sub_cistatus.pkb",
+							"line": 1885,
+							"column": 59,
+							"name": "theListOfCIHeaderIDs",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sub_cistatus.pks",
+							"symbolLine": 324,
+							"symbolColumn": 9
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_uti.pkb",
+							"line": 22,
+							"column": 20,
+							"name": "theParam",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+							"symbolLine": 90,
+							"symbolColumn": 20
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_uti.pkb",
+							"line": 110,
+							"column": 20,
+							"name": "theParam",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+							"symbolLine": 90,
+							"symbolColumn": 20
+						},
+						{
+							"path": "PACKAGES/las_mod_ceheader_json.pkb",
+							"line": 2215,
+							"column": 25,
+							"name": "name_array",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_ceheader_json.pks",
+							"symbolLine": 165,
+							"symbolColumn": 25
+						},
+						{
+							"path": "PACKAGES/las_rep_timereportwk.pkb",
+							"line": 755,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_timereportwk.pks",
+							"symbolLine": 48,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_sub_cistatus.pkb",
+							"line": 1885,
+							"column": 32,
+							"name": "theListOfCIBookIDs",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sub_cistatus.pks",
+							"symbolLine": 323,
+							"symbolColumn": 33
+						},
+						{
+							"path": "PACKAGES/las_rep_timereportjob.pkb",
+							"line": 1282,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_timereportjob.pks",
+							"symbolLine": 42,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_rep_jobsurveyagedwip.pkb",
+							"line": 1418,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_jobsurveyagedwip.pks",
+							"symbolLine": 41,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_rep_timereporthot.pkb",
+							"line": 763,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_timereporthot.pks",
+							"symbolLine": 41,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_rep_timereportdaily.pkb",
+							"line": 1130,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_timereportdaily.pks",
+							"symbolLine": 41,
+							"symbolColumn": 22
+						},
+						{
+							"path": "PACKAGES/las_rep_jobjournal.pkb",
+							"line": 1078,
+							"column": 22,
+							"name": "theReportInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_jobjournal.pks",
+							"symbolLine": 41,
+							"symbolColumn": 22
+						}
+					]
+				}
+			}
+		},
+		"procedure": {
+			"truth": 8271,
+			"actual": 8186,
+			"matched": 8185,
+			"missing": 86,
+			"extra": 1,
+			"ignoredExtra": 1,
+			"recall": 0.9896022246403096,
+			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 56,
+					"column": 11,
+					"name": "GETJOBS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 61,
+					"column": 11,
+					"name": "INSERTTIMESHEET",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pkb",
+					"line": 783,
+					"column": 11,
+					"name": "INSERTTIMESHEET",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 66,
+					"column": 11,
+					"name": "MODIFYTIMESHEET",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pkb",
+					"line": 808,
+					"column": 11,
+					"name": "MODIFYTIMESHEET",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 71,
+					"column": 11,
+					"name": "RESETJOBTIMESHEETIMPORT",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pkb",
+					"line": 927,
+					"column": 11,
+					"name": "RESETJOBTIMESHEETIMPORT",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pks",
+					"line": 113,
+					"column": 11,
+					"name": "RESETJOBTIMESHEETIMPORTSQL",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_int_timesheet.pkb",
+					"line": 829,
+					"column": 11,
+					"name": "RESETJOBTIMESHEETIMPORTSQL",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_mod_language_data.pkb",
+					"line": 230,
+					"column": 11,
+					"name": "UPD",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1742,
+					"column": 11,
+					"name": "STARTPROCEDURAL",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1441,
+					"column": 11,
+					"name": "CREATEREPORT",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_rep_sijournal.pkb",
+					"line": 1304,
+					"column": 11,
+					"name": "MAKEREPORT",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/las_uti_reportpdf.pkb",
+					"line": 504,
+					"column": 11,
+					"name": "MAKELINES",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4559,
+					"column": 11,
+					"name": "SETPAGEFORMATA4",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4568,
+					"column": 11,
+					"name": "SETPAGEFORMATA3",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4577,
+					"column": 11,
+					"name": "SETPAGELANDSCAPE",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4586,
+					"column": 11,
+					"name": "SETPAGEPORTRAIT",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4595,
+					"column": 11,
+					"name": "GOTOPAGE",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 4704,
+					"column": 11,
+					"name": "SETHELVETICA",
+					"type": "PROCEDURE"
+				}
+			],
+			"samplesExtra": [
+				{
+					"path": "FILL/f_odsresources.sql",
+					"line": 1,
+					"column": 29,
+					"name": "ii",
+					"kind": "procedure",
+					"symbolPath": "FILL/f_odsresources.sql",
+					"symbolLine": 1,
+					"symbolColumn": 1
+				}
+			],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 1,
+					"samples": [
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 1,
+							"column": 29,
+							"name": "ii",
+							"kind": "procedure",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 1
+						}
+					]
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"record_type": {
+			"truth": 650,
+			"actual": 650,
+			"matched": 650,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"subtype": {
+			"truth": 281,
+			"actual": 281,
+			"matched": 281,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"variable": {
+			"truth": 30345,
+			"actual": 27897,
+			"matched": 27875,
+			"missing": 2470,
+			"extra": 22,
+			"ignoredExtra": 1,
+			"recall": 0.9186027352117317,
+			"precision": 0.9992472039002007,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 111,
+					"column": 6,
+					"name": "ACISEXIST",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 122,
+					"column": 6,
+					"name": "ACISEXIST",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 34,
+					"name": "JOBSURVEYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 47,
+					"name": "AGENCYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 57,
+					"name": "CUSTID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 65,
+					"name": "PRODID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 73,
+					"name": "CAMPID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 81,
+					"name": "JOBID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 88,
+					"name": "JOBEMPLID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 10,
+					"name": "JOBRESPEMPLCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 27,
+					"name": "CUSTMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 42,
+					"name": "PRODMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 57,
+					"name": "CAMPMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 72,
+					"name": "JOBMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 86,
+					"name": "INTJOBNO",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr01660_view.sql",
+					"line": 213,
+					"column": 7,
+					"name": "ADETAILEDHOURSEXIST",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr01660_view.sql",
+					"line": 222,
+					"column": 28,
+					"name": "JPOSPOSNO",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr01660_view.sql",
+					"line": 222,
+					"column": 39,
+					"name": "EMPLID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr01660_view.sql",
+					"line": 222,
+					"column": 47,
+					"name": "EMPLNAME",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+					"line": 3217,
+					"column": 5,
+					"name": "ISTOSPLITBYAGENCY",
+					"type": "VARIABLE"
+				}
+			],
+			"samplesExtra": [
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 3745,
+					"column": 24,
+					"name": "t_img",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+					"symbolLine": 3745,
+					"symbolColumn": 24
+				},
+				{
+					"path": "FILL/f_odsresources.sql",
+					"line": 2,
+					"column": 2,
+					"name": "aString",
+					"kind": "variable",
+					"symbolPath": "FILL/f_odsresources.sql",
+					"symbolLine": 2,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1382,
+					"column": 54,
+					"name": "theParam",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+					"symbolLine": 1382,
+					"symbolColumn": 54
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1381,
+					"column": 17,
+					"name": "kMaxLen",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+					"symbolLine": 1381,
+					"symbolColumn": 17
+				},
+				{
+					"path": "PACKAGES/las_rep_sijournal.pkb",
+					"line": 513,
+					"column": 2,
+					"name": "aRec",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+					"symbolLine": 513,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1382,
+					"column": 74,
+					"name": "reportNode",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+					"symbolLine": 1382,
+					"symbolColumn": 74
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 3745,
+					"column": 75,
+					"name": "t_img",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+					"symbolLine": 3745,
+					"symbolColumn": 75
+				},
+				{
+					"path": "PACKAGES/las_mod_language_data.pkb",
+					"line": 136,
+					"column": 31,
+					"name": "src",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_language_data.pkb",
+					"symbolLine": 136,
+					"symbolColumn": 31
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1382,
+					"column": 17,
+					"name": "kMaxLen",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+					"symbolLine": 1382,
+					"symbolColumn": 17
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1381,
+					"column": 54,
+					"name": "theParam",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+					"symbolLine": 1381,
+					"symbolColumn": 54
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1382,
+					"column": 63,
+					"name": "reportInfo",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+					"symbolLine": 1382,
+					"symbolColumn": 63
+				},
+				{
+					"path": "PACKAGES/las_uti_reportpdf.pkb",
+					"line": 403,
+					"column": 18,
+					"name": "kMaxLJSText",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_uti_reportpdf.pkb",
+					"symbolLine": 403,
+					"symbolColumn": 18
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 3744,
+					"column": 7,
+					"name": "THEN",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+					"symbolLine": 3744,
+					"symbolColumn": 7
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 3741,
+					"column": 7,
+					"name": "THEN",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+					"symbolLine": 3741,
+					"symbolColumn": 7
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1381,
+					"column": 74,
+					"name": "reportNode",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+					"symbolLine": 1381,
+					"symbolColumn": 74
+				},
+				{
+					"path": "PACKAGES/las_rep_sijournal.pkb",
+					"line": 515,
+					"column": 2,
+					"name": "aRec",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+					"symbolLine": 515,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_rep_sijournal.pkb",
+					"line": 514,
+					"column": 2,
+					"name": "aRec",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+					"symbolLine": 514,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_mod_language_data.pkb",
+					"line": 137,
+					"column": 21,
+					"name": ".",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_language_data.pkb",
+					"symbolLine": 137,
+					"symbolColumn": 21
+				},
+				{
+					"path": "PACKAGES/las_uti_reportpdf.pkb",
+					"line": 404,
+					"column": 17,
+					"name": "kMaxLJSText",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_uti_reportpdf.pkb",
+					"symbolLine": 404,
+					"symbolColumn": 17
+				},
+				{
+					"path": "PACKAGES/las_rep_sijournal.pkb",
+					"line": 517,
+					"column": 2,
+					"name": "RETURN",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+					"symbolLine": 517,
+					"symbolColumn": 2
+				}
+			],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 1,
+					"samples": [
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 2,
+							"column": 2,
+							"name": "aString",
+							"kind": "variable",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 2,
+							"symbolColumn": 2
+						}
+					]
+				},
+				"false_positive": {
+					"count": 21,
+					"samples": [
+						{
+							"path": "PACKAGES/ods_uti_pdf.pkb",
+							"line": 3745,
+							"column": 24,
+							"name": "t_img",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+							"symbolLine": 3745,
+							"symbolColumn": 24
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_run.pkb",
+							"line": 1382,
+							"column": 54,
+							"name": "theParam",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+							"symbolLine": 1382,
+							"symbolColumn": 54
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_run.pkb",
+							"line": 1381,
+							"column": 17,
+							"name": "kMaxLen",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+							"symbolLine": 1381,
+							"symbolColumn": 17
+						},
+						{
+							"path": "PACKAGES/las_rep_sijournal.pkb",
+							"line": 513,
+							"column": 2,
+							"name": "aRec",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+							"symbolLine": 513,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_run.pkb",
+							"line": 1382,
+							"column": 74,
+							"name": "reportNode",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+							"symbolLine": 1382,
+							"symbolColumn": 74
+						},
+						{
+							"path": "PACKAGES/ods_uti_pdf.pkb",
+							"line": 3745,
+							"column": 75,
+							"name": "t_img",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+							"symbolLine": 3745,
+							"symbolColumn": 75
+						},
+						{
+							"path": "PACKAGES/las_mod_language_data.pkb",
+							"line": 136,
+							"column": 31,
+							"name": "src",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_language_data.pkb",
+							"symbolLine": 136,
+							"symbolColumn": 31
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_run.pkb",
+							"line": 1382,
+							"column": 17,
+							"name": "kMaxLen",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+							"symbolLine": 1382,
+							"symbolColumn": 17
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_run.pkb",
+							"line": 1381,
+							"column": 54,
+							"name": "theParam",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+							"symbolLine": 1381,
+							"symbolColumn": 54
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_run.pkb",
+							"line": 1382,
+							"column": 63,
+							"name": "reportInfo",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+							"symbolLine": 1382,
+							"symbolColumn": 63
+						},
+						{
+							"path": "PACKAGES/las_uti_reportpdf.pkb",
+							"line": 403,
+							"column": 18,
+							"name": "kMaxLJSText",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_uti_reportpdf.pkb",
+							"symbolLine": 403,
+							"symbolColumn": 18
+						},
+						{
+							"path": "PACKAGES/ods_uti_pdf.pkb",
+							"line": 3744,
+							"column": 7,
+							"name": "THEN",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+							"symbolLine": 3744,
+							"symbolColumn": 7
+						},
+						{
+							"path": "PACKAGES/ods_uti_pdf.pkb",
+							"line": 3741,
+							"column": 7,
+							"name": "THEN",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+							"symbolLine": 3741,
+							"symbolColumn": 7
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_run.pkb",
+							"line": 1381,
+							"column": 74,
+							"name": "reportNode",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_storedreport_run.pkb",
+							"symbolLine": 1381,
+							"symbolColumn": 74
+						},
+						{
+							"path": "PACKAGES/las_rep_sijournal.pkb",
+							"line": 515,
+							"column": 2,
+							"name": "aRec",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+							"symbolLine": 515,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_rep_sijournal.pkb",
+							"line": 514,
+							"column": 2,
+							"name": "aRec",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+							"symbolLine": 514,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_language_data.pkb",
+							"line": 137,
+							"column": 21,
+							"name": ".",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_language_data.pkb",
+							"symbolLine": 137,
+							"symbolColumn": 21
+						},
+						{
+							"path": "PACKAGES/las_uti_reportpdf.pkb",
+							"line": 404,
+							"column": 17,
+							"name": "kMaxLJSText",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_uti_reportpdf.pkb",
+							"symbolLine": 404,
+							"symbolColumn": 17
+						},
+						{
+							"path": "PACKAGES/las_rep_sijournal.pkb",
+							"line": 517,
+							"column": 2,
+							"name": "RETURN",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_rep_sijournal.pkb",
+							"symbolLine": 517,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/ods_uti_pdf.pkb",
+							"line": 3745,
+							"column": 55,
+							"name": "dbms_lob",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+							"symbolLine": 3745,
+							"symbolColumn": 55
+						}
+					]
+				}
+			}
+		}
+	},
+	"referenceStrata": {
+		"procedural": {
+			"truth": 294058,
+			"actual": 190485,
+			"matched": 188680,
+			"missing": 105378,
+			"extra": 1805,
+			"ignoredExtra": 370,
+			"recall": 0.6416421250229547,
+			"precision": 0.9924519369855088,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 41,
+					"column": 2,
+					"name": "ATABLEDATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 93,
+					"column": 14,
+					"name": "ATABLEDATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00101.sql",
+					"line": 4,
+					"column": 2,
+					"name": "CONSTSERVCATACONTO",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sub_ceheader.pks",
+					"line": 70,
+					"column": 1,
+					"name": "ECEISAPPROVEDBYCLIENT",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_sub_ceheader.pks",
+					"line": 71,
+					"column": 1,
+					"name": "ECEISAPPROVEDINTERNALLY",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_cr00101.sql",
+					"line": 58,
+					"column": 2,
+					"name": "ATABLEDATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00101.sql",
+					"line": 156,
+					"column": 14,
+					"name": "ATABLEDATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 16,
+					"column": 2,
+					"name": "ANEMPTYDATA",
+					"type": "CONSTANT"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 21,
+					"column": 2,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 80,
+					"column": 3,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 81,
+					"column": 3,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 82,
+					"column": 3,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 83,
+					"column": 3,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 84,
+					"column": 3,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 85,
+					"column": 3,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 86,
+					"column": 3,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 87,
+					"column": 3,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 90,
+					"column": 6,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 91,
+					"column": 6,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 92,
+					"column": 6,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				}
+			],
+			"samplesExtra": [
+				{
+					"path": "PACKAGES/las_mod_paymentcondition_data.pkb",
+					"line": 104,
+					"column": 7,
+					"name": "anIsNumeric",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_paymentcondition_data.pkb",
+					"symbolLine": 78,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_mod_pm_workplan_extra.pkb",
+					"line": 313,
+					"column": 8,
+					"name": "anIsFirstEmpl",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_pm_workplan_extra.pkb",
+					"symbolLine": 123,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_mod_order_json.pkb",
+					"line": 2078,
+					"column": 8,
+					"name": "value_array",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_mod_order_json.pks",
+					"symbolLine": 238,
+					"symbolColumn": 51
+				},
+				{
+					"path": "PACKAGES/las_mod_pos_json.pkb",
+					"line": 7046,
+					"column": 5,
+					"name": "aHasNewDefaultCostCentre",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+					"symbolLine": 6955,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_mod_pos_json.pkb",
+					"line": 7087,
+					"column": 5,
+					"name": "aHasNewDefaultCostCentre",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+					"symbolLine": 6955,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_ord.pkb",
+					"line": 820,
+					"column": 5,
+					"name": "aPrintBold",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_ord.pkb",
+					"symbolLine": 817,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sub_siheader.pkb",
+					"line": 3835,
+					"column": 5,
+					"name": "aCommonTargetExists",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_siheader.pkb",
+					"symbolLine": 3796,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sys_authentication.pkb",
+					"line": 520,
+					"column": 5,
+					"name": "aIsCaseSensitive",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sys_authentication.pkb",
+					"symbolLine": 509,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sub_notify_job.pkb",
+					"line": 86,
+					"column": 65,
+					"name": "aIntJobNo",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_notify_job.pkb",
+					"symbolLine": 55,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sub_notify_job.pkb",
+					"line": 88,
+					"column": 71,
+					"name": "aIntJobNo",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_notify_job.pkb",
+					"symbolLine": 55,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_jsn_pers.pkb",
+					"line": 90,
+					"column": 6,
+					"name": "theAddEmailFields",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_jsn_pers.pkb",
+					"symbolLine": 68,
+					"symbolColumn": 9
+				},
+				{
+					"path": "PACKAGES/las_sql_jpos.pkb",
+					"line": 3309,
+					"column": 5,
+					"name": "theDoCheckHeader",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_sql_jpos.pkb",
+					"symbolLine": 3243,
+					"symbolColumn": 11
+				},
+				{
+					"path": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+					"line": 398,
+					"column": 5,
+					"name": "aManualRoundDiffExist",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+					"symbolLine": 382,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_xls_universaltable.pkb",
+					"line": 96,
+					"column": 5,
+					"name": "isAutoFilter",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_xls_universaltable.pks",
+					"symbolLine": 68,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_mod_altaddr_json.pkb",
+					"line": 894,
+					"column": 6,
+					"name": "anIsOK",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_altaddr_json.pkb",
+					"symbolLine": 824,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_jsn_suppl.pkb",
+					"line": 107,
+					"column": 7,
+					"name": "theAddBlockInfo",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_jsn_suppl.pkb",
+					"symbolLine": 46,
+					"symbolColumn": 10
+				},
+				{
+					"path": "PACKAGES/las_rep_hourstatistic.pkb",
+					"line": 517,
+					"column": 5,
+					"name": "theIsAllEmpl",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_rep_hourstatistic.pkb",
+					"symbolLine": 508,
+					"symbolColumn": 10
+				},
+				{
+					"path": "PACKAGES/las_sql_hour.pkb",
+					"line": 660,
+					"column": 5,
+					"name": "theCondition",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_sql_hour.pkb",
+					"symbolLine": 650,
+					"symbolColumn": 25
+				},
+				{
+					"path": "PACKAGES/las_jsn_global.pkb",
+					"line": 212,
+					"column": 5,
+					"name": "theAddName",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_jsn_global.pks",
+					"symbolLine": 242,
+					"symbolColumn": 5
+				},
+				{
+					"path": "PACKAGES/las_sub_export_xrechnung.pkb",
+					"line": 3142,
+					"column": 6,
+					"name": "theTypeINV",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_sub_export_xrechnung.pkb",
+					"symbolLine": 2986,
+					"symbolColumn": 9
+				}
+			],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 365,
+					"samples": [
+						{
+							"path": "PACKAGES/las_mod_pm_workplan_extra.pkb",
+							"line": 313,
+							"column": 8,
+							"name": "anIsFirstEmpl",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_pm_workplan_extra.pkb",
+							"symbolLine": 123,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_notify_job.pkb",
+							"line": 86,
+							"column": 65,
+							"name": "aIntJobNo",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_notify_job.pkb",
+							"symbolLine": 55,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_notify_job.pkb",
+							"line": 88,
+							"column": 71,
+							"name": "aIntJobNo",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_notify_job.pkb",
+							"symbolLine": 55,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_user_json.pkb",
+							"line": 2519,
+							"column": 200,
+							"name": "aNoOfOK",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_user_json.pkb",
+							"symbolLine": 2412,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_cistatus.pkb",
+							"line": 1673,
+							"column": 149,
+							"name": "aTargetCIBookID",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_cistatus.pkb",
+							"symbolLine": 1613,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_importjob.pkb",
+							"line": 497,
+							"column": 6,
+							"name": "anIsFirstRow",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_importjob.pkb",
+							"symbolLine": 482,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_pos_json.pkb",
+							"line": 4388,
+							"column": 8,
+							"name": "anIsFirstTime",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+							"symbolLine": 4332,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_jsn_datalist.pkb",
+							"line": 46,
+							"column": 101,
+							"name": "kDiversID",
+							"kind": "constant",
+							"symbolPath": "PACKAGES/las_jsn_datalist.pkb",
+							"symbolLine": 40,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_messages_page.pkb",
+							"line": 250,
+							"column": 252,
+							"name": "theDaysBack",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_messages_page.pkb",
+							"symbolLine": 232,
+							"symbolColumn": 128
+						},
+						{
+							"path": "PACKAGES/las_mod_messages_page.pkb",
+							"line": 251,
+							"column": 252,
+							"name": "theDaysBack",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_messages_page.pkb",
+							"symbolLine": 232,
+							"symbolColumn": 128
+						},
+						{
+							"path": "PACKAGES/las_rep_jobjournal.pkb",
+							"line": 299,
+							"column": 140,
+							"name": "eDbmsStringType",
+							"kind": "constant",
+							"symbolPath": "PACKAGES/las_rep_jobjournal.pkb",
+							"symbolLine": 16,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_rep_jobjournal.pkb",
+							"line": 301,
+							"column": 143,
+							"name": "eDbmsStringType",
+							"kind": "constant",
+							"symbolPath": "PACKAGES/las_rep_jobjournal.pkb",
+							"symbolLine": 16,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mod_altaddr_sql.pkb",
+							"line": 198,
+							"column": 110,
+							"name": "aLength",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_altaddr_sql.pkb",
+							"symbolLine": 167,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_reportfont.pkb",
+							"line": 158,
+							"column": 48,
+							"name": "theXmlStyle",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_reportfont.pkb",
+							"symbolLine": 138,
+							"symbolColumn": 7
+						},
+						{
+							"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"line": 2729,
+							"column": 256,
+							"name": "theLanguageCodeA2",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"symbolLine": 2684,
+							"symbolColumn": 9
+						},
+						{
+							"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"line": 2729,
+							"column": 352,
+							"name": "theLanguageCodeA2",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"symbolLine": 2684,
+							"symbolColumn": 9
+						},
+						{
+							"path": "PACKAGES/las_sql_ceheader.pkb",
+							"line": 2235,
+							"column": 123,
+							"name": "theLangID",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_ceheader.pks",
+							"symbolLine": 390,
+							"symbolColumn": 7
+						},
+						{
+							"path": "PACKAGES/las_sql_ceheader.pkb",
+							"line": 2243,
+							"column": 151,
+							"name": "theLangID",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_ceheader.pks",
+							"symbolLine": 390,
+							"symbolColumn": 7
+						},
+						{
+							"path": "PACKAGES/las_sql_ceheader.pkb",
+							"line": 2244,
+							"column": 151,
+							"name": "theLangID",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_ceheader.pks",
+							"symbolLine": 390,
+							"symbolColumn": 7
+						},
+						{
+							"path": "PACKAGES/las_sql_ceheader.pkb",
+							"line": 2245,
+							"column": 151,
+							"name": "theLangID",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_ceheader.pks",
+							"symbolLine": 390,
+							"symbolColumn": 7
+						}
+					]
+				},
+				"outside_plscope": {
+					"count": 5,
+					"samples": [
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 5,
+							"column": 3,
+							"name": "aString",
+							"kind": "variable",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 2,
+							"symbolColumn": 2
+						},
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 7,
+							"column": 3,
+							"name": "aString",
+							"kind": "variable",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 2,
+							"symbolColumn": 2
+						},
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 4,
+							"column": 5,
+							"name": "theReplaceTokens",
+							"kind": "parameter",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 92
+						},
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 5,
+							"column": 22,
+							"name": "theString",
+							"kind": "parameter",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 69
+						},
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 7,
+							"column": 14,
+							"name": "theString",
+							"kind": "parameter",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 69
+						}
+					]
+				},
+				"false_positive": {
+					"count": 1435,
+					"samples": [
+						{
+							"path": "PACKAGES/las_mod_paymentcondition_data.pkb",
+							"line": 104,
+							"column": 7,
+							"name": "anIsNumeric",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_paymentcondition_data.pkb",
+							"symbolLine": 78,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_order_json.pkb",
+							"line": 2078,
+							"column": 8,
+							"name": "value_array",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_order_json.pks",
+							"symbolLine": 238,
+							"symbolColumn": 51
+						},
+						{
+							"path": "PACKAGES/las_mod_pos_json.pkb",
+							"line": 7046,
+							"column": 5,
+							"name": "aHasNewDefaultCostCentre",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+							"symbolLine": 6955,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_pos_json.pkb",
+							"line": 7087,
+							"column": 5,
+							"name": "aHasNewDefaultCostCentre",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_pos_json.pkb",
+							"symbolLine": 6955,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_ord.pkb",
+							"line": 820,
+							"column": 5,
+							"name": "aPrintBold",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_ord.pkb",
+							"symbolLine": 817,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_siheader.pkb",
+							"line": 3835,
+							"column": 5,
+							"name": "aCommonTargetExists",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_siheader.pkb",
+							"symbolLine": 3796,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sys_authentication.pkb",
+							"line": 520,
+							"column": 5,
+							"name": "aIsCaseSensitive",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sys_authentication.pkb",
+							"symbolLine": 509,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_jsn_pers.pkb",
+							"line": 90,
+							"column": 6,
+							"name": "theAddEmailFields",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_jsn_pers.pkb",
+							"symbolLine": 68,
+							"symbolColumn": 9
+						},
+						{
+							"path": "PACKAGES/las_sql_jpos.pkb",
+							"line": 3309,
+							"column": 5,
+							"name": "theDoCheckHeader",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_jpos.pkb",
+							"symbolLine": 3243,
+							"symbolColumn": 11
+						},
+						{
+							"path": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+							"line": 398,
+							"column": 5,
+							"name": "aManualRoundDiffExist",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+							"symbolLine": 382,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_xls_universaltable.pkb",
+							"line": 96,
+							"column": 5,
+							"name": "isAutoFilter",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_xls_universaltable.pks",
+							"symbolLine": 68,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_altaddr_json.pkb",
+							"line": 894,
+							"column": 6,
+							"name": "anIsOK",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_altaddr_json.pkb",
+							"symbolLine": 824,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_jsn_suppl.pkb",
+							"line": 107,
+							"column": 7,
+							"name": "theAddBlockInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_jsn_suppl.pkb",
+							"symbolLine": 46,
+							"symbolColumn": 10
+						},
+						{
+							"path": "PACKAGES/las_rep_hourstatistic.pkb",
+							"line": 517,
+							"column": 5,
+							"name": "theIsAllEmpl",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_rep_hourstatistic.pkb",
+							"symbolLine": 508,
+							"symbolColumn": 10
+						},
+						{
+							"path": "PACKAGES/las_sql_hour.pkb",
+							"line": 660,
+							"column": 5,
+							"name": "theCondition",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_hour.pkb",
+							"symbolLine": 650,
+							"symbolColumn": 25
+						},
+						{
+							"path": "PACKAGES/las_jsn_global.pkb",
+							"line": 212,
+							"column": 5,
+							"name": "theAddName",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_jsn_global.pks",
+							"symbolLine": 242,
+							"symbolColumn": 5
+						},
+						{
+							"path": "PACKAGES/las_sub_export_xrechnung.pkb",
+							"line": 3142,
+							"column": 6,
+							"name": "theTypeINV",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sub_export_xrechnung.pkb",
+							"symbolLine": 2986,
+							"symbolColumn": 9
+						},
+						{
+							"path": "PACKAGES/las_mod_country_json.pkb",
+							"line": 335,
+							"column": 6,
+							"name": "theActiveInfo",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_country_json.pks",
+							"symbolLine": 62,
+							"symbolColumn": 7
+						},
+						{
+							"path": "PACKAGES/las_sql_hour.pkb",
+							"line": 3626,
+							"column": 5,
+							"name": "aNotFound",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sql_hour.pkb",
+							"symbolLine": 3616,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_cistatus.pkb",
+							"line": 942,
+							"column": 6,
+							"name": "anIsOwnCI",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_cistatus.pkb",
+							"symbolLine": 891,
+							"symbolColumn": 2
+						}
+					]
+				}
+			}
+		},
+		"static_sql": {
+			"truth": 31643,
+			"actual": 23384,
+			"matched": 23177,
+			"missing": 8466,
+			"extra": 207,
+			"ignoredExtra": 126,
+			"recall": 0.7324526751572228,
+			"precision": 0.9965173273712271,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 66,
+					"column": 10,
+					"name": "ITSCIBOOKID",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 66,
+					"column": 10,
+					"name": "ITSCIHEADERID",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 66,
+					"column": 10,
+					"name": "ITSCIDATE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 66,
+					"column": 10,
+					"name": "ITSTOTALAMOUNT",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 136,
+					"column": 8,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 149,
+					"column": 8,
+					"name": "ADATA",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 34,
+					"name": "JOBSURVEYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 47,
+					"name": "AGENCYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 57,
+					"name": "CUSTID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 65,
+					"name": "PRODID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 73,
+					"name": "CAMPID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 81,
+					"name": "JOBID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 37,
+					"column": 88,
+					"name": "JOBEMPLID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 10,
+					"name": "JOBRESPEMPLCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 27,
+					"name": "CUSTMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 42,
+					"name": "PRODMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 57,
+					"name": "CAMPMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 72,
+					"name": "JOBMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 38,
+					"column": 86,
+					"name": "INTJOBNO",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr01660_view.sql",
+					"line": 222,
+					"column": 28,
+					"name": "JPOSPOSNO",
+					"type": "VARIABLE"
+				}
+			],
+			"samplesExtra": [
+				{
+					"path": "PACKAGES/las_sql_job.pkb",
+					"line": 2860,
+					"column": 5,
+					"name": "theIsConnectedCEsModified",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_sql_job.pks",
+					"symbolLine": 599,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_hour.pkb",
+					"line": 2294,
+					"column": 5,
+					"name": "theIsOK",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_sub_hour.pks",
+					"symbolLine": 115,
+					"symbolColumn": 8
+				},
+				{
+					"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+					"line": 3344,
+					"column": 5,
+					"name": "anExists",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+					"symbolLine": 3330,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+					"line": 54,
+					"column": 11,
+					"name": "ceid",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+					"symbolLine": 41,
+					"symbolColumn": 49
+				},
+				{
+					"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+					"line": 56,
+					"column": 11,
+					"name": "ceid",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+					"symbolLine": 41,
+					"symbolColumn": 49
+				},
+				{
+					"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+					"line": 56,
+					"column": 97,
+					"name": "ceid",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+					"symbolLine": 41,
+					"symbolColumn": 49
+				},
+				{
+					"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+					"line": 79,
+					"column": 57,
+					"name": "ceid",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+					"symbolLine": 41,
+					"symbolColumn": 49
+				},
+				{
+					"path": "PACKAGES/las_sql_universaltable.pkb",
+					"line": 575,
+					"column": 5,
+					"name": "theFilterHasChanged",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_sql_universaltable.pks",
+					"symbolLine": 251,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_mod_user_json.pkb",
+					"line": 1076,
+					"column": 5,
+					"name": "aMasterList",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_user_json.pkb",
+					"symbolLine": 1029,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_int_currrate_02_bnr.pkb",
+					"line": 111,
+					"column": 6,
+					"name": "aFound",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_int_currrate_02_bnr.pkb",
+					"symbolLine": 87,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_int_currrate_02_bnr.pkb",
+					"line": 152,
+					"column": 6,
+					"name": "aFound",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_int_currrate_02_bnr.pkb",
+					"symbolLine": 87,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sql_projecttask.pkb",
+					"line": 2231,
+					"column": 5,
+					"name": "theUpdateAdditionalTaskData",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_sql_projecttask.pks",
+					"symbolLine": 638,
+					"symbolColumn": 8
+				},
+				{
+					"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+					"line": 3546,
+					"column": 5,
+					"name": "anExists",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+					"symbolLine": 3530,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sub_prm_teamoverview.pkb",
+					"line": 517,
+					"column": 7,
+					"name": "aDelete",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_prm_teamoverview.pkb",
+					"symbolLine": 478,
+					"symbolColumn": 2
+				},
+				{
+					"path": "FILL/f_odsresources.sql",
+					"line": 10,
+					"column": 89,
+					"name": "aString",
+					"kind": "variable",
+					"symbolPath": "FILL/f_odsresources.sql",
+					"symbolLine": 2,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_mod_adminsupport_data.pkb",
+					"line": 521,
+					"column": 6,
+					"name": "oracleVersion",
+					"kind": "procedure",
+					"symbolPath": "PACKAGES/las_mod_adminsupport_data.pkb",
+					"symbolLine": 842,
+					"symbolColumn": 1
+				},
+				{
+					"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+					"line": 3246,
+					"column": 5,
+					"name": "anExists",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+					"symbolLine": 3232,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sql_emplpresence.pkb",
+					"line": 298,
+					"column": 6,
+					"name": "anIsFirstEntry",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sql_emplpresence.pkb",
+					"symbolLine": 253,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_mod_collaboration.pkb",
+					"line": 152,
+					"column": 59,
+					"name": "userID",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_mod_collaboration.pks",
+					"symbolLine": 62,
+					"symbolColumn": 26
+				},
+				{
+					"path": "PACKAGES/las_mod_collaboration.pkb",
+					"line": 156,
+					"column": 34,
+					"name": "userID",
+					"kind": "parameter",
+					"symbolPath": "PACKAGES/las_mod_collaboration.pks",
+					"symbolLine": 62,
+					"symbolColumn": 26
+				}
+			],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 116,
+					"samples": [
+						{
+							"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+							"line": 54,
+							"column": 11,
+							"name": "ceid",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+							"symbolLine": 41,
+							"symbolColumn": 49
+						},
+						{
+							"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+							"line": 56,
+							"column": 11,
+							"name": "ceid",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+							"symbolLine": 41,
+							"symbolColumn": 49
+						},
+						{
+							"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+							"line": 79,
+							"column": 57,
+							"name": "ceid",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+							"symbolLine": 41,
+							"symbolColumn": 49
+						},
+						{
+							"path": "PACKAGES/las_mod_adminsupport_data.pkb",
+							"line": 521,
+							"column": 6,
+							"name": "oracleVersion",
+							"kind": "procedure",
+							"symbolPath": "PACKAGES/las_mod_adminsupport_data.pkb",
+							"symbolLine": 842,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mod_collaboration.pkb",
+							"line": 152,
+							"column": 59,
+							"name": "userID",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_collaboration.pks",
+							"symbolLine": 62,
+							"symbolColumn": 26
+						},
+						{
+							"path": "PACKAGES/las_mod_collaboration.pkb",
+							"line": 156,
+							"column": 34,
+							"name": "userID",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_collaboration.pks",
+							"symbolLine": 62,
+							"symbolColumn": 26
+						},
+						{
+							"path": "PACKAGES/las_sub_ceheader.pkb",
+							"line": 1423,
+							"column": 4,
+							"name": "IsApproved",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_sub_ceheader.pks",
+							"symbolLine": 119,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_sql_prod.pkb",
+							"line": 42,
+							"column": 9,
+							"name": "isActive",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_sql_prod.pks",
+							"symbolLine": 53,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_sql_prod.pkb",
+							"line": 409,
+							"column": 103,
+							"name": "isActive",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_sql_prod.pks",
+							"symbolLine": 53,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_sql_prod.pkb",
+							"line": 421,
+							"column": 95,
+							"name": "isActive",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_sql_prod.pks",
+							"symbolLine": 53,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_sql_prod.pkb",
+							"line": 433,
+							"column": 102,
+							"name": "isActive",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_sql_prod.pks",
+							"symbolLine": 53,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mod_client_json.pkb",
+							"line": 1213,
+							"column": 58,
+							"name": "custID",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_client_json.pks",
+							"symbolLine": 111,
+							"symbolColumn": 56
+						},
+						{
+							"path": "PACKAGES/las_mod_client_json.pkb",
+							"line": 1215,
+							"column": 58,
+							"name": "custID",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_client_json.pks",
+							"symbolLine": 111,
+							"symbolColumn": 56
+						},
+						{
+							"path": "PACKAGES/las_mod_projecttaskempl.pkb",
+							"line": 142,
+							"column": 54,
+							"name": "taskID",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_projecttaskempl.pks",
+							"symbolLine": 42,
+							"symbolColumn": 29
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_data.pkb",
+							"line": 211,
+							"column": 10,
+							"name": "reportID",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+							"symbolLine": 345,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_data.pkb",
+							"line": 225,
+							"column": 12,
+							"name": "reportID",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+							"symbolLine": 345,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_data.pkb",
+							"line": 643,
+							"column": 18,
+							"name": "reportID",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+							"symbolLine": 345,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_data.pkb",
+							"line": 816,
+							"column": 10,
+							"name": "reportID",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+							"symbolLine": 345,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_data.pkb",
+							"line": 840,
+							"column": 8,
+							"name": "reportID",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+							"symbolLine": 345,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_data.pkb",
+							"line": 883,
+							"column": 9,
+							"name": "reportID",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_mod_storedreport_data.pks",
+							"symbolLine": 345,
+							"symbolColumn": 1
+						}
+					]
+				},
+				"location_mismatch": {
+					"count": 7,
+					"samples": [
+						{
+							"path": "PACKAGES/las_sql_emplpresence.pkb",
+							"line": 298,
+							"column": 6,
+							"name": "anIsFirstEntry",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sql_emplpresence.pkb",
+							"symbolLine": 253,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sql_job.pkb",
+							"line": 3396,
+							"column": 125,
+							"name": "anErrorMessage",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sql_job.pkb",
+							"symbolLine": 3373,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sql_projecttask.pkb",
+							"line": 916,
+							"column": 209,
+							"name": "getTaskName",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_sql_projecttask.pks",
+							"symbolLine": 307,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_sql_projecttask.pkb",
+							"line": 2454,
+							"column": 232,
+							"name": "getTaskName",
+							"kind": "function",
+							"symbolPath": "PACKAGES/las_sql_projecttask.pks",
+							"symbolLine": 307,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mcp_master_data_data.pkb",
+							"line": 457,
+							"column": 37,
+							"name": "p_search",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mcp_master_data_data.pkb",
+							"symbolLine": 428,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mcp_master_data_data.pkb",
+							"line": 405,
+							"column": 36,
+							"name": "p_search",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mcp_master_data_data.pkb",
+							"symbolLine": 380,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mod_cicreate.pkb",
+							"line": 439,
+							"column": 6,
+							"name": "anIsFirstEntry",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_cicreate.pkb",
+							"symbolLine": 419,
+							"symbolColumn": 2
+						}
+					]
+				},
+				"outside_plscope": {
+					"count": 3,
+					"samples": [
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 10,
+							"column": 89,
+							"name": "aString",
+							"kind": "variable",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 2,
+							"symbolColumn": 2
+						},
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 10,
+							"column": 20,
+							"name": "theLang",
+							"kind": "parameter",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 33
+						},
+						{
+							"path": "FILL/f_odsresources.sql",
+							"line": 10,
+							"column": 29,
+							"name": "theID",
+							"kind": "parameter",
+							"symbolPath": "FILL/f_odsresources.sql",
+							"symbolLine": 1,
+							"symbolColumn": 52
+						}
+					]
+				},
+				"false_positive": {
+					"count": 81,
+					"samples": [
+						{
+							"path": "PACKAGES/las_sql_job.pkb",
+							"line": 2860,
+							"column": 5,
+							"name": "theIsConnectedCEsModified",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_job.pks",
+							"symbolLine": 599,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_hour.pkb",
+							"line": 2294,
+							"column": 5,
+							"name": "theIsOK",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sub_hour.pks",
+							"symbolLine": 115,
+							"symbolColumn": 8
+						},
+						{
+							"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"line": 3344,
+							"column": 5,
+							"name": "anExists",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"symbolLine": 3330,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/tst_mod_onlineapprovalce_test.pkb",
+							"line": 56,
+							"column": 97,
+							"name": "ceid",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/tst_mod_onlineapprovalce_test.pks",
+							"symbolLine": 41,
+							"symbolColumn": 49
+						},
+						{
+							"path": "PACKAGES/las_sql_universaltable.pkb",
+							"line": 575,
+							"column": 5,
+							"name": "theFilterHasChanged",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_universaltable.pks",
+							"symbolLine": 251,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_mod_user_json.pkb",
+							"line": 1076,
+							"column": 5,
+							"name": "aMasterList",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_user_json.pkb",
+							"symbolLine": 1029,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_int_currrate_02_bnr.pkb",
+							"line": 111,
+							"column": 6,
+							"name": "aFound",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_int_currrate_02_bnr.pkb",
+							"symbolLine": 87,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_int_currrate_02_bnr.pkb",
+							"line": 152,
+							"column": 6,
+							"name": "aFound",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_int_currrate_02_bnr.pkb",
+							"symbolLine": 87,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sql_projecttask.pkb",
+							"line": 2231,
+							"column": 5,
+							"name": "theUpdateAdditionalTaskData",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_projecttask.pks",
+							"symbolLine": 638,
+							"symbolColumn": 8
+						},
+						{
+							"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"line": 3546,
+							"column": 5,
+							"name": "anExists",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"symbolLine": 3530,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_prm_teamoverview.pkb",
+							"line": 517,
+							"column": 7,
+							"name": "aDelete",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_prm_teamoverview.pkb",
+							"symbolLine": 478,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"line": 3246,
+							"column": 5,
+							"name": "anExists",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"symbolLine": 3232,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"line": 3495,
+							"column": 5,
+							"name": "anExists",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_addinfodata_sql.pkb",
+							"symbolLine": 3481,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_uti_importinthorate.pkb",
+							"line": 163,
+							"column": 5,
+							"name": "anIsOK",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_uti_importinthorate.pkb",
+							"symbolLine": 92,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_mcp_master_data_data.pkb",
+							"line": 507,
+							"column": 36,
+							"name": "p_search",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mcp_master_data_data.pkb",
+							"symbolLine": 481,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mcp_master_data_data.pkb",
+							"line": 508,
+							"column": 65,
+							"name": "p_search",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mcp_master_data_data.pkb",
+							"symbolLine": 481,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mod_ts_stopwatch_sql.pkb",
+							"line": 101,
+							"column": 6,
+							"name": "theIsProductive",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_mod_ts_stopwatch_sql.pkb",
+							"symbolLine": 82,
+							"symbolColumn": 24
+						},
+						{
+							"path": "PACKAGES/las_sub_projectcalc.pkb",
+							"line": 1150,
+							"column": 6,
+							"name": "theCalculateForward",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sub_projectcalc.pkb",
+							"symbolLine": 1141,
+							"symbolColumn": 48
+						},
+						{
+							"path": "PACKAGES/ods_sql_dbpref.pkb",
+							"line": 297,
+							"column": 6,
+							"name": "aOK",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/ods_sql_dbpref.pkb",
+							"symbolLine": 285,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sql_projecttask.pkb",
+							"line": 2226,
+							"column": 5,
+							"name": "theUpdateProjectTaskData",
+							"kind": "parameter",
+							"symbolPath": "PACKAGES/las_sql_projecttask.pks",
+							"symbolLine": 637,
+							"symbolColumn": 8
+						}
+					]
+				}
+			}
+		},
+		"member_chain": {
+			"truth": 137917,
+			"actual": 111852,
+			"matched": 111326,
+			"missing": 26591,
+			"extra": 526,
+			"ignoredExtra": 4,
+			"recall": 0.8071956321555718,
+			"precision": 0.995332951863243,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 131,
+					"column": 35,
+					"name": "ACITABLE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 48,
+					"column": 46,
+					"name": "JOBSURVEYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 53,
+					"column": 46,
+					"name": "JOBSURVEYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 59,
+					"column": 42,
+					"name": "JOBSURVEYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 68,
+					"column": 47,
+					"name": "JOBSURVEYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 80,
+					"column": 42,
+					"name": "JOBSURVEYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 81,
+					"column": 40,
+					"name": "AGENCYID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 82,
+					"column": 38,
+					"name": "CUSTID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 83,
+					"column": 38,
+					"name": "PRODID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 84,
+					"column": 38,
+					"name": "CAMPID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 48,
+					"column": 93,
+					"name": "JOBID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 53,
+					"column": 93,
+					"name": "JOBID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 59,
+					"column": 85,
+					"name": "JOBID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 68,
+					"column": 94,
+					"name": "JOBID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 85,
+					"column": 38,
+					"name": "JOBID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 86,
+					"column": 38,
+					"name": "JOBEMPLID",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 90,
+					"column": 43,
+					"name": "JOBRESPEMPLCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 91,
+					"column": 47,
+					"name": "CUSTMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 92,
+					"column": 47,
+					"name": "PRODMATCHCODE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "PACKAGES/las_cr00401.sql",
+					"line": 93,
+					"column": 47,
+					"name": "CAMPMATCHCODE",
+					"type": "VARIABLE"
+				}
+			],
+			"samplesExtra": [
+				{
+					"path": "PACKAGES/las_mod_pm_ganttchart_calc.pkb",
+					"line": 309,
+					"column": 14,
+					"name": "isLoop",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_mod_pm_ganttchart_calc.pks",
+					"symbolLine": 58,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_inv_dyn.pkb",
+					"line": 2992,
+					"column": 23,
+					"name": "hasZeroVAT",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_sub_reportform_inv.pks",
+					"symbolLine": 67,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_mod_user_json.pkb",
+					"line": 532,
+					"column": 12,
+					"name": "rowEmp",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_mod_user_json.pkb",
+					"symbolLine": 190,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_rep_cejournal.pkb",
+					"line": 779,
+					"column": 14,
+					"name": "posInv",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_rep_cejournal.pkb",
+					"symbolLine": 109,
+					"symbolColumn": 5
+				},
+				{
+					"path": "PACKAGES/las_rep_jobsurvey.pkb",
+					"line": 355,
+					"column": 24,
+					"name": "itExportsAccnt_View",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_rep_jobsurvey.pks",
+					"symbolLine": 257,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_inv_dyn.pkb",
+					"line": 2822,
+					"column": 20,
+					"name": "hasEuroActive",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_uti_reportform.pks",
+					"symbolLine": 713,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_mod_einvoice_json.pkb",
+					"line": 1581,
+					"column": 10,
+					"name": "xmlFmt",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_mod_einvoice_json.pkb",
+					"symbolLine": 85,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_json.pkb",
+					"line": 141,
+					"column": 12,
+					"name": "reportSettings",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+					"symbolLine": 36,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_json.pkb",
+					"line": 253,
+					"column": 12,
+					"name": "reportSettings",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+					"symbolLine": 36,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_mod_storedreport_run.pkb",
+					"line": 1001,
+					"column": 15,
+					"name": "bindUserVar",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+					"symbolLine": 41,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_sql_prod.pkb",
+					"line": 576,
+					"column": 220,
+					"name": "eGLFibuSettings",
+					"kind": "constant",
+					"symbolPath": "PACKAGES/ods_sql_dbpref.pks",
+					"symbolLine": 77,
+					"symbolColumn": 1
+				},
+				{
+					"path": "PACKAGES/las_rep_jobsurvey.pkb",
+					"line": 361,
+					"column": 24,
+					"name": "itExportsCE",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_rep_jobsurvey.pks",
+					"symbolLine": 258,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_rep_jobsurvey.pkb",
+					"line": 556,
+					"column": 22,
+					"name": "isWithReorgAbleJobs",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_rep_jobsurvey.pks",
+					"symbolLine": 243,
+					"symbolColumn": 2
+				},
+				{
+					"path": "PACKAGES/las_rep_jobcoversheet.pkb",
+					"line": 872,
+					"column": 145,
+					"name": "marginBottom",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_uti_reportpdf.pks",
+					"symbolLine": 207,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_rep_jobcoversheet.pkb",
+					"line": 877,
+					"column": 145,
+					"name": "marginBottom",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_uti_reportpdf.pks",
+					"symbolLine": 207,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_rep_jobcoversheet.pkb",
+					"line": 891,
+					"column": 149,
+					"name": "marginBottom",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_uti_reportpdf.pks",
+					"symbolLine": 207,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_rep_jobcoversheet.pkb",
+					"line": 892,
+					"column": 152,
+					"name": "marginBottom",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_uti_reportpdf.pks",
+					"symbolLine": 207,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/ods_uti_pdf.pkb",
+					"line": 1381,
+					"column": 10,
+					"name": "xmp_meta",
+					"kind": "field",
+					"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+					"symbolLine": 135,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_eng.pkb",
+					"line": 2293,
+					"column": 18,
+					"name": "realigned",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_eng.pks",
+					"symbolLine": 279,
+					"symbolColumn": 4
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_eng.pkb",
+					"line": 2473,
+					"column": 18,
+					"name": "realigned",
+					"kind": "field",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_eng.pks",
+					"symbolLine": 279,
+					"symbolColumn": 4
+				}
+			],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 4,
+					"samples": [
+						{
+							"path": "PACKAGES/las_rpt_timereport.pkb",
+							"line": 667,
+							"column": 13,
+							"name": "firstWeek",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_rpt_timereport.pkb",
+							"symbolLine": 47,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mod_texttemplate_data.pkb",
+							"line": 345,
+							"column": 216,
+							"name": "tr",
+							"kind": "function",
+							"symbolPath": "PACKAGES/ods_uti_resources.pks",
+							"symbolLine": 79,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_dataout.pkb",
+							"line": 171,
+							"column": 187,
+							"name": "matchcode",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_uti_report.pks",
+							"symbolLine": 363,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_uti_reportexportpdf.pkb",
+							"line": 424,
+							"column": 208,
+							"name": "matchcode",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_uti_report.pks",
+							"symbolLine": 363,
+							"symbolColumn": 4
+						}
+					]
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 522,
+					"samples": [
+						{
+							"path": "PACKAGES/las_mod_pm_ganttchart_calc.pkb",
+							"line": 309,
+							"column": 14,
+							"name": "isLoop",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_mod_pm_ganttchart_calc.pks",
+							"symbolLine": 58,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_inv_dyn.pkb",
+							"line": 2992,
+							"column": 23,
+							"name": "hasZeroVAT",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_sub_reportform_inv.pks",
+							"symbolLine": 67,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mod_user_json.pkb",
+							"line": 532,
+							"column": 12,
+							"name": "rowEmp",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_mod_user_json.pkb",
+							"symbolLine": 190,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_rep_cejournal.pkb",
+							"line": 779,
+							"column": 14,
+							"name": "posInv",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_rep_cejournal.pkb",
+							"symbolLine": 109,
+							"symbolColumn": 5
+						},
+						{
+							"path": "PACKAGES/las_rep_jobsurvey.pkb",
+							"line": 355,
+							"column": 24,
+							"name": "itExportsAccnt_View",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_rep_jobsurvey.pks",
+							"symbolLine": 257,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_inv_dyn.pkb",
+							"line": 2822,
+							"column": 20,
+							"name": "hasEuroActive",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_uti_reportform.pks",
+							"symbolLine": 713,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mod_einvoice_json.pkb",
+							"line": 1581,
+							"column": 10,
+							"name": "xmlFmt",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_mod_einvoice_json.pkb",
+							"symbolLine": 85,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_json.pkb",
+							"line": 141,
+							"column": 12,
+							"name": "reportSettings",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+							"symbolLine": 36,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_json.pkb",
+							"line": 253,
+							"column": 12,
+							"name": "reportSettings",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+							"symbolLine": 36,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_mod_storedreport_run.pkb",
+							"line": 1001,
+							"column": 15,
+							"name": "bindUserVar",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_mod_storedreport_uti.pks",
+							"symbolLine": 41,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_sql_prod.pkb",
+							"line": 576,
+							"column": 220,
+							"name": "eGLFibuSettings",
+							"kind": "constant",
+							"symbolPath": "PACKAGES/ods_sql_dbpref.pks",
+							"symbolLine": 77,
+							"symbolColumn": 1
+						},
+						{
+							"path": "PACKAGES/las_rep_jobsurvey.pkb",
+							"line": 361,
+							"column": 24,
+							"name": "itExportsCE",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_rep_jobsurvey.pks",
+							"symbolLine": 258,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_rep_jobsurvey.pkb",
+							"line": 556,
+							"column": 22,
+							"name": "isWithReorgAbleJobs",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_rep_jobsurvey.pks",
+							"symbolLine": 243,
+							"symbolColumn": 2
+						},
+						{
+							"path": "PACKAGES/las_rep_jobcoversheet.pkb",
+							"line": 872,
+							"column": 145,
+							"name": "marginBottom",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_uti_reportpdf.pks",
+							"symbolLine": 207,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_rep_jobcoversheet.pkb",
+							"line": 877,
+							"column": 145,
+							"name": "marginBottom",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_uti_reportpdf.pks",
+							"symbolLine": 207,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_rep_jobcoversheet.pkb",
+							"line": 891,
+							"column": 149,
+							"name": "marginBottom",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_uti_reportpdf.pks",
+							"symbolLine": 207,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_rep_jobcoversheet.pkb",
+							"line": 892,
+							"column": 152,
+							"name": "marginBottom",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_uti_reportpdf.pks",
+							"symbolLine": 207,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/ods_uti_pdf.pkb",
+							"line": 1381,
+							"column": 10,
+							"name": "xmp_meta",
+							"kind": "field",
+							"symbolPath": "PACKAGES/ods_uti_pdf.pkb",
+							"symbolLine": 135,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_eng.pkb",
+							"line": 2293,
+							"column": 18,
+							"name": "realigned",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_eng.pks",
+							"symbolLine": 279,
+							"symbolColumn": 4
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_eng.pkb",
+							"line": 2473,
+							"column": 18,
+							"name": "realigned",
+							"kind": "field",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_eng.pks",
+							"symbolLine": 279,
+							"symbolColumn": 4
+						}
+					]
+				}
+			}
+		},
+		"iterator": {
+			"truth": 7973,
+			"actual": 2851,
+			"matched": 2721,
+			"missing": 5252,
+			"extra": 130,
+			"ignoredExtra": 6,
+			"recall": 0.34127680923115516,
+			"precision": 0.956414762741652,
+			"samplesMissing": [
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 66,
+					"column": 14,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 66,
+					"column": 35,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 71,
+					"column": 23,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 71,
+					"column": 44,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 93,
+					"column": 55,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 94,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 95,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 96,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 97,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 98,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 99,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 100,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 101,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 102,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 103,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 104,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 105,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 106,
+					"column": 16,
+					"name": "AJOBREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 73,
+					"column": 8,
+					"name": "APOSREC",
+					"type": "RECORD ITERATOR"
+				},
+				{
+					"path": "PACKAGES/las_cr00100.sql",
+					"line": 74,
+					"column": 9,
+					"name": "APOSREC",
+					"type": "RECORD ITERATOR"
+				}
+			],
+			"samplesExtra": [
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7026,
+					"column": 3,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7029,
+					"column": 22,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7031,
+					"column": 23,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7031,
+					"column": 44,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7033,
+					"column": 26,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7033,
+					"column": 40,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7035,
+					"column": 32,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7035,
+					"column": 46,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7036,
+					"column": 29,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7037,
+					"column": 85,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7041,
+					"column": 27,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7044,
+					"column": 27,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7049,
+					"column": 27,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7049,
+					"column": 41,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7053,
+					"column": 27,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7053,
+					"column": 48,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7054,
+					"column": 26,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7073,
+					"column": 26,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7093,
+					"column": 27,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				},
+				{
+					"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"line": 7104,
+					"column": 2,
+					"name": "j",
+					"kind": "variable",
+					"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+					"symbolLine": 6986,
+					"symbolColumn": 6
+				}
+			],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 6,
+					"samples": [
+						{
+							"path": "PACKAGES/las_sub_cistatus.pkb",
+							"line": 920,
+							"column": 182,
+							"name": "i",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_cistatus.pkb",
+							"symbolLine": 911,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_cistatus.pkb",
+							"line": 920,
+							"column": 210,
+							"name": "i",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_cistatus.pkb",
+							"symbolLine": 911,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_cistatus.pkb",
+							"line": 1010,
+							"column": 240,
+							"name": "i",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_cistatus.pkb",
+							"symbolLine": 911,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_cistatus.pkb",
+							"line": 1010,
+							"column": 268,
+							"name": "i",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_cistatus.pkb",
+							"symbolLine": 911,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_mod_ciheader_json.pkb",
+							"line": 2483,
+							"column": 200,
+							"name": "i",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_mod_ciheader_json.pkb",
+							"symbolLine": 2463,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sql_pers.pkb",
+							"line": 146,
+							"column": 148,
+							"name": "i",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sql_pers.pkb",
+							"symbolLine": 144,
+							"symbolColumn": 6
+						}
+					]
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 124,
+					"samples": [
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7026,
+							"column": 3,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7029,
+							"column": 22,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7031,
+							"column": 23,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7031,
+							"column": 44,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7033,
+							"column": 26,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7033,
+							"column": 40,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7035,
+							"column": 32,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7035,
+							"column": 46,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7036,
+							"column": 29,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7037,
+							"column": 85,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7041,
+							"column": 27,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7044,
+							"column": 27,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7049,
+							"column": 27,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7049,
+							"column": 41,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7053,
+							"column": 27,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7053,
+							"column": 48,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7054,
+							"column": 26,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7073,
+							"column": 26,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7093,
+							"column": 27,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						},
+						{
+							"path": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"line": 7104,
+							"column": 2,
+							"name": "j",
+							"kind": "variable",
+							"symbolPath": "PACKAGES/las_sub_reportform_pdf_gen.pkb",
+							"symbolLine": 6986,
+							"symbolColumn": 6
+						}
+					]
+				}
+			}
+		},
+		"pragma": {
+			"truth": 19,
+			"actual": 19,
+			"matched": 19,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"type_anchor": {
+			"truth": 21,
+			"actual": 21,
+			"matched": 21,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		}
+	},
+	"dependencies": {
+		"truth": 5639,
+		"actual": 5525,
+		"matched": 5525,
+		"missing": 114,
+		"extra": 0,
+		"recall": 0.9797836495832595,
+		"precision": 1
+	},
+	"gates": {
+		"declarations": {
+			"recall": false,
+			"precision": false,
+			"ok": false
+		},
+		"references": {
+			"recall": false,
+			"precision": false,
+			"ok": false
+		},
+		"dependencies": {
+			"recall": false,
+			"precision": true,
+			"ok": false
+		},
+		"ok": false
+	}
+}

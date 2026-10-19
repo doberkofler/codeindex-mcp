@@ -1,6 +1,10 @@
 import {writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
+import {type ExtractorType} from '../../../adapters/types.ts';
+import {oracleExtractor} from '../../../adapters/oracle/index.ts';
+import {configForOracleParser} from '../../../adapters/oracle/parserBinding.ts';
+import {oracleParserIdentityOf, type OracleParserIdType, type OracleParserIdentityType} from '../../../adapters/oracle/parserIdentity.ts';
 import {asString} from '../../storage/databaseRows.ts';
 import {IndexDatabase} from '../../storage/database.ts';
 import {createCodeIndex} from '../../generation/codeIndex.ts';
@@ -27,6 +31,8 @@ export type OracleOptionsType = Readonly<{
 	output?: string | undefined;
 	units?: readonly Readonly<{path: string; type: string; name: string}>[] | undefined;
 	truthPolicy?: OracleTruthPolicyVersionType | undefined;
+	/** Qualification-only parser selection. Production stays structural. */
+	parser?: OracleParserIdType | undefined;
 }>;
 
 type OracleQualificationResultType = Readonly<{
@@ -47,6 +53,7 @@ type DependencyMetricsType = Readonly<{
 type ReportType = Readonly<{
 	extractor: 'oracle';
 	generationId: string;
+	parser: OracleParserIdentityType;
 	corpus: Readonly<{files: number; objects: number}>;
 	policy: Readonly<{version: OracleTruthPolicyVersionType; supportedTypes: readonly string[]; supportedKinds: readonly string[]}>;
 	truth: Readonly<{
@@ -71,7 +78,7 @@ type ReportType = Readonly<{
 const DECLARATION_RECALL_GATE = 0.995;
 const REFERENCE_RECALL_GATE = 0.995;
 
-const buildIndex = async (config: ConfigType): Promise<void> => {
+const buildIndex = async (config: ConfigType, extractor: ExtractorType): Promise<void> => {
 	const database = IndexDatabase.open(config.databasePath, {
 		rootDir: config.rootDir,
 		projectFilePath: config.projectFilePath,
@@ -79,7 +86,7 @@ const buildIndex = async (config: ConfigType): Promise<void> => {
 		projectId: config.projectId,
 		vcs: readVcsProvenance(config.rootDir),
 	});
-	const index = createCodeIndex(config, database, createLogger({minimumLevel: config.logLevel}), {watch: false});
+	const index = createCodeIndex(config, database, createLogger({minimumLevel: config.logLevel}), {watch: false, extractor});
 
 	try {
 		// Qualification must observe the current extractor, never an index built
@@ -88,6 +95,24 @@ const buildIndex = async (config: ConfigType): Promise<void> => {
 	} finally {
 		await index.close();
 	}
+};
+
+/**
+ * Resolves the qualification extractor binding.
+ *
+ * The ANTLR module is imported dynamically so production entries never load or
+ * bundle the generated parser.
+ *
+ * @param parser - Selected parser implementation.
+ * @returns The bound extractor.
+ */
+const extractorForParser = async (parser: OracleParserIdType): Promise<ExtractorType> => {
+	if (parser === 'structural') {
+		return oracleExtractor;
+	}
+
+	const {antlrOracleExtractor} = await import('../../../adapters/oracle/antlrExtractor.ts');
+	return antlrOracleExtractor;
 };
 
 const mappingsOf = (
@@ -188,6 +213,7 @@ const filesOf = (reader: DatabaseSync, generationId: string): readonly string[] 
 const reportOf = (
 	input: Readonly<{
 		generationId: string;
+		parser: OracleParserIdentityType;
 		files: number;
 		objects: number;
 		truth: ReturnType<typeof readOracleTruth>;
@@ -205,6 +231,7 @@ const reportOf = (
 	return {
 		extractor: 'oracle',
 		generationId: input.generationId,
+		parser: input.parser,
 		corpus: {files: input.files, objects: input.objects},
 		policy: {
 			version: input.truth.policy.version,
@@ -249,13 +276,17 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 		throw new Error('Oracle qualification requires identifiers and dependencies exports');
 	}
 
-	await buildIndex(config);
-	const reader = new DatabaseSync(config.databasePath, {readOnly: true});
+	const parser = options.parser ?? 'structural';
+	const identity = oracleParserIdentityOf(parser);
+	const pinnedConfig = configForOracleParser(config, parser);
+
+	await buildIndex(pinnedConfig, await extractorForParser(parser));
+	const reader = new DatabaseSync(pinnedConfig.databasePath, {readOnly: true});
 
 	try {
 		const generationId = publishedGeneration(reader);
 		const files = filesOf(reader, generationId);
-		const mappings = mappingsOf(config.rootDir, files, options.units);
+		const mappings = mappingsOf(pinnedConfig.rootDir, files, options.units);
 		const mappingsByPath = mappingsByPathOf(mappings);
 		const policy = oracleTruthPolicyOf(options.truthPolicy);
 		const truth = readOracleTruth({rows: readCsv(identifiers), mappings, policy});
@@ -270,6 +301,7 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 		const strata = compareOracleStrata({truth, actual: code, mappings: mappingsByPath, policy, classifyExtra});
 		const report = reportOf({
 			generationId,
+			parser: identity,
 			files: files.length,
 			objects: mappings.size,
 			truth,
@@ -320,6 +352,7 @@ export const runOracleQualification = async (environment: NodeJS.ProcessEnv, io:
 		output: options.output,
 		units: options.units,
 		truthPolicy: options.truthPolicy,
+		parser: options.parser,
 	});
 
 	return result.code;

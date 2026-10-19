@@ -1,14 +1,16 @@
 # Oracle ANTLR Usage
 
 **Status:** production uses the pinned ANTLR lexer plus a tolerant structural
-scanner. Phases 1–7 of the implementation plan are now in the repository: the
+scanner. Phases 1–8 of the implementation plan are now in the repository: the
 pinned parser grammar, generated parser and visitor, parser base, an internal
 ANTLR parser adapter with conditional-compilation handling and segment
 recovery, the declaration visitor, the reference visitor with lexical scope
-resolution, the dependency visitor, qualification policy v2, and opt-in
-performance instrumentation with an SLL-first parse strategy. The adapter is
-not wired into production; the structural parser remains authoritative.
-Adoption work remains open, and the full-build performance gate is not met.
+resolution, the dependency visitor, qualification policy v2, opt-in performance
+instrumentation with an SLL-first parse strategy, and the Phase 8 parser seam.
+The adapter is not wired into production; the structural parser remains
+authoritative. Phase 8 quality evidence shows ANTLR improves declaration and
+reference recall but fails the precision gates and regresses dependency recall,
+so no adoption commit was made.
 
 See the [implementation plan](./oracle-antlr-plan.md) for the phased path from
 the current adapter to a production decision.
@@ -149,7 +151,9 @@ is owned by `src/adapters/oracle/antlrDeclarations.ts`, reference traversal by
 `src/adapters/oracle/antlrSqlNames.ts`, nested-scope extraction by
 `src/adapters/oracle/antlrNestedScopes.ts`, and name, range, and type extraction
 by `src/adapters/oracle/antlrDeclarationSupport.ts`. The adapter is exposed as
-`parseWithAntlr` / `antlrOracleParser`. Production does not import it yet.
+`parseWithAntlr` / `antlrOracleParser`. Production does not import it; the
+qualification command loads `antlrOracleExtractor` dynamically when `--parser
+antlr` is selected.
 
 ### 5.1 Generation
 
@@ -499,9 +503,11 @@ extractor for workspace and external targets.
 
 The remaining semantic work is:
 
-- parser selection in the qualification command (Phase 8);
 - differential dependency qualification against the structural parser;
 - residual SQL and PL/SQL constructs that the pinned grammar does not parse.
+
+Parser selection is implemented in the qualification command (`--parser
+structural|antlr`). It is qualification-only; production stays structural.
 
 Identifiers inside SQL must not automatically become symbol references.
 Definition names, labels, aliases, SQL object names, named-argument labels, and
@@ -523,18 +529,34 @@ export const structuralOracleParser: OracleParserType = ...;
 export const antlrOracleParser: OracleParserType = ...;
 ```
 
-Production remains bound to `structuralOracleParser` until the adoption gates
-pass. Qualification may select a parser through an explicit option. Parser
-selection must affect `compilerVersion` and `configHash` so a generation cannot
-be reused across implementations.
+Production is bound to `structuralOracleParser` through
+`createOracleExtractor(structuralOracleParserBinding)`. Qualification selects a
+parser with `--parser`:
 
-For authoritative measurements, build separate binaries:
+```bash
+pnpm qualify:oracle --parser antlr --identifiers ... --dependencies ...
+```
+
+The ANTLR binding lives in `antlrBinding.ts` and its extractor in
+`antlrExtractor.ts`. Qualification imports the extractor dynamically, so MCP and
+default CLI startup do not load the generated parser. Parser selection is also
+part of the configuration, and the bound extractor rejects a configuration that
+selects a different parser.
+
+Parser selection affects `compilerVersion` and `configHash` so a generation cannot
+be reused across implementations. `compilerVersion` records `parser@structural`
+or `parser@antlr`; `configHash` includes the parser revision. A test asserts that
+the same source produces different identities and that a generation built by one
+parser is not reusable by the other.
+
+For authoritative performance measurements, build separate binaries:
 
 - baseline imports only the structural parser;
 - candidate imports only the ANTLR parser.
 
 A runtime switch that bundles both parsers distorts bundle size, startup, and
-memory results.
+memory results. Phase 8 quality comparison uses separate databases and the same
+truth policy; it does not use bundle or startup numbers.
 
 ## 10. Runtime Alternatives
 
@@ -574,12 +596,24 @@ Adopt the full ANTLR parser only when all of the following hold:
 Phase 7 does not change this decision. Full-build ANTLR parsing is 50.86× the
 structural compiler stage, and 8-worker parsing still takes 46.2 s with
 11.47 GB peak RSS. Full-build adoption is rejected on the measured evidence.
-Incremental-only adoption remains an open Phase 8 decision; it still needs
-parser-selection identity in `compilerVersion` and `configHash`, plus
-edit-to-fresh evidence that includes scan, storage, and publication.
 
-Until then, the ANTLR adapter remains non-production. The structural parser
-stays in production.
+Phase 8 measured quality under policy v2 with separate databases. ANTLR improved
+declaration recall by 1.4009 pp (95.5394% → 96.9403%) and reference recall by
+11.6358 pp (57.4956% → 69.1314%), but:
+
+- declaration precision fell from 99.9711% to 99.9659%;
+- dependency recall fell from 98.1734% to 97.9784%;
+- neither parser reached 99.5% declaration or reference recall;
+- no category reached exactly 100% precision.
+
+The ANTLR dependency set is a strict subset of the structural set. The losses
+cluster in 16 files with 298 ANTLR parse diagnostics, so the next work is grammar
+and recovery fixes, not a parser switch. Incremental-only adoption remains an
+open decision but is blocked by the same quality gates; Phase 7 edit-to-fresh
+evidence is not a substitute for them.
+
+Until those gates pass, the ANTLR adapter remains non-production. The structural
+parser stays in production.
 
 ## 12. Open Questions
 

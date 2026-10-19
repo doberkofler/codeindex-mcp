@@ -3,6 +3,7 @@ import path from 'node:path';
 import {Command} from 'commander';
 import {z} from 'zod';
 import {runVerification} from '../../adapters/typescript/verifyReferences.ts';
+import {parseOracleParserId} from '../../adapters/oracle/parserIdentity.ts';
 import {CommandExitError, configureCommand, parseCommandAsync} from '../../transports/cli/commanderSupport.ts';
 import {oracleTruthPolicyOf} from './oracle/oracleTruthPolicy.ts';
 import {runOracleQualification} from './oracle/runOracleQualification.ts';
@@ -34,6 +35,7 @@ type QualifyOptionsType = Readonly<{
 	dependencies?: string | undefined;
 	units?: string | undefined;
 	truthPolicy?: string | undefined;
+	parser?: string | undefined;
 	output?: string | undefined;
 	json: boolean;
 }>;
@@ -49,6 +51,7 @@ const addQualifyOptions = (command: Command): Command =>
 		.option('--dependencies <path>', 'Oracle USER_DEPENDENCIES CSV export')
 		.option('--units <path>', 'Oracle qualification snapshot units JSON')
 		.option('--truth-policy <version>', 'Oracle truth policy: v1 or v2 (default v2)')
+		.option('--parser <parser>', 'Oracle parser for qualification: structural or antlr (default structural)')
 		.option('--output <path>', 'write the JSON report to a file')
 		.option('--json', 'emit machine-readable JSON', false);
 
@@ -84,6 +87,7 @@ const executeQualify = async (values: QualifyOptionsType, environment: NodeJS.Pr
 			dependencies: values.dependencies,
 			units: values.units === undefined ? undefined : unitsOf(values.units),
 			truthPolicy: values.truthPolicy === undefined ? undefined : oracleTruthPolicyOf(values.truthPolicy).version,
+			parser: values.parser === undefined ? undefined : parseOracleParserId(values.parser),
 			output: values.output,
 		});
 

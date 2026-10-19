@@ -176,7 +176,7 @@ export const discoverOracleFiles = (rootDir: string, manifest: OracleManifestTyp
 /**
  * Hashes the manifest and every input that affects parsing.
  *
- * @param input - Manifest bytes, schema, pattern set, grammar identity, runtime version, and file records.
+ * @param input - Manifest bytes, schema, pattern set, parser identity, and file records.
  * @returns A deterministic configuration hash.
  */
 export const oracleManifestHash = (
@@ -186,8 +186,7 @@ export const oracleManifestHash = (
 		include: readonly string[];
 		exclude: readonly string[];
 		extensions: readonly string[];
-		grammarRevision: string;
-		runtimeVersion: string;
+		parserRevision: string;
 		files: readonly Readonly<{path: string; sha256: string}>[];
 	}>,
 ): string =>
@@ -199,8 +198,7 @@ export const oracleManifestHash = (
 				`include:${input.include.join(',')}`,
 				`exclude:${input.exclude.join(',')}`,
 				`extensions:${input.extensions.join(',')}`,
-				`grammar:${input.grammarRevision}`,
-				`runtime:${input.runtimeVersion}`,
+				`parser:${input.parserRevision}`,
 				...input.files.map((file) => `${file.path}\u0000${file.sha256}`),
 			].join('\n'),
 		)
