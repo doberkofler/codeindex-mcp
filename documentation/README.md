@@ -13,6 +13,7 @@ Operational and design documentation for CodeIndex MCP.
 | [User guide](./user-guide.md) | Installation, configuration, MCP/CLI/console usage, and troubleshooting |
 | [Evaluation harness](./evaluation-harness.md) | Proposed methodology for controlled index-versus-baseline comparisons |
 | [Migration coverage](./migration-coverage.md) | Audit of preserved, generalized, deferred, and intentionally excluded design knowledge |
+| [Enhancements: dependency removal](./enhancements.md) | Dependency-removal TODOs, retention decisions, and rejected library additions |
 | [Source-line counter](./tools/countSourceLines.py) | Local measurement helper for repository size |
 
 ## Scope
