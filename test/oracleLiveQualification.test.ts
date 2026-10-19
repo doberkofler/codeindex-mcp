@@ -5,6 +5,7 @@ import {applyOracleLivePlan} from '../src/core/qualification/oracle/live/oracleD
 import {type SqlplusRequestType} from '../src/core/qualification/oracle/live/oracleCompile.ts';
 import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
 import {readOracleLiveSettings, type OracleLiveSettingsType} from '../src/core/qualification/oracle/live/oracleLiveSettings.ts';
+import {runOracleLiveQualification} from '../src/core/qualification/oracle/live/runOracleLiveQualification.ts';
 import {runCli} from '../src/transports/cli/runCli.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
@@ -32,6 +33,25 @@ const capture = (): Readonly<{stdout: string[]; stderr: string[]; io: Readonly<{
 			stderr: (line) => {
 				stderr.push(line);
 			},
+		},
+	};
+};
+
+type StubDatabaseType = Readonly<{
+	query: (sql: string) => Promise<readonly (readonly unknown[])[]>;
+	close: () => Promise<void>;
+}>;
+
+const stubDatabase = async (): Promise<StubDatabaseType> => {
+	await Promise.resolve();
+
+	return {
+		query: async (_sql: string): Promise<readonly (readonly unknown[])[]> => {
+			await Promise.resolve();
+			return [];
+		},
+		close: async (): Promise<void> => {
+			await Promise.resolve();
 		},
 	};
 };
@@ -141,43 +161,70 @@ describe('Oracle live qualification application', () => {
 		}
 	});
 
+	it('applies an approved plan from the frozen snapshot', async () => {
+		const context = fixture();
+		const captured = capture();
+
+		try {
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
+			const code = await runOracleLiveQualification(
+				{ORACLE_SERVER: 'server', ORACLE_USER: 'user', ORACLE_PASSWORD: 'secret'},
+				{root: context.config.rootDir, output: outputDir, approval: plan.approval},
+				captured.io,
+				{
+					sqlplusRunner: () => ({status: 0, stdout: '', stderr: ''}),
+					databaseFactory: stubDatabase,
+				},
+			);
+
+			expect(captured.stderr).toStrictEqual([]);
+			expect(existsSync(plan.output.run)).toBe(true);
+			expect([0, 1]).toContain(code);
+		} finally {
+			context.cleanup();
+		}
+	});
+
 	it('requires output outside the indexed workspace', () => {
 		const context = fixture();
 
 		try {
-			expect(() => readOracleLiveSettings({CODE_INDEX_QUALIFICATION_OUTPUT_DIR: path.join(context.config.rootDir, 'results')}, context.config)).toThrow(
+			expect(() => readOracleLiveSettings({}, {rootDir: context.config.rootDir, outputDir: path.join(context.config.rootDir, 'results')})).toThrow(
 				/outside the indexed workspace/u,
 			);
 		} finally {
 			context.cleanup();
 		}
 	});
+});
 
-	it('creates a plan through the environment-only command', async () => {
+describe('Oracle live qualification command', () => {
+	it('creates a plan from only a source root', async () => {
 		const context = fixture();
 		const captured = capture();
 
 		try {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
-			const code = await runCli(
-				['qualify-oracle-live'],
-				{
-					CODE_INDEX_ROOT: context.config.rootDir,
-					CODE_INDEX_EXTRACTOR: 'oracle',
-					CODE_INDEX_PROJECT_FILE: context.config.projectFilePath,
-					CODE_INDEX_DATABASE: context.config.databasePath,
-					CODE_INDEX_ANALYTICS: 'false',
-					CODE_INDEX_LOG_LEVEL: 'error',
-					CODE_INDEX_QUALIFICATION_OUTPUT_DIR: outputDir,
-				},
-				captured.io,
-			);
+			const code = await runCli(['qualify-oracle-live', '--root', context.config.rootDir, '--schema', 'HR', '--output', outputDir], {}, captured.io);
 
+			expect(captured.stderr).toStrictEqual([]);
 			expect(code).toBe(0);
 			expect(captured.stdout.join('\n')).toContain('Approval:');
-			expect(captured.stderr).toStrictEqual([]);
+
+			const plan = readFileSync(path.join(outputDir, 'plan.json'), 'utf8');
+			expect(plan).toContain('"path": "manifests/0-oracle-index.json"');
+			expect(existsSync(path.join(outputDir, 'workspace', 'manifests', '0-oracle-index.json'))).toBe(true);
 		} finally {
 			context.cleanup();
 		}
+	});
+
+	it('requires a source root argument', async () => {
+		const captured = capture();
+		const code = await runCli(['qualify-oracle-live'], {}, captured.io);
+
+		expect(code).toBe(2);
+		expect(captured.stderr.join('\n')).toContain('requires --root');
 	});
 });

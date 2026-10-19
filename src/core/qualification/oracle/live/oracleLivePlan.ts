@@ -4,7 +4,7 @@ import path from 'node:path';
 import {z} from 'zod';
 import {scanOracleProject} from '../../../../adapters/oracle/scanProject.ts';
 import {readVcsProvenance} from '../../../../adapters/vcs/vcsProvenance.ts';
-import {toRepositoryPath, type ConfigType} from '../../../config/config.ts';
+import {type ConfigType} from '../../../config/config.ts';
 import {createSourceFileRecord} from '../../../generation/sourceFiles.ts';
 import {type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 import {BACKUP_SQL, DEPENDENCIES_SQL, IDENTIFIERS_SQL, VALIDATE_SQL} from './oracleLiveSql.ts';
@@ -118,6 +118,17 @@ const sqlFilesOf = (
 	dependencies: DEPENDENCIES_SQL,
 });
 
+const snapshotProjectPath = (rootDir: string, projectFilePath: string, index: number): string => {
+	const relativePath = path.relative(rootDir, projectFilePath);
+	const inside = relativePath !== '' && relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath);
+
+	if (inside) {
+		return relativePath.split(path.sep).join('/');
+	}
+
+	return ['manifests', `${index}-${path.basename(projectFilePath)}`].join('/');
+};
+
 const copySnapshot = (snapshotDir: string, files: ReturnType<typeof scanOracleProject>['files']): {path: string; sha256: string}[] => {
 	for (const file of files) {
 		const destination = path.join(snapshotDir, file.path);
@@ -158,8 +169,8 @@ export const createOracleLivePlan = (config: ConfigType, settings: OracleLiveSet
 	const projectFiles: {path: string; sha256: string}[] = [];
 	const projects: {name: string; path: string}[] = [];
 
-	for (const project of config.projects) {
-		const relative = toRepositoryPath(config.rootDir, project.projectFilePath);
+	for (const [index, project] of config.projects.entries()) {
+		const relative = snapshotProjectPath(config.rootDir, project.projectFilePath, index);
 		const destination = path.join(snapshotDir, relative);
 
 		mkdirSync(path.dirname(destination), {recursive: true});
@@ -167,6 +178,13 @@ export const createOracleLivePlan = (config: ConfigType, settings: OracleLiveSet
 		projectFiles.push({path: relative, sha256: sha256(readFileSync(destination))});
 		projects.push({name: project.name, path: relative});
 	}
+
+	const firstProject = projects.at(0);
+
+	if (firstProject === undefined) {
+		throw new Error('Oracle qualification requires at least one project manifest');
+	}
+
 	const files = created.files.map((file) => ({path: file.path, absolutePath: path.join(snapshotDir, file.path)}));
 	const contents = sqlFilesOf({snapshotDir, files});
 	const writeSql = (name: LiveSqlNameType, content: string): LivePlanType['sql'][LiveSqlNameType] => {
@@ -188,7 +206,7 @@ export const createOracleLivePlan = (config: ConfigType, settings: OracleLiveSet
 			name: config.projectName,
 			id: config.projectId,
 			rootDir: config.rootDir,
-			projectFile: toRepositoryPath(config.rootDir, config.projectFilePath),
+			projectFile: firstProject.path,
 			projects,
 			vcs: readVcsProvenance(config.rootDir),
 		},

@@ -3,7 +3,7 @@ import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
 import {runBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
 import {runBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
 import {runBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
-import {runOracleLiveQualification} from '../../core/qualification/oracle/live/runOracleLiveQualification.ts';
+import {runOracleLiveQualification, type OracleLiveQualificationOptionsType} from '../../core/qualification/oracle/live/runOracleLiveQualification.ts';
 import {runQualifyCommand} from '../../core/qualification/qualifyCommand.ts';
 import {loadConfig} from '../../core/config/config.ts';
 import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
@@ -262,6 +262,62 @@ const buildProgram = (context: CliContextType): Command => {
 	return program;
 };
 
+const ORACLE_LIVE_USAGE = 'Usage: codeindex-cli qualify-oracle-live --root <path> [--manifest <path>] [--output <path>] [--approval <hash>] [--schema <name>]';
+
+type OracleLiveArgumentsType = Readonly<{help: true} | {help: false; options: OracleLiveQualificationOptionsType}>;
+
+type OracleLiveValuesType = {root?: string; manifest?: string; output?: string; approval?: string; schema?: string};
+
+const ORACLE_LIVE_OPTION_KEYS: Readonly<Record<string, keyof OracleLiveValuesType>> = {
+	'--root': 'root',
+	'--manifest': 'manifest',
+	'--output': 'output',
+	'--approval': 'approval',
+	'--schema': 'schema',
+};
+
+const oracleLiveArguments = (argv: readonly string[]): OracleLiveArgumentsType => {
+	const values: OracleLiveValuesType = {};
+
+	for (let index = 0; index < argv.length; index += 1) {
+		const name = argv[index];
+
+		if (name === '--help' || name === '-h') {
+			return {help: true};
+		}
+
+		const key = name === undefined ? undefined : ORACLE_LIVE_OPTION_KEYS[name];
+
+		if (key === undefined) {
+			throw new Error(`Unknown option: ${name ?? ''}`);
+		}
+
+		const value = argv[index + 1];
+
+		if (value === undefined || value.startsWith('--')) {
+			throw new Error(`Missing value for ${name ?? ''}`);
+		}
+
+		values[key] = value;
+		index += 1;
+	}
+
+	if (values.root === undefined) {
+		throw new Error('Oracle live qualification requires --root');
+	}
+
+	return {
+		help: false,
+		options: {
+			root: values.root,
+			manifest: values.manifest,
+			output: values.output,
+			approval: values.approval,
+			schema: values.schema,
+		},
+	};
+};
+
 const runSpecialCommand = (argv: readonly string[], environment: NodeJS.ProcessEnv, io: CliIoType): number | null | Promise<number> => {
 	if (argv[0] === 'analytics') {
 		return runAnalyticsCommand(argv.slice(1), environment, io);
@@ -284,7 +340,20 @@ const runSpecialCommand = (argv: readonly string[], environment: NodeJS.ProcessE
 	}
 
 	if (argv[0] === 'qualify-oracle-live') {
-		return runOracleLiveQualification(environment, io);
+		try {
+			const parsed = oracleLiveArguments(argv.slice(1));
+
+			if (parsed.help) {
+				io.stdout(ORACLE_LIVE_USAGE);
+				return 0;
+			}
+
+			return runOracleLiveQualification(environment, parsed.options, io);
+		} catch (error) {
+			io.stderr(error instanceof Error ? error.message : String(error));
+			io.stderr(ORACLE_LIVE_USAGE);
+			return 2;
+		}
 	}
 
 	if (argv[0] === 'verify-references') {

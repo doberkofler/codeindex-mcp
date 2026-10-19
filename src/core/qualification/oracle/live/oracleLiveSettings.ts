@@ -1,9 +1,7 @@
 import path from 'node:path';
 import {z} from 'zod';
-import {indexRootDirectory, type ConfigType} from '../../../config/config.ts';
 
 const OracleLiveEnvironmentSchema = z.object({
-	CODE_INDEX_QUALIFICATION_OUTPUT_DIR: z.string().min(1).optional(),
 	CODE_INDEX_ORACLE_SQLPLUS: z.string().min(1).default('sqlplus'),
 	CODE_INDEX_ORACLE_SQLPLUS_TIMEOUT_MS: z.coerce.number().int().positive().max(86_400_000).default(600_000),
 	CODE_INDEX_ORACLE_APPROVAL: z
@@ -29,6 +27,12 @@ export type OracleLiveSettingsType = Readonly<{
 	connection: OracleConnectionType | null;
 }>;
 
+export type OracleLiveSettingsInputType = Readonly<{
+	rootDir: string;
+	outputDir: string;
+	approval?: string | null | undefined;
+}>;
+
 const outsideRoot = (rootDir: string, candidate: string): boolean => {
 	const relative = path.relative(rootDir, candidate);
 	return relative !== '' && (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative));
@@ -38,26 +42,26 @@ const outsideRoot = (rootDir: string, candidate: string): boolean => {
  * Resolves environment-only live Oracle qualification settings.
  *
  * @param environment - Untrusted environment source.
- * @param config - Resolved workspace configuration.
+ * @param input - Resolved source root, output directory, and optional approval.
  * @returns Output, SQL*Plus, approval, and optional connection settings.
  * @throws {Error} When the output directory is inside the indexed workspace or
  * the connection is incomplete for an apply run.
  */
-export const readOracleLiveSettings = (environment: NodeJS.ProcessEnv, config: ConfigType): OracleLiveSettingsType => {
+export const readOracleLiveSettings = (environment: NodeJS.ProcessEnv, input: OracleLiveSettingsInputType): OracleLiveSettingsType => {
 	const parsed = OracleLiveEnvironmentSchema.safeParse(environment);
 
 	if (!parsed.success) {
 		throw new Error(`Invalid Oracle live qualification environment:\n${z.prettifyError(parsed.error)}`);
 	}
 
-	const outputDir = path.resolve(parsed.data.CODE_INDEX_QUALIFICATION_OUTPUT_DIR ?? path.join(indexRootDirectory(), config.projectId, 'oracle-qualification'));
+	const outputDir = path.resolve(input.outputDir);
 
-	if (!outsideRoot(config.rootDir, outputDir)) {
+	if (!outsideRoot(input.rootDir, outputDir)) {
 		throw new Error(`Oracle qualification output directory must be outside the indexed workspace: ${outputDir}`);
 	}
 
 	const connectionValues = [parsed.data.ORACLE_SERVER, parsed.data.ORACLE_USER, parsed.data.ORACLE_PASSWORD];
-	const approval = parsed.data.CODE_INDEX_ORACLE_APPROVAL ?? null;
+	const approval = input.approval ?? parsed.data.CODE_INDEX_ORACLE_APPROVAL ?? null;
 
 	if (approval !== null && connectionValues.some((value) => value === undefined)) {
 		throw new Error('Oracle live qualification apply requires ORACLE_SERVER, ORACLE_USER, and ORACLE_PASSWORD');

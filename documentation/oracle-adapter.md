@@ -218,27 +218,27 @@ redefined.
 paths or credentials in the repository:
 
 ```bash
-CODE_INDEX_ROOT=/path/to/oracle/project \
-CODE_INDEX_PROJECT_FILE=/path/to/oracle-index.json \
-CODE_INDEX_QUALIFICATION_OUTPUT_DIR=/path/to/qualification-results \
-pnpm qualify:oracle:live
+pnpm qualify:oracle:live -- --root /path/to/oracle/project
 ```
 
-The first run freezes the source, writes `backup.sql`, `compile.sql`,
+The command generates an external manifest for every supported O1 source file
+under the root, freezes the source, writes `backup.sql`, `compile.sql`,
 `validate.sql`, `identifiers.sql`, and `dependencies.sql`, and prints an
 approval hash. It does not connect to Oracle. Review the generated SQL, then
 apply the same plan:
 
 ```bash
-CODE_INDEX_ORACLE_APPROVAL=<hash> \
-CODE_INDEX_ROOT=/path/to/oracle/project \
-CODE_INDEX_PROJECT_FILE=/path/to/oracle-index.json \
-CODE_INDEX_QUALIFICATION_OUTPUT_DIR=/path/to/qualification-results \
 ORACLE_SERVER=<connect-identifier> \
 ORACLE_USER=<user> \
 ORACLE_PASSWORD=<password> \
-pnpm qualify:oracle:live
+pnpm qualify:oracle:live -- --root /path/to/oracle/project --approval <hash>
 ```
+
+The generated manifest uses `ORACLE_USER` as its default schema. Use `--schema`
+to override it, `--manifest` to supply an existing manifest, and `--output` to
+choose the evidence directory. The default output directory is outside the
+source checkout under the CodeIndex data directory. Apply does not re-read the
+source checkout; it verifies and uses the frozen snapshot.
 
 Apply performs these steps:
 

@@ -77,7 +77,9 @@ const scanContext = (config: ConfigType, context: ConfigType['projects'][number]
 	return {
 		project: {
 			name: context.name,
-			projectFile: toRepositoryPath(config.rootDir, context.projectFilePath),
+			projectFile: isInside(config.rootDir, context.projectFilePath)
+				? toRepositoryPath(config.rootDir, context.projectFilePath)
+				: `manifests/${path.basename(context.projectFilePath)}`,
 			configHash,
 			projectFileCount: files.length,
 			configDiagnosticCount: 0,
