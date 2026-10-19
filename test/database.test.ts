@@ -1,6 +1,7 @@
-import {mkdtempSync, readdirSync, rmSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, readdirSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
 import {afterEach, describe, expect, it} from 'vitest';
 import {IndexDatabase} from '../src/core/storage/database.ts';
 
@@ -89,16 +90,6 @@ describe('IndexDatabase', () => {
 		reopened.close();
 	});
 
-	it('registers and releases process ownership', () => {
-		directory = mkdtempSync(path.join(tmpdir(), 'code-index-db-'));
-		const database = IndexDatabase.open(path.join(directory, 'index.sqlite'));
-		const ownerFiles = (): readonly string[] => readdirSync(directory).filter((name) => name.includes('.owner-'));
-
-		expect(ownerFiles()).toHaveLength(1);
-		database.close();
-		expect(ownerFiles()).toHaveLength(0);
-	});
-
 	it('does not publish a failed generation', () => {
 		directory = mkdtempSync(path.join(tmpdir(), 'code-index-db-'));
 		const database = IndexDatabase.open(path.join(directory, 'index.sqlite'));
@@ -138,6 +129,52 @@ describe('IndexDatabase', () => {
 		expect(database.getGeneration('generation-2')?.state).toBe('superseded');
 		expect(database.getGeneration('generation-1')).toBeNull();
 		database.close();
+	});
+});
+
+describe('IndexDatabase identity', () => {
+	let directory: string | undefined;
+
+	afterEach(() => {
+		if (directory !== undefined) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		directory = undefined;
+	});
+
+	it('registers and releases process ownership', () => {
+		const root = mkdtempSync(path.join(tmpdir(), 'code-index-db-'));
+		directory = root;
+		const database = IndexDatabase.open(path.join(root, 'index.sqlite'));
+		const ownerFiles = (): readonly string[] => readdirSync(root).filter((name) => name.includes('.owner-'));
+
+		expect(ownerFiles()).toHaveLength(1);
+		database.close();
+		expect(ownerFiles()).toHaveLength(0);
+	});
+
+	it('persists only workspace-relative identity paths', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-db-'));
+		const rootDir = path.join(directory, 'workspace');
+		mkdirSync(rootDir);
+		const databasePath = path.join(directory, 'index.sqlite');
+		const database = IndexDatabase.open(databasePath, {
+			rootDir,
+			projectFilePath: path.join(rootDir, 'tsconfig.json'),
+			projectId: 'project',
+		});
+
+		database.close();
+
+		const reader = new DatabaseSync(databasePath, {readOnly: true});
+		const workingCopy = reader.prepare('select canonical_root from working_copy limit 1').get();
+		const project = reader.prepare('select project_file from indexed_project limit 1').get();
+
+		reader.close();
+		expect(workingCopy).toMatchObject({canonical_root: '.'});
+		expect(project).toMatchObject({project_file: 'tsconfig.json'});
+		expect(JSON.stringify([workingCopy, project])).not.toContain(directory);
 	});
 });
 

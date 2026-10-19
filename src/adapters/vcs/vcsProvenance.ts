@@ -37,7 +37,9 @@ const gitProvenance = (rootDir: string): VcsProvenanceType | null => {
 	}
 
 	const revision = run('git', ['rev-parse', 'HEAD'], rootDir);
-	const repository = run('git', ['config', '--get', 'remote.origin.url'], rootDir) ?? topLevel;
+	// A local checkout path is neither portable nor safe to persist; only a
+	// configured remote identifies the repository.
+	const repository = run('git', ['config', '--get', 'remote.origin.url'], rootDir);
 	const relativeRoot = path.relative(realpathSync(topLevel), realpathSync(rootDir)).split(path.sep).join('/') || '.';
 
 	return {kind: 'git', repository, revision, relativeRoot};

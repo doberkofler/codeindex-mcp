@@ -93,7 +93,7 @@ export class IndexDatabase {
 			const projectId = context.projectId ?? 'default';
 			const database = new IndexDatabase(reader, writer, projectId, owner);
 			ensureMetadata(writer);
-			ensureIdentity({writer, reader, context, databasePath});
+			ensureIdentity({writer, reader, context});
 			database.discardIncompleteGenerations();
 			debug('database opened', {path: databasePath, projectId});
 

@@ -54,7 +54,7 @@ const meta: ConsoleMetaType = {
 	program: 'codeindex-mcp',
 	version: '0.1.0',
 	nodeVersion: 'v26.0.0',
-	schemaVersion: '5',
+	schemaVersion: '6',
 	projectName: 'project',
 	rootDir: '/repo',
 	projectFilePath: '/repo/tsconfig.json',

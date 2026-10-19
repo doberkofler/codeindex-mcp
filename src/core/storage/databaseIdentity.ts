@@ -3,6 +3,7 @@ import path from 'node:path';
 import {type DatabaseSync} from 'node:sqlite';
 import {type VcsKindType, type WorkingCopyIdentityType} from '../model.ts';
 import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
+import {toRepositoryPath} from '../config/config.ts';
 import {debugFor} from '../logging/debug.ts';
 import {asString} from './databaseRows.ts';
 import {SCHEMA_VERSION} from './schema.ts';
@@ -72,11 +73,12 @@ export const ensureIdentity = (
 		writer: DatabaseSync;
 		reader: DatabaseSync;
 		context: DatabaseOpenContextType;
-		databasePath: string;
 	}>,
 ): void => {
-	const {writer, reader, context, databasePath} = input;
-	const canonicalRoot = context.rootDir ?? path.dirname(databasePath);
+	const {writer, reader, context} = input;
+	// Persist only workspace-relative paths. The opaque working-copy identifier
+	// carries identity; the root itself is always the relative marker.
+	const canonicalRoot = '.';
 	const vcs =
 		context.rootDir === undefined ? {kind: 'none' as const, repository: null, revision: null, relativeRoot: null} : readVcsProvenance(context.rootDir);
 	const now = new Date().toISOString();
@@ -102,8 +104,16 @@ export const ensureIdentity = (
 	}
 
 	const workingCopy = reader.prepare('select * from working_copy limit 1').get();
+	const projectFile =
+		context.projectFilePath === undefined
+			? null
+			: context.rootDir === undefined
+				? path.isAbsolute(context.projectFilePath)
+					? path.basename(context.projectFilePath)
+					: context.projectFilePath
+				: toRepositoryPath(context.rootDir, context.projectFilePath);
 
-	if (workingCopy === undefined || context.projectFilePath === undefined) {
+	if (workingCopy === undefined || projectFile === null) {
 		return;
 	}
 
@@ -119,7 +129,7 @@ export const ensureIdentity = (
 		.run(
 			context.projectId ?? 'default',
 			asString(workingCopy, 'id'),
-			context.projectFilePath,
+			projectFile,
 			context.compilerVersion ?? 'unknown',
 			context.extractorId ?? 'unknown',
 			context.extractorVersion ?? 'unknown',
