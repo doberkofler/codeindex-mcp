@@ -183,6 +183,46 @@ describe('Oracle live qualification invalid-object comparison', () => {
 			context.cleanup();
 		}
 	});
+});
+
+describe('Oracle live qualification progress and target validation', () => {
+	it('reports phase and per-object progress', async () => {
+		const context = fixture();
+
+		try {
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
+			const progress: string[] = [];
+			const total = plan.snapshot.units.length;
+
+			await applyOracleLivePlan(
+				plan,
+				settingsOf(outputDir, plan.approval),
+				{},
+				{
+					sqlplusRunner: (request) => {
+						for (const unit of plan.snapshot.units) {
+							request.onOutput?.(`RECOMPILE:${unit.type}:${unit.name}`);
+						}
+
+						return {status: 0, stdout: '', stderr: ''};
+					},
+					databaseFactory: inventoryDatabase({backup: sourceRows(plan), baseline: [], invalid: []}),
+					progress: (line) => {
+						progress.push(line);
+					},
+				},
+			);
+
+			expect(progress).toContain('Capturing pre-DDL invalid-object baseline...');
+			expect(progress).toContain(`Recompiling ${String(total)} target objects...`);
+			expect(progress.some((line) => line.startsWith(`Targets: ${String(total)}/${String(total)} `))).toBe(true);
+			expect(progress).toContain('Validating target PL/SQL and dependent restoration...');
+			expect(progress.some((line) => line.startsWith('Database work completed in '))).toBe(true);
+		} finally {
+			context.cleanup();
+		}
+	});
 
 	it('fails when a qualification target remains invalid', async () => {
 		const context = fixture();

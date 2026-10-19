@@ -16,6 +16,7 @@ type OracleDatabaseFactoryType = (connection: OracleConnectionType) => Promise<O
 export type OracleLiveDependenciesType = Readonly<{
 	sqlplusRunner?: SqlplusRunnerType;
 	databaseFactory?: OracleDatabaseFactoryType;
+	progress?: (line: string) => void;
 }>;
 
 const loadDriver = async (): Promise<typeof OracleDB> => {
@@ -110,6 +111,34 @@ const invalidObjectOf = (row: readonly unknown[]): OracleInvalidObjectType => {
 
 const invalidObjectKeyOf = (object: Readonly<{objectType: string; objectName: string}>): string => oracleObjectKeyOf(object.objectType, object.objectName);
 
+const elapsedSeconds = (startedAt: number): string => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
+
+const ignoreProgress = (_line: string): void => {
+	void _line;
+};
+
+const assertInvalidObjectsAllowed = (plan: LivePlanType, baselineKeys: ReadonlySet<string>, invalid: readonly (readonly unknown[])[]): void => {
+	const targetKeys = new Set(plan.snapshot.units.map((unit) => oracleObjectKeyOf(unit.type, unit.name)));
+	const invalidTargets = invalid.filter((row) => targetKeys.has(invalidObjectKeyOf(invalidObjectOf(row))));
+
+	if (invalidTargets.length > 0) {
+		throw new Error(`Oracle qualification left invalid target PL/SQL: ${invalidSummary(invalidTargets)}`);
+	}
+
+	const dependentKeys = new Set(plan.snapshot.dependents.map((dependent) => oracleObjectKeyOf(dependent.type, dependent.name)));
+	const invalidDependents = invalid.filter((row) => dependentKeys.has(invalidObjectKeyOf(invalidObjectOf(row))));
+
+	if (invalidDependents.length > 0) {
+		throw new Error(`Oracle qualification failed to restore dependent objects: ${invalidSummary(invalidDependents)}`);
+	}
+
+	const newInvalid = invalid.filter((row) => !baselineKeys.has(invalidObjectKeyOf(invalidObjectOf(row))));
+
+	if (newInvalid.length > 0) {
+		throw new Error(`Oracle qualification left new invalid objects: ${invalidSummary(newInvalid)}`);
+	}
+};
+
 /**
  * Executes one approved live qualification plan.
  *
@@ -142,61 +171,51 @@ export const applyOracleLivePlan = async (
 		throw new Error('Oracle live qualification apply requires a database connection');
 	}
 
+	const progress: (line: string) => void = dependencies.progress ?? ignoreProgress;
+	const startedAt = Date.now();
 	const database = await (dependencies.databaseFactory ?? openOracleDatabase)(connection);
 
 	try {
+		progress('Capturing pre-DDL invalid-object baseline...');
 		const baseline = await queryFile(database, plan.sql.baseline.path);
 		const baselineInvalid = baseline.map((row) => invalidObjectOf(row));
 		const baselineKeys = new Set(baselineInvalid.map((object) => invalidObjectKeyOf(object)));
 
 		writeCsvRows(plan.output.baselineInvalidObjects, baseline);
+		progress(`Baseline: ${String(baselineInvalid.length)} invalid object(s)`);
 
+		progress('Backing up and verifying installed source...');
 		const backup = await queryFile(database, plan.sql.backup.path);
 
 		writeCsvRows(plan.output.backup, backup);
 		assertOracleSourceMatchesSnapshot(plan, backup);
-		recompileOracleObjects(plan, settings, environment, dependencies.sqlplusRunner);
+
+		const targetStart = Date.now();
+
+		await recompileOracleObjects(plan, settings, environment, {runner: dependencies.sqlplusRunner, progress});
+		progress(`Targets completed in ${elapsedSeconds(targetStart)}`);
 
 		if (plan.snapshot.dependents.length > 0) {
-			recompileOracleDependents(plan, settings, environment, dependencies.sqlplusRunner);
+			const dependentStart = Date.now();
+
+			await recompileOracleDependents(plan, settings, environment, {runner: dependencies.sqlplusRunner, progress});
+			progress(`Dependents completed in ${elapsedSeconds(dependentStart)}`);
 		}
 
+		progress('Validating target PL/SQL and dependent restoration...');
 		const invalid = await queryFile(database, plan.sql.validate.path);
 		const invalidObjects = invalid.map((row) => invalidObjectOf(row));
 
 		writeCsvRows(plan.output.invalidObjects, invalid);
-
-		const targetKeys = new Set(plan.snapshot.units.map((unit) => oracleObjectKeyOf(unit.type, unit.name)));
-		const invalidTargets = invalid.filter((row) => {
-			const object = invalidObjectOf(row);
-			return targetKeys.has(invalidObjectKeyOf(object));
-		});
-
-		if (invalidTargets.length > 0) {
-			throw new Error(`Oracle qualification left invalid target PL/SQL: ${invalidSummary(invalidTargets)}`);
-		}
-
-		const dependentKeys = new Set(plan.snapshot.dependents.map((dependent) => oracleObjectKeyOf(dependent.type, dependent.name)));
-		const invalidDependents = invalid.filter((row) => dependentKeys.has(invalidObjectKeyOf(invalidObjectOf(row))));
-
-		if (invalidDependents.length > 0) {
-			throw new Error(`Oracle qualification failed to restore dependent objects: ${invalidSummary(invalidDependents)}`);
-		}
-
-		const newInvalid = invalid.filter((row) => {
-			const object = invalidObjectOf(row);
-			return !baselineKeys.has(invalidObjectKeyOf(object));
-		});
-
-		if (newInvalid.length > 0) {
-			throw new Error(`Oracle qualification left new invalid objects: ${invalidSummary(newInvalid)}`);
-		}
-
+		assertInvalidObjectsAllowed(plan, baselineKeys, invalid);
+		progress('Exporting identifiers and dependencies...');
 		writeCsvRows(plan.output.identifiers, await queryFile(database, plan.sql.identifiers.path));
 		writeCsvRows(plan.output.dependencies, await queryFile(database, plan.sql.dependencies.path));
 
 		const remainingBaselineInvalid = invalidObjects.filter((object) => baselineKeys.has(invalidObjectKeyOf(object)));
 		const remainingKeys = new Set(remainingBaselineInvalid.map((object) => invalidObjectKeyOf(object)));
+
+		progress(`Database work completed in ${elapsedSeconds(startedAt)}`);
 
 		return {
 			baselineInvalid,

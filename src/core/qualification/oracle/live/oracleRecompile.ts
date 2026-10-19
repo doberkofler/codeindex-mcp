@@ -1,4 +1,4 @@
-import {spawnSync} from 'node:child_process';
+import {spawn} from 'node:child_process';
 import {type LivePlanType} from './oracleLivePlan.ts';
 import {type OracleConnectionType, type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 
@@ -8,6 +8,7 @@ export type SqlplusRequestType = Readonly<{
 	input: string;
 	timeoutMs: number;
 	environment: NodeJS.ProcessEnv;
+	onOutput?: ((line: string) => void) | undefined;
 }>;
 
 type SqlplusResultType = Readonly<{
@@ -16,7 +17,9 @@ type SqlplusResultType = Readonly<{
 	stderr: string;
 }>;
 
-export type SqlplusRunnerType = (request: SqlplusRequestType) => SqlplusResultType;
+export type SqlplusRunnerType = (request: SqlplusRequestType) => SqlplusResultType | Promise<SqlplusResultType>;
+
+const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 
 const childEnvironment = (environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
 	Object.fromEntries(
@@ -29,25 +32,91 @@ const quote = (value: string): string => `"${value.replaceAll('"', '""')}"`;
 
 const connectionLine = (connection: OracleConnectionType): string => `connect ${quote(connection.user)}/${quote(connection.password)}@${connection.server}`;
 
-const defaultSqlplusRunner: SqlplusRunnerType = (request) => {
-	const result = spawnSync(request.executable, ['-S', '-L', '/nolog'], {
-		cwd: request.cwd,
-		env: childEnvironment(request.environment),
-		input: request.input,
-		encoding: 'utf8',
-		timeout: request.timeoutMs,
-		maxBuffer: 16 * 1024 * 1024,
-		windowsHide: true,
-	});
+type LineEmitterType = Readonly<{
+	push: (chunk: string) => void;
+	flush: () => void;
+}>;
+
+const lineEmitterOf = (onLine: ((line: string) => void) | undefined): LineEmitterType => {
+	let buffer = '';
 
 	return {
-		status: result.status,
-		stdout: result.stdout,
-		stderr: result.stderr.length > 0 ? result.stderr : (result.error?.message ?? ''),
+		push: (chunk) => {
+			buffer += chunk;
+			const lines = buffer.split(/\r?\n/u);
+
+			buffer = lines.pop() ?? '';
+
+			for (const line of lines) {
+				onLine?.(line);
+			}
+		},
+		flush: () => {
+			if (buffer !== '') {
+				onLine?.(buffer);
+				buffer = '';
+			}
+		},
 	};
 };
 
+const appendOutput = (current: string, chunk: string): string =>
+	current.length >= MAX_OUTPUT_BYTES ? current : current + chunk.slice(0, MAX_OUTPUT_BYTES - current.length);
+
+const defaultSqlplusRunner: SqlplusRunnerType = async (request) => {
+	const deferred = Promise.withResolvers<SqlplusResultType>();
+	const child = spawn(request.executable, ['-S', '-L', '/nolog'], {
+		cwd: request.cwd,
+		env: childEnvironment(request.environment),
+		stdio: ['pipe', 'pipe', 'pipe'],
+		windowsHide: true,
+	});
+	let stdout = '';
+	let stderr = '';
+	let failure = '';
+	let timedOut = false;
+	const stdoutLines = lineEmitterOf(request.onOutput);
+	const timer = setTimeout(() => {
+		timedOut = true;
+		child.kill('SIGKILL');
+	}, request.timeoutMs);
+
+	child.stdout.setEncoding('utf8');
+	child.stderr.setEncoding('utf8');
+	child.stdout.on('data', (chunk: string) => {
+		stdout = appendOutput(stdout, chunk);
+		stdoutLines.push(chunk);
+	});
+	child.stderr.on('data', (chunk: string) => {
+		stderr = appendOutput(stderr, chunk);
+	});
+	child.on('error', (error) => {
+		failure = error.message;
+	});
+	child.stdin.on('error', (_error) => {
+		void _error;
+	});
+	child.on('close', (code) => {
+		clearTimeout(timer);
+		stdoutLines.flush();
+		deferred.resolve({
+			status: code,
+			stdout,
+			stderr: stderr.length > 0 ? stderr : failure || (timedOut ? `SQL*Plus timed out after ${String(request.timeoutMs)} ms` : ''),
+		});
+	});
+	child.stdin.end(request.input);
+	const result = await deferred.promise;
+
+	return result;
+};
+
 const tail = (value: string): string => value.trim().slice(-2000);
+
+type RecompileOptionsType = Readonly<{
+	runner?: SqlplusRunnerType | undefined;
+	progress?: ((line: string) => void) | undefined;
+}>;
 
 type ScriptRequestType = Readonly<{
 	plan: LivePlanType;
@@ -56,21 +125,39 @@ type ScriptRequestType = Readonly<{
 	runner: SqlplusRunnerType;
 	sqlPath: string;
 	label: string;
+	progressLabel: string;
+	total: number;
+	granularity: number;
+	progress?: ((line: string) => void) | undefined;
 }>;
 
-const runScript = (request: ScriptRequestType): void => {
-	const {plan, settings, environment, runner, sqlPath, label} = request;
+const progressEveryOf = (total: number): number => Math.max(1, Math.floor(total / 20));
+
+const runScript = async (request: ScriptRequestType): Promise<void> => {
+	const {plan, settings, environment, runner, sqlPath, label, progressLabel, total, granularity, progress} = request;
 
 	if (settings.connection === null) {
 		throw new Error('Oracle live qualification apply requires a database connection');
 	}
 
-	const result = runner({
+	let completed = 0;
+	const result = await runner({
 		executable: settings.sqlplus,
 		cwd: plan.output.dir,
 		input: `${connectionLine(settings.connection)}\n@"${sqlPath}"\n`,
 		timeoutMs: settings.timeoutMs,
 		environment,
+		onOutput: (line) => {
+			if (progress === undefined || !line.startsWith('RECOMPILE')) {
+				return;
+			}
+
+			completed += 1;
+
+			if (completed % granularity === 0 || completed === total) {
+				progress(`${progressLabel}: ${String(completed)}/${String(total)} ${line.slice(line.lastIndexOf(':') + 1)}`);
+			}
+		},
 	});
 
 	if (result.status !== 0) {
@@ -89,15 +176,29 @@ const runScript = (request: ScriptRequestType): void => {
  * @param plan - Approved and hash-verified plan.
  * @param settings - Settings containing the Oracle connection and SQL*Plus executable.
  * @param environment - Parent environment forwarded without Oracle credentials.
- * @param runner - SQL*Plus runner, injectable for tests.
+ * @param options - Runner override and optional progress sink.
  */
-export const recompileOracleObjects = (
+export const recompileOracleObjects = async (
 	plan: LivePlanType,
 	settings: OracleLiveSettingsType,
 	environment: NodeJS.ProcessEnv,
-	runner: SqlplusRunnerType = defaultSqlplusRunner,
-): void => {
-	runScript({plan, settings, environment, runner, sqlPath: plan.sql.compile.path, label: 'Oracle recompile step'});
+	options: RecompileOptionsType = {},
+): Promise<void> => {
+	const total = plan.snapshot.units.length;
+
+	options.progress?.(`Recompiling ${String(total)} target objects...`);
+	await runScript({
+		plan,
+		settings,
+		environment,
+		runner: options.runner ?? defaultSqlplusRunner,
+		sqlPath: plan.sql.compile.path,
+		label: 'Oracle recompile step',
+		progressLabel: 'Targets',
+		total,
+		granularity: progressEveryOf(total),
+		progress: options.progress,
+	});
 };
 
 /**
@@ -110,13 +211,31 @@ export const recompileOracleObjects = (
  * @param plan - Approved and hash-verified plan.
  * @param settings - Settings containing the Oracle connection and SQL*Plus executable.
  * @param environment - Parent environment forwarded without Oracle credentials.
- * @param runner - SQL*Plus runner, injectable for tests.
+ * @param options - Runner override and optional progress sink.
  */
-export const recompileOracleDependents = (
+export const recompileOracleDependents = async (
 	plan: LivePlanType,
 	settings: OracleLiveSettingsType,
 	environment: NodeJS.ProcessEnv,
-	runner: SqlplusRunnerType = defaultSqlplusRunner,
-): void => {
-	runScript({plan, settings, environment, runner, sqlPath: plan.sql.dependents.path, label: 'Oracle dependent recompile step'});
+	options: RecompileOptionsType = {},
+): Promise<void> => {
+	const total = plan.snapshot.dependents.length;
+
+	if (total === 0) {
+		return;
+	}
+
+	options.progress?.(`Recompiling ${String(total)} dependent objects...`);
+	await runScript({
+		plan,
+		settings,
+		environment,
+		runner: options.runner ?? defaultSqlplusRunner,
+		sqlPath: plan.sql.dependents.path,
+		label: 'Oracle dependent recompile step',
+		progressLabel: 'Dependents',
+		total,
+		granularity: progressEveryOf(total),
+		progress: options.progress,
+	});
 };

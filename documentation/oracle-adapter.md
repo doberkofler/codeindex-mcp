@@ -288,6 +288,10 @@ Apply performs these steps:
    provenance.
 10. Compares facts and writes `oracle-qualification.json` and `run.json`.
 
+Apply streams SQL*Plus output and reports per-object progress in roughly twenty
+steps per phase, followed by elapsed times for target recompilation, dependent
+recompilation, and the database work as a whole.
+
 Objects that were already invalid before the run are reported in
 `baseline-invalid-objects.csv` and in the run output, including which ones were
 restored and which remained invalid. They are not attributed to the

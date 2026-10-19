@@ -123,6 +123,7 @@ const header = (spool: string | null): string =>
 		'SET DEFINE OFF',
 		'SET ECHO OFF',
 		'SET FEEDBACK OFF',
+		'SET FLUSH ON',
 		'SET PAGESIZE 0',
 		'SET LINESIZE 32767',
 		'SET TRIMSPOOL ON',

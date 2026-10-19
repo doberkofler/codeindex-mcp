@@ -238,7 +238,10 @@ export const runOracleLiveQualification = async (
 		}
 
 		const plan = readOracleLivePlan(settings);
-		const applied = await applyOracleLivePlan(plan, settings, environment, dependencies);
+		const applied = await applyOracleLivePlan(plan, settings, environment, {
+			...dependencies,
+			progress: dependencies.progress ?? io.stdout,
+		});
 
 		if (applied.baselineInvalid.length > 0) {
 			io.stdout(`Baseline invalid objects: ${String(applied.baselineInvalid.length)} pre-existing; not attributed to qualification`);
