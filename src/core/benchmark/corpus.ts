@@ -129,7 +129,7 @@ const vendorSource = `declare module 'bench-package' {
 const tsconfigSource = JSON.stringify(
 	{
 		compilerOptions: {
-			target: 'ES2023',
+			target: 'ES2024',
 			module: 'NodeNext',
 			moduleResolution: 'NodeNext',
 			strict: true,

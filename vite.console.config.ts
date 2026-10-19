@@ -7,7 +7,7 @@ export default defineConfig({
 	build: {
 		outDir: path.resolve(import.meta.dirname, 'dist', 'console'),
 		emptyOutDir: true,
-		target: 'es2022',
+		target: 'es2024',
 		minify: 'oxc',
 		sourcemap: false,
 		chunkSizeWarningLimit: 700,
