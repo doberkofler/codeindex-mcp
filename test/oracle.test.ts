@@ -165,10 +165,22 @@ describe('Oracle index integration', () => {
 		const sync = firstSymbol('APP.SALES_API.SYNC_EMPLOYEE');
 		const label = firstSymbol('APP.HR_API.EMPLOYEE_LABEL');
 		const local = firstSymbol('APP.SALES_API.SYNC_EMPLOYEE.L_NAME');
+		const deleteEmployee = firstSymbol('APP.HR_API.DELETE_EMPLOYEE');
 
 		expect(fixture.index.findReferences({symbolId: sync.id, limit: 100}).items.length).toBeGreaterThan(0);
 		expect(fixture.index.findReferences({symbolId: label.id, limit: 100}).items.length).toBeGreaterThan(1);
 		expect(fixture.index.findReferences({symbolId: local.id, limit: 100}).items.length).toBeGreaterThan(0);
+
+		const qualifiedCall = fixture.index
+			.findReferences({symbolId: deleteEmployee.id, limit: 100})
+			.items.find((item) => item.path === 'database/sales_api.pkb' && item.startLine === 6);
+
+		expect(qualifiedCall?.startColumn).toBe(10);
+
+		const packageSymbol = firstSymbol('APP.HR_API');
+		const packageReferences = fixture.index.findReferences({symbolId: packageSymbol.id, limit: 100}).items;
+
+		expect(packageReferences.some((item) => item.path === 'database/hr_api.pkb' && item.startLine === 57)).toBe(false);
 
 		const record = firstSymbol('APP.HR_API.T_EMPLOYEE');
 		expect(fixture.index.findReferences({symbolId: record.id, limit: 100}).items.map((item) => item.path)).toContain('database/sales_api.pkb');

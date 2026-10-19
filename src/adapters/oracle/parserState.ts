@@ -196,6 +196,7 @@ const addReference = (
 	state.references.push({
 		name: parsedName,
 		range,
+		nameRange: rangeOf(state, input.name.endIndex, input.name.endIndex),
 		unit: input.unit,
 		enclosing: input.enclosing,
 		kind: input.kind,
@@ -276,6 +277,11 @@ export const collectReferences = (input: Readonly<{state: OracleParserStateType;
 		}
 
 		if (state.definitionStarts.has(state.cursor.token(index)?.startOffset ?? -1)) {
+			index = state.cursor.next(name.endIndex);
+			continue;
+		}
+
+		if (state.cursor.word(state.cursor.previous(index), 'END')) {
 			index = state.cursor.next(name.endIndex);
 			continue;
 		}

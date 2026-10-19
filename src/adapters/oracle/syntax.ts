@@ -68,7 +68,10 @@ export type OracleUnitType = Readonly<{
 
 export type OracleReferenceSiteType = Readonly<{
 	name: OracleNameType;
+	/** Range of the complete authored name, including qualifiers. */
 	range: OracleRangeType;
+	/** Range of the final name segment, which is the referenced identifier. */
+	nameRange: OracleRangeType;
 	unit: number;
 	enclosing: number;
 	kind: 'call' | 'reference' | 'type-anchor';
