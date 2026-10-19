@@ -2,10 +2,9 @@ import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, u
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {assertAnalyticsFields, PROHIBITED_ANALYTICS_FIELDS} from '../src/core/analytics/events.ts';
+import {assertAnalyticsFields, parseAnalyticsEvent, PROHIBITED_ANALYTICS_FIELDS} from '../src/core/analytics/events.ts';
 import {createAnalyticsRecorder, type AnalyticsRecorderType} from '../src/core/analytics/recorder.ts';
 import {summarizeAnalytics} from '../src/core/analytics/report.ts';
-import {runAnalyticsCommand} from '../src/transports/cli/analyticsCommand.ts';
 
 describe('analytics', () => {
 	let directory: string | undefined;
@@ -72,29 +71,37 @@ describe('analytics', () => {
 		expect(assertAnalyticsFields({tool: 'find_symbol', durationMs: 1})).toStrictEqual({tool: 'find_symbol', durationMs: 1});
 	});
 
-	it('reports the analytics path in text output', () => {
-		const {analyticsPath, recorder} = recorderIn(true);
-		const stdout: string[] = [];
-		const stderr: string[] = [];
-		recorder.record('process_start', {});
-		recorder.close();
+	it('rejects prohibited fields in nested objects and arrays', () => {
+		expect(() => assertAnalyticsFields({metadata: {query: 'select 1'}})).toThrow(/prohibited: query/u);
+		expect(() => assertAnalyticsFields({items: [{ok: true}, {absolutePath: '/secret'}]})).toThrow(/prohibited: absolutePath/u);
+		expect(assertAnalyticsFields({items: [{ok: true}], nested: {tool: 'find_symbol'}})).toStrictEqual({
+			items: [{ok: true}],
+			nested: {tool: 'find_symbol'},
+		});
+	});
 
-		const exitCode = runAnalyticsCommand(
-			['--analytics', analyticsPath],
-			{},
-			{
-				stdout: (line) => {
-					stdout.push(line);
-				},
-				stderr: (line) => {
-					stderr.push(line);
-				},
-			},
-		);
+	it('accepts cyclic field containers without infinite recursion', () => {
+		const cyclic: {tool: string; self?: unknown} = {tool: 'find_symbol'};
+		cyclic.self = cyclic;
 
-		expect(exitCode).toBe(0);
-		expect(stderr).toStrictEqual([]);
-		expect(stdout.join('\n').split('\n')[0]).toBe(`analyticsPath: ${analyticsPath}`);
+		expect(assertAnalyticsFields(cyclic)).toBe(cyclic);
+	});
+
+	it('parses only complete versioned events', () => {
+		const event = {
+			schema: 1,
+			id: 'event',
+			timestamp: '2026-01-01T00:00:00.000Z',
+			program: 'code-index',
+			programVersion: '0.1.0',
+			projectId: 'project',
+			workingCopyId: null,
+			event: 'process_start',
+		};
+
+		expect(parseAnalyticsEvent(event)).toStrictEqual(event);
+		expect(parseAnalyticsEvent({...event, schema: 2})).toBeNull();
+		expect(parseAnalyticsEvent({...event, id: ''})).toBeNull();
 	});
 
 	it('retains at most ten rotated files and removes old ones', () => {

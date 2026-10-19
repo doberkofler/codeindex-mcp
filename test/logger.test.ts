@@ -1,4 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
+import {debugFor, enableDebug} from '../src/core/logging/debug.ts';
 import {createLogger} from '../src/core/logging/logger.ts';
 
 describe('logger', () => {
@@ -32,5 +33,14 @@ describe('logger', () => {
 		logger.error('error_event', {});
 
 		expect(write).toHaveBeenCalledTimes(3);
+	});
+
+	it('creates namespaced trace channels and enables them', () => {
+		const trace = debugFor('test');
+
+		expect(trace.namespace).toBe('codeindex:test');
+		expect(() => {
+			enableDebug();
+		}).not.toThrow();
 	});
 });
