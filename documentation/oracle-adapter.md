@@ -150,12 +150,12 @@ package bodies, and 3 standalone functions.
 
 | Gate | Result | Required |
 | --- | ---: | ---: |
-| Declaration recall | 96.10% | 99.5% |
-| Declaration precision | 99.88% | 100% |
-| Reference recall | 57.33% | 99.5% |
-| Reference precision | 97.85% | 100% |
+| Declaration recall | 98.44% | 99.5% |
+| Declaration precision | 99.96% | 100% |
+| Reference recall | 59.06% | 99.5% |
+| Reference precision | 99.16% | 100% |
 | Package dependency recall | 98.14% | 99.5% |
-| Package dependency precision | 99.91% | 100% |
+| Package dependency precision | 100% | 100% |
 
 Excluded from the corpus:
 
@@ -169,7 +169,16 @@ The comparison excluded 61,492 PL/Scope references to package qualifiers because
 O1 represents those as dependency edges, not symbol occurrences. It also
 rejected PL/Scope rows whose declaration position did not contain the declared
 identifier; this removes `SELECT *` column pseudo-declarations and same-line
-`CREATE OR REPLACE` column offsets.
+`CREATE OR REPLACE` column offsets. The remaining reference extras are
+classified in the external Phase 9 evidence: 377 are PL/Scope references whose
+`ITERATOR` type is outside the gate's supported set, 467 are `PRAGMA INLINE`
+arguments, 98 are implicit loop iterators typed as declarations, and the rest
+are type positions, static SQL, expression references, or residual nested-block
+declarations. They are not removed merely to raise precision.
+
+Literal `$IF TRUE` and `$IF FALSE` branches are evaluated during tokenization.
+Non-literal conditions keep both branches because O1 does not evaluate session
+or compilation parameters.
 
 Remaining reference gaps are concentrated in identifiers inside static SQL,
 record/object-type member chains whose final member is not indexed, and
@@ -186,7 +195,8 @@ redefined.
 - Static source only; deployed state and drift are not evaluated.
 - SQL object lineage, triggers, object types, synonyms, and database links are
   deferred.
-- Conditional-compilation branches are not evaluated.
+- Conditional-compilation branches are evaluated only for literal `TRUE` and
+  `FALSE` conditions; non-literal conditions keep both branches.
 - Wrapped units are reported and skipped.
 - The adapter does not validate Oracle syntax beyond the tolerant structural
   scanner. Malformed declarations recover at the next declaration or unit

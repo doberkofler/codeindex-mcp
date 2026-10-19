@@ -88,6 +88,41 @@ describe('Oracle declaration parser', () => {
 		expect(parsed.dependencies.some((dependency) => dependency.targetName.canonical === 'HR_API')).toBe(true);
 	});
 
+	it('recovers routine declarations after nested CASE expressions', () => {
+		const parsed = parseFixture('qualification.pkb');
+		const names = parsed.declarations.map((declaration) => declaration.name.canonical);
+
+		expect(names).toContain('CASE_THEN_ROUTINE');
+		expect(names).toContain('AFTER_CASE');
+		expect(names).toContain('DISABLED_BRANCH');
+		expect(names).toContain('LITERAL_TRUE_BRANCH');
+		expect(names).toContain('UNKNOWN_BRANCH');
+	});
+
+	it('does not emit references at declaration positions', () => {
+		const parsed = parseFixture('qualification.pkb');
+		const offsets = new Set(parsed.declarations.map((declaration) => declaration.nameRange.startOffset));
+
+		expect(parsed.references.filter((reference) => offsets.has(reference.nameRange.startOffset))).toStrictEqual([]);
+	});
+
+	it('skips disabled conditional compilation branches and keeps enabled branches', () => {
+		const parsed = parseFixture('qualification.pkb');
+		const names = parsed.references.map((reference) => reference.name.canonical);
+
+		const dependencies = parsed.dependencies.map((dependency) => dependency.targetName.canonical);
+
+		expect(names).not.toContain('MISSING_PACKAGE.MISSING_FUNCTION');
+		expect(names).not.toContain('HIDDEN_HELPER');
+		expect(names).toContain('ENABLED_PACKAGE.ENABLED_CALL');
+		expect(names).not.toContain('DISABLED_PACKAGE.DISABLED_CALL');
+		expect(names).toContain('FIRST_PACKAGE.FIRST_BRANCH');
+		expect(names).toContain('SECOND_PACKAGE.SECOND_BRANCH');
+		expect(dependencies).not.toContain('MISSING_PACKAGE');
+		expect(dependencies).toContain('ENABLED_PACKAGE');
+		expect(dependencies).not.toContain('DISABLED_PACKAGE');
+	});
+
 	it('parses multiple units in a script and reports wrapped source', () => {
 		const source = `create or replace package first_api as procedure run; end first_api;
 /

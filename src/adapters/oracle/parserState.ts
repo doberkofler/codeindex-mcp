@@ -276,7 +276,10 @@ export const collectReferences = (input: Readonly<{state: OracleParserStateType;
 			continue;
 		}
 
-		if (state.definitionStarts.has(state.cursor.token(index)?.startOffset ?? -1)) {
+		const declarationOffset = state.definitionStarts.has(state.cursor.token(index)?.startOffset ?? -1);
+		const qualifiedDeclarationOffset = state.definitionStarts.has(state.cursor.token(name.endIndex)?.startOffset ?? -1);
+
+		if (declarationOffset || qualifiedDeclarationOffset) {
 			index = state.cursor.next(name.endIndex);
 			continue;
 		}

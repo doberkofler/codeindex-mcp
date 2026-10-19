@@ -17,6 +17,117 @@ export type OracleTokenRangeType = Readonly<{
 export type OracleBlockEndType = Readonly<{endIndex: number; nextIndex: number}>;
 
 const BLOCK_END_LABELS = new Set(['IF', 'LOOP', 'CASE']);
+const CONDITIONAL_DIRECTIVES = new Set(['$IF', '$THEN', '$ELSE', '$ELSIF', '$END', '$ERROR']);
+
+type ConditionalFrameType = {parentDisabled: boolean; disabled: boolean; satisfied: boolean};
+
+/**
+ * Reads a literal boolean `$IF` or `$ELSIF` condition.
+ *
+ * Unknown expressions return `null` and are treated as enabled. O1 does not
+ * evaluate session values or compilation parameters.
+ *
+ * @param tokens - Full token stream, including hidden tokens.
+ * @param index - Index of the `$IF` or `$ELSIF` token.
+ * @returns The literal condition, or `null` when it cannot be evaluated.
+ */
+const literalCondition = (tokens: readonly OracleTokenType[], index: number): boolean | null => {
+	const parts: string[] = [];
+
+	for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
+		const token = tokens[cursor];
+
+		if (token?.channel !== 'visible') {
+			continue;
+		}
+
+		if (token.text.toUpperCase() === '$THEN') {
+			break;
+		}
+
+		parts.push(token.text.toUpperCase());
+	}
+
+	const condition = parts.join('').replaceAll(/\s/gu, '');
+
+	if (condition === 'TRUE') {
+		return true;
+	}
+
+	return condition === 'FALSE' ? false : null;
+};
+
+const applyConditionalDirective = (stack: ConditionalFrameType[], tokens: readonly OracleTokenType[], index: number, directive: string): void => {
+	const parent = stack.at(-1);
+
+	if (directive === '$IF') {
+		const condition = literalCondition(tokens, index);
+		const parentDisabled = parent?.disabled ?? false;
+		stack.push({
+			parentDisabled,
+			disabled: parentDisabled || condition === false,
+			satisfied: condition === true,
+		});
+		return;
+	}
+
+	if (parent === undefined) {
+		return;
+	}
+
+	if (directive === '$ELSIF') {
+		const condition = literalCondition(tokens, index);
+		parent.disabled = parent.parentDisabled || parent.satisfied || condition === false;
+		parent.satisfied ||= condition === true;
+	} else if (directive === '$ELSE') {
+		parent.disabled = parent.parentDisabled || parent.satisfied;
+		parent.satisfied = true;
+	} else if (directive === '$END') {
+		stack.pop();
+	}
+};
+
+/**
+ * Removes conditional-compilation directives and every token in a branch that
+ * a literal boolean condition disables. Disabled source is not visible to the
+ * Oracle compiler, so indexing it creates references and declarations that
+ * PL/Scope never sees. Non-literal conditions keep both branches.
+ *
+ * @param tokens - Full token stream, including hidden tokens.
+ * @returns Tokens that remain visible to the compiler.
+ */
+const withoutDisabledConditionalCompilation = (tokens: readonly OracleTokenType[]): readonly OracleTokenType[] => {
+	const active: OracleTokenType[] = [];
+	const stack: ConditionalFrameType[] = [];
+	let skippingCondition = false;
+
+	for (let index = 0; index < tokens.length; index += 1) {
+		const token = tokens[index];
+
+		if (token === undefined) {
+			continue;
+		}
+
+		const directive = token.channel === 'visible' && CONDITIONAL_DIRECTIVES.has(token.text.toUpperCase()) ? token.text.toUpperCase() : null;
+
+		if (skippingCondition) {
+			skippingCondition = directive !== '$THEN';
+			continue;
+		}
+
+		if (directive !== null) {
+			applyConditionalDirective(stack, tokens, index, directive);
+			skippingCondition = directive === '$IF' || directive === '$ELSIF';
+			continue;
+		}
+
+		if (!(stack.at(-1)?.disabled ?? false)) {
+			active.push(token);
+		}
+	}
+
+	return active;
+};
 
 /**
  * Navigation over visible Oracle tokens.
@@ -28,7 +139,7 @@ export class TokenCursor {
 	readonly #tokens: readonly OracleTokenType[];
 
 	public constructor(tokens: readonly OracleTokenType[]) {
-		this.#tokens = tokens.filter((token) => token.channel === 'visible');
+		this.#tokens = withoutDisabledConditionalCompilation(tokens).filter((token) => token.channel === 'visible');
 	}
 
 	public get length(): number {
@@ -220,7 +331,9 @@ export class TokenCursor {
 			let endIndex = index;
 			let cursor = this.next(index);
 
-			if (BLOCK_END_LABELS.has(this.upper(cursor)) || this.identifier(cursor)) {
+			// A nested CASE expression closes with `END` followed by `END` or `;`.
+			// `END` is reserved, so it can never be the block label.
+			if (BLOCK_END_LABELS.has(this.upper(cursor)) || (this.identifier(cursor) && !this.word(cursor, 'END'))) {
 				endIndex = cursor;
 				cursor = this.next(cursor);
 			}
