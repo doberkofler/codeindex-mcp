@@ -150,9 +150,9 @@ temporary B-tree.
 declares the accepted report schema version, workspace compatibility, required
 scenarios, thresholds, and an optional reference. `--reference` accepts a previous
 benchmark report and overrides the embedded reference, so an accepted nightly
-report can be compared without editing the baseline. Only machine, workspace,
-scenario, and query measurements are retained. Relative gates activate only when a
-reference is present. The reference must also match the current report schema,
+report can be compared without editing the baseline. Only the report schema
+version, machine, workspace identity, scenario, and query measurements are
+retained. Relative gates activate only when a reference is present. The reference must also match the current report schema,
 workspace kind, profile, and generated corpus counts; an obsolete or unrelated
 reference fails compatibility and its relative gates are skipped.
 

@@ -155,8 +155,8 @@ export const loadBenchmarkBaseline = (filePath: string): BenchmarkBaselineType =
 /**
  * Loads an accepted benchmark report as a relative-regression reference.
  *
- * Extra report fields are ignored; only machine, workspace, scenario, and query
- * measurements are retained.
+ * Extra report fields are ignored; the report schema version, machine, workspace
+ * identity, scenario, and query measurements are retained.
  *
  * @param filePath - Benchmark report JSON file.
  * @returns Parsed reference measurements.
