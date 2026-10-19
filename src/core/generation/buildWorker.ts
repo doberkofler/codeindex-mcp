@@ -11,6 +11,7 @@ export type BuildWorkerDataType = Readonly<{
 	config: ConfigType;
 	scan: ScanResultType;
 	force: boolean;
+	ownerId: string;
 	debug: boolean;
 }>;
 
@@ -47,7 +48,8 @@ export const isBuildWorkerData = (value: unknown): value is BuildWorkerDataType 
 		typeof scan['sourceHash'] === 'string' &&
 		typeof scan['configHash'] === 'string' &&
 		Array.isArray(scan['files']) &&
-		typeof value['force'] === 'boolean'
+		typeof value['force'] === 'boolean' &&
+		typeof value['ownerId'] === 'string'
 	);
 };
 
@@ -75,7 +77,7 @@ export const runBuildWorker = (data: BuildWorkerDataType): void => {
 			compilerVersion: data.scan.compilerVersion,
 			extractorVersion: data.scan.extractorVersion,
 		});
-		const report = buildGeneration({config: data.config, database, logger, scan: data.scan, force: data.force});
+		const report = buildGeneration({config: data.config, database, logger, scan: data.scan, force: data.force, ownerId: data.ownerId});
 		debug('build worker complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
 		parentPort?.postMessage({ok: true, report});
 	} catch (error) {

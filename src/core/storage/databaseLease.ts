@@ -65,6 +65,19 @@ export const renewLease = (writer: DatabaseSync, input: Readonly<{projectId: str
 	return Number(result.changes) > 0;
 };
 
+/**
+ * Reports whether one owner still holds an unexpired build lease.
+ *
+ * @param writer - Writer connection.
+ * @param input - Project, expected owner, and comparison time.
+ * @returns True when the expected owner may publish under the lease.
+ */
+export const ownsLease = (writer: DatabaseSync, input: Readonly<{projectId: string; ownerId: string; now: number}>): boolean => {
+	const row = writer.prepare('select owner_id, expires_at from build_lease where project_id = ?').get(input.projectId);
+
+	return row !== undefined && asString(row, 'owner_id') === input.ownerId && Date.parse(asString(row, 'expires_at')) > input.now;
+};
+
 export const releaseLease = (writer: DatabaseSync, projectId: string, ownerId: string): void => {
 	writer.prepare('delete from build_lease where project_id = ? and owner_id = ?').run(projectId, ownerId);
 };

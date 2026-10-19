@@ -24,6 +24,7 @@ type BuildInputType = Readonly<{
 	logger: LoggerType;
 	scan?: ScanResultType;
 	force?: boolean;
+	ownerId?: string;
 }>;
 
 type BuildCountsType = Readonly<{
@@ -53,6 +54,12 @@ const createReport = (
 
 const findReusableGeneration = (database: IndexDatabase, scan: ScanResultType, force: boolean | undefined): GenerationRowType | null =>
 	force === true ? null : database.findReusableGeneration(scan.sourceHash, scan.configHash);
+
+const measure = (action: () => void): number => {
+	const startedAt = performance.now();
+	action();
+	return Math.round(performance.now() - startedAt);
+};
 
 const persistFacts = (
 	input: Readonly<{
@@ -199,6 +206,7 @@ const executeBuild = (
 		generationId: string;
 		startedAt: number;
 		scanMs: number;
+		ownerId?: string;
 	}>,
 ): BuildReportType => {
 	const extractor = extractorFor(input.config.extractorId);
@@ -239,24 +247,18 @@ const executeBuild = (
 		extractorVersion: input.scan.extractorVersion,
 	});
 	const insertionMs = Math.round(performance.now() - insertionStartedAt);
-	const verificationStartedAt = performance.now();
-	input.database.verifyIntegrity();
-	const verificationMs = Math.round(performance.now() - verificationStartedAt);
-	const publicationMs = input.database.publish(input.generationId, extracted.diagnostics.length, {
-		scanMs: input.scan.scanMs,
-		compilerMs: extracted.compilerMs,
-		extractionMs: extracted.extractionMs,
-		insertionMs,
-		verificationMs,
+	const verificationMs = measure(() => {
+		input.database.verifyIntegrity();
 	});
-	const stages: BuildStagesType = {
+	const measuredStages = {
 		scanMs: input.scan.scanMs,
 		compilerMs: extracted.compilerMs,
 		extractionMs: extracted.extractionMs,
 		insertionMs,
 		verificationMs,
-		publicationMs,
 	};
+	const publicationMs = input.database.publish(input.generationId, extracted.diagnostics.length, measuredStages, input.ownerId);
+	const stages: BuildStagesType = {...measuredStages, publicationMs};
 	const durationMs = Math.round(performance.now() - input.startedAt);
 	const {files} = extracted;
 
@@ -354,6 +356,7 @@ export const buildGeneration = (input: BuildInputType): BuildReportType => {
 			generationId,
 			startedAt,
 			scanMs,
+			...(input.ownerId === undefined ? {} : {ownerId: input.ownerId}),
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

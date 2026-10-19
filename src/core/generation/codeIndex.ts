@@ -468,7 +468,7 @@ export class CodeIndex {
 
 		if (workerPath === null) {
 			debug('building in process');
-			return buildGeneration({config: this.#config, database: this.#database, logger: this.#logger, scan, force});
+			return buildGeneration({config: this.#config, database: this.#database, logger: this.#logger, scan, force, ownerId: this.#ownerId});
 		}
 
 		const report = await runBuildWorkerThread({
@@ -476,6 +476,7 @@ export class CodeIndex {
 			config: this.#config,
 			scan,
 			force,
+			ownerId: this.#ownerId,
 			debug: debug.enabled,
 		});
 

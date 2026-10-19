@@ -18,6 +18,7 @@ import {
 	type WorkingCopyIdentityType,
 } from '../model.ts';
 import {debugFor} from '../logging/debug.ts';
+import {CodeIndexError} from '../errors/codeIndexError.ts';
 import {
 	countContentVersions,
 	countExtractionArtifacts as countStoredExtractionArtifacts,
@@ -39,7 +40,7 @@ import {
 	listDependencyBindings as listStoredDependencyBindings,
 } from './databaseDependency.ts';
 import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContextType} from './databaseIdentity.ts';
-import {acquireLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
+import {acquireLease, ownsLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
 import {explainQueryPlan, recreateIfIncompatible} from './databaseOpen.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
 import {asNumber, asString, SYMBOL_COLUMNS, toSymbolSummary} from './databaseRows.ts';
@@ -306,12 +307,15 @@ export class IndexDatabase {
 	 * @param generationId - Completed generation identifier.
 	 * @param diagnosticCount - Persisted diagnostic count; defaults to a count query.
 	 * @param stages - Optional measured build-stage durations.
+	 * @param ownerId - Lease owner that must still own the build lease.
 	 * @returns Measured publication duration.
+	 * @throws {@link CodeIndexError} When the lease was lost or expired before publication.
 	 */
 	public publish(
 		generationId: string,
 		diagnosticCount?: number,
 		stages?: Readonly<{scanMs: number; compilerMs: number; extractionMs: number; insertionMs: number; verificationMs: number}>,
+		ownerId?: string,
 	): number {
 		const counts = {
 			files: this.countRows(generationId, 'file'),
@@ -325,6 +329,10 @@ export class IndexDatabase {
 		const publicationStartedAt = performance.now();
 
 		this.#transaction(() => {
+			if (ownerId !== undefined && !ownsLease(this.#writer, {projectId: this.#projectId, ownerId, now: Date.now()})) {
+				throw new CodeIndexError('index_build_failed', 'Build lease was lost or expired before publication');
+			}
+
 			this.#writer.exec("delete from generation where state in ('superseded', 'failed')");
 
 			this.#writer
@@ -402,27 +410,19 @@ export class IndexDatabase {
 
 	public getSymbol(generationId: string, id: string): SymbolSummaryType | null {
 		const row = this.#reader.prepare(`select ${SYMBOL_COLUMNS} from symbol where generation_id = ? and id = ?`).get(generationId, id);
-
 		return row === undefined ? null : toSymbolSummary(row, listSymbolContexts(this.#reader, generationId, [id]).get(id) ?? []);
 	}
 	public listOutline(
 		input: Readonly<{generationId: string; path: string; kinds: readonly string[]; limit: number; offset: number}>,
 	): readonly SymbolSummaryType[] {
-		const rows = this.#reader.prepare(outlineQuerySql(input.kinds.length)).all(input.generationId, input.path, ...input.kinds, input.limit, input.offset);
+		const {generationId, path: pathName, kinds, limit, offset} = input;
+		const rows = this.#reader.prepare(outlineQuerySql(kinds.length)).all(generationId, pathName, ...kinds, limit, offset);
 		const contexts = listSymbolContexts(
 			this.#reader,
-			input.generationId,
+			generationId,
 			rows.map((row) => asString(row, 'id')),
 		);
-		debug('list outline', {
-			generationId: input.generationId,
-			path: input.path,
-			kinds: input.kinds,
-			limit: input.limit,
-			offset: input.offset,
-			rows: rows.length,
-		});
-
+		debug('list outline', {generationId, path: pathName, kinds, limit, offset, rows: rows.length});
 		return rows.map((row) => {
 			const id = asString(row, 'id');
 

@@ -149,6 +149,23 @@ describe('index storage coordination and plans', () => {
 		database.close();
 	});
 
+	it('refuses publication without an unexpired build lease', async () => {
+		const database = open();
+		const generationId = 'generation-lease';
+		database.createGeneration(generation(generationId));
+		expect(database.tryAcquireBuildLease('owner-a', process.pid, 50)).toBe(true);
+		await delay(60);
+
+		expect(() => database.publish(generationId, undefined, undefined, 'owner-a')).toThrow(/lease/u);
+		expect(database.tryAcquireBuildLease('owner-b', process.pid, 5_000)).toBe(true);
+		expect(() => database.publish(generationId, undefined, undefined, 'owner-a')).toThrow(/lease/u);
+		expect(database.getPublishedGeneration()).toBeNull();
+
+		database.publish(generationId, undefined, undefined, 'owner-b');
+		expect(database.getPublishedGeneration()?.id).toBe(generationId);
+		database.close();
+	});
+
 	it('uses intended indexes for hot statements', () => {
 		const database = open();
 		const pathName = 'src/hot.ts';
