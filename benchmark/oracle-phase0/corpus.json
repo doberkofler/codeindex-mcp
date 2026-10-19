@@ -1,0 +1,52 @@
+{
+	"schemaVersion": 1,
+	"evidence": {
+		"externalRoot": "oracle-live/2eb1e36f6ecdada4",
+		"snapshotDir": "workspace",
+		"plan": "plan.json",
+		"run": "run.json",
+		"approval": "4c82485ae33d80a0c950f0b89a889461ab72092653ee817609eab2cc467b3173"
+	},
+	"source": {
+		"kind": "svn",
+		"revision": "78950",
+		"relativeRoot": "^/ljs_app/trunk/ljs_db/LJS_DB",
+		"defaultSchema": "LJ_UNITTEST"
+	},
+	"snapshot": {
+		"projectFile": "manifests/qualification-index.json",
+		"sourceHash": "dfae2b41a2595d3e83065b9c5807b596f1b43e7cf8fd634958e89e86cfebf2d7",
+		"configHash": "0f790f4865d3929fdb651968b2558d9309ad49d552bd0f93f10119c7ab74f933",
+		"fileCount": 1237,
+		"unitCount": 1237,
+		"installed": {
+			"objects": 1240,
+			"selected": 1237,
+			"missingSource": 3
+		},
+		"extensionCounts": {
+			"pks": 609,
+			"pkb": 605,
+			"sql": 14,
+			"fnc": 9
+		}
+	},
+	"manifest": {
+		"schemaVersion": 1,
+		"dialect": "19c",
+		"defaultSchema": "LJ_UNITTEST",
+		"extensions": [".fnc", ".pkb", ".pkg", ".pks", ".pls", ".prc", ".sql"],
+		"include": ["**/*"],
+		"exclude": []
+	},
+	"exclusions": [
+		{
+			"reason": "installed objects without usable source in the frozen snapshot",
+			"count": 3
+		}
+	],
+	"files": {
+		"checksums": "corpus.sha256",
+		"units": "units.json"
+	}
+}

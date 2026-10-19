@@ -251,7 +251,9 @@ The checked-in qualification corpus is `test/fixtures/reference-corpus/`.
 
 For Oracle, it compares the published index with exported `USER_IDENTIFIERS` and
 `USER_DEPENDENCIES` CSV files. It does not connect to Oracle; database
-preparation and export remain separate, approved operations.
+preparation and export remain separate, approved operations. Pass
+`--units <plan.json>` to reuse the explicit snapshot object mapping from an
+approved live plan when source filenames differ from PL/Scope object names.
 
 ### Cache cleanup
 

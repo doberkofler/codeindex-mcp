@@ -96,3 +96,11 @@ export type OracleParseResultType = Readonly<{
 	dependencies: readonly OracleDependencySiteType[];
 	diagnostics: readonly DiagnosticType[];
 }>;
+
+export type OracleParseInputType = Readonly<{
+	source: string;
+	path: string;
+	defaultSchema: string;
+}>;
+
+export type OracleParserType = (input: OracleParseInputType) => OracleParseResultType;

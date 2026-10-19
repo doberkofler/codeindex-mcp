@@ -3,10 +3,16 @@ import {mkdirSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 
 const UPSTREAM_COMMIT = 'e199816b3f1a7a49ea1ad84fb6b87c382ea36a33';
-const UPSTREAM_PATH = 'sql/plsql/PlSqlLexer.g4';
-const UPSTREAM_SHA256 = 'fd82384ba3ba2f5a7b070a977cd77a05c01fefbfb52938d35dfaf472a2e6e59e';
-const URL = `https://raw.githubusercontent.com/antlr/grammars-v4/${UPSTREAM_COMMIT}/${UPSTREAM_PATH}`;
+const UPSTREAM_LEXER_PATH = 'sql/plsql/PlSqlLexer.g4';
+const UPSTREAM_LEXER_SHA256 = 'fd82384ba3ba2f5a7b070a977cd77a05c01fefbfb52938d35dfaf472a2e6e59e';
+const UPSTREAM_PARSER_PATH = 'sql/plsql/PlSqlParser.g4';
+const UPSTREAM_PARSER_SHA256 = 'c57ec1819302de05beb08c44792883e159254e361e8627e981d9a3c99a0b4633';
+const UPSTREAM_PARSER_BASE_PATH = 'sql/plsql/Antlr4ng/PlSqlParserBase.ts';
+const UPSTREAM_PARSER_BASE_SHA256 = '240545ca222036231d7044ce468e2c4ed0d1a0ef6df190cb71a717b47faccfcb';
+const UPSTREAM_URL = `https://raw.githubusercontent.com/antlr/grammars-v4/${UPSTREAM_COMMIT}`;
 const HEADER_MARKER = '// Insert here @header for C++ lexer.';
+const PARSER_HEADER_MARKER = '// Insert here @header for C++ parser.';
+const PARSER_HEADER_ADAPTATION = '@header {import {PlSqlParserBase} from "../plSqlParserBase.js";}';
 const HEADER_ADAPTATION = `@header {import {PlSqlLexerBase} from "../plSqlLexerBase.js";}
 
 @members {
@@ -75,32 +81,66 @@ const replaceExactlyOnce = (source: string, search: string, replacement: string,
 	return source.replace(search, replacement);
 };
 
-const adaptGrammar = (upstream: string): string => {
+const adaptLexerGrammar = (upstream: string): string => {
 	const withHeader = replaceExactlyOnce(upstream, HEADER_MARKER, HEADER_ADAPTATION, 'target-language header marker');
 
 	return replaceExactlyOnce(withHeader, UPSTREAM_Q_STRING, ADAPTED_Q_STRING, 'alternative-quoted string rule');
 };
 
-const download = async (): Promise<void> => {
-	const response = await fetch(URL);
+const adaptParserGrammar = (upstream: string): string =>
+	replaceExactlyOnce(upstream, PARSER_HEADER_MARKER, PARSER_HEADER_ADAPTATION, 'parser target-language header marker');
+
+const adaptParserBase = (upstream: string): string => {
+	const withLexerImport = replaceExactlyOnce(
+		upstream,
+		"import { PlSqlLexer } from './PlSqlLexer.js';",
+		"import { PlSqlLexer } from './generated/PlSqlLexer.js';",
+		'parser base lexer import',
+	);
+	const withResetOverride = replaceExactlyOnce(withLexerImport, '  reset(): void {', '  override reset(): void {', 'parser base reset override');
+
+	return replaceExactlyOnce(
+		withResetOverride,
+		"import { Parser, TokenStream, CommonTokenStream, Token } from 'antlr4ng';",
+		"import { Parser, type TokenStream, CommonTokenStream, Token } from 'antlr4ng';",
+		'parser base type-only import',
+	);
+};
+
+const fetchVerified = async (sourcePath: string, expectedDigest: string): Promise<Buffer> => {
+	const response = await fetch(`${UPSTREAM_URL}/${sourcePath}`);
 
 	if (!response.ok) {
-		throw new Error(`Unable to download Oracle grammar: ${response.status} ${response.statusText}`);
+		throw new Error(`Unable to download ${sourcePath}: ${response.status} ${response.statusText}`);
 	}
 
 	const bytes = Buffer.from(await response.arrayBuffer());
 	const digest = createHash('sha256').update(bytes).digest('hex');
 
-	if (digest !== UPSTREAM_SHA256) {
-		throw new Error(`Oracle grammar digest mismatch: expected ${UPSTREAM_SHA256}, received ${digest}`);
+	if (digest !== expectedDigest) {
+		throw new Error(`${sourcePath} digest mismatch: expected ${expectedDigest}, received ${digest}`);
 	}
 
-	const directory = path.resolve(import.meta.dirname, '..', 'grammar', 'oracle');
-	const target = path.join(directory, 'PlSqlLexer.g4');
+	return bytes;
+};
 
-	mkdirSync(directory, {recursive: true});
-	writeFileSync(target, adaptGrammar(bytes.toString('utf8')));
-	process.stdout.write(`Wrote adapted Oracle lexer grammar to ${target}\n`);
+const download = async (): Promise<void> => {
+	const [lexerBytes, parserBytes, parserBaseBytes] = await Promise.all([
+		fetchVerified(UPSTREAM_LEXER_PATH, UPSTREAM_LEXER_SHA256),
+		fetchVerified(UPSTREAM_PARSER_PATH, UPSTREAM_PARSER_SHA256),
+		fetchVerified(UPSTREAM_PARSER_BASE_PATH, UPSTREAM_PARSER_BASE_SHA256),
+	]);
+
+	const repositoryRoot = path.resolve(import.meta.dirname, '..');
+	const grammarDirectory = path.join(repositoryRoot, 'grammar', 'oracle');
+	const adapterDirectory = path.join(repositoryRoot, 'src', 'adapters', 'oracle');
+
+	mkdirSync(grammarDirectory, {recursive: true});
+	writeFileSync(path.join(grammarDirectory, 'PlSqlLexer.g4'), adaptLexerGrammar(lexerBytes.toString('utf8')));
+	writeFileSync(path.join(grammarDirectory, 'PlSqlParser.g4'), adaptParserGrammar(parserBytes.toString('utf8')));
+	writeFileSync(path.join(adapterDirectory, 'plSqlParserBase.ts'), adaptParserBase(parserBaseBytes.toString('utf8')));
+
+	process.stdout.write('Wrote adapted Oracle lexer grammar, parser grammar, and parser base\n');
 };
 
 await download();

@@ -46,7 +46,7 @@
 		"test:oracle": "vitest run test/oracle.test.ts",
 		"commitlint": "commitlint",
 		"grammar:oracle:download": "node --experimental-strip-types scripts/downloadOracleGrammar.ts",
-		"grammar:oracle:generate": "node scripts/generateOracleGrammar.mjs",
+		"grammar:oracle:generate": "node --experimental-strip-types scripts/generateOracleGrammar.ts",
 		"console": "node dist/console.mjs",
 		"status": "node dist/cli.mjs status",
 		"update": "node dist/cli.mjs update",

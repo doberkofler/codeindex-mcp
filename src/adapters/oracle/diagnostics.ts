@@ -13,6 +13,7 @@ export const ORACLE_DIAGNOSTIC = {
 	ambiguousOverload: 9105,
 	ambiguousPackage: 9106,
 	diagnosticOverflow: 9107,
+	conditionalCompilation: 9108,
 } as const;
 
 export type OracleDiagnosticCodeType = (typeof ORACLE_DIAGNOSTIC)[keyof typeof ORACLE_DIAGNOSTIC];

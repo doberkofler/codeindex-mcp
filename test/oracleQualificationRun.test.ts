@@ -79,6 +79,36 @@ describe('Oracle qualification run', () => {
 		}
 	});
 
+	it('uses explicit snapshot units when supplied', async () => {
+		const fixture = createFixtureConfig('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+		const outputDirectory = temporaryDirectory();
+		const identifiers = writeCsv(outputDirectory, 'identifiers.csv');
+		const dependencies = writeCsv(outputDirectory, 'dependencies.csv');
+		const captured = capture();
+
+		try {
+			const code = await runOracleQualification(
+				environmentOf({
+					rootDir: fixture.config.rootDir,
+					extractorId: 'oracle',
+					projectFilePath: fixture.config.projectFilePath,
+					databasePath: fixture.config.databasePath,
+				}),
+				captured.io,
+				{identifiers, dependencies, units: []},
+			);
+			const report = JSON.parse(captured.stdout.join('\n')) as {
+				corpus: {files: number; objects: number};
+			};
+
+			expect(code).toBe(1);
+			expect(report.corpus.files).toBeGreaterThan(5);
+			expect(report.corpus.objects).toBe(0);
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
 	it('indexes the corpus, writes a report, and fails empty truth gates', async () => {
 		const fixture = createFixtureConfig('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
 		const outputDirectory = temporaryDirectory();

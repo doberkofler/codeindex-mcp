@@ -281,7 +281,12 @@ export const runOracleQualification = async (environment: NodeJS.ProcessEnv, io:
 		throw new Error(`Oracle qualification requires the oracle extractor, received ${config.extractorId}`);
 	}
 
-	const result = await qualifyOracleConfig(config, io, {identifiers: identifiersPath, dependencies: dependenciesPath, output: options.output});
+	const result = await qualifyOracleConfig(config, io, {
+		identifiers: identifiersPath,
+		dependencies: dependenciesPath,
+		output: options.output,
+		units: options.units,
+	});
 
 	return result.code;
 };

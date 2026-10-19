@@ -1,7 +1,22 @@
+import {readFileSync} from 'node:fs';
+import path from 'node:path';
 import {Command} from 'commander';
+import {z} from 'zod';
 import {runVerification} from '../../adapters/typescript/verifyReferences.ts';
 import {CommandExitError, configureCommand, parseCommandAsync} from '../../transports/cli/commanderSupport.ts';
 import {runOracleQualification} from './oracle/runOracleQualification.ts';
+
+const UnitsFileSchema = z.object({
+	snapshot: z.object({
+		units: z.array(z.object({path: z.string(), type: z.string(), name: z.string()})),
+	}),
+});
+
+const unitsOf = (filePath: string): readonly Readonly<{path: string; type: string; name: string}>[] => {
+	const raw: unknown = JSON.parse(readFileSync(path.resolve(filePath), 'utf8'));
+
+	return UnitsFileSchema.parse(raw).snapshot.units;
+};
 
 export type QualifyIoType = Readonly<{
 	stdout: (line: string) => void;
@@ -16,6 +31,7 @@ type QualifyOptionsType = Readonly<{
 	database?: string | undefined;
 	identifiers?: string | undefined;
 	dependencies?: string | undefined;
+	units?: string | undefined;
 	output?: string | undefined;
 	json: boolean;
 }>;
@@ -29,6 +45,7 @@ const addQualifyOptions = (command: Command): Command =>
 		.option('--database <path>', 'override the index database path')
 		.option('--identifiers <path>', 'Oracle USER_IDENTIFIERS CSV export')
 		.option('--dependencies <path>', 'Oracle USER_DEPENDENCIES CSV export')
+		.option('--units <path>', 'Oracle qualification snapshot units JSON')
 		.option('--output <path>', 'write the JSON report to a file')
 		.option('--json', 'emit machine-readable JSON', false);
 
@@ -62,6 +79,7 @@ const executeQualify = async (values: QualifyOptionsType, environment: NodeJS.Pr
 		const code = await runOracleQualification(resolved, io, {
 			identifiers: values.identifiers,
 			dependencies: values.dependencies,
+			units: values.units === undefined ? undefined : unitsOf(values.units),
 			output: values.output,
 		});
 

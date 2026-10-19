@@ -28,5 +28,36 @@ Local lineage and adaptations:
   the upstream base class, retaining only the newline predicate used by the
   grammar.
 
-The grammar and generated lexer are distributed under the Apache License 2.0.
-The rest of CodeIndex MCP is distributed under the MIT license in `LICENSE`.
+## Oracle PL/SQL parser grammar
+
+CodeIndex vendors `grammar/oracle/PlSqlParser.g4` and the generated
+`src/adapters/oracle/generated/PlSqlParser.ts` and
+`src/adapters/oracle/generated/PlSqlParserVisitor.ts` artifacts.
+
+- Upstream project: `antlr/grammars-v4`
+- Upstream path: `sql/plsql/PlSqlParser.g4`
+- Upstream commit: `e199816b3f1a7a49ea1ad84fb6b87c382ea36a33`
+- Upstream SHA-256: `c57ec1819302de05beb08c44792883e159254e361e8627e981d9a3c99a0b4633`
+- Upstream license: Apache License 2.0
+- `scripts/downloadOracleGrammar.ts` verifies that digest, replaces the upstream
+  C++ header marker with the local parser-base import, and rewrites
+  `grammar/oracle/PlSqlParser.g4`.
+
+Local lineage and adaptations:
+
+- `src/adapters/oracle/plSqlParserBase.ts` vendors the upstream Antlr4ng parser
+  base from `sql/plsql/Antlr4ng/PlSqlParserBase.ts` (SHA-256
+  `240545ca222036231d7044ce468e2c4ed0d1a0ef6df190cb71a717b47faccfcb`). The
+  only adaptations are the generated-lexer import path, a type-only
+  `TokenStream` import, and an explicit `override` on `reset`.
+- Generated parser and visitor output is post-processed by
+  `scripts/generateOracleGrammar.ts` to remove an unused type alias, mark
+  unused semantic-predicate parameters with the repository's underscore
+  convention, and remove an unused parser-base import from the visitor. No
+  parser behavior changes.
+- The parser is generated from the same pinned commit as the lexer. Listener
+  generation is disabled; the visitor is required by the semantic workstreams.
+
+The grammar, generated parser, and parser base are distributed under the Apache
+License 2.0. The rest of CodeIndex MCP is distributed under the MIT license in
+`LICENSE`.

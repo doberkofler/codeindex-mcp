@@ -1,0 +1,626 @@
+{
+	"extractor": "oracle",
+	"generationId": "b64bf5e9-160c-48e0-a03b-aa1c3ff93be8",
+	"corpus": {
+		"files": 1237,
+		"objects": 1237
+	},
+	"truth": {
+		"rows": 926164,
+		"invalidDeclarationRows": 11692,
+		"excludedPackageReferences": 63076
+	},
+	"declarations": {
+		"truth": 123162,
+		"actual": 121227,
+		"matched": 121186,
+		"missing": 1976,
+		"extra": 41,
+		"recall": 0.9839560903525438,
+		"precision": 0.9996617915150915,
+		"samplesMissing": [
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 34,
+				"name": "JOBSURVEYID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 47,
+				"name": "AGENCYID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 57,
+				"name": "CUSTID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 65,
+				"name": "PRODID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 73,
+				"name": "CAMPID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 81,
+				"name": "JOBID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 37,
+				"column": 88,
+				"name": "JOBEMPLID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 10,
+				"name": "JOBRESPEMPLCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 27,
+				"name": "CUSTMATCHCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 42,
+				"name": "PRODMATCHCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 57,
+				"name": "CAMPMATCHCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 72,
+				"name": "JOBMATCHCODE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 38,
+				"column": 86,
+				"name": "INTJOBNO",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr01660_view.sql",
+				"line": 222,
+				"column": 28,
+				"name": "JPOSPOSNO",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr01660_view.sql",
+				"line": 222,
+				"column": 39,
+				"name": "EMPLID",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr01660_view.sql",
+				"line": 222,
+				"column": 47,
+				"name": "EMPLNAME",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_acc_fill.pkb",
+				"line": 691,
+				"column": 149,
+				"name": "HEADERTYPE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+				"line": 50,
+				"column": 2,
+				"name": "ABOOKINGLINE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+				"line": 51,
+				"column": 2,
+				"name": "AEUROFIBROUNDINGRECORD",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/ACCNT/EUROFIB/las_acc_sub_euf_package_body.sql",
+				"line": 52,
+				"column": 2,
+				"name": "AEUROFIBOLDIBRECORD",
+				"type": "VARIABLE"
+			}
+		],
+		"samplesExtra": [
+			{
+				"path": "FILL/f_odsresources.sql",
+				"line": 1,
+				"column": 69,
+				"name": "theString",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_rep_timereportjob.pkb",
+				"line": 1282,
+				"column": 22,
+				"name": "theReportInfo",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/ods_sys_zip.pkb",
+				"line": 42,
+				"column": 4,
+				"name": "LANGUAGE",
+				"kind": "variable"
+			},
+			{
+				"path": "PACKAGES/ods_sys_mail_imap.pkb",
+				"line": 380,
+				"column": 2,
+				"name": "LANGUAGE",
+				"kind": "variable"
+			},
+			{
+				"path": "PACKAGES/las_mod_ceheader_json.pkb",
+				"line": 2215,
+				"column": 25,
+				"name": "name_array",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/ods_sys_zip.pkb",
+				"line": 48,
+				"column": 4,
+				"name": "LANGUAGE",
+				"kind": "variable"
+			},
+			{
+				"path": "FILL/f_odsresources.sql",
+				"line": 1,
+				"column": 33,
+				"name": "theLang",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_rep_timereportdaily.pkb",
+				"line": 1130,
+				"column": 22,
+				"name": "theReportInfo",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_rep_timereporthot.pkb",
+				"line": 763,
+				"column": 22,
+				"name": "theReportInfo",
+				"kind": "parameter"
+			},
+			{
+				"path": "FILL/f_odsresources.sql",
+				"line": 2,
+				"column": 2,
+				"name": "aString",
+				"kind": "variable"
+			},
+			{
+				"path": "PACKAGES/ods_sys_url.pkb",
+				"line": 36,
+				"column": 4,
+				"name": "LANGUAGE",
+				"kind": "variable"
+			},
+			{
+				"path": "PACKAGES/las_rep_jobsurveyagedwip.pkb",
+				"line": 1418,
+				"column": 22,
+				"name": "theReportInfo",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/tst_uti_oci.pkb",
+				"line": 40,
+				"column": 4,
+				"name": "LANGUAGE",
+				"kind": "variable"
+			},
+			{
+				"path": "PACKAGES/ods_sys_mail_smtp.pkb",
+				"line": 292,
+				"column": 2,
+				"name": "LANGUAGE",
+				"kind": "variable"
+			},
+			{
+				"path": "PACKAGES/ods_sys_mail_smtp.pkb",
+				"line": 332,
+				"column": 2,
+				"name": "LANGUAGE",
+				"kind": "variable"
+			},
+			{
+				"path": "PACKAGES/las_mod_order_json.pkb",
+				"line": 2068,
+				"column": 7,
+				"name": "value_array",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/ods_sys_zip.pkb",
+				"line": 60,
+				"column": 4,
+				"name": "LANGUAGE",
+				"kind": "variable"
+			},
+			{
+				"path": "PACKAGES/las_rep_timereportempl.pkb",
+				"line": 1068,
+				"column": 22,
+				"name": "theReportInfo",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_mod_ceheader_json.pkb",
+				"line": 2216,
+				"column": 7,
+				"name": "value_array",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_mod_storedreport_uti.pkb",
+				"line": 22,
+				"column": 20,
+				"name": "theParam",
+				"kind": "parameter"
+			}
+		]
+	},
+	"references": {
+		"truth": 465511,
+		"actual": 273993,
+		"matched": 272420,
+		"missing": 193091,
+		"extra": 1573,
+		"recall": 0.5852063646186664,
+		"precision": 0.9942589774191312,
+		"samplesMissing": [
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 41,
+				"column": 2,
+				"name": "ATABLEDATA",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 63,
+				"column": 3,
+				"name": "ATABLEDATA",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00100.sql",
+				"line": 93,
+				"column": 14,
+				"name": "ATABLEDATA",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00101.sql",
+				"line": 4,
+				"column": 2,
+				"name": "CONSTSERVCATACONTO",
+				"type": "CONSTANT"
+			},
+			{
+				"path": "PACKAGES/las_sub_ceheader.pks",
+				"line": 70,
+				"column": 1,
+				"name": "ECEISAPPROVEDBYCLIENT",
+				"type": "CONSTANT"
+			},
+			{
+				"path": "PACKAGES/las_sub_ceheader.pks",
+				"line": 71,
+				"column": 1,
+				"name": "ECEISAPPROVEDINTERNALLY",
+				"type": "CONSTANT"
+			},
+			{
+				"path": "PACKAGES/las_cr00101.sql",
+				"line": 58,
+				"column": 2,
+				"name": "ATABLEDATA",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00101.sql",
+				"line": 91,
+				"column": 3,
+				"name": "ATABLEDATA",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00101.sql",
+				"line": 156,
+				"column": 14,
+				"name": "ATABLEDATA",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 66,
+				"column": 10,
+				"name": "ITSCIBOOKID",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 112,
+				"column": 53,
+				"name": "ITSCIBOOKID",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 153,
+				"column": 41,
+				"name": "ITSCIBOOKID",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 66,
+				"column": 10,
+				"name": "ITSCIHEADERID",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 113,
+				"column": 54,
+				"name": "ITSCIHEADERID",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 154,
+				"column": 42,
+				"name": "ITSCIHEADERID",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 66,
+				"column": 10,
+				"name": "ITSCIDATE",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 115,
+				"column": 51,
+				"name": "ITSCIDATE",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 156,
+				"column": 39,
+				"name": "ITSCIDATE",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 66,
+				"column": 10,
+				"name": "ITSTOTALAMOUNT",
+				"type": "RECORD FIELD"
+			},
+			{
+				"path": "PACKAGES/las_cr00401.sql",
+				"line": 114,
+				"column": 57,
+				"name": "ITSTOTALAMOUNT",
+				"type": "RECORD FIELD"
+			}
+		],
+		"samplesExtra": [
+			{
+				"path": "PACKAGES/las_rpt_jobsurvey.pkb",
+				"line": 1710,
+				"column": 16,
+				"name": "JSStandardView",
+				"kind": "function"
+			},
+			{
+				"path": "PACKAGES/las_rpt_jobsurvey.pkb",
+				"line": 1961,
+				"column": 18,
+				"name": "JSStandardView",
+				"kind": "function"
+			},
+			{
+				"path": "PACKAGES/las_rep_timereportstathours.pkb",
+				"line": 1243,
+				"column": 18,
+				"name": "LevelFrom",
+				"kind": "function"
+			},
+			{
+				"path": "PACKAGES/las_rep_timereportstathours.pkb",
+				"line": 1381,
+				"column": 18,
+				"name": "LevelFrom",
+				"kind": "function"
+			},
+			{
+				"path": "FILL/f_odsresources.sql",
+				"line": 5,
+				"column": 22,
+				"name": "theString",
+				"kind": "parameter"
+			},
+			{
+				"path": "FILL/f_odsresources.sql",
+				"line": 7,
+				"column": 14,
+				"name": "theString",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_sql_order.pkb",
+				"line": 1837,
+				"column": 129,
+				"name": "theLangID",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_sql_order.pkb",
+				"line": 1846,
+				"column": 157,
+				"name": "theLangID",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_sql_order.pkb",
+				"line": 1847,
+				"column": 157,
+				"name": "theLangID",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_sql_order.pkb",
+				"line": 1848,
+				"column": 157,
+				"name": "theLangID",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_rep_jobsurveyagedwip.pkb",
+				"line": 1131,
+				"column": 20,
+				"name": "ClientLevel",
+				"kind": "function"
+			},
+			{
+				"path": "PACKAGES/las_sub_ceheader.pkb",
+				"line": 1423,
+				"column": 4,
+				"name": "IsApproved",
+				"kind": "function"
+			},
+			{
+				"path": "PACKAGES/las_sub_ceheader.pkb",
+				"line": 1465,
+				"column": 5,
+				"name": "IsApproved",
+				"kind": "function"
+			},
+			{
+				"path": "PACKAGES/las_rpt_jobsurvey.pkb",
+				"line": 1711,
+				"column": 16,
+				"name": "JSControllingView",
+				"kind": "function"
+			},
+			{
+				"path": "PACKAGES/las_rpt_jobsurvey.pkb",
+				"line": 1962,
+				"column": 18,
+				"name": "JSControllingView",
+				"kind": "function"
+			},
+			{
+				"path": "PACKAGES/las_mod_paymentcondition_data.pkb",
+				"line": 99,
+				"column": 129,
+				"name": "theFibucode",
+				"kind": "parameter"
+			},
+			{
+				"path": "PACKAGES/las_sub_reportform_pdf_eng.pkb",
+				"line": 797,
+				"column": 16,
+				"name": "specialVar",
+				"kind": "function"
+			},
+			{
+				"path": "PACKAGES/las_sql_siheader.pkb",
+				"line": 1362,
+				"column": 111,
+				"name": "MAX_SEQUENCE",
+				"kind": "constant"
+			},
+			{
+				"path": "PACKAGES/las_sql_order.pkb",
+				"line": 737,
+				"column": 16,
+				"name": "checkStatus",
+				"kind": "procedure"
+			},
+			{
+				"path": "PACKAGES/las_sql_order.pkb",
+				"line": 751,
+				"column": 16,
+				"name": "checkStatus",
+				"kind": "procedure"
+			}
+		]
+	},
+	"dependencies": {
+		"truth": 5639,
+		"actual": 5536,
+		"matched": 5536,
+		"missing": 103,
+		"extra": 0,
+		"recall": 0.9817343500620678,
+		"precision": 1
+	},
+	"gates": {
+		"declarations": {
+			"recall": false,
+			"precision": false,
+			"ok": false
+		},
+		"references": {
+			"recall": false,
+			"precision": false,
+			"ok": false
+		},
+		"dependencies": {
+			"recall": false,
+			"precision": true,
+			"ok": false
+		},
+		"ok": false
+	}
+}

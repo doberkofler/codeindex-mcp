@@ -143,18 +143,20 @@ pnpm grammar:oracle:generate
 
 ## 7. Qualification status
 
-The first Oracle-backed run used a production sample project and Oracle
+The frozen Phase 0 baseline used a production sample project and Oracle
 19.0.0.0.0 with a session-scoped `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`. The
-qualification corpus contained 1,183 files: 592 package specifications, 588
-package bodies, and 3 standalone functions.
+qualification corpus contained 1,237 files: 609 package specifications, 605
+package bodies, 14 SQL files, and 9 standalone functions. The frozen evidence,
+corpus checksums, truth-export hashes, and both reports are recorded in
+[`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
 
 | Gate | Result | Required |
 | --- | ---: | ---: |
-| Declaration recall | 98.44% | 99.5% |
-| Declaration precision | 99.96% | 100% |
-| Reference recall | 59.06% | 99.5% |
-| Reference precision | 99.16% | 100% |
-| Package dependency recall | 98.14% | 99.5% |
+| Declaration recall | 98.3956% | 99.5% |
+| Declaration precision | 99.9662% | 100% |
+| Reference recall | 58.5206% | 99.5% |
+| Reference precision | 99.4259% | 100% |
+| Package dependency recall | 98.1734% | 99.5% |
 | Package dependency precision | 100% | 100% |
 
 Run the comparison without connecting to Oracle:
@@ -166,7 +168,22 @@ pnpm qualify:oracle
 The command reads `CODE_INDEX_ROOT`, `CODE_INDEX_PROJECT_FILE`,
 `CODE_INDEX_ORACLE_IDENTIFIERS`, and `CODE_INDEX_ORACLE_DEPENDENCIES`, or accepts
 the corresponding `--root`, `--project-file`, `--identifiers`, and
-`--dependencies` options. It exits non-zero when any gate fails.
+`--dependencies` options. Pass `--units <plan.json>` to reuse the explicit
+snapshot object mapping from an approved live plan; this is required when a
+source filename differs from the PL/Scope object name. It exits non-zero when
+any gate fails.
+
+To replay the frozen baseline without a database connection:
+
+```bash
+node dist/cli.mjs qualify --extractor oracle \
+  --root /path/to/oracle-live/2eb1e36f6ecdada4/workspace \
+  --project-file /path/to/oracle-live/2eb1e36f6ecdada4/workspace/manifests/qualification-index.json \
+  --identifiers /path/to/oracle-live/2eb1e36f6ecdada4/user-identifiers.csv \
+  --dependencies /path/to/oracle-live/2eb1e36f6ecdada4/user-dependencies.csv \
+  --units /path/to/oracle-live/2eb1e36f6ecdada4/plan.json \
+  --output /tmp/oracle-qualification.json
+```
 
 Performance measurement is separate:
 
@@ -179,15 +196,13 @@ pnpm benchmark:oracle:corpus
 It runs the normal `benchmark` command with the Oracle extractor and never
 connects to Oracle.
 
-Excluded from the corpus:
+Excluded from the frozen Phase 0 snapshot:
 
-- 7 source-only packages absent from the database;
-- 2 wrapped `ODS_SYS_Encryption` files;
-- 2 deployment scripts that also create a view or object types;
-- 1 package whose source references a missing dependency and whose existing
-  database source was restored.
+- 3 installed objects without usable source in the snapshot;
+- source-only objects that were not installed in the database (not selected);
+- wrapped source, which remains outside O1 scope.
 
-The comparison excluded 61,492 PL/Scope references to package qualifiers because
+The comparison excluded 63,076 PL/Scope references to package qualifiers because
 O1 represents those as dependency edges, not symbol occurrences. It also
 rejected PL/Scope rows whose declaration position did not contain the declared
 identifier; this removes `SELECT *` column pseudo-declarations and same-line
@@ -207,10 +222,12 @@ record/object-type member chains whose final member is not indexed, and
 parameters or locals used only in those contexts. These are scope gaps, not
 formatting noise.
 
-Qualification evidence, including corpus checksums, exports, and the comparison
-script, is stored outside the repository. The adapter is not promoted, and the
-gates must be re-run after the reference scope is extended or explicitly
-redefined.
+Qualification evidence is split by size. The frozen corpus manifest, per-file
+checksums, unit mapping, benchmark, qualification report, and replay commands
+are checked in under [`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
+The source snapshot and CSV exports remain external. The adapter is not
+promoted, and the gates must be re-run after the reference scope is extended or
+explicitly redefined.
 
 ### Live qualification
 
