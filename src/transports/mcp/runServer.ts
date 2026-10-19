@@ -7,6 +7,7 @@ import {buildMcpServer} from './buildMcpServer.ts';
 import {SCHEMA_VERSION} from '../../core/storage/schema.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
+import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 
 /**
  * Starts the local stdio MCP server.
@@ -25,6 +26,7 @@ export const run = (options: CodeIndexOptionsType = {}): void => {
 		projectFilePath: config.projectFilePath,
 		extractorId: config.extractorId,
 		projectId: config.projectId,
+		vcs: readVcsProvenance(config.rootDir),
 	});
 	const workingCopy = database.getWorkingCopy();
 	const analytics = createAnalyticsRecorder({

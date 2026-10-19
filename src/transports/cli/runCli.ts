@@ -9,6 +9,7 @@ import {debugFor, enableDebug} from '../../core/logging/debug.ts';
 import {createLogger} from '../../core/logging/logger.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
+import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 import {runAnalyticsCommand} from './analyticsCommand.ts';
 
 const debug = debugFor('cli');
@@ -136,6 +137,7 @@ const withIndex = async (
 		projectFilePath: config.projectFilePath,
 		extractorId: config.extractorId,
 		projectId: config.projectId,
+		vcs: readVcsProvenance(config.rootDir),
 	});
 	const analytics = createAnalyticsRecorder({
 		enabled: config.analyticsEnabled,

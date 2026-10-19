@@ -11,6 +11,7 @@ import {createLogger, type LoggerType} from '../../core/logging/logger.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
 import {SCHEMA_VERSION} from '../../core/storage/schema.ts';
 import {verifyTypeScriptReferences} from '../../adapters/typescript/verifyReferences.ts';
+import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {
 	CONSOLE_OPERATIONS,
@@ -96,6 +97,7 @@ export class ConsoleService {
 			projectFilePath: config.projectFilePath,
 			extractorId: config.extractorId,
 			projectId: config.projectId,
+			vcs: readVcsProvenance(config.rootDir),
 		});
 		const analytics = createAnalyticsRecorder({
 			enabled: config.analyticsEnabled,

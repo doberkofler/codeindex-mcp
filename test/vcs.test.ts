@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {readVcsProvenance} from '../src/adapters/vcs/vcsProvenance.ts';
+import {IndexDatabase} from '../src/core/storage/database.ts';
 
 const hasCommand = (command: string): boolean => spawnSync(command, ['--version'], {stdio: 'ignore'}).status === 0;
 
@@ -24,6 +25,21 @@ describe('version-control provenance', () => {
 
 	it('indexes an unversioned workspace without provenance', () => {
 		expect(readVcsProvenance(temporaryDirectory())).toStrictEqual({kind: 'none', repository: null, revision: null, relativeRoot: null});
+	});
+
+	it('persists provenance injected by the composition root and preserves it on inner opens', () => {
+		const directory = temporaryDirectory();
+		const databasePath = path.join(directory, 'index.sqlite');
+		const provenance = {kind: 'git', repository: 'https://example.com/repo.git', revision: 'abc123', relativeRoot: 'packages/app'} as const;
+		const first = IndexDatabase.open(databasePath, {rootDir: directory, projectId: 'vcs-test', vcs: provenance});
+		const identity = first.getWorkingCopy();
+		first.close();
+
+		const second = IndexDatabase.open(databasePath, {rootDir: directory, projectId: 'vcs-test'});
+
+		expect(identity?.vcs).toStrictEqual(provenance);
+		expect(second.getWorkingCopy()?.vcs).toStrictEqual(provenance);
+		second.close();
 	});
 
 	it.skipIf(!hasCommand('git'))('records Git provenance', () => {

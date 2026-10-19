@@ -1,8 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import path from 'node:path';
 import {type DatabaseSync} from 'node:sqlite';
-import {type VcsKindType, type WorkingCopyIdentityType} from '../model.ts';
-import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
+import {type VcsKindType, type VcsProvenanceType, type WorkingCopyIdentityType} from '../model.ts';
 import {toRepositoryPath} from '../config/config.ts';
 import {debugFor} from '../logging/debug.ts';
 import {asString} from './databaseRows.ts';
@@ -17,7 +16,14 @@ export type DatabaseOpenContextType = Readonly<{
 	extractorId?: string;
 	compilerVersion?: string;
 	extractorVersion?: string;
+	/**
+	 * Serializable provenance read by the composition root. Undefined preserves
+	 * the recorded provenance, so inner database opens never need a VCS adapter.
+	 */
+	vcs?: VcsProvenanceType | undefined;
 }>;
+
+const NONE_VCS: VcsProvenanceType = {kind: 'none', repository: null, revision: null, relativeRoot: null};
 
 const vcsKindOf = (value: unknown): VcsKindType => (value === 'git' || value === 'svn' ? value : 'none');
 
@@ -79,18 +85,21 @@ export const ensureIdentity = (
 	// Persist only workspace-relative paths. The opaque working-copy identifier
 	// carries identity; the root itself is always the relative marker.
 	const canonicalRoot = '.';
-	const vcs =
-		context.rootDir === undefined ? {kind: 'none' as const, repository: null, revision: null, relativeRoot: null} : readVcsProvenance(context.rootDir);
 	const now = new Date().toISOString();
 	const existing = reader.prepare('select * from working_copy limit 1').get();
 
 	if (existing === undefined) {
+		const vcs = context.vcs ?? NONE_VCS;
 		writer
 			.prepare(
 				`insert into working_copy (id, canonical_root, vcs_kind, vcs_repository, vcs_revision, vcs_relative_root, created_at, last_seen_at)
 				 values (?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(randomUUID(), canonicalRoot, vcs.kind, vcs.repository, vcs.revision, vcs.relativeRoot, now, now);
+	} else if (context.vcs === undefined) {
+		writer
+			.prepare('update working_copy set canonical_root = ?, last_seen_at = ? where id = ?')
+			.run(canonicalRoot, now, asString(existing, 'id'));
 	} else {
 		writer
 			.prepare(
@@ -100,7 +109,7 @@ export const ensureIdentity = (
 				     last_seen_at = ?
 				 where id = ?`,
 			)
-			.run(canonicalRoot, vcs.kind, vcs.repository, vcs.revision, vcs.relativeRoot, now, asString(existing, 'id'));
+			.run(canonicalRoot, context.vcs.kind, context.vcs.repository, context.vcs.revision, context.vcs.relativeRoot, now, asString(existing, 'id'));
 	}
 
 	const workingCopy = reader.prepare('select * from working_copy limit 1').get();
