@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.1.3...v0.2.0) (2026-10-19)
+
+### Added
+
+* index multiple TypeScript project contexts ([8006ca7](https://github.com/doberkofler/codeindex-mcp/commit/8006ca785d5ee42ae1db86c69922ce6f3d6480ef))
+
+### Changed
+
+* restructure source tree around adapters and transports ([e0d57a9](https://github.com/doberkofler/codeindex-mcp/commit/e0d57a9d9e6225bdaffc8bcb6f104a7c438c4a6f))
+
+### Documentation
+
+* document multi-language adapter roadmap ([515f887](https://github.com/doberkofler/codeindex-mcp/commit/515f887e0921bc15b967058a47586ee8dbf5ed91))
+
 ## [0.1.3](https://github.com/doberkofler/codeindex-mcp/compare/v0.1.2...v0.1.3) (2026-10-18)
 
 ### Fixed

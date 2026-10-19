@@ -1,6 +1,6 @@
 {
 	"name": "codeindex-mcp",
-	"version": "0.1.3",
+	"version": "0.2.0",
 	"private": false,
 	"description": "Local, language-neutral code index exposed to MCP clients.",
 	"homepage": "https://github.com/doberkofler/codeindex-mcp",
