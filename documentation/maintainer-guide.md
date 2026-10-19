@@ -148,7 +148,9 @@ temporary B-tree.
 
 `benchmark/baseline.json` is versioned independently (`schemaVersion: 1`). It
 declares the accepted report schema version, workspace compatibility, required
-scenarios, thresholds, and an optional reference. `--reference` accepts a previous
+scenarios, thresholds, and an optional reference. Each generated profile has its
+own baseline: `baseline.json` for `large` and `baseline-<profile>.json` for
+`small`, `medium`, and `xl`. `--reference` accepts a previous
 benchmark report and overrides the embedded reference, so an accepted nightly
 report can be compared without editing the baseline. Only the report schema
 version, machine, workspace identity, scenario, and query measurements are
@@ -216,11 +218,13 @@ hash, and Node identity. Checkouts and dependency setup happen outside the measu
 scenario. Do not commit checkouts, installed dependencies, or derived databases.
 
 The scheduled [benchmark workflow](../.github/workflows/benchmark.yml) runs the
-generated corpus nightly, downloads the newest successful nightly report as its
-reference, enforces the committed gates, uploads the report and evaluation JSON,
-and publishes the Markdown summary. Relative build, RSS, CPU, storage, and query
-gates are therefore active on scheduled runs; reference-machine gates remain
-authoritative when a retained report is supplied explicitly.
+generated corpus nightly, selects the baseline for the dispatched profile, and
+downloads the newest successful run of the same profile as its reference, so a
+manual run of another profile never becomes the nightly reference. It enforces
+the committed gates, uploads the report and evaluation JSON, and publishes the
+Markdown summary. Relative build, RSS, CPU, storage, and query gates are therefore
+active on scheduled runs; reference-machine gates remain authoritative when a
+retained report is supplied explicitly.
 
 ### 7.3 Reference qualification suite
 
