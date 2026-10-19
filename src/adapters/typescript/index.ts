@@ -198,6 +198,6 @@ export const typeScriptExtractor: ExtractorType = {
 	limitations: LIMITATIONS,
 	scan: scanProject,
 	build,
-	configFiles: (config) => [...new Set(config.projects.flatMap((project) => collectConfigFiles(project.projectFilePath)))],
+	configFiles: (config) => [...new Set(config.projects.flatMap((project) => collectConfigFiles(project.projectFilePath, config.rootDir)))],
 	isSourceFile: isAuthoredSourceFile,
 };

@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {existsSync, readFileSync} from 'node:fs';
+import {existsSync, readFileSync, realpathSync} from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import {z} from 'zod';
@@ -27,7 +27,7 @@ export const TYPESCRIPT_IGNORED_SEGMENTS: readonly string[] = [
 	'.vite',
 ];
 
-const {dirname, isAbsolute, join, relative, resolve, sep} = path;
+const {dirname, join, relative, resolve, sep} = path;
 const debug = debugFor('scan');
 
 const PackageJsonSchema = z.looseObject({
@@ -141,61 +141,58 @@ const hashCompilerOptions = (options: ts.CompilerOptions): string => hash(JSON.s
 
 const sortByPath = (left: SourceFileType, right: SourceFileType): number => left.path.localeCompare(right.path);
 
-const resolveExtends = (specifier: string, fromDirectory: string): string | null => {
-	const candidate = isAbsolute(specifier) ? specifier : resolve(fromDirectory, specifier);
-
-	for (const pathName of [candidate, `${candidate}.json`, join(candidate, 'tsconfig.json')]) {
-		if (existsSync(pathName)) {
-			return pathName;
-		}
-	}
-
-	return null;
-};
-
 /**
  * Resolves the effective TypeScript configuration file chain.
+ *
+ * TypeScript reads the root file and every `extends` target itself, including
+ * JSONC comments, trailing commas, and package manifests used for package
+ * resolution. Recording the files it reads keeps the watch set identical to the
+ * inputs that can change the effective configuration.
  *
  * The chain is used only for watching; scanning still reads the root file
  * itself, which is authoritative for compiler options.
  *
  * @param projectFilePath - Absolute tsconfig or jsconfig path.
- * @param seen - Configuration files already visited.
- * @returns Every existing configuration file in the `extends` chain.
+ * @param rootDir - Absolute indexed workspace root; limits package-manifest discovery.
+ * @returns Every existing configuration and package manifest read for the project.
  */
-export const collectConfigFiles = (projectFilePath: string, seen: Set<string> = new Set<string>()): readonly string[] => {
-	if (seen.has(projectFilePath) || !existsSync(projectFilePath)) {
-		return [...seen];
-	}
+export const collectConfigFiles = (projectFilePath: string, rootDir?: string): readonly string[] => {
+	const rootFile = resolve(projectFilePath);
+	const files = new Set<string>();
+	const addFile = (fileName: string): void => {
+		const resolved = resolve(fileName);
 
-	seen.add(projectFilePath);
+		if (existsSync(resolved)) {
+			files.add(realpathSync(resolved));
+		}
+	};
+	const host: ts.ParseConfigFileHost = {
+		...ts.sys,
+		readFile: (fileName): string | undefined => {
+			addFile(fileName);
+			return ts.sys.readFile(fileName);
+		},
+		onUnRecoverableConfigFileDiagnostic: (): void => {
+			// The scanner reports configuration diagnostics; watching still works.
+		},
+	};
 
 	try {
-		const parsed: unknown = JSON.parse(readFileSync(projectFilePath, 'utf8'));
-
-		if (typeof parsed !== 'object' || parsed === null || !('extends' in parsed)) {
-			return [...seen];
-		}
-
-		const {extends: extended} = parsed as {extends?: unknown};
-		const specifiers = Array.isArray(extended) ? extended : [extended];
-
-		for (const specifier of specifiers) {
-			if (typeof specifier !== 'string') {
-				continue;
-			}
-
-			const resolved = resolveExtends(specifier, dirname(projectFilePath));
-
-			if (resolved !== null) {
-				collectConfigFiles(resolved, seen);
-			}
-		}
+		ts.getParsedCommandLineOfConfigFile(rootFile, undefined, host);
 	} catch {
-		// Invalid JSON is reported by the scanner; watching the file still helps.
+		// Invalid configuration is reported by the scanner; watching the file still helps.
 	}
 
-	return [...seen];
+	addFile(rootFile);
+
+	const packageRoot = rootDir === undefined ? path.parse(rootFile).root : resolve(rootDir);
+	const packageJson = findPackageJson(dirname(rootFile), packageRoot);
+
+	if (packageJson !== null) {
+		addFile(packageJson);
+	}
+
+	return [...files];
 };
 
 type ParsedProjectType = Readonly<{

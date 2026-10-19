@@ -1,8 +1,11 @@
-import {appendFileSync, rmSync, writeFileSync} from 'node:fs';
+import {appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {scanProject} from '../src/adapters/typescript/scanProject.ts';
+import {collectConfigFiles, scanProject} from '../src/adapters/typescript/scanProject.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
+
+const canonicalPath = (fileName: string): string => realpathSync(fileName);
 
 describe('scanWorkspace', () => {
 	let cleanup: (() => void) | undefined;
@@ -71,6 +74,38 @@ describe('scanWorkspace', () => {
 
 		expect(second.sourceHash).not.toBe(first.sourceHash);
 		expect(second.files).toHaveLength(first.files.length + 1);
+	});
+
+	it('collects JSONC and package extends inputs for watching', () => {
+		const directory = mkdtempSync(path.join(tmpdir(), 'code-index-config-chain-'));
+		const packageDirectory = path.join(directory, 'node_modules', '@configs', 'strict');
+		const rootFile = path.join(directory, 'tsconfig.json');
+		const baseFile = path.join(directory, 'base.json');
+		const packageManifest = path.join(directory, 'package.json');
+		const packageConfig = path.join(packageDirectory, 'tsconfig.json');
+
+		try {
+			mkdirSync(packageDirectory, {recursive: true});
+			writeFileSync(packageManifest, JSON.stringify({devDependencies: {typescript: '6.0.3'}}));
+			writeFileSync(baseFile, '{\n\t// inherited options\n\t"compilerOptions": {"strict": true,},\n}\n');
+			writeFileSync(path.join(packageDirectory, 'package.json'), JSON.stringify({tsconfig: './tsconfig.json'}));
+			writeFileSync(packageConfig, '{"compilerOptions":{"noImplicitAny":true}}');
+			writeFileSync(rootFile, '{\n\t// root options\n\t"extends": ["./base", "@configs/strict"],\n\t"include": [],\n}\n');
+
+			const files = collectConfigFiles(rootFile, directory);
+
+			expect(files).toStrictEqual(
+				expect.arrayContaining([
+					canonicalPath(rootFile),
+					canonicalPath(baseFile),
+					canonicalPath(packageManifest),
+					canonicalPath(packageConfig),
+					canonicalPath(path.join(packageDirectory, 'package.json')),
+				]),
+			);
+		} finally {
+			rmSync(directory, {recursive: true, force: true});
+		}
 	});
 
 	it('detects declared compiler drift and hashes it', () => {
