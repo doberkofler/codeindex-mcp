@@ -78,6 +78,29 @@ const fitsArguments = (candidate: ChoiceCandidateType, site: OracleReferenceSite
 	return site.argumentNames.every((name) => names.has(name));
 };
 
+const nonRoutineCandidates = (candidates: readonly ChoiceCandidateType[]): readonly ChoiceCandidateType[] =>
+	candidates.filter((candidate) => candidate.kind !== 'procedure' && candidate.kind !== 'function');
+
+const nearestNonRoutine = (candidates: readonly ChoiceCandidateType[], site: OracleReferenceSiteType, state: ResolveStateType): ChoiceCandidateType | null => {
+	const nonRoutines = nonRoutineCandidates(candidates);
+
+	if (nonRoutines.length <= 1) {
+		return nonRoutines[0] ?? null;
+	}
+
+	const sameFile = nonRoutines.filter((candidate) => candidate.path === state.file.path && candidate.declaration.range.startOffset <= site.range.startOffset);
+
+	if (sameFile.length > 0) {
+		return [...sameFile].sort((left, right) => right.declaration.range.startOffset - left.declaration.range.startOffset)[0] ?? null;
+	}
+
+	return (
+		[...nonRoutines].sort(
+			(left, right) => left.path.localeCompare(right.path) || left.declaration.range.startOffset - right.declaration.range.startOffset,
+		)[0] ?? null
+	);
+};
+
 const chooseCandidate = (
 	candidates: readonly ChoiceCandidateType[],
 	site: OracleReferenceSiteType,
@@ -97,23 +120,20 @@ const chooseCandidate = (
 			return fitting[0] ?? null;
 		}
 
-		if (fitting.length > 1 && reportAmbiguity) {
-			state.diagnostics.add(ORACLE_DIAGNOSTIC.ambiguousOverload, `Ambiguous overload for ${site.name.text}`, site.range.startLine, site.range.startColumn);
+		if (fitting.length > 1) {
+			if (reportAmbiguity) {
+				state.diagnostics.add(ORACLE_DIAGNOSTIC.ambiguousOverload, `Ambiguous overload for ${site.name.text}`, site.range.startLine, site.range.startColumn);
+			}
+
+			return null;
 		}
 
-		return null;
+		// A call-shaped site can be collection or record indexing rather than a
+		// routine call. Fall back to a non-routine only when no callable fits.
+		return nearestNonRoutine(valid, site, state);
 	}
 
-	const nonRoutines = valid.filter((candidate) => candidate.kind !== 'procedure' && candidate.kind !== 'function');
-
-	if (nonRoutines.length === 1) {
-		return nonRoutines[0] ?? null;
-	}
-
-	return (
-		nonRoutines.sort((left, right) => left.path.localeCompare(right.path) || left.declaration.range.startOffset - right.declaration.range.startOffset)[0] ??
-		null
-	);
+	return nearestNonRoutine(valid, site, state);
 };
 
 const directChildren = (file: OracleFileAnalysisType, parent: number, canonical: string): readonly ChoiceCandidateType[] =>
@@ -187,12 +207,19 @@ const typeSymbolOf = (state: ResolveStateType, location: ResolvedDeclarationType
 		return null;
 	}
 
+	const file = state.input.files[location.fileIndex];
+
+	if (file === undefined) {
+		return null;
+	}
+
+	const targetState: ResolveStateType = file === state.file ? state : {...state, fileIndex: location.fileIndex, file};
 	const site = syntheticSite(declaration, location.declarationIndex);
 	const [first] = typeReference.name.parts;
 
 	return typeReference.name.parts.length === 1
-		? resolveSimpleAt(state, location.declarationIndex, first?.canonical ?? '', site)
-		: (packageMemberResolver.current?.(state, typeReference.name.parts, site) ?? null);
+		? resolveSimpleAt(targetState, location.declarationIndex, first?.canonical ?? '', site)
+		: (packageMemberResolver.current?.(targetState, typeReference.name.parts, site) ?? null);
 };
 
 const recordField = (state: ResolveStateType, symbolId: string, canonical: string, depth: number): string | null => {
@@ -213,9 +240,17 @@ const recordField = (state: ResolveStateType, symbolId: string, canonical: strin
 		return null;
 	}
 
-	if (declaration.kind === 'record_type' || declaration.kind === 'package' || declaration.kind === 'collection_type') {
+	if (declaration.kind === 'record_type' || declaration.kind === 'package') {
 		const [child] = directChildren(file, location.declarationIndex, canonical);
 		return child?.symbolId ?? null;
+	}
+
+	if (declaration.kind === 'collection_type') {
+		const [child] = directChildren(file, location.declarationIndex, canonical);
+
+		if (child !== undefined) {
+			return child.symbolId;
+		}
 	}
 
 	const typeSymbolId = typeSymbolOf(state, location, declaration);

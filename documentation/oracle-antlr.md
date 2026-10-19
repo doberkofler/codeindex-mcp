@@ -1,12 +1,13 @@
 # Oracle ANTLR Usage
 
 **Status:** production uses the pinned ANTLR lexer plus a tolerant structural
-scanner. Phases 1–3 of the implementation plan are now in the repository: the
+scanner. Phases 1–6 of the implementation plan are now in the repository: the
 pinned parser grammar, generated parser and visitor, parser base, an internal
 ANTLR parser adapter with conditional-compilation handling and segment
-recovery, and the declaration visitor. The adapter is not wired into
-production; the structural parser remains authoritative. Reference,
-dependency, and adoption work remain open.
+recovery, the declaration visitor, the reference visitor with lexical scope
+resolution, the dependency visitor, and qualification policy v2. The adapter is
+not wired into production; the structural parser remains authoritative.
+Performance and adoption work remain open.
 
 See the [implementation plan](./oracle-antlr-plan.md) for the phased path from
 the current adapter to a production decision.
@@ -26,9 +27,9 @@ The upstream `antlr/grammars-v4` Oracle lexer already solves tokenization for
 those cases. The production adapter therefore uses ANTLR for lexing and a
 separate structural scanner for declarations and reference sites.
 
-The full parser is a candidate for extending reference coverage, especially
-identifiers inside static SQL and member chains. It is not required for lexing
-or dependency extraction today.
+The full parser is a candidate for extending reference and dependency coverage,
+especially identifiers inside static SQL, member chains, and package targets.
+Production still uses the structural scanner for all parser facts.
 
 ## 2. Production Architecture
 
@@ -135,14 +136,19 @@ converts recovered top-level contexts into `OracleParseResultType`, and keeps
 ANTLR parser and tree objects private. Phase 2 emits package and routine units;
 Phase 3 adds package and routine members, parameters, variables, constants,
 cursors, exceptions, subtypes, record and collection types, fields, and nested
-routine scopes. References and dependencies remain empty until the Phase 4–5
-visitors land.
+routine scopes. Phase 4 adds reference sites, lexical scopes, nested block and
+loop declarations, `%TYPE`/`%ROWTYPE` anchors, static SQL names, overload
+arguments, and member chains. Phase 5 adds package dependency sites derived from
+qualified references.
 
 The adapter lives in `src/adapters/oracle/antlrParser.ts`; declaration traversal
-is owned by `src/adapters/oracle/antlrDeclarations.ts` and name, range, and
-parameter extraction by `src/adapters/oracle/antlrDeclarationSupport.ts`. The
-adapter is exposed as `parseWithAntlr` / `antlrOracleParser`. Production does not
-import it yet.
+is owned by `src/adapters/oracle/antlrDeclarations.ts`, reference traversal by
+`src/adapters/oracle/antlrReferences.ts`, dependency derivation by
+`src/adapters/oracle/antlrDependencies.ts`, SQL qualifier collection by
+`src/adapters/oracle/antlrSqlNames.ts`, nested-scope extraction by
+`src/adapters/oracle/antlrNestedScopes.ts`, and name, range, and type extraction
+by `src/adapters/oracle/antlrDeclarationSupport.ts`. The adapter is exposed as
+`parseWithAntlr` / `antlrOracleParser`. Production does not import it yet.
 
 ### 5.1 Generation
 
@@ -245,15 +251,72 @@ constants, cursors, exceptions, subtypes, record and collection types, and
 record fields. Parent indexes, unit indexes, export flags, overload identity, and
 declaration ranges follow the structural parser.
 
-Declaration facts are byte-for-byte equal to the structural parser on the
-committed fixture corpus. Known intentional differences:
+Declaration facts match the structural parser on the committed fixture corpus
+apart from symbolic type references. Known intentional differences:
 
+- ANTLR populates declaration and parameter `typeReferences` for symbolic type
+  names and `%TYPE`/`%ROWTYPE` anchors. The structural scanner currently emits
+  none because `%TYPE` is one lexer token.
+- Nested block variables and numeric/cursor loop iterators are emitted as
+  `variable` declarations so their uses can resolve. The structural parser does
+  not model those scopes.
 - `EXTERNAL` and `call_spec` routine tails are not emitted as local
   declarations. The structural scanner can misread those tokens as a variable.
 - ANTLR routine ranges cover the complete declaration; the structural parser
   can stop at the token before `IS` or `AS` when it finds no `BEGIN` block.
 
-References and dependencies remain empty until the Phase 4–5 visitors land.
+### 5.5 Reference facts
+
+`antlrReferences.ts` traverses the parse tree and emits a site only for an
+authored name occurrence. It never emits declaration names, labels, table or
+column aliases, SQL object names, named-argument labels, or package qualifiers
+as separate sites.
+
+- Procedural sites cover locals, parameters, constants, exceptions, nested
+  routines, calls, named arguments, and member chains.
+- Static SQL sites cover expressions in `SELECT`, `INSERT`, `UPDATE`, `DELETE`,
+  and `MERGE`, including cursor queries, subqueries, joins, and correlation
+  names. Table and column names that do not bind to a known declaration remain
+  unresolved rather than guessed.
+- `%TYPE` and `%ROWTYPE` anchors produce `type-anchor` sites. Symbolic type
+  names also populate declaration `typeReferences`, which the shared resolver
+  uses for record, collection, and cursor field chains.
+- Each site is assigned to the smallest declaration range containing it, so
+  nested routines, variables, cursors, fields, and blocks get the correct
+  lexical parent.
+- Overload selection, package versus record versus collection chains, nearest
+  preceding local shadowing, and collection indexing are handled by the shared
+  resolver in `resolveReferences.ts`.
+- Ambiguous overloads produce one bounded diagnostic and no occurrence.
+  Unresolved names produce neither.
+
+### 5.6 Dependency facts
+
+`antlrDependencies.ts` derives dependency sites from reference sites. A
+qualified chain whose first segment resolves to a local declaration is a record,
+collection, cursor, or field chain and is excluded. Non-call chains whose first
+segment matches a SQL table, table alias, column alias, or query name are also
+excluded. The remaining qualified chains follow the structural target slicing:
+
+- two segments target the first segment as a package;
+- three or more segments target the first two segments as schema and package.
+
+Package calls, package references, and type references carry the existing
+`package-call`, `package-reference`, and `type-reference` kinds. The existing
+`extractOracleDependencies` then:
+
+- resolves workspace packages to the specification path, falling back to the
+  body path when no specification exists;
+- preserves unresolved package calls with a null target path and the configured
+  manifest schema in `targetIdentifier`;
+- drops unresolved non-call references so table, view, column, and alias chains
+  do not become package edges.
+
+`%TYPE` and `%ROWTYPE` anchors produce `type-reference` sites. The structural
+scanner currently emits `package-reference` for the same anchor because its
+token stream sees `%TYPE` as one token; qualification compares dependency targets
+rather than dependency-site kinds. Normal and recovery parses offset dependency
+indexes alongside declaration and reference indexes.
 
 ## 6. LJS Feasibility Results
 
@@ -326,6 +389,34 @@ The corpus manifest, per-file hashes, truth-export hashes, reports, and replay
 commands are in [`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
 The baseline does not pass the adoption gates.
 
+### 6.4 Qualification policy v2
+
+Policy `v2` is the current comparison contract; `--truth-policy v1` preserves
+the frozen Phase 0 behavior. V2 applies the supported-type map to truth
+references as well as actual occurrences, so columns, tables, views, sequences,
+datatypes, and labels no longer inflate reference truth. Supported `DEFINITION`
+rows are declarations, and `ITERATOR`/`RECORD ITERATOR` map to the extractor's
+variable kind. Package references remain excluded because they are dependency
+edges.
+
+Every extra fact is classified:
+
+- `omitted_by_policy`: a truth row excluded by the selected policy;
+- `location_mismatch`: the same fact at a normalized nearby position;
+- `outside_plscope`: a legitimate fact PL/Scope does not record, such as a
+  pragma argument;
+- `false_positive`: an indexed fact with no truth basis.
+
+Only false positives count against precision; the other classes explain the
+disagreement. Metrics are also reported by declaration kind and by reference
+construct: procedural, static SQL, member chain, iterator, pragma, and type
+anchor. Checked-in golden facts under
+`test/fixtures/oracle-qualification-v2/` validate pragma facts that PL/Scope
+cannot confirm.
+
+The frozen Phase 0 report remains a `v1` measurement. To reproduce it, pass
+`--truth-policy v1`; a default run uses `v2`.
+
 ## 7. Known Grammar Gaps
 
 The remaining failures are concentrated in identifiable grammar and lexing
@@ -348,24 +439,22 @@ fixed locally or tracked against a newer pinned grammar commit.
 
 ## 8. Semantic Work Still Required
 
-A successful parse does not produce reference facts. Phase 3 now emits
-declaration facts with the same kinds, names, parents, units, export flags, and
-ranges as the structural parser on the committed fixture corpus. The 58.5%
-reference recall gap is primarily a scope-resolution problem and remains open.
+Phase 4 emits procedural and static-SQL sites, anchors, iterator scopes, and
+member chains; the shared resolver performs overload selection, shadowing, and
+package versus record versus collection binding. Phase 5 derives package
+dependency sites from qualified references and reuses the structural dependency
+extractor for workspace and external targets.
 
-The ANTLR path still needs visitors for:
+The remaining semantic work is:
 
-- static SQL references, including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and
-  cursor queries;
-- record and object-type member chains;
-- `%TYPE` and `%ROWTYPE` anchors;
-- loop and cursor iterators;
-- package versus record versus SQL alias resolution;
-- overload selection and reference-site binding.
+- parser selection in the qualification command (Phase 8);
+- differential dependency qualification against the structural parser;
+- residual SQL and PL/SQL constructs that the pinned grammar does not parse.
 
 Identifiers inside SQL must not automatically become symbol references.
 Definition names, labels, aliases, SQL object names, named-argument labels, and
-package qualifiers require explicit handling.
+package qualifiers require explicit handling. Sites that do not bind to a known
+declaration are dropped.
 
 ## 9. Integration Options
 

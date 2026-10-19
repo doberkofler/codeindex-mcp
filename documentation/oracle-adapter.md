@@ -168,8 +168,9 @@ pnpm qualify:oracle
 The command reads `CODE_INDEX_ROOT`, `CODE_INDEX_PROJECT_FILE`,
 `CODE_INDEX_ORACLE_IDENTIFIERS`, and `CODE_INDEX_ORACLE_DEPENDENCIES`, or accepts
 the corresponding `--root`, `--project-file`, `--identifiers`, and
-`--dependencies` options. Pass `--units <plan.json>` to reuse the explicit
-snapshot object mapping from an approved live plan; this is required when a
+`--dependencies` options. Qualification uses truth policy `v2` by default; pass
+`--truth-policy v1` to reproduce the frozen Phase 0 comparison. Pass
+`--units <plan.json>` to reuse the explicit snapshot object mapping from an approved live plan; this is required when a
 source filename differs from the PL/Scope object name. It exits non-zero when
 any gate fails.
 

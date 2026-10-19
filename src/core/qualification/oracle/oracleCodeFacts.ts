@@ -21,7 +21,8 @@ export const loadCodeFacts = (database: DatabaseSync, generationId: string): Cod
 	const references = new Map<string, CodeOccurrenceType>();
 	const rows = database
 		.prepare(
-			`select s.name, s.kind, o.path, o.start_line, o.start_column, o.role
+			`select s.name, s.kind, s.path as symbol_path, s.start_line as symbol_line, s.start_column as symbol_column,
+			        o.path, o.start_line, o.start_column, o.role
 			 from occurrence o
 			 join symbol s on s.generation_id = o.generation_id and s.id = o.symbol_id
 			 where o.generation_id = ?`,
@@ -35,6 +36,9 @@ export const loadCodeFacts = (database: DatabaseSync, generationId: string): Cod
 			column: asNumber(row, 'start_column'),
 			name: asString(row, 'name'),
 			kind: asString(row, 'kind'),
+			symbolPath: asString(row, 'symbol_path'),
+			symbolLine: asNumber(row, 'symbol_line'),
+			symbolColumn: asNumber(row, 'symbol_column'),
 		};
 		const key = keyOf(value);
 

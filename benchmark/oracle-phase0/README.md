@@ -61,7 +61,8 @@ log hashes.
 
 ## Qualification baseline
 
-`qualification.json` is the frozen report from the approved live run
+`qualification.json` is the frozen report from the approved live run under
+historical truth policy `v1`
 (`4c82485ae33d80a0c950f0b89a889461ab72092653ee817609eab2cc467b3173`).
 The offline replay with `--units` reproduced every count and ratio below; only
 the generation identifier changes.
@@ -108,6 +109,7 @@ node dist/cli.mjs qualify --extractor oracle \
   --identifiers "$EVIDENCE/user-identifiers.csv" \
   --dependencies "$EVIDENCE/user-dependencies.csv" \
   --units "$EVIDENCE/plan.json" \
+  --truth-policy v1 \
   --output /tmp/oracle-qualification.json
 ```
 

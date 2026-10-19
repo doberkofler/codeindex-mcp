@@ -29,6 +29,7 @@ describe('qualification command', () => {
 		await expect(runQualifyCommand(['--help'], {}, captured.io)).resolves.toBe(0);
 		expect(captured.stdout()).toContain('--extractor <id>');
 		expect(captured.stdout()).toContain('--units <path>');
+		expect(captured.stdout()).toContain('--truth-policy <version>');
 		expect(captured.stderr()).toBe('');
 	});
 

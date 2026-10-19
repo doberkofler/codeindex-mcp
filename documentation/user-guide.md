@@ -254,6 +254,8 @@ For Oracle, it compares the published index with exported `USER_IDENTIFIERS` and
 preparation and export remain separate, approved operations. Pass
 `--units <plan.json>` to reuse the explicit snapshot object mapping from an
 approved live plan when source filenames differ from PL/Scope object names.
+Pass `--truth-policy v1` to reproduce the frozen Phase 0 policy; the default
+`v2` filters unsupported truth types and reports classified extras and strata.
 
 ### Cache cleanup
 

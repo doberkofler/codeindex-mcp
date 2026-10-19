@@ -5,14 +5,17 @@ import {
 	TerminatorContext,
 	type Column_nameContext,
 	type Function_nameContext,
+	type General_elementContext,
+	type General_element_partContext,
 	type IdentifierContext,
 	type Parameter_specContext,
 	type Procedure_nameContext,
 	type Script_unitContext,
+	type Type_specContext,
 } from './generated/PlSqlParser.ts';
-import {namePartOf, type OracleNamePartType} from './name.ts';
+import {namePartOf, oracleNameOf, type OracleNamePartType} from './name.ts';
 import {endPositionOf} from './sourceLocation.ts';
-import {type OracleParameterType, type OracleParseInputType, type OracleRangeType} from './syntax.ts';
+import {type OracleParameterType, type OracleParseInputType, type OracleRangeType, type OracleTypeReferenceType} from './syntax.ts';
 
 export type OracleNameInfoType = Readonly<{name: OracleNamePartType; token: Token | null}>;
 
@@ -41,6 +44,79 @@ export const nameInfoOfRoutineName = (name: Function_nameContext | Procedure_nam
 
 export const nameRangeOf = (input: OracleParseInputType, info: OracleNameInfoType): OracleRangeType => rangeOf(input, info.token, info.token);
 
+/**
+ * Flattens the left-recursive general-element chain into its authored parts.
+ *
+ * @param context - General element context.
+ * @returns Name parts in source order.
+ */
+export const generalElementParts = (context: General_elementContext): readonly General_element_partContext[] => {
+	const nested = context.general_element();
+	const parts = context.general_element_part();
+
+	return nested === null ? parts : [...generalElementParts(nested), ...parts];
+};
+
+/**
+ * Converts a general-element chain into a symbolic type reference.
+ *
+ * @param input - Source text and workspace path.
+ * @param element - General element naming a type or cursor.
+ * @param rowType - Whether the reference is a `%ROWTYPE` anchor.
+ * @returns The type reference, or null for an empty chain.
+ */
+export const typeReferenceOfElement = (input: OracleParseInputType, element: General_elementContext, rowType = false): OracleTypeReferenceType | null => {
+	const parts = generalElementParts(element).map((part) => part.id_expression());
+	const [first] = parts;
+	const last = parts.at(-1);
+
+	if (first === undefined || last === undefined) {
+		return null;
+	}
+
+	return {
+		name: oracleNameOf({parts: parts.map((part) => namePartOf(part.getText()))}),
+		range: rangeOf(input, first.start, last.stop),
+		rowType,
+	};
+};
+
+/**
+ * Extracts symbolic type anchors from one type specification.
+ *
+ * Native datatypes have no symbol target and produce no reference. A symbolic
+ * type name, `%TYPE` anchor, or `%ROWTYPE` anchor produces exactly one entry.
+ *
+ * @param input - Source text and workspace path.
+ * @param typeSpec - Parsed type specification, or null when absent.
+ * @returns The symbolic type reference, if any.
+ */
+export const typeReferencesOf = (input: OracleParseInputType, typeSpec: Type_specContext | null): readonly OracleTypeReferenceType[] => {
+	const typeName = typeSpec?.type_name() ?? null;
+
+	if (typeSpec === null || typeName === null) {
+		return [];
+	}
+
+	const names = typeName.id_expression().map((expression) => namePartOf(expression.getText()));
+	const last = typeName.id_expression().at(-1);
+
+	if (last === undefined) {
+		return [];
+	}
+
+	const rowType = typeSpec.getToken(PlSqlParser.PERCENT_ROWTYPE, 0) !== null;
+	const anchored = rowType || typeSpec.getToken(PlSqlParser.PERCENT_TYPE, 0) !== null;
+
+	return [
+		{
+			name: oracleNameOf({parts: names}),
+			range: rangeOf(input, typeName.start, anchored ? typeSpec.stop : typeName.stop),
+			rowType,
+		},
+	];
+};
+
 const parameterOf = (input: OracleParseInputType, context: ParameterContext | Parameter_specContext): OracleParameterType => {
 	const name = context.parameter_name().identifier().id_expression();
 	const inputToken = context instanceof ParameterContext ? context.getToken(PlSqlParser.IN, 0) : null;
@@ -59,7 +135,7 @@ const parameterOf = (input: OracleParseInputType, context: ParameterContext | Pa
 		mode,
 		hasDefault: context.default_value_part() !== null,
 		typeText: context.type_spec()?.getText().toUpperCase() ?? '',
-		typeReferences: [],
+		typeReferences: typeReferencesOf(input, context.type_spec()),
 	};
 };
 

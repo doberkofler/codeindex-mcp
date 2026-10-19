@@ -9,9 +9,12 @@ import {loadConfig, type ConfigType} from '../../config/config.ts';
 import {readVcsProvenance} from '../../../adapters/vcs/vcsProvenance.ts';
 import {readCsv} from './oracleCsv.ts';
 import {objectKey, objectMapping, objectTypeOfPath, type ObjectMappingType} from './oracleMapping.ts';
-import {compareFacts, gateOf, readOracleTruth, type ComparisonType} from './oracleTruth.ts';
+import {compareFacts, gateOf, readOracleTruth, type ComparisonType, type TruthExclusionCountsType} from './oracleTruth.ts';
 import {loadCodeDependencies, loadCodeFacts} from './oracleCodeFacts.ts';
 import {readTruthDependencies} from './oracleDependencies.ts';
+import {createExtraClassifier} from './oracleExtras.ts';
+import {compareOracleStrata} from './oracleStratification.ts';
+import {oracleTruthPolicyOf, type OracleTruthPolicyVersionType} from './oracleTruthPolicy.ts';
 
 type QualifyIoType = Readonly<{
 	stdout: (line: string) => void;
@@ -23,6 +26,7 @@ export type OracleOptionsType = Readonly<{
 	dependencies?: string | undefined;
 	output?: string | undefined;
 	units?: readonly Readonly<{path: string; type: string; name: string}>[] | undefined;
+	truthPolicy?: OracleTruthPolicyVersionType | undefined;
 }>;
 
 type OracleQualificationResultType = Readonly<{
@@ -44,9 +48,17 @@ type ReportType = Readonly<{
 	extractor: 'oracle';
 	generationId: string;
 	corpus: Readonly<{files: number; objects: number}>;
-	truth: Readonly<{rows: number; invalidDeclarationRows: number; excludedPackageReferences: number}>;
+	policy: Readonly<{version: OracleTruthPolicyVersionType; supportedTypes: readonly string[]; supportedKinds: readonly string[]}>;
+	truth: Readonly<{
+		rows: number;
+		invalidDeclarationRows: number;
+		excludedPackageReferences: number;
+		excludedByReason: TruthExclusionCountsType;
+	}>;
 	declarations: ComparisonType;
 	references: ComparisonType;
+	declarationStrata: Readonly<Record<string, ComparisonType>>;
+	referenceStrata: Readonly<Record<string, ComparisonType>>;
 	dependencies: DependencyMetricsType;
 	gates: Readonly<{
 		declarations: Readonly<{ok: boolean; recall: boolean; precision: boolean}>;
@@ -128,6 +140,9 @@ const mappingsOf = (
 const packageNamesOf = (mappings: ReadonlyMap<string, ObjectMappingType>): ReadonlySet<string> =>
 	new Set([...mappings.keys()].filter((key) => key.startsWith('PACKAGE:') || key.startsWith('PACKAGE BODY:')).map((key) => key.split(':')[1] ?? ''));
 
+const mappingsByPathOf = (mappings: ReadonlyMap<string, ObjectMappingType>): ReadonlyMap<string, ObjectMappingType> =>
+	new Map([...mappings.values()].map((mapping) => [mapping.path, mapping]));
+
 const packageByPathOf = (mappings: ReadonlyMap<string, ObjectMappingType>): ReadonlyMap<string, string> => {
 	const packages = new Map<string, string>();
 
@@ -178,24 +193,34 @@ const reportOf = (
 		truth: ReturnType<typeof readOracleTruth>;
 		declarations: ComparisonType;
 		references: ComparisonType;
+		strata: ReturnType<typeof compareOracleStrata>;
 		dependencies: DependencyMetricsType;
 	}>,
 ): ReportType => {
-	const declarationGate = gateOf(input.declarations, DECLARATION_RECALL_GATE);
-	const referenceGate = gateOf(input.references, REFERENCE_RECALL_GATE);
-	const dependencyGate = gateOf(input.dependencies, REFERENCE_RECALL_GATE);
+	const emptyTruth = input.truth.identifierRows === 0;
+	const declarationGate = emptyTruth ? {ok: false, recall: false, precision: false} : gateOf(input.declarations, DECLARATION_RECALL_GATE);
+	const referenceGate = emptyTruth ? {ok: false, recall: false, precision: false} : gateOf(input.references, REFERENCE_RECALL_GATE);
+	const dependencyGate = emptyTruth ? {ok: false, recall: false, precision: false} : gateOf(input.dependencies, REFERENCE_RECALL_GATE);
 
 	return {
 		extractor: 'oracle',
 		generationId: input.generationId,
 		corpus: {files: input.files, objects: input.objects},
+		policy: {
+			version: input.truth.policy.version,
+			supportedTypes: Object.keys(input.truth.policy.supportedTypes).sort(),
+			supportedKinds: [...input.truth.policy.supportedKinds].sort(),
+		},
 		truth: {
 			rows: input.truth.identifierRows,
 			invalidDeclarationRows: input.truth.invalidDeclarationRows,
 			excludedPackageReferences: input.truth.excludedPackageReferences,
+			excludedByReason: input.truth.excludedByReason,
 		},
 		declarations: input.declarations,
 		references: input.references,
+		declarationStrata: input.strata.declarations,
+		referenceStrata: input.strata.references,
 		dependencies: input.dependencies,
 		gates: {
 			declarations: declarationGate,
@@ -231,18 +256,26 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 		const generationId = publishedGeneration(reader);
 		const files = filesOf(reader, generationId);
 		const mappings = mappingsOf(config.rootDir, files, options.units);
-		const truth = readOracleTruth({rows: readCsv(identifiers), mappings});
+		const mappingsByPath = mappingsByPathOf(mappings);
+		const policy = oracleTruthPolicyOf(options.truthPolicy);
+		const truth = readOracleTruth({rows: readCsv(identifiers), mappings, policy});
 		const code = loadCodeFacts(reader, generationId);
 		const packageNames = packageNamesOf(mappings);
 		const truthDependencies = readTruthDependencies(readCsv(dependencies), mappings, packageNames);
 		const codeDependencies = loadCodeDependencies(reader, generationId, packageNames, packageByPathOf(mappings));
+		const classifyExtra = createExtraClassifier({mappings: mappingsByPath, rowsByPath: truth.rowsByPath});
+		const compareOptions = {policy, excluded: truth.excluded, classifyExtra};
+		const declarations = compareFacts(truth.definitions, code.definitions, {...compareOptions, role: 'declaration'});
+		const references = compareFacts(truth.references, code.references, {...compareOptions, role: 'reference'});
+		const strata = compareOracleStrata({truth, actual: code, mappings: mappingsByPath, policy, classifyExtra});
 		const report = reportOf({
 			generationId,
 			files: files.length,
 			objects: mappings.size,
 			truth,
-			declarations: compareFacts(truth.definitions, code.definitions),
-			references: compareFacts(truth.references, code.references),
+			declarations,
+			references,
+			strata,
 			dependencies: dependencyMetricsOf(truthDependencies, codeDependencies),
 		});
 		const serialized = `${JSON.stringify(report, null, 2)}\n`;
@@ -286,6 +319,7 @@ export const runOracleQualification = async (environment: NodeJS.ProcessEnv, io:
 		dependencies: dependenciesPath,
 		output: options.output,
 		units: options.units,
+		truthPolicy: options.truthPolicy,
 	});
 
 	return result.code;

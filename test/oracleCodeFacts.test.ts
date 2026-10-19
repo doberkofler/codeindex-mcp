@@ -12,7 +12,10 @@ describe('Oracle code facts', () => {
 				generation_id text not null,
 				id text not null,
 				name text not null,
-				kind text not null
+				kind text not null,
+				path text not null,
+				start_line integer not null,
+				start_column integer not null
 			);
 			create table occurrence (
 				generation_id text not null,
@@ -37,9 +40,9 @@ describe('Oracle code facts', () => {
 
 	it('loads definitions and references for one generation', () => {
 		database.exec(`
-			insert into symbol values ('generation', 'symbol-1', 'Run', 'procedure');
-			insert into symbol values ('generation', 'symbol-2', 'Value', 'variable');
-			insert into symbol values ('other', 'symbol-3', 'Ignored', 'variable');
+			insert into symbol values ('generation', 'symbol-1', 'Run', 'procedure', 'src/demo.pkb', 2, 13);
+			insert into symbol values ('generation', 'symbol-2', 'Value', 'variable', 'src/demo.pkb', 3, 3);
+			insert into symbol values ('other', 'symbol-3', 'Ignored', 'variable', 'src/other.pkb', 1, 1);
 			insert into occurrence values ('generation', 'symbol-1', 'src/demo.pkb', 2, 13, 'definition');
 			insert into occurrence values ('generation', 'symbol-2', 'src/demo.pkb', 3, 3, 'reference');
 			insert into occurrence values ('other', 'symbol-3', 'src/other.pkb', 1, 1, 'definition');
@@ -47,8 +50,12 @@ describe('Oracle code facts', () => {
 
 		const facts = loadCodeFacts(database, 'generation');
 
-		expect([...facts.definitions.values()]).toStrictEqual([{path: 'src/demo.pkb', line: 2, column: 13, name: 'Run', kind: 'procedure'}]);
-		expect([...facts.references.values()]).toStrictEqual([{path: 'src/demo.pkb', line: 3, column: 3, name: 'Value', kind: 'variable'}]);
+		expect([...facts.definitions.values()]).toStrictEqual([
+			{path: 'src/demo.pkb', line: 2, column: 13, name: 'Run', kind: 'procedure', symbolPath: 'src/demo.pkb', symbolLine: 2, symbolColumn: 13},
+		]);
+		expect([...facts.references.values()]).toStrictEqual([
+			{path: 'src/demo.pkb', line: 3, column: 3, name: 'Value', kind: 'variable', symbolPath: 'src/demo.pkb', symbolLine: 3, symbolColumn: 3},
+		]);
 		expect(facts.definitions.has('src/demo.pkb:2:13:run')).toBe(true);
 	});
 

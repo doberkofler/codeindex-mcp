@@ -1,6 +1,6 @@
 # Oracle ANTLR Implementation Plan
 
-**Status:** proposed. Phase 0 is frozen, and Phases 1–3 are implemented behind an
+**Status:** proposed. Phase 0 is frozen, and Phases 1–6 are implemented behind an
 unwired adapter seam. No production switch is approved. The structural parser
 remains authoritative until every adoption gate in
 [`oracle-antlr.md`](./oracle-antlr.md) passes.
@@ -11,11 +11,11 @@ remains authoritative until every adoption gate in
 | --- | --- |
 | 0 — Baseline | Executed; frozen in `benchmark/oracle-phase0` |
 | 1 — Grammar toolchain | Implemented; generated artifacts are deterministic |
-| 2 — Parser and recovery | Implemented; emits top-level units only |
+| 2 — Parser and recovery | Implemented; segment recovery and bounded diagnostics |
 | 3 — Declarations | Implemented; members, parameters, types, fields, and nested routines |
-| 4 — References and scope | Open |
-| 5 — Dependencies | Open |
-| 6 — Qualification v2 | Open |
+| 4 — References and scope | Implemented; procedural and SQL sites, lexical scopes, anchors, member chains |
+| 5 — Dependencies | Implemented; package calls, package references, type references, external targets |
+| 6 — Qualification v2 | Implemented; versioned truth policy, extra classes, strata, golden facts |
 | 7 — Performance | Open |
 | 8 — Integration and rollout | Open; production stays structural |
 
@@ -176,6 +176,13 @@ fixtures are in [`test/fixtures/oracle-grammar-gaps`](../test/fixtures/oracle-gr
 
 ### Phase 4 — Reference visitor and scope resolution
 
+**Status:** implemented behind the unwired adapter. Procedural and static-SQL
+sites, lexical scopes, nested blocks, loop iterators, `%TYPE`/`%ROWTYPE`
+anchors, overload selection, and record/collection member chains are covered.
+Dependencies are implemented in Phase 5. Qualification thresholds remain
+unverified because the ANTLR parser is not selectable in the qualification
+command.
+
 This is the largest and highest-risk phase.
 
 **Tasks**
@@ -220,6 +227,13 @@ This is the largest and highest-risk phase.
 
 ### Phase 5 — Dependency visitor
 
+**Status:** implemented behind the unwired adapter. Qualified package calls,
+package references, and type references are emitted; local record, collection,
+cursor, and SQL chains are excluded; the existing extractor resolves workspace
+targets and preserves unresolved external package calls. Differential
+qualification remains unverified because the ANTLR parser is not selectable in
+the qualification command.
+
 **Tasks**
 
 1. Emit package calls, package references, and indexed type anchors.
@@ -234,8 +248,12 @@ This is the largest and highest-risk phase.
 
 ### Phase 6 — Qualification policy v2
 
-The current precision gate is unreachable because the truth policy omits
-legitimate facts. Fix the comparison contract before judging the parser.
+**Status:** implemented. `v2` is the default qualification policy; `v1` remains
+selectable for historical comparison. Unsupported PL/Scope reference types are
+filtered from truth and actual facts, supported `DEFINITION` rows are
+declarations, iterators map to variables, extras are classified into four
+reason classes, and declaration/reference metrics are stratified. Golden facts
+cover constructs PL/Scope does not record.
 
 **Tasks**
 
@@ -391,7 +409,7 @@ tail work are the technical risks.
 | ANTLR remains 50–100× slower | SLL, grammar subset, parallelism, per-file cache, or hybrid scope |
 | Generated parser bloats bundles | Separate bundles, gzip measurement, subset grammar, code-generation review |
 | Unofficial Rust runtime is immature | Prefer Go/C++ if a port is justified; require conformance tests |
-| Truth policy remains unreachable | Phase 6 must land before adoption decisions |
+| Truth policy omits legitimate facts | V2 applies one supported-type map to truth and actual facts and classifies extras |
 | Parser facts disagree with structural facts | Differential tests; no silent union or fallback |
 | Provenance breaks | Keep source mapping, hashes, and object matching outside the parser |
 

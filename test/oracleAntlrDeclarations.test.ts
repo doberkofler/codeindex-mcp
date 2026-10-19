@@ -3,7 +3,7 @@ import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {parseWithAntlr} from '../src/adapters/oracle/antlrParser.ts';
 import {parseOracleUnits} from '../src/adapters/oracle/parseUnits.ts';
-import {type OracleParseResultType} from '../src/adapters/oracle/syntax.ts';
+import {type OracleDeclarationType, type OracleParameterType, type OracleParseResultType} from '../src/adapters/oracle/syntax.ts';
 import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
 
 const databaseRoot = path.join(import.meta.dirname, 'fixtures', 'oracle-project', 'database');
@@ -60,13 +60,31 @@ const declarationIndexOf = (declarations: OracleParseResultType['declarations'],
 const parameterSignatureOf = (declaration: OracleParseResultType['declarations'][number]): readonly string[] =>
 	declaration.parameters.map((parameter) => `${parameter.mode}:${parameter.typeText}:${parameter.hasDefault}`);
 
+type ComparableDeclarationType = Omit<OracleDeclarationType, 'parameters' | 'typeReferences'> &
+	Readonly<{parameters: readonly Omit<OracleParameterType, 'typeReferences'>[]}>;
+
+const comparableDeclaration = (declaration: OracleDeclarationType): ComparableDeclarationType => {
+	const {typeReferences, ...rest} = declaration;
+	void typeReferences;
+
+	return {
+		...rest,
+		parameters: declaration.parameters.map((parameter) => {
+			const {typeReferences: parameterTypeReferences, ...parameterRest} = parameter;
+			void parameterTypeReferences;
+
+			return parameterRest;
+		}),
+	};
+};
+
 describe('Oracle ANTLR declaration parity', () => {
 	it.each(fixtures)('matches the structural parser on %s', (name) => {
 		const {structural, antlr} = parseFixture(name);
 
-		expect({units: antlr.units, declarations: antlr.declarations}).toStrictEqual({
+		expect({units: antlr.units, declarations: antlr.declarations.map(comparableDeclaration)}).toStrictEqual({
 			units: structural.units,
-			declarations: structural.declarations,
+			declarations: structural.declarations.map(comparableDeclaration),
 		});
 	});
 
@@ -153,10 +171,22 @@ create procedure call_spec_proc(p number) as language java name 'X';
 		expect(result.declarations.map(declarationKey)).toStrictEqual(['procedure:EXTERNAL_PROC', 'parameter:P', 'procedure:CALL_SPEC_PROC', 'parameter:P']);
 	});
 
-	it('emits no reference or dependency sites during Phase 3', () => {
+	it('emits reference and package dependency sites', () => {
 		const result = parseFixture('hr_api.pkb').antlr;
 
-		expect(result.references).toStrictEqual([]);
-		expect(result.dependencies).toStrictEqual([]);
+		expect(result.references.map((reference) => reference.name.canonical)).toContain('HR_API.DELETE_EMPLOYEE');
+		expect(result.references.some((reference) => reference.kind === 'call')).toBe(true);
+		expect(result.dependencies.map((dependency) => `${dependency.kind}:${dependency.targetName.canonical}`)).toContain('package-call:HR_API');
+		expect(result.dependencies.map((dependency) => dependency.targetName.canonical)).not.toContain('L_EMPLOYEE');
+	});
+
+	it('populates symbolic type references and type anchors', () => {
+		const body = parseFixture('hr_api.pkb').antlr;
+		const spec = parseFixture('hr_api.pks').antlr;
+		const parameter = body.declarations.find((declaration) => declaration.kind === 'parameter' && declaration.name.canonical === 'P_EMPLOYEE_ID');
+		const collection = spec.declarations.find((declaration) => declaration.kind === 'collection_type');
+
+		expect(parameter?.typeReferences.map((reference) => `${reference.name.canonical}:${reference.rowType}`)).toStrictEqual(['EMPLOYEES.EMPLOYEE_ID:false']);
+		expect(collection?.typeReferences.map((reference) => reference.name.canonical)).toStrictEqual(['T_EMPLOYEE']);
 	});
 });

@@ -1,14 +1,17 @@
+import {type ParserRuleContext} from 'antlr4ng';
 import {
+	BlockContext,
 	Create_packageContext,
+	Function_bodyContext,
+	Function_specContext,
 	PlSqlParser,
+	type BodyContext,
 	type Create_function_bodyContext,
 	type Create_package_bodyContext,
 	type Create_procedure_bodyContext,
 	type Cursor_declarationContext,
 	type Exception_declarationContext,
 	type Field_specContext,
-	type Function_bodyContext,
-	type Function_specContext,
 	type Package_obj_bodyContext,
 	type Package_obj_specContext,
 	type Procedure_bodyContext,
@@ -29,14 +32,14 @@ import {
 	parameterSpecsOf,
 	rangeOf,
 	topLevelStop,
+	typeReferencesOf,
 } from './antlrDeclarationSupport.ts';
+import {loopIteratorDeclarationOf, nestedDeclarationContexts} from './antlrNestedScopes.ts';
 import {defaultSchemaName, namePartOf, type OracleNamePartType} from './name.ts';
 import {type OracleDeclarationType, type OracleParameterType, type OracleParseInputType, type OracleRangeType, type OracleUnitType} from './syntax.ts';
 
 type ScopeType = Readonly<{parent: number; unit: number; exported: boolean}>;
-
 type RoutineScopeType = Readonly<{parent: number | null; unit: number; exported: boolean}>;
-
 type MemberContextType = Readonly<{
 	pragma_declaration: () => unknown;
 	exception_declaration: () => Exception_declarationContext | null;
@@ -57,6 +60,8 @@ type RoutineInputType = Readonly<{
 	nameRange: OracleRangeType;
 	parameters: readonly OracleParameterType[];
 	declareSpecs: Seq_of_declare_specsContext | null;
+	body: BodyContext | null;
+	typeReferences: OracleDeclarationType['typeReferences'];
 	scope: RoutineScopeType;
 }>;
 
@@ -117,7 +122,7 @@ class OracleDeclarationCollector {
 			unit: scope.unit,
 			exported: scope.exported,
 			parameters: [],
-			typeReferences: [],
+			typeReferences: typeReferencesOf(this.#input, context.type_spec()),
 		});
 	}
 
@@ -133,7 +138,7 @@ class OracleDeclarationCollector {
 			unit: scope.unit,
 			exported: scope.exported,
 			parameters: [],
-			typeReferences: [],
+			typeReferences: typeReferencesOf(this.#input, context.type_spec()),
 		});
 	}
 
@@ -149,7 +154,7 @@ class OracleDeclarationCollector {
 			unit: scope.unit,
 			exported: scope.exported,
 			parameters: [],
-			typeReferences: [],
+			typeReferences: typeReferencesOf(this.#input, context.type_spec()),
 		});
 	}
 
@@ -181,7 +186,7 @@ class OracleDeclarationCollector {
 			unit: scope.unit,
 			exported: scope.exported,
 			parameters,
-			typeReferences: [],
+			typeReferences: typeReferencesOf(this.#input, context.type_spec()),
 		});
 
 		this.#addParameterDeclarations(parameters, {parent: index, unit: scope.unit, exported: scope.exported});
@@ -197,6 +202,7 @@ class OracleDeclarationCollector {
 			return;
 		}
 
+		const typeSpec = context.table_type_def()?.type_spec() ?? context.varray_type_def()?.type_spec() ?? refCursor?.type_spec() ?? null;
 		const info = nameInfoOfIdentifier(context.identifier());
 		const index = this.#addDeclaration({
 			kind,
@@ -207,7 +213,7 @@ class OracleDeclarationCollector {
 			unit: scope.unit,
 			exported: scope.exported,
 			parameters: [],
-			typeReferences: [],
+			typeReferences: typeReferencesOf(this.#input, typeSpec),
 		});
 
 		if (record !== null) {
@@ -227,7 +233,7 @@ class OracleDeclarationCollector {
 			unit: input.scope.unit,
 			exported: input.scope.exported,
 			parameters: input.parameters,
-			typeReferences: [],
+			typeReferences: input.typeReferences,
 		});
 
 		this.#addParameterDeclarations(input.parameters, {parent: index, unit: input.scope.unit, exported: input.scope.exported});
@@ -238,11 +244,32 @@ class OracleDeclarationCollector {
 			}
 		}
 
+		if (input.body !== null) {
+			this.#collectNestedDeclarations(input.body, index, input.scope.unit, false);
+		}
+
 		return index;
+	}
+
+	#collectNestedDeclarations(root: ParserRuleContext, parent: number, unit: number, exported: boolean): void {
+		for (const context of nestedDeclarationContexts(root)) {
+			if (context instanceof BlockContext) {
+				for (const spec of context.declare_spec()) {
+					this.#collectMember(spec, parent, unit, exported);
+				}
+			} else {
+				const declaration = loopIteratorDeclarationOf({source: this.#input, loop: context, parent, unit, exported});
+
+				if (declaration !== null) {
+					this.#addDeclaration(declaration);
+				}
+			}
+		}
 	}
 
 	#collectRoutineSpec(context: Procedure_specContext | Function_specContext, kind: 'procedure' | 'function', scope: RoutineScopeType): void {
 		const info = nameInfoOfIdentifier(context.identifier());
+		const typeReferences = context instanceof Function_specContext ? typeReferencesOf(this.#input, context.type_spec()) : [];
 
 		this.#addRoutine({
 			kind,
@@ -251,12 +278,15 @@ class OracleDeclarationCollector {
 			nameRange: nameRangeOf(this.#input, info),
 			parameters: parametersOf(this.#input, context.parameter()),
 			declareSpecs: null,
+			body: null,
+			typeReferences,
 			scope,
 		});
 	}
 
 	#collectRoutineBody(context: Procedure_bodyContext | Function_bodyContext, kind: 'procedure' | 'function', scope: RoutineScopeType): void {
 		const info = nameInfoOfIdentifier(context.identifier());
+		const typeReferences = context instanceof Function_bodyContext ? typeReferencesOf(this.#input, context.type_spec()) : [];
 
 		this.#addRoutine({
 			kind,
@@ -265,6 +295,8 @@ class OracleDeclarationCollector {
 			nameRange: nameRangeOf(this.#input, info),
 			parameters: parametersOf(this.#input, context.parameter()),
 			declareSpecs: context.seq_of_declare_specs(),
+			body: context.body(),
+			typeReferences,
 			scope,
 		});
 	}
@@ -348,6 +380,12 @@ class OracleDeclarationCollector {
 		for (const member of members) {
 			this.#collectMember(member, declarationIndex, unitIndex, kind === 'package-spec');
 		}
+
+		const initialization = context instanceof Create_packageContext ? null : context.seq_of_statements();
+
+		if (initialization !== null) {
+			this.#collectNestedDeclarations(initialization, declarationIndex, unitIndex, false);
+		}
 	}
 
 	#collectProcedure(scriptUnit: Script_unitContext, context: Create_procedure_bodyContext): void {
@@ -377,6 +415,8 @@ class OracleDeclarationCollector {
 			nameRange,
 			parameters: parametersOf(this.#input, context.parameter()),
 			declareSpecs: context.seq_of_declare_specs(),
+			body: context.body(),
+			typeReferences: [],
 			scope: {parent: null, unit: unitIndex, exported: true},
 		});
 	}
@@ -408,6 +448,8 @@ class OracleDeclarationCollector {
 			nameRange,
 			parameters: parametersOf(this.#input, context.parameter()),
 			declareSpecs: context.seq_of_declare_specs(),
+			body: context.body(),
+			typeReferences: typeReferencesOf(this.#input, context.type_spec()),
 			scope: {parent: null, unit: unitIndex, exported: true},
 		});
 	}

@@ -108,6 +108,14 @@ describe('Oracle qualification run', () => {
 			fixture.cleanup();
 		}
 	});
+});
+
+describe('Oracle qualification report', () => {
+	afterEach(() => {
+		for (const directory of temporaryDirectories.splice(0)) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+	});
 
 	it('indexes the corpus, writes a report, and fails empty truth gates', async () => {
 		const fixture = createFixtureConfig('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
@@ -133,8 +141,15 @@ describe('Oracle qualification run', () => {
 				extractor: string;
 				generationId: string;
 				corpus: {files: number; objects: number};
-				truth: {rows: number; invalidDeclarationRows: number; excludedPackageReferences: number};
+				policy: {version: string};
+				truth: {
+					rows: number;
+					invalidDeclarationRows: number;
+					excludedPackageReferences: number;
+					excludedByReason: Record<string, number>;
+				};
 				declarations: {truth: number; actual: number; recall: number; precision: number};
+				referenceStrata: Record<string, {truth: number; actual: number}>;
 				dependencies: {truth: number; actual: number; recall: number; precision: number};
 				gates: {declarations: {ok: boolean}; ok: boolean};
 			};
@@ -144,9 +159,22 @@ describe('Oracle qualification run', () => {
 			expect(report.generationId.length).toBeGreaterThan(0);
 			expect(report.corpus.files).toBeGreaterThan(5);
 			expect(report.corpus.objects).toBeGreaterThan(5);
-			expect(report.truth).toStrictEqual({rows: 0, invalidDeclarationRows: 0, excludedPackageReferences: 0});
+			expect(report.policy.version).toBe('v2');
+			expect(report.truth).toStrictEqual({
+				rows: 0,
+				invalidDeclarationRows: 0,
+				excludedPackageReferences: 0,
+				excludedByReason: {
+					invalid_declaration: 0,
+					missing_group_declaration: 0,
+					package_reference: 0,
+					unmapped_usage: 0,
+					unsupported_identifier_type: 0,
+				},
+			});
 			expect(report.declarations).toMatchObject({truth: 0, recall: 1});
 			expect(report.declarations.actual).toBeGreaterThan(0);
+			expect(Object.keys(report.referenceStrata).sort()).toStrictEqual(['iterator', 'member_chain', 'pragma', 'procedural', 'static_sql', 'type_anchor']);
 			expect(report.gates.declarations.ok).toBe(false);
 			expect(report.gates.ok).toBe(false);
 			expect(readFileSync(output, 'utf8')).toBe(`${captured.stdout.join('\n')}\n`);

@@ -1,6 +1,9 @@
 import {BaseErrorListener, CharStream, CommonTokenStream} from 'antlr4ng';
 import {type DiagnosticType} from '../../core/model.ts';
 import {collectAntlrDeclarations} from './antlrDeclarations.ts';
+import {collectAntlrDependencies} from './antlrDependencies.ts';
+import {collectAntlrReferences} from './antlrReferences.ts';
+import {collectAntlrSqlNames} from './antlrSqlNames.ts';
 import {prepareConditionalSource} from './conditionalCompilation.ts';
 import {ORACLE_DIAGNOSTIC, OracleDiagnosticCollector} from './diagnostics.ts';
 import {PlSqlParser} from './generated/PlSqlParser.ts';
@@ -25,6 +28,8 @@ class OracleAntlrErrorListener extends BaseErrorListener {
 type ParsedUnitsType = Readonly<{
 	units: readonly OracleUnitType[];
 	declarations: readonly OracleDeclarationType[];
+	references: OracleParseResultType['references'];
+	dependencies: OracleParseResultType['dependencies'];
 	errorCount: number;
 }>;
 
@@ -53,12 +58,15 @@ const parseOnce = (source: string, input: OracleParseInputType, collector: Oracl
 
 		const script = parser.sql_script();
 		const collected = collectAntlrDeclarations({...input, source}, script);
+		const references = collectAntlrReferences({...input, source}, script, collected.declarations);
+		const sqlNames = collectAntlrSqlNames(script);
+		const dependencies = collectAntlrDependencies({references, declarations: collected.declarations, sqlNames});
 
-		return {...collected, errorCount};
+		return {...collected, references, dependencies, errorCount};
 	} catch (error: unknown) {
 		collector.add(ORACLE_DIAGNOSTIC.parse, `ANTLR parser failure: ${boundedMessage(error)}`);
 
-		return {units: [], declarations: [], errorCount: errorCount + 1};
+		return {units: [], declarations: [], references: [], dependencies: [], errorCount: errorCount + 1};
 	}
 };
 
@@ -94,19 +102,43 @@ const recoverSegments = (
 	source: string,
 	tokens: readonly OracleTokenType[],
 	collector: OracleDiagnosticCollector,
-): Readonly<{units: readonly OracleUnitType[]; declarations: readonly OracleDeclarationType[]}> => {
+): Pick<OracleParseResultType, 'units' | 'declarations' | 'references' | 'dependencies'> => {
 	const units: OracleUnitType[] = [];
 	const declarations: OracleDeclarationType[] = [];
+	const references: OracleParseResultType['references'][number][] = [];
+	const dependencies: OracleParseResultType['dependencies'][number][] = [];
 
 	for (const segment of solidusSegments(source, tokens)) {
 		const masked = `${blank(source.slice(0, segment.start))}${source.slice(segment.start, segment.end)}${blank(source.slice(segment.end))}`;
 		const parsed = parseOnce(masked, input, collector);
+		const declarationOffset = declarations.length;
+		const unitOffset = units.length;
 
-		units.push(...parsed.units);
-		declarations.push(...parsed.declarations);
+		units.push(...parsed.units.map((unit) => ({...unit, declaration: unit.declaration + declarationOffset})));
+		declarations.push(
+			...parsed.declarations.map((declaration) => ({
+				...declaration,
+				parent: declaration.parent === null ? null : declaration.parent + declarationOffset,
+				unit: declaration.unit + unitOffset,
+			})),
+		);
+		references.push(
+			...parsed.references.map((reference) => ({
+				...reference,
+				enclosing: reference.enclosing + declarationOffset,
+				unit: reference.unit + unitOffset,
+			})),
+		);
+		dependencies.push(
+			...parsed.dependencies.map((dependency) => ({
+				...dependency,
+				enclosing: dependency.enclosing + declarationOffset,
+				unit: dependency.unit + unitOffset,
+			})),
+		);
 	}
 
-	return {units, declarations};
+	return {units, declarations, references, dependencies};
 };
 
 /**
@@ -116,9 +148,9 @@ const recoverSegments = (
  * before parsing while preserving source offsets. ANTLR lexer, parser, token
  * stream, and parse tree stay inside this call; only serializable facts leave.
  *
- * Phase 3 emits package and routine units plus their declarations, including
- * parameters, types, fields, and nested routines. References and dependencies
- * remain empty until the Phase 4–5 visitors land.
+ * Emits package and routine units, declarations, reference sites, and package
+ * dependency sites. Recovery reparses solidus-delimited segments and offsets
+ * declaration, unit, reference, and dependency indexes before returning.
  *
  * @param input - Source text, workspace-relative path, and default schema.
  * @returns Serializable parse facts and bounded diagnostics.
@@ -129,7 +161,7 @@ export const parseWithAntlr = (input: OracleParseInputType): OracleParseResultTy
 	const filtered = conditional.source === input.source ? rawTokenized : tokenizeOracleSource(conditional.source, input.path);
 	const probeCollector = new OracleDiagnosticCollector(input.path);
 	const probe = parseOnce(conditional.source, input, probeCollector);
-	let parsed: Readonly<{units: readonly OracleUnitType[]; declarations: readonly OracleDeclarationType[]}> = probe;
+	let parsed: Pick<OracleParseResultType, 'units' | 'declarations' | 'references' | 'dependencies'> = probe;
 	let parseDiagnostics = probeCollector.finish();
 
 	if (probe.errorCount > 0) {
@@ -146,8 +178,8 @@ export const parseWithAntlr = (input: OracleParseInputType): OracleParseResultTy
 	return {
 		units: parsed.units,
 		declarations: parsed.declarations,
-		references: [],
-		dependencies: [],
+		references: parsed.references,
+		dependencies: parsed.dependencies,
 		diagnostics,
 	};
 };
