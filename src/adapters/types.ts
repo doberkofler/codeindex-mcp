@@ -22,6 +22,16 @@ export type ExtractorBuildType = Readonly<{
  * Adapter results contain only serializable, language-neutral facts. Compiler
  * objects never cross this boundary.
  */
+/**
+ * Resolves the source extensions an extractor publishes for one configuration.
+ *
+ * @param extractor - Selected extractor.
+ * @param config - Resolved project configuration.
+ * @returns Configured extensions, or the adapter's static fallback.
+ */
+export const extractorSourceExtensions = (extractor: ExtractorType, config: ConfigType): readonly string[] =>
+	extractor.sourceExtensionsFor?.(config) ?? extractor.sourceExtensions;
+
 export type ExtractorType = Readonly<{
 	/** Stable adapter identifier persisted with every generation. */
 	readonly id: string;
@@ -31,6 +41,8 @@ export type ExtractorType = Readonly<{
 	readonly displayName: string;
 	/** File extensions the adapter publishes; used by the watcher. */
 	readonly sourceExtensions: readonly string[];
+	/** Optional configuration-dependent extensions, such as manifest-defined Oracle source. */
+	readonly sourceExtensionsFor?: (config: ConfigType) => readonly string[];
 	/** Directory segments excluded from watching and publication. */
 	readonly ignoredSegments: readonly string[];
 	/** Limitations reported by `index_status`. */

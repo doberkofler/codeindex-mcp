@@ -25,7 +25,7 @@ It does not index:
 - runtime behavior, full-text search, fuzzy search, or embeddings.
 
 Package names are not indexed symbols. Use `find_dependencies` for direct
-external dependency usage or downstream module impact.
+external dependency usage or downstream dependency impact.
 
 Current constraints:
 
@@ -164,11 +164,13 @@ Ask navigation questions normally. Examples:
 - `Find the UserCard declaration and show its implementation.`
 - `Where is createQueryClient referenced?`
 - `Which modules use @scope/package directly, and which are affected downstream?`
+- `Which packages depend on APP.HR_API?`
 - `Outline src/framework/backend/index.ts.`
 
-For a dependency question, ask for direct usage first. Request module impact only
-when downstream effect matters, and optionally name one direct consumer as the
-root.
+For a dependency question, ask for direct usage first. Request dependency impact
+only when downstream effect matters, and optionally name one direct consumer as
+the root. The `target` argument is a canonical directly queryable identifier:
+an npm package name for TypeScript, or `SCHEMA.PACKAGE` for Oracle.
 
 The server exposes six read-only tools:
 
@@ -178,7 +180,7 @@ The server exposes six read-only tools:
 | `outline` | Declarations in one workspace-relative file, in source order |
 | `find_symbol` | Exact or prefix symbol lookup; optional project-context filter |
 | `find_references` | Definitions and references for one symbol; optional project-context filter |
-| `find_dependencies` | Direct dependency usage or grouped module impact; optional project-context filter |
+| `find_dependencies` | Direct dependency usage or grouped dependency impact; optional project-context filter |
 | `read_symbol` | Bounded source for one symbol, rejecting stale files |
 
 Each query reports its generation and freshness:

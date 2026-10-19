@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '7';
+export const SCHEMA_VERSION = '8';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -150,10 +150,10 @@ create table if not exists dependency_edge (
 	context_name text,
 	source_path text not null,
 	target_path text,
-	raw_specifier text not null,
-	normalized_package text,
+	raw_target text not null,
+	target_identifier text,
 	kind text not null,
-	type_only integer not null check (type_only in (0, 1)),
+	compile_time_only integer not null check (compile_time_only in (0, 1)),
 	start_line integer not null,
 	start_column integer not null,
 	end_line integer not null,
@@ -164,7 +164,7 @@ create table if not exists dependency_edge (
 	foreign key (generation_id, source_path) references file(generation_id, path) on delete cascade
 );
 
-create index if not exists dependency_by_package on dependency_edge (generation_id, normalized_package, source_path);
+create index if not exists dependency_by_target_identifier on dependency_edge (generation_id, target_identifier, source_path);
 create index if not exists dependency_by_target on dependency_edge (generation_id, target_path, source_path);
 create index if not exists dependency_by_source on dependency_edge (generation_id, source_path, start_offset);
 
@@ -176,7 +176,7 @@ create table if not exists dependency_binding (
 	imported_name text,
 	exported_name text,
 	local_name text,
-	type_only integer not null check (type_only in (0, 1)),
+	compile_time_only integer not null check (compile_time_only in (0, 1)),
 	primary key (generation_id, edge_id, position),
 	foreign key (generation_id, edge_id) references dependency_edge(generation_id, id) on delete cascade
 );

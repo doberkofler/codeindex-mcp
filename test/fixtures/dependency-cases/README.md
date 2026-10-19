@@ -38,9 +38,9 @@ The four direct package consumers are:
 - `src/roots/barrel.ts` — `export-all`, raw specifier `./inner.js`
 - `src/roots/named.ts` — `export`, binding `work` re-exported as `work`
 
-## Module impact
+## Dependency impact
 
-Impact groups every module under the direct package consumer that starts its
+Impact groups every module under the direct target consumer that starts its
 shortest authored path:
 
 | Direct root | Paths |

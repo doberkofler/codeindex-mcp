@@ -32,7 +32,7 @@ import {
 	type ExtractionArtifactKeyType,
 } from './databaseContent.ts';
 import {
-	findDependencyEdgesByPackage,
+	findDependencyEdgesByTargetIdentifier,
 	findDependencyEdgesByTargets,
 	insertDependencyBindings as insertStoredDependencyBindings,
 	insertDependencyEdges as insertStoredDependencyEdges,
@@ -444,8 +444,8 @@ export class IndexDatabase {
 		return findStoredReferences(this.#reader, input);
 	}
 
-	public findDependencyEdgesByPackage(generationId: string, packageName: string, context?: string): readonly StoredDependencyEdgeType[] {
-		return findDependencyEdgesByPackage(this.#reader, generationId, packageName, context);
+	public findDependencyEdgesByTargetIdentifier(generationId: string, targetIdentifier: string, context?: string): readonly StoredDependencyEdgeType[] {
+		return findDependencyEdgesByTargetIdentifier(this.#reader, generationId, targetIdentifier, context);
 	}
 
 	public findDependencyEdgesByTargets(generationId: string, targetPaths: readonly string[], context?: string): readonly StoredDependencyEdgeType[] {

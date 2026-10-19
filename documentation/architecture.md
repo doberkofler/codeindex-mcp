@@ -4,9 +4,9 @@
 
 CodeIndex MCP builds a local, immutable index of a workspace and serves bounded
 navigation results over MCP, a CLI, and a loopback console. The current release
-ships a TypeScript/JavaScript extractor. The target architecture supports source,
-compiler, database-metadata, and routing adapters without adding language branches
-to the core.
+ships TypeScript/JavaScript and Oracle 19c static-source extractors. The target
+architecture supports source, compiler, database-metadata, and routing adapters
+without adding language branches to the core.
 
 The design separates five concerns:
 
@@ -71,7 +71,7 @@ src/
     errors/             stable error types
   adapters/             fact producers
     typescript/         shipped TypeScript/JavaScript extractor
-    oracle/source/      planned static SQL and PL/SQL adapter
+    oracle/             shipped static Oracle 19c SQL/PL/SQL extractor
     oracle/database/    planned live dictionary and PL/Scope adapter
     ords/               planned ORDS metadata adapter
     vcs/                optional version-control provenance
@@ -298,7 +298,7 @@ cursor, and a truncation flag.
 | `outline` | path, kinds, limit, cursor | Source order |
 | `find_symbol` | query, optional context, limit, cursor | Exact qualified, exact name, prefix qualified, prefix name |
 | `find_references` | symbol id, role, optional context, limit, cursor | Definition/reference occurrences |
-| `find_dependencies` | package, optional context, direction, transitive, root, detail, limit, cursor | Direct usage or module impact |
+| `find_dependencies` | target, optional context, direction, transitive, root, detail, limit, cursor | Direct target usage or dependency impact |
 | `read_symbol` | symbol id, context lines | Verifies current content hash |
 
 Result rules:
@@ -431,11 +431,14 @@ See [Oracle adapter](./oracle-adapter.md),
 
 ## 17. Limitations
 
-- One extractor in 0.1.0: TypeScript/JavaScript.
+- TypeScript/JavaScript and Oracle 19c static source adapters ship today.
 - JavaScript requires `allowJs`.
-- Only files reachable from the configured project files are indexed.
-- Cross-language edges, Oracle, and ORDS are designed but not shipped.
+- TypeScript files must be reachable from the configured project files; Oracle
+  files come from an explicit manifest.
+- Oracle O1 excludes triggers, object types, table/column lineage, synonyms,
+  database links, wrapped source, and live catalogue metadata.
+- Cross-language edges and ORDS are designed but not shipped.
 - No lexical search or embeddings.
 - Generation-granular reuse; no incremental compiler state.
 - The core stores dependency facts but does not interpret language-specific
-  package semantics; the adapter supplies normalized names.
+  semantics; the adapter supplies bounded kinds and canonical target identifiers.

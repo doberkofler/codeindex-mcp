@@ -128,19 +128,30 @@ export type ExtractionResultType = Readonly<{
 	readonly diagnosticCount: number;
 }>;
 
-export type DependencyKindType = 'import' | 'side-effect' | 'export' | 'export-all' | 'dynamic-import' | 'import-type' | 'import-equals';
+/**
+ * Adapter-defined dependency kind.
+ *
+ * The core stores and filters the value but does not interpret it. Adapters emit
+ * bounded, non-empty lower-case identifiers such as `import` or `package-call`.
+ */
+export type DependencyKindType = string;
 
-export type DependencyBindingKindType = 'default' | 'named' | 'namespace' | 'all' | 'import-equals';
+/**
+ * Adapter-defined dependency binding kind.
+ *
+ * The core stores the value but does not interpret it.
+ */
+type DependencyBindingKindType = string;
 
 export type IndexedDependencyEdgeType = Readonly<{
 	readonly id: string;
 	readonly context?: string | undefined;
 	readonly sourcePath: string;
 	readonly targetPath: string | null;
-	readonly rawSpecifier: string;
-	readonly normalizedPackage: string | null;
+	readonly rawTarget: string;
+	readonly targetIdentifier: string | null;
 	readonly kind: DependencyKindType;
-	readonly typeOnly: boolean;
+	readonly compileTimeOnly: boolean;
 	readonly startLine: number;
 	readonly startColumn: number;
 	readonly endLine: number;
@@ -156,7 +167,7 @@ export type IndexedDependencyBindingType = Readonly<{
 	readonly importedName: string | null;
 	readonly exportedName: string | null;
 	readonly localName: string | null;
-	readonly typeOnly: boolean;
+	readonly compileTimeOnly: boolean;
 }>;
 
 export type DependencyExtractionResultType = Readonly<{
@@ -170,8 +181,8 @@ export type DependencyEvidenceBindingType = Omit<IndexedDependencyBindingType, '
 
 type DependencyEvidenceType = Readonly<{
 	readonly targetPath: string | null;
-	readonly rawSpecifier: string;
-	readonly normalizedPackage: string | null;
+	readonly rawTarget: string;
+	readonly targetIdentifier: string | null;
 	readonly kind: DependencyKindType;
 	readonly startLine: number;
 	readonly startColumn: number;
@@ -181,7 +192,7 @@ type DependencyEvidenceType = Readonly<{
 	readonly bindings: readonly DependencyEvidenceBindingType[];
 }>;
 
-type DependencyQueryMeaningType = 'direct_usage' | 'module_impact';
+type DependencyQueryMeaningType = 'direct_usage' | 'dependency_impact';
 
 type DependencyDetailType = 'compact' | 'evidence';
 
@@ -206,7 +217,11 @@ type DependencyRootSummaryType = Readonly<{
 }>;
 
 export type FindDependenciesInputType = Readonly<{
-	readonly package: string;
+	/**
+	 * Canonical directly queryable external or logical target, such as an npm
+	 * package name or an Oracle `SCHEMA.PACKAGE` identifier.
+	 */
+	readonly target: string;
 	readonly context?: string | undefined;
 	readonly direction?: 'consumers' | undefined;
 	readonly transitive?: boolean | undefined;

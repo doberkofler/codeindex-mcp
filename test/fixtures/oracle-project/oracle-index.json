@@ -1,0 +1,8 @@
+{
+	"schemaVersion": 1,
+	"dialect": "19c",
+	"defaultSchema": "APP",
+	"extensions": [".pks", ".pkg", ".pkb", ".prc", ".fnc"],
+	"include": ["database/**/*.pks", "database/**/*.pkg", "database/**/*.pkb", "database/**/*.prc", "database/**/*.fnc"],
+	"exclude": ["**/generated/**"]
+}

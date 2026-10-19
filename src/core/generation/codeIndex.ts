@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {type AnalyticsRecorderType} from '../analytics/recorder.ts';
 import {type ConfigType} from '../config/config.ts';
 import {extractorFor} from '../../adapters/registry.ts';
-import {type ExtractorType} from '../../adapters/types.ts';
+import {extractorSourceExtensions, type ExtractorType} from '../../adapters/types.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
@@ -103,7 +103,7 @@ export class CodeIndex {
 		this.#watcher = new WorkspaceWatcher({
 			rootDir: config.rootDir,
 			logger,
-			sourceExtensions: this.#extractor.sourceExtensions,
+			sourceExtensions: extractorSourceExtensions(this.#extractor, config),
 			ignoredSegments: this.#extractor.ignoredSegments,
 			onChange: (paths): void => {
 				this.#coordinator.notify(paths);
@@ -209,7 +209,7 @@ export class CodeIndex {
 			const report = await this.#rebuild(scan, force);
 
 			if (this.#watchEnabled) {
-				this.#watcher.update(scan.files, this.#extractor.configFiles(this.#config));
+				this.#watcher.update(scan.files, this.#extractor.configFiles(this.#config), extractorSourceExtensions(this.#extractor, this.#config));
 			}
 
 			this.#published = this.#database.getPublishedGeneration();
@@ -366,7 +366,7 @@ export class CodeIndex {
 	/**
 	 * Finds authored modules that consume one normalized npm package.
 	 *
-	 * Direct usage returns modules with a package edge. Module impact traverses
+	 * Direct usage returns modules with a target edge. Dependency impact traverses
 	 * authored imports, keeps the direct consumer that starts every shortest
 	 * path, and groups results by that root. Compact results omit locations and bindings unless evidence is requested.
 	 *
@@ -482,7 +482,6 @@ export class CodeIndex {
 
 		return report;
 	}
-
 	#generation(): GenerationRowType {
 		const published = this.#database.getPublishedGeneration();
 

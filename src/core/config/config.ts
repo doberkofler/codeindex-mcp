@@ -278,11 +278,9 @@ const derivedProjectName = (rootDir: string, projectFilePath: string): string =>
 };
 
 const resolveProjectContexts = (
-	environment: ParsedEnvironmentType,
-	file: FileConfigType,
-	realRootDir: string,
-	cwd: string,
+	input: Readonly<{environment: ParsedEnvironmentType; file: FileConfigType; realRootDir: string; cwd: string; extractorId: string}>,
 ): readonly ProjectContextConfigType[] => {
+	const {environment, file, realRootDir, cwd, extractorId} = input;
 	if (environment.CODE_INDEX_PROJECT_FILE !== undefined) {
 		const projectFilePath = resolveWithin(realRootDir, cwd, environment.CODE_INDEX_PROJECT_FILE, 'project file');
 		assertFile(projectFilePath, 'project file');
@@ -292,6 +290,10 @@ const resolveProjectContexts = (
 
 	if (file.extractor.project !== undefined && file.extractor.projects !== undefined) {
 		return fail('extractor.project and extractor.projects are mutually exclusive');
+	}
+
+	if (extractorId === 'oracle' && file.extractor.project === undefined && file.extractor.projects === undefined) {
+		return fail('the oracle extractor requires extractor.project or extractor.projects to name an Oracle manifest');
 	}
 
 	const entries = file.extractor.projects ?? [{project: file.extractor.project ?? DEFAULT_PROJECT_FILE} satisfies Readonly<{project: string; name?: string}>];
@@ -331,7 +333,7 @@ const projectIdentity = (
 	cwd: string,
 ): Readonly<{extractorId: string; projectFilePath: string; projects: readonly ProjectContextConfigType[]; projectId: string; projectName: string}> => {
 	const extractorId = environment.CODE_INDEX_EXTRACTOR ?? file.extractor.id ?? DEFAULT_EXTRACTOR_ID;
-	const projects = resolveProjectContexts(environment, file, realRootDir, cwd);
+	const projects = resolveProjectContexts({environment, file, realRootDir, cwd, extractorId});
 	const [firstProject] = projects;
 
 	if (firstProject === undefined) {

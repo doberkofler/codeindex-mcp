@@ -1,6 +1,8 @@
 import {z} from 'zod';
 
-const SYMBOL_KINDS = ['function', 'class', 'interface', 'type', 'enum', 'enum_member', 'namespace', 'method', 'property', 'accessor', 'variable'] as const;
+const SYMBOL_KIND_PATTERN = /^[a-z][a-z0-9_]*$/u;
+const MAX_SYMBOL_KIND_LENGTH = 64;
+const MAX_SYMBOL_KIND_FILTERS = 32;
 
 const LimitSchema = z.number().int().min(1).max(100).default(50);
 // Compact dependency items are long enough that 50 exceed the 4 KiB page target.
@@ -11,7 +13,11 @@ export const IndexStatusInputSchema = z.object({});
 
 export const OutlineInputSchema = z.object({
 	path: z.string().min(1).describe('Repository-relative POSIX path, for example src/data/user/index.ts'),
-	kinds: z.array(z.enum(SYMBOL_KINDS)).max(SYMBOL_KINDS.length).optional().describe('Optional symbol-kind filter'),
+	kinds: z
+		.array(z.string().max(MAX_SYMBOL_KIND_LENGTH).regex(SYMBOL_KIND_PATTERN))
+		.max(MAX_SYMBOL_KIND_FILTERS)
+		.optional()
+		.describe('Optional adapter-defined symbol-kind filter'),
 	limit: LimitSchema,
 	cursor: CursorSchema,
 });
@@ -34,11 +40,14 @@ export const FindReferencesInputSchema = z.object({
 });
 
 export const FindDependenciesInputSchema = z.object({
-	package: z.string().min(1).describe('Normalized npm package name, for example lodash or @mui/material'),
+	target: z.string().min(1).describe('Canonical target identifier, for example lodash, @mui/material, or SCHEMA.PACKAGE'),
 	context: ContextSchema,
 	direction: z.literal('consumers').default('consumers').describe('Dependency direction; consumers is the only supported direction'),
-	transitive: z.boolean().default(false).describe('false (default) returns direct package usage; true returns module impact through authored imports'),
-	root: z.string().min(1).optional().describe('Direct package consumer used to filter module impact; requires transitive: true'),
+	transitive: z
+		.boolean()
+		.default(false)
+		.describe('false (default) returns direct target usage; true returns dependency impact through authored module targets'),
+	root: z.string().min(1).optional().describe('Direct target consumer used to filter dependency impact; requires transitive: true'),
 	detail: z
 		.enum(['compact', 'evidence'])
 		.default('compact')

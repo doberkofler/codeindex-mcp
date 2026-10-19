@@ -15,7 +15,7 @@ The index stores:
 - authored files with content hashes and line counts;
 - declarations with stable identifiers, qualified names, kinds, and source ranges;
 - definition and reference occurrences, including the enclosing declaration;
-- dependency edges and bindings (internal imports and external packages);
+- dependency edges and bindings (authored module imports and canonical external or logical targets);
 - extractor diagnostics;
 - build generations, freshness state, and analytics.
 
@@ -27,24 +27,31 @@ Six read-only MCP tools are exposed:
 | `outline` | Declarations in one file, in source order |
 | `find_symbol` | Exact or prefix symbol search |
 | `find_references` | Definition and reference occurrences for one symbol |
-| `find_dependencies` | Direct package usage or transitive module impact |
+| `find_dependencies` | Direct target usage or transitive dependency impact |
 | `read_symbol` | Bounded source for one symbol, rejecting stale files |
 
 All results are paginated and byte-bounded. Stale source is rejected rather than
 returned.
 
-## Language support in 0.1.0
+## Language support
 
-Version 0.1.0 ships one extractor:
+Two extractors ship today:
 
 - **TypeScript / JavaScript**, using the TypeScript compiler API.
+- **Oracle 19c SQL / PL/SQL**, using a pinned ANTLR lexer and a tolerant structural
+  scanner. No Oracle database is needed at runtime.
 
 JavaScript files are indexed when a configured project enables `allowJs`.
 Declaration files (`.d.ts`, `.d.mts`, `.d.cts`) and generated output are used for
 resolution but are not published as authored source.
 
-Other languages are not supported in 0.1.0. Oracle SQL, PL/SQL, and ORDS are the next
-planned adapter family; later languages use the same adapter seam.
+The Oracle adapter indexes package specifications, package bodies, and standalone
+procedures/functions from an explicit manifest. Triggers, object types, table
+lineage, and live catalogue metadata are outside O1 scope. See the
+[Oracle adapter](./documentation/oracle-adapter.md).
+
+ORDS and cross-language edges remain planned; later languages use the same adapter
+seam.
 
 ## Architecture
 
@@ -62,12 +69,12 @@ Extractor interface
   diagnostics · source ranges · identity and version
         │
         ▼
-TypeScript / JavaScript adapter
-  TypeScript compiler API
+TypeScript / JavaScript adapter     Oracle 19c adapter
+  TypeScript compiler API              pinned ANTLR lexer + structural scanner
 ```
 
-The core does not know about TypeScript, `tsconfig.json`, npm, or any version
-control system. Compiler objects stay inside the adapter. A new language is added
+The core does not know about TypeScript, `tsconfig.json`, npm, Oracle, or any
+version control system. Compiler objects stay inside the adapter. A new language is added
 by implementing the extractor interface and selecting it in configuration;
 storage, publication, MCP envelopes, and analytics do not change.
 
@@ -133,8 +140,25 @@ overrides resolve relative to the current working directory.
 ```
 
 Every `extractor.projects[].project` must stay inside `project.root`. The single
-`extractor.project` form remains supported. Storage paths must stay outside the
-indexed workspace.
+`extractor.project` form remains supported. The Oracle extractor requires an
+explicit manifest path; it never guesses a project filename. Storage paths must
+stay outside the indexed workspace.
+
+### Oracle manifest
+
+```json
+{
+	"schemaVersion": 1,
+	"dialect": "19c",
+	"defaultSchema": "APP",
+	"extensions": [".pks", ".pkg", ".pkb", ".prc", ".fnc"],
+	"include": ["database/**/*.pks", "database/**/*.pkb"],
+	"exclude": ["**/generated/**"]
+}
+```
+
+`extensions` is optional and replaces the default `.pks`, `.pkg`, `.pkb`, `.prc`,
+`.fnc` set. Add `.sql` or `.pls` only when those files should be published.
 
 All project contexts build into one atomic generation. Each declaration and
 occurrence records the contexts that produced it; `find_symbol` and
@@ -260,7 +284,7 @@ verify, benchmark, and reference verification operations.
 
 - [Architecture](./documentation/architecture.md)
 - [TypeScript/JavaScript adapter](./documentation/typescript-adapter.md)
-- [Oracle adapter design](./documentation/oracle-adapter.md)
+- [Oracle adapter](./documentation/oracle-adapter.md)
 - [ORDS and cross-language design](./documentation/ords-cross-language.md)
 - [Roadmap](./documentation/roadmap.md)
 - [Maintainer guide](./documentation/maintainer-guide.md)
@@ -272,7 +296,11 @@ verify, benchmark, and reference verification operations.
 ```bash
 pnpm install
 pnpm verify              # typecheck, Oxlint, Knip, Oxfmt, Vitest
-pnpm verify:references   # TypeScript reference cross-check
+pnpm verify:references   # TypeScript reference cross-check against the configured project
+# Qualification corpus:
+CODE_INDEX_ROOT=test/fixtures/reference-corpus \
+CODE_INDEX_PROJECT_FILE=test/fixtures/reference-corpus/tsconfig.json \
+pnpm verify:references
 pnpm build
 ```
 
@@ -281,10 +309,12 @@ Oxlint. Do not weaken a check to make it pass.
 
 ## Current limitations
 
-- One extractor only: TypeScript / JavaScript.
-- JavaScript requires `allowJs` in a configured project file.
-- Files must be reachable from at least one configured project file.
-- Oracle, ORDS, and cross-language edges are planned but not shipped.
+- TypeScript files must be reachable from a configured project file; JavaScript
+  requires `allowJs`.
+- Oracle O1 indexes static source only: no live database, triggers, object types,
+  table/column lineage, synonyms, database links, wrapped source, or conditional
+  compilation branch evaluation.
+- ORDS and cross-language edges are planned but not shipped.
 - No embeddings, fuzzy search, or full-text search.
 - No incremental delta storage; reuse is generation-granular.
 - Console and MCP trust the local loopback boundary.

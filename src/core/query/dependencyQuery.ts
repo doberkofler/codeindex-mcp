@@ -144,33 +144,33 @@ const propagateImpact = (
 };
 
 /**
- * Finds authored modules that consume one normalized package.
+ * Finds authored modules that consume one canonical target identifier.
  *
- * Direct usage contains modules with a package edge. Module impact keeps the
- * direct consumer that starts every shortest authored path, so a module
- * reachable through several roots appears once per root. Traversal is
+ * Direct usage contains modules with an edge to that exact target. Dependency
+ * impact keeps the direct consumer that starts every shortest authored path, so
+ * a module reachable through several roots appears once per root. Traversal is
  * cycle-safe and deterministic.
  *
- * @param input - Database, generation, package, traversal mode, and optional direct root.
+ * @param input - Database, generation, target identifier, traversal mode, and optional direct root.
  * @returns Consumers ordered by direct root, depth, and path.
- * @throws {@link CodeIndexError} When the selected root is not a direct package consumer.
+ * @throws {@link CodeIndexError} When the selected root is not a direct target consumer.
  */
 export const findDependencyConsumers = (
 	input: Readonly<{
 		database: IndexDatabase;
 		generationId: string;
-		packageName: string;
+		targetIdentifier: string;
 		context?: string | undefined;
 		transitive: boolean;
 		root?: string | undefined;
 	}>,
 ): readonly DependencyConsumerMatchType[] => {
-	const direct = input.database.findDependencyEdgesByPackage(input.generationId, input.packageName, input.context);
+	const direct = input.database.findDependencyEdgesByTargetIdentifier(input.generationId, input.targetIdentifier, input.context);
 	const directByRoot = directEdgesByRoot(direct);
 	const allRoots = [...directByRoot.keys()].sort();
 
 	if (input.root !== undefined && !directByRoot.has(input.root)) {
-		throw new CodeIndexError('invalid_argument', `Root is not a direct consumer of ${input.packageName}: ${input.root}`);
+		throw new CodeIndexError('invalid_argument', `Root is not a direct consumer of ${input.targetIdentifier}: ${input.root}`);
 	}
 
 	const selectedRoots = input.root === undefined ? allRoots : [input.root];
@@ -191,7 +191,7 @@ export const findDependencyConsumers = (
 	consumers.sort(compareMatches);
 	debug('dependency consumers resolved', {
 		generationId: input.generationId,
-		package: input.packageName,
+		target: input.targetIdentifier,
 		transitive: input.transitive,
 		root: input.root ?? null,
 		direct: direct.length,
@@ -203,7 +203,7 @@ export const findDependencyConsumers = (
 };
 
 const evidenceBindings = (bindings: readonly IndexedDependencyBindingType[]): readonly DependencyEvidenceBindingType[] =>
-	bindings.map(({kind, importedName, exportedName, localName, typeOnly}) => ({kind, importedName, exportedName, localName, typeOnly}));
+	bindings.map(({kind, importedName, exportedName, localName, compileTimeOnly}) => ({kind, importedName, exportedName, localName, compileTimeOnly}));
 
 /**
  * Projects traversal matches into compact response items.
@@ -242,8 +242,8 @@ export const toDependencyEvidenceConsumers = (
 		evidenceCount: match.evidenceCount,
 		evidence: {
 			targetPath: match.edge.targetPath,
-			rawSpecifier: match.edge.rawSpecifier,
-			normalizedPackage: match.edge.normalizedPackage,
+			rawTarget: match.edge.rawTarget,
+			targetIdentifier: match.edge.targetIdentifier,
 			kind: match.edge.kind,
 			startLine: match.edge.startLine,
 			startColumn: match.edge.startColumn,

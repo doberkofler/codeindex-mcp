@@ -14,14 +14,14 @@ const evidenceOf = (item: DependencyConsumerItemType | undefined): DependencyEvi
 const edgeFacts = (edge: IndexedDependencyEdgeType): Readonly<Record<string, unknown>> => ({
 	sourcePath: edge.sourcePath,
 	targetPath: edge.targetPath,
-	rawSpecifier: edge.rawSpecifier,
-	normalizedPackage: edge.normalizedPackage,
+	rawTarget: edge.rawTarget,
+	targetIdentifier: edge.targetIdentifier,
 	kind: edge.kind,
-	typeOnly: edge.typeOnly,
+	compileTimeOnly: edge.compileTimeOnly,
 });
 
 const bindingFacts = (bindings: readonly IndexedDependencyBindingType[]): readonly Readonly<Record<string, unknown>>[] =>
-	bindings.map(({kind, importedName, exportedName, localName, typeOnly}) => ({kind, importedName, exportedName, localName, typeOnly}));
+	bindings.map(({kind, importedName, exportedName, localName, compileTimeOnly}) => ({kind, importedName, exportedName, localName, compileTimeOnly}));
 
 const edgeAt = (edges: readonly IndexedDependencyEdgeType[], sourcePath: string): IndexedDependencyEdgeType => {
 	const edge = edges.find((candidate) => candidate.sourcePath === sourcePath);
@@ -73,47 +73,47 @@ describe('controlled dependency extraction', () => {
 		const fixture = context();
 		const {database} = fixture;
 		const id = publishedGenerationId(fixture);
-		const packageEdges = database.findDependencyEdgesByPackage(id, 'lodash');
+		const packageEdges = database.findDependencyEdgesByTargetIdentifier(id, 'lodash');
 
 		expect(packageEdges.map((edge) => edgeFacts(edge))).toStrictEqual([
 			{
 				sourcePath: 'src/cycle/a.ts',
 				targetPath: null,
-				rawSpecifier: 'lodash',
-				normalizedPackage: 'lodash',
+				rawTarget: 'lodash',
+				targetIdentifier: 'lodash',
 				kind: 'import',
-				typeOnly: false,
+				compileTimeOnly: false,
 			},
 			{
 				sourcePath: 'src/roots/direct.ts',
 				targetPath: null,
-				rawSpecifier: 'lodash',
-				normalizedPackage: 'lodash',
+				rawTarget: 'lodash',
+				targetIdentifier: 'lodash',
 				kind: 'import',
-				typeOnly: false,
+				compileTimeOnly: false,
 			},
 			{
 				sourcePath: 'src/roots/inner.ts',
 				targetPath: null,
-				rawSpecifier: 'lodash',
-				normalizedPackage: 'lodash',
+				rawTarget: 'lodash',
+				targetIdentifier: 'lodash',
 				kind: 'import',
-				typeOnly: false,
+				compileTimeOnly: false,
 			},
 			{
 				sourcePath: 'src/roots/reexport.ts',
 				targetPath: null,
-				rawSpecifier: 'lodash',
-				normalizedPackage: 'lodash',
+				rawTarget: 'lodash',
+				targetIdentifier: 'lodash',
 				kind: 'export',
-				typeOnly: false,
+				compileTimeOnly: false,
 			},
 		]);
 
 		const packageReexport = edgeAt(packageEdges, 'src/roots/reexport.ts');
 
 		expect(bindingFacts(database.listDependencyBindings(id, [packageReexport.id]))).toStrictEqual([
-			{kind: 'named', importedName: 'debounce', exportedName: 'debounce', localName: null, typeOnly: false},
+			{kind: 'named', importedName: 'debounce', exportedName: 'debounce', localName: null, compileTimeOnly: false},
 		]);
 
 		const authoredEdges = database.findDependencyEdgesByTargets(id, ['src/roots/inner.ts']);
@@ -122,26 +122,26 @@ describe('controlled dependency extraction', () => {
 			{
 				sourcePath: 'src/roots/barrel.ts',
 				targetPath: 'src/roots/inner.ts',
-				rawSpecifier: './inner.js',
-				normalizedPackage: null,
+				rawTarget: './inner.js',
+				targetIdentifier: null,
 				kind: 'export-all',
-				typeOnly: false,
+				compileTimeOnly: false,
 			},
 			{
 				sourcePath: 'src/roots/named.ts',
 				targetPath: 'src/roots/inner.ts',
-				rawSpecifier: './inner.js',
-				normalizedPackage: null,
+				rawTarget: './inner.js',
+				targetIdentifier: null,
 				kind: 'export',
-				typeOnly: false,
+				compileTimeOnly: false,
 			},
 		]);
 
 		expect(bindingFacts(database.listDependencyBindings(id, [edgeAt(authoredEdges, 'src/roots/barrel.ts').id]))).toStrictEqual([
-			{kind: 'all', importedName: '*', exportedName: '*', localName: null, typeOnly: false},
+			{kind: 'all', importedName: '*', exportedName: '*', localName: null, compileTimeOnly: false},
 		]);
 		expect(bindingFacts(database.listDependencyBindings(id, [edgeAt(authoredEdges, 'src/roots/named.ts').id]))).toStrictEqual([
-			{kind: 'named', importedName: 'work', exportedName: 'work', localName: null, typeOnly: false},
+			{kind: 'named', importedName: 'work', exportedName: 'work', localName: null, compileTimeOnly: false},
 		]);
 	});
 });
@@ -151,7 +151,7 @@ describe('controlled dependency direct usage', () => {
 
 	it('returns compact direct package usage in deterministic order', () => {
 		const {index} = context();
-		const result = index.findDependencies({package: 'lodash', limit: 50});
+		const result = index.findDependencies({target: 'lodash', limit: 50});
 
 		expect(result.queryMeaning).toBe('direct_usage');
 		expect(result.items).toStrictEqual([
@@ -174,9 +174,9 @@ describe('controlled dependency module impact', () => {
 
 	it('traverses authored re-exports and keeps every shortest direct root', () => {
 		const {index} = context();
-		const result = index.findDependencies({package: 'lodash', transitive: true, limit: 100});
+		const result = index.findDependencies({target: 'lodash', transitive: true, limit: 100});
 
-		expect(result.queryMeaning).toBe('module_impact');
+		expect(result.queryMeaning).toBe('dependency_impact');
 		expect(result.items.map(({directRoot, path, depth}) => ({directRoot, path, depth}))).toStrictEqual([
 			{directRoot: 'src/cycle/a.ts', path: 'src/cycle/a.ts', depth: 1},
 			{directRoot: 'src/cycle/a.ts', path: 'src/cycle/b.ts', depth: 2},
@@ -226,7 +226,7 @@ describe('controlled dependency module impact', () => {
 	it('keeps re-export evidence and filters impact to one direct root', () => {
 		const {index} = context();
 		const result = index.findDependencies({
-			package: 'lodash',
+			target: 'lodash',
 			transitive: true,
 			root: 'src/roots/inner.ts',
 			detail: 'evidence',
@@ -250,12 +250,12 @@ describe('controlled dependency module impact', () => {
 		});
 		expect(evidenceOf(result.items.find((item) => item.path === 'src/roots/barrel.ts'))?.evidence).toMatchObject({
 			targetPath: 'src/roots/inner.ts',
-			rawSpecifier: './inner.js',
+			rawTarget: './inner.js',
 			kind: 'export-all',
 		});
 		expect(evidenceOf(result.items.find((item) => item.path === 'src/roots/named.ts'))?.evidence).toMatchObject({
 			targetPath: 'src/roots/inner.ts',
-			rawSpecifier: './inner.js',
+			rawTarget: './inner.js',
 			kind: 'export',
 		});
 		expect(evidenceOf(result.items.find((item) => item.path === 'src/consumers/viaBarrel.ts'))).toMatchObject({
@@ -275,7 +275,7 @@ describe('controlled dependency pagination', () => {
 		let cursor: string | undefined;
 
 		for (let pageIndex = 0; pageIndex < 10; pageIndex += 1) {
-			const page = index.findDependencies({package: 'lodash', limit: 2, cursor});
+			const page = index.findDependencies({target: 'lodash', limit: 2, cursor});
 
 			expect(page.summary.totalConsumers).toBe(4);
 			entries.push(...page.items);
@@ -286,7 +286,7 @@ describe('controlled dependency pagination', () => {
 			}
 		}
 
-		const unpaged = index.findDependencies({package: 'lodash', limit: 100});
+		const unpaged = index.findDependencies({target: 'lodash', limit: 100});
 
 		expect(entries.map((item) => item.path)).toStrictEqual(unpaged.items.map((item) => item.path));
 	});
@@ -297,7 +297,7 @@ describe('controlled dependency pagination', () => {
 		let cursor: string | undefined;
 
 		for (let pageIndex = 0; pageIndex < 20; pageIndex += 1) {
-			const page = index.findDependencies({package: 'lodash', transitive: true, limit: 5, cursor});
+			const page = index.findDependencies({target: 'lodash', transitive: true, limit: 5, cursor});
 
 			expect(page.summary.totalConsumers).toBe(23);
 			entries.push(...page.items);
@@ -308,7 +308,7 @@ describe('controlled dependency pagination', () => {
 			}
 		}
 
-		const unpaged = index.findDependencies({package: 'lodash', transitive: true, limit: 100});
+		const unpaged = index.findDependencies({target: 'lodash', transitive: true, limit: 100});
 		const keys = entries.map((item) => dependencyKey(item));
 
 		expect(keys).toHaveLength(24);
@@ -318,12 +318,12 @@ describe('controlled dependency pagination', () => {
 
 	it('rejects cursors reused with different dependency semantics', () => {
 		const {index} = context();
-		const firstPage = index.findDependencies({package: 'lodash', limit: 2});
+		const firstPage = index.findDependencies({target: 'lodash', limit: 2});
 		const cursor = firstPage.nextCursor ?? undefined;
 
 		expect(cursor).toBeDefined();
-		expect(() => index.findDependencies({package: 'lodash', transitive: true, limit: 2, cursor})).toThrow(CodeIndexError);
-		expect(() => index.findDependencies({package: 'lodash', detail: 'evidence', limit: 2, cursor})).toThrow(CodeIndexError);
-		expect(() => index.findDependencies({package: 'different', limit: 2, cursor})).toThrow(CodeIndexError);
+		expect(() => index.findDependencies({target: 'lodash', transitive: true, limit: 2, cursor})).toThrow(CodeIndexError);
+		expect(() => index.findDependencies({target: 'lodash', detail: 'evidence', limit: 2, cursor})).toThrow(CodeIndexError);
+		expect(() => index.findDependencies({target: 'different', limit: 2, cursor})).toThrow(CodeIndexError);
 	});
 });

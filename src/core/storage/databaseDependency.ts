@@ -14,7 +14,7 @@ const TARGET_CHUNK_SIZE = 400;
  */
 export const insertDependencyEdges = (writer: DatabaseSync, generationId: string, edges: readonly IndexedDependencyEdgeType[]): void => {
 	const statement = writer.prepare(
-		`insert into dependency_edge (generation_id, id, context_name, source_path, target_path, raw_specifier, normalized_package, kind, type_only,
+		`insert into dependency_edge (generation_id, id, context_name, source_path, target_path, raw_target, target_identifier, kind, compile_time_only,
 		 start_line, start_column, end_line, end_column, start_offset, end_offset)
 		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	);
@@ -27,10 +27,10 @@ export const insertDependencyEdges = (writer: DatabaseSync, generationId: string
 				edge.context ?? null,
 				edge.sourcePath,
 				edge.targetPath,
-				edge.rawSpecifier,
-				edge.normalizedPackage,
+				edge.rawTarget,
+				edge.targetIdentifier,
 				edge.kind,
-				edge.typeOnly ? 1 : 0,
+				edge.compileTimeOnly ? 1 : 0,
 				edge.startLine,
 				edge.startColumn,
 				edge.endLine,
@@ -51,7 +51,7 @@ export const insertDependencyEdges = (writer: DatabaseSync, generationId: string
  */
 export const insertDependencyBindings = (writer: DatabaseSync, generationId: string, bindings: readonly IndexedDependencyBindingType[]): void => {
 	const statement = writer.prepare(
-		`insert into dependency_binding (generation_id, edge_id, position, kind, imported_name, exported_name, local_name, type_only)
+		`insert into dependency_binding (generation_id, edge_id, position, kind, imported_name, exported_name, local_name, compile_time_only)
 		 values (?, ?, ?, ?, ?, ?, ?, ?)`,
 	);
 
@@ -65,7 +65,7 @@ export const insertDependencyBindings = (writer: DatabaseSync, generationId: str
 				binding.importedName,
 				binding.exportedName,
 				binding.localName,
-				binding.typeOnly ? 1 : 0,
+				binding.compileTimeOnly ? 1 : 0,
 			);
 		}
 	});
@@ -76,24 +76,24 @@ export const insertDependencyBindings = (writer: DatabaseSync, generationId: str
  *
  * @param reader - Reader connection.
  * @param generationId - Published generation.
- * @param packageName - Normalized npm package name.
+ * @param targetIdentifier - Normalized npm package name.
  * @param context - Optional project-context filter.
  * @returns Edges in source and position order.
  */
-export const findDependencyEdgesByPackage = (
+export const findDependencyEdgesByTargetIdentifier = (
 	reader: DatabaseSync,
 	generationId: string,
-	packageName: string,
+	targetIdentifier: string,
 	context?: string,
 ): readonly StoredDependencyEdgeType[] => {
 	const contextClause = context === undefined ? '' : ' and context_name = ?';
-	const parameters = context === undefined ? [generationId, packageName] : [generationId, packageName, context];
+	const parameters = context === undefined ? [generationId, targetIdentifier] : [generationId, targetIdentifier, context];
 
 	return reader
 		.prepare(
 			`select ${DEPENDENCY_EDGE_COLUMNS}
 			 from dependency_edge
-			 where generation_id = ? and normalized_package = ?${contextClause}
+			 where generation_id = ? and target_identifier = ?${contextClause}
 			 order by source_path, start_offset, id`,
 		)
 		.all(...parameters)

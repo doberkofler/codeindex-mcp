@@ -116,20 +116,21 @@ The adapter supplies facts used by:
 | `outline` | Authored declarations in source order |
 | `find_symbol` | Exact qualified, exact simple, then bounded prefix lookup |
 | `find_references` | Definition/reference occurrences for one indexed symbol |
-| `find_dependencies` | Direct package usage or authored-module impact |
+| `find_dependencies` | Direct target usage or authored-module dependency impact |
 | `read_symbol` | Bounded source after current-file digest verification |
 
-Direct dependency usage is the default. Module impact traverses authored imports,
+Direct dependency usage is the default. Dependency impact traverses authored imports,
 is cycle-safe, keeps every direct root that begins a shortest path, and may return
 one module under multiple roots. Top-level unique totals are therefore not the sum
 of per-root totals.
 
 Compact dependency items contain path, depth, and direct root. Evidence detail
-adds locations, raw specifiers, edge kind, bindings, and equivalent-edge count.
-`root` filters impact to one direct package consumer. `context` restricts direct
-usage and impact traversal to one project context; without it, results are the
-union across contexts. Cursors bind generation, package, context, mode, root,
-detail level, and position.
+adds locations, raw targets, edge kind, bindings, and equivalent-edge count.
+For TypeScript, `target` is the normalized npm package name; authored module
+targets are traversed through `targetPath`. `root` filters impact to one direct
+target consumer. `context` restricts direct usage and impact traversal to one
+project context; without it, results are the union across contexts. Cursors bind
+generation, target, context, mode, root, detail level, and position.
 
 Impact currently proves module reachability, not binding use through a façade.
 
@@ -182,7 +183,13 @@ recorded in `test/helpers/referenceCorpus.ts`.
 Running the command against a project that does not supply all constructs fails the
 coverage part of the gate even when recall and precision are perfect. That is
 intentional: the command qualifies the adapter, not the health of an arbitrary
-consumer index.
+consumer index. Run it against the qualification corpus with:
+
+```bash
+CODE_INDEX_ROOT=test/fixtures/reference-corpus \
+CODE_INDEX_PROJECT_FILE=test/fixtures/reference-corpus/tsconfig.json \
+pnpm verify:references
+```
 
 Benchmark storage execution, core calls, MCP transport, client wrapping, and full
 agent tasks separately. See [Maintainer guide](./maintainer-guide.md).
@@ -249,7 +256,7 @@ The production pilot identified oversized and semantically unclear transitive
 package results. The following enhancements are shipped:
 
 1. compact defaults;
-2. explicit direct usage versus module impact;
+2. explicit direct usage versus dependency impact;
 3. grouping and filtering by direct root;
 4. unique top-level and per-root counts;
 5. evidence as an opt-in detail level;
@@ -336,7 +343,7 @@ file-read tools.
 - definition/reference occurrence roles only;
 - exact and prefix symbol lookup only;
 - literal dynamic imports only;
-- module impact is not binding-aware;
+- dependency impact is not binding-aware;
 - no automatic import expansion, fuzzy search, full-text search, or embeddings;
 - no TypeScript-to-Oracle/ORDS edges until those adapters and the graph model ship.
 

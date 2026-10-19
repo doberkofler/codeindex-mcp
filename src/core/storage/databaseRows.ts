@@ -1,6 +1,4 @@
 import {
-	type DependencyBindingKindType,
-	type DependencyKindType,
 	type GenerationRowType,
 	type GenerationStateType,
 	type IndexedDependencyBindingType,
@@ -111,28 +109,24 @@ export const toReference = (row: SqlRowType, contexts: readonly string[] = []): 
 	contexts,
 });
 
-const dependencyKinds: readonly DependencyKindType[] = ['import', 'side-effect', 'export', 'export-all', 'dynamic-import', 'import-type', 'import-equals'];
+const BOUNDED_KIND_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/u;
 
-const dependencyBindingKinds: readonly DependencyBindingKindType[] = ['default', 'named', 'namespace', 'all', 'import-equals'];
-
-const dependencyKindOf = (value: string): DependencyKindType => {
-	const kind = dependencyKinds.find((candidate) => candidate === value);
-
-	if (kind === undefined) {
-		throw new TypeError(`Expected dependency kind, received ${value}`);
+/**
+ * Validates one adapter-defined dependency kind read from storage.
+ *
+ * Kinds are opaque to the core. The bound keeps persisted or queried values from
+ * becoming an unbounded diagnostic or SQL surface.
+ *
+ * @param value - Persisted kind value.
+ * @returns The validated kind.
+ * @throws {@link TypeError} When the value is not a bounded adapter identifier.
+ */
+const boundedKindOf = (value: string): string => {
+	if (!BOUNDED_KIND_PATTERN.test(value)) {
+		throw new TypeError(`Expected bounded dependency kind, received ${value}`);
 	}
 
-	return kind;
-};
-
-const dependencyBindingKindOf = (value: string): DependencyBindingKindType => {
-	const kind = dependencyBindingKinds.find((candidate) => candidate === value);
-
-	if (kind === undefined) {
-		throw new TypeError(`Expected dependency binding kind, received ${value}`);
-	}
-
-	return kind;
+	return value;
 };
 
 export const toDependencyEdge = (row: SqlRowType, generationId: string): StoredDependencyEdgeType => ({
@@ -141,10 +135,10 @@ export const toDependencyEdge = (row: SqlRowType, generationId: string): StoredD
 	context: asNullableString(row, 'context_name') ?? undefined,
 	sourcePath: asString(row, 'source_path'),
 	targetPath: asNullableString(row, 'target_path'),
-	rawSpecifier: asString(row, 'raw_specifier'),
-	normalizedPackage: asNullableString(row, 'normalized_package'),
-	kind: dependencyKindOf(asString(row, 'kind')),
-	typeOnly: asNumber(row, 'type_only') === 1,
+	rawTarget: asString(row, 'raw_target'),
+	targetIdentifier: asNullableString(row, 'target_identifier'),
+	kind: boundedKindOf(asString(row, 'kind')),
+	compileTimeOnly: asNumber(row, 'compile_time_only') === 1,
 	startLine: asNumber(row, 'start_line'),
 	startColumn: asNumber(row, 'start_column'),
 	endLine: asNumber(row, 'end_line'),
@@ -156,17 +150,17 @@ export const toDependencyEdge = (row: SqlRowType, generationId: string): StoredD
 export const toDependencyBinding = (row: SqlRowType): IndexedDependencyBindingType => ({
 	edgeId: asString(row, 'edge_id'),
 	position: asNumber(row, 'position'),
-	kind: dependencyBindingKindOf(asString(row, 'kind')),
+	kind: boundedKindOf(asString(row, 'kind')),
 	importedName: asNullableString(row, 'imported_name'),
 	exportedName: asNullableString(row, 'exported_name'),
 	localName: asNullableString(row, 'local_name'),
-	typeOnly: asNumber(row, 'type_only') === 1,
+	compileTimeOnly: asNumber(row, 'compile_time_only') === 1,
 });
 
 export const DEPENDENCY_EDGE_COLUMNS =
-	'id, context_name, source_path, target_path, raw_specifier, normalized_package, kind, type_only, start_line, start_column, end_line, end_column, start_offset, end_offset';
+	'id, context_name, source_path, target_path, raw_target, target_identifier, kind, compile_time_only, start_line, start_column, end_line, end_column, start_offset, end_offset';
 
-export const DEPENDENCY_BINDING_COLUMNS = 'edge_id, position, kind, imported_name, exported_name, local_name, type_only';
+export const DEPENDENCY_BINDING_COLUMNS = 'edge_id, position, kind, imported_name, exported_name, local_name, compile_time_only';
 
 export const SYMBOL_COLUMNS = 'id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, enclosing_id';
 

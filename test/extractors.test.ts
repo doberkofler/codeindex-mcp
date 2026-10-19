@@ -3,9 +3,10 @@ import {availableExtractors, extractorFor} from '../src/adapters/registry.ts';
 import {createFixtureIndex} from './helpers/fixture.ts';
 
 describe('extractor registry', () => {
-	it('exposes the TypeScript adapter', () => {
-		expect(availableExtractors().map((extractor) => extractor.id)).toStrictEqual(['typescript']);
+	it('exposes the TypeScript and Oracle adapters', () => {
+		expect(availableExtractors().map((extractor) => extractor.id)).toStrictEqual(['typescript', 'oracle']);
 		expect(extractorFor('typescript').displayName).toBe('TypeScript / JavaScript');
+		expect(extractorFor('oracle').displayName).toBe('Oracle 19c SQL / PL/SQL');
 	});
 
 	it('rejects an unknown extractor', () => {

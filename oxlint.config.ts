@@ -24,6 +24,9 @@ const config = {
 	...defaults,
 	rules: {...defaults.rules, ...rules},
 	overrides: [...defaults.overrides, ...overrides],
+	// Generated lexer output and the verbatim upstream lexer base are not
+	// authored code. They still participate in TypeScript compilation.
+	ignorePatterns: [...defaults.ignorePatterns, 'src/adapters/oracle/generated/**', 'src/adapters/oracle/plSqlLexerBase.ts'],
 };
 
 export default config;

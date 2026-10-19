@@ -208,10 +208,10 @@ describe('IndexDatabase dependencies', () => {
 				id: 'edge-1',
 				sourcePath: file.path,
 				targetPath: null,
-				rawSpecifier: 'lodash',
-				normalizedPackage: 'lodash',
+				rawTarget: 'lodash',
+				targetIdentifier: 'lodash',
 				kind: 'import',
-				typeOnly: false,
+				compileTimeOnly: false,
 				startLine: 1,
 				startColumn: 1,
 				endLine: 1,
@@ -221,12 +221,12 @@ describe('IndexDatabase dependencies', () => {
 			},
 		]);
 		database.insertDependencyBindings(generationId, [
-			{edgeId: 'edge-1', position: 0, kind: 'named', importedName: 'debounce', exportedName: null, localName: 'debounce', typeOnly: false},
+			{edgeId: 'edge-1', position: 0, kind: 'named', importedName: 'debounce', exportedName: null, localName: 'debounce', compileTimeOnly: false},
 		]);
 		database.verifyIntegrity();
 		database.publish(generationId);
 
-		expect(database.findDependencyEdgesByPackage(generationId, 'lodash')).toHaveLength(1);
+		expect(database.findDependencyEdgesByTargetIdentifier(generationId, 'lodash')).toHaveLength(1);
 		expect(database.listDependencyBindings(generationId, ['edge-1'])[0]).toMatchObject({importedName: 'debounce', localName: 'debounce'});
 		expect(database.getPublishedGeneration()).toMatchObject({dependencyEdgeCount: 1, dependencyBindingCount: 1});
 		database.close();

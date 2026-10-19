@@ -39,7 +39,7 @@ const isPublishable = (filePath: string, extensions: readonly string[]): boolean
 export class WorkspaceWatcher {
 	readonly #rootDir: string;
 	readonly #logger: LoggerType;
-	readonly #sourceExtensions: readonly string[];
+	#sourceExtensions: readonly string[];
 	readonly #ignoredSegments: readonly string[];
 	readonly #onChange: (paths: readonly string[] | null) => void;
 	readonly #watchers = new Map<string, FSWatcher>();
@@ -59,9 +59,13 @@ export class WorkspaceWatcher {
 		this.update(files, configFiles);
 	}
 
-	public update(files: readonly Readonly<{absolutePath: string}>[], configFiles: readonly string[]): void {
+	public update(files: readonly Readonly<{absolutePath: string}>[], configFiles: readonly string[], sourceExtensions?: readonly string[]): void {
 		if (!this.#started) {
 			return;
+		}
+
+		if (sourceExtensions !== undefined) {
+			this.#sourceExtensions = sourceExtensions;
 		}
 
 		this.#configFiles = new Set(configFiles.filter((file) => existsSync(file)));

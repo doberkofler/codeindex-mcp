@@ -27,7 +27,7 @@ type PendingBindingType = Omit<IndexedDependencyBindingType, 'edgeId'>;
 type FoundDependencyType = Readonly<{
 	readonly literal: ts.StringLiteralLike;
 	readonly kind: DependencyKindType;
-	readonly typeOnly: boolean;
+	readonly compileTimeOnly: boolean;
 	readonly bindings: readonly PendingBindingType[];
 }>;
 
@@ -46,20 +46,20 @@ const importBindings = (clause: ts.ImportClause | undefined): readonly PendingBi
 	const clauseTypeOnly = isTypeOnlyClause(clause);
 
 	if (clause.name !== undefined) {
-		bindings.push(binding({kind: 'default', importedName: 'default', exportedName: null, localName: clause.name.text, typeOnly: clauseTypeOnly}));
+		bindings.push(binding({kind: 'default', importedName: 'default', exportedName: null, localName: clause.name.text, compileTimeOnly: clauseTypeOnly}));
 	}
 
 	const {namedBindings} = clause;
 
 	if (namedBindings !== undefined) {
 		if (ts.isNamespaceImport(namedBindings)) {
-			bindings.push(binding({kind: 'namespace', importedName: '*', exportedName: null, localName: namedBindings.name.text, typeOnly: clauseTypeOnly}));
+			bindings.push(binding({kind: 'namespace', importedName: '*', exportedName: null, localName: namedBindings.name.text, compileTimeOnly: clauseTypeOnly}));
 		} else {
 			for (const element of namedBindings.elements) {
-				const typeOnly = clauseTypeOnly || element.isTypeOnly;
+				const compileTimeOnly = clauseTypeOnly || element.isTypeOnly;
 				const importedName = element.propertyName === undefined ? element.name.text : nameText(element.propertyName);
 
-				bindings.push(binding({kind: 'named', importedName, exportedName: null, localName: element.name.text, typeOnly}));
+				bindings.push(binding({kind: 'named', importedName, exportedName: null, localName: element.name.text, compileTimeOnly}));
 			}
 		}
 	}
@@ -71,7 +71,7 @@ const exportBindings = (declaration: ts.ExportDeclaration): readonly PendingBind
 	const {exportClause} = declaration;
 
 	if (exportClause === undefined) {
-		return [binding({kind: 'all', importedName: '*', exportedName: '*', localName: null, typeOnly: declaration.isTypeOnly})];
+		return [binding({kind: 'all', importedName: '*', exportedName: '*', localName: null, compileTimeOnly: declaration.isTypeOnly})];
 	}
 
 	if (ts.isNamespaceExport(exportClause)) {
@@ -81,7 +81,7 @@ const exportBindings = (declaration: ts.ExportDeclaration): readonly PendingBind
 				importedName: '*',
 				exportedName: nameText(exportClause.name),
 				localName: null,
-				typeOnly: declaration.isTypeOnly,
+				compileTimeOnly: declaration.isTypeOnly,
 			}),
 		];
 	}
@@ -94,7 +94,7 @@ const exportBindings = (declaration: ts.ExportDeclaration): readonly PendingBind
 			importedName: importName,
 			exportedName: element.name.text,
 			localName: null,
-			typeOnly: declaration.isTypeOnly || element.isTypeOnly,
+			compileTimeOnly: declaration.isTypeOnly || element.isTypeOnly,
 		});
 	});
 };
@@ -107,7 +107,7 @@ const staticImport = (node: ts.ImportDeclaration): FoundDependencyType | null =>
 	return {
 		literal: node.moduleSpecifier,
 		kind: node.importClause === undefined ? 'side-effect' : 'import',
-		typeOnly: node.importClause === undefined ? false : isTypeOnlyClause(node.importClause),
+		compileTimeOnly: node.importClause === undefined ? false : isTypeOnlyClause(node.importClause),
 		bindings: importBindings(node.importClause),
 	};
 };
@@ -120,7 +120,7 @@ const staticExport = (node: ts.ExportDeclaration): FoundDependencyType | null =>
 	return {
 		literal: node.moduleSpecifier,
 		kind: node.exportClause === undefined ? 'export-all' : 'export',
-		typeOnly: node.isTypeOnly,
+		compileTimeOnly: node.isTypeOnly,
 		bindings: exportBindings(node),
 	};
 };
@@ -135,8 +135,8 @@ const importEquals = (node: ts.ImportEqualsDeclaration): FoundDependencyType | n
 	return {
 		literal: moduleReference.expression,
 		kind: 'import-equals',
-		typeOnly: node.isTypeOnly,
-		bindings: [binding({kind: 'import-equals', importedName: null, exportedName: null, localName: node.name.text, typeOnly: node.isTypeOnly})],
+		compileTimeOnly: node.isTypeOnly,
+		bindings: [binding({kind: 'import-equals', importedName: null, exportedName: null, localName: node.name.text, compileTimeOnly: node.isTypeOnly})],
 	};
 };
 
@@ -146,7 +146,7 @@ const dynamicImport = (node: ts.CallExpression): FoundDependencyType | null => {
 	}
 
 	const [argument] = node.arguments;
-	return argument !== undefined && ts.isStringLiteralLike(argument) ? {literal: argument, kind: 'dynamic-import', typeOnly: false, bindings: []} : null;
+	return argument !== undefined && ts.isStringLiteralLike(argument) ? {literal: argument, kind: 'dynamic-import', compileTimeOnly: false, bindings: []} : null;
 };
 
 const importType = (node: ts.ImportTypeNode): FoundDependencyType | null => {
@@ -154,7 +154,7 @@ const importType = (node: ts.ImportTypeNode): FoundDependencyType | null => {
 		return null;
 	}
 
-	return {literal: node.argument.literal, kind: 'import-type', typeOnly: true, bindings: []};
+	return {literal: node.argument.literal, kind: 'import-type', compileTimeOnly: true, bindings: []};
 };
 
 const foundDependency = (node: ts.Node): FoundDependencyType | null => {
@@ -263,7 +263,7 @@ export const extractDependencyFacts = (input: DependencyInputType): DependencyEx
 			if (found !== null) {
 				const targetPath = resolvedTargetPath({project: input.project, authoredPaths, rootDir: input.rootDir, sourceFile, cache}, found.literal);
 				const alias = aliasPrefixes.find((prefix) => found.literal.text === prefix || found.literal.text.startsWith(`${prefix}/`));
-				const normalizedPackage = targetPath !== null || alias !== undefined ? null : packageNameOf(found.literal.text);
+				const targetIdentifier = targetPath !== null || alias !== undefined ? null : packageNameOf(found.literal.text);
 				const start = sourceFile.getLineAndCharacterOfPosition(found.literal.getStart(sourceFile));
 				const end = sourceFile.getLineAndCharacterOfPosition(found.literal.end);
 				const id = createSymbolId({
@@ -280,10 +280,10 @@ export const extractDependencyFacts = (input: DependencyInputType): DependencyEx
 					context: input.context,
 					sourcePath: file.path,
 					targetPath,
-					rawSpecifier: found.literal.text,
-					normalizedPackage,
+					rawTarget: found.literal.text,
+					targetIdentifier,
 					kind: found.kind,
-					typeOnly: found.typeOnly,
+					compileTimeOnly: found.compileTimeOnly,
 					startLine: start.line + 1,
 					startColumn: start.character + 1,
 					endLine: end.line + 1,
@@ -308,7 +308,7 @@ export const extractDependencyFacts = (input: DependencyInputType): DependencyEx
 	debug('dependency extraction complete', {
 		edges: edges.length,
 		bindings: bindings.length,
-		packages: edges.filter((edge) => edge.normalizedPackage !== null).length,
+		packages: edges.filter((edge) => edge.targetIdentifier !== null).length,
 		durationMs: Math.round(performance.now() - startedAt),
 	});
 

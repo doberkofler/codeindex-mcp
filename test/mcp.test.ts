@@ -18,8 +18,13 @@ const textOf = (result: Readonly<{content: readonly {type: string; text?: string
 	return content.text;
 };
 
-const openFixture = async (fixtureName: string, maxResultBytes: number, projects?: readonly FixtureProjectType[]): Promise<ConnectionType> => {
-	const fixture = createFixtureIndex(fixtureName, projects);
+const openFixture = async (
+	fixtureName: string,
+	maxResultBytes: number,
+	projects?: readonly FixtureProjectType[],
+	extractorId = 'typescript',
+): Promise<ConnectionType> => {
+	const fixture = createFixtureIndex(fixtureName, projects, extractorId);
 	const server = buildMcpServer({index: fixture.index, logger: silentLogger, maxResultBytes});
 	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
@@ -47,10 +52,12 @@ describe('MCP adapter', () => {
 		connection = undefined;
 	});
 
-	const connect = async (fixtureName = 'simple-project', maxResultBytes = 32_768, projects?: readonly FixtureProjectType[]): Promise<Client> => {
-		connection = await openFixture(fixtureName, maxResultBytes, projects);
-		return connection.client;
-	};
+	const connect = async (
+		fixtureName = 'simple-project',
+		maxResultBytes = 32_768,
+		projects?: readonly FixtureProjectType[],
+		extractorId = 'typescript',
+	): Promise<Client> => (connection = await openFixture(fixtureName, maxResultBytes, projects, extractorId)).client;
 
 	it('registers exactly six read-only tools', async () => {
 		const client = await connect();
@@ -169,7 +176,7 @@ describe('MCP direct dependency usage', () => {
 
 	it('serves compact direct package usage by default', async () => {
 		const client = await connect('dependency-graph');
-		const result = await client.callTool({name: 'find_dependencies', arguments: {package: 'lodash'}});
+		const result = await client.callTool({name: 'find_dependencies', arguments: {target: 'lodash'}});
 		const text = textOf(result);
 		const envelope = JSON.parse(text) as EnvelopeType & {
 			data: {
@@ -202,7 +209,7 @@ describe('MCP direct dependency usage', () => {
 		const client = await connect('dependency-graph');
 		const result = await client.callTool({
 			name: 'find_dependencies',
-			arguments: {package: 'lodash', transitive: true, detail: 'evidence', limit: 100},
+			arguments: {target: 'lodash', transitive: true, detail: 'evidence', limit: 100},
 		});
 		const envelope = JSON.parse(textOf(result)) as EnvelopeType & {
 			data: {
@@ -212,7 +219,7 @@ describe('MCP direct dependency usage', () => {
 					directRoot: string;
 					relationship: string;
 					evidenceCount: number;
-					evidence: {kind: string; rawSpecifier: string; bindings: readonly {localName: string | null}[]};
+					evidence: {kind: string; rawTarget: string; bindings: readonly {localName: string | null}[]};
 				}[];
 			};
 		};
@@ -222,7 +229,7 @@ describe('MCP direct dependency usage', () => {
 			directRoot: 'src/adapters/lodash_api.ts',
 			relationship: 'direct',
 			evidenceCount: 1,
-			evidence: {kind: 'import', rawSpecifier: 'lodash'},
+			evidence: {kind: 'import', rawTarget: 'lodash'},
 		});
 		expect(envelope.data.items.find((item) => item.path === 'src/consumers/dynamic.ts')?.evidence.kind).toBe('dynamic-import');
 		expect(envelope.data.items.find((item) => item.path === 'src/adapters/lodash_api.ts')?.evidence.bindings.map((binding) => binding.localName)).toContain(
@@ -246,7 +253,7 @@ describe('MCP dependency impact', () => {
 
 	it('serves grouped module impact with per-root counts', async () => {
 		const client = await connect('dependency-impact');
-		const result = await client.callTool({name: 'find_dependencies', arguments: {package: 'lodash', transitive: true, limit: 100}});
+		const result = await client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', transitive: true, limit: 100}});
 		const text = textOf(result);
 		const envelope = JSON.parse(text) as EnvelopeType & {
 			data: {
@@ -258,7 +265,7 @@ describe('MCP dependency impact', () => {
 
 		expect(envelope.ok).toBe(true);
 		expect(new TextEncoder().encode(text).length).toBeLessThan(8192);
-		expect(envelope.data.queryMeaning).toBe('module_impact');
+		expect(envelope.data.queryMeaning).toBe('dependency_impact');
 		expect(envelope.data.summary).toStrictEqual({
 			totalConsumers: 53,
 			directConsumers: 2,
@@ -279,7 +286,7 @@ describe('MCP dependency impact', () => {
 
 	it('keeps the default impact page within the compact byte target', async () => {
 		const client = await connect('dependency-impact');
-		const result = await client.callTool({name: 'find_dependencies', arguments: {package: 'lodash', transitive: true}});
+		const result = await client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', transitive: true}});
 		const text = textOf(result);
 		const envelope = JSON.parse(text) as EnvelopeType & {data: {items: readonly unknown[]}};
 
@@ -292,7 +299,7 @@ describe('MCP dependency impact', () => {
 		const client = await connect('dependency-impact');
 		const filtered = await client.callTool({
 			name: 'find_dependencies',
-			arguments: {package: 'lodash', transitive: true, root: 'src/boundary/narrow.ts', limit: 100},
+			arguments: {target: 'lodash', transitive: true, root: 'src/boundary/narrow.ts', limit: 100},
 		});
 		const envelope = JSON.parse(textOf(filtered)) as EnvelopeType & {
 			data: {items: readonly {directRoot: string}[]; summary: unknown};
@@ -308,8 +315,8 @@ describe('MCP dependency impact', () => {
 		});
 
 		const invalidResults = await Promise.all([
-			client.callTool({name: 'find_dependencies', arguments: {package: 'lodash', transitive: true, root: 'src/shared/shared.ts'}}),
-			client.callTool({name: 'find_dependencies', arguments: {package: 'lodash', transitive: false, root: 'src/boundary/narrow.ts'}}),
+			client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', transitive: true, root: 'src/shared/shared.ts'}}),
+			client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', transitive: false, root: 'src/boundary/narrow.ts'}}),
 		]);
 
 		for (const invalid of invalidResults) {
@@ -329,8 +336,13 @@ describe('MCP paginated response bounds', () => {
 		connection = undefined;
 	});
 
-	const connect = async (fixtureName: string, maxResultBytes: number): Promise<Client> => {
-		connection = await openFixture(fixtureName, maxResultBytes);
+	const connect = async (
+		fixtureName: string,
+		maxResultBytes: number,
+		projects?: readonly FixtureProjectType[],
+		extractorId = 'typescript',
+	): Promise<Client> => {
+		connection = await openFixture(fixtureName, maxResultBytes, projects, extractorId);
 		return connection.client;
 	};
 
@@ -343,7 +355,7 @@ describe('MCP paginated response bounds', () => {
 		const collectEntries = async (cursor?: string, collected: readonly CompactItemType[] = []): Promise<readonly CompactItemType[]> => {
 			const result = await client.callTool({
 				name: 'find_dependencies',
-				arguments: {package: 'lodash', transitive: true, limit: 100, cursor},
+				arguments: {target: 'lodash', transitive: true, limit: 100, cursor},
 			});
 			const text = textOf(result);
 			const envelope = JSON.parse(text) as EnvelopeType & {
@@ -381,5 +393,33 @@ describe('MCP paginated response bounds', () => {
 		expect(envelope.ok).toBe(true);
 		expect(envelope.data.items.length).toBeGreaterThan(0);
 		expect(envelope.data.nextCursor).not.toBeNull();
+	});
+});
+
+describe('MCP Oracle adapter', () => {
+	it('serves all six tools for an Oracle manifest', async () => {
+		const connection = await openFixture('oracle-project', 32_768, [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+		const {client} = connection;
+
+		try {
+			const status = await client.callTool({name: 'index_status', arguments: {}});
+			const outline = await client.callTool({name: 'outline', arguments: {path: 'database/hr_api.pks', kinds: ['package'], limit: 100}});
+			const symbols = await client.callTool({name: 'find_symbol', arguments: {query: 'APP.HR_API.DELETE_EMPLOYEE'}});
+			const symbolData = JSON.parse(textOf(symbols)) as EnvelopeType & {data: {items: readonly {id: string; match: string}[]}};
+			const exact = symbolData.data.items.find((item) => item.match === 'exact_qualified');
+			const references = await client.callTool({name: 'find_references', arguments: {symbolId: exact?.id ?? ''}});
+			const dependencies = await client.callTool({name: 'find_dependencies', arguments: {target: 'APP.HR_API'}});
+			const source = await client.callTool({name: 'read_symbol', arguments: {symbolId: exact?.id ?? ''}});
+
+			for (const result of [status, outline, symbols, references, dependencies, source]) {
+				expect(result.isError).not.toBe(true);
+			}
+
+			expect(textOf(outline)).toContain('APP.HR_API');
+			expect(textOf(references)).toContain('database/hr_api.pkb');
+			expect(textOf(dependencies)).toContain('database/maintenance_run.prc');
+		} finally {
+			await connection.close();
+		}
 	});
 });

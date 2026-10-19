@@ -18,9 +18,9 @@ import {
 const debug = debugFor('mcp');
 
 const SERVER_INSTRUCTIONS = `For code navigation in this workspace, use the code index before broad grep or whole-file reads.
-Use find_symbol to locate a declaration by name, outline to inspect a known file, find_references to find consumers, find_dependencies to find package usage, and read_symbol to read the smallest useful source range.
-For "where is package X used?" or "where do we use package X?", call find_dependencies once with transitive false and compact detail. Do not call index_status first. A current, untruncated direct result is the complete answer: report the returned paths and stop. Do not search manifests, grep source, read the listed files, or expand into downstream consumers unless the question asks for those facts.
-Use detail evidence only when import statements, bindings, or locations are requested. Request transitive true only when the question asks about downstream module impact; those results prove authored-module reachability, not binding use. Filter with root to inspect one direct consumer.
+Use find_symbol to locate a declaration by name, outline to inspect a known file, find_references to find consumers, find_dependencies to find dependency usage, and read_symbol to read the smallest useful source range.
+For "where is dependency X used?" or "where do we use target X?", call find_dependencies once with transitive false and compact detail. Do not call index_status first. A current, untruncated direct result is the complete answer: report the returned paths and stop. Do not search manifests, grep source, read the listed files, or expand into downstream consumers unless the question asks for those facts.
+Use detail evidence only when import statements, bindings, or locations are requested. Request transitive true only when the question asks about downstream dependency impact; those results prove authored-module reachability, not binding use. Filter with root to inspect one direct consumer.
 Package manifests and lint or build configuration are outside the indexed workspace; use at most one targeted repository search when those facts are required.
 Every result reports a generation, explicit freshness, and truncation. Treat current freshness as usable, updating as readable but possibly stale, and stale or unknown as a fallback trigger.
 Paginated limits are upper bounds; follow nextCursor whenever truncated is true.
@@ -202,7 +202,7 @@ export const buildMcpServer = (
 		{
 			name: 'find_dependencies',
 			description:
-				'Find authored modules that import an npm package. For direct usage, call once with transitive false and compact detail; a current untruncated result is the complete answer. Transitive mode returns module impact grouped by direct root. Pages may be shortened to the response byte limit; follow nextCursor.',
+				'Find authored modules that consume a canonical dependency target. For direct usage, call once with transitive false and compact detail; a current untruncated result is the complete answer. Transitive mode returns dependency impact grouped by direct root. Pages may be shortened to the response byte limit; follow nextCursor.',
 			maxResultBytes,
 			logger,
 			analytics,

@@ -109,7 +109,7 @@ export const findReferences = (context: QueryContextType, input: FindReferencesI
  * Builds complete-set dependency counts, independent of the returned page.
  *
  * @param matches - Every consumer match for the query.
- * @param transitive - Whether the query is module impact.
+ * @param transitive - Whether the query is dependency impact.
  * @returns Unique totals and, for impact, per-root group counts.
  */
 const summarizeDependencyMatches = (matches: readonly DependencyConsumerMatchType[], transitive: boolean): FindDependenciesResultType['summary'] => {
@@ -140,23 +140,24 @@ const summarizeDependencyMatches = (matches: readonly DependencyConsumerMatchTyp
 };
 
 /**
- * Finds authored modules that consume one normalized npm package.
+ * Finds authored modules that consume one canonical external or logical target.
  *
- * Direct usage (`transitive: false`, the default) contains modules with a
- * package edge. Module impact (`transitive: true`) traverses authored imports
- * and groups every shortest path by the direct consumer that starts it.
+ * Direct usage (`transitive: false`, the default) contains modules with an edge
+ * to the exact target identifier. Dependency impact (`transitive: true`)
+ * traverses authored module targets and groups every shortest path by the
+ * direct consumer that starts it.
  *
  * @param context - Database, published generation, and freshness.
- * @param input - Package, traversal mode, optional root, detail level, and page bounds.
+ * @param input - Target identifier, traversal mode, optional root, detail level, and page bounds.
  * @param maxResultBytes - Maximum serialized result-data size.
  * @returns Paginated dependency consumers with complete-set counts.
- * @throws {@link CodeIndexError} When the package is empty, a root is invalid, or the cursor is invalid.
+ * @throws {@link CodeIndexError} When the target is empty, a root is invalid, or the cursor is invalid.
  */
 export const findDependencies = (context: QueryContextType, input: FindDependenciesInputType, maxResultBytes: number): FindDependenciesResultType => {
-	const packageName = input.package.trim();
+	const targetIdentifier = input.target.trim();
 
-	if (packageName.length === 0) {
-		throw new CodeIndexError('invalid_argument', 'Package must not be empty');
+	if (targetIdentifier.length === 0) {
+		throw new CodeIndexError('invalid_argument', 'Target must not be empty');
 	}
 
 	const transitive = input.transitive ?? false;
@@ -174,7 +175,7 @@ export const findDependencies = (context: QueryContextType, input: FindDependenc
 		direction,
 		transitive ? 'impact' : 'direct',
 		detail,
-		packageName,
+		targetIdentifier,
 		root ?? null,
 		input.context ?? null,
 	]);
@@ -182,7 +183,7 @@ export const findDependencies = (context: QueryContextType, input: FindDependenc
 	const matches = findDependencyConsumers({
 		database: context.database,
 		generationId: context.generationId,
-		packageName,
+		targetIdentifier,
 		context: input.context,
 		transitive,
 		root,
@@ -199,7 +200,7 @@ export const findDependencies = (context: QueryContextType, input: FindDependenc
 				)
 			: toDependencyConsumers(pageMatches);
 	const summary = summarizeDependencyMatches(matches, transitive);
-	const queryMeaning = transitive ? 'module_impact' : 'direct_usage';
+	const queryMeaning = transitive ? 'dependency_impact' : 'direct_usage';
 
 	return boundedPagedResult({
 		generationId: context.generationId,

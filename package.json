@@ -22,7 +22,8 @@
 		"dist",
 		"README.md",
 		"LICENSE",
-		"CHANGELOG.md"
+		"CHANGELOG.md",
+		"THIRD_PARTY_NOTICES.md"
 	],
 	"type": "module",
 	"exports": {
@@ -39,6 +40,8 @@
 		"benchmark:public": "pnpm run build && node dist/cli.mjs benchmark-suite --suite benchmark/suites/public-projects.json",
 		"benchmark:reference": "pnpm run build && node dist/cli.mjs benchmark-suite --suite benchmark/suites/reference.json",
 		"commitlint": "commitlint",
+		"grammar:oracle:download": "node --experimental-strip-types scripts/downloadOracleGrammar.ts",
+		"grammar:oracle:generate": "node scripts/generateOracleGrammar.mjs",
 		"console": "node dist/console.mjs",
 		"status": "node dist/cli.mjs status",
 		"update": "node dist/cli.mjs update",
@@ -56,6 +59,7 @@
 	},
 	"dependencies": {
 		"@modelcontextprotocol/server": "2.3.1",
+		"antlr4ng": "3.0.16",
 		"commander": "15.0.0",
 		"debug": "4.4.3",
 		"jsonc-parser": "3.3.1",
@@ -76,6 +80,7 @@
 		"@types/node": "26.6.5",
 		"@types/react": "19.3.0",
 		"@types/react-dom": "19.3.0",
+		"antlr-ng": "1.0.10",
 		"eslint-plugin-regexp": "3.3.1",
 		"husky": "9.1.7",
 		"knip": "6.41.0",

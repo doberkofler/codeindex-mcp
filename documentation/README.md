@@ -6,7 +6,7 @@ Operational and design documentation for CodeIndex MCP.
 | --- | --- |
 | [Architecture](./architecture.md) | Core design, generation lifecycle, storage, extractor seam, and query contracts |
 | [TypeScript/JavaScript adapter](./typescript-adapter.md) | Shipped extractor behavior, production-pilot status, validation, limitations, and enhancement backlog |
-| [Oracle adapter](./oracle-adapter.md) | Planned SQL and PL/SQL static and live extraction, PL/Scope, and source/database drift |
+| [Oracle adapter](./oracle-adapter.md) | Static Oracle 19c SQL/PL/SQL extraction, manifest configuration, symbols, references, and package dependencies |
 | [ORDS and cross-language resolution](./ords-cross-language.md) | Planned HTTP, ORDS, and PL/SQL route evidence and cross-language graph construction |
 | [Roadmap](./roadmap.md) | Ordered delivery phases, acceptance gates, stop rules, and open decisions |
 | [Maintainer guide](./maintainer-guide.md) | Runtime contracts, verification, performance, security, and release discipline |
@@ -18,7 +18,7 @@ Operational and design documentation for CodeIndex MCP.
 ## Scope
 
 These documents describe the public, language-neutral implementation, its
-TypeScript/JavaScript extractor, and the planned Oracle and ORDS adapter family.
+TypeScript/JavaScript and Oracle extractors, and the planned ORDS adapter family.
 The architecture is intended to support additional source languages through
 adapters. It intentionally contains no consumer-specific workspace paths, corpus
 content, evaluation transcripts, credentials, or proprietary source excerpts.

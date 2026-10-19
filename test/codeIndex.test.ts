@@ -124,7 +124,7 @@ describe('CodeIndex direct dependency usage', () => {
 
 	it('returns compact direct package usage by default', () => {
 		fixture = createFixtureIndex('dependency-graph');
-		const result = fixture.index.findDependencies({package: 'lodash', limit: 50});
+		const result = fixture.index.findDependencies({target: 'lodash', limit: 50});
 
 		expect(result.queryMeaning).toBe('direct_usage');
 		expect(result.items).toStrictEqual([
@@ -143,32 +143,32 @@ describe('CodeIndex direct dependency usage', () => {
 
 	it('adds edge evidence, locations, and bindings only when requested', () => {
 		fixture = createFixtureIndex('dependency-graph');
-		const result = fixture.index.findDependencies({package: 'lodash', detail: 'evidence', limit: 50});
+		const result = fixture.index.findDependencies({target: 'lodash', detail: 'evidence', limit: 50});
 		const adapter = evidenceOf(result.items.find((item) => item.path === 'src/adapters/lodash_api.ts'));
 
 		expect(adapter).toMatchObject({
 			directRoot: 'src/adapters/lodash_api.ts',
 			relationship: 'direct',
 			evidenceCount: 1,
-			evidence: {rawSpecifier: 'lodash', normalizedPackage: 'lodash', kind: 'import', targetPath: null},
+			evidence: {rawTarget: 'lodash', targetIdentifier: 'lodash', kind: 'import', targetPath: null},
 		});
 		expect(adapter?.evidence.bindings).toContainEqual({
 			kind: 'named',
 			importedName: 'debounce',
 			exportedName: null,
 			localName: 'externalDebounce',
-			typeOnly: false,
+			compileTimeOnly: false,
 		});
 
 		expect(evidenceOf(result.items.find((item) => item.path === 'src/adapters/escape.ts'))?.evidence).toMatchObject({
-			rawSpecifier: 'lodash/escape.js',
-			normalizedPackage: 'lodash',
+			rawTarget: 'lodash/escape.js',
+			targetIdentifier: 'lodash',
 		});
 	});
 
 	it('normalizes scoped packages and preserves type-only bindings', () => {
 		fixture = createFixtureIndex('dependency-graph');
-		const result = fixture.index.findDependencies({package: '@scope/pkg', detail: 'evidence', limit: 50});
+		const result = fixture.index.findDependencies({target: '@scope/pkg', detail: 'evidence', limit: 50});
 		const scoped = evidenceOf(result.items[0]);
 
 		expect(result.items.map((item) => item.path)).toStrictEqual(['src/adapters/scoped.ts']);
@@ -177,14 +177,14 @@ describe('CodeIndex direct dependency usage', () => {
 			importedName: 'default',
 			exportedName: null,
 			localName: 'measure',
-			typeOnly: false,
+			compileTimeOnly: false,
 		});
 		expect(scoped?.evidence.bindings).toContainEqual({
 			kind: 'named',
 			importedName: 'Shape',
 			exportedName: null,
 			localName: 'Shape',
-			typeOnly: true,
+			compileTimeOnly: true,
 		});
 	});
 });
@@ -199,9 +199,9 @@ describe('CodeIndex module impact', () => {
 
 	it('groups module impact by direct root with shortest depth and no cycles', () => {
 		fixture = createFixtureIndex('dependency-graph');
-		const result = fixture.index.findDependencies({package: 'lodash', transitive: true, detail: 'evidence', limit: 100});
+		const result = fixture.index.findDependencies({target: 'lodash', transitive: true, detail: 'evidence', limit: 100});
 
-		expect(result.queryMeaning).toBe('module_impact');
+		expect(result.queryMeaning).toBe('dependency_impact');
 		expect(result.items.map((item) => ({directRoot: item.directRoot, path: item.path, depth: item.depth}))).toStrictEqual([
 			{directRoot: 'src/adapters/escape.ts', path: 'src/adapters/escape.ts', depth: 1},
 			{directRoot: 'src/adapters/escape.ts', path: 'src/consumers/two.ts', depth: 2},
@@ -228,7 +228,7 @@ describe('CodeIndex module impact', () => {
 
 	it('reports non-additive root counts when impact paths overlap', () => {
 		fixture = createFixtureIndex('dependency-impact');
-		const result = fixture.index.findDependencies({package: 'lodash', transitive: true, limit: 100});
+		const result = fixture.index.findDependencies({target: 'lodash', transitive: true, limit: 100});
 
 		expect(result.summary).toStrictEqual({
 			totalConsumers: 53,
@@ -250,7 +250,7 @@ describe('CodeIndex module impact', () => {
 
 	it('filters impact to one direct root', () => {
 		fixture = createFixtureIndex('dependency-impact');
-		const result = fixture.index.findDependencies({package: 'lodash', transitive: true, root: 'src/boundary/narrow.ts', limit: 100});
+		const result = fixture.index.findDependencies({target: 'lodash', transitive: true, root: 'src/boundary/narrow.ts', limit: 100});
 
 		expect(result.items.every((item) => item.directRoot === 'src/boundary/narrow.ts')).toBe(true);
 		expect(result.items).toHaveLength(42);
@@ -265,14 +265,14 @@ describe('CodeIndex module impact', () => {
 	it('rejects root filters that are not direct consumers or not in impact mode', () => {
 		fixture = createFixtureIndex('dependency-impact');
 
-		expect(() => fixture?.index.findDependencies({package: 'lodash', transitive: true, root: 'src/shared/shared.ts', limit: 10})).toThrow(CodeIndexError);
-		expect(() => fixture?.index.findDependencies({package: 'lodash', transitive: false, root: 'src/boundary/narrow.ts', limit: 10})).toThrow(CodeIndexError);
+		expect(() => fixture?.index.findDependencies({target: 'lodash', transitive: true, root: 'src/shared/shared.ts', limit: 10})).toThrow(CodeIndexError);
+		expect(() => fixture?.index.findDependencies({target: 'lodash', transitive: false, root: 'src/boundary/narrow.ts', limit: 10})).toThrow(CodeIndexError);
 	});
 
 	it('does not treat TypeScript path aliases as packages', () => {
 		fixture = createFixtureIndex('dependency-graph');
 
-		expect(fixture.index.findDependencies({package: '@app/adapters', transitive: true, limit: 10}).items).toHaveLength(0);
+		expect(fixture.index.findDependencies({target: '@app/adapters', transitive: true, limit: 10}).items).toHaveLength(0);
 	});
 });
 
@@ -287,8 +287,8 @@ describe('CodeIndex dependency pagination', () => {
 	it('paginates grouped impact and rejects cursors reused with different semantics', () => {
 		fixture = createFixtureIndex('dependency-impact');
 		const {index} = fixture;
-		const first = index.findDependencies({package: 'lodash', transitive: true, limit: 7});
-		const second = index.findDependencies({package: 'lodash', transitive: true, limit: 7, cursor: first.nextCursor ?? undefined});
+		const first = index.findDependencies({target: 'lodash', transitive: true, limit: 7});
+		const second = index.findDependencies({target: 'lodash', transitive: true, limit: 7, cursor: first.nextCursor ?? undefined});
 
 		expect(first.items).toHaveLength(7);
 		expect(first.summary.totalConsumers).toBe(53);
@@ -296,7 +296,7 @@ describe('CodeIndex dependency pagination', () => {
 		expect(second.items.map((item) => `${item.directRoot}:${item.path}`)).not.toStrictEqual(first.items.map((item) => `${item.directRoot}:${item.path}`));
 		expect(() =>
 			index.findDependencies({
-				package: 'lodash',
+				target: 'lodash',
 				transitive: true,
 				detail: 'evidence',
 				limit: 7,
@@ -305,14 +305,14 @@ describe('CodeIndex dependency pagination', () => {
 		).toThrow(CodeIndexError);
 		expect(() =>
 			index.findDependencies({
-				package: 'lodash',
+				target: 'lodash',
 				transitive: true,
 				root: 'src/boundary/narrow.ts',
 				limit: 7,
 				cursor: first.nextCursor ?? undefined,
 			}),
 		).toThrow(CodeIndexError);
-		expect(() => index.findDependencies({package: 'lodash', transitive: false, limit: 7, cursor: first.nextCursor ?? undefined})).toThrow(CodeIndexError);
+		expect(() => index.findDependencies({target: 'lodash', transitive: false, limit: 7, cursor: first.nextCursor ?? undefined})).toThrow(CodeIndexError);
 	});
 });
 

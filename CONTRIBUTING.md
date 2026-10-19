@@ -10,6 +10,10 @@
 ```bash
 pnpm install
 pnpm verify
+# TypeScript reference qualification corpus
+CODE_INDEX_ROOT=test/fixtures/reference-corpus \
+CODE_INDEX_PROJECT_FILE=test/fixtures/reference-corpus/tsconfig.json \
+pnpm verify:references
 ```
 
 `pnpm install` runs the build through the `prepare` script. Use
@@ -25,7 +29,7 @@ pnpm verify
 | `pnpm format:check` | Oxfmt |
 | `pnpm test` | Vitest |
 | `pnpm verify` | All of the above |
-| `pnpm verify:references` | TypeScript language-service reference cross-check |
+| `pnpm verify:references` | TypeScript language-service reference cross-check against the configured project; use the qualification corpus command above |
 
 Fix the underlying code when a check fails. Do not disable, exclude, or relax a
 rule. Configuration changes require explicit review and must not weaken a rule.
@@ -36,7 +40,7 @@ All authored executable source lives under `src/`:
 
 ```text
 src/core/        language-neutral indexing machinery
-src/adapters/    fact producers (TypeScript today; Oracle and ORDS planned)
+src/adapters/    fact producers (TypeScript and static Oracle; ORDS planned)
 src/resolvers/   cross-adapter graph joins
 src/transports/  MCP, CLI, and loopback console surfaces
 src/ui/          browser console application
@@ -94,7 +98,7 @@ pnpm build
 
 Use the index first for symbol-level work: `find_symbol` to locate a declaration,
 `outline` for a known file, `find_references` before editing shared code,
-`find_dependencies` for package usage or module impact, and `read_symbol` for the
+`find_dependencies` for target usage or dependency impact, and `read_symbol` for the
 smallest useful source range. Continue with ordinary repository tools for literal
 strings, documentation, configuration keys, and concepts without a known symbol.
 

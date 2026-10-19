@@ -57,12 +57,12 @@ describe('multiple TypeScript project contexts', () => {
 	it('filters dependency usage by project context', () => {
 		fixture = createFixtureIndex('multi-project', PROJECTS);
 
-		const all = fixture.index.findDependencies({package: 'shared-package', limit: 10});
-		const server = fixture.index.findDependencies({package: 'shared-package', context: 'server', limit: 10});
+		const all = fixture.index.findDependencies({target: 'shared-package', limit: 10});
+		const server = fixture.index.findDependencies({target: 'shared-package', context: 'server', limit: 10});
 
 		expect(all.items.map((item) => item.path)).toStrictEqual(['server/src/routes.ts', 'src/client.ts']);
 		expect(server.items.map((item) => item.path)).toStrictEqual(['server/src/routes.ts']);
-		expect(fixture.index.findDependencies({package: 'shared-package', context: 'contracts', limit: 10}).items).toHaveLength(0);
+		expect(fixture.index.findDependencies({target: 'shared-package', context: 'contracts', limit: 10}).items).toHaveLength(0);
 	});
 
 	it('retains the previous generation when one context fails', () => {

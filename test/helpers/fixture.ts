@@ -33,6 +33,7 @@ export type FixtureProjectType = Readonly<{
 export const createFixtureConfig = (
 	fixtureName: string,
 	projects: readonly FixtureProjectType[] = [{name: 'root', project: 'tsconfig.json'}],
+	extractorId = 'typescript',
 ): Readonly<{config: ConfigType; cleanup: () => void}> => {
 	const temporaryRoot = mkdtempSync(path.join(tmpdir(), 'code-index-test-'));
 	const workspace = path.join(temporaryRoot, 'workspace');
@@ -53,7 +54,7 @@ export const createFixtureConfig = (
 	const config: ConfigType = {
 		projectName: `fixture-${fixtureName}`,
 		rootDir,
-		extractorId: 'typescript',
+		extractorId,
 		extractorOptions: {},
 		projectFilePath: firstProject.projectFilePath,
 		projects: projectContexts,
@@ -76,8 +77,8 @@ export const createFixtureConfig = (
 	};
 };
 
-export const createFixtureIndex = (fixtureName: string, projects?: readonly FixtureProjectType[]): FixtureContextType => {
-	const {config, cleanup} = createFixtureConfig(fixtureName, projects);
+export const createFixtureIndex = (fixtureName: string, projects?: readonly FixtureProjectType[], extractorId = 'typescript'): FixtureContextType => {
+	const {config, cleanup} = createFixtureConfig(fixtureName, projects, extractorId);
 	const database = IndexDatabase.open(config.databasePath, {
 		rootDir: config.rootDir,
 		projectFilePath: config.projectFilePath,

@@ -1,7 +1,8 @@
 import {type ExtractorType} from './types.ts';
+import {oracleExtractor} from './oracle/index.ts';
 import {typeScriptExtractor} from './typescript/index.ts';
 
-const EXTRACTORS: readonly ExtractorType[] = [typeScriptExtractor];
+const EXTRACTORS: readonly ExtractorType[] = [typeScriptExtractor, oracleExtractor];
 
 /**
  * Resolves a configured extractor by identifier.
