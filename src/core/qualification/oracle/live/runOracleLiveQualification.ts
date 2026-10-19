@@ -5,6 +5,7 @@ import {DEFAULT_ORACLE_SOURCE_EXTENSIONS, type OracleManifestType} from '../../.
 import {indexRootDirectory, type ConfigType} from '../../../config/config.ts';
 import {qualifyOracleConfig} from '../runOracleQualification.ts';
 import {applyOracleLivePlan, type OracleLiveDependenciesType} from './oracleDatabase.ts';
+import {readInstalledOracleObjects} from './oracleInventory.ts';
 import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from './oracleLivePlan.ts';
 import {readOracleLiveSettings, type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 
@@ -26,13 +27,15 @@ const projectIdOf = (rootDir: string): string => createHash('sha256').update(`or
 const schemaOf = (environment: NodeJS.ProcessEnv, settings: OracleLiveSettingsType): string =>
 	settings.connection?.user ?? environment['ORACLE_USER'] ?? '<connected schema>';
 
-const writeDatabaseWarning = (io: LiveIoType, schema: string, applying: boolean): void => {
+const writeDatabaseWarning = (io: LiveIoType, schema: string, applying: boolean, inventory: boolean): void => {
 	io.stdout('WARNING: ORACLE DATABASE CHANGES');
 	io.stdout(`  Schema: ${schema}`);
 	io.stdout('  Action: recompile installed PL/SQL objects with PLSCOPE_SETTINGS=IDENTIFIERS:ALL.');
 	io.stdout('  It does not replace source, but it can invalidate dependent objects and discard package state (ORA-04068).');
 
-	if (!applying) {
+	if (!applying && inventory) {
+		io.stdout('  Planning performs a read-only schema inventory; no DDL runs before approval.');
+	} else if (!applying) {
 		io.stdout('  No database connection has been made. Review plan/compile.sql before applying.');
 	}
 };
@@ -209,17 +212,19 @@ export const runOracleLiveQualification = async (
 
 		const settings = readOracleLiveSettings(environment, {rootDir, outputDir, approval: options.approval});
 
-		writeDatabaseWarning(io, schemaOf(environment, settings), settings.approval !== null);
+		writeDatabaseWarning(io, schemaOf(environment, settings), settings.approval !== null, settings.connection !== null);
 
 		if (settings.approval === null) {
 			const manifestPath = manifestOf(environment, options, outputDir);
 			const config = configOf(rootDir, manifestPath, outputDir, projectId);
-			const plan = createOracleLivePlan(config, settings);
+			const installedObjects = settings.connection === null ? null : await readInstalledOracleObjects(settings.connection);
+			const plan = createOracleLivePlan(config, settings, installedObjects);
 
 			io.stdout(`Oracle qualification plan: ${plan.output.planDir}`);
 			io.stdout(`Source root: ${rootDir}`);
 			io.stdout(`Manifest: ${manifestPath}`);
 			io.stdout(`Source snapshot: ${plan.snapshot.dir}`);
+			io.stdout(`Installed objects: ${installedObjects === null ? 'not checked' : String(installedObjects.size)}`);
 			io.stdout(`Files: ${plan.snapshot.files.length}; source hash: ${plan.snapshot.sourceHash}`);
 			io.stdout(`Approval: ${plan.approval}`);
 			io.stdout(`To apply: ${applyCommand(options, rootDir, outputDir, plan.approval)}`);

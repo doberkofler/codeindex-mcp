@@ -224,9 +224,11 @@ pnpm qualify:oracle:live -- --root /path/to/oracle/project
 The command generates an external manifest for every supported O1 source file
 under the root, freezes the source, writes `backup.sql`, `compile.sql`,
 `validate.sql`, `identifiers.sql`, and `dependencies.sql`, and prints an
-approval hash. It does not connect to Oracle. `compile.sql` contains only
-`ALTER ... COMPILE` statements for installed objects; it never runs authored
-`CREATE OR REPLACE` scripts.
+approval hash. When credentials are present, it opens one read-only `oracledb`
+session to inventory installed objects; no DDL runs before approval. Missing and
+wrapped installed objects are excluded from the snapshot, and `compile.sql`
+contains only `ALTER ... COMPILE` statements for the remaining installed
+objects. It never runs authored `CREATE OR REPLACE` scripts.
 
 The plan prints a database-change warning with the target schema. Review the
 generated SQL, then apply the same plan:

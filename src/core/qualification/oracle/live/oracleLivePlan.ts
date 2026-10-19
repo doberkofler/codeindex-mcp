@@ -5,8 +5,8 @@ import {z} from 'zod';
 import {scanOracleProject} from '../../../../adapters/oracle/scanProject.ts';
 import {readVcsProvenance} from '../../../../adapters/vcs/vcsProvenance.ts';
 import {type ConfigType} from '../../../config/config.ts';
-import {createSourceFileRecord} from '../../../generation/sourceFiles.ts';
-import {authoritativeOracleSources, recompileStatementOf, type OracleSourceObjectRefType} from './oracleLiveSource.ts';
+import {computeSourceHash, createSourceFileRecord} from '../../../generation/sourceFiles.ts';
+import {authoritativeOracleSources, oracleObjectKeyOf, oracleSourceObjectOf, recompileStatementOf, type OracleSourceObjectRefType} from './oracleLiveSource.ts';
 import {type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 import {BACKUP_SQL, DEPENDENCIES_SQL, IDENTIFIERS_SQL, VALIDATE_SQL} from './oracleLiveSql.ts';
 
@@ -145,21 +145,38 @@ const copySnapshot = (snapshotDir: string, files: ReturnType<typeof scanOraclePr
  *
  * @param config - Resolved Oracle workspace configuration.
  * @param settings - Environment-only live qualification settings.
+ * @param installedObjects - Installed object keys, or null when planning offline.
  * @returns The written plan, including its approval hash.
+ * @throws {Error} When no source file maps to an installed object.
  */
-export const createOracleLivePlan = (config: ConfigType, settings: OracleLiveSettingsType): LivePlanType => {
+export const createOracleLivePlan = (
+	config: ConfigType,
+	settings: OracleLiveSettingsType,
+	installedObjects: ReadonlySet<string> | null = null,
+): LivePlanType => {
 	const {outputDir} = settings;
 	const planDir = path.join(outputDir, 'plan');
 	const snapshotDir = path.join(outputDir, 'workspace');
 	const databasePath = path.join(outputDir, 'index.sqlite');
 	const created = scanOracleProject(config);
+	const sourceFiles =
+		installedObjects === null
+			? created.files
+			: created.files.filter((file) => {
+					const object = oracleSourceObjectOf(file.path);
+					return object !== null && installedObjects.has(oracleObjectKeyOf(object.type, object.name));
+				});
+
+	if (sourceFiles.length === 0) {
+		throw new Error('No installed Oracle object matches the qualification source snapshot');
+	}
 
 	rmSync(planDir, {recursive: true, force: true});
 	rmSync(snapshotDir, {recursive: true, force: true});
 	mkdirSync(planDir, {recursive: true});
 	mkdirSync(snapshotDir, {recursive: true});
 
-	const snapshotFiles = copySnapshot(snapshotDir, created.files);
+	const snapshotFiles = copySnapshot(snapshotDir, sourceFiles);
 	const projectFiles: {path: string; sha256: string}[] = [];
 	const projects: {name: string; path: string}[] = [];
 
@@ -179,7 +196,7 @@ export const createOracleLivePlan = (config: ConfigType, settings: OracleLiveSet
 		throw new Error('Oracle qualification requires at least one project manifest');
 	}
 
-	const files = created.files.map((file) => ({path: file.path, absolutePath: path.join(snapshotDir, file.path)}));
+	const files = sourceFiles.map((file) => ({path: file.path, absolutePath: path.join(snapshotDir, file.path)}));
 	const contents = sqlFilesOf({files, snapshotDir});
 	const writeSql = (name: LiveSqlNameType, content: string): LivePlanType['sql'][LiveSqlNameType] => {
 		const sqlPath = path.join(planDir, `${name}.sql`);
@@ -204,7 +221,7 @@ export const createOracleLivePlan = (config: ConfigType, settings: OracleLiveSet
 			projects,
 			vcs: readVcsProvenance(config.rootDir),
 		},
-		snapshot: {dir: snapshotDir, sourceHash: created.sourceHash, configHash: created.configHash, files: snapshotFiles, projectFiles},
+		snapshot: {dir: snapshotDir, sourceHash: computeSourceHash(sourceFiles), configHash: created.configHash, files: snapshotFiles, projectFiles},
 		output: {
 			dir: outputDir,
 			planDir,

@@ -2,7 +2,7 @@ import {existsSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {applyOracleLivePlan} from '../src/core/qualification/oracle/live/oracleDatabase.ts';
-import {oracleSourceObjectOf, normalizeOracleSource} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
+import {normalizeOracleSource, oracleObjectKeyOf, oracleSourceObjectOf} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
 import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
 import {type SqlplusRequestType} from '../src/core/qualification/oracle/live/oracleRecompile.ts';
 import {readOracleLiveSettings, type OracleLiveSettingsType} from '../src/core/qualification/oracle/live/oracleLiveSettings.ts';
@@ -97,6 +97,24 @@ describe('Oracle live qualification plan', () => {
 		}
 	});
 
+	it('keeps only source files for installed objects', () => {
+		const context = fixture();
+
+		try {
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const installed = new Set([oracleObjectKeyOf('PACKAGE', 'HR_API'), oracleObjectKeyOf('PACKAGE BODY', 'HR_API')]);
+			const plan = createOracleLivePlan(context.config, settingsOf(outputDir), installed);
+			const compile = readFileSync(plan.sql.compile.path, 'utf8');
+
+			expect(plan.snapshot.files.map((file) => file.path)).toStrictEqual(['database/hr_api.pkb', 'database/hr_api.pks']);
+			expect(compile).toContain('ALTER PACKAGE "HR_API" COMPILE SPECIFICATION;');
+			expect(compile).toContain('ALTER PACKAGE "HR_API" COMPILE BODY;');
+			expect(compile).not.toContain('SALES_API');
+		} finally {
+			context.cleanup();
+		}
+	});
+
 	it('requires the exact approval and detects modified SQL', () => {
 		const context = fixture();
 
@@ -182,6 +200,22 @@ describe('Oracle live qualification application', () => {
 });
 
 describe('Oracle live qualification drift', () => {
+	it('ignores file comments, keyword case, and AS/IS spelling during normalization', () => {
+		const authored = '/*** header ***/\n-- note\nCREATE OR REPLACE\nPackage X as\nPROCEDURE P;\nEND X;\n/\n';
+		const installed = 'PACKAGE X IS\nPROCEDURE P;\nEND X;';
+		const object = {type: 'PACKAGE', name: 'X', compileClause: 'SPECIFICATION'} as const;
+
+		expect(normalizeOracleSource(authored, object)).toBe(normalizeOracleSource(installed, object));
+	});
+
+	it('selects the matching unit from a multi-unit source file', () => {
+		const authored = 'CREATE OR REPLACE TYPE T AS OBJECT (id NUMBER);\n/\nCREATE OR REPLACE\nPACKAGE BODY X AS\nPROCEDURE P IS BEGIN NULL; END;\nEND X;\n/\n';
+		const installed = 'PACKAGE BODY X IS\nPROCEDURE P IS BEGIN NULL; END;\nEND X;';
+		const object = {type: 'PACKAGE BODY', name: 'X', compileClause: 'BODY'} as const;
+
+		expect(normalizeOracleSource(authored, object)).toBe(normalizeOracleSource(installed, object));
+	});
+
 	it('aborts before recompilation when installed source drifted', async () => {
 		const context = fixture();
 

@@ -65,33 +65,89 @@ export const recompileStatementOf = (object: OracleSourceObjectRefType): string 
 	return `ALTER ${target} ${quoteIdentifier(object.name)} COMPILE${clause}`;
 };
 
+const escapePattern = (value: string): string => value.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+
+const objectHeaderOf = (source: string, object: OracleSourceObjectRefType): RegExpExecArray | null => {
+	const type = object.type === 'PACKAGE BODY' ? String.raw`PACKAGE\s+BODY` : escapePattern(object.type);
+	const name = escapePattern(object.name);
+	const header = new RegExp(
+		String.raw`^[\t ]*(?:CREATE\s+(?:OR\s+REPLACE\s+)?(?:EDITIONABLE\s+)?(?:NONEDITIONABLE\s+)?)?${type}\s+(?:"${name}"|${name})\b`,
+		'imu',
+	);
+
+	return header.exec(source);
+};
+
+const CREATE_PREFIX = /^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:EDITIONABLE\s+)?(?:NONEDITIONABLE\s+)?/imu;
+const SOURCE_TOKEN = /'(?:''|[^'])*'|--[^\n]*|\/\*[\s\S]*?\*\/|[\w$#]+|[^\w$#]+/gu;
+
+const canonicalToken = (token: string): string => {
+	if (token.startsWith("'")) {
+		return token;
+	}
+
+	if (token.startsWith('--') || token.startsWith('/*')) {
+		return ' ';
+	}
+
+	const normalized = token.toLowerCase();
+
+	return normalized === 'as' ? 'is' : normalized;
+};
+
+const canonicalSource = (source: string): string =>
+	(source.match(SOURCE_TOKEN) ?? [])
+		.map((token) => canonicalToken(token))
+		.join('')
+		.replaceAll(/\s+/gu, ' ')
+		.trim();
+
 /**
  * Normalizes authored source and `USER_SOURCE` text for drift comparison.
  *
- * Oracle strips the leading `CREATE [OR REPLACE]` prefix and the trailing `/`
- * terminator before storing source. Line endings and trailing whitespace are
- * not semantically meaningful.
+ * Oracle stores one selected unit without file comments, the
+ * `CREATE [OR REPLACE]` prefix, or the trailing `/` terminator. PL/SQL
+ * keywords and unquoted identifiers are case-insensitive, and `AS`/`IS` are
+ * synonyms in package and subprogram headers.
  *
  * @param source - Authored file text or concatenated `USER_SOURCE` lines.
- * @returns Normalized source text.
+ * @param object - Installed object used to select one unit from a multi-unit file.
+ * @returns Canonical source text.
  */
-export const normalizeOracleSource = (source: string): string => {
-	const normalized = source
-		.replaceAll('\r\n', '\n')
-		.replaceAll('\r', '\n')
-		.trim()
-		.replace(/^CREATE\s+(?:OR\s+REPLACE\s+)?/iu, '')
-		.trimStart()
-		.replace(/\n\s*\/\s*$/u, '')
-		.trimEnd();
+export const normalizeOracleSource = (source: string, object?: OracleSourceObjectRefType): string => {
+	const normalized = source.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+	let body: string;
 
-	return normalized
-		.split('\n')
-		.map((line) => line.trimEnd())
-		.join('\n');
+	if (object === undefined) {
+		const create = CREATE_PREFIX.exec(normalized);
+
+		if (create !== null) {
+			body = normalized.slice(create.index).replace(CREATE_PREFIX, '');
+		} else {
+			const header = /^\s*(?:PACKAGE(?:\s+BODY)?|FUNCTION|PROCEDURE)\b/imu.exec(normalized);
+			body = header === null ? normalized : normalized.slice(header.index);
+		}
+	} else {
+		const header = objectHeaderOf(normalized, object);
+		body = header === null ? normalized : normalized.slice(header.index).replace(CREATE_PREFIX, '');
+	}
+
+	const lines = body.split('\n');
+	const terminator = lines.findIndex((line, index) => index > 0 && /^\s*\/\s*$/u.test(line));
+
+	return canonicalSource((terminator === -1 ? lines : lines.slice(0, terminator)).join('\n'));
 };
 
-const keyOf = (type: string, name: string): string => `${type}\u0000${name}`;
+/**
+ * Builds the canonical key for one installed Oracle object.
+ *
+ * @param type - Oracle object type, such as `PACKAGE BODY`.
+ * @param name - Oracle object name.
+ * @returns A case-normalized key shared by planning and drift validation.
+ */
+export const oracleObjectKeyOf = (type: string, name: string): string => `${type.toUpperCase()}\u0000${name.toUpperCase()}`;
+
+const keyOf = oracleObjectKeyOf;
 
 const isWrapped = (source: string): boolean =>
 	source
@@ -120,7 +176,7 @@ export const authoritativeOracleSources = (files: readonly Readonly<{path: strin
 			continue;
 		}
 
-		const source = normalizeOracleSource(readFileSync(path.join(snapshotDir, file.path), 'utf8'));
+		const source = normalizeOracleSource(readFileSync(path.join(snapshotDir, file.path), 'utf8'), object);
 		const key = keyOf(object.type, object.name);
 		const group = groups.get(key) ?? [];
 
@@ -199,7 +255,7 @@ export const assertOracleSourceMatchesSnapshot = (plan: LivePlanType, rows: read
 			throw new Error(`Installed Oracle object is missing for the snapshot: ${entry.object.type} ${entry.object.name}`);
 		}
 
-		const actual = normalizeOracleSource(lines.map((line) => line.text).join('\n'));
+		const actual = normalizeOracleSource(lines.map((line) => line.text.replace(/\r?\n$/u, '')).join('\n'), entry.object);
 
 		if (entry.source !== actual) {
 			throw new Error(`Installed Oracle source differs from the snapshot: ${entry.object.type} ${entry.object.name} (${entry.path})`);
