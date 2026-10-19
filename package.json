@@ -42,6 +42,7 @@
 		"benchmark:oracle:corpus": "pnpm run build && node dist/cli.mjs benchmark --extractor oracle",
 		"qualify:typescript": "pnpm run build && node dist/cli.mjs qualify --extractor typescript",
 		"qualify:oracle": "pnpm run build && node dist/cli.mjs qualify --extractor oracle",
+		"qualify:oracle:live": "pnpm run build && node dist/cli.mjs qualify-oracle-live",
 		"test:oracle": "vitest run test/oracle.test.ts",
 		"commitlint": "commitlint",
 		"grammar:oracle:download": "node --experimental-strip-types scripts/downloadOracleGrammar.ts",
@@ -70,8 +71,8 @@
 		"zod": "4.6.7"
 	},
 	"devDependencies": {
-		"@commitlint/cli": "21.2.3",
-		"@commitlint/config-conventional": "21.2.3",
+		"@commitlint/cli": "21.2.4",
+		"@commitlint/config-conventional": "21.2.4",
 		"@emotion/react": "11.14.0",
 		"@emotion/styled": "11.14.1",
 		"@modelcontextprotocol/client": "2.3.1",
@@ -81,13 +82,14 @@
 		"@tanstack/react-query": "5.104.4",
 		"@types/debug": "4.1.13",
 		"@types/node": "26.6.5",
+		"@types/oracledb": "7.0.3",
 		"@types/react": "19.3.0",
 		"@types/react-dom": "19.3.0",
 		"@vitest/coverage-v8": "5.0.5",
 		"antlr-ng": "1.0.10",
 		"eslint-plugin-regexp": "3.3.1",
 		"husky": "9.1.7",
-		"knip": "6.41.0",
+		"knip": "6.42.0",
 		"oxfmt": "0.73.0",
 		"oxlint": "1.88.0",
 		"oxlint-tsgolint": "7.0.2004",
@@ -96,6 +98,9 @@
 		"release-it": "21.1.1",
 		"vite": "8.3.4",
 		"vitest": "5.0.5"
+	},
+	"optionalDependencies": {
+		"oracledb": "26.0.0"
 	},
 	"engines": {
 		"node": ">=26"

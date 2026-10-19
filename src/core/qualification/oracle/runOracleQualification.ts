@@ -5,7 +5,7 @@ import {asString} from '../../storage/databaseRows.ts';
 import {IndexDatabase} from '../../storage/database.ts';
 import {createCodeIndex} from '../../generation/codeIndex.ts';
 import {createLogger} from '../../logging/logger.ts';
-import {loadConfig} from '../../config/config.ts';
+import {loadConfig, type ConfigType} from '../../config/config.ts';
 import {readVcsProvenance} from '../../../adapters/vcs/vcsProvenance.ts';
 import {readCsv} from './oracleCsv.ts';
 import {objectKey, objectMapping, objectTypeOfPath, type ObjectMappingType} from './oracleMapping.ts';
@@ -18,10 +18,15 @@ type QualifyIoType = Readonly<{
 	stderr: (line: string) => void;
 }>;
 
-type OracleOptionsType = Readonly<{
+export type OracleOptionsType = Readonly<{
 	identifiers?: string | undefined;
 	dependencies?: string | undefined;
 	output?: string | undefined;
+}>;
+
+type OracleQualificationResultType = Readonly<{
+	code: number;
+	report: ReportType;
 }>;
 
 type DependencyMetricsType = Readonly<{
@@ -53,7 +58,7 @@ type ReportType = Readonly<{
 const DECLARATION_RECALL_GATE = 0.995;
 const REFERENCE_RECALL_GATE = 0.995;
 
-const buildIndex = async (config: ReturnType<typeof loadConfig>): Promise<void> => {
+const buildIndex = async (config: ConfigType): Promise<void> => {
 	const database = IndexDatabase.open(config.databasePath, {
 		rootDir: config.rootDir,
 		projectFilePath: config.projectFilePath,
@@ -64,7 +69,9 @@ const buildIndex = async (config: ReturnType<typeof loadConfig>): Promise<void> 
 	const index = createCodeIndex(config, database, createLogger({minimumLevel: config.logLevel}), {watch: false});
 
 	try {
-		await index.ensureReady();
+		// Qualification must observe the current extractor, never an index built
+		// by an older parser implementation.
+		await index.ensureReady({force: true});
 	} finally {
 		await index.close();
 	}
@@ -175,6 +182,59 @@ const reportOf = (
 };
 
 /**
+ * Qualifies one resolved Oracle workspace against already-exported truth.
+ *
+ * The index is always rebuilt to prevent an older parser generation from
+ * being reused by a qualification run.
+ *
+ * @param config - Resolved Oracle workspace configuration.
+ * @param io - Output sinks.
+ * @param options - Truth export paths and optional report path.
+ * @returns Exit code and the full report.
+ */
+export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType, options: OracleOptionsType): Promise<OracleQualificationResultType> => {
+	const {identifiers, dependencies, output} = options;
+
+	if (identifiers === undefined || dependencies === undefined) {
+		throw new Error('Oracle qualification requires identifiers and dependencies exports');
+	}
+
+	await buildIndex(config);
+	const reader = new DatabaseSync(config.databasePath, {readOnly: true});
+
+	try {
+		const generationId = publishedGeneration(reader);
+		const files = filesOf(reader, generationId);
+		const mappings = mappingsOf(config.rootDir, files);
+		const truth = readOracleTruth({rows: readCsv(identifiers), mappings});
+		const code = loadCodeFacts(reader, generationId);
+		const packageNames = packageNamesOf(mappings);
+		const truthDependencies = readTruthDependencies(readCsv(dependencies), mappings, packageNames);
+		const codeDependencies = loadCodeDependencies(reader, generationId, packageNames, packageByPathOf(mappings));
+		const report = reportOf({
+			generationId,
+			files: files.length,
+			objects: mappings.size,
+			truth,
+			declarations: compareFacts(truth.definitions, code.definitions),
+			references: compareFacts(truth.references, code.references),
+			dependencies: dependencyMetricsOf(truthDependencies, codeDependencies),
+		});
+		const serialized = `${JSON.stringify(report, null, 2)}\n`;
+
+		if (output !== undefined) {
+			writeFileSync(path.resolve(output), serialized, {encoding: 'utf8'});
+		}
+
+		io.stdout(serialized.trimEnd());
+
+		return {code: report.gates.ok ? 0 : 1, report};
+	} finally {
+		reader.close();
+	}
+};
+
+/**
  * Qualifies an Oracle index against exported PL/Scope and dependency truth.
  *
  * @param environment - Environment after CLI overrides.
@@ -196,37 +256,7 @@ export const runOracleQualification = async (environment: NodeJS.ProcessEnv, io:
 		throw new Error(`Oracle qualification requires the oracle extractor, received ${config.extractorId}`);
 	}
 
-	await buildIndex(config);
-	const reader = new DatabaseSync(config.databasePath, {readOnly: true});
+	const result = await qualifyOracleConfig(config, io, {identifiers: identifiersPath, dependencies: dependenciesPath, output: options.output});
 
-	try {
-		const generationId = publishedGeneration(reader);
-		const files = filesOf(reader, generationId);
-		const mappings = mappingsOf(config.rootDir, files);
-		const truth = readOracleTruth({rows: readCsv(identifiersPath), mappings});
-		const code = loadCodeFacts(reader, generationId);
-		const packageNames = packageNamesOf(mappings);
-		const truthDependencies = readTruthDependencies(readCsv(dependenciesPath), mappings, packageNames);
-		const codeDependencies = loadCodeDependencies(reader, generationId, packageNames, packageByPathOf(mappings));
-		const report = reportOf({
-			generationId,
-			files: files.length,
-			objects: mappings.size,
-			truth,
-			declarations: compareFacts(truth.definitions, code.definitions),
-			references: compareFacts(truth.references, code.references),
-			dependencies: dependencyMetricsOf(truthDependencies, codeDependencies),
-		});
-		const serialized = `${JSON.stringify(report, null, 2)}\n`;
-
-		if (options.output !== undefined) {
-			writeFileSync(path.resolve(options.output), serialized, {encoding: 'utf8'});
-		}
-
-		io.stdout(serialized.trimEnd());
-
-		return report.gates.ok ? 0 : 1;
-	} finally {
-		reader.close();
-	}
+	return result.code;
 };

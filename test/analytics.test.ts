@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, truncateSync, utimesSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
@@ -6,33 +6,35 @@ import {assertAnalyticsFields, parseAnalyticsEvent, PROHIBITED_ANALYTICS_FIELDS}
 import {createAnalyticsRecorder, type AnalyticsRecorderType} from '../src/core/analytics/recorder.ts';
 import {summarizeAnalytics} from '../src/core/analytics/report.ts';
 
-describe('analytics', () => {
-	let directory: string | undefined;
+let directory: string | undefined;
 
-	afterEach(() => {
-		if (directory !== undefined) {
-			rmSync(directory, {recursive: true, force: true});
-		}
+const cleanupAnalytics = (): void => {
+	if (directory !== undefined) {
+		rmSync(directory, {recursive: true, force: true});
+	}
 
-		directory = undefined;
-	});
+	directory = undefined;
+};
 
-	const recorderIn = (enabled: boolean): Readonly<{analyticsPath: string; recorder: AnalyticsRecorderType}> => {
-		directory = mkdtempSync(path.join(tmpdir(), 'code-index-analytics-'));
-		const analyticsPath = path.join(directory, 'analytics', 'events.jsonl');
+const recorderIn = (enabled: boolean): Readonly<{analyticsPath: string; recorder: AnalyticsRecorderType}> => {
+	directory = mkdtempSync(path.join(tmpdir(), 'code-index-analytics-'));
+	const analyticsPath = path.join(directory, 'analytics', 'events.jsonl');
 
-		return {
-			analyticsPath,
-			recorder: createAnalyticsRecorder({
-				enabled,
-				path: analyticsPath,
-				projectId: 'project',
-				program: 'code-index',
-				programVersion: '0.1.0',
-				workingCopyId: 'wc',
-			}),
-		};
+	return {
+		analyticsPath,
+		recorder: createAnalyticsRecorder({
+			enabled,
+			path: analyticsPath,
+			projectId: 'project',
+			program: 'code-index',
+			programVersion: '0.1.0',
+			workingCopyId: 'wc',
+		}),
 	};
+};
+
+describe('analytics', () => {
+	afterEach(cleanupAnalytics);
 
 	it('writes versioned events and aggregates tool percentiles', () => {
 		const {analyticsPath, recorder} = recorderIn(true);
@@ -102,6 +104,50 @@ describe('analytics', () => {
 		expect(parseAnalyticsEvent(event)).toStrictEqual(event);
 		expect(parseAnalyticsEvent({...event, schema: 2})).toBeNull();
 		expect(parseAnalyticsEvent({...event, id: ''})).toBeNull();
+	});
+});
+
+describe('analytics recorder retention', () => {
+	afterEach(cleanupAnalytics);
+
+	it('rotates an event file that reached the size bound', () => {
+		const {analyticsPath, recorder} = recorderIn(true);
+		const directoryPath = path.dirname(analyticsPath);
+		mkdirSync(directoryPath, {recursive: true});
+		writeFileSync(analyticsPath, '');
+		truncateSync(analyticsPath, 10 * 1024 * 1024);
+
+		recorder.record('process_start', {});
+		recorder.close();
+
+		const rotated = readdirSync(directoryPath).filter((name) => /^events-\d+\.jsonl$/u.test(name));
+
+		expect(rotated).toHaveLength(1);
+		expect(readFileSync(analyticsPath, 'utf8')).toContain('process_start');
+	});
+
+	it('returns null when the analytics destination cannot be written', () => {
+		const {analyticsPath, recorder} = recorderIn(true);
+		mkdirSync(analyticsPath, {recursive: true});
+
+		expect(recorder.record('process_start', {})).toBeNull();
+		recorder.close();
+	});
+
+	it('ignores unreadable entries and prunes surplus recent files', () => {
+		const {analyticsPath, recorder} = recorderIn(true);
+		const directoryPath = path.dirname(analyticsPath);
+		mkdirSync(directoryPath, {recursive: true});
+		symlinkSync(path.join(directoryPath, 'missing.jsonl'), path.join(directoryPath, 'broken.jsonl'));
+
+		for (let index = 0; index < 12; index += 1) {
+			writeFileSync(path.join(directoryPath, `recent-${String(index)}.jsonl`), '');
+		}
+
+		recorder.close();
+
+		expect(readdirSync(directoryPath)).toContain('broken.jsonl');
+		expect(readdirSync(directoryPath).filter((name) => name.startsWith('recent-'))).toHaveLength(10);
 	});
 
 	it('retains at most ten rotated files and removes old ones', () => {

@@ -3,6 +3,7 @@ import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
 import {runBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
 import {runBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
 import {runBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
+import {runOracleLiveQualification} from '../../core/qualification/oracle/live/runOracleLiveQualification.ts';
 import {runQualifyCommand} from '../../core/qualification/qualifyCommand.ts';
 import {loadConfig} from '../../core/config/config.ts';
 import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
@@ -280,6 +281,10 @@ const runSpecialCommand = (argv: readonly string[], environment: NodeJS.ProcessE
 
 	if (argv[0] === 'qualify') {
 		return runQualifyCommand(argv.slice(1), environment, io);
+	}
+
+	if (argv[0] === 'qualify-oracle-live') {
+		return runOracleLiveQualification(environment, io);
 	}
 
 	if (argv[0] === 'verify-references') {

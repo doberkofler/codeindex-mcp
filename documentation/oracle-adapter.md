@@ -212,6 +212,59 @@ script, is stored outside the repository. The adapter is not promoted, and the
 gates must be re-run after the reference scope is extended or explicitly
 redefined.
 
+### Live qualification
+
+`qualify:oracle:live` runs the complete Oracle workflow without storing project
+paths or credentials in the repository:
+
+```bash
+CODE_INDEX_ROOT=/path/to/oracle/project \
+CODE_INDEX_PROJECT_FILE=/path/to/oracle-index.json \
+CODE_INDEX_QUALIFICATION_OUTPUT_DIR=/path/to/qualification-results \
+pnpm qualify:oracle:live
+```
+
+The first run freezes the source, writes `backup.sql`, `compile.sql`,
+`validate.sql`, `identifiers.sql`, and `dependencies.sql`, and prints an
+approval hash. It does not connect to Oracle. Review the generated SQL, then
+apply the same plan:
+
+```bash
+CODE_INDEX_ORACLE_APPROVAL=<hash> \
+CODE_INDEX_ROOT=/path/to/oracle/project \
+CODE_INDEX_PROJECT_FILE=/path/to/oracle-index.json \
+CODE_INDEX_QUALIFICATION_OUTPUT_DIR=/path/to/qualification-results \
+ORACLE_SERVER=<connect-identifier> \
+ORACLE_USER=<user> \
+ORACLE_PASSWORD=<password> \
+pnpm qualify:oracle:live
+```
+
+Apply performs these steps:
+
+1. Opens one `oracledb` session and backs up `USER_SOURCE`.
+2. Compiles the frozen snapshot through SQL*Plus with
+   `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`.
+3. Fails when `USER_OBJECTS` still contains invalid objects.
+4. Exports `USER_IDENTIFIERS` and `USER_DEPENDENCIES` through the `oracledb`
+   session.
+5. Rebuilds the snapshot index with the current parser.
+6. Compares facts and writes `oracle-qualification.json` and `run.json`.
+
+`oracledb` is an optional dependency used only by live qualification; normal
+indexing and MCP operation never load it. SQL*Plus is retained only because it
+already handles Oracle script terminators and SQL*Plus directives in authored
+source. Set `CODE_INDEX_ORACLE_SQLPLUS` when `sqlplus` is not on `PATH`, and
+`CODE_INDEX_ORACLE_SQLPLUS_TIMEOUT_MS` to override the default 600-second
+compile timeout. SQL*Plus receives its connection over standard input; the
+`oracledb` session receives credentials directly in memory.
+
+Use a dedicated qualification schema that contains only the snapshot corpus.
+The workflow replaces objects but does not drop unrelated ones; a leftover object
+produces an unmapped PL/Scope row and fails qualification. The command refuses
+an output directory inside the indexed workspace and never writes credentials
+to the plan, SQL, or evidence files.
+
 ## 8. Limitations
 
 - Static source only; deployed state and drift are not evaluated.

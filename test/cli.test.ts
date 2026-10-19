@@ -67,6 +67,41 @@ describe('operational CLI', () => {
 		}
 	});
 
+	it('dispatches special commands through their adapters', async () => {
+		const environment: NodeJS.ProcessEnv = {CODE_INDEX_ROOT: '.', CODE_INDEX_LOG_LEVEL: 'error'};
+		const commands: readonly (readonly string[])[] = [
+			['analytics', '--help'],
+			['benchmark', '--help'],
+			['benchmark-suite', '--help'],
+			['benchmark-prepare', '--help'],
+			['verify-references', '--help'],
+		];
+
+		const results = await Promise.all(
+			commands.map(async (argv) => {
+				const captured = captureIo();
+
+				await expect(runCli(argv, environment, captured.io)).resolves.toBe(0);
+				return captured;
+			}),
+		);
+
+		for (const captured of results) {
+			expect(captured.stdout()).toContain('Usage');
+		}
+	});
+
+	it('prints command help without arguments and reports configuration failures', async () => {
+		const help = captureIo();
+		const failed = captureIo();
+
+		await expect(runCli([], {CODE_INDEX_ROOT: '.', CODE_INDEX_LOG_LEVEL: 'error'}, help.io)).resolves.toBe(0);
+		expect(help.stdout()).toContain('Operational commands');
+
+		await expect(runCli(['status'], {CODE_INDEX_ROOT: '/definitely/missing-root'}, failed.io)).resolves.toBe(1);
+		expect(failed.stderr()).not.toBe('');
+	});
+
 	it('prints help and rejects invalid commands', async () => {
 		const environment: NodeJS.ProcessEnv = {CODE_INDEX_ROOT: '.', CODE_INDEX_LOG_LEVEL: 'error'};
 		const help = captureIo();

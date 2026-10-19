@@ -29,6 +29,7 @@ export default defineConfig({
 			fileName: () => entryName,
 		},
 		rolldownOptions: {
+			external: ['oracledb'],
 			output: {
 				entryFileNames: `${entryName}.mjs`,
 			},

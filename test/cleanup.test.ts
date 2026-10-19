@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
+import {chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
 import {homedir, tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it, vi} from 'vitest';
@@ -149,6 +149,25 @@ describe('cleanup safety', () => {
 		expect(() => collectCleanupTargets({...roots, opencode: 'relative/path'}, options())).toThrow(/unsafe root/u);
 		expect(() => collectCleanupTargets({...roots, opencode: path.parse(base).root}, options())).toThrow(/unsafe root/u);
 		expect(() => collectCleanupTargets({...roots, opencode: homedir()}, options())).toThrow(/home directory/u);
+	});
+
+	it('keeps removing after a target fails', () => {
+		const base = mkdtempSync(join(tmpdir(), 'codeindex-cleanup-failure-'));
+		const parent = join(base, 'locked');
+		const child = join(parent, 'target');
+		const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+		mkdirSync(child, {recursive: true});
+		chmodSync(parent, 0o500);
+
+		try {
+			expect(removeCleanupTargets([{path: child, bytes: 10}])).toBe(0);
+			expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Failed to remove'));
+		} finally {
+			chmodSync(parent, 0o700);
+			stderr.mockRestore();
+			rmSync(base, {recursive: true, force: true});
+		}
 	});
 
 	it('reports usage and rejects unexpected arguments', () => {
