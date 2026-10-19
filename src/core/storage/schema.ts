@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '6';
+export const SCHEMA_VERSION = '7';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -80,6 +80,8 @@ create table if not exists file (
 	line_count integer not null,
 	primary key (generation_id, path)
 );
+
+create index if not exists file_by_content on file (content_sha256);
 
 create table if not exists symbol (
 	generation_id text not null references generation(id) on delete cascade,

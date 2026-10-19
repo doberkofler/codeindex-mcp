@@ -76,9 +76,27 @@ export const putExtractionArtifact = (writer: DatabaseSync, input: ExtractionArt
 			`insert into extraction_artifact (content_sha256, artifact_kind, extractor_id, extractor_version, context_hash, artifact_json, created_at, last_used_at)
 			 values (?, ?, ?, ?, ?, ?, ?, ?)
 			 on conflict(content_sha256, artifact_kind, extractor_id, extractor_version, context_hash)
-			 do update set last_used_at = excluded.last_used_at`,
+			 do nothing`,
 		)
 		.run(input.contentSha256, input.artifactKind, input.extractorId, input.extractorVersion, input.contextHash, input.artifactJson, now, now);
+};
+
+/**
+ * Reports whether an extraction artifact already exists for one identity.
+ *
+ * @param reader - Reader connection.
+ * @param input - Artifact identity.
+ * @returns True when the artifact is stored.
+ */
+export const hasExtractionArtifact = (reader: DatabaseSync, input: ExtractionArtifactKeyType): boolean => {
+	const row = reader
+		.prepare(
+			`select 1 as present from extraction_artifact
+			 where content_sha256 = ? and artifact_kind = ? and extractor_id = ? and extractor_version = ? and context_hash = ?`,
+		)
+		.get(input.contentSha256, input.artifactKind, input.extractorId, input.extractorVersion, input.contextHash);
+
+	return row !== undefined;
 };
 
 /**

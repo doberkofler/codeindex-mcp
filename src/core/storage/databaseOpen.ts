@@ -90,12 +90,16 @@ export const openDatabaseConnections = (databasePath: string): Readonly<{writer:
 	writer.exec('pragma journal_mode = wal');
 	writer.exec('pragma foreign_keys = on');
 	writer.exec('pragma busy_timeout = 5000');
+	writer.exec('pragma mmap_size = 1073741824');
+	writer.exec('pragma cache_size = -32768');
 	writer.exec(SCHEMA_SQL);
 
 	const reader = databasePath === ':memory:' ? writer : new DatabaseSync(databasePath, {readOnly: true});
 
 	reader.exec('pragma foreign_keys = on');
 	reader.exec('pragma busy_timeout = 5000');
+	reader.exec('pragma mmap_size = 1073741824');
+	reader.exec('pragma cache_size = -32768');
 
 	return {writer, reader};
 };

@@ -119,22 +119,47 @@ const persistArtifacts = (
 		extractorVersion: string;
 	}>,
 ): void => {
+	const missing = input.files.filter(
+		(file) =>
+			!input.database.hasExtractionArtifact({
+				contentSha256: file.sha256,
+				artifactKind: 'symbols',
+				extractorId: input.extractorId,
+				extractorVersion: input.extractorVersion,
+				contextHash: input.contextHash,
+			}),
+	);
+
+	if (missing.length === 0) {
+		debug('extraction artifacts reused', {generationId: input.generationId, files: input.files.length});
+		return;
+	}
+
+	const missingPaths = new Set(missing.map((file) => file.path));
 	const symbolsByPath = new Map<string, ExtractionResultType['symbols'][number][]>();
 	const occurrencesByPath = new Map<string, ExtractionResultType['occurrences'][number][]>();
 
 	for (const symbol of input.facts.symbols) {
+		if (!missingPaths.has(symbol.path)) {
+			continue;
+		}
+
 		const group = symbolsByPath.get(symbol.path) ?? [];
 		group.push(symbol);
 		symbolsByPath.set(symbol.path, group);
 	}
 
 	for (const occurrence of input.facts.occurrences) {
+		if (!missingPaths.has(occurrence.path)) {
+			continue;
+		}
+
 		const group = occurrencesByPath.get(occurrence.path) ?? [];
 		group.push(occurrence);
 		occurrencesByPath.set(occurrence.path, group);
 	}
 
-	for (const file of input.files) {
+	for (const file of missing) {
 		input.database.putExtractionArtifact({
 			contentSha256: file.sha256,
 			artifactKind: 'symbols',
@@ -148,7 +173,7 @@ const persistArtifacts = (
 		});
 	}
 
-	debug('extraction artifacts stored', {generationId: input.generationId, files: input.files.length});
+	debug('extraction artifacts stored', {generationId: input.generationId, files: missing.length});
 };
 
 /**
@@ -166,10 +191,30 @@ const persistDependencyArtifacts = (
 		extractorVersion: string;
 	}>,
 ): void => {
+	const missing = input.files.filter(
+		(file) =>
+			!input.database.hasExtractionArtifact({
+				contentSha256: file.sha256,
+				artifactKind: 'dependencies',
+				extractorId: input.extractorId,
+				extractorVersion: input.extractorVersion,
+				contextHash: input.contextHash,
+			}),
+	);
+
+	if (missing.length === 0) {
+		return;
+	}
+
+	const missingPaths = new Set(missing.map((file) => file.path));
 	const edgesByPath = new Map<string, DependencyExtractionResultType['edges'][number][]>();
 	const bindingsByEdge = new Map<string, DependencyExtractionResultType['bindings'][number][]>();
 
 	for (const edge of input.dependencies.edges) {
+		if (!missingPaths.has(edge.sourcePath)) {
+			continue;
+		}
+
 		const group = edgesByPath.get(edge.sourcePath) ?? [];
 		group.push(edge);
 		edgesByPath.set(edge.sourcePath, group);
@@ -181,7 +226,7 @@ const persistDependencyArtifacts = (
 		bindingsByEdge.set(bindingEntry.edgeId, group);
 	}
 
-	for (const file of input.files) {
+	for (const file of missing) {
 		const edges = edgesByPath.get(file.path) ?? [];
 		input.database.putExtractionArtifact({
 			contentSha256: file.sha256,

@@ -8,6 +8,7 @@ import {type IndexedSymbolType, type SourceFileType} from '../src/core/model.ts'
 import {createSourceFileRecord} from '../src/core/generation/sourceFiles.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
 import {renewLease} from '../src/core/storage/databaseLease.ts';
+import {explainQueryPlan} from '../src/core/storage/databaseOpen.ts';
 
 type GenerationInputType = Readonly<{
 	id: string;
@@ -99,6 +100,44 @@ describe('index storage identity and content', () => {
 		expect(database.contentVersionCount()).toBe(1);
 		expect(database.listFiles('generation-1')).toHaveLength(2);
 		database.close();
+	});
+
+	it('keeps the first extraction artifact for one content identity', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-storage-'));
+		const root = path.join(directory, 'workspace');
+		const filePath = path.join(root, 'src', 'artifact.ts');
+		mkdirSync(path.dirname(filePath), {recursive: true});
+		writeFileSync(filePath, 'export const artifact = 1;\n');
+		const file = createSourceFileRecord(filePath, root);
+		const database = IndexDatabase.open(path.join(directory, 'index.sqlite'), {rootDir: root, projectId: 'storage-test'});
+		const identity = {
+			contentSha256: file.sha256,
+			artifactKind: 'symbols',
+			extractorId: 'typescript',
+			extractorVersion: '0.1.0',
+			contextHash: 'context',
+		};
+
+		database.insertContents([file]);
+		database.putExtractionArtifact({...identity, artifactJson: 'first'});
+		expect(database.hasExtractionArtifact(identity)).toBe(true);
+		database.putExtractionArtifact({...identity, artifactJson: 'second'});
+
+		expect(database.getExtractionArtifact(identity)).toBe('first');
+		database.close();
+	});
+
+	it('indexes file content for unreferenced content cleanup', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-storage-'));
+		const databasePath = path.join(directory, 'index.sqlite');
+		const database = IndexDatabase.open(databasePath, {projectId: 'storage-test'});
+		database.close();
+
+		const reader = new DatabaseSync(databasePath, {readOnly: true});
+		const plan = explainQueryPlan(reader, 'select 1 from file where content_sha256 = ?', ['hash']).join(' ');
+		reader.close();
+
+		expect(plan).toContain('file_by_content');
 	});
 
 	it('backs up an incompatible schema and rebuilds the database', () => {

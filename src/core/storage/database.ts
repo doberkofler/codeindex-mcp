@@ -23,6 +23,7 @@ import {
 	countReferences as countStoredReferences,
 	databaseSizeBytes as readDatabaseSizeBytes,
 	getExtractionArtifact,
+	hasExtractionArtifact,
 	insertContents,
 	listContentHashes as listStoredContentHashes,
 	listFiles as listStoredFiles,
@@ -258,13 +259,16 @@ export class IndexDatabase {
 			}
 		});
 	}
-
 	public putExtractionArtifact(input: ExtractionArtifactKeyType & Readonly<{artifactJson: string}>): void {
 		putExtractionArtifact(this.#writer, input);
 	}
 
 	public getExtractionArtifact(input: ExtractionArtifactKeyType): string | null {
 		return getExtractionArtifact(this.#reader, input);
+	}
+
+	public hasExtractionArtifact(input: ExtractionArtifactKeyType): boolean {
+		return hasExtractionArtifact(this.#reader, input);
 	}
 
 	public countRows(generationId: string, table: 'file' | 'symbol' | 'occurrence' | 'dependency_edge' | 'dependency_binding' | 'diagnostic'): number {
