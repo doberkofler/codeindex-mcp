@@ -16,7 +16,7 @@ const scriptOf = (rootDir: string, name: string, content: string): string => {
 };
 
 describe.skipIf(process.platform === 'win32')('Oracle SQL*Plus runner', () => {
-	it('streams output lines and reports per-object progress', async () => {
+	it('streams output lines and reports counted progress without object names', async () => {
 		const context = fixture();
 
 		try {
@@ -40,9 +40,12 @@ describe.skipIf(process.platform === 'win32')('Oracle SQL*Plus runner', () => {
 				},
 			);
 
-			expect(progress).toContain(`Recompiling ${String(plan.snapshot.units.length)} target objects...`);
-			expect(progress).toContain(`Targets: 1/${String(plan.snapshot.units.length)} HR_API`);
-			expect(progress).toContain(`Targets: 2/${String(plan.snapshot.units.length)} HR_API`);
+			const total = plan.snapshot.units.length;
+
+			expect(progress).toContain(`Recompiling ${String(total)} target objects...`);
+			expect(progress.some((line) => line.startsWith(`Targets: 1/${String(total)}, ETA ~`))).toBe(true);
+			expect(progress.some((line) => line.startsWith(`Targets: 2/${String(total)}, ETA ~`))).toBe(true);
+			expect(progress.some((line) => line.includes('HR_API'))).toBe(false);
 		} finally {
 			context.cleanup();
 		}
@@ -70,7 +73,8 @@ describe.skipIf(process.platform === 'win32')('Oracle SQL*Plus runner', () => {
 			);
 
 			expect(progress).toContain('Recompiling 1 dependent objects...');
-			expect(progress).toContain('Dependents: 1/1 HR_VIEW');
+			expect(progress).toContain('Dependents: 1/1 complete in 0s');
+			expect(progress.some((line) => line.includes('HR_VIEW'))).toBe(false);
 		} finally {
 			context.cleanup();
 		}

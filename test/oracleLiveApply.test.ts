@@ -186,7 +186,7 @@ describe('Oracle live qualification invalid-object comparison', () => {
 });
 
 describe('Oracle live qualification progress and target validation', () => {
-	it('reports phase and per-object progress', async () => {
+	it('reports phase and counted progress', async () => {
 		const context = fixture();
 
 		try {
@@ -216,8 +216,10 @@ describe('Oracle live qualification progress and target validation', () => {
 
 			expect(progress).toContain('Capturing pre-DDL invalid-object baseline...');
 			expect(progress).toContain(`Recompiling ${String(total)} target objects...`);
-			expect(progress.some((line) => line.startsWith(`Targets: ${String(total)}/${String(total)} `))).toBe(true);
+			expect(progress).toContain(`Targets: ${String(total)}/${String(total)} complete in 0s`);
+			expect(progress.some((line) => line.startsWith('Source verified ('))).toBe(true);
 			expect(progress).toContain('Validating target PL/SQL and dependent restoration...');
+			expect(progress.some((line) => line.startsWith('Validation passed ('))).toBe(true);
 			expect(progress.some((line) => line.startsWith('Database work completed in '))).toBe(true);
 		} finally {
 			context.cleanup();

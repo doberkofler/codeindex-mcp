@@ -5,6 +5,7 @@ import {type LivePlanType} from './oracleLivePlan.ts';
 import {recompileOracleDependents, recompileOracleObjects, type SqlplusRunnerType} from './oracleRecompile.ts';
 import {type OracleConnectionType, type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 import {assertOracleSourceMatchesSnapshot, oracleObjectKeyOf} from './oracleLiveSource.ts';
+import {formatDuration} from './oracleProgress.ts';
 
 type OracleDatabaseType = Readonly<{
 	query: (sql: string) => Promise<readonly (readonly unknown[])[]>;
@@ -111,8 +112,6 @@ const invalidObjectOf = (row: readonly unknown[]): OracleInvalidObjectType => {
 
 const invalidObjectKeyOf = (object: Readonly<{objectType: string; objectName: string}>): string => oracleObjectKeyOf(object.objectType, object.objectName);
 
-const elapsedSeconds = (startedAt: number): string => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
-
 const ignoreProgress = (_line: string): void => {
 	void _line;
 };
@@ -176,31 +175,32 @@ export const applyOracleLivePlan = async (
 	const database = await (dependencies.databaseFactory ?? openOracleDatabase)(connection);
 
 	try {
+		const baselineStart = Date.now();
+
 		progress('Capturing pre-DDL invalid-object baseline...');
 		const baseline = await queryFile(database, plan.sql.baseline.path);
 		const baselineInvalid = baseline.map((row) => invalidObjectOf(row));
 		const baselineKeys = new Set(baselineInvalid.map((object) => invalidObjectKeyOf(object)));
 
 		writeCsvRows(plan.output.baselineInvalidObjects, baseline);
-		progress(`Baseline: ${String(baselineInvalid.length)} invalid object(s)`);
+		progress(`Baseline: ${String(baselineInvalid.length)} invalid object(s) (${formatDuration(Date.now() - baselineStart)})`);
+
+		const sourceStart = Date.now();
 
 		progress('Backing up and verifying installed source...');
 		const backup = await queryFile(database, plan.sql.backup.path);
 
 		writeCsvRows(plan.output.backup, backup);
 		assertOracleSourceMatchesSnapshot(plan, backup);
-
-		const targetStart = Date.now();
+		progress(`Source verified (${formatDuration(Date.now() - sourceStart)})`);
 
 		await recompileOracleObjects(plan, settings, environment, {runner: dependencies.sqlplusRunner, progress});
-		progress(`Targets completed in ${elapsedSeconds(targetStart)}`);
 
 		if (plan.snapshot.dependents.length > 0) {
-			const dependentStart = Date.now();
-
 			await recompileOracleDependents(plan, settings, environment, {runner: dependencies.sqlplusRunner, progress});
-			progress(`Dependents completed in ${elapsedSeconds(dependentStart)}`);
 		}
+
+		const validationStart = Date.now();
 
 		progress('Validating target PL/SQL and dependent restoration...');
 		const invalid = await queryFile(database, plan.sql.validate.path);
@@ -208,14 +208,19 @@ export const applyOracleLivePlan = async (
 
 		writeCsvRows(plan.output.invalidObjects, invalid);
 		assertInvalidObjectsAllowed(plan, baselineKeys, invalid);
+		progress(`Validation passed (${formatDuration(Date.now() - validationStart)})`);
+
+		const exportStart = Date.now();
+
 		progress('Exporting identifiers and dependencies...');
 		writeCsvRows(plan.output.identifiers, await queryFile(database, plan.sql.identifiers.path));
 		writeCsvRows(plan.output.dependencies, await queryFile(database, plan.sql.dependencies.path));
+		progress(`Exports written (${formatDuration(Date.now() - exportStart)})`);
 
 		const remainingBaselineInvalid = invalidObjects.filter((object) => baselineKeys.has(invalidObjectKeyOf(object)));
 		const remainingKeys = new Set(remainingBaselineInvalid.map((object) => invalidObjectKeyOf(object)));
 
-		progress(`Database work completed in ${elapsedSeconds(startedAt)}`);
+		progress(`Database work completed in ${formatDuration(Date.now() - startedAt)}`);
 
 		return {
 			baselineInvalid,

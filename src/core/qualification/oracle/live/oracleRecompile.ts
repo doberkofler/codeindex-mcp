@@ -1,6 +1,7 @@
 import {spawn} from 'node:child_process';
 import {type LivePlanType} from './oracleLivePlan.ts';
 import {type OracleConnectionType, type OracleLiveSettingsType} from './oracleLiveSettings.ts';
+import {phaseProgressLine} from './oracleProgress.ts';
 
 export type SqlplusRequestType = Readonly<{
 	executable: string;
@@ -133,6 +134,8 @@ type ScriptRequestType = Readonly<{
 
 const progressEveryOf = (total: number): number => Math.max(1, Math.floor(total / 20));
 
+const HEARTBEAT_MS = 10_000;
+
 const runScript = async (request: ScriptRequestType): Promise<void> => {
 	const {plan, settings, environment, runner, sqlPath, label, progressLabel, total, granularity, progress} = request;
 
@@ -140,25 +143,52 @@ const runScript = async (request: ScriptRequestType): Promise<void> => {
 		throw new Error('Oracle live qualification apply requires a database connection');
 	}
 
+	const startedAt = Date.now();
 	let completed = 0;
-	const result = await runner({
-		executable: settings.sqlplus,
-		cwd: plan.output.dir,
-		input: `${connectionLine(settings.connection)}\n@"${sqlPath}"\n`,
-		timeoutMs: settings.timeoutMs,
-		environment,
-		onOutput: (line) => {
-			if (progress === undefined || !line.startsWith('RECOMPILE')) {
-				return;
-			}
+	let lastLine = '';
+	const report = (): void => {
+		if (progress === undefined) {
+			return;
+		}
 
-			completed += 1;
+		const line = phaseProgressLine(progressLabel, completed, total, Date.now() - startedAt);
 
-			if (completed % granularity === 0 || completed === total) {
-				progress(`${progressLabel}: ${String(completed)}/${String(total)} ${line.slice(line.lastIndexOf(':') + 1)}`);
-			}
-		},
-	});
+		if (line !== lastLine) {
+			progress(line);
+			lastLine = line;
+		}
+	};
+	const heartbeat = setInterval(() => {
+		if (completed < total) {
+			report();
+		}
+	}, HEARTBEAT_MS);
+	let result: SqlplusResultType;
+
+	heartbeat.unref();
+
+	try {
+		result = await runner({
+			executable: settings.sqlplus,
+			cwd: plan.output.dir,
+			input: `${connectionLine(settings.connection)}\n@"${sqlPath}"\n`,
+			timeoutMs: settings.timeoutMs,
+			environment,
+			onOutput: (line) => {
+				if (progress === undefined || !line.startsWith('RECOMPILE')) {
+					return;
+				}
+
+				completed = Math.min(total, completed + 1);
+
+				if (completed % granularity === 0 || completed === total) {
+					report();
+				}
+			},
+		});
+	} finally {
+		clearInterval(heartbeat);
+	}
 
 	if (result.status !== 0) {
 		const detail = tail(result.stderr) || tail(result.stdout);
