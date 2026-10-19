@@ -1,0 +1,35 @@
+{
+	"schemaVersion": 1,
+	"reportSchemaVersion": 2,
+	"compatibility": {
+		"workspaceKind": "generated",
+		"profile": "large",
+		"fileCountToleranceRatio": 0.05,
+		"symbolCountToleranceRatio": 0.05
+	},
+	"requiredScenarios": ["cold_build", "warm_reuse", "warm_rebuild", "edit_to_fresh", "deep_cursor"],
+	"thresholds": {
+		"buildWarningRatio": 2,
+		"buildFailureRatio": 5,
+		"editWarningRatio": 2,
+		"editFailureRatio": 5,
+		"editP95WarningMs": 5000,
+		"editP95FailureMs": 15000,
+		"queryWarningRatio": 5,
+		"queryFailureRatio": 20,
+		"queryP95WarningMs": 25,
+		"queryP95FailureMs": 100,
+		"memoryWarningRatio": 2,
+		"memoryFailureRatio": 4,
+		"cpuWarningRatio": 2,
+		"cpuFailureRatio": 4,
+		"storageWarningRatio": 2,
+		"storageFailureRatio": 4,
+		"latencySlackMs": 50,
+		"querySlackMs": 5,
+		"memorySlackBytes": 67108864,
+		"cpuSlackMs": 100,
+		"storageSlackBytes": 16777216
+	},
+	"reference": null
+}

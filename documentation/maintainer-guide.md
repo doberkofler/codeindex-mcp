@@ -124,6 +124,14 @@ codeindex-cli benchmark --profile medium --scenarios cold,edit --edit-rounds 5
 
 # External checkout; only non-mutating scenarios. Database stays temporary.
 codeindex-cli benchmark --root /path/to/project --scenarios cold,warm,rebuild,deep
+
+# Enforce gates, write an evaluation sidecar, and publish a Markdown summary.
+codeindex-cli benchmark --profile large --scenarios cold,warm,rebuild,edit,deep \
+  --baseline benchmark/baseline.json \
+  --evaluation benchmark/results/nightly.evaluation.json \
+  --summary benchmark/results/nightly.md
+
+# Add --reference benchmark/reference.json when a retained reference exists.
 ```
 
 The report schema is version 2 and is written to `benchmark/results/` by default.
@@ -136,9 +144,44 @@ latency plus p50/p95/p99/max. Deep cursor samples record the exact production
 statement's plan, whether the intended index was used, and whether SQLite built a
 temporary B-tree.
 
+### 7.2 Gates, baselines, and reporting
+
+`benchmark/baseline.json` is versioned independently (`schemaVersion: 1`). It
+declares the accepted report schema version, workspace compatibility, required
+scenarios, thresholds, and an optional reference. `--reference` accepts a previous
+benchmark report and overrides the embedded reference, so an accepted nightly
+report can be compared without editing the baseline. Only machine, workspace,
+scenario, and query measurements are retained. Relative gates activate only when a
+reference is present.
+
+Every gate has `status: pass | warning | failure | skipped`. The CLI writes
+`<report>.evaluation.json` by default when `--baseline` is supplied. Only
+`failure` produces exit code 1; warnings remain successful. Nightly gates should
+therefore fail on major regressions, incompatible corpora, or invalid deep-cursor
+plans, not on advisory debt.
+
+The committed baseline applies absolute gates for edit-to-fresh p95 (warning
+above 5 s, failure above 15 s) and query p95 (warning above 25 ms, failure above
+100 ms). Deep-cursor samples fail when an intended index is missing and warn when
+SQLite uses a temporary B-tree. Relative build, edit, query, RSS, CPU, and storage
+gates use the configured ratios and slack values. Workspace file and symbol
+counts must stay within the compatibility tolerance. Reference-machine mismatches
+warn, and relative gate failures are downgraded to warnings because hosted CI
+numbers are not authoritative. Absolute gates and invalid plans still fail on any
+machine.
+
+`--summary <path>` writes GitHub-flavoured Markdown derived from the same JSON
+report and evaluation. The report and evaluation JSON remain authoritative. The
+scheduled workflow writes both artifacts and appends the summary to
+`$GITHUB_STEP_SUMMARY`.
+
+Generated workspaces and temporary databases are deleted after the run. Pass
+`--keep-workspace` to retain both paths for inspection; an explicit `--workspace`
+already persists the corpus without that flag.
+
 Artifact reuse is currently measured as zero because extraction artifacts are
-persisted but never consumed. Report this explicitly; implement artifact
-consumption only when a measured gate fails.
+persisted but never consumed. This produces a warning, not a failure; implement
+artifact consumption only when a measured gate requires it.
 
 Generated profiles are deterministic and disposable: `small`, `medium`, `large`,
 and `xl`. Real-project runs use a pinned public checkout, recorded revision,
@@ -162,7 +205,9 @@ hash, and Node identity. Checkouts and dependency setup happen outside the measu
 scenario. Do not commit checkouts, installed dependencies, or derived databases.
 
 The scheduled [benchmark workflow](../.github/workflows/benchmark.yml) runs the
-generated corpus nightly and uploads the JSON report. It detects large regressions;
+generated corpus nightly, enforces the committed gates, uploads the report and
+evaluation JSON, and publishes the Markdown summary. Absolute gates and invalid
+plans fail nightly; relative gates require a reference report, and
 reference-machine gates remain authoritative.
 
 Reference-machine targets:

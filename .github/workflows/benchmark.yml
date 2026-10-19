@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: Generated corpus profile
+        description: Generated corpus profile; must match benchmark/baseline.json
         required: true
         default: large
         type: choice
@@ -48,12 +48,18 @@ jobs:
           --scenarios cold,warm,rebuild,edit,deep
           --iterations 20
           --edit-rounds 5
+          --baseline benchmark/baseline.json
+          --evaluation benchmark/results/nightly.evaluation.json
+          --summary "$GITHUB_STEP_SUMMARY"
           --output benchmark/results/nightly.json
 
       - name: Upload report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-${{ github.run_id }}
-          path: benchmark/results/nightly.json
+          path: |
+            benchmark/results/nightly.json
+            benchmark/results/nightly.evaluation.json
           if-no-files-found: error
           retention-days: 90

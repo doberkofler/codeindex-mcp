@@ -198,7 +198,9 @@ codeindex-cli clean      # remove local caches (dry run by default)
 
 All commands accept `--config`, `--root`, `--extractor`, `--project-file`, and
 `--database`. The benchmark command also accepts a generated corpus profile or a
-disposable database path; see the
+disposable database path. With `--baseline`, it writes an evaluation sidecar and
+fails only for `failure` gates; warnings remain successful. `--summary` writes
+Markdown. See the
 [maintainer guide](./documentation/maintainer-guide.md#7-performance-verification).
 
 ### `codeindex-console`

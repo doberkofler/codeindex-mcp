@@ -1,4 +1,5 @@
-import {existsSync, mkdirSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {type BenchmarkProfileType} from './benchTypes.ts';
 
@@ -168,4 +169,34 @@ export const createBenchmarkCorpus = (input: Readonly<{directory: string; profil
  * @param rootDir - Candidate workspace.
  * @returns True when `tsconfig.json` exists.
  */
-export const hasBenchmarkProject = (rootDir: string): boolean => existsSync(join(rootDir, 'tsconfig.json'));
+const hasBenchmarkProject = (rootDir: string): boolean => existsSync(join(rootDir, 'tsconfig.json'));
+
+/**
+ * Creates or reuses a generated benchmark workspace.
+ *
+ * @param input - Selected profile and optional explicit workspace.
+ * @returns Workspace root and the temporary root when one was created.
+ * @throws {@link Error} When an explicit workspace is non-empty and not a corpus.
+ */
+export const prepareBenchmarkWorkspace = (
+	input: Readonly<{
+		profile: BenchmarkProfileType | null;
+		workspace: string | undefined;
+	}>,
+): Readonly<{workspaceRoot: string | null; temporaryWorkspace: string | null}> => {
+	if (input.profile === null) {
+		return {workspaceRoot: null, temporaryWorkspace: null};
+	}
+
+	const workspaceRoot = input.workspace === undefined ? mkdtempSync(join(tmpdir(), 'codeindex-benchmark-workspace-')) : path.resolve(input.workspace);
+
+	if (!hasBenchmarkProject(workspaceRoot)) {
+		if (existsSync(workspaceRoot) && readdirSync(workspaceRoot).length > 0) {
+			throw new Error('--workspace must be empty or contain a benchmark tsconfig.json');
+		}
+
+		createBenchmarkCorpus({directory: workspaceRoot, profile: input.profile});
+	}
+
+	return {workspaceRoot, temporaryWorkspace: input.workspace === undefined ? workspaceRoot : null};
+};

@@ -136,4 +136,6 @@ export type BenchmarkReportType = Readonly<{
 	readonly queries: Readonly<Record<string, BenchmarkPercentilesType>>;
 }>;
 
-export type BenchmarkScenarioNameType = 'cold_build' | 'warm_reuse' | 'warm_rebuild' | 'edit_to_fresh' | 'deep_cursor';
+export const BENCHMARK_SCENARIO_NAMES = ['cold_build', 'warm_reuse', 'warm_rebuild', 'edit_to_fresh', 'deep_cursor'] as const;
+
+export type BenchmarkScenarioNameType = (typeof BENCHMARK_SCENARIO_NAMES)[number];

@@ -23,9 +23,7 @@ const waitFor = async <ValueType>(
 		label: string;
 	}>,
 ): Promise<ValueType> => {
-	const deadline = performance.now() + input.timeoutMs;
-
-	for (;;) {
+	const poll = async (deadline: number): Promise<ValueType> => {
 		const value = input.attempt();
 
 		if (value !== null) {
@@ -37,7 +35,11 @@ const waitFor = async <ValueType>(
 		}
 
 		await delay(POLL_INTERVAL_MS);
-	}
+		return poll(deadline);
+	};
+
+	const result = await poll(performance.now() + input.timeoutMs);
+	return result;
 };
 
 const buildOf = (build: IndexStatusType['build']): BenchmarkBuildType | null =>
@@ -101,8 +103,11 @@ export const runEditScenario = async (
 		const targetPath = targetPathOf({index, explicit: input.targetPath});
 		const absolutePath = path.resolve(input.config.rootDir, targetPath);
 		const samples: BenchmarkEditSampleType[] = [];
+		const runRound = async (iteration: number): Promise<void> => {
+			if (iteration > input.rounds) {
+				return;
+			}
 
-		for (let iteration = 1; iteration <= input.rounds; iteration += 1) {
 			const previous = index.getStatus().generationId;
 			appendFileSync(absolutePath, `\nexport const benchmarkEdit${String(process.pid)}_${String(iteration)} = ${String(iteration)};\n`, {encoding: 'utf8'});
 			const startedAt = performance.now();
@@ -120,7 +125,10 @@ export const runEditScenario = async (
 				latencyMs: Math.round(performance.now() - startedAt),
 				generationId: status.generationId ?? '',
 			});
-		}
+			return runRound(iteration + 1);
+		};
+
+		await runRound(1);
 
 		const status = index.getStatus();
 		const files = status.generationId === null ? [] : database.listFiles(status.generationId);
