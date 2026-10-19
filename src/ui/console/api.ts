@@ -1,10 +1,11 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {z} from 'zod';
 import {
-	type AnalyticsDashboardType,
+	analyticsDashboardSchema,
 	type AnalyticsWindowType,
-	type ConsoleJobType,
+	consoleJobResponseSchema,
+	consoleSnapshotSchema,
 	type ConsoleOperationType,
-	type ConsoleSnapshotType,
 } from '../../transports/console/contracts.ts';
 
 const TOKEN_KEY = 'code-index-console-token';
@@ -34,7 +35,7 @@ export const clearToken = (): void => {
 	globalThis.sessionStorage.removeItem(TOKEN_KEY);
 };
 
-const request = async <ValueType>(path: string, token: string, init?: RequestInit): Promise<ValueType> => {
+const request = async <SchemaType extends z.ZodType>(path: string, token: string, schema: SchemaType, init?: RequestInit): Promise<z.infer<SchemaType>> => {
 	const response = await fetch(path, {
 		...init,
 		headers: {
@@ -59,20 +60,26 @@ const request = async <ValueType>(path: string, token: string, init?: RequestIni
 	}
 
 	const payload: unknown = await response.json();
-	return payload as ValueType;
+	const parsed = schema.safeParse(payload);
+
+	if (!parsed.success) {
+		throw new Error(`Unexpected console response:\n${z.prettifyError(parsed.error)}`);
+	}
+
+	return parsed.data;
 };
 
 export const useSnapshot = (token: string) =>
 	useQuery({
 		queryKey: ['snapshot', token],
-		queryFn: () => request<ConsoleSnapshotType>('/api/snapshot', token),
+		queryFn: () => request('/api/snapshot', token, consoleSnapshotSchema),
 		refetchInterval: 2_000,
 	});
 
 export const useAnalytics = (token: string, window: AnalyticsWindowType, enabled: boolean) =>
 	useQuery({
 		queryKey: ['analytics', token, window],
-		queryFn: () => request<AnalyticsDashboardType>(`/api/analytics?window=${window}`, token),
+		queryFn: () => request(`/api/analytics?window=${window}`, token, analyticsDashboardSchema),
 		refetchInterval: 15_000,
 		enabled,
 	});
@@ -81,7 +88,7 @@ export const useRunOperation = (token: string) => {
 	const queryClient = useQueryClient();
 	return useMutation({
 		mutationFn: (operation: ConsoleOperationType) =>
-			request<{job: ConsoleJobType}>('/api/jobs', token, {
+			request('/api/jobs', token, consoleJobResponseSchema, {
 				method: 'POST',
 				body: JSON.stringify({operation}),
 			}),

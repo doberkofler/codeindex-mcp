@@ -6,6 +6,9 @@ import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {buildAnalyticsDashboard} from '../src/core/analytics/dashboard.ts';
 import {
+	analyticsDashboardSchema,
+	consoleJobResponseSchema,
+	consoleSnapshotSchema,
 	type AnalyticsDashboardType,
 	type AnalyticsWindowType,
 	type ConsoleJobType,
@@ -152,12 +155,17 @@ describe('console HTTP server', () => {
 		const unauthorized = await fetch(new URL('api/snapshot', url));
 		const authorizedResponse = await authorized(new URL('api/snapshot', url));
 
+		const snapshot = consoleSnapshotSchema.parse(await authorizedResponse.json());
+		const dashboardResponse = await authorized(new URL('api/analytics?window=24h', url));
+		const dashboard = analyticsDashboardSchema.parse(await dashboardResponse.json());
+
 		expect(page.status).toBe(200);
 		await expect(page.text()).resolves.toContain('Console');
 		expect(asset.status).toBe(200);
 		expect(unauthorized.status).toBe(401);
 		expect(authorizedResponse.status).toBe(200);
-		await expect(authorizedResponse.json()).resolves.toMatchObject({status: {generationId: 'generation-1'}});
+		expect(snapshot.status.generationId).toBe('generation-1');
+		expect(dashboard.window.since).toBe('24h');
 	});
 
 	it('rejects non-loopback hosts and unknown API routes', async () => {
@@ -191,9 +199,12 @@ describe('console HTTP server', () => {
 			body: JSON.stringify({operation: 'verify'}),
 		});
 
+		const acceptedBody = consoleJobResponseSchema.parse(await accepted.json());
+
 		expect(badWindow.status).toBe(400);
 		expect(badOperation.status).toBe(400);
 		expect(accepted.status).toBe(202);
+		expect(acceptedBody.job.operation).toBe('verify');
 		expect(servicePort.operations).toStrictEqual(['verify']);
 	});
 

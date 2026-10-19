@@ -18,12 +18,6 @@ const overrides: OverrideType[] = [
 			'unicorn/numeric-separators-style': 'off',
 		},
 	},
-	{
-		// API responses come from this process's own loopback server and are decoded
-		// once at the transport seam; every caller uses the typed contract.
-		files: ['src/ui/console/api.ts'],
-		rules: {'typescript/no-unsafe-type-assertion': 'off'},
-	},
 ];
 
 const config = {
