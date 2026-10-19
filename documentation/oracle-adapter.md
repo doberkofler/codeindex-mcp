@@ -222,13 +222,19 @@ pnpm qualify:oracle:live -- --root /path/to/oracle/project
 ```
 
 The command generates an external manifest for every supported O1 source file
-under the root, freezes the source, writes `backup.sql`, `compile.sql`,
-`validate.sql`, `identifiers.sql`, and `dependencies.sql`, and prints an
-approval hash. When credentials are present, it opens one read-only `oracledb`
-session to inventory installed objects; no DDL runs before approval. Missing and
-wrapped installed objects are excluded from the snapshot, and `compile.sql`
-contains only `ALTER ... COMPILE` statements for the remaining installed
-objects. It never runs authored `CREATE OR REPLACE` scripts.
+under the root, including `.sql` package scripts, freezes the source, writes
+`backup.sql`, `compile.sql`, `validate.sql`, `identifiers.sql`, and
+`dependencies.sql`, and prints an approval hash. When credentials are present, it
+opens one read-only `oracledb` session and reads the complete `USER_SOURCE` text;
+no DDL runs before approval. Planning lexes every candidate file into individual
+package, package-body, function, and procedure units, groups them by object, and
+selects the candidate whose normalized source is exactly the installed source.
+Candidate files that cannot be proven to match abort planning before an approval
+is written, and the error lists their workspace-relative paths and normalized
+hashes. Multiple identical matches are recorded in the plan. Installed objects
+with no candidate file and wrapped installed objects are excluded from the
+snapshot, and `compile.sql` contains only `ALTER ... COMPILE` statements for the
+remaining installed objects. It never runs authored `CREATE OR REPLACE` scripts.
 
 The plan prints a database-change warning with the target schema. Review the
 generated SQL, then apply the same plan:
@@ -246,22 +252,31 @@ choose the evidence directory. The default output directory is outside the
 source checkout under the CodeIndex data directory. Apply does not re-read the
 source checkout; it verifies and uses the frozen snapshot.
 
+The frozen snapshot contains one file per selected unit. A unit that is the only
+selected unit from its authored file keeps that file's path; multiple selected
+units from one script receive deterministic paths under `units/`. A generated
+snapshot manifest includes every frozen unit and never includes unselected units
+from a multi-unit script. Each plan unit records its authored source path,
+candidate paths, and normalized source hash.
+
 Apply performs these steps:
 
 1. Opens one `oracledb` session and backs up `USER_SOURCE`.
-2. Aborts if installed source differs from the frozen snapshot.
+2. Aborts if any installed object is missing or its normalized source hash
+   differs from the approved plan.
 3. Recompiles the installed package specifications, package bodies, functions,
    and procedures with `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`.
 4. Fails when `USER_OBJECTS` still contains invalid objects.
 5. Exports `USER_IDENTIFIERS` and `USER_DEPENDENCIES` through the `oracledb`
    session.
-6. Rebuilds the snapshot index with the current parser.
+6. Rebuilds the snapshot index with the current parser using the plan's unit
+   provenance.
 7. Compares facts and writes `oracle-qualification.json` and `run.json`.
 
 Recompilation is database DDL. It does not replace source, but it can invalidate
 dependent objects and discard package state (`ORA-04068`). The command prints
-this warning before applying. Plan version 3 invalidates earlier plans that used
-`CREATE OR REPLACE`.
+this warning before applying. Plan version 4 invalidates earlier plans that
+inventoried only object names or qualified files by filename.
 
 `oracledb` is an optional dependency used only by live qualification; normal
 indexing and MCP operation never load it. SQL*Plus is retained only because it
@@ -272,10 +287,10 @@ compile timeout. SQL*Plus receives its connection over standard input; the
 `oracledb` session receives credentials directly in memory.
 
 Use a dedicated qualification schema that contains only the snapshot corpus.
-The workflow replaces objects but does not drop unrelated ones; a leftover object
-produces an unmapped PL/Scope row and fails qualification. The command refuses
-an output directory inside the indexed workspace and never writes credentials
-to the plan, SQL, or evidence files.
+The workflow recompiles objects but does not drop unrelated ones; a leftover
+object produces an unmapped PL/Scope row and fails qualification. The command
+refuses an output directory inside the indexed workspace and never writes
+credentials to the plan, SQL, or evidence files.
 
 ## 8. Limitations
 

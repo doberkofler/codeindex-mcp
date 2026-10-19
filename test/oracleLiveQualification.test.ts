@@ -1,8 +1,14 @@
-import {existsSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
+import {scanOracleProject} from '../src/adapters/oracle/scanProject.ts';
 import {applyOracleLivePlan} from '../src/core/qualification/oracle/live/oracleDatabase.ts';
-import {normalizeOracleSource, oracleObjectKeyOf, oracleSourceObjectOf} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
+import {
+	normalizeOracleSource,
+	oracleObjectKeyOf,
+	oracleSourceUnitsOf,
+	type OracleInstalledSourceType,
+} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
 import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
 import {type SqlplusRequestType} from '../src/core/qualification/oracle/live/oracleRecompile.ts';
 import {readOracleLiveSettings, type OracleLiveSettingsType} from '../src/core/qualification/oracle/live/oracleLiveSettings.ts';
@@ -60,17 +66,52 @@ const stubDatabase =
 	};
 
 const sourceRows = (plan: LivePlanType): readonly (readonly unknown[])[] =>
-	plan.snapshot.files.flatMap((file) => {
-		const object = oracleSourceObjectOf(file.path);
-
-		if (object === null) {
-			return [];
-		}
-
-		return normalizeOracleSource(readFileSync(path.join(plan.snapshot.dir, file.path), 'utf8'))
+	plan.snapshot.units.flatMap((unit) =>
+		normalizeOracleSource(readFileSync(path.join(plan.snapshot.dir, unit.path), 'utf8'), unit)
 			.split('\n')
-			.map((text, index) => [object.type, object.name, index + 1, text]);
-	});
+			.map((text, index) => [unit.type, unit.name, index + 1, text]),
+	);
+
+const installedSourcesOf = (config: Parameters<typeof scanOracleProject>[0]): ReadonlyMap<string, OracleInstalledSourceType> => {
+	const installed = new Map<string, OracleInstalledSourceType>();
+
+	for (const file of scanOracleProject(config).files) {
+		for (const unit of oracleSourceUnitsOf(file.path, readFileSync(file.absolutePath, 'utf8'))) {
+			installed.set(oracleObjectKeyOf(unit.object.type, unit.object.name), {
+				type: unit.object.type,
+				name: unit.object.name,
+				source: unit.source,
+			});
+		}
+	}
+
+	return installed;
+};
+
+const qualificationConfig = (config: ReturnType<typeof fixture>['config'], manifestPath: string): ReturnType<typeof fixture>['config'] => ({
+	...config,
+	projectFilePath: manifestPath,
+	projects: [{name: 'app', projectFilePath: manifestPath}],
+});
+
+const writeSelectionManifest = (manifestPath: string): void => {
+	writeFileSync(
+		manifestPath,
+		`${JSON.stringify(
+			{
+				schemaVersion: 1,
+				dialect: '19c',
+				defaultSchema: 'APP',
+				extensions: ['.pks', '.pkb', '.sql'],
+				include: ['database/**/*.pks', 'database/**/*.pkb', 'database/**/*.sql'],
+				exclude: [],
+			},
+			null,
+			2,
+		)}\n`,
+		{encoding: 'utf8'},
+	);
+};
 
 describe('Oracle live qualification plan', () => {
 	it('creates a frozen snapshot, ordered SQL, and an approval hash without credentials', () => {
@@ -82,7 +123,7 @@ describe('Oracle live qualification plan', () => {
 			const compile = readFileSync(plan.sql.compile.path, 'utf8');
 
 			expect(plan.snapshot.files.length).toBeGreaterThan(5);
-			expect(existsSync(path.join(plan.snapshot.dir, 'oracle-index.json'))).toBe(true);
+			expect(existsSync(path.join(plan.snapshot.dir, 'manifests', 'qualification-index.json'))).toBe(true);
 			expect(compile).toContain('ALTER PACKAGE "HR_API" COMPILE SPECIFICATION;');
 			expect(compile).toContain('ALTER PACKAGE "HR_API" COMPILE BODY;');
 			expect(compile.indexOf('COMPILE SPECIFICATION')).toBeLessThan(compile.indexOf('COMPILE BODY'));
@@ -102,11 +143,16 @@ describe('Oracle live qualification plan', () => {
 
 		try {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
-			const installed = new Set([oracleObjectKeyOf('PACKAGE', 'HR_API'), oracleObjectKeyOf('PACKAGE BODY', 'HR_API')]);
+			const installed = new Map(
+				[...installedSourcesOf(context.config)].filter(([key]) =>
+					[oracleObjectKeyOf('PACKAGE', 'HR_API'), oracleObjectKeyOf('PACKAGE BODY', 'HR_API')].includes(key),
+				),
+			);
 			const plan = createOracleLivePlan(context.config, settingsOf(outputDir), installed);
 			const compile = readFileSync(plan.sql.compile.path, 'utf8');
 
 			expect(plan.snapshot.files.map((file) => file.path)).toStrictEqual(['database/hr_api.pkb', 'database/hr_api.pks']);
+			expect(plan.snapshot.units.map((unit) => unit.name)).toStrictEqual(['HR_API', 'HR_API']);
 			expect(compile).toContain('ALTER PACKAGE "HR_API" COMPILE SPECIFICATION;');
 			expect(compile).toContain('ALTER PACKAGE "HR_API" COMPILE BODY;');
 			expect(compile).not.toContain('SALES_API');
@@ -114,7 +160,106 @@ describe('Oracle live qualification plan', () => {
 			context.cleanup();
 		}
 	});
+});
 
+describe('Oracle live qualification source selection', () => {
+	it('selects the candidate that matches installed source instead of a legacy filename', () => {
+		const context = fixture();
+
+		try {
+			const manifestPath = path.join(context.config.rootDir, 'qualification-index.json');
+			const legacyPath = path.join(context.config.rootDir, 'database', 'legacy_api.pks');
+			const deployedPath = path.join(context.config.rootDir, 'database', 'deployment', 'legacy_api.sql');
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const config = qualificationConfig(context.config, manifestPath);
+
+			writeFileSync(legacyPath, 'CREATE OR REPLACE PACKAGE LEGACY_API AS\nPROCEDURE old_thing;\nEND LEGACY_API;\n/\n', {encoding: 'utf8'});
+			mkdirSync(path.dirname(deployedPath), {recursive: true});
+			writeFileSync(deployedPath, 'set define off\n\nCREATE OR REPLACE\nPACKAGE LEGACY_API IS\nPROCEDURE new_thing;\nEND LEGACY_API;\n/\nset define on\n', {
+				encoding: 'utf8',
+			});
+			writeSelectionManifest(manifestPath);
+
+			const installed = new Map([
+				[
+					oracleObjectKeyOf('PACKAGE', 'LEGACY_API'),
+					{type: 'PACKAGE', name: 'LEGACY_API', source: 'PACKAGE LEGACY_API IS\nPROCEDURE new_thing;\nEND LEGACY_API;'},
+				],
+			]);
+			const plan = createOracleLivePlan(config, settingsOf(outputDir), installed);
+			const snapshot = readFileSync(path.join(plan.snapshot.dir, plan.snapshot.units[0]?.path ?? ''), 'utf8');
+
+			expect(plan.snapshot.units).toHaveLength(1);
+			expect(plan.snapshot.units[0]?.sourcePath).toBe('database/deployment/legacy_api.sql');
+			expect(plan.snapshot.units[0]?.candidatePaths).toStrictEqual(['database/deployment/legacy_api.sql']);
+			expect(snapshot).toContain('new_thing');
+			expect(snapshot).not.toContain('old_thing');
+		} finally {
+			context.cleanup();
+		}
+	});
+
+	it('writes only the selected unit from a multi-unit SQL file', () => {
+		const context = fixture();
+
+		try {
+			const manifestPath = path.join(context.config.rootDir, 'qualification-index.json');
+			const combinedPath = path.join(context.config.rootDir, 'database', 'combined.sql');
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const config = qualificationConfig(context.config, manifestPath);
+
+			writeFileSync(
+				combinedPath,
+				'CREATE OR REPLACE PACKAGE KEPT_API IS\nPROCEDURE kept;\nEND KEPT_API;\n/\nCREATE OR REPLACE PACKAGE DROPPED_API IS\nPROCEDURE dropped;\nEND DROPPED_API;\n/\n',
+				{encoding: 'utf8'},
+			);
+			writeSelectionManifest(manifestPath);
+
+			const installed = new Map([
+				[oracleObjectKeyOf('PACKAGE', 'KEPT_API'), {type: 'PACKAGE', name: 'KEPT_API', source: 'PACKAGE KEPT_API IS\nPROCEDURE kept;\nEND KEPT_API;'}],
+				[
+					oracleObjectKeyOf('PACKAGE', 'DROPPED_API'),
+					{type: 'PACKAGE', name: 'DROPPED_API', source: 'PACKAGE DROPPED_API IS\nPROCEDURE dropped;\nEND DROPPED_API;'},
+				],
+			]);
+			const plan = createOracleLivePlan(config, settingsOf(outputDir), installed);
+			const kept = plan.snapshot.units.find((unit) => unit.name === 'KEPT_API');
+			const dropped = plan.snapshot.units.find((unit) => unit.name === 'DROPPED_API');
+
+			expect(kept?.path).toMatch(/^units\/\d+-KEPT_API\.pks$/u);
+			expect(dropped?.path).toMatch(/^units\/\d+-DROPPED_API\.pks$/u);
+			expect(readFileSync(path.join(plan.snapshot.dir, kept?.path ?? ''), 'utf8')).not.toContain('DROPPED_API');
+			expect(readFileSync(path.join(plan.snapshot.dir, dropped?.path ?? ''), 'utf8')).not.toContain('KEPT_API');
+			expect(plan.snapshot.files).toHaveLength(2);
+		} finally {
+			context.cleanup();
+		}
+	});
+
+	it('fails before writing an approval when no candidate matches installed source', () => {
+		const context = fixture();
+
+		try {
+			const manifestPath = path.join(context.config.rootDir, 'qualification-index.json');
+			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
+			const config = qualificationConfig(context.config, manifestPath);
+
+			writeSelectionManifest(manifestPath);
+			mkdirSync(outputDir, {recursive: true});
+
+			const installed = new Map([
+				[oracleObjectKeyOf('PACKAGE', 'HR_API'), {type: 'PACKAGE', name: 'HR_API', source: 'PACKAGE HR_API IS\nPROCEDURE missing_from_source;\nEND HR_API;'}],
+			]);
+
+			expect(() => createOracleLivePlan(config, settingsOf(outputDir), installed)).toThrow(/database\/hr_api\.pks sha256=[a-f0-9]{64}/u);
+			expect(existsSync(path.join(outputDir, 'plan.json'))).toBe(false);
+		} finally {
+			context.cleanup();
+		}
+	});
+});
+
+describe('Oracle live qualification approval', () => {
 	it('requires the exact approval and detects modified SQL', () => {
 		const context = fixture();
 
@@ -223,7 +368,7 @@ describe('Oracle live qualification drift', () => {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
 			const plan = createOracleLivePlan(context.config, settingsOf(outputDir));
 			const approved = settingsOf(outputDir, plan.approval);
-			const altered = sourceRows(plan).map((row, index) => (index === 0 ? [row[0], row[1], row[2], `${String(row[3])} -- drift`] : row));
+			const altered = sourceRows(plan).map((row, index) => (index === 0 ? [row[0], row[1], row[2], String(row[3]).replace('hr_api', 'hr_apx')] : row));
 			let recompiled = false;
 
 			await expect(

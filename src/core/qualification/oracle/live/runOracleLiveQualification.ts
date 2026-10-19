@@ -5,7 +5,7 @@ import {DEFAULT_ORACLE_SOURCE_EXTENSIONS, type OracleManifestType} from '../../.
 import {indexRootDirectory, type ConfigType} from '../../../config/config.ts';
 import {qualifyOracleConfig} from '../runOracleQualification.ts';
 import {applyOracleLivePlan, type OracleLiveDependenciesType} from './oracleDatabase.ts';
-import {readInstalledOracleObjects} from './oracleInventory.ts';
+import {readInstalledOracleSources} from './oracleInventory.ts';
 import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from './oracleLivePlan.ts';
 import {readOracleLiveSettings, type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 
@@ -51,12 +51,13 @@ const resolveRoot = (root: string): string => {
 };
 
 const writeManifest = (outputDir: string, defaultSchema: string): string => {
+	const extensions = [...DEFAULT_ORACLE_SOURCE_EXTENSIONS, '.sql'];
 	const manifest: OracleManifestType = {
 		schemaVersion: 1,
 		dialect: '19c',
 		defaultSchema,
-		extensions: [...DEFAULT_ORACLE_SOURCE_EXTENSIONS],
-		include: DEFAULT_ORACLE_SOURCE_EXTENSIONS.map((extension) => `**/*${extension}`),
+		extensions,
+		include: extensions.map((extension) => `**/*${extension}`),
 		exclude: [],
 	};
 	const manifestPath = path.join(outputDir, 'oracle-index.json');
@@ -105,20 +106,15 @@ const configOf = (rootDir: string, manifestPath: string, outputDir: string, proj
 
 const snapshotConfig = (plan: LivePlanType): ConfigType => {
 	const rootDir = realpathSync(plan.snapshot.dir);
-	const projects = plan.project.projects.map((project) => ({name: project.name, projectFilePath: path.join(rootDir, project.path)}));
-	const first = projects.at(0);
-
-	if (first === undefined) {
-		throw new Error('Oracle qualification plan has no project context');
-	}
+	const projectFilePath = path.join(rootDir, plan.snapshot.projectFile);
 
 	return {
 		projectName: plan.project.name,
 		rootDir,
 		extractorId: 'oracle',
 		extractorOptions: {},
-		projectFilePath: first.projectFilePath,
-		projects,
+		projectFilePath,
+		projects: [{name: 'qualification', projectFilePath}],
 		databasePath: plan.output.databasePath,
 		analyticsEnabled: false,
 		analyticsPath: path.join(plan.output.dir, 'analytics', 'events.jsonl'),
@@ -217,15 +213,17 @@ export const runOracleLiveQualification = async (
 		if (settings.approval === null) {
 			const manifestPath = manifestOf(environment, options, outputDir);
 			const config = configOf(rootDir, manifestPath, outputDir, projectId);
-			const installedObjects = settings.connection === null ? null : await readInstalledOracleObjects(settings.connection);
-			const plan = createOracleLivePlan(config, settings, installedObjects);
+			const installedSources = settings.connection === null ? null : await readInstalledOracleSources(settings.connection);
+			const plan = createOracleLivePlan(config, settings, installedSources);
 
 			io.stdout(`Oracle qualification plan: ${plan.output.planDir}`);
 			io.stdout(`Source root: ${rootDir}`);
 			io.stdout(`Manifest: ${manifestPath}`);
 			io.stdout(`Source snapshot: ${plan.snapshot.dir}`);
-			io.stdout(`Installed objects: ${installedObjects === null ? 'not checked' : String(installedObjects.size)}`);
-			io.stdout(`Files: ${plan.snapshot.files.length}; source hash: ${plan.snapshot.sourceHash}`);
+			io.stdout(
+				`Installed objects: ${installedSources === null ? 'not checked' : `${String(installedSources.size)}; missing source: ${String(plan.snapshot.installed?.missingSource ?? 0)}`}`,
+			);
+			io.stdout(`Files: ${plan.snapshot.files.length}; units: ${plan.snapshot.units.length}; source hash: ${plan.snapshot.sourceHash}`);
 			io.stdout(`Approval: ${plan.approval}`);
 			io.stdout(`To apply: ${applyCommand(options, rootDir, outputDir, plan.approval)}`);
 			return 0;
@@ -238,6 +236,7 @@ export const runOracleLiveQualification = async (
 			identifiers: plan.output.identifiers,
 			dependencies: plan.output.dependencies,
 			output: plan.output.report,
+			units: plan.snapshot.units,
 		});
 
 		writeRunMetadata(plan, settings, result);

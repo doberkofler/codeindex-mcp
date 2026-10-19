@@ -1,5 +1,8 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
+import {parseOracleUnits} from '../../../../adapters/oracle/parseUnits.ts';
+import {tokenizeOracleSource} from '../../../../adapters/oracle/tokenize.ts';
+import {hashContent} from '../../../generation/sourceFiles.ts';
 import {type LivePlanType} from './oracleLivePlan.ts';
 
 type OracleSourceObjectType = 'PACKAGE' | 'PACKAGE BODY' | 'FUNCTION' | 'PROCEDURE';
@@ -12,9 +15,16 @@ export type OracleSourceObjectRefType = Readonly<{
 
 type SourceLineType = Readonly<{line: number; text: string}>;
 
-export type OracleAuthoritativeSourceType = Readonly<{
-	path: string;
+export type OracleSourceUnitType = Readonly<{
+	sourcePath: string;
 	object: OracleSourceObjectRefType;
+	rawSource: string;
+	source: string;
+}>;
+
+export type OracleInstalledSourceType = Readonly<{
+	type: string;
+	name: string;
 	source: string;
 }>;
 
@@ -43,12 +53,51 @@ const objectOf = (filePath: string): OracleSourceObjectRefType | null => {
 };
 
 /**
- * Maps a snapshot source path to the installed Oracle object it qualifies.
+ * Maps an installed Oracle object type and name to its compile identity.
  *
- * @param filePath - Snapshot-relative POSIX source path.
- * @returns The object type, canonical name, and compile clause, or null.
+ * @param type - `USER_OBJECTS` object type.
+ * @param name - Installed object name.
+ * @returns The object reference, or null for unsupported object types.
  */
-export const oracleSourceObjectOf = (filePath: string): OracleSourceObjectRefType | null => objectOf(filePath);
+export const oracleObjectRefOf = (type: string, name: string): OracleSourceObjectRefType | null => {
+	switch (type.toUpperCase()) {
+		case 'PACKAGE': {
+			return {type: 'PACKAGE', name: name.toUpperCase(), compileClause: 'SPECIFICATION'};
+		}
+		case 'PACKAGE BODY': {
+			return {type: 'PACKAGE BODY', name: name.toUpperCase(), compileClause: 'BODY'};
+		}
+		case 'FUNCTION': {
+			return {type: 'FUNCTION', name: name.toUpperCase(), compileClause: ''};
+		}
+		case 'PROCEDURE': {
+			return {type: 'PROCEDURE', name: name.toUpperCase(), compileClause: ''};
+		}
+		default: {
+			return null;
+		}
+	}
+};
+
+const objectOfUnitKind = (kind: string, name: string): OracleSourceObjectRefType | null => {
+	switch (kind) {
+		case 'package-spec': {
+			return {type: 'PACKAGE', name, compileClause: 'SPECIFICATION'};
+		}
+		case 'package-body': {
+			return {type: 'PACKAGE BODY', name, compileClause: 'BODY'};
+		}
+		case 'procedure': {
+			return {type: 'PROCEDURE', name, compileClause: ''};
+		}
+		case 'function': {
+			return {type: 'FUNCTION', name, compileClause: ''};
+		}
+		default: {
+			return null;
+		}
+	}
+};
 
 const quoteIdentifier = (value: string): string => `"${value.replaceAll('"', '""')}"`;
 
@@ -139,6 +188,60 @@ export const normalizeOracleSource = (source: string, object?: OracleSourceObjec
 };
 
 /**
+ * Splits one Oracle source file into the top-level units it declares.
+ *
+ * Files with a conventional single-unit extension are also parsed so that
+ * multi-unit scripts and package scripts are handled identically. A
+ * conventional extension remains the fallback when the structural parser
+ * cannot recover a unit.
+ *
+ * @param filePath - Workspace-relative POSIX source path.
+ * @param source - Raw file text.
+ * @returns Top-level units with canonical source text.
+ */
+export const oracleSourceUnitsOf = (filePath: string, source: string): readonly OracleSourceUnitType[] => {
+	const tokenized = tokenizeOracleSource(source, filePath);
+	const parsed = parseOracleUnits({tokens: tokenized.tokens, path: filePath, defaultSchema: 'QUALIFICATION'});
+	const units: OracleSourceUnitType[] = [];
+
+	for (const unit of parsed.units) {
+		const object = objectOfUnitKind(unit.kind, unit.name.canonical.toUpperCase());
+
+		if (object === null) {
+			continue;
+		}
+
+		const rawSource = source.slice(unit.range.startOffset, unit.range.endOffset);
+
+		if (rawSource.trim() === '') {
+			continue;
+		}
+
+		units.push({sourcePath: filePath, object, rawSource, source: normalizeOracleSource(rawSource, object)});
+	}
+
+	if (units.length > 0) {
+		const [single] = units;
+
+		if (units.length === 1 && single !== undefined && !/\bEND\b/iu.test(single.rawSource)) {
+			return [{sourcePath: filePath, object: single.object, rawSource: source, source: normalizeOracleSource(source, single.object)}];
+		}
+
+		const fallback = objectOf(filePath);
+
+		if (fallback !== null && !units.some((unit) => unit.object.type === fallback.type && unit.object.name === fallback.name)) {
+			units.push({sourcePath: filePath, object: fallback, rawSource: source, source: normalizeOracleSource(source, fallback)});
+		}
+
+		return units;
+	}
+
+	const fallback = objectOf(filePath);
+
+	return fallback === null ? [] : [{sourcePath: filePath, object: fallback, rawSource: source, source: normalizeOracleSource(source, fallback)}];
+};
+
+/**
  * Builds the canonical key for one installed Oracle object.
  *
  * @param type - Oracle object type, such as `PACKAGE BODY`.
@@ -149,67 +252,16 @@ export const oracleObjectKeyOf = (type: string, name: string): string => `${type
 
 const keyOf = oracleObjectKeyOf;
 
-const isWrapped = (source: string): boolean =>
-	source
-		.split('\n')
-		.slice(0, 5)
-		.some((line) => /^\s*(?:PACKAGE(?:\s+BODY)?|FUNCTION|PROCEDURE)\b.+\bwrapped\s*$/iu.test(line));
-
 /**
- * Selects one source file per installed object and rejects ambiguous duplicates.
+ * Joins `USER_SOURCE` lines into the text Oracle stores for one object.
  *
- * Wrapped source cannot be qualified and is ignored when an unwrapped definition
- * for the same object exists. Multiple unwrapped definitions must be identical.
+ * Oracle appends a newline to every `USER_SOURCE.TEXT` row. Removing only that
+ * row terminator preserves embedded newlines in wrapped rows.
  *
- * @param files - Snapshot-relative source paths.
- * @param snapshotDir - Frozen snapshot root.
- * @returns Authoritative source files with normalized source.
- * @throws {Error} When an object has no unwrapped source or conflicting sources.
+ * @param lines - Ordered `USER_SOURCE` rows for one object.
+ * @returns Source text without row terminators.
  */
-export const authoritativeOracleSources = (files: readonly Readonly<{path: string}>[], snapshotDir: string): readonly OracleAuthoritativeSourceType[] => {
-	const groups = new Map<string, OracleAuthoritativeSourceType[]>();
-
-	for (const file of files) {
-		const object = oracleSourceObjectOf(file.path);
-
-		if (object === null) {
-			continue;
-		}
-
-		const source = normalizeOracleSource(readFileSync(path.join(snapshotDir, file.path), 'utf8'), object);
-		const key = keyOf(object.type, object.name);
-		const group = groups.get(key) ?? [];
-
-		group.push({path: file.path, object, source});
-		groups.set(key, group);
-	}
-
-	const selected: OracleAuthoritativeSourceType[] = [];
-
-	for (const group of groups.values()) {
-		const unwrapped = group.filter((entry) => !isWrapped(entry.source));
-		const candidates = unwrapped.length === 0 ? group : unwrapped;
-		const distinct = new Set(candidates.map((entry) => entry.source));
-
-		if (distinct.size > 1) {
-			throw new Error(`Multiple Oracle source files define ${group[0]?.object.type} ${group[0]?.object.name} differently`);
-		}
-
-		if (unwrapped.length === 0) {
-			throw new Error(`Oracle object has only wrapped source: ${group[0]?.object.type} ${group[0]?.object.name}`);
-		}
-
-		const [first] = candidates.sort((left, right) => left.path.localeCompare(right.path));
-
-		if (first === undefined) {
-			throw new Error('Oracle source selection produced no source file');
-		}
-
-		selected.push(first);
-	}
-
-	return selected.sort((left, right) => left.object.type.localeCompare(right.object.type) || left.object.name.localeCompare(right.object.name));
-};
+const installedSourceText = (lines: readonly SourceLineType[]): string => lines.map((line) => line.text.replace(/\r?\n$/u, '')).join('\n');
 
 const installedSourceOf = (rows: readonly (readonly unknown[])[]): ReadonlyMap<string, readonly SourceLineType[]> => {
 	const source = new Map<string, SourceLineType[]>();
@@ -236,10 +288,10 @@ const installedSourceOf = (rows: readonly (readonly unknown[])[]): ReadonlyMap<s
 };
 
 /**
- * Aborts when installed Oracle source differs from the frozen snapshot.
+ * Aborts when installed Oracle source differs from the approved snapshot.
  *
- * PL/Scope is regenerated from the installed source. Qualification is only
- * meaningful when that source is exactly the source that was reviewed.
+ * The plan binds the normalized hash of every reviewed unit. Qualification is
+ * only meaningful when the database still stores exactly that source.
  *
  * @param plan - Approved plan containing the frozen source snapshot.
  * @param rows - `USER_SOURCE` rows exported before recompilation.
@@ -248,17 +300,23 @@ const installedSourceOf = (rows: readonly (readonly unknown[])[]): ReadonlyMap<s
 export const assertOracleSourceMatchesSnapshot = (plan: LivePlanType, rows: readonly (readonly unknown[])[]): void => {
 	const installed = installedSourceOf(rows);
 
-	for (const entry of authoritativeOracleSources(plan.snapshot.files, plan.snapshot.dir)) {
-		const lines = installed.get(keyOf(entry.object.type, entry.object.name));
+	for (const unit of plan.snapshot.units) {
+		const lines = installed.get(keyOf(unit.type, unit.name));
 
 		if (lines === undefined) {
-			throw new Error(`Installed Oracle object is missing for the snapshot: ${entry.object.type} ${entry.object.name}`);
+			throw new Error(`Installed Oracle object is missing for the snapshot: ${unit.type} ${unit.name}`);
 		}
 
-		const actual = normalizeOracleSource(lines.map((line) => line.text.replace(/\r?\n$/u, '')).join('\n'), entry.object);
+		const actual = normalizeOracleSource(installedSourceText(lines), unit);
 
-		if (entry.source !== actual) {
-			throw new Error(`Installed Oracle source differs from the snapshot: ${entry.object.type} ${entry.object.name} (${entry.path})`);
+		if (hashContent(actual) !== unit.sourceSha256) {
+			throw new Error(`Installed Oracle source differs from the snapshot: ${unit.type} ${unit.name} (${unit.sourcePath})`);
+		}
+
+		const snapshot = normalizeOracleSource(readFileSync(path.join(plan.snapshot.dir, unit.path), 'utf8'), unit);
+
+		if (hashContent(snapshot) !== unit.sourceSha256) {
+			throw new Error(`Oracle qualification snapshot changed after approval: ${unit.path}`);
 		}
 	}
 };

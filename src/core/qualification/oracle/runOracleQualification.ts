@@ -22,6 +22,7 @@ export type OracleOptionsType = Readonly<{
 	identifiers?: string | undefined;
 	dependencies?: string | undefined;
 	output?: string | undefined;
+	units?: readonly Readonly<{path: string; type: string; name: string}>[] | undefined;
 }>;
 
 type OracleQualificationResultType = Readonly<{
@@ -77,8 +78,32 @@ const buildIndex = async (config: ConfigType): Promise<void> => {
 	}
 };
 
-const mappingsOf = (rootDir: string, files: readonly string[]): ReadonlyMap<string, ObjectMappingType> => {
+const mappingsOf = (
+	rootDir: string,
+	files: readonly string[],
+	units?: readonly Readonly<{path: string; type: string; name: string}>[],
+): ReadonlyMap<string, ObjectMappingType> => {
 	const mappings = new Map<string, ObjectMappingType>();
+
+	if (units !== undefined) {
+		const indexed = new Set(files);
+
+		for (const unit of units) {
+			if (!indexed.has(unit.path)) {
+				throw new Error(`Oracle qualification snapshot object was not indexed: ${unit.path}`);
+			}
+
+			const key = objectKey(unit.type, unit.name);
+
+			if (mappings.has(key)) {
+				throw new Error(`Duplicate Oracle object in corpus: ${unit.type} ${unit.name}`);
+			}
+
+			mappings.set(key, objectMapping(rootDir, unit.path, unit.type, unit.name));
+		}
+
+		return mappings;
+	}
 
 	for (const filePath of files) {
 		const objectType = objectTypeOfPath(filePath);
@@ -205,7 +230,7 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 	try {
 		const generationId = publishedGeneration(reader);
 		const files = filesOf(reader, generationId);
-		const mappings = mappingsOf(config.rootDir, files);
+		const mappings = mappingsOf(config.rootDir, files, options.units);
 		const truth = readOracleTruth({rows: readCsv(identifiers), mappings});
 		const code = loadCodeFacts(reader, generationId);
 		const packageNames = packageNamesOf(mappings);

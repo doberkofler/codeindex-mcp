@@ -5,8 +5,14 @@ import {z} from 'zod';
 import {scanOracleProject} from '../../../../adapters/oracle/scanProject.ts';
 import {readVcsProvenance} from '../../../../adapters/vcs/vcsProvenance.ts';
 import {type ConfigType} from '../../../config/config.ts';
-import {computeSourceHash, createSourceFileRecord} from '../../../generation/sourceFiles.ts';
-import {authoritativeOracleSources, oracleObjectKeyOf, oracleSourceObjectOf, recompileStatementOf, type OracleSourceObjectRefType} from './oracleLiveSource.ts';
+import {
+	oracleSourceCandidates,
+	selectOracleSources,
+	selectOracleSourcesWithoutInstalled,
+	snapshotManifestOf,
+	writeOracleSnapshot,
+} from './oracleLiveCandidates.ts';
+import {recompileStatementOf, type OracleInstalledSourceType, type OracleSourceObjectRefType} from './oracleLiveSource.ts';
 import {type OracleLiveSettingsType} from './oracleLiveSettings.ts';
 import {BACKUP_SQL, DEPENDENCIES_SQL, IDENTIFIERS_SQL, VALIDATE_SQL} from './oracleLiveSql.ts';
 
@@ -15,8 +21,20 @@ const SqlSchema = z.object({
 	sha256: z.string().regex(/^[a-f0-9]{64}$/u),
 });
 
+const OracleObjectTypeSchema = z.enum(['PACKAGE', 'PACKAGE BODY', 'FUNCTION', 'PROCEDURE']);
+
+const SourceUnitSchema = z.object({
+	path: z.string().min(1),
+	sourcePath: z.string().min(1),
+	type: OracleObjectTypeSchema,
+	name: z.string().min(1),
+	compileClause: z.string(),
+	sourceSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+	candidatePaths: z.array(z.string().min(1)).min(1),
+});
+
 const LivePlanSchema = z.object({
-	version: z.literal(3),
+	version: z.literal(4),
 	approval: z.string().regex(/^[a-f0-9]{64}$/u),
 	createdAt: z.string().min(1),
 	project: z.object({
@@ -34,10 +52,19 @@ const LivePlanSchema = z.object({
 	}),
 	snapshot: z.object({
 		dir: z.string().min(1),
+		projectFile: z.string().min(1),
 		sourceHash: z.string().min(1),
 		configHash: z.string().min(1),
 		files: z.array(z.object({path: z.string().min(1), sha256: z.string().min(1)})),
 		projectFiles: z.array(z.object({path: z.string().min(1), sha256: z.string().min(1)})),
+		units: z.array(SourceUnitSchema),
+		installed: z
+			.object({
+				objects: z.number().int().nonnegative(),
+				selected: z.number().int().nonnegative(),
+				missingSource: z.number().int().nonnegative(),
+			})
+			.nullable(),
 	}),
 	output: z.object({
 		dir: z.string().min(1),
@@ -61,6 +88,7 @@ const LivePlanSchema = z.object({
 });
 
 export type LivePlanType = z.infer<typeof LivePlanSchema>;
+type LivePlanSourceUnitType = LivePlanType['snapshot']['units'][number];
 type LiveSqlNameType = keyof LivePlanType['sql'];
 
 const sha256 = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
@@ -90,9 +118,9 @@ const header = (spool: string | null): string =>
 
 const typePriority = (type: OracleSourceObjectRefType['type']): number => (type === 'PACKAGE' ? 0 : type === 'PACKAGE BODY' ? 1 : type === 'FUNCTION' ? 2 : 3);
 
-const recompileSql = (files: readonly Readonly<{path: string}>[], snapshotDir: string): string => {
-	const ordered = authoritativeOracleSources(files, snapshotDir)
-		.map((entry) => entry.object)
+const recompileSql = (units: readonly LivePlanSourceUnitType[]): string => {
+	const ordered = units
+		.map((unit) => ({type: unit.type, name: unit.name, compileClause: unit.compileClause}))
 		.sort((left, right) => typePriority(left.type) - typePriority(right.type) || left.name.localeCompare(right.name));
 	const lines = [header('compile.log'), 'WHENEVER SQLERROR EXIT SQL.SQLCODE', "ALTER SESSION SET PLSCOPE_SETTINGS = 'IDENTIFIERS:ALL';"];
 
@@ -104,9 +132,9 @@ const recompileSql = (files: readonly Readonly<{path: string}>[], snapshotDir: s
 	return lines.join('\n');
 };
 
-const sqlFilesOf = (input: Readonly<{files: readonly Readonly<{path: string}>[]; snapshotDir: string}>): Readonly<Record<LiveSqlNameType, string>> => ({
+const sqlFilesOf = (units: readonly LivePlanSourceUnitType[]): Readonly<Record<LiveSqlNameType, string>> => ({
 	backup: BACKUP_SQL,
-	compile: recompileSql(input.files, input.snapshotDir),
+	compile: recompileSql(units),
 	validate: VALIDATE_SQL,
 	identifiers: IDENTIFIERS_SQL,
 	dependencies: DEPENDENCIES_SQL,
@@ -123,21 +151,33 @@ const snapshotProjectPath = (rootDir: string, projectFilePath: string, index: nu
 	return ['manifests', `${index}-${path.basename(projectFilePath)}`].join('/');
 };
 
-const copySnapshot = (snapshotDir: string, files: ReturnType<typeof scanOracleProject>['files']): {path: string; sha256: string}[] => {
-	for (const file of files) {
-		const destination = path.join(snapshotDir, file.path);
+const copySnapshotManifests = (
+	config: ConfigType,
+	snapshotDir: string,
+	generatedManifestPath: string,
+): Readonly<{
+	projectFiles: {path: string; sha256: string}[];
+	projects: {name: string; path: string}[];
+}> => {
+	const projectFiles: {path: string; sha256: string}[] = [];
+	const projects: {name: string; path: string}[] = [];
+	const generated = path.resolve(path.join(snapshotDir, generatedManifestPath));
+
+	for (const [index, project] of config.projects.entries()) {
+		const relative = snapshotProjectPath(config.rootDir, project.projectFilePath, index);
+		const destination = path.join(snapshotDir, relative);
+
+		if (path.resolve(destination) === generated) {
+			throw new Error(`Oracle qualification manifest path collides with the generated snapshot manifest: ${relative}`);
+		}
 
 		mkdirSync(path.dirname(destination), {recursive: true});
-		copyFileSync(file.absolutePath, destination);
-
-		const copied = createSourceFileRecord(destination, snapshotDir);
-
-		if (copied.sha256 !== file.sha256) {
-			throw new Error(`Oracle source changed while creating the qualification snapshot: ${file.path}`);
-		}
+		copyFileSync(project.projectFilePath, destination);
+		projectFiles.push({path: relative, sha256: sha256(readFileSync(destination))});
+		projects.push({name: project.name, path: relative});
 	}
 
-	return files.map((file) => ({path: file.path, sha256: file.sha256}));
+	return {projectFiles, projects};
 };
 
 /**
@@ -145,29 +185,27 @@ const copySnapshot = (snapshotDir: string, files: ReturnType<typeof scanOraclePr
  *
  * @param config - Resolved Oracle workspace configuration.
  * @param settings - Environment-only live qualification settings.
- * @param installedObjects - Installed object keys, or null when planning offline.
+ * @param installedSources - Installed source keyed by object, or null when planning offline.
  * @returns The written plan, including its approval hash.
- * @throws {Error} When no source file maps to an installed object.
+ * @throws {Error} When a candidate file cannot be proven to match installed source.
  */
 export const createOracleLivePlan = (
 	config: ConfigType,
 	settings: OracleLiveSettingsType,
-	installedObjects: ReadonlySet<string> | null = null,
+	installedSources: ReadonlyMap<string, OracleInstalledSourceType> | null = null,
 ): LivePlanType => {
 	const {outputDir} = settings;
 	const planDir = path.join(outputDir, 'plan');
 	const snapshotDir = path.join(outputDir, 'workspace');
 	const databasePath = path.join(outputDir, 'index.sqlite');
 	const created = scanOracleProject(config);
-	const sourceFiles =
-		installedObjects === null
-			? created.files
-			: created.files.filter((file) => {
-					const object = oracleSourceObjectOf(file.path);
-					return object !== null && installedObjects.has(oracleObjectKeyOf(object.type, object.name));
-				});
+	const candidates = oracleSourceCandidates(created.files);
+	const selection =
+		installedSources === null
+			? {selected: selectOracleSourcesWithoutInstalled(candidates), missingSource: 0}
+			: selectOracleSources(installedSources, candidates);
 
-	if (sourceFiles.length === 0) {
+	if (selection.selected.length === 0) {
 		throw new Error('No installed Oracle object matches the qualification source snapshot');
 	}
 
@@ -176,19 +214,16 @@ export const createOracleLivePlan = (
 	mkdirSync(planDir, {recursive: true});
 	mkdirSync(snapshotDir, {recursive: true});
 
-	const snapshotFiles = copySnapshot(snapshotDir, sourceFiles);
-	const projectFiles: {path: string; sha256: string}[] = [];
-	const projects: {name: string; path: string}[] = [];
+	const snapshot = writeOracleSnapshot(snapshotDir, selection.selected);
+	const manifest = snapshotManifestOf(config);
+	const manifestDestination = path.join(snapshotDir, manifest.path);
 
-	for (const [index, project] of config.projects.entries()) {
-		const relative = snapshotProjectPath(config.rootDir, project.projectFilePath, index);
-		const destination = path.join(snapshotDir, relative);
+	mkdirSync(path.dirname(manifestDestination), {recursive: true});
+	writeFileSync(manifestDestination, manifest.content, {encoding: 'utf8'});
 
-		mkdirSync(path.dirname(destination), {recursive: true});
-		copyFileSync(project.projectFilePath, destination);
-		projectFiles.push({path: relative, sha256: sha256(readFileSync(destination))});
-		projects.push({name: project.name, path: relative});
-	}
+	const {projectFiles, projects} = copySnapshotManifests(config, snapshotDir, manifest.path);
+
+	projectFiles.push({path: manifest.path, sha256: sha256(manifest.content)});
 
 	const firstProject = projects.at(0);
 
@@ -196,8 +231,7 @@ export const createOracleLivePlan = (
 		throw new Error('Oracle qualification requires at least one project manifest');
 	}
 
-	const files = sourceFiles.map((file) => ({path: file.path, absolutePath: path.join(snapshotDir, file.path)}));
-	const contents = sqlFilesOf({files, snapshotDir});
+	const contents = sqlFilesOf(snapshot.units);
 	const writeSql = (name: LiveSqlNameType, content: string): LivePlanType['sql'][LiveSqlNameType] => {
 		const sqlPath = path.join(planDir, `${name}.sql`);
 
@@ -212,7 +246,7 @@ export const createOracleLivePlan = (
 		dependencies: writeSql('dependencies', contents.dependencies),
 	};
 	const planWithoutApproval = {
-		version: 3 as const,
+		version: 4 as const,
 		project: {
 			name: config.projectName,
 			id: config.projectId,
@@ -221,7 +255,23 @@ export const createOracleLivePlan = (
 			projects,
 			vcs: readVcsProvenance(config.rootDir),
 		},
-		snapshot: {dir: snapshotDir, sourceHash: computeSourceHash(sourceFiles), configHash: created.configHash, files: snapshotFiles, projectFiles},
+		snapshot: {
+			dir: snapshotDir,
+			projectFile: manifest.path,
+			sourceHash: snapshot.sourceHash,
+			configHash: created.configHash,
+			files: snapshot.files,
+			projectFiles,
+			units: snapshot.units,
+			installed:
+				installedSources === null
+					? null
+					: {
+							objects: installedSources.size,
+							selected: selection.selected.length,
+							missingSource: selection.missingSource,
+						},
+		},
 		output: {
 			dir: outputDir,
 			planDir,

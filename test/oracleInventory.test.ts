@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {readInstalledOracleObjects} from '../src/core/qualification/oracle/live/oracleInventory.ts';
+import {readInstalledOracleSources} from '../src/core/qualification/oracle/live/oracleInventory.ts';
 import {oracleObjectKeyOf} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
 
 const mocks = vi.hoisted(() => ({
@@ -21,7 +21,7 @@ vi.mock(
 
 const connection = {server: 'server', user: 'user', password: 'secret'};
 
-describe('Oracle installed object inventory', () => {
+describe('Oracle installed source inventory', () => {
 	beforeEach(() => {
 		mocks.execute.mockReset();
 		mocks.close.mockReset();
@@ -30,25 +30,30 @@ describe('Oracle installed object inventory', () => {
 		mocks.getConnection.mockResolvedValue({execute: mocks.execute, close: mocks.close});
 	});
 
-	it('returns unwrapped installed objects and closes the session', async () => {
+	it('returns complete unwrapped installed source and closes the session', async () => {
 		mocks.execute.mockResolvedValue({
 			rows: [
 				['PACKAGE', 'HR_API', 1, 'PACKAGE HR_API IS\n'],
+				['PACKAGE', 'HR_API', 2, 'PROCEDURE RUN;\n'],
+				['PACKAGE', 'HR_API', 3, 'END HR_API;\n'],
 				['PACKAGE BODY', 'HR_API', 1, 'PACKAGE BODY HR_API IS\n'],
+				['PACKAGE BODY', 'HR_API', 2, 'END HR_API;\n'],
 				['PACKAGE', 'SECRET_API', 1, 'PACKAGE SECRET_API wrapped\n'],
 			],
 		});
 
-		const installed = await readInstalledOracleObjects(connection);
+		const installed = await readInstalledOracleSources(connection);
 
-		expect([...installed]).toStrictEqual([oracleObjectKeyOf('PACKAGE', 'HR_API'), oracleObjectKeyOf('PACKAGE BODY', 'HR_API')]);
+		expect([...installed.keys()]).toStrictEqual([oracleObjectKeyOf('PACKAGE', 'HR_API'), oracleObjectKeyOf('PACKAGE BODY', 'HR_API')]);
+		expect(installed.get(oracleObjectKeyOf('PACKAGE', 'HR_API'))?.source).toBe('PACKAGE HR_API IS\nPROCEDURE RUN;\nEND HR_API;');
+		expect(mocks.execute.mock.calls[0]?.[0]).not.toContain('line = 1');
 		expect(mocks.close).toHaveBeenCalledWith();
 	});
 
 	it('rejects an unexpected inventory row shape', async () => {
 		mocks.execute.mockResolvedValue({rows: [['PACKAGE', 'HR_API', 1]]});
 
-		await expect(readInstalledOracleObjects(connection)).rejects.toThrow(/unexpected row shape/u);
+		await expect(readInstalledOracleSources(connection)).rejects.toThrow(/unexpected row shape/u);
 		expect(mocks.close).toHaveBeenCalledWith();
 	});
 });
