@@ -250,7 +250,10 @@ pnpm benchmark:public -- --output ~/codeindex-evidence/public
 Each step runs the built CLI in a fresh process. Generated profiles use a fresh
 corpus per run because edit-to-fresh mutates source. Public projects must already
 be checked out at the pinned revision; `benchmark-prepare` clones and installs
-them outside the measured interval and never mutates them during a run.
+them outside the measured interval and never mutates them during a run. Dependency
+installation disables project lifecycle scripts: benchmarks index third-party
+source without building or executing it, and project Node version pins may differ
+from the CodeIndex runtime.
 
 The evidence directory contains:
 

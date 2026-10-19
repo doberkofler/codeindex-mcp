@@ -1,3 +1,5 @@
+import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {BenchmarkSuiteSchema, expandHome, loadBenchmarkSuite, resolveProjectsRoot} from '../src/core/benchmark/suiteTypes.ts';
@@ -5,7 +7,7 @@ import {runBenchmarkSuiteCommand} from '../src/core/benchmark/suite.ts';
 import {failureDetail} from '../src/core/benchmark/suiteCommand.ts';
 import {estimateStep, formatDuration, remainingEstimate} from '../src/core/benchmark/suiteProgress.ts';
 import {benchmarkCorpusCounts} from '../src/core/benchmark/corpus.ts';
-import {runBenchmarkPrepareCommand} from '../src/core/benchmark/suitePrepare.ts';
+import {installCommandFor, runBenchmarkPrepareCommand} from '../src/core/benchmark/suitePrepare.ts';
 
 const suitePath = (name: string): string => path.resolve(import.meta.dirname, '..', 'benchmark', 'suites', `${name}.json`);
 
@@ -134,6 +136,50 @@ describe('benchmark suite', () => {
 		expect(runBenchmarkPrepareCommand(['--suite', 'missing.json', '--', '--help'], prepareIo.io)).toBe(0);
 		expect(prepareIo.stdout.join('\n')).toContain('benchmark-prepare');
 		expect(prepareIo.stderr).toStrictEqual([]);
+	});
+});
+
+describe('benchmark suite preparation', () => {
+	it('selects lockfile commands without running lifecycle scripts', () => {
+		const directory = mkdtempSync(path.join(tmpdir(), 'code-index-prepare-'));
+
+		try {
+			expect(installCommandFor(directory)).toBeNull();
+
+			writeFileSync(path.join(directory, 'package-lock.json'), '{}\n', {encoding: 'utf8'});
+			expect(installCommandFor(directory)).toStrictEqual({command: 'npm', args: ['ci', '--ignore-scripts']});
+		} finally {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		const pnpmDirectory = mkdtempSync(path.join(tmpdir(), 'code-index-prepare-'));
+		const yarnClassicDirectory = mkdtempSync(path.join(tmpdir(), 'code-index-prepare-'));
+		const yarnBerryDirectory = mkdtempSync(path.join(tmpdir(), 'code-index-prepare-'));
+
+		try {
+			writeFileSync(path.join(pnpmDirectory, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n', {encoding: 'utf8'});
+			writeFileSync(path.join(yarnClassicDirectory, 'yarn.lock'), '# yarn lockfile v1\n', {encoding: 'utf8'});
+			writeFileSync(path.join(yarnBerryDirectory, 'yarn.lock'), '__metadata:\n', {encoding: 'utf8'});
+			writeFileSync(path.join(yarnBerryDirectory, '.yarnrc.yml'), 'nodeLinker: node-modules\n', {encoding: 'utf8'});
+
+			expect(installCommandFor(pnpmDirectory)).toStrictEqual({
+				command: 'pnpm',
+				args: ['install', '--frozen-lockfile', '--ignore-scripts'],
+			});
+			expect(installCommandFor(yarnClassicDirectory)).toStrictEqual({
+				command: 'yarn',
+				args: ['install', '--frozen-lockfile', '--ignore-scripts'],
+			});
+			expect(installCommandFor(yarnBerryDirectory)).toStrictEqual({
+				command: 'yarn',
+				args: ['install', '--immutable'],
+				env: {YARN_ENABLE_SCRIPTS: 'false'},
+			});
+		} finally {
+			for (const temporaryDirectory of [pnpmDirectory, yarnClassicDirectory, yarnBerryDirectory]) {
+				rmSync(temporaryDirectory, {recursive: true, force: true});
+			}
+		}
 	});
 });
 

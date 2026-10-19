@@ -42,32 +42,74 @@ const checkout = (project: BenchmarkSuitePublicProjectType, directory: string, i
 	}
 };
 
-const installWith = (input: Readonly<{command: string; args: readonly string[]; directory: string; name: string; io: BenchmarkIoType}>): void => {
-	input.io.stdout(`[install] ${input.command} ${input.args.join(' ')} (${input.name})`);
+/** Dependency installation command selected for a public project. */
+export type InstallCommand = Readonly<{
+	command: string;
+	args: readonly string[];
+	env?: Readonly<Record<string, string>>;
+}>;
 
-	if (spawnSync(input.command, [...input.args], {cwd: input.directory, stdio: 'inherit'}).status !== 0) {
-		throw new Error(`${input.command} ${input.args.join(' ')} failed for ${input.name}`);
+/**
+ * Selects the dependency installation command for a checkout.
+ *
+ * Project lifecycle scripts stay disabled: benchmarks index third-party source
+ * and must not compile or execute it, and the projects' own Node version pins
+ * may disagree with the CodeIndex runtime.
+ *
+ * @param directory - Public project checkout.
+ * @returns The installation command, or `null` when no supported lockfile exists.
+ */
+export const installCommandFor = (directory: string): InstallCommand | null => {
+	if (existsSync(path.join(directory, 'pnpm-lock.yaml'))) {
+		return {command: 'pnpm', args: ['install', '--frozen-lockfile', '--ignore-scripts']};
+	}
+
+	if (existsSync(path.join(directory, 'package-lock.json'))) {
+		return {command: 'npm', args: ['ci', '--ignore-scripts']};
+	}
+
+	if (existsSync(path.join(directory, 'yarn.lock'))) {
+		if (existsSync(path.join(directory, '.yarnrc.yml'))) {
+			return {command: 'yarn', args: ['install', '--immutable'], env: {YARN_ENABLE_SCRIPTS: 'false'}};
+		}
+
+		return {command: 'yarn', args: ['install', '--frozen-lockfile', '--ignore-scripts']};
+	}
+
+	return null;
+};
+
+const installWith = (
+	input: Readonly<{
+		install: InstallCommand;
+		directory: string;
+		name: string;
+		io: BenchmarkIoType;
+	}>,
+): void => {
+	const {install} = input;
+	input.io.stdout(`[install] ${install.command} ${install.args.join(' ')} (${input.name})`);
+
+	if (
+		spawnSync(install.command, [...install.args], {
+			cwd: input.directory,
+			stdio: 'inherit',
+			...(install.env === undefined ? {} : {env: {...process.env, ...install.env}}),
+		}).status !== 0
+	) {
+		throw new Error(`${install.command} ${install.args.join(' ')} failed for ${input.name}`);
 	}
 };
 
 const installDependencies = (project: BenchmarkSuitePublicProjectType, directory: string, io: BenchmarkIoType): void => {
-	if (existsSync(path.join(directory, 'pnpm-lock.yaml'))) {
-		installWith({command: 'pnpm', args: ['install', '--frozen-lockfile'], directory, name: project.name, io});
+	const install = installCommandFor(directory);
+
+	if (install === null) {
+		io.stderr(`No supported lockfile found for ${project.name}; skipping dependency installation`);
 		return;
 	}
 
-	if (existsSync(path.join(directory, 'package-lock.json'))) {
-		installWith({command: 'npm', args: ['ci'], directory, name: project.name, io});
-		return;
-	}
-
-	if (existsSync(path.join(directory, 'yarn.lock'))) {
-		const args = existsSync(path.join(directory, '.yarnrc.yml')) ? ['install', '--immutable'] : ['install', '--frozen-lockfile'];
-		installWith({command: 'yarn', args, directory, name: project.name, io});
-		return;
-	}
-
-	io.stderr(`No supported lockfile found for ${project.name}; skipping dependency installation`);
+	installWith({install, directory, name: project.name, io});
 };
 
 const writePreparedManifest = (
