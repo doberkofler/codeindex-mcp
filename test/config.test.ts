@@ -17,11 +17,14 @@ describe('configuration', () => {
 		const fixture = createFixtureConfig('simple-project');
 		({cleanup} = fixture);
 
-		const config = loadConfig({
-			CODE_INDEX_ROOT: fixture.config.rootDir,
-			CODE_INDEX_PROJECT_FILE: 'tsconfig.json',
-			CODE_INDEX_DATABASE: fixture.config.databasePath,
-		});
+		const config = loadConfig(
+			{
+				CODE_INDEX_ROOT: fixture.config.rootDir,
+				CODE_INDEX_PROJECT_FILE: 'tsconfig.json',
+				CODE_INDEX_DATABASE: fixture.config.databasePath,
+			},
+			fixture.config.rootDir,
+		);
 
 		expect(config.rootDir).toBe(realpathSync(fixture.config.rootDir));
 		expect(config.projectFilePath).toBe(realpathSync(fixture.config.projectFilePath));
@@ -29,16 +32,36 @@ describe('configuration', () => {
 		expect(config.maxReadLines).toBe(200);
 	});
 
+	it('resolves CODE_INDEX_PROJECT_FILE relative to the current working directory', () => {
+		const fixture = createFixtureConfig('simple-project');
+		({cleanup} = fixture);
+		const workingDirectory = path.dirname(fixture.config.rootDir);
+
+		const config = loadConfig(
+			{
+				CODE_INDEX_ROOT: fixture.config.rootDir,
+				CODE_INDEX_PROJECT_FILE: path.join(path.basename(fixture.config.rootDir), 'tsconfig.json'),
+				CODE_INDEX_DATABASE: fixture.config.databasePath,
+			},
+			workingDirectory,
+		);
+
+		expect(config.projectFilePath).toBe(realpathSync(fixture.config.projectFilePath));
+	});
+
 	it('rejects a database inside the indexed working copy', () => {
 		const fixture = createFixtureConfig('simple-project');
 		({cleanup} = fixture);
 
 		expect(() =>
-			loadConfig({
-				CODE_INDEX_ROOT: fixture.config.rootDir,
-				CODE_INDEX_PROJECT_FILE: 'tsconfig.json',
-				CODE_INDEX_DATABASE: path.join(fixture.config.rootDir, 'index.sqlite'),
-			}),
+			loadConfig(
+				{
+					CODE_INDEX_ROOT: fixture.config.rootDir,
+					CODE_INDEX_PROJECT_FILE: 'tsconfig.json',
+					CODE_INDEX_DATABASE: path.join(fixture.config.rootDir, 'index.sqlite'),
+				},
+				fixture.config.rootDir,
+			),
 		).toThrow(/outside the indexed working copy/u);
 	});
 

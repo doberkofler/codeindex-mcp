@@ -117,8 +117,8 @@ const isInside = (parent: string, candidate: string): boolean => {
 	return relativePath === '' || (!relativePath.startsWith(`..${sep}`) && relativePath !== '..' && !isAbsolute(relativePath));
 };
 
-const resolveWithin = (rootDir: string, candidate: string, label: string): string => {
-	const resolved = resolve(rootDir, candidate);
+const resolveWithin = (rootDir: string, baseDirectory: string, candidate: string, label: string): string => {
+	const resolved = resolve(baseDirectory, candidate);
 
 	if (!isAbsolute(resolved)) {
 		return fail(`${label} must resolve to an absolute path`);
@@ -277,9 +277,14 @@ const derivedProjectName = (rootDir: string, projectFilePath: string): string =>
 	return separator === -1 ? 'root' : relativePath.slice(0, separator);
 };
 
-const resolveProjectContexts = (environment: ParsedEnvironmentType, file: FileConfigType, realRootDir: string): readonly ProjectContextConfigType[] => {
+const resolveProjectContexts = (
+	environment: ParsedEnvironmentType,
+	file: FileConfigType,
+	realRootDir: string,
+	cwd: string,
+): readonly ProjectContextConfigType[] => {
 	if (environment.CODE_INDEX_PROJECT_FILE !== undefined) {
-		const projectFilePath = resolveWithin(realRootDir, environment.CODE_INDEX_PROJECT_FILE, 'project file');
+		const projectFilePath = resolveWithin(realRootDir, cwd, environment.CODE_INDEX_PROJECT_FILE, 'project file');
 		assertFile(projectFilePath, 'project file');
 
 		return [{name: derivedProjectName(realRootDir, projectFilePath), projectFilePath}];
@@ -291,7 +296,7 @@ const resolveProjectContexts = (environment: ParsedEnvironmentType, file: FileCo
 
 	const entries = file.extractor.projects ?? [{project: file.extractor.project ?? DEFAULT_PROJECT_FILE} satisfies Readonly<{project: string; name?: string}>];
 	const contexts = entries.map((entry) => {
-		const projectFilePath = resolveWithin(realRootDir, entry.project, 'project file');
+		const projectFilePath = resolveWithin(realRootDir, realRootDir, entry.project, 'project file');
 
 		assertFile(projectFilePath, 'project file');
 
@@ -323,9 +328,10 @@ const projectIdentity = (
 	environment: ParsedEnvironmentType,
 	file: FileConfigType,
 	realRootDir: string,
+	cwd: string,
 ): Readonly<{extractorId: string; projectFilePath: string; projects: readonly ProjectContextConfigType[]; projectId: string; projectName: string}> => {
 	const extractorId = environment.CODE_INDEX_EXTRACTOR ?? file.extractor.id ?? DEFAULT_EXTRACTOR_ID;
-	const projects = resolveProjectContexts(environment, file, realRootDir);
+	const projects = resolveProjectContexts(environment, file, realRootDir, cwd);
 	const [firstProject] = projects;
 
 	if (firstProject === undefined) {
@@ -365,7 +371,7 @@ const resolveWorkspace = (
 	const {environment, config: file, directory} = input;
 	const root = workspaceRoot(environment, file, directory, cwd);
 
-	return {...root, ...projectIdentity(environment, file, root.realRootDir)};
+	return {...root, ...projectIdentity(environment, file, root.realRootDir, cwd)};
 };
 
 const storagePath = (overridePath: string | undefined, filePath: string | undefined, defaultPath: string, baseDirectory: string): string => {
