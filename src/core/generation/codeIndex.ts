@@ -36,7 +36,7 @@ import {
 import {boundedPagedResult, decodeCursor, normalizeRelativePath} from '../query/querySupport.ts';
 import {publishedFiles} from './publishedFiles.ts';
 import {startProcessSample} from '../resources/processSample.ts';
-import {readSymbolSource} from '../query/readSymbolSource.ts';
+import {readSymbolResult} from '../query/readSymbolResult.ts';
 import {hashContent} from './sourceFiles.ts';
 import {type ClockType, RefreshCoordinator, type RefreshReasonType} from '../freshness/refreshCoordinator.ts';
 import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
@@ -378,7 +378,16 @@ export class CodeIndex {
 		return queryDependencies(context, input, maxResultBytes);
 	}
 
-	public readSymbol(input: ReadSymbolInputType): ReadSymbolResultType {
+	/**
+	 * Reads bounded source for one indexed symbol.
+	 *
+	 * @param input - Symbol identifier and context line count.
+	 * @param maxResultBytes - Maximum serialized result-data size, excluding envelope framing.
+	 * @returns Source and freshness for the symbol.
+	 * @throws {@link CodeIndexError} When the symbol or its file is not indexed.
+	 * @throws {@link StaleFileError} When the source changed or is still pending a rebuild.
+	 */
+	public readSymbol(input: ReadSymbolInputType, maxResultBytes = this.#config.maxResultBytes): ReadSymbolResultType {
 		const generation = this.#generation();
 		const symbol = this.#database.getSymbol(generation.id, input.symbolId);
 
@@ -422,26 +431,16 @@ export class CodeIndex {
 		}
 
 		debug('read_symbol', {generationId: generation.id, symbolId: symbol.id, path: symbol.path, contextLines: input.contextLines});
-		const source = readSymbolSource({
-			content,
-			symbolStartLine: symbol.startLine,
-			symbolEndLine: symbol.endLine,
-			maxReadLines: this.#config.maxReadLines,
-			maxResultBytes: this.#config.maxResultBytes,
-			contextLines: input.contextLines,
-		});
 
-		return {
+		return readSymbolResult({
+			content,
+			symbol,
 			generationId: generation.id,
 			freshness: this.getFreshness(),
-			symbol,
-			path: symbol.path,
-			startLine: source.startLine,
-			endLine: source.endLine,
-			source: source.source,
-			truncated: source.truncatedReason !== null,
-			truncatedReason: source.truncatedReason,
-		};
+			contextLines: input.contextLines,
+			maxReadLines: this.#config.maxReadLines,
+			maxResultBytes,
+		});
 	}
 
 	public async close(): Promise<void> {

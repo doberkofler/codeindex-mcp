@@ -219,7 +219,7 @@ export const buildMcpServer = (
 			maxResultBytes,
 			logger,
 			analytics,
-			invoke: (rawArgs) => successEnvelope(index.readSymbol(ReadSymbolInputSchema.parse(rawArgs))),
+			invoke: (rawArgs) => successEnvelope(index.readSymbol(ReadSymbolInputSchema.parse(rawArgs), successDataBudget(maxResultBytes))),
 		},
 		ReadSymbolInputSchema,
 	);

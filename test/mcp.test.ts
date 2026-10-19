@@ -99,6 +99,25 @@ describe('MCP adapter', () => {
 		expect(readEnvelope.data.source).toContain('export const formatUser');
 	});
 
+	it('bounds read_symbol source inside the response envelope', async () => {
+		const maxResultBytes = 2000;
+		const client = await connect('large-symbol', maxResultBytes);
+		const found = await client.callTool({name: 'find_symbol', arguments: {query: 'largeValue', limit: 1}});
+		const foundEnvelope = JSON.parse(textOf(found)) as EnvelopeType & {data: {items: readonly {id: string}[]}};
+		const symbolId = foundEnvelope.data.items[0]?.id;
+		const read = await client.callTool({name: 'read_symbol', arguments: {symbolId, contextLines: 0}});
+		const text = textOf(read);
+		const envelope = JSON.parse(text) as EnvelopeType & {data: {source: string; truncated: boolean; truncatedReason: string | null}};
+
+		expect(read.isError).not.toBe(true);
+		expect(new TextEncoder().encode(text).length).toBeLessThanOrEqual(maxResultBytes);
+		expect(envelope.ok).toBe(true);
+		expect(envelope.data.source.length).toBeGreaterThan(0);
+		expect(envelope.data.source).not.toContain('\uFFFD');
+		expect(envelope.data.truncated).toBe(true);
+		expect(envelope.data.truncatedReason).toBe('bytes');
+	});
+
 	it('returns stable error envelopes without throwing', async () => {
 		const client = await connect();
 		const result = await client.callTool({name: 'read_symbol', arguments: {symbolId: 'missing', contextLines: 0}});

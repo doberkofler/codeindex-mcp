@@ -6,6 +6,7 @@ type ReadSymbolSourceInputType = Readonly<{
 	symbolEndLine: number;
 	contextLines: number;
 	maxReadLines: number;
+	/** Maximum UTF-8 bytes for the JSON-serialized source string, excluding its quotes. */
 	maxResultBytes: number;
 }>;
 
@@ -15,6 +16,45 @@ export type ReadSymbolSourceType = Readonly<{
 	source: string;
 	truncatedReason: ReadSymbolResultType['truncatedReason'];
 }>;
+
+/**
+ * Returns the UTF-8 size of one string as it appears inside a JSON string literal.
+ *
+ * The surrounding quotes are excluded so callers can reserve only the value's
+ * bytes. Control characters count with their escape sequence.
+ *
+ * @param value - String fragment to measure.
+ * @returns Serialized UTF-8 byte length without the two quotes.
+ */
+const serializedByteLength = (value: string): number => Buffer.byteLength(JSON.stringify(value), 'utf8') - 2;
+
+/**
+ * Keeps the largest prefix whose JSON-serialized UTF-8 size fits the budget.
+ *
+ * Iteration is by code point, so a multi-byte character is never split and the
+ * result never contains replacement characters caused by truncation.
+ *
+ * @param value - Source text to shorten.
+ * @param maxBytes - Maximum serialized UTF-8 bytes, excluding string quotes.
+ * @returns The longest prefix that fits the budget.
+ */
+const truncateToSerializedBytes = (value: string, maxBytes: number): string => {
+	let selected = '';
+	let bytes = 0;
+
+	for (const character of value) {
+		const characterBytes = serializedByteLength(character);
+
+		if (bytes + characterBytes > maxBytes) {
+			break;
+		}
+
+		bytes += characterBytes;
+		selected += character;
+	}
+
+	return selected;
+};
 
 export const readSymbolSource = (input: ReadSymbolSourceInputType): ReadSymbolSourceType => {
 	const lines = input.content.split('\n');
@@ -28,15 +68,15 @@ export const readSymbolSource = (input: ReadSymbolSourceInputType): ReadSymbolSo
 	const slice = (): string => lines.slice(firstLine - 1, lastLine).join('\n');
 	let source = slice();
 
-	while (Buffer.byteLength(source, 'utf8') > input.maxResultBytes && lastLine > firstLine) {
+	while (serializedByteLength(source) > input.maxResultBytes && lastLine > firstLine) {
 		lastLine -= 1;
 		reason = 'bytes';
 		source = slice();
 	}
 
-	if (Buffer.byteLength(source, 'utf8') > input.maxResultBytes) {
+	if (serializedByteLength(source) > input.maxResultBytes) {
 		reason = 'bytes';
-		source = Buffer.from(source, 'utf8').subarray(0, input.maxResultBytes).toString('utf8');
+		source = truncateToSerializedBytes(source, input.maxResultBytes);
 	}
 
 	return {startLine: firstLine, endLine: lastLine, source, truncatedReason: reason};
