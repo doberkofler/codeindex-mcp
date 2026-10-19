@@ -70,6 +70,7 @@ export const runBuildWorker = (data: BuildWorkerDataType): void => {
 	debug('build worker start', {rootDir: data.config.rootDir, files: data.scan.files.length, force: data.force});
 
 	try {
+		debug('opening database');
 		database = IndexDatabase.open(data.config.databasePath, {
 			rootDir: data.config.rootDir,
 			projectFilePath: data.config.projectFilePath,
@@ -78,6 +79,7 @@ export const runBuildWorker = (data: BuildWorkerDataType): void => {
 			compilerVersion: data.scan.compilerVersion,
 			extractorVersion: data.scan.extractorVersion,
 		});
+		debug('database opened');
 		const report = buildGeneration({config: data.config, database, logger, scan: data.scan, force: data.force, ownerId: data.ownerId});
 		debug('build worker complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
 		message = {ok: true, report};

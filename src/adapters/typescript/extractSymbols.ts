@@ -316,8 +316,8 @@ const collectOccurrences = (
 	};
 
 	const occurrences: IndexedOccurrenceType[] = [];
-	const seenOccurrences = new Set<string>();
 	const enclosingBySymbol = new Map<string, string>();
+	const contexts = [input.context];
 
 	for (const file of input.files) {
 		const sourceFile = input.project.program.getSourceFile(file.absolutePath);
@@ -326,6 +326,9 @@ const collectOccurrences = (
 			continue;
 		}
 
+		// Occurrence coordinates are unique within one file, so deduplication
+		// state stays bounded instead of retaining a workspace-wide key set.
+		const seenOccurrences = new Set<string>();
 		const visit = (node: ts.Node, enclosingId: string | null): void => {
 			const declarationSymbol = declarationNodes.get(node);
 			const nextEnclosingId = declarationSymbol?.id ?? enclosingId;
@@ -353,7 +356,7 @@ const collectOccurrences = (
 					const role = declaredDefinition?.id === definition.id || isDefinitionNameNode(node) ? 'definition' : 'reference';
 					const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
 					const end = sourceFile.getLineAndCharacterOfPosition(node.end);
-					const key = `${definition.id}\u0000${file.path}\u0000${node.getStart(sourceFile)}\u0000${node.end}\u0000${role}`;
+					const key = `${definition.id}\u0000${node.getStart(sourceFile)}\u0000${node.end}\u0000${role}`;
 
 					if (!seenOccurrences.has(key)) {
 						seenOccurrences.add(key);
@@ -368,7 +371,7 @@ const collectOccurrences = (
 							endOffset: node.end,
 							role,
 							enclosingId: nextEnclosingId,
-							contexts: [input.context],
+							contexts,
 						});
 					}
 				}
@@ -384,7 +387,7 @@ const collectOccurrences = (
 		});
 	}
 
-	return {occurrences, enclosingBySymbol, deduplicatedOccurrences: seenOccurrences.size};
+	return {occurrences, enclosingBySymbol, deduplicatedOccurrences: occurrences.length};
 };
 
 /**
@@ -401,16 +404,19 @@ export const extractSymbolFacts = (input: ExtractionInputType): ExtractionResult
 	const startedAt = performance.now();
 	const {checker} = input.project;
 	const authoredPaths = new Set(input.files.map((file) => file.absolutePath));
-	const candidates = collectCandidates(input, authoredPaths);
-	const primaries = selectPrimaryCandidates(candidates);
-	debug('candidates resolved', {authoredFiles: input.files.length, candidates: candidates.length, primaries: primaries.size});
 	const definitions = new Map<ts.Symbol, IndexedSymbolType>();
 	const declarationNodes = new Map<ts.Node, IndexedSymbolType>();
 
-	for (const [canonical, primary] of primaries) {
-		const symbol = toIndexedSymbol(checker, primary, input.projectId, input.context);
-		definitions.set(canonical, symbol);
-		declarationNodes.set(primary.declaration, symbol);
+	{
+		const candidates = collectCandidates(input, authoredPaths);
+		const primaries = selectPrimaryCandidates(candidates);
+		debug('candidates resolved', {authoredFiles: input.files.length, candidates: candidates.length, primaries: primaries.size});
+
+		for (const [canonical, primary] of primaries) {
+			const symbol = toIndexedSymbol(checker, primary, input.projectId, input.context);
+			definitions.set(canonical, symbol);
+			declarationNodes.set(primary.declaration, symbol);
+		}
 	}
 
 	const collected = collectOccurrences(input, checker, definitions, declarationNodes);

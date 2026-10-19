@@ -61,6 +61,18 @@ const measure = (action: () => void): number => {
 	return Math.round(performance.now() - startedAt);
 };
 
+const debugMemory = (stage: string): void => {
+	const usage = process.memoryUsage();
+	debug('memory', {
+		stage,
+		rssMiB: Math.round(usage.rss / (1024 * 1024)),
+		heapUsedMiB: Math.round(usage.heapUsed / (1024 * 1024)),
+		heapTotalMiB: Math.round(usage.heapTotal / (1024 * 1024)),
+		externalMiB: Math.round(usage.external / (1024 * 1024)),
+		arrayBuffersMiB: Math.round(usage.arrayBuffers / (1024 * 1024)),
+	});
+};
+
 const persistFacts = (
 	input: Readonly<{
 		database: IndexDatabase;
@@ -255,7 +267,9 @@ const executeBuild = (
 	}>,
 ): BuildReportType => {
 	const extractor = extractorFor(input.config.extractorId);
+	debugMemory('build-start');
 	const extracted = extractor.build(input.config, input.scan);
+	debugMemory('extracted');
 	const facts: ExtractionResultType = {
 		symbols: extracted.symbols,
 		occurrences: extracted.occurrences,
@@ -264,6 +278,7 @@ const executeBuild = (
 	};
 	const insertionStartedAt = performance.now();
 	input.database.insertContents(extracted.files);
+	debugMemory('contents-inserted');
 	persistFacts({
 		database: input.database,
 		generationId: input.generationId,
@@ -274,6 +289,7 @@ const executeBuild = (
 		diagnostics: extracted.diagnostics,
 		sourceHash: computeSourceHash(extracted.files),
 	});
+	debugMemory('facts-persisted');
 	persistArtifacts({
 		database: input.database,
 		generationId: input.generationId,
@@ -283,6 +299,7 @@ const executeBuild = (
 		extractorId: input.scan.extractorId,
 		extractorVersion: input.scan.extractorVersion,
 	});
+	debugMemory('symbol-artifacts-persisted');
 	persistDependencyArtifacts({
 		database: input.database,
 		files: extracted.files,
@@ -291,10 +308,12 @@ const executeBuild = (
 		extractorId: input.scan.extractorId,
 		extractorVersion: input.scan.extractorVersion,
 	});
+	debugMemory('dependency-artifacts-persisted');
 	const insertionMs = Math.round(performance.now() - insertionStartedAt);
 	const verificationMs = measure(() => {
 		input.database.verifyIntegrity();
 	});
+	debugMemory('verified');
 	const measuredStages = {
 		scanMs: input.scan.scanMs,
 		compilerMs: extracted.compilerMs,

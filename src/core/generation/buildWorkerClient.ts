@@ -113,10 +113,13 @@ export const runBuildWorkerThread = async (
 	});
 
 	worker.once('exit', (code) => {
-		if (code !== 0) {
+		// A worker error, including ERR_WORKER_OUT_OF_MEMORY, is richer than the
+		// exit code and arrives before this event. Never replace it.
+		if (code !== 0 && state.failure === null) {
 			state.failure = new Error(`Index build worker exited with code ${String(code)}`);
-			complete();
 		}
+
+		complete();
 	});
 
 	await once(completion, 'done');

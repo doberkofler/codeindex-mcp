@@ -99,19 +99,20 @@ const diagnosticKey = (diagnostic: DiagnosticType): string =>
 		String(diagnostic.startColumn ?? 0),
 	].join('\u0000');
 
-const mergeDiagnostics = (contexts: readonly ContextBuildType[]): readonly DiagnosticType[] => {
+const dedupeDiagnostics = (diagnostics: readonly DiagnosticType[]): readonly DiagnosticType[] => {
 	const merged = new Map<string, DiagnosticType>();
 
-	for (const context of contexts) {
-		for (const diagnostic of [...context.project.diagnostics, ...context.facts.diagnostics]) {
-			merged.set(diagnosticKey(diagnostic), diagnostic);
-		}
+	for (const diagnostic of diagnostics) {
+		merged.set(diagnosticKey(diagnostic), diagnostic);
 	}
 
 	return [...merged.values()];
 };
 
-const mergeContextFiles = (contexts: readonly ContextBuildType[]): readonly SourceFileType[] => {
+const mergeDiagnostics = (contexts: readonly ExtractedContextType[]): readonly DiagnosticType[] =>
+	dedupeDiagnostics(contexts.flatMap((context) => [...context.diagnostics, ...context.facts.diagnostics]));
+
+const mergeContextFiles = (contexts: readonly ExtractedContextType[]): readonly SourceFileType[] => {
 	const merged = new Map<string, SourceFileType>();
 
 	for (const context of contexts) {
@@ -123,65 +124,80 @@ const mergeContextFiles = (contexts: readonly ContextBuildType[]): readonly Sour
 	return [...merged.values()].sort((left, right) => left.path.localeCompare(right.path));
 };
 
-type LoadedContextType = Readonly<{
-	readonly config: ProjectContextConfigType;
-	readonly project: LoadedProjectType;
+type ExtractedContextType = Readonly<{
 	readonly files: readonly SourceFileType[];
+	readonly facts: ReturnType<typeof extractSymbolFacts>;
+	readonly dependencies: ReturnType<typeof extractDependencyFacts>;
+	readonly diagnostics: readonly DiagnosticType[];
 }>;
 
-type ContextBuildType = LoadedContextType &
-	Readonly<{
-		readonly facts: ReturnType<typeof extractSymbolFacts>;
-		readonly dependencies: ReturnType<typeof extractDependencyFacts>;
-	}>;
+const extractContext = (
+	config: ConfigType,
+	scan: ScanResultType,
+	context: ProjectContextConfigType,
+): Readonly<{context: ExtractedContextType; compilerMs: number}> => {
+	const {projectFilePath} = context;
+	const compilerStartedAt = performance.now();
+	const project = loadTypeScriptProject(config, projectFilePath);
+	const files = mergeProjectFiles(config, scan, project);
+	const compilerMs = Math.round(performance.now() - compilerStartedAt);
+	const facts = extractSymbolFacts({
+		project,
+		files,
+		projectId: config.projectId,
+		rootDir: config.rootDir,
+		context: context.name,
+	});
+	const dependencies = extractDependencyFacts({
+		project,
+		files,
+		projectId: config.projectId,
+		rootDir: config.rootDir,
+		context: context.name,
+	});
 
-const loadContext = (config: ConfigType, scan: ScanResultType, context: ProjectContextConfigType): LoadedContextType => {
-	const project = loadTypeScriptProject(config, context.projectFilePath);
-
-	return {config: context, project, files: mergeProjectFiles(config, scan, project)};
+	// Only serializable facts leave this scope. The compiler program and its
+	// syntax trees stay collectable while insertion and artifact persistence run.
+	return {context: {files, facts, dependencies, diagnostics: project.diagnostics}, compilerMs};
 };
 
-const extractContext = (config: ConfigType, context: LoadedContextType): ContextBuildType => ({
-	...context,
-	facts: extractSymbolFacts({
-		project: context.project,
-		files: context.files,
-		projectId: config.projectId,
-		rootDir: config.rootDir,
-		context: context.config.name,
-	}),
-	dependencies: extractDependencyFacts({
-		project: context.project,
-		files: context.files,
-		projectId: config.projectId,
-		rootDir: config.rootDir,
-		context: context.config.name,
-	}),
-});
+const mergeContexts = (contexts: readonly ExtractedContextType[]): Omit<ExtractorBuildType, 'compilerMs' | 'extractionMs'> => {
+	if (contexts.length === 1) {
+		const [context] = contexts;
 
-const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => {
-	const compilerStartedAt = performance.now();
-	const loaded = config.projects.map((context) => loadContext(config, scan, context));
-	const compilerMs = Math.round(performance.now() - compilerStartedAt);
-	const extractionStartedAt = performance.now();
-	const contexts = loaded.map((context) => extractContext(config, context));
-	const symbols = mergeSymbols(contexts.flatMap((context) => context.facts.symbols));
-	const occurrences = mergeOccurrences(contexts.flatMap((context) => context.facts.occurrences));
-	const dependencies = {
-		edges: contexts.flatMap((context) => context.dependencies.edges),
-		bindings: contexts.flatMap((context) => context.dependencies.bindings),
-	};
-	const extractionMs = Math.round(performance.now() - extractionStartedAt);
+		if (context === undefined) {
+			throw new Error('TypeScript extractor produced no project context');
+		}
+
+		return {
+			files: context.files,
+			symbols: context.facts.symbols,
+			occurrences: context.facts.occurrences,
+			dependencies: context.dependencies,
+			diagnostics: dedupeDiagnostics([...context.diagnostics, ...context.facts.diagnostics]),
+		};
+	}
 
 	return {
 		files: mergeContextFiles(contexts),
-		symbols,
-		occurrences,
-		dependencies,
+		symbols: mergeSymbols(contexts.flatMap((context) => context.facts.symbols)),
+		occurrences: mergeOccurrences(contexts.flatMap((context) => context.facts.occurrences)),
+		dependencies: {
+			edges: contexts.flatMap((context) => context.dependencies.edges),
+			bindings: contexts.flatMap((context) => context.dependencies.bindings),
+		},
 		diagnostics: mergeDiagnostics(contexts),
-		compilerMs,
-		extractionMs,
 	};
+};
+
+const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => {
+	const extractionStartedAt = performance.now();
+	const extracted = config.projects.map((context) => extractContext(config, scan, context));
+	const compilerMs = extracted.reduce((total, context) => total + context.compilerMs, 0);
+	const merged = mergeContexts(extracted.map((context) => context.context));
+	const extractionMs = Math.round(performance.now() - extractionStartedAt);
+
+	return {...merged, compilerMs, extractionMs};
 };
 
 /**
