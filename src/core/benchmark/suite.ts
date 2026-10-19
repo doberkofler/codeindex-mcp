@@ -51,9 +51,15 @@ type SuiteOptionsType = Readonly<{
 	help: boolean;
 }>;
 
+const withoutSeparator = (argv: readonly string[]): readonly string[] => {
+	const separator = argv.indexOf('--');
+
+	return separator === -1 ? argv : [...argv.slice(0, separator), ...argv.slice(separator + 1)];
+};
+
 const parseSuiteArgs = (argv: readonly string[]): SuiteOptionsType =>
 	parseArgs({
-		args: [...argv],
+		args: [...withoutSeparator(argv)],
 		options: {
 			suite: {type: 'string'},
 			output: {type: 'string'},

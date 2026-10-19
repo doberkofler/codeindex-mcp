@@ -117,10 +117,10 @@ describe('benchmark suite', () => {
 		const suiteIo = capture();
 		const prepareIo = capture();
 
-		expect(runBenchmarkSuiteCommand(['--help'], {}, suiteIo.io, {cliPath: '/missing/cli.mjs'})).toBe(0);
+		expect(runBenchmarkSuiteCommand(['--suite', 'missing.json', '--', '--help'], {}, suiteIo.io, {cliPath: '/missing/cli.mjs'})).toBe(0);
 		expect(suiteIo.stdout.join('\n')).toContain('benchmark-suite');
 		expect(suiteIo.stderr).toStrictEqual([]);
-		expect(runBenchmarkPrepareCommand(['--help'], prepareIo.io)).toBe(0);
+		expect(runBenchmarkPrepareCommand(['--suite', 'missing.json', '--', '--help'], prepareIo.io)).toBe(0);
 		expect(prepareIo.stdout.join('\n')).toContain('benchmark-prepare');
 		expect(prepareIo.stderr).toStrictEqual([]);
 	});

@@ -119,8 +119,9 @@ const writePreparedManifest = (
  */
 export const runBenchmarkPrepareCommand = (argv: readonly string[], io: BenchmarkIoType, options: Readonly<{cwd?: string; home?: string}> = {}): number => {
 	try {
+		const separator = argv.indexOf('--');
 		const {values} = parseArgs({
-			args: [...argv],
+			args: [...(separator === -1 ? argv : [...argv.slice(0, separator), ...argv.slice(separator + 1)])],
 			options: {
 				suite: {type: 'string'},
 				'projects-root': {type: 'string'},
