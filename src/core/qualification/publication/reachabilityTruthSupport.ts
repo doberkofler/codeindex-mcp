@@ -39,14 +39,20 @@ export const authoredDeclarationsOf = (symbol: ts.Symbol, authoredPaths: Readonl
 	(symbol.declarations ?? []).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
 
 export const isExternalSymbol = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean =>
-	(symbol.declarations ?? []).every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
+	symbol.declarations !== undefined &&
+	symbol.declarations.length > 0 &&
+	symbol.declarations.every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
+
+const isPrivateDeclaration = (declaration: ts.Declaration): boolean =>
+	(ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Private) !== 0 ||
+	(ts.canHaveModifiers(declaration) && (ts.getModifiers(declaration)?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword) ?? false));
 
 export const isPrivateSymbol = (symbol: ts.Symbol): boolean => {
 	if (symbol.getName().startsWith('#')) {
 		return true;
 	}
 
-	return (symbol.declarations ?? []).some((declaration) => (ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Private) !== 0);
+	return (symbol.declarations ?? []).some((declaration) => isPrivateDeclaration(declaration));
 };
 
 const defaultTokenOf = (sourceFile: ts.SourceFile, node: ts.Node): ts.Node | null => {
@@ -89,14 +95,71 @@ const authoredNameNodeOf = (sourceFile: ts.SourceFile, declaration: ts.Declarati
 	return defaultTokenOf(sourceFile, declaration);
 };
 
-const isImportDeclaration = (declaration: ts.Declaration): boolean =>
-	ts.isImportSpecifier(declaration) || ts.isImportClause(declaration) || ts.isNamespaceImport(declaration);
+const isTopLevelVariableDeclaration = (declaration: ts.Declaration): boolean => {
+	if (!ts.isVariableDeclaration(declaration)) {
+		return false;
+	}
+
+	const list = ts.findAncestor(declaration, ts.isVariableDeclarationList);
+
+	if (list === undefined) {
+		return false;
+	}
+
+	const statement = list.parent;
+
+	return ts.isVariableStatement(statement) && (ts.isSourceFile(statement.parent) || ts.isModuleBlock(statement.parent));
+};
+
+const isParameterProperty = (declaration: ts.Declaration): boolean => {
+	if (!ts.isParameter(declaration) || !ts.isConstructorDeclaration(declaration.parent)) {
+		return false;
+	}
+
+	const modifiers = ts.getModifiers(declaration) ?? [];
+
+	return (
+		!modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword) &&
+		modifiers.some(
+			(modifier) =>
+				modifier.kind === ts.SyntaxKind.PublicKeyword || modifier.kind === ts.SyntaxKind.ProtectedKeyword || modifier.kind === ts.SyntaxKind.ReadonlyKeyword,
+		)
+	);
+};
+
+const TRUTH_STORED_PREDICATES: readonly ((declaration: ts.Declaration) => boolean)[] = [
+	ts.isFunctionDeclaration,
+	ts.isClassDeclaration,
+	ts.isClassExpression,
+	ts.isInterfaceDeclaration,
+	ts.isTypeAliasDeclaration,
+	ts.isEnumDeclaration,
+	ts.isEnumMember,
+	ts.isModuleDeclaration,
+	ts.isMethodDeclaration,
+	ts.isMethodSignature,
+	ts.isPropertyDeclaration,
+	ts.isPropertySignature,
+	ts.isPropertyAssignment,
+	ts.isShorthandPropertyAssignment,
+	ts.isGetAccessorDeclaration,
+	ts.isSetAccessorDeclaration,
+	ts.isExportSpecifier,
+	ts.isNamespaceExport,
+	ts.isExportAssignment,
+	ts.isImportEqualsDeclaration,
+	ts.isVariableDeclaration,
+	ts.isBindingElement,
+];
+
+const isEphemeralDeclaration = (declaration: ts.Declaration): boolean =>
+	!isParameterProperty(declaration) && !TRUTH_STORED_PREDICATES.some((predicate) => predicate(declaration));
 
 export const keyOf = (path: string, nameStart: number): string => `${path}\u0000${String(nameStart)}`;
 
 export const addDeclaration = (state: TruthStateType, symbol: ts.Symbol): void => {
 	for (const declaration of authoredDeclarationsOf(symbol, state.authoredPaths)) {
-		if (isImportDeclaration(declaration)) {
+		if (isEphemeralDeclaration(declaration)) {
 			continue;
 		}
 
@@ -108,10 +171,22 @@ export const addDeclaration = (state: TruthStateType, symbol: ts.Symbol): void =
 			continue;
 		}
 
+		if (ts.isComputedPropertyName(nameNode) && symbol.getName().startsWith('__computed')) {
+			continue;
+		}
+
 		const key = keyOf(path, nameNode.getStart(sourceFile));
 
 		if (!state.declarations.has(key)) {
 			state.declarations.set(key, {path, nameStart: nameNode.getStart(sourceFile)});
+		}
+
+		if (ts.isShorthandPropertyAssignment(declaration)) {
+			const value = state.checker.getShorthandAssignmentValueSymbol(declaration);
+
+			if (value !== undefined && value !== symbol && (value.declarations ?? []).some((entry) => isTopLevelVariableDeclaration(entry))) {
+				addDeclaration(state, value);
+			}
 		}
 	}
 };
@@ -142,6 +217,9 @@ export const hasSymbolFlag = (symbol: ts.Symbol, flags: readonly ts.SymbolFlags[
 
 export const hasTypeFlag = (flags: ts.TypeFlags, candidates: readonly ts.TypeFlags[]): boolean => candidates.some((flag) => (flags & flag) !== 0);
 
+const isAnonymousClassExpression = (symbol: ts.Symbol): boolean =>
+	(symbol.declarations ?? []).some((declaration) => ts.isClassExpression(declaration) && declaration.name === undefined);
+
 export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>): ts.Symbol | null => {
 	const namedFlags = [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias, ts.SymbolFlags.Enum];
 	const valueFlags = [ts.SymbolFlags.Function, ts.SymbolFlags.Class, ts.SymbolFlags.BlockScopedVariable];
@@ -153,7 +231,7 @@ export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>)
 
 		const mergedAliasValue = (candidate.flags & ts.SymbolFlags.Alias) !== 0 && valueFlags.some((flag) => (candidate.flags & flag) !== 0);
 
-		if (hasSymbolFlag(candidate, namedFlags) || mergedAliasValue) {
+		if ((hasSymbolFlag(candidate, namedFlags) || mergedAliasValue) && !isAnonymousClassExpression(candidate)) {
 			return candidate;
 		}
 	}

@@ -211,6 +211,46 @@ const promoteDeferred = (runtime: ExtractionRuntimeType, deferred: DeferredCandi
 
 const deferredFor = (runtime: ExtractionRuntimeType, symbol: ts.Symbol): DeferredCandidateType | undefined => runtime.deferredByCanonical.get(symbol)?.[0];
 
+const promoteDeferredForDeclaration = (runtime: ExtractionRuntimeType, declarations: readonly ts.Declaration[]): string | null => {
+	for (const declaration of declarations) {
+		const deferred = runtime.deferredNodeById.get(declaration);
+
+		if (deferred !== undefined) {
+			return promoteDeferred(runtime, deferred);
+		}
+	}
+
+	return null;
+};
+
+const resolveAliasTarget = (
+	runtime: ExtractionRuntimeType,
+	symbol: ts.Symbol,
+	mergedAliasValue: boolean,
+): Readonly<{target: ts.Symbol; immediateId: string | null}> | null => {
+	let target = symbol;
+
+	if ((target.flags & ts.SymbolFlags.Alias) === 0) {
+		return {target, immediateId: null};
+	}
+
+	try {
+		if (!mergedAliasValue) {
+			const immediate = runtime.checker.getImmediateAliasedSymbol(target);
+			const immediateId = immediate === undefined ? undefined : runtime.symbolIdByCanonical.get(immediate);
+
+			if (immediateId !== undefined) {
+				return {target, immediateId};
+			}
+		}
+
+		target = runtime.checker.getAliasedSymbol(target);
+		return {target, immediateId: null};
+	} catch {
+		return null;
+	}
+};
+
 /**
  * Resolves one compiler symbol to a stored symbol, promoting projected members.
  *
@@ -229,24 +269,17 @@ export const symbolForTsSymbol = (runtime: ExtractionRuntimeType, symbol: ts.Sym
 	// observed.
 	const valueFlags = [ts.SymbolFlags.Function, ts.SymbolFlags.Class, ts.SymbolFlags.BlockScopedVariable];
 	const mergedAliasValue = (symbol.flags & ts.SymbolFlags.Alias) !== 0 && valueFlags.some((flag) => (symbol.flags & flag) !== 0);
-	let target = symbol;
+	const alias = resolveAliasTarget(runtime, symbol, mergedAliasValue);
 
-	if ((target.flags & ts.SymbolFlags.Alias) !== 0) {
-		try {
-			if (!mergedAliasValue) {
-				const immediate = runtime.checker.getImmediateAliasedSymbol(target);
-				const immediateId = immediate === undefined ? undefined : runtime.symbolIdByCanonical.get(immediate);
-
-				if (immediateId !== undefined) {
-					return immediateId;
-				}
-			}
-
-			target = runtime.checker.getAliasedSymbol(target);
-		} catch {
-			return null;
-		}
+	if (alias === null) {
+		return null;
 	}
+
+	if (alias.immediateId !== null) {
+		return alias.immediateId;
+	}
+
+	const {target} = alias;
 
 	for (const declaration of target.declarations ?? []) {
 		const declared = runtime.symbolIdByDeclaration.get(declaration);
@@ -270,6 +303,12 @@ export const symbolForTsSymbol = (runtime: ExtractionRuntimeType, symbol: ts.Sym
 
 	if (!runtime.promotionEnabled) {
 		return null;
+	}
+
+	const promoted = promoteDeferredForDeclaration(runtime, target.declarations ?? []);
+
+	if (promoted !== null) {
+		return promoted;
 	}
 
 	const deferred = deferredFor(runtime, target);

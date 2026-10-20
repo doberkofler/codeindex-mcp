@@ -58,7 +58,9 @@ export const authoredDeclarationsOf = (symbol: ts.Symbol, authoredPaths: Readonl
 	(symbol.declarations ?? []).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
 
 export const isExternalSymbol = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean =>
-	(symbol.declarations ?? []).every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
+	symbol.declarations !== undefined &&
+	symbol.declarations.length > 0 &&
+	symbol.declarations.every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
 
 export const resolveAlias = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Symbol => {
 	if ((symbol.flags & ts.SymbolFlags.Alias) === 0) {
@@ -82,11 +84,19 @@ export const isExternalType = (type: ts.Type, authoredPaths: ReadonlySet<string>
 	return false;
 };
 
+const isAnonymousClassExpression = (symbol: ts.Symbol): boolean =>
+	(symbol.declarations ?? []).some((declaration) => ts.isClassExpression(declaration) && declaration.name === undefined);
+
 export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>): ts.Symbol | null => {
 	const namedFlags = [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias, ts.SymbolFlags.Enum];
 
 	for (const candidate of [type.aliasSymbol, type.getSymbol()]) {
-		if (candidate !== undefined && namedFlags.some((flag) => (candidate.flags & flag) !== 0) && authoredDeclarationsOf(candidate, authoredPaths).length > 0) {
+		if (
+			candidate !== undefined &&
+			namedFlags.some((flag) => (candidate.flags & flag) !== 0) &&
+			authoredDeclarationsOf(candidate, authoredPaths).length > 0 &&
+			!isAnonymousClassExpression(candidate)
+		) {
 			return candidate;
 		}
 	}
@@ -97,12 +107,16 @@ export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>)
 export const isAnonymousShape = (type: ts.Type, authoredPaths: ReadonlySet<string>): boolean =>
 	(type.flags & ts.TypeFlags.Object) !== 0 && namedSymbolOf(type, authoredPaths) === null;
 
+const isPrivateDeclaration = (declaration: ts.Declaration): boolean =>
+	(ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Private) !== 0 ||
+	(ts.canHaveModifiers(declaration) && (ts.getModifiers(declaration)?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword) ?? false));
+
 export const isPrivateProperty = (property: ts.Symbol): boolean => {
 	if (property.getName().startsWith('#')) {
 		return true;
 	}
 
-	return (property.declarations ?? []).some((declaration) => (ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Private) !== 0);
+	return (property.declarations ?? []).some((declaration) => isPrivateDeclaration(declaration));
 };
 
 export const isInheritedProperty = (property: ts.Symbol, rootDeclarations: readonly ts.Node[]): boolean => {
@@ -244,6 +258,10 @@ const processReachabilityType = (state: ProjectionStateType, type: ts.Type): voi
 	if (isExternalType(type, state.host.authoredPaths)) {
 		enqueueExternalTypeArguments(state, type);
 		return;
+	}
+
+	if (hasAnyFlag(type.flags, [ts.TypeFlags.Conditional, ts.TypeFlags.IndexedAccess]) && type.aliasSymbol !== undefined) {
+		enqueueSymbol(state, type.aliasSymbol);
 	}
 
 	if (type.isUnionOrIntersection()) {

@@ -147,7 +147,7 @@ export const isStoredDeclaration = (node: ts.Node): boolean => {
 		);
 	}
 
-	if (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) {
+	if (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
 		return node.name !== undefined;
 	}
 
@@ -170,7 +170,13 @@ const isNode = (value: unknown): value is ts.Node => typeof value === 'object' &
 
 export const nameNodeOf = (node: ts.Node): ts.Node | undefined => {
 	if (ts.isVariableDeclaration(node) || ts.isBindingElement(node) || ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node)) {
-		return ts.isIdentifier(node.name) ? node.name : undefined;
+		const {name} = node;
+
+		if (ts.isComputedPropertyName(name)) {
+			return name;
+		}
+
+		return ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name) ? name : undefined;
 	}
 
 	if (ts.isExportSpecifier(node) || ts.isNamespaceExport(node)) {

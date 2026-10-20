@@ -34,7 +34,10 @@ const visibleDeclarationKeysOf = (context: string, finalized: FinalizedFactSetTy
 	const keys = new Set<string>();
 
 	for (const site of finalized.bindingSites) {
-		if (visibleBindings.has(site.bindingId) && (site.kind === 'declared' || site.kind === 'default')) {
+		if (
+			visibleBindings.has(site.bindingId) &&
+			(site.kind === 'declared' || site.kind === 'default' || site.kind === 'alias' || site.kind === 'reexport' || site.kind === 'commonjs')
+		) {
 			keys.add(keyOf(site.path, site.range.startOffset));
 		}
 	}

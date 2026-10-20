@@ -113,7 +113,7 @@ const projectCallSignatures = (state: ProjectionStateType, node: ProjectionNodeT
 		const signaturePath: FactAddressType = signatures.length > 1 ? [...node.path, ['sig', index]] : node.path;
 
 		for (const [parameterIndex, parameter] of signature.getParameters().entries()) {
-			if (node.ancestors.has(parameter)) {
+			if (node.ancestors.has(parameter) || isPrivateProperty(parameter)) {
 				continue;
 			}
 
@@ -151,7 +151,7 @@ const projectConstructSignatures = (state: ProjectionStateType, node: Projection
 		const constructPath: FactAddressType = signatures.length > 1 ? [...node.path, ['construct', null], ['sig', index]] : [...node.path, ['construct', null]];
 
 		for (const [parameterIndex, parameter] of signature.getParameters().entries()) {
-			if (node.ancestors.has(parameter)) {
+			if (node.ancestors.has(parameter) || isPrivateProperty(parameter)) {
 				continue;
 			}
 
@@ -310,7 +310,7 @@ const projectType = (
 
 const expandNamespace = (state: ProjectionStateType, symbol: ts.Symbol, path: FactAddressType): void => {
 	for (const exported of state.host.checker.getExportsOfModule(symbol)) {
-		if (isExternalSymbol(exported, state.host.authoredPaths)) {
+		if (isPrivateProperty(exported) || isExternalSymbol(exported, state.host.authoredPaths)) {
 			continue;
 		}
 

@@ -67,17 +67,19 @@ lexical declaration to occur in truth. Production facts are used only for the co
 | Corpus | G-A | G-A2 | Truth declarations | Visible declarations | Missing | Extra |
 |---|---|---|---:|---:|---:|---:|
 | TypeScript compiler | passed | passed | 9,191 | 9,191 | 0 | 0 |
-| VS Code | passed | failed | 99,811 | 99,384 | 443 | 16 |
-| Material UI | partial | failed | 6,631 | 4,829 | 2,176 | 374 |
-| Oracle production corpus | n/a | n/a | n/a | n/a | n/a | n/a |
+| VS Code | passed | passed | 99,780 | 99,780 | 0 | 0 |
+| Material UI | partial | failed | 7,103 | 5,334 | 1,776 | 7 |
 
-The full TypeScript compiler corpus passes both gates. VS Code and Material UI still expose
-production classification gaps, so G-A2 is not normative for those corpora. Aggregate
-counts are in `ga2-evidence.json`; no symbol names or paths are retained.
+The full TypeScript compiler and VS Code corpora pass both gates. Material UI still
+exposes production classification gaps, mostly JavaScript PropTypes/runtime members, so
+G-A2 is not normative for that corpus. Aggregate counts are in `ga2-evidence.json`; no
+symbol names or paths are retained.
 
 The independent truth pass also exercised production fixes for merged import/local
-symbols, imported namespace re-exports, public constructor parameter properties, and
-synthetic-default root sites.
+symbols, imported namespace re-exports, public constructor parameter properties,
+synthetic-default root sites, string-literal and computed object members, class
+expressions, private constructor parameter properties, and declaration reachability for
+conditional/indexed-access aliases.
 
 ## Oracle production corpus
 

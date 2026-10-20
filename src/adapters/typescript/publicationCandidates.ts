@@ -195,7 +195,7 @@ const collectDeferredMember = (input: CandidateInputType, state: CollectorStateT
 	const nameNode = nameNodeOf(node);
 	const canonical = nameNode === undefined ? undefined : input.checker.getSymbolAtLocation(nameNode);
 
-	if (nameNode !== undefined && canonical !== undefined && pathName !== undefined) {
+	if (nameNode !== undefined && canonical !== undefined && pathName !== undefined && !canonical.getName().startsWith('__computed')) {
 		state.deferred.set(node, {
 			canonical,
 			declaration: node,
@@ -272,6 +272,33 @@ const addExternalAliasCandidate = ({input, state, node, nameNode, resolved, dire
 	state.declarationKeys.set(node, key);
 };
 
+const isDynamicComputedName = (nameNode: ts.Node, resolved: ts.Symbol): boolean =>
+	ts.isComputedPropertyName(nameNode) && resolved.getName().startsWith('__computed');
+
+type AuthoredCandidateInputType = Readonly<{
+	input: CandidateInputType;
+	state: CollectorStateType;
+	sourceFile: ts.SourceFile;
+	node: ts.Node;
+	nameNode: ts.Node;
+	resolved: ts.Symbol;
+	direct: ts.Symbol | undefined;
+}>;
+
+const collectAuthoredCandidate = ({input, state, sourceFile, node, nameNode, resolved, direct}: AuthoredCandidateInputType): void => {
+	if (!ts.isExportSpecifier(node) && !ts.isNamespaceExport(node)) {
+		addDefinition(input, state, {canonical: resolved, declaration: node, nameNode});
+		return;
+	}
+
+	// An authored namespace imported and re-exported as one binding has a
+	// module symbol as its alias target. The module file is not a candidate,
+	// so bind the export clause itself as the namespace root.
+	if (direct !== undefined) {
+		addAuthoredNamespaceExport({input, state, sourceFile, node, nameNode, target: resolved, direct});
+	}
+};
+
 const collectNamedCandidate = (input: CandidateInputType, state: CollectorStateType, sourceFile: ts.SourceFile, node: ts.Node): void => {
 	const nameNode = nameNodeOf(node);
 	const eligible = nameNode !== undefined && (isStoredDeclaration(node) || ts.isExportSpecifier(node) || ts.isNamespaceExport(node));
@@ -293,19 +320,12 @@ const collectNamedCandidate = (input: CandidateInputType, state: CollectorStateT
 		return;
 	}
 
+	if (isDynamicComputedName(nameNode, resolved)) {
+		return;
+	}
+
 	if (authoredOf(resolved, input.authoredPaths).length > 0) {
-		if (!ts.isExportSpecifier(node) && !ts.isNamespaceExport(node)) {
-			addDefinition(input, state, {canonical: resolved, declaration: node, nameNode});
-			return;
-		}
-
-		// An authored namespace imported and re-exported as one binding has a
-		// module symbol as its alias target. The module file is not a candidate,
-		// so bind the export clause itself as the namespace root.
-		if (direct !== undefined) {
-			addAuthoredNamespaceExport({input, state, sourceFile, node, nameNode, target: resolved, direct});
-		}
-
+		collectAuthoredCandidate({input, state, sourceFile, node, nameNode, resolved, direct});
 		return;
 	}
 

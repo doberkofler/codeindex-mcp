@@ -123,6 +123,26 @@ const addLexicalBindings = (
 			draft.exposure = 'published';
 		}
 	}
+
+	for (const [node, deferred] of runtime.collection.deferred) {
+		if (!ts.isShorthandPropertyAssignment(node)) {
+			continue;
+		}
+
+		const symbolId = runtime.symbolIdByCanonical.get(deferred.canonical);
+
+		if (symbolId === undefined) {
+			continue;
+		}
+
+		addSite(sink, {
+			symbolId,
+			segments: lexicalSegmentsOf(runtime, symbolId),
+			kind: 'declared',
+			pathName: deferred.path,
+			range: rangeOfNode(deferred.sourceFile, deferred.nameNode),
+		});
+	}
 };
 
 /**

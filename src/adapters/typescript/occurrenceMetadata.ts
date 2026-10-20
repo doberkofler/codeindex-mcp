@@ -6,6 +6,7 @@ export type DefinitionMetadataType = Pick<ExtractedOccurrenceType, 'declarationK
 const KIND_PREDICATES: readonly (readonly [(node: ts.Node) => boolean, string])[] = [
 	[ts.isFunctionDeclaration, 'function'],
 	[ts.isClassDeclaration, 'class'],
+	[ts.isClassExpression, 'class'],
 	[ts.isInterfaceDeclaration, 'interface'],
 	[ts.isTypeAliasDeclaration, 'type'],
 	[ts.isEnumDeclaration, 'enum'],

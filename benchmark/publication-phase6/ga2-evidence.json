@@ -19,17 +19,17 @@
 		},
 		"vscode": {
 			"gA": "passed",
-			"gA2": "failed",
+			"gA2": "passed",
 			"emittedModules": 4935,
 			"declarationMapFiles": 4935,
 			"emittedExports": 19254,
 			"publishedRoots": 19254,
 			"missingPublishedRoots": 0,
 			"extraPublishedRoots": 0,
-			"truthDeclarations": 99811,
-			"visibleDeclarations": 99384,
-			"missingDeclarations": 443,
-			"extraDeclarations": 16,
+			"truthDeclarations": 99780,
+			"visibleDeclarations": 99780,
+			"missingDeclarations": 0,
+			"extraDeclarations": 0,
 			"ambiguousDeclarations": 0
 		},
 		"materialUi": {
@@ -41,10 +41,10 @@
 			"publishedRoots": 2954,
 			"missingPublishedRoots": 28,
 			"extraPublishedRoots": 74,
-			"truthDeclarations": 6631,
-			"visibleDeclarations": 4829,
-			"missingDeclarations": 2176,
-			"extraDeclarations": 374,
+			"truthDeclarations": 7103,
+			"visibleDeclarations": 5334,
+			"missingDeclarations": 1776,
+			"extraDeclarations": 7,
 			"ambiguousDeclarations": 0
 		},
 		"oracleProductionCorpus": {

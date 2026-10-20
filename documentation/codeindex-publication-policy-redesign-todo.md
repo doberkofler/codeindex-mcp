@@ -18,7 +18,8 @@ Phase 5 Oracle G-B through G-F pass on the publication fixture. On the frozen pr
 corpus, G-F passes with zero S3/O2/L1/F1 violations; G-B through G-E remain open there.
 
 Phase 4 G-A passes on the TypeScript compiler and VS Code corpora. G-A2 passes on the
-TypeScript compiler corpus; VS Code and Material UI still expose classification gaps.
+TypeScript compiler and VS Code corpora; Material UI still exposes JavaScript
+PropTypes/runtime-member classification gaps.
 
 ## Phase 0: accept the contract
 
@@ -156,9 +157,9 @@ Complete on 2026-10-20 except the full G-A2 corpus position association.
       reachability, declaration kinds, ownership, and usage.
 - [x] Every query and list mode against the new schema.
 - [x] Pass G-A, G-B, G-C, G-D, and G-F.
-- [ ] Pass full-corpus G-A2 source association. The TypeScript compiler corpus passes
-      (9,191 truth / 9,191 visible declarations); VS Code reports 443 missing and 16
-      extra, and Material UI reports 2,176 missing and 374 extra.
+- [ ] Pass full-corpus G-A2 source association. The TypeScript compiler and VS Code
+      corpora pass (9,191 and 99,780 declarations); Material UI reports 1,776 missing
+      and 7 extra declarations.
 - [x] Bounded tool responses for ESM TypeScript and ESM JavaScript.
 
 Phase 4 notes:
@@ -287,4 +288,4 @@ Phase 6 notes:
 | 2026-10-20 | Phase 4 | TypeScript vertical slice: aliases, default and external roots, internal stars, typed surface projection, reachability, usage bits, and symbol/fact persistence migration. Queries now read canonical bindings; `find_symbol`, `outline`, `find_references`, `read_symbol` list modes, `symbol_at`, and bounded responses are implemented. G-A/G-B/G-C/G-D/G-F pass; full G-A2 corpus association remains partial. |
 | 2026-10-20 | Phase 5 | Oracle vertical slice: declaration forms, exact heading-gated routine/cursor pairing, forward identity and primary ranking, ephemeral parameters/locals, canonical owner-qualified bindings, declared sites, ownership, and usage. Fixture gates G-B/G-C/G-D/G-E/G-F pass; production corpus gates remain blocked. |
 | 2026-10-20 | Phase 6 | Defaults: `find_symbol` exposure is `visible`; exact-name presence telemetry feeds local analytics; K3 defers CommonJS publication; S3/O2/L1/F1 are enforced in production finalization. Q2 thresholds recorded; real-task A/B remains blocked. |
-| 2026-10-20 | Qualification | Added independent G-A2 source association. G-A passes on the TypeScript compiler and VS Code corpora; G-A2 passes on the TypeScript compiler corpus. Fixed merged alias/local symbols, namespace re-exports, parameter properties, and synthetic-default root sites. Oracle G-F passes on the frozen production corpus. |
+| 2026-10-20 | Qualification | Added independent G-A2 source association. G-A/G-A2 pass on the TypeScript compiler and VS Code corpora; Material UI remains partial. Fixed merged alias/local symbols, namespace re-exports, parameter properties, computed/string object members, class expressions, private constructor parameters, conditional-alias reachability, and synthetic-default root sites. Oracle G-F passes on the frozen production corpus. |

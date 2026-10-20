@@ -38,6 +38,10 @@ const enqueueTypeArguments = (state: TruthStateType, type: ts.Type): void => {
 };
 
 const drainType = (state: TruthStateType, type: ts.Type): void => {
+	if ((type.flags & ts.TypeFlags.TypeParameter) !== 0) {
+		return;
+	}
+
 	if (isExternalType(type, state.authoredPaths)) {
 		enqueueTypeArguments(state, type);
 		return;
@@ -111,6 +115,10 @@ type SignatureProjectionInputType = Readonly<{
 const projectSignatureList = ({state, type, depth, kind, project}: SignatureProjectionInputType): void => {
 	for (const signature of state.checker.getSignaturesOfType(type, kind)) {
 		for (const parameter of signature.getParameters()) {
+			if (isPrivateSymbol(parameter)) {
+				continue;
+			}
+
 			const parameterType = symbolTypeOf(state.checker, parameter);
 
 			if (parameterType !== null) {
@@ -181,7 +189,7 @@ const projectType: ProjectTypeFnType = (state, type, depth) => {
 		return;
 	}
 
-	if (hasTypeFlag(type.flags, [ts.TypeFlags.Any, ts.TypeFlags.Unknown, ts.TypeFlags.Never, ts.TypeFlags.Void])) {
+	if (hasTypeFlag(type.flags, [ts.TypeFlags.Any, ts.TypeFlags.Unknown, ts.TypeFlags.Never, ts.TypeFlags.Void, ts.TypeFlags.TypeParameter])) {
 		return;
 	}
 
@@ -222,7 +230,7 @@ const projectType: ProjectTypeFnType = (state, type, depth) => {
 
 const addNamespace = (state: TruthStateType, symbol: ts.Symbol): void => {
 	for (const exported of state.checker.getExportsOfModule(symbol)) {
-		if (isExternalSymbol(exported, state.authoredPaths)) {
+		if (isPrivateSymbol(exported) || isExternalSymbol(exported, state.authoredPaths)) {
 			continue;
 		}
 
@@ -275,13 +283,19 @@ const addRoot = (state: TruthStateType, symbol: ts.Symbol): void => {
 
 	state.roots += 1;
 
+	if (symbol !== target) {
+		addDeclaration(state, symbol);
+	}
+
 	if (isExternalSymbol(target, state.authoredPaths)) {
 		state.addresses += 1;
 		addDeclaration(state, symbol);
 		return;
 	}
 
-	if ((target.flags & ts.SymbolFlags.ValueModule) !== 0) {
+	const moduleOnly = (target.declarations ?? []).every((declaration) => ts.isSourceFile(declaration));
+
+	if ((target.flags & ts.SymbolFlags.ValueModule) !== 0 && moduleOnly) {
 		state.addresses += 1;
 		addDeclaration(state, symbol);
 		addNamespace(state, target);
