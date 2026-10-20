@@ -52,6 +52,24 @@ is enabled.
 
 ## Prototype outcomes
 
+P-3 independent compiler-type projection completed on every root:
+
+| Corpus | Roots | Completed | Budget exceeded | Depth limited | Max addresses/root | Max steps/root |
+|---|---:|---:|---:|---:|---:|---:|
+| TypeScript compiler | 6,010 | 6,010 | 0 | 0 | 492 | 6,815 |
+| VS Code | 19,254 | 19,254 | 0 | 0 | 674 | 13,286 |
+| Material UI | 4,091 | 4,091 | 0 | 0 | 122 | 2,147 |
+
+The probe uses path-local cycle detection and a 64-level depth guard; a depth-limited or
+budget-exceeded root makes the measurement partial and is excluded from maxima. No root
+triggered either condition in these runs.
+
+Accepted per-root ceilings are 2,000 surface addresses and 50,000 reachability steps.
+Each is the smallest `1/2/5 x 10^n` value at or above twice the observed maximum
+(2.97x and 3.76x headroom). Each JSON report also records the ceiling derived from that
+single corpus; the accepted value uses the maximum across all three. They are
+qualification evidence for external configuration, not package defaults.
+
 P-1 declaration emission and maps covered every authored file with zero emit errors.
 Root-only comparison is partial:
 
@@ -83,10 +101,16 @@ repository corpus. The Oracle fixture measured two O2
 `parameter_type_reference_owner` cases. Parameter type references inherit the routine
 owner until Phase 5 implements nested parameter ownership; the class is report-only.
 
-## Blocked measurements
+## Oracle decisions
 
-Surface addresses and reachability steps remain 0 because the Phase 4 projection slice
-has not landed. M11/M12 ceilings are recorded as explicitly non-normative provisional
-values: 10,000 surface bindings and 50,000 reachability steps per root, each with a
-target headroom factor of 2. Measured headroom is null. Phase 4 must replace both values
-from observed maxima before DDL work leaves the evidence checkpoint.
+M8 and M9 are resolved in the policy. Local read-only probes recorded `NLS_COMP` and
+`NLS_SORT` as `BINARY`, `CURRENT_SCHEMA` equal to the connected user, and zero owned
+synonyms. Production indexing does not expand synonyms; unquoted names use canonical
+uppercase, quoted names preserve spelling, and unquoted query input is uppercased before
+comparison. `find_references` returns flat occurrences with keyset pagination. Aggregate
+evidence is in `oracle-live-evidence.json`.
+
+## Measurement status
+
+M11/M12 are measured. The production Oracle corpus was not available for M7, which
+remains fixture evidence only. DDL approval is the only open evidence-checkpoint item.

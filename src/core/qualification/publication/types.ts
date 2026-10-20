@@ -157,9 +157,30 @@ export type P2ReportType = Readonly<{
 	readonly note?: string | undefined;
 }>;
 
+export type P3ReportType = Readonly<{
+	readonly status: MeasurementStatusType;
+	readonly roots: number;
+	readonly completedRoots: number;
+	readonly budgetExceededRoots: number;
+	readonly depthLimitedRoots: number;
+	readonly surfaceAddresses: number;
+	readonly reachabilitySteps: number;
+	readonly surfaceAddressesPerRoot: DistributionType;
+	readonly reachabilityStepsPerRoot: DistributionType;
+	readonly maximumSurfaceAddressesPerRoot: number;
+	readonly maximumReachabilityStepsPerRoot: number;
+	readonly maximumSurfaceAddressesPerSymbol: number;
+	readonly anonymousAddresses: number;
+	readonly inheritedAddresses: number;
+	readonly depthOneAddresses: number;
+	readonly runtimeMs: number;
+	readonly note?: string | undefined;
+}>;
+
 type PublicationPrototypeReportType = Readonly<{
 	readonly p1: P1ReportType | null;
 	readonly p2: P2ReportType | null;
+	readonly p3: P3ReportType | null;
 }>;
 
 export type PublicationMeasurementsType = Readonly<{

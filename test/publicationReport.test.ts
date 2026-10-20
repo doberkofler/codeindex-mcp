@@ -3,6 +3,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {runPublicationReportCommand} from '../src/core/qualification/publication/publicationCommand.ts';
+import {headroomCeilingOf} from '../src/core/qualification/publication/ceilings.ts';
 import {type PublicationDiagnosticArtifactType, type PublicationReportType} from '../src/core/qualification/publication/types.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
@@ -36,6 +37,41 @@ const readReport = (filePath: string): PublicationReportType => JSON.parse(readF
 
 const readDiagnostics = (filePath: string): PublicationDiagnosticArtifactType =>
 	JSON.parse(readFileSync(filePath, 'utf8')) as PublicationDiagnosticArtifactType;
+
+const expectMeasuredFacts = (report: PublicationReportType): void => {
+	expect(report.schemaVersion).toBe(1);
+	expect(report.tool).toBe('publication-report');
+	expect(report.facts.symbols).toBeGreaterThan(0);
+	expect(report.facts.occurrences).toBeGreaterThan(0);
+	expect(report.measurements.m1.status).toBe('measured');
+	expect(report.measurements.m2.status).toBe('measured');
+	expect(report.measurements.m4.status).toBe('measured');
+	expect(report.measurements.m6.status).toBe('measured');
+	expect(report.measurements.m7.status).toBe('blocked');
+	expect(report.measurements.m13.status).toBe('measured');
+	expect(report.measurements.m13.selectedSemantics).toBe('constituent_reachability');
+	expect(report.measurements.m14.status).not.toBe('blocked');
+	expect(report.measurements.m14.proposedPrecedence.length).toBeGreaterThan(0);
+	expect(report.measurements.r1.status).not.toBe('blocked');
+	expect(report.measurements.r2.status).toBe('measured');
+	expect(report.telemetry.status).toBe('not_collected');
+	expect(report.limitations.length).toBeGreaterThan(0);
+};
+
+const expectMeasuredProjection = (report: PublicationReportType): void => {
+	expect(report.measurements.m11.status).toBe('measured');
+	expect(report.measurements.m11.maximumReachabilityStepsPerRoot).toBeGreaterThan(0);
+	expect(report.measurements.m11.proposedCeiling).toBeGreaterThanOrEqual(report.measurements.m11.maximumReachabilityStepsPerRoot * 2);
+	expect(report.measurements.m11.headroomFactor).toBeGreaterThanOrEqual(2);
+	expect(report.measurements.m11.headroomTargetFactor).toBe(2);
+	expect(report.measurements.m11.headroomStatus).toBe('computed');
+	expect(report.measurements.m12.status).toBe('measured');
+	expect(report.measurements.m12.maximumSurfaceBindingsPerRoot).toBeGreaterThan(0);
+	expect(report.measurements.m12.proposedCeiling).toBeGreaterThanOrEqual(report.measurements.m12.maximumSurfaceBindingsPerRoot * 2);
+	expect(report.measurements.m12.headroomFactor).toBeGreaterThanOrEqual(2);
+	expect(report.measurements.m12.headroomTargetFactor).toBe(2);
+	expect(report.measurements.m12.headroomStatus).toBe('computed');
+};
 
 const runForFixture = async (
 	fixtureName: string,
@@ -86,37 +122,24 @@ describe('report-only publication qualification', () => {
 		}
 	});
 
+	it('rounds a headroom target up to the smallest 1/2/5 x 10^n ceiling', () => {
+		expect(headroomCeilingOf(0)).toBeNull();
+		expect(headroomCeilingOf(1)).toBe(2);
+		expect(headroomCeilingOf(3)).toBe(10);
+		expect(headroomCeilingOf(674)).toBe(2000);
+		expect(headroomCeilingOf(13_286)).toBe(50_000);
+		expect(headroomCeilingOf(6000)).toBe(20_000);
+	});
+
 	it('measures TypeScript facts and runs the independent prototypes without creating an index database', async () => {
 		const {report, diagnostics, directory} = await runForFixture('simple-project', 'typescript', 'tsconfig.json');
 
-		expect(report.schemaVersion).toBe(1);
-		expect(report.tool).toBe('publication-report');
-		expect(report.facts.symbols).toBeGreaterThan(0);
-		expect(report.facts.occurrences).toBeGreaterThan(0);
-		expect(report.measurements.m1.status).toBe('measured');
-		expect(report.measurements.m2.status).toBe('measured');
-		expect(report.measurements.m4.status).toBe('measured');
-		expect(report.measurements.m6.status).toBe('partial');
-		expect(report.measurements.m7.status).toBe('blocked');
-		expect(report.measurements.m11.status).toBe('blocked');
-		expect(report.measurements.m11.proposedCeiling).toBe(50_000);
-		expect(report.measurements.m11.headroomFactor).toBeNull();
-		expect(report.measurements.m11.headroomTargetFactor).toBe(2);
-		expect(report.measurements.m11.headroomStatus).toBe('blocked_on_projection');
-		expect(report.measurements.m12.proposedCeiling).toBe(10_000);
-		expect(report.measurements.m12.headroomFactor).toBeNull();
-		expect(report.measurements.m12.headroomTargetFactor).toBe(2);
-		expect(report.measurements.m12.headroomStatus).toBe('blocked_on_projection');
-		expect(report.measurements.m13.status).toBe('measured');
-		expect(report.measurements.m13.selectedSemantics).toBe('constituent_reachability');
-		expect(report.measurements.m14.status).not.toBe('blocked');
-		expect(report.measurements.m14.proposedPrecedence.length).toBeGreaterThan(0);
-		expect(report.measurements.r1.status).not.toBe('blocked');
-		expect(report.measurements.r2.status).toBe('measured');
+		expectMeasuredFacts(report);
+		expectMeasuredProjection(report);
 		expect(report.prototypes.p1).not.toBeNull();
 		expect(report.prototypes.p2).not.toBeNull();
-		expect(report.telemetry.status).toBe('not_collected');
-		expect(report.limitations.length).toBeGreaterThan(0);
+		expect(report.prototypes.p3).not.toBeNull();
+		expect(report.prototypes.p3?.status).toBe('measured');
 
 		const serialized = JSON.stringify(report);
 
@@ -143,6 +166,7 @@ describe('report-only publication qualification', () => {
 		expect(report.measurements.m7.bodyLessSpec).toBeGreaterThan(0);
 		expect(report.prototypes.p1).toBeNull();
 		expect(report.prototypes.p2).toBeNull();
+		expect(report.prototypes.p3).toBeNull();
 		expect(report.measurements.r2.status).toBe('measured');
 		expect(report.measurements.r2.o2.classes).toHaveProperty('parameter_type_reference_owner');
 	});

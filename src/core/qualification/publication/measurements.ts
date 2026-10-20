@@ -3,7 +3,7 @@ import {type FinalizedFactSetType} from '../../facts/types.ts';
 import {countBy, sourceLinesRepresented} from './distribution.ts';
 import {m1Of, m2Of, m4Of, m6Of, m7Of, m11Of, m12Of} from './factMetrics.ts';
 import {measureInvariants, type PublicationViolationExampleType} from './invariants.ts';
-import {type M13ReportType, type M14ReportType, type PublicationMeasurementsType, type R1ReportType} from './types.ts';
+import {type M13ReportType, type M14ReportType, type P3ReportType, type PublicationMeasurementsType, type R1ReportType} from './types.ts';
 
 const KIND_PRECEDENCE = ['class', 'interface', 'enum', 'namespace', 'type', 'function', 'variable', 'method', 'property', 'accessor', 'enum_member'] as const;
 
@@ -112,6 +112,7 @@ export const measurePublicationFacts = (
 		readonly peakRssBytes: number;
 		readonly provisionalCeiling: number;
 		readonly prototypeUnions: Readonly<{unionCases: number; intersectionCases: number}> | null;
+		readonly projection: P3ReportType | null;
 	}>,
 ): MeasurementsResultType => {
 	const invariants = measureInvariants(input.facts, input.finalized, input.extractorId);
@@ -121,10 +122,10 @@ export const measurePublicationFacts = (
 			m1: m1Of(input.facts),
 			m2: m2Of(input.facts.files),
 			m4: m4Of(input.facts, input.finalized),
-			m6: m6Of(input.finalized, input.runtimeMs, input.peakRssBytes),
+			m6: m6Of(input.projection, input.runtimeMs, input.peakRssBytes),
 			m7: m7Of(input.facts.adapterStats),
-			m11: m11Of(),
-			m12: m12Of(input.finalized, input.provisionalCeiling),
+			m11: m11Of(input.projection),
+			m12: m12Of(input.projection, input.provisionalCeiling),
 			m13: m13Of(input.prototypeUnions),
 			m14: m14Of(input.facts, input.finalized),
 			r1: r1Of(input.facts, input.finalized),

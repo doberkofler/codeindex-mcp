@@ -2,12 +2,12 @@
 	"schemaVersion": 1,
 	"tool": "publication-report",
 	"runtime": {
-		"scanMs": 33,
-		"compilerMs": 531,
-		"extractionMs": 3263,
-		"finalizationMs": 295,
-		"totalMs": 8718,
-		"peakRssBytes": 1628962816
+		"scanMs": 21,
+		"compilerMs": 497,
+		"extractionMs": 3258,
+		"finalizationMs": 302,
+		"totalMs": 11726,
+		"peakRssBytes": 1960394752
 	},
 	"workspace": {
 		"projectId": "a2a2d02c9c908caa",
@@ -92,26 +92,41 @@
 			}
 		},
 		"m6": {
-			"status": "partial",
+			"status": "measured",
 			"surfaceAddressesPerRoot": {
-				"total": 0,
-				"buckets": {},
-				"p50": 0,
-				"p95": 0,
-				"p99": 0,
-				"max": 0
+				"total": 6010,
+				"buckets": {
+					"1": 4310,
+					"2": 32,
+					"3-4": 312,
+					"5-8": 276,
+					"17+": 557,
+					"9-16": 523
+				},
+				"p50": 1,
+				"p95": 22,
+				"p99": 42,
+				"max": 492
 			},
 			"reachabilityStepsPerRoot": {
-				"total": 0,
-				"buckets": {},
-				"p50": 0,
-				"p95": 0,
-				"p99": 0,
-				"max": 0
+				"total": 6010,
+				"buckets": {
+					"0": 210,
+					"1": 88,
+					"2": 38,
+					"9-16": 488,
+					"5-8": 350,
+					"17+": 4678,
+					"3-4": 158
+				},
+				"p50": 2152,
+				"p95": 2667,
+				"p99": 3300,
+				"max": 6815
 			},
-			"runtimeMs": 7569,
-			"peakRssBytes": 1590542336,
-			"note": "Reachability closure is not implemented before the Phase 4 projection slice; surface origins are preliminary."
+			"runtimeMs": 10594,
+			"peakRssBytes": 1902755840,
+			"note": "Independent compiler-type projection probe; aggregate counts only. Budget-exceeded roots are excluded from maxima; projection depth is capped at 64 with path-local cycle detection."
 		},
 		"m7": {
 			"status": "blocked",
@@ -127,26 +142,26 @@
 			"note": "Oracle adapter statistics were not emitted for this extractor."
 		},
 		"m11": {
-			"status": "blocked",
-			"maximumReachabilityStepsPerRoot": 0,
-			"proposedCeiling": 50000,
-			"headroomFactor": null,
+			"status": "measured",
+			"maximumReachabilityStepsPerRoot": 6815,
+			"proposedCeiling": 20000,
+			"headroomFactor": 2.93470286133529,
 			"headroomTargetFactor": 2,
-			"headroomStatus": "blocked_on_projection",
-			"note": "Reachability closure and measured headroom are blocked on the Phase 4 projection slice; the ceiling is provisional only."
+			"headroomStatus": "computed",
+			"note": "Derived from observed maximum plus 2x headroom, rounded up to the next 1/2/5 x 10^n value."
 		},
 		"m12": {
-			"status": "partial",
-			"maximumSurfaceBindingsPerRoot": 0,
-			"maximumSurfaceBindingsPerSymbol": 0,
-			"proposedCeiling": 10000,
-			"headroomFactor": null,
+			"status": "measured",
+			"maximumSurfaceBindingsPerRoot": 492,
+			"maximumSurfaceBindingsPerSymbol": 684,
+			"proposedCeiling": 1000,
+			"headroomFactor": 2.032520325203252,
 			"headroomTargetFactor": 2,
-			"headroomStatus": "blocked_on_projection",
+			"headroomStatus": "computed",
 			"anonymous": 0,
-			"inherited": 0,
-			"depth1": 0,
-			"note": "Surface-origin classification, measured headroom, and reachability closure are blocked on the Phase 4 projection slice; the ceiling is provisional only."
+			"inherited": 15748,
+			"depth1": 26908,
+			"note": "Derived from observed maximum plus 2x headroom, rounded up to the next 1/2/5 x 10^n value."
 		},
 		"m13": {
 			"status": "measured",
@@ -282,6 +297,54 @@
 				"default": 0
 			},
 			"note": "P-2 reports compiler export-table aliases and export= forms. Alias/default/star publication remains Phase 4 work."
+		},
+		"p3": {
+			"status": "measured",
+			"roots": 6010,
+			"completedRoots": 6010,
+			"budgetExceededRoots": 0,
+			"depthLimitedRoots": 0,
+			"surfaceAddresses": 32918,
+			"reachabilitySteps": 8944785,
+			"surfaceAddressesPerRoot": {
+				"total": 6010,
+				"buckets": {
+					"1": 4310,
+					"2": 32,
+					"3-4": 312,
+					"5-8": 276,
+					"17+": 557,
+					"9-16": 523
+				},
+				"p50": 1,
+				"p95": 22,
+				"p99": 42,
+				"max": 492
+			},
+			"reachabilityStepsPerRoot": {
+				"total": 6010,
+				"buckets": {
+					"0": 210,
+					"1": 88,
+					"2": 38,
+					"9-16": 488,
+					"5-8": 350,
+					"17+": 4678,
+					"3-4": 158
+				},
+				"p50": 2152,
+				"p95": 2667,
+				"p99": 3300,
+				"max": 6815
+			},
+			"maximumSurfaceAddressesPerRoot": 492,
+			"maximumReachabilityStepsPerRoot": 6815,
+			"maximumSurfaceAddressesPerSymbol": 684,
+			"anonymousAddresses": 0,
+			"inheritedAddresses": 15748,
+			"depthOneAddresses": 26908,
+			"runtimeMs": 3067,
+			"note": "Independent compiler-type projection probe; aggregate counts only. Budget-exceeded roots are excluded from maxima; projection depth is capped at 64 with path-local cycle detection."
 		}
 	},
 	"issues": {
@@ -302,7 +365,6 @@
 		}
 	},
 	"limitations": [
-		"Surface projection and reachability closure are not implemented before the Phase 4 projection slice.",
 		"Occurrence usage bits are not emitted by the current fact seam.",
 		"Query telemetry counters are fixed at zero during qualification.",
 		"P-1 compares emitted root exports only; G-A2 position association remains blocked."

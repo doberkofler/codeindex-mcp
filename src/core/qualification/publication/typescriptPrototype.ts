@@ -7,8 +7,10 @@ import {type ConfigType} from '../../config/config.ts';
 import {type ExtractedFactSetType} from '../../facts/index.ts';
 import {type FinalizedFactSetType} from '../../facts/types.ts';
 import {loadTypeScriptProject} from '../../../adapters/typescript/loadProject.ts';
-import {type P1ReportType, type P2ReportType} from './types.ts';
+import {type P1ReportType, type P2ReportType, type P3ReportType} from './types.ts';
 import {countUnionIntersection} from './unionIntersection.ts';
+import {runProjectionPrototype} from './projectionPrototype.ts';
+import {type ProjectionBudgetType} from './projectionModel.ts';
 
 const SourceMapSchema = z.object({sources: z.array(z.string())});
 
@@ -445,23 +447,30 @@ const p2Of = (config: ConfigType, facts: ExtractedFactSetType, finalized: Finali
 export type TypeScriptPrototypeResultType = Readonly<{
 	readonly p1: P1ReportType;
 	readonly p2: P2ReportType;
+	readonly p3: P3ReportType;
 	readonly unionCases: number;
 	readonly intersectionCases: number;
 }>;
 
 /**
- * Runs the independent TypeScript P-1 and P-2 prototypes for Phase 2.
+ * Runs the independent TypeScript P-1, P-2, and P-3 prototypes for Phase 2.
  *
  * P-1 emits declarations into a temporary directory and compares emitted module
  * roots with preliminary published roots. P-2 reads compiler export tables for
- * external aliases, external stars, and CommonJS `export =` forms. Neither
- * prototype uses production classification to construct truth.
+ * external aliases, external stars, and CommonJS `export =` forms. P-3 follows
+ * compiler types to count per-root surface addresses and reachability steps.
+ * None of the prototypes uses production classification to construct truth.
  *
- * @param input - Resolved configuration, fact bundle, and finalized facts.
+ * @param input - Resolved configuration, fact bundle, probe budget, and finalized facts.
  * @returns Prototype outcomes and M13 source-form counts.
  */
 export const runTypeScriptPrototypes = (
-	input: Readonly<{config: ConfigType; facts: ExtractedFactSetType; finalized: FinalizedFactSetType}>,
+	input: Readonly<{
+		config: ConfigType;
+		facts: ExtractedFactSetType;
+		finalized: FinalizedFactSetType;
+		budget: ProjectionBudgetType;
+	}>,
 ): TypeScriptPrototypeResultType => {
 	const sources = new Map(input.facts.files.map((file) => [file.path, readFileSync(file.absolutePath, 'utf8')]));
 	const unionCounts = countUnionIntersection(sources);
@@ -469,6 +478,7 @@ export const runTypeScriptPrototypes = (
 	return {
 		p1: p1Of(input.config, input.finalized),
 		p2: p2Of(input.config, input.facts, input.finalized),
+		p3: runProjectionPrototype({config: input.config, facts: input.facts, budget: input.budget}),
 		unionCases: unionCounts.unionCases,
 		intersectionCases: unionCounts.intersectionCases,
 	};

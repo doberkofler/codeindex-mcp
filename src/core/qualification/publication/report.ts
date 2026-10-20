@@ -5,6 +5,7 @@ import {type ConfigType} from '../../config/config.ts';
 import {finalizeFacts} from '../../facts/index.ts';
 import {createPublicationDiagnostics} from './diagnostics.ts';
 import {measurePublicationFacts} from './measurements.ts';
+import {type ProjectionBudgetType} from './projectionModel.ts';
 import {runTypeScriptPrototypes} from './typescriptPrototype.ts';
 import {type PublicationDiagnosticArtifactType, type PublicationReportType} from './types.ts';
 
@@ -32,7 +33,7 @@ const issueCountsOf = (issues: readonly Readonly<{code: string}>[]): Readonly<Re
 };
 
 const limitationsOf = (extractorId: string, hasPrototypes: boolean): readonly string[] => [
-	'Surface projection and reachability closure are not implemented before the Phase 4 projection slice.',
+	...(extractorId === 'typescript' && hasPrototypes ? [] : ['Surface projection and reachability closure are not measured for this extractor.']),
 	'Occurrence usage bits are not emitted by the current fact seam.',
 	'Query telemetry counters are fixed at zero during qualification.',
 	...(hasPrototypes ? ['P-1 compares emitted root exports only; G-A2 position association remains blocked.'] : []),
@@ -52,13 +53,14 @@ const writeJson = (filePath: string, value: unknown): void => {
  * diagnostic examples. It never opens or writes an index database and never
  * publishes a generation.
  *
- * @param input - Resolved configuration, provisional surface ceiling, and whether to run prototypes.
+ * @param input - Resolved configuration, ceilings, probe budget, and whether to run prototypes.
  * @returns Aggregate report and optional local diagnostic artifact.
  */
 export const createPublicationReport = (
 	input: Readonly<{
 		readonly config: ConfigType;
 		readonly provisionalCeiling: number;
+		readonly projectionBudget: ProjectionBudgetType;
 		readonly includePrototypes: boolean;
 	}>,
 ): Readonly<{report: PublicationReportType; diagnostics: PublicationDiagnosticArtifactType}> => {
@@ -70,7 +72,9 @@ export const createPublicationReport = (
 	const finalized = finalizeFacts(extracted, {mode: 'report', maxBindingsPerRoot: input.provisionalCeiling});
 	const finalizationMs = Math.round(performance.now() - finalizationStartedAt);
 	const prototypes =
-		input.includePrototypes && input.config.extractorId === 'typescript' ? runTypeScriptPrototypes({config: input.config, facts: extracted, finalized}) : null;
+		input.includePrototypes && input.config.extractorId === 'typescript'
+			? runTypeScriptPrototypes({config: input.config, facts: extracted, finalized, budget: input.projectionBudget})
+			: null;
 	const totalAtMeasurement = Math.round(performance.now() - startedAt);
 	const measured = measurePublicationFacts({
 		extractorId: input.config.extractorId,
@@ -80,6 +84,7 @@ export const createPublicationReport = (
 		peakRssBytes: peakRssBytes(),
 		provisionalCeiling: input.provisionalCeiling,
 		prototypeUnions: prototypes === null ? null : {unionCases: prototypes.unionCases, intersectionCases: prototypes.intersectionCases},
+		projection: prototypes?.p3 ?? null,
 	});
 	const report: PublicationReportType = {
 		schemaVersion: 1,
@@ -130,7 +135,7 @@ export const createPublicationReport = (
 			internalBindings: finalized.stats.internalBindings,
 		},
 		measurements: measured.measurements,
-		prototypes: {p1: prototypes?.p1 ?? null, p2: prototypes?.p2 ?? null},
+		prototypes: {p1: prototypes?.p1 ?? null, p2: prototypes?.p2 ?? null, p3: prototypes?.p3 ?? null},
 		issues: {total: finalized.issues.length, byCode: issueCountsOf(finalized.issues)},
 		telemetry: {status: 'not_collected', counters: QUERY_TELEMETRY_COUNTERS},
 		limitations: limitationsOf(input.config.extractorId, prototypes !== null),

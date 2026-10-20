@@ -3,7 +3,7 @@ import path from 'node:path';
 import {type AdapterStatType, type ExtractedFactSetType} from '../../facts/index.ts';
 import {type FinalizedFactSetType} from '../../facts/types.ts';
 import {type SourceFileType} from '../../model.ts';
-import {PROVISIONAL_HEADROOM_TARGET_FACTOR, PROVISIONAL_REACHABILITY_STEPS_PER_ROOT} from './ceilings.ts';
+import {headroomCeilingOf, HEADROOM_TARGET_FACTOR, FALLBACK_REACHABILITY_STEPS_PER_ROOT} from './ceilings.ts';
 import {distributionOf, percentileOf} from './distribution.ts';
 import {
 	type M1ReportType,
@@ -13,6 +13,7 @@ import {
 	type M7ReportType,
 	type M11ReportType,
 	type M12ReportType,
+	type P3ReportType,
 } from './types.ts';
 
 const maximum = (values: readonly number[]): number => values.reduce((current, value) => Math.max(current, value), 0);
@@ -35,16 +36,6 @@ const statValue = (stats: readonly AdapterStatType[], metric: string, dimension?
 	stats
 		.filter((stat) => stat.metric === metric && (dimension === undefined || (stat.dimensions ?? []).includes(dimension)))
 		.reduce((total, stat) => total + stat.value, 0);
-
-const surfaceCountsByRoot = (finalized: FinalizedFactSetType): readonly number[] => {
-	const counts = new Map<string, number>();
-
-	for (const origin of finalized.surfaceOrigins) {
-		counts.set(origin.rootBindingId, (counts.get(origin.rootBindingId) ?? 0) + 1);
-	}
-
-	return [...counts.values()];
-};
 
 /**
  * Measures named nested TypeScript functions.
@@ -141,19 +132,29 @@ export const m4Of = (facts: ExtractedFactSetType, finalized: FinalizedFactSetTyp
 /**
  * Measures surface addresses, runtime, and peak memory.
  *
- * @param finalized - Finalized facts.
+ * @param projection - Independent projection probe, or null when it did not run.
  * @param runtimeMs - Total report runtime.
  * @param peakRssBytes - Process peak RSS.
  * @returns M6 measurements.
  */
-export const m6Of = (finalized: FinalizedFactSetType, runtimeMs: number, peakRssBytes: number): M6ReportType => ({
-	status: 'partial',
-	surfaceAddressesPerRoot: distributionOf(surfaceCountsByRoot(finalized)),
-	reachabilityStepsPerRoot: distributionOf([]),
-	runtimeMs,
-	peakRssBytes,
-	note: 'Reachability closure is not implemented before the Phase 4 projection slice; surface origins are preliminary.',
-});
+export const m6Of = (projection: P3ReportType | null, runtimeMs: number, peakRssBytes: number): M6ReportType =>
+	projection === null
+		? {
+				status: 'partial',
+				surfaceAddressesPerRoot: distributionOf([]),
+				reachabilityStepsPerRoot: distributionOf([]),
+				runtimeMs,
+				peakRssBytes,
+				note: 'The independent projection probe did not run for this extractor.',
+			}
+		: {
+				status: projection.status === 'measured' ? 'measured' : 'partial',
+				surfaceAddressesPerRoot: projection.surfaceAddressesPerRoot,
+				reachabilityStepsPerRoot: projection.reachabilityStepsPerRoot,
+				runtimeMs,
+				peakRssBytes,
+				note: projection.note,
+			};
 
 /**
  * Projects Oracle adapter statistics into M7.
@@ -193,48 +194,76 @@ export const m7Of = (stats: readonly AdapterStatType[]): M7ReportType => {
 };
 
 /**
- * Returns the unavailable reachability ceiling measurement.
+ * Derives the reachability-step ceiling from the projection probe.
  *
- * @returns Blocked M11 record.
+ * @param projection - Independent projection probe, or null when it did not run.
+ * @returns M11 measurement.
  */
-export const m11Of = (): M11ReportType => ({
-	status: 'blocked',
-	maximumReachabilityStepsPerRoot: 0,
-	proposedCeiling: PROVISIONAL_REACHABILITY_STEPS_PER_ROOT,
-	headroomFactor: null,
-	headroomTargetFactor: PROVISIONAL_HEADROOM_TARGET_FACTOR,
-	headroomStatus: 'blocked_on_projection',
-	note: 'Reachability closure and measured headroom are blocked on the Phase 4 projection slice; the ceiling is provisional only.',
-});
+export const m11Of = (projection: P3ReportType | null): M11ReportType => {
+	if (projection === null) {
+		return {
+			status: 'blocked',
+			maximumReachabilityStepsPerRoot: 0,
+			proposedCeiling: FALLBACK_REACHABILITY_STEPS_PER_ROOT,
+			headroomFactor: null,
+			headroomTargetFactor: HEADROOM_TARGET_FACTOR,
+			headroomStatus: 'blocked_on_projection',
+			note: 'The independent projection probe did not run; the ceiling is provisional only.',
+		};
+	}
+
+	const observedMaximum = projection.maximumReachabilityStepsPerRoot;
+	const ceiling = headroomCeilingOf(observedMaximum, HEADROOM_TARGET_FACTOR);
+
+	return {
+		status: projection.status === 'measured' ? 'measured' : 'partial',
+		maximumReachabilityStepsPerRoot: observedMaximum,
+		proposedCeiling: ceiling,
+		headroomFactor: ceiling === null ? null : ceiling / observedMaximum,
+		headroomTargetFactor: HEADROOM_TARGET_FACTOR,
+		headroomStatus: 'computed',
+		note: `Derived from observed maximum plus ${String(HEADROOM_TARGET_FACTOR)}x headroom, rounded up to the next 1/2/5 x 10^n value.`,
+	};
+};
 
 /**
  * Measures surface bindings per root and symbol.
  *
- * @param finalized - Finalized facts.
- * @param provisionalCeiling - Provisional external ceiling.
+ * @param projection - Independent projection probe, or null when it did not run.
+ * @param provisionalCeiling - Report-mode ceiling used when the probe is absent.
  * @returns M12 measurements.
  */
-export const m12Of = (finalized: FinalizedFactSetType, provisionalCeiling: number): M12ReportType => {
-	const rootCounts = surfaceCountsByRoot(finalized);
-	const symbolIds = new Map(finalized.bindings.map((binding) => [binding.bindingId, binding.symbolId]));
-	const countsBySymbol = new Map<string, number>();
-
-	for (const origin of finalized.surfaceOrigins) {
-		const symbolId = symbolIds.get(origin.bindingId) ?? origin.bindingId;
-		countsBySymbol.set(symbolId, (countsBySymbol.get(symbolId) ?? 0) + 1);
+export const m12Of = (projection: P3ReportType | null, provisionalCeiling: number): M12ReportType => {
+	if (projection === null) {
+		return {
+			status: 'partial',
+			maximumSurfaceBindingsPerRoot: 0,
+			maximumSurfaceBindingsPerSymbol: 0,
+			proposedCeiling: provisionalCeiling,
+			headroomFactor: null,
+			headroomTargetFactor: HEADROOM_TARGET_FACTOR,
+			headroomStatus: 'blocked_on_projection',
+			anonymous: 0,
+			inherited: 0,
+			depth1: 0,
+			note: 'The independent projection probe did not run; the ceiling is provisional only.',
+		};
 	}
 
+	const observedMaximum = projection.maximumSurfaceAddressesPerRoot;
+	const ceiling = headroomCeilingOf(observedMaximum, HEADROOM_TARGET_FACTOR);
+
 	return {
-		status: 'partial',
-		maximumSurfaceBindingsPerRoot: maximum(rootCounts),
-		maximumSurfaceBindingsPerSymbol: maximum([...countsBySymbol.values()]),
-		proposedCeiling: provisionalCeiling,
-		headroomFactor: null,
-		headroomTargetFactor: PROVISIONAL_HEADROOM_TARGET_FACTOR,
-		headroomStatus: 'blocked_on_projection',
-		anonymous: 0,
-		inherited: 0,
-		depth1: 0,
-		note: 'Surface-origin classification, measured headroom, and reachability closure are blocked on the Phase 4 projection slice; the ceiling is provisional only.',
+		status: projection.status === 'measured' ? 'measured' : 'partial',
+		maximumSurfaceBindingsPerRoot: observedMaximum,
+		maximumSurfaceBindingsPerSymbol: projection.maximumSurfaceAddressesPerSymbol,
+		proposedCeiling: ceiling,
+		headroomFactor: ceiling === null ? null : ceiling / observedMaximum,
+		headroomTargetFactor: HEADROOM_TARGET_FACTOR,
+		headroomStatus: 'computed',
+		anonymous: projection.anonymousAddresses,
+		inherited: projection.inheritedAddresses,
+		depth1: projection.depthOneAddresses,
+		note: `Derived from observed maximum plus ${String(HEADROOM_TARGET_FACTOR)}x headroom, rounded up to the next 1/2/5 x 10^n value.`,
 	};
 };

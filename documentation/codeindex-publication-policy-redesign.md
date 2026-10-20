@@ -836,14 +836,32 @@ remaining binding is internal.
 The address count and reachability-step count are bounded per root. Exceeding either
 ceiling fails the candidate generation; it never publishes incomplete facts.
 
-Ceilings are external configuration included in `config_hash`. Initial values come from
-dry-run maxima plus documented headroom. Do not hard-code values derived from one
-consumer corpus as package defaults.
+Ceilings are external configuration included in `config_hash`. Values come from dry-run
+maxima plus documented headroom. Do not hard-code values derived from one consumer
+corpus as package defaults.
 
-Phase 2 records provisional, non-normative per-root ceilings until projection lands:
-10,000 surface bindings and 50,000 reachability steps, each with a target headroom
-factor of 2. Measured headroom is null and Phase 4 must recompute both values from
-observed maxima before DDL is approved.
+A **surface address** is a published root binding or one projected relative address. A
+**reachability step** is one enqueued type or declaration expansion in the per-root
+closure; repeated visits to an already-marked declaration still count as steps but are
+not re-expanded.
+
+Phase 2 measured the three frozen TypeScript corpora with the independent P-3
+compiler-type probe (2026-10-20):
+
+| Corpus | Maximum surface addresses per root | Maximum reachability steps per root |
+|---|---:|---:|
+| TypeScript compiler | 492 | 6,815 |
+| VS Code | 674 | 13,286 |
+| Material UI | 122 | 2,147 |
+| **Observed maximum** | **674** | **13,286** |
+
+The accepted per-root ceilings are **2,000 surface addresses** and **50,000 reachability
+steps**. Each is the smallest `1/2/5 x 10^n` value at or above twice the observed
+maximum; the resulting headroom is 2.97x and 3.76x. Both values are qualification
+evidence for external configuration, not package defaults. The probe cap is 10,000
+addresses and 50,000 steps per root; a probe-budget overrun makes the measurement
+partial rather than silently truncating it. Projection uses path-local cycle detection
+and a 64-level depth guard; a depth-limited root also makes the measurement partial.
 
 ### External declarations and exports
 
@@ -892,8 +910,18 @@ generation spec/body pairing.
 Several schemas exist, so owner participates in canonical identity and binding keys.
 Unquoted names use Oracle canonical case; quoted names preserve authored case.
 
-**Open:** synonym and current-schema resolution, including whether query matching folds
-unquoted Oracle names while retaining exact matching for quoted names.
+M8 is resolved. Production indexing keeps the authored source and structural parser as
+its only name source; it does not dereference synonyms. Qualification truth uses
+`ALL_PROCEDURES`, `ALL_ARGUMENTS`, and PL/Scope restricted to the frozen
+`(OWNER, OBJECT_NAME)` inventory. `CURRENT_SCHEMA` resolves unqualified names when
+Oracle compiles a unit, so the adapter records the manifest/default schema as the owner
+segment for unqualified declarations and preserves explicit schema qualifiers. A
+synonym target is never expanded into a different owner or name.
+
+Matching is exact on the persisted canonical spelling. An unquoted query is canonicalized
+to uppercase before exact/prefix comparison; a quoted query preserves its spelling. The
+local probe recorded `NLS_COMP = BINARY`, `NLS_SORT = BINARY`, and no owned synonyms;
+with binary comparison, unquoted names are compared without linguistic case folding.
 
 ### Declaration forms
 
@@ -1340,10 +1368,13 @@ Lock the final interval query after L1 qualification.
 Retain `role = definition | reference`. Add optional path, enclosing-owner, usage, and
 context filters. Usage with `role=definition` is an input error.
 
-Each occurrence includes its stored owner summary or null. Context-filtered results use
-`occurrence_context`. Return unclassified-reference count and
-`cross_file_refs_observed`. Grouping remains deferred until its pagination semantics are
-defined.
+`find_references` returns a flat, deduplicated occurrence list; it does not group by symbol
+or enclosing owner. Each occurrence includes its stored owner summary or null.
+Context-filtered results use `occurrence_context`. Ordering is path, start offset, role,
+symbol ID, then the remaining occurrence-key fields. Pagination uses a generation-bound
+keyset cursor over that tuple plus a filter digest. Return the unclassified-reference
+count and `cross_file_refs_observed`. Grouping is not part of the contract until a future
+decision defines grouping-specific pagination.
 
 ### `read_symbol`
 
@@ -1646,7 +1677,6 @@ The following claims remain provisional until their named gate or prototype pass
 - Oracle call-spec and RETURN-only cursor behavior on the current database release;
 - PL/Scope signature equality between packaged spec declarations and body definitions;
 - `ALL_PROCEDURES` treatment of package-body-only routines;
-- Oracle synonym/current-schema resolution and case folding;
 - combined Definition + ForwardDefinition interoperability with SCIP consumers.
 
 SQLite FK behavior, deterministic hash encoding, canonical JSON serialization, and
@@ -1732,11 +1762,13 @@ corpora and on the repository corpus. The Oracle fixture exposed two
 currently inherit the routine owner. Phase 5 retains nested parameter ownership and this
 named class remains report-only until that slice lands.
 
-Surface projection and reachability closure remain unresolved because they depend on
-the Phase 4 projection slice. Phase 2 records non-normative provisional ceilings of
-10,000 surface bindings and 50,000 reachability steps per root, with a 2x headroom
-target. Measured headroom is null; final values and DDL approval remain blocked on the
-evidence checkpoint.
+Surface projection and reachability closure were measured with the independent P-3
+compiler-type probe. All 6,010 TypeScript compiler roots, 19,254 VS Code roots, and 4,091
+Material UI roots completed within the probe budget, with no depth-limited roots. The
+observed maxima and accepted 2,000/50,000 ceilings are recorded under "Projection
+ceilings". DDL approval is the only remaining evidence-checkpoint item. Aggregate P-3
+reports are committed under `benchmark/publication-phase2/`; the M8 read-only probe is
+recorded in `benchmark/publication-phase2/oracle-live-evidence.json`.
 
 To resolve invariant classes, a separate local diagnostic artifact may contain
 workspace-relative paths, offsets, opaque symbol/binding IDs, and category names. It
@@ -1812,10 +1844,10 @@ thresholds.
 | K3 | CommonJS `export =` binding name and support acceptance after P-2 | Phase 6 decision |
 | M1 | Store named nested TypeScript functions after measuring count and size | Resolved: store them; Phase 2 evidence recorded |
 | M5 | Default `find_symbol` exposure: `published` or `visible` | Phase 6 decision |
-| M8 | Oracle synonym/current-schema source and unquoted-name case folding | Resolve before DDL |
-| M9 | `find_references` grouping and pagination semantics | Resolve before DDL |
+| M8 | Oracle synonym/current-schema source and unquoted-name case folding | Resolved: source-only names, no synonym expansion, canonical uppercase for unquoted names |
+| M9 | `find_references` grouping and pagination semantics | Resolved: flat occurrences with keyset pagination |
 | M10 | Deferred Oracle/ORDS scope and cross-language edges | Deferred scope |
-| M11/M12 | Final per-root reachability-step and surface-address ceilings | Resolve before DDL |
+| M11/M12 | Final per-root reachability-step and surface-address ceilings | Resolved: 50,000 steps and 2,000 addresses per root |
 | M13 | Union/intersection constituent behavior in address projection | Resolved: constituent-only declarations are reachable, not projected |
 | M14 | Fixed declaration-kind precedence for merged TypeScript symbol identity | Resolved: no fixed precedence; keep the identity anchor kind |
 | Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification |
