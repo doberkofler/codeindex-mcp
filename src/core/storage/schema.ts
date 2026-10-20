@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '8';
+export const SCHEMA_VERSION = '9';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -97,8 +97,12 @@ create table if not exists symbol (
 	start_offset integer not null,
 	end_offset integer not null,
 	enclosing_id text,
+	external_target text,
+	external_name text,
+	exposure text not null check (exposure in ('published', 'reachable', 'internal_only')),
 	primary key (generation_id, id),
-	foreign key (generation_id, path) references file(generation_id, path) on delete cascade
+	foreign key (generation_id, path) references file(generation_id, path) on delete cascade,
+	foreign key (generation_id, enclosing_id) references symbol(generation_id, id) on delete cascade deferrable initially deferred
 );
 
 create table if not exists symbol_context (
@@ -110,10 +114,56 @@ create table if not exists symbol_context (
 	foreign key (generation_id, context_name) references project_context(generation_id, name) on delete cascade
 );
 
-create index if not exists symbol_context_by_context on symbol_context (generation_id, context_name, symbol_id);
-create index if not exists symbol_by_path on symbol (generation_id, path, start_offset);
-create index if not exists symbol_by_name on symbol (generation_id, name);
-create index if not exists symbol_by_qualified_name on symbol (generation_id, qualified_name);
+create table if not exists symbol_name (
+	generation_id text not null references generation(id) on delete cascade,
+	binding_id text not null,
+	symbol_id text not null,
+	binding_key text not null check (length(binding_key) > 0),
+	container text not null,
+	name text not null check (length(name) > 0),
+	qualified_name text not null check (length(qualified_name) > 0),
+	primary key (generation_id, binding_id),
+	unique (generation_id, symbol_id, binding_key),
+	foreign key (generation_id, symbol_id) references symbol(generation_id, id) on delete cascade
+);
+
+create table if not exists symbol_name_context (
+	generation_id text not null,
+	binding_id text not null,
+	context_name text not null,
+	exposure text not null check (exposure in ('published', 'reachable', 'internal')),
+	primary key (generation_id, binding_id, context_name),
+	foreign key (generation_id, binding_id) references symbol_name(generation_id, binding_id) on delete cascade,
+	foreign key (generation_id, context_name) references project_context(generation_id, name) on delete cascade
+);
+
+create table if not exists symbol_name_site (
+	generation_id text not null,
+	binding_id text not null,
+	kind text not null check (kind in ('declared', 'alias', 'default', 'reexport', 'wildcard', 'commonjs', 'surface')),
+	path text not null,
+	start_line integer not null,
+	start_column integer not null,
+	end_line integer not null,
+	end_column integer not null,
+	start_offset integer not null,
+	end_offset integer not null check (end_offset > start_offset),
+	primary key (generation_id, binding_id, path, start_offset),
+	foreign key (generation_id, binding_id) references symbol_name(generation_id, binding_id) on delete cascade,
+	foreign key (generation_id, path) references file(generation_id, path) on delete cascade
+);
+
+create table if not exists surface_binding_origin (
+	generation_id text not null,
+	binding_id text not null,
+	context_name text not null,
+	root_binding_id text not null,
+	relative_key text not null check (length(relative_key) > 0),
+	primary key (generation_id, binding_id, context_name),
+	foreign key (generation_id, binding_id, context_name) references symbol_name_context(generation_id, binding_id, context_name) on delete cascade,
+	foreign key (generation_id, root_binding_id, context_name) references symbol_name_context(generation_id, binding_id, context_name) on delete cascade
+);
+
 create table if not exists occurrence (
 	generation_id text not null references generation(id) on delete cascade,
 	symbol_id text not null,
@@ -126,9 +176,36 @@ create table if not exists occurrence (
 	end_offset integer not null,
 	role text not null check (role in ('definition', 'reference')),
 	enclosing_id text,
+	declaration_kind text,
+	forward_definition integer not null default 0 check (forward_definition in (0, 1)),
+	usage integer not null default 0 check (usage in (0, 1, 2, 4, 6, 8)),
+	extent_start integer,
+	extent_end integer,
+	anchor_rank integer,
+	primary_rank integer,
 	primary key (generation_id, symbol_id, path, start_offset, role),
 	foreign key (generation_id, symbol_id) references symbol(generation_id, id) on delete cascade,
-	foreign key (generation_id, path) references file(generation_id, path) on delete cascade
+	foreign key (generation_id, path) references file(generation_id, path) on delete cascade,
+	foreign key (generation_id, enclosing_id) references symbol(generation_id, id) on delete cascade deferrable initially deferred,
+	check (
+		(role = 'definition'
+			and declaration_kind is not null
+			and length(declaration_kind) > 0
+			and usage = 0
+			and extent_start is not null
+			and extent_end is not null
+			and extent_start <= start_offset
+			and extent_end >= end_offset
+			and anchor_rank is not null
+			and primary_rank is not null)
+		or (role = 'reference'
+			and declaration_kind is null
+			and forward_definition = 0
+			and extent_start is null
+			and extent_end is null
+			and anchor_rank is null
+			and primary_rank is null)
+	)
 );
 
 create table if not exists occurrence_context (
@@ -143,7 +220,17 @@ create table if not exists occurrence_context (
 	foreign key (generation_id, context_name) references project_context(generation_id, name) on delete cascade
 );
 
-create index if not exists occurrence_context_by_context on occurrence_context (generation_id, context_name, symbol_id);
+create table if not exists definition_site (
+	generation_id text not null,
+	site_id text not null,
+	symbol_id text not null,
+	path text not null,
+	start_offset integer not null,
+	role text not null check (role = 'definition'),
+	primary key (generation_id, site_id),
+	foreign key (generation_id, symbol_id, path, start_offset, role) references occurrence(generation_id, symbol_id, path, start_offset, role) on delete cascade
+);
+
 create table if not exists dependency_edge (
 	generation_id text not null references generation(id) on delete cascade,
 	id text not null,
@@ -163,10 +250,6 @@ create table if not exists dependency_edge (
 	primary key (generation_id, id),
 	foreign key (generation_id, source_path) references file(generation_id, path) on delete cascade
 );
-
-create index if not exists dependency_by_target_identifier on dependency_edge (generation_id, target_identifier, source_path);
-create index if not exists dependency_by_target on dependency_edge (generation_id, target_path, source_path);
-create index if not exists dependency_by_source on dependency_edge (generation_id, source_path, start_offset);
 
 create table if not exists dependency_binding (
 	generation_id text not null references generation(id) on delete cascade,
@@ -193,6 +276,17 @@ create table if not exists diagnostic (
 	primary key (generation_id, position)
 );
 
+create table if not exists build_stats (
+	generation_id text not null references generation(id) on delete cascade,
+	language text not null check (length(language) > 0),
+	metric text not null check (length(metric) > 0),
+	dim1 text not null,
+	dim2 text not null,
+	dim3 text not null,
+	value integer not null check (value >= 0),
+	primary key (generation_id, language, metric, dim1, dim2, dim3)
+);
+
 create table if not exists extraction_artifact (
 	content_sha256 text not null references content(sha256) on delete cascade,
 	artifact_kind text not null,
@@ -213,4 +307,33 @@ create table if not exists build_lease (
 	heartbeat_at text not null,
 	expires_at text not null
 );
+
+create index if not exists symbol_context_by_context on symbol_context (generation_id, context_name, symbol_id);
+create index if not exists symbol_by_path on symbol (generation_id, path, start_offset);
+create index if not exists symbol_by_name on symbol (generation_id, name);
+create index if not exists symbol_by_qualified_name on symbol (generation_id, qualified_name);
+create index if not exists symbol_by_enclosing on symbol (generation_id, enclosing_id);
+
+create index if not exists symbol_name_by_symbol on symbol_name (generation_id, symbol_id, binding_key);
+create index if not exists symbol_name_by_name on symbol_name (generation_id, name);
+create index if not exists symbol_name_by_qualified_name on symbol_name (generation_id, qualified_name);
+create index if not exists symbol_name_by_container_name on symbol_name (generation_id, container, name);
+
+create index if not exists symbol_name_context_by_exposure on symbol_name_context (generation_id, context_name, exposure, binding_id);
+
+create index if not exists symbol_name_site_by_path on symbol_name_site (generation_id, path, start_offset);
+
+create index if not exists surface_binding_origin_by_root on surface_binding_origin (generation_id, root_binding_id, context_name);
+
+create index if not exists occurrence_context_by_context on occurrence_context (generation_id, context_name, symbol_id);
+create index if not exists occurrence_by_path on occurrence (generation_id, path, role, start_offset);
+create index if not exists occurrence_by_extent on occurrence (generation_id, path, role, extent_start);
+create index if not exists occurrence_by_enclosing on occurrence (generation_id, enclosing_id);
+create index if not exists occurrence_by_definition_site on occurrence (generation_id, symbol_id, path, start_offset, role);
+
+create index if not exists definition_site_by_occurrence on definition_site (generation_id, symbol_id, path, start_offset, role);
+
+create index if not exists dependency_by_target_identifier on dependency_edge (generation_id, target_identifier, source_path);
+create index if not exists dependency_by_target on dependency_edge (generation_id, target_path, source_path);
+create index if not exists dependency_by_source on dependency_edge (generation_id, source_path, start_offset);
 `;

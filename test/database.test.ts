@@ -4,6 +4,7 @@ import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {afterEach, describe, expect, it} from 'vitest';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {createGenerationFactSeed} from './helpers/generationFacts.ts';
 
 const file = {
 	path: 'src/example.ts',
@@ -11,34 +12,6 @@ const file = {
 	sha256: 'a'.repeat(64),
 	byteCount: 0,
 	lineCount: 3,
-};
-
-const symbol = {
-	id: 'symbol-1',
-	name: 'example',
-	qualifiedName: 'example',
-	kind: 'variable',
-	path: file.path,
-	startLine: 1,
-	startColumn: 1,
-	endLine: 1,
-	endColumn: 20,
-	startOffset: 0,
-	endOffset: 19,
-	enclosingId: null,
-};
-
-const occurrence = {
-	symbolId: symbol.id,
-	path: file.path,
-	startLine: 1,
-	startColumn: 14,
-	endLine: 1,
-	endColumn: 21,
-	startOffset: 13,
-	endOffset: 20,
-	role: 'definition' as const,
-	enclosingId: null,
 };
 
 describe('IndexDatabase', () => {
@@ -66,9 +39,7 @@ describe('IndexDatabase', () => {
 			sourceHash: 'source',
 			configHash: 'config',
 		});
-		database.insertFiles(generationId, [file]);
-		database.insertSymbols(generationId, [symbol]);
-		database.insertOccurrences(generationId, [occurrence]);
+		database.insertGenerationFacts({generationId, ...createGenerationFactSeed()});
 		database.verifyIntegrity();
 		database.publish(generationId);
 
@@ -79,14 +50,14 @@ describe('IndexDatabase', () => {
 			symbolCount: 1,
 			occurrenceCount: 1,
 		});
-		expect(database.findReferences({generationId, symbolId: symbol.id, role: undefined, limit: 10, offset: 0})).toHaveLength(1);
+		expect(database.findReferences({generationId, symbolId: 'symbol-0', role: undefined, limit: 10, offset: 0})).toHaveLength(1);
 
 		database.close();
 
 		const reopened = IndexDatabase.open(databasePath);
 
 		expect(reopened.getPublishedGeneration()?.id).toBe(generationId);
-		expect(reopened.getSymbol(generationId, symbol.id)?.name).toBe('example');
+		expect(reopened.getSymbol(generationId, 'symbol-0')?.name).toBe('example0');
 		reopened.close();
 	});
 
@@ -202,27 +173,27 @@ describe('IndexDatabase dependencies', () => {
 			sourceHash: 'source',
 			configHash: 'config',
 		});
-		database.insertFiles(generationId, [file]);
-		database.insertDependencyEdges(generationId, [
-			{
-				id: 'edge-1',
-				sourcePath: file.path,
-				targetPath: null,
-				rawTarget: 'lodash',
-				targetIdentifier: 'lodash',
-				kind: 'import',
-				compileTimeOnly: false,
-				startLine: 1,
-				startColumn: 1,
-				endLine: 1,
-				endColumn: 10,
-				startOffset: 0,
-				endOffset: 9,
-			},
-		]);
-		database.insertDependencyBindings(generationId, [
-			{edgeId: 'edge-1', position: 0, kind: 'named', importedName: 'debounce', exportedName: null, localName: 'debounce', compileTimeOnly: false},
-		]);
+		const dependencies = {
+			edges: [
+				{
+					id: 'edge-1',
+					sourcePath: file.path,
+					targetPath: null,
+					rawTarget: 'lodash',
+					targetIdentifier: 'lodash',
+					kind: 'import',
+					compileTimeOnly: false,
+					startLine: 1,
+					startColumn: 1,
+					endLine: 1,
+					endColumn: 10,
+					startOffset: 0,
+					endOffset: 9,
+				},
+			],
+			bindings: [{edgeId: 'edge-1', position: 0, kind: 'named', importedName: 'debounce', exportedName: null, localName: 'debounce', compileTimeOnly: false}],
+		};
+		database.insertGenerationFacts({generationId, ...createGenerationFactSeed({dependencies})});
 		database.verifyIntegrity();
 		database.publish(generationId);
 

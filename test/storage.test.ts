@@ -4,11 +4,12 @@ import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {setTimeout as delay} from 'node:timers/promises';
 import {afterEach, describe, expect, it} from 'vitest';
-import {type IndexedSymbolType, type SourceFileType} from '../src/core/model.ts';
+import {type SourceFileType} from '../src/core/model.ts';
 import {createSourceFileRecord} from '../src/core/generation/sourceFiles.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
 import {renewLease} from '../src/core/storage/databaseLease.ts';
 import {explainQueryPlan} from '../src/core/storage/databaseOpen.ts';
+import {createGenerationFactSeed} from './helpers/generationFacts.ts';
 
 type GenerationInputType = Readonly<{
 	id: string;
@@ -26,21 +27,6 @@ const generation = (id: string): GenerationInputType => ({
 	compilerVersion: '6.0.3',
 	sourceHash: id,
 	configHash: id,
-});
-
-const symbolAt = (name: string, pathName: string, index: number): IndexedSymbolType => ({
-	id: `symbol-${name}-${index}`,
-	name,
-	qualifiedName: name,
-	kind: 'variable',
-	path: pathName,
-	startLine: index + 1,
-	startColumn: 1,
-	endLine: index + 1,
-	endColumn: 10,
-	startOffset: index * 20,
-	endOffset: index * 20 + 5,
-	enclosingId: null,
 });
 
 describe('index storage identity and content', () => {
@@ -94,7 +80,7 @@ describe('index storage identity and content', () => {
 
 		database.createGeneration(generation('generation-1'));
 		database.insertContents(files);
-		database.insertFiles('generation-1', files);
+		database.insertGenerationFacts({generationId: 'generation-1', ...createGenerationFactSeed({path: 'src/first.ts'}), files});
 		database.verifyIntegrity();
 
 		expect(database.contentVersionCount()).toBe(1);
@@ -255,19 +241,8 @@ describe('index storage coordination and plans', () => {
 	it('uses intended indexes for hot statements', () => {
 		const database = open();
 		const pathName = 'src/hot.ts';
-		const file: SourceFileType = {
-			path: pathName,
-			absolutePath: '/tmp/hot.ts',
-			sha256: 'a'.repeat(64),
-			byteCount: 0,
-			lineCount: 1,
-		};
 		database.createGeneration(generation('generation-1'));
-		database.insertFiles('generation-1', [file]);
-		database.insertSymbols(
-			'generation-1',
-			Array.from({length: 100}, (_value, index) => symbolAt(`symbol${index}`, pathName, index)),
-		);
+		database.insertGenerationFacts({generationId: 'generation-1', ...createGenerationFactSeed({symbolCount: 100, path: pathName})});
 
 		const outlinePlan = database.explainQueryPlan('select id from symbol where generation_id = ? and path = ? order by start_offset, id limit ? offset ?', [
 			'generation-1',
@@ -277,11 +252,11 @@ describe('index storage coordination and plans', () => {
 		]);
 		const referencePlan = database.explainQueryPlan(
 			'select path from occurrence where generation_id = ? and symbol_id = ? order by path, start_offset, role limit ? offset ?',
-			['generation-1', 'symbol-symbol0-0', 10, 0],
+			['generation-1', 'symbol-0', 10, 0],
 		);
 
 		expect(outlinePlan.join('\n')).toContain('symbol_by_path');
-		expect(referencePlan.join('\n')).toContain('sqlite_autoindex_occurrence_1');
+		expect(referencePlan.join('\n')).toContain('occurrence_by_definition_site');
 		database.close();
 	});
 });

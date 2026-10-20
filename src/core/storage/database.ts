@@ -1,14 +1,9 @@
 import {type DatabaseSync} from 'node:sqlite';
 import {
 	type BuildLeaseType,
-	type DiagnosticType,
 	type GenerationRowType,
 	type IndexedDependencyBindingType,
-	type IndexedDependencyEdgeType,
-	type IndexedOccurrenceType,
-	type IndexedSymbolType,
 	type ReferenceType,
-	type ScanProjectResultType,
 	type SourceFileType,
 	type StoredDependencyEdgeType,
 	type SymbolMatchType,
@@ -34,23 +29,16 @@ import {
 import {
 	findDependencyEdgesByTargetIdentifier,
 	findDependencyEdgesByTargets,
-	insertDependencyBindings as insertStoredDependencyBindings,
-	insertDependencyEdges as insertStoredDependencyEdges,
 	listDependencyBindings as listStoredDependencyBindings,
 } from './databaseDependency.ts';
+import {countGenerationRows, insertGenerationFacts, type GenerationFactCountsType, type GenerationFactsInputType} from './databaseFacts.ts';
 import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContextType} from './databaseIdentity.ts';
 import {acquireLease, BUILD_LEASE_TTL_MS, readLease, releaseLease, renewLease, renewLeaseStrict} from './databaseLease.ts';
 import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
-import {asNumber, asString, SYMBOL_COLUMNS, toSymbolSummary} from './databaseRows.ts';
-import {
-	insertOccurrenceContexts,
-	insertProjectContexts,
-	insertSymbolContexts,
-	listProjectContextNames as listStoredProjectContextNames,
-	listSymbolContexts,
-} from './databaseContextQueries.ts';
+import {asString, SYMBOL_COLUMNS, toSymbolSummary} from './databaseRows.ts';
+import {listProjectContextNames as listStoredProjectContextNames, listSymbolContexts} from './databaseContextQueries.ts';
 import {findReferences as findStoredReferences, findSymbols as findStoredSymbols, outlineQuerySql} from './databaseSymbolQueries.ts';
 import {transaction} from './databaseTransaction.ts';
 
@@ -154,111 +142,23 @@ export class IndexDatabase {
 		return inserted;
 	}
 
-	public insertFiles(generationId: string, files: readonly SourceFileType[], projects: readonly ScanProjectResultType[] = []): void {
-		debug('insert files', {generationId, files: files.length, projects: projects.length});
-		const statement = this.#writer.prepare(
-			`insert into file (generation_id, path, sha256, content_sha256, line_count)
-			 values (?, ?, ?, (select sha256 from content where sha256 = ?), ?)`,
-		);
-
-		this.#transaction(() => {
-			insertProjectContexts(this.#writer, generationId, projects);
-
-			for (const file of files) {
-				statement.run(generationId, file.path, file.sha256, file.sha256, file.lineCount);
-			}
-		});
+	/**
+	 * Persists one complete finalized fact set for a building generation.
+	 *
+	 * This is the single generation-fact storage operation. It owns FK-safe
+	 * insertion order, count checks, and pre-publication validation.
+	 *
+	 * @param input - Files, finalized facts, dependencies, diagnostics, and hashes.
+	 * @returns Persisted row counts.
+	 * @throws {@link Error} When the generation is not building or validation fails.
+	 */
+	public insertGenerationFacts(input: GenerationFactsInputType): GenerationFactCountsType {
+		debug('insert generation facts', {generationId: input.generationId, symbols: input.facts.symbols.length});
+		const counts = insertGenerationFacts(this.#writer, this.#reader, input);
+		debug('generation facts inserted', {generationId: input.generationId, counts});
+		return counts;
 	}
 
-	public insertSymbols(generationId: string, symbols: readonly IndexedSymbolType[]): void {
-		debug('insert symbols', {generationId, symbols: symbols.length});
-		const statement = this.#writer.prepare(
-			`insert into symbol (generation_id, id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id)
-			 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		);
-
-		this.#transaction(() => {
-			for (const symbol of symbols) {
-				statement.run(
-					generationId,
-					symbol.id,
-					symbol.name,
-					symbol.qualifiedName,
-					symbol.kind,
-					symbol.path,
-					symbol.startLine,
-					symbol.startColumn,
-					symbol.endLine,
-					symbol.endColumn,
-					symbol.startOffset,
-					symbol.endOffset,
-					symbol.enclosingId,
-				);
-			}
-
-			insertSymbolContexts(this.#writer, generationId, symbols);
-		});
-	}
-
-	public insertOccurrences(generationId: string, occurrences: readonly IndexedOccurrenceType[]): void {
-		debug('insert occurrences', {generationId, occurrences: occurrences.length});
-		const statement = this.#writer.prepare(
-			`insert into occurrence (generation_id, symbol_id, path, start_line, start_column, end_line, end_column, start_offset, end_offset, role, enclosing_id)
-			 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		);
-
-		this.#transaction(() => {
-			for (const occurrence of occurrences) {
-				statement.run(
-					generationId,
-					occurrence.symbolId,
-					occurrence.path,
-					occurrence.startLine,
-					occurrence.startColumn,
-					occurrence.endLine,
-					occurrence.endColumn,
-					occurrence.startOffset,
-					occurrence.endOffset,
-					occurrence.role,
-					occurrence.enclosingId,
-				);
-			}
-
-			insertOccurrenceContexts(this.#writer, generationId, occurrences);
-		});
-	}
-
-	public insertDependencyEdges(generationId: string, edges: readonly IndexedDependencyEdgeType[]): void {
-		debug('insert dependency edges', {generationId, edges: edges.length});
-		insertStoredDependencyEdges(this.#writer, generationId, edges);
-	}
-
-	public insertDependencyBindings(generationId: string, bindings: readonly IndexedDependencyBindingType[]): void {
-		debug('insert dependency bindings', {generationId, bindings: bindings.length});
-		insertStoredDependencyBindings(this.#writer, generationId, bindings);
-	}
-
-	public insertDiagnostics(generationId: string, diagnostics: readonly DiagnosticType[]): void {
-		debug('insert diagnostics', {generationId, diagnostics: diagnostics.length});
-		const statement = this.#writer.prepare(
-			'insert into diagnostic (generation_id, position, category, code, message, path, start_line, start_column) values (?, ?, ?, ?, ?, ?, ?, ?)',
-		);
-
-		this.#transaction(() => {
-			for (const [index, diagnostic] of diagnostics.entries()) {
-				statement.run(
-					generationId,
-					index,
-					diagnostic.category,
-					diagnostic.code,
-					diagnostic.message,
-					diagnostic.path,
-					diagnostic.startLine,
-					diagnostic.startColumn,
-				);
-			}
-		});
-	}
 	public putExtractionArtifact(input: ExtractionArtifactKeyType & Readonly<{artifactJson: string}>): void {
 		putExtractionArtifact(this.#writer, input);
 	}
@@ -271,9 +171,23 @@ export class IndexDatabase {
 		return hasExtractionArtifact(this.#reader, input);
 	}
 
-	public countRows(generationId: string, table: 'file' | 'symbol' | 'occurrence' | 'dependency_edge' | 'dependency_binding' | 'diagnostic'): number {
-		const row = this.#reader.prepare(`select count(*) as total from ${table} where generation_id = ?`).get(generationId);
-		return row === undefined ? 0 : asNumber(row, 'total');
+	public countRows(
+		generationId: string,
+		table:
+			| 'file'
+			| 'symbol'
+			| 'symbol_name'
+			| 'symbol_name_context'
+			| 'symbol_name_site'
+			| 'surface_binding_origin'
+			| 'occurrence'
+			| 'definition_site'
+			| 'dependency_edge'
+			| 'dependency_binding'
+			| 'diagnostic'
+			| 'build_stats',
+	): number {
+		return countGenerationRows(this.#reader, generationId, table);
 	}
 
 	public getBuildLease(): BuildLeaseType | null {
@@ -371,10 +285,6 @@ export class IndexDatabase {
 		this.#writer
 			.prepare("update generation set state = 'failed', completed_at = ?, error = ? where id = ?")
 			.run(new Date().toISOString(), message, generationId);
-	}
-
-	public updateSourceHash(generationId: string, sourceHash: string): void {
-		this.#writer.prepare("update generation set source_hash = ? where id = ? and state = 'building'").run(sourceHash, generationId);
 	}
 
 	public verifyIntegrity(): void {

@@ -103,7 +103,7 @@ These facts constrain the implementation:
   - TypeScript: `node.getStart(sourceFile)` through `node.end`;
   - Oracle: `declaration.range`.
 - TypeScript is pinned to 6.0.3.
-- Current `SCHEMA_VERSION` is 8.
+- Current `SCHEMA_VERSION` is 9.
 - `find_symbol` and `find_references` already accept a context filter.
 - `find_references.role` is optionally `definition` or `reference`.
 - `read_symbol` currently selects by `symbolId` and accepts 0-20 context lines.
@@ -1055,7 +1055,7 @@ valid violation classes.
 
 ## Schema redesign
 
-Increment `SCHEMA_VERSION` to the next value (9 while 8 remains current); rebuild
+Increment `SCHEMA_VERSION` for every incompatible change (version 9 is current); rebuild
 incompatible databases. Preserve the current single `.schema-<version>.bak` move-aside
 behavior; do not add an in-place migration.
 

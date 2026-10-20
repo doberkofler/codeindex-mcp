@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {type ConfigType} from '../config/config.ts';
 import {extractorFor} from '../../adapters/registry.ts';
 import {type ExtractorBuildType, type ExtractorType} from '../../adapters/types.ts';
-import {finalizeFacts} from '../facts/index.ts';
+import {PUBLICATION_SURFACE_BINDINGS_PER_ROOT, finalizeFacts, type FinalizedFactSetType} from '../facts/index.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {
@@ -12,6 +12,7 @@ import {
 	type DiagnosticType,
 	type ExtractionResultType,
 	type GenerationRowType,
+	type IndexedSymbolType,
 	type ScanResultType,
 	type SourceFileType,
 } from '../model.ts';
@@ -19,15 +20,6 @@ import {type IndexDatabase} from '../storage/database.ts';
 import {computeSourceHash} from './sourceFiles.ts';
 
 const debug = debugFor('build');
-
-/**
- * Provisional report-only surface ceiling.
- *
- * Phase 2 replaces this with an externally configured ceiling derived from
- * corpus maxima plus documented headroom. It is not a production persistence
- * policy and no truncated report is ever accepted.
- */
-const PUBLICATION_REPORT_MAX_BINDINGS_PER_ROOT = 10_000;
 
 type BuildInputType = Readonly<{
 	config: ConfigType;
@@ -74,13 +66,14 @@ const measure = (action: () => void): number => {
 	return Math.round(performance.now() - startedAt);
 };
 
-const reportPublication = (facts: ExtractorBuildType): void => {
+const finalizePublication = (facts: ExtractorBuildType): FinalizedFactSetType => {
 	const publication = finalizeFacts(facts, {
-		mode: 'report',
-		maxBindingsPerRoot: PUBLICATION_REPORT_MAX_BINDINGS_PER_ROOT,
+		mode: 'enforce',
+		maxBindingsPerRoot: PUBLICATION_SURFACE_BINDINGS_PER_ROOT,
 	});
 
-	debug('publication report', publication.stats);
+	debug('publication facts finalized', publication.stats);
+	return publication;
 };
 
 const debugMemory = (stage: string): void => {
@@ -99,38 +92,29 @@ const persistFacts = (
 	input: Readonly<{
 		database: IndexDatabase;
 		generationId: string;
+		language: string;
 		files: readonly SourceFileType[];
 		projects: ScanResultType['projects'];
-		facts: ExtractionResultType;
+		symbols: readonly IndexedSymbolType[];
+		finalized: FinalizedFactSetType;
 		dependencies: DependencyExtractionResultType;
 		diagnostics: readonly DiagnosticType[];
 		sourceHash: string;
 	}>,
 ): void => {
-	input.database.insertFiles(input.generationId, input.files, input.projects);
-	input.database.insertSymbols(input.generationId, input.facts.symbols);
-	input.database.insertOccurrences(input.generationId, input.facts.occurrences);
-	input.database.insertDependencyEdges(input.generationId, input.dependencies.edges);
-	input.database.insertDependencyBindings(input.generationId, input.dependencies.bindings);
-	input.database.insertDiagnostics(input.generationId, input.diagnostics);
+	const counts = input.database.insertGenerationFacts({
+		generationId: input.generationId,
+		language: input.language,
+		files: input.files,
+		projects: input.projects,
+		symbols: input.symbols,
+		facts: input.finalized,
+		dependencies: input.dependencies,
+		diagnostics: input.diagnostics,
+		sourceHash: input.sourceHash,
+	});
 
-	const insertedSymbols = input.database.countRows(input.generationId, 'symbol');
-	const insertedOccurrences = input.database.countRows(input.generationId, 'occurrence');
-	const insertedEdges = input.database.countRows(input.generationId, 'dependency_edge');
-	const insertedBindings = input.database.countRows(input.generationId, 'dependency_binding');
-
-	if (
-		insertedSymbols !== input.facts.symbols.length ||
-		insertedOccurrences !== input.facts.occurrences.length ||
-		insertedEdges !== input.dependencies.edges.length ||
-		insertedBindings !== input.dependencies.bindings.length
-	) {
-		throw new Error(
-			`Index insertion count mismatch: symbols ${insertedSymbols}/${input.facts.symbols.length}, occurrences ${insertedOccurrences}/${input.facts.occurrences.length}, dependency edges ${insertedEdges}/${input.dependencies.edges.length}, dependency bindings ${insertedBindings}/${input.dependencies.bindings.length}`,
-		);
-	}
-
-	input.database.updateSourceHash(input.generationId, input.sourceHash);
+	debug('generation facts persisted', {generationId: input.generationId, counts});
 };
 
 /**
@@ -276,6 +260,39 @@ const persistDependencyArtifacts = (
 	}
 };
 
+const persistArtifactCaches = (
+	input: Readonly<{
+		database: IndexDatabase;
+		generationId: string;
+		files: readonly SourceFileType[];
+		facts: ExtractionResultType;
+		dependencies: DependencyExtractionResultType;
+		contextHash: string;
+		extractorId: string;
+		extractorVersion: string;
+	}>,
+): void => {
+	persistArtifacts({
+		database: input.database,
+		generationId: input.generationId,
+		files: input.files,
+		facts: input.facts,
+		contextHash: input.contextHash,
+		extractorId: input.extractorId,
+		extractorVersion: input.extractorVersion,
+	});
+	debugMemory('symbol-artifacts-persisted');
+	persistDependencyArtifacts({
+		database: input.database,
+		files: input.files,
+		dependencies: input.dependencies,
+		contextHash: input.contextHash,
+		extractorId: input.extractorId,
+		extractorVersion: input.extractorVersion,
+	});
+	debugMemory('dependency-artifacts-persisted');
+};
+
 const executeBuild = (
 	input: Readonly<{
 		config: ConfigType;
@@ -293,8 +310,8 @@ const executeBuild = (
 	debugMemory('build-start');
 	const extracted = extractor.build(input.config, input.scan);
 	debugMemory('extracted');
-	reportPublication(extracted);
-	const facts: ExtractionResultType = {
+	const finalized = finalizePublication(extracted);
+	const artifactFacts: ExtractionResultType = {
 		symbols: extracted.symbols,
 		occurrences: extracted.occurrences,
 		diagnostics: extracted.diagnostics,
@@ -306,33 +323,26 @@ const executeBuild = (
 	persistFacts({
 		database: input.database,
 		generationId: input.generationId,
+		language: input.scan.extractorId,
 		files: extracted.files,
 		projects: input.scan.projects,
-		facts,
+		symbols: extracted.symbols,
+		finalized,
 		dependencies: extracted.dependencies,
 		diagnostics: extracted.diagnostics,
 		sourceHash: computeSourceHash(extracted.files),
 	});
 	debugMemory('facts-persisted');
-	persistArtifacts({
+	persistArtifactCaches({
 		database: input.database,
 		generationId: input.generationId,
 		files: extracted.files,
-		facts,
-		contextHash: input.scan.configHash,
-		extractorId: input.scan.extractorId,
-		extractorVersion: input.scan.extractorVersion,
-	});
-	debugMemory('symbol-artifacts-persisted');
-	persistDependencyArtifacts({
-		database: input.database,
-		files: extracted.files,
+		facts: artifactFacts,
 		dependencies: extracted.dependencies,
 		contextHash: input.scan.configHash,
 		extractorId: input.scan.extractorId,
 		extractorVersion: input.scan.extractorVersion,
 	});
-	debugMemory('dependency-artifacts-persisted');
 	const insertionMs = Math.round(performance.now() - insertionStartedAt);
 	const verificationMs = measure(() => {
 		input.database.verifyIntegrity();
@@ -354,8 +364,8 @@ const executeBuild = (
 		generationId: input.generationId,
 		durationMs,
 		files: files.length,
-		symbols: facts.symbols.length,
-		occurrences: facts.occurrences.length,
+		symbols: finalized.symbols.length,
+		occurrences: finalized.occurrences.length,
 		dependencyEdges: extracted.dependencies.edges.length,
 		dependencyBindings: extracted.dependencies.bindings.length,
 		diagnostics: extracted.diagnostics.length,
@@ -368,8 +378,8 @@ const executeBuild = (
 		durationMs,
 		counts: {
 			files: files.length,
-			symbols: facts.symbols.length,
-			occurrences: facts.occurrences.length,
+			symbols: finalized.symbols.length,
+			occurrences: finalized.occurrences.length,
 			dependencyEdges: extracted.dependencies.edges.length,
 			dependencyBindings: extracted.dependencies.bindings.length,
 			diagnostics: extracted.diagnostics.length,

@@ -1,4 +1,5 @@
 export {finalizeFacts} from './finalizeFacts.ts';
+export {PUBLICATION_SURFACE_BINDINGS_PER_ROOT} from './ceilings.ts';
 export {
 	type AdapterStatType,
 	type ExtractedBindingContextType,
@@ -14,4 +15,5 @@ export {
 	type FactRangeType,
 	type FactSiteKindType,
 	type FinalizationPolicyType,
+	type FinalizedFactSetType,
 } from './types.ts';

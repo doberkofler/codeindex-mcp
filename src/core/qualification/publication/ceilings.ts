@@ -1,3 +1,8 @@
+export {
+	PUBLICATION_REACHABILITY_STEPS_PER_ROOT as FALLBACK_REACHABILITY_STEPS_PER_ROOT,
+	PUBLICATION_SURFACE_BINDINGS_PER_ROOT as REPORT_SURFACE_BINDINGS_PER_ROOT,
+} from '../../facts/ceilings.ts';
+
 /**
  * Report-only projection probe budgets.
  *
@@ -10,12 +15,6 @@ export const PROJECTION_PROBE_MAX_ADDRESSES_PER_ROOT = 10_000;
 
 /** Report-only reachability-step probe budget per root. */
 export const PROJECTION_PROBE_MAX_REACHABILITY_STEPS_PER_ROOT = 50_000;
-
-/** Report-mode finalizer surface ceiling; matches the accepted per-root policy value. */
-export const REPORT_SURFACE_BINDINGS_PER_ROOT = 2000;
-
-/** Fallback reachability ceiling when no projection probe runs (for example Oracle). */
-export const FALLBACK_REACHABILITY_STEPS_PER_ROOT = 50_000;
 
 /** Target headroom over the measured maximum. */
 export const HEADROOM_TARGET_FACTOR = 2;

@@ -1,74 +1,69 @@
 import {type DatabaseSync} from 'node:sqlite';
 import {type IndexedDependencyBindingType, type IndexedDependencyEdgeType, type StoredDependencyEdgeType} from '../model.ts';
 import {DEPENDENCY_BINDING_COLUMNS, DEPENDENCY_EDGE_COLUMNS, placeholders, toDependencyBinding, toDependencyEdge} from './databaseRows.ts';
-import {transaction} from './databaseTransaction.ts';
 
 const TARGET_CHUNK_SIZE = 400;
 
 /**
- * Inserts authored dependency edges for one generation.
+ * Inserts dependency edge rows without opening a transaction.
  *
  * @param writer - Writer connection.
  * @param generationId - Generation being built.
  * @param edges - Extracted dependency edges.
  */
-export const insertDependencyEdges = (writer: DatabaseSync, generationId: string, edges: readonly IndexedDependencyEdgeType[]): void => {
+export const insertDependencyEdgeRows = (writer: DatabaseSync, generationId: string, edges: readonly IndexedDependencyEdgeType[]): void => {
 	const statement = writer.prepare(
 		`insert into dependency_edge (generation_id, id, context_name, source_path, target_path, raw_target, target_identifier, kind, compile_time_only,
 		 start_line, start_column, end_line, end_column, start_offset, end_offset)
 		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	);
 
-	transaction(writer, () => {
-		for (const edge of edges) {
-			statement.run(
-				generationId,
-				edge.id,
-				edge.context ?? null,
-				edge.sourcePath,
-				edge.targetPath,
-				edge.rawTarget,
-				edge.targetIdentifier,
-				edge.kind,
-				edge.compileTimeOnly ? 1 : 0,
-				edge.startLine,
-				edge.startColumn,
-				edge.endLine,
-				edge.endColumn,
-				edge.startOffset,
-				edge.endOffset,
-			);
-		}
-	});
+	for (const edge of edges) {
+		statement.run(
+			generationId,
+			edge.id,
+			edge.context ?? null,
+			edge.sourcePath,
+			edge.targetPath,
+			edge.rawTarget,
+			edge.targetIdentifier,
+			edge.kind,
+			edge.compileTimeOnly ? 1 : 0,
+			edge.startLine,
+			edge.startColumn,
+			edge.endLine,
+			edge.endColumn,
+			edge.startOffset,
+			edge.endOffset,
+		);
+	}
 };
 
 /**
- * Inserts imported and exported binding details for dependency edges.
+ * Inserts dependency binding rows without opening a transaction.
  *
  * @param writer - Writer connection.
  * @param generationId - Generation being built.
  * @param bindings - Extracted dependency bindings.
  */
-export const insertDependencyBindings = (writer: DatabaseSync, generationId: string, bindings: readonly IndexedDependencyBindingType[]): void => {
+export const insertDependencyBindingRows = (writer: DatabaseSync, generationId: string, bindings: readonly IndexedDependencyBindingType[]): void => {
 	const statement = writer.prepare(
 		`insert into dependency_binding (generation_id, edge_id, position, kind, imported_name, exported_name, local_name, compile_time_only)
 		 values (?, ?, ?, ?, ?, ?, ?, ?)`,
 	);
 
-	transaction(writer, () => {
-		for (const binding of bindings) {
-			statement.run(
-				generationId,
-				binding.edgeId,
-				binding.position,
-				binding.kind,
-				binding.importedName,
-				binding.exportedName,
-				binding.localName,
-				binding.compileTimeOnly ? 1 : 0,
-			);
-		}
-	});
+	for (const binding of bindings) {
+		statement.run(
+			generationId,
+			binding.edgeId,
+			binding.position,
+			binding.kind,
+			binding.importedName,
+			binding.exportedName,
+			binding.localName,
+			binding.compileTimeOnly ? 1 : 0,
+		);
+	}
 };
 
 /**

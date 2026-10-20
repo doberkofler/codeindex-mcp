@@ -9,10 +9,11 @@ Date: 2026-10-20
 
 ## Current phase
 
-Phase 2 implementation and its evidence checkpoint are complete except for explicit DDL
-approval. P-3 measured projection maxima, M8/M9 are decided, and the accepted per-root
-ceilings are 2,000 surface addresses and 50,000 reachability steps. Schema remains
-version 8; no redesigned facts are persisted or published.
+Phase 3 schema and persistence is complete. `SCHEMA_VERSION` is 9, a complete finalized
+fact set is persisted through one storage operation, and candidate facts are validated
+while the generation remains `building`. Current query modules still read the symbol
+table, so Phase 3 retains legacy symbol display and kind until the Phase 4 query
+migration. Adapter versions are unchanged because no adapter-emitted fact changed.
 
 ## Phase 0: accept the contract
 
@@ -103,20 +104,44 @@ query text, credentials, or absolute paths.
 - [x] Every item marked "Resolve before DDL" has a recorded measurement or decision.
       M1/M8/M9/M11/M12/M13/M14 are resolved.
 - [x] Every schema-shaping case has an explicit rule in the policy.
-- [ ] DDL work explicitly approved. Not approved.
+- [x] DDL work explicitly approved. Approved on 2026-10-20.
 
-Do not start Phase 3 before this checkpoint is complete.
+Checkpoint complete; Phase 3 was approved and started on 2026-10-20.
 
 ## Phase 3: schema and persistence
 
-- [ ] Bump `SCHEMA_VERSION`.
-- [ ] Bump each adapter version whose emitted facts change.
-- [ ] Add normalized tables, columns, foreign keys, and indexes.
-- [ ] Persist complete fact sets through one storage operation.
-- [ ] Validate while the generation is `building`.
-- [ ] Preserve atomic publication and failed-candidate isolation.
-- [ ] Temporary-database tests: FK integrity, deterministic IDs, collision failure,
+Complete on 2026-10-20.
+
+- [x] Bump `SCHEMA_VERSION` to 9.
+- [x] Bump each adapter version whose emitted facts change. No adapter facts changed;
+      both adapter versions remain `0.1.0`.
+- [x] Add normalized tables, columns, foreign keys, and indexes.
+- [x] Persist complete fact sets through one storage operation
+      (`IndexDatabase.insertGenerationFacts`).
+- [x] Validate while the generation is `building` and before publication.
+- [x] Preserve atomic publication and failed-candidate isolation.
+- [x] Temporary-database tests: FK integrity, deterministic IDs, collision failure,
       failed-candidate isolation, same-generation status counts.
+
+Phase 3 notes:
+
+- Version 9 adds `symbol` exposure and external columns, `symbol_name`,
+  `symbol_name_context`, `symbol_name_site`, `surface_binding_origin`,
+  `definition_site`, and `build_stats`, plus the required indexes and enforced
+  occurrence metadata checks.
+- `insertGenerationFacts` writes files, project contexts, symbols, bindings, sites,
+  occurrences, definition sites, surface origins, dependencies, diagnostics, and build
+  statistics in one transaction. Content rows remain in the immutable content store.
+- Post-insert validation still runs while the candidate is `building` and checks row
+  counts, foreign keys, definition-site coverage, symbol/binding context agreement, and
+  surface-root exposure.
+- Existing query modules still read the legacy `symbol` columns. Phase 3 therefore
+  persists the adapter's current symbol display and kind, while the canonical binding
+  table carries the redesigned display. Phase 4 switches every query/list mode to the
+  normalized model.
+- Build statistics include the core-derived `symbols_stored`, `bindings`, `sites`, and
+  `occurrences_stored` metrics and adapter-emitted metrics in the closed `build_stats`
+  shape.
 
 ## Phase 4: TypeScript vertical slice
 
@@ -164,3 +189,4 @@ Do not start Phase 3 before this checkpoint is complete.
 | 2026-10-20 | Phase 0 | Contract accepted; versioned policy documents removed; architecture references updated (`158c70d`). |
 | 2026-10-20 | Phase 1 | Fact seam, report-only finalizer, TypeScript and Oracle lexical facts, and finalizer/adapter tests added. Persistence and tool contracts unchanged. |
 | 2026-10-20 | Phase 2 | Added `publication-report`, P-1/P-2/P-3 prototypes, full measurement set, invariant classification, and aggregate corpus evidence. M1/M8/M9/M11/M12/M13/M14 resolved; accepted ceilings 2,000 addresses and 50,000 steps per root. Persistence unchanged. |
+| 2026-10-20 | Phase 3 | Schema version 9 adds the normalized binding, site, origin, definition-site, and build-stat tables with enforced constraints and indexes. One `insertGenerationFacts` operation persists and validates complete fact sets while `building`; atomic publication and failed-candidate isolation are preserved. Adapter versions unchanged. |
