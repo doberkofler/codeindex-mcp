@@ -198,6 +198,10 @@ describe('report-only publication qualification', () => {
 		expect(report.prototypes.p1?.gA).toBe('passed');
 		expect(report.prototypes.p1?.missingPublishedRoots).toBe(0);
 		expect(report.prototypes.p1?.extraPublishedRoots).toBe(0);
+		expect(report.prototypes.p1?.gA2).toBe('passed');
+		expect(report.prototypes.p1?.gA2TruthDeclarations).toBe(report.prototypes.p1?.gA2VisibleDeclarations);
+		expect(report.prototypes.p1?.gA2MissingDeclarations).toBe(0);
+		expect(report.prototypes.p1?.gA2ExtraDeclarations).toBe(0);
 		expect(report.prototypes.p2?.missingPublishedAliases).toBe(0);
 	});
 });

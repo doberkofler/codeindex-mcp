@@ -1,7 +1,7 @@
 import ts from 'typescript';
 import {type FactRangeType} from '../../core/facts/index.ts';
 import {declarationKindOf, definitionMetadataOf} from './occurrenceMetadata.ts';
-import {type CandidateDefinitionType, type CandidateInputType, type CandidateScopeType} from './publicationCandidates.ts';
+import {type CandidateDefinitionType, type CandidateInputType, type CandidateScopeType} from './publicationCandidateTypes.ts';
 
 const rangeOf = (sourceFile: ts.SourceFile, start: number, end: number): FactRangeType => {
 	const startPosition = sourceFile.getLineAndCharacterOfPosition(start);
@@ -131,6 +131,22 @@ const STORED_PREDICATES: readonly ((node: ts.Node) => boolean)[] = [
 ];
 
 export const isStoredDeclaration = (node: ts.Node): boolean => {
+	if (ts.isParameter(node)) {
+		if (!ts.isConstructorDeclaration(node.parent)) {
+			return false;
+		}
+
+		const modifiers = ts.getModifiers(node) ?? [];
+
+		return (
+			!modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword) &&
+			modifiers.some(
+				(modifier) =>
+					modifier.kind === ts.SyntaxKind.PublicKeyword || modifier.kind === ts.SyntaxKind.ProtectedKeyword || modifier.kind === ts.SyntaxKind.ReadonlyKeyword,
+			)
+		);
+	}
+
 	if (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) {
 		return node.name !== undefined;
 	}

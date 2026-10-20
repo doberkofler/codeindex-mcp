@@ -15,6 +15,7 @@ const KIND_PREDICATES: readonly (readonly [(node: ts.Node) => boolean, string])[
 	[ts.isMethodSignature, 'method'],
 	[ts.isPropertyDeclaration, 'property'],
 	[ts.isPropertySignature, 'property'],
+	[(node) => ts.isParameter(node) && ts.isConstructorDeclaration(node.parent), 'property'],
 	[ts.isPropertyAssignment, 'property'],
 	[ts.isShorthandPropertyAssignment, 'property'],
 	[ts.isGetAccessorDeclaration, 'accessor'],

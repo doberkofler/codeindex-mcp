@@ -57,6 +57,36 @@ Decision: default to `visible`.
 
 The measurement took 7.2 s / 8.7 s / 32.9 s.
 
+## G-A/G-A2: source association
+
+`publication-report` now compares emitted roots for G-A and an independent compiler
+reachability truth for G-A2. G-A2 truth maps authored declarations to source positions,
+then requires every truth declaration to have a visible lexical binding and every visible
+lexical declaration to occur in truth. Production facts are used only for the comparison.
+
+| Corpus | G-A | G-A2 | Truth declarations | Visible declarations | Missing | Extra |
+|---|---|---|---:|---:|---:|---:|
+| TypeScript compiler | passed | passed | 9,191 | 9,191 | 0 | 0 |
+| VS Code | passed | failed | 99,811 | 99,384 | 443 | 16 |
+| Material UI | partial | failed | 6,631 | 4,829 | 2,176 | 374 |
+| Oracle production corpus | n/a | n/a | n/a | n/a | n/a | n/a |
+
+The full TypeScript compiler corpus passes both gates. VS Code and Material UI still expose
+production classification gaps, so G-A2 is not normative for those corpora. Aggregate
+counts are in `ga2-evidence.json`; no symbol names or paths are retained.
+
+The independent truth pass also exercised production fixes for merged import/local
+symbols, imported namespace re-exports, public constructor parameter properties, and
+synthetic-default root sites.
+
+## Oracle production corpus
+
+The frozen Oracle Phase 0 corpus was measured with `publication-report` in report mode:
+1,237 files, 29,454 symbols, 187,760 occurrences, and zero S3/O2/L1/F1 violations.
+M7 measured 5,834 routine pairs, 197 overload groups, 905 body forwards, 55 body-less
+specifications, and two unclassified body-less specifications. This establishes G-F on
+the frozen corpus. G-B through G-E remain separate corpus gates.
+
 ## K3: CommonJS
 
 P-2 found no `export =` module in the three public corpora. The repository fixture passes

@@ -379,11 +379,18 @@ export const projectPublishedRoot = (
 
 	markSymbolReachable(state, target);
 
-	if ((target.flags & ts.SymbolFlags.Enum) !== 0) {
+	const isEnum = (target.flags & ts.SymbolFlags.Enum) !== 0;
+	const isNamespace = (target.flags & ts.SymbolFlags.Namespace) !== 0;
+
+	if (isEnum) {
 		expandEnum(state, target, rootSegments);
-	} else if ((target.flags & ts.SymbolFlags.Namespace) !== 0) {
+	}
+
+	if (isNamespace) {
 		expandNamespace(state, target, rootSegments);
-	} else {
+	}
+
+	if (!isEnum && !isNamespace) {
 		const type = hasAnyFlag(target.flags, [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias])
 			? declaredTypeOf(host.checker, target)
 			: symbolTypeOf(host.checker, target);

@@ -136,6 +136,11 @@ export type P1ReportType = Readonly<{
 	readonly publishedRoots: number;
 	readonly missingPublishedRoots: number;
 	readonly extraPublishedRoots: number;
+	readonly gA2TruthDeclarations: number;
+	readonly gA2VisibleDeclarations: number;
+	readonly gA2MissingDeclarations: number;
+	readonly gA2ExtraDeclarations: number;
+	readonly gA2AmbiguousDeclarations: number;
 	readonly gA: 'partial' | 'passed' | 'failed';
 	readonly gA2: 'partial' | 'passed' | 'failed';
 	readonly note?: string | undefined;

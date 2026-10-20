@@ -11,6 +11,7 @@ import {type P1ReportType, type P2ReportType, type P3ReportType} from './types.t
 import {countUnionIntersection} from './unionIntersection.ts';
 import {runProjectionPrototype} from './projectionPrototype.ts';
 import {type ProjectionBudgetType} from './projectionModel.ts';
+import {compareReachabilityTruth} from './reachabilityTruth.ts';
 
 const SourceMapSchema = z.object({sources: z.array(z.string())});
 
@@ -105,11 +106,13 @@ const emitDeclarations = (
 	config: ConfigType,
 	context: ConfigType['projects'][number],
 	outputDirectory: string,
+	authoredFiles: readonly string[],
 ): Readonly<{emittedFiles: readonly string[]; declarationMapFiles: readonly string[]; emitErrors: number}> => {
 	const project = loadTypeScriptProject(config, context.projectFilePath);
 	const options: ts.CompilerOptions = {
 		...project.program.getCompilerOptions(),
 		outDir: outputDirectory,
+		allowJs: true,
 		declaration: true,
 		emitDeclarationOnly: true,
 		declarationMap: true,
@@ -118,7 +121,8 @@ const emitDeclarations = (
 		noEmit: false,
 		noEmitOnError: false,
 	};
-	const program = ts.createProgram({rootNames: project.program.getRootFileNames(), options});
+	const rootNames = [...new Set([...project.program.getRootFileNames(), ...authoredFiles])];
+	const program = ts.createProgram({rootNames, options});
 	const emit = program.emit(
 		undefined,
 		(fileName, text) => {
@@ -162,11 +166,12 @@ const addP1Context = (
 		context: ConfigType['projects'][number];
 		index: number;
 		directory: string;
+		authoredFiles: readonly string[];
 		publishedByPath: ReadonlyMap<string, ReadonlySet<string>>;
 	}>,
 ): void => {
 	const contextOutput = path.join(input.directory, `context-${String(input.index)}`);
-	const emitted = emitDeclarations(input.config, input.context, contextOutput);
+	const emitted = emitDeclarations(input.config, input.context, contextOutput, input.authoredFiles);
 
 	accumulator.emittedFiles += emitted.emittedFiles.length;
 	accumulator.declarationMapFiles += emitted.declarationMapFiles.length;
@@ -197,7 +202,7 @@ const addP1Context = (
 	}
 };
 
-const p1Of = (config: ConfigType, finalized: FinalizedFactSetType): P1ReportType => {
+const p1Of = (config: ConfigType, facts: ExtractedFactSetType, finalized: FinalizedFactSetType): P1ReportType => {
 	const directory = mkdtempSync(path.join(tmpdir(), 'codeindex-publication-p1-'));
 	const publishedByPath = publishedRootsByPath(finalized);
 	const accumulator: P1AccumulatorType = {
@@ -212,8 +217,10 @@ const p1Of = (config: ConfigType, finalized: FinalizedFactSetType): P1ReportType
 	};
 
 	try {
+		const authoredFiles = facts.files.map((file) => file.absolutePath);
+
 		for (const [index, context] of config.projects.entries()) {
-			addP1Context(accumulator, {config, context, index, directory, publishedByPath});
+			addP1Context(accumulator, {config, context, index, directory, authoredFiles, publishedByPath});
 		}
 	} finally {
 		rmSync(directory, {recursive: true, force: true});
@@ -221,6 +228,7 @@ const p1Of = (config: ConfigType, finalized: FinalizedFactSetType): P1ReportType
 
 	const unmappedModules = accumulator.emittedModules - accumulator.mappedModules;
 	const gA = accumulator.mappedModules > 0 && accumulator.missingPublishedRoots === 0 && accumulator.extraPublishedRoots === 0 ? 'passed' : 'partial';
+	const gA2 = compareReachabilityTruth({config, facts, finalized});
 
 	return {
 		status: accumulator.mappedModules > 0 ? 'partial' : 'blocked',
@@ -235,9 +243,14 @@ const p1Of = (config: ConfigType, finalized: FinalizedFactSetType): P1ReportType
 		publishedRoots: publishedRootsOf(finalized).length,
 		missingPublishedRoots: accumulator.missingPublishedRoots,
 		extraPublishedRoots: accumulator.extraPublishedRoots,
+		gA2TruthDeclarations: gA2.truthDeclarations,
+		gA2VisibleDeclarations: gA2.visibleDeclarations,
+		gA2MissingDeclarations: gA2.missingDeclarations,
+		gA2ExtraDeclarations: gA2.extraDeclarations,
+		gA2AmbiguousDeclarations: gA2.ambiguousDeclarations,
 		gA,
-		gA2: accumulator.mappedModules > 0 && unmappedModules === 0 ? 'partial' : 'failed',
-		note: 'P-1 compares emitted root exports only. G-A2 position association and full address projection remain blocked.',
+		gA2: gA2.status,
+		note: 'P-1 compares emitted root exports for G-A. G-A2 compares independent compiler reachability truth with visible lexical declarations.',
 	};
 };
 
@@ -476,7 +489,7 @@ export const runTypeScriptPrototypes = (
 	const unionCounts = countUnionIntersection(sources);
 
 	return {
-		p1: p1Of(input.config, input.finalized),
+		p1: p1Of(input.config, input.facts, input.finalized),
 		p2: p2Of(input.config, input.facts, input.finalized),
 		p3: runProjectionPrototype({config: input.config, facts: input.facts, budget: input.budget}),
 		unionCases: unionCounts.unionCases,

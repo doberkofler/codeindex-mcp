@@ -36,6 +36,32 @@ const EXPECTED_BINDINGS: readonly string[] = [
 ];
 
 describe('TypeScript publication vertical slice', () => {
+	it('publishes public constructor parameter properties and excludes private ones', () => {
+		const {facts, cleanup} = buildFacts();
+
+		try {
+			const exposures = exposuresOf(facts);
+
+			expect(exposures.get('module["src/parameter-property.ts"]::WithParameterProperty.value')).toBe('published');
+			expect(exposures.has('module["src/parameter-property.ts"]::WithParameterProperty.hidden')).toBe(false);
+		} finally {
+			cleanup();
+		}
+	});
+
+	it('publishes an imported namespace re-export as a namespace root', () => {
+		const {facts, cleanup} = buildFacts();
+
+		try {
+			const exposures = exposuresOf(facts);
+
+			expect(exposures.get('module["src/namespace.ts"]::helpers')).toBe('published');
+			expect(exposures.get('module["src/namespace.ts"]::helpers.starValue')).toBe('published');
+		} finally {
+			cleanup();
+		}
+	});
+
 	it('projects surface addresses and alias roots', () => {
 		const {facts, cleanup} = buildFacts();
 

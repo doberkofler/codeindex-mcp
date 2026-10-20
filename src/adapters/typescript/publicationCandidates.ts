@@ -1,6 +1,4 @@
 import ts from 'typescript';
-import {type FactRangeType} from '../../core/facts/index.ts';
-import {type IndexedSymbolType} from '../../core/model.ts';
 import {
 	authoredOf,
 	defaultTokenOf,
@@ -12,70 +10,14 @@ import {
 	scopeOfNode,
 } from './publicationAddress.ts';
 import {declarationKindOf} from './occurrenceMetadata.ts';
+import {
+	type CandidateCollectionType,
+	type CandidateDefinitionType,
+	type CandidateInputType,
+	type CandidateType,
+	type DeferredCandidateType,
+} from './publicationCandidateTypes.ts';
 import {resolveCanonical} from './resolveSymbols.ts';
-import {createSymbolId} from './symbolIdentity.ts';
-
-export type CandidateScopeType = Readonly<{kind: 'module'; path: string}> | Readonly<{kind: 'global'}> | Readonly<{kind: 'external_module'; target: string}>;
-
-export type CandidateDefinitionType = Readonly<{
-	readonly declaration: ts.Node;
-	readonly nameNode: ts.Node;
-	readonly kind: string;
-	readonly path: string;
-	readonly sourceFile: ts.SourceFile;
-	readonly range: FactRangeType;
-	readonly extent: FactRangeType;
-	readonly forwardDefinition: boolean;
-	readonly primaryRank: number;
-	readonly anchorRank: number;
-}>;
-
-export type CandidateType = Readonly<{
-	readonly key: string;
-	readonly canonical: ts.Symbol | null;
-	readonly name: string;
-	readonly kind: string;
-	readonly path: string;
-	readonly sourceFile: ts.SourceFile;
-	readonly scope: CandidateScopeType;
-	readonly definitions: readonly CandidateDefinitionType[];
-	readonly primary: CandidateDefinitionType;
-	readonly externalTarget: string | null;
-	readonly externalName: string | null;
-	readonly synthetic: boolean;
-}>;
-
-export type DeferredCandidateType = Readonly<{
-	readonly canonical: ts.Symbol;
-	readonly declaration: ts.Node;
-	readonly nameNode: ts.Node;
-	readonly kind: string;
-	readonly path: string;
-	readonly sourceFile: ts.SourceFile;
-	readonly scope: CandidateScopeType;
-}>;
-
-export type CandidateCollectionType = Readonly<{
-	readonly candidates: ReadonlyMap<string, CandidateType>;
-	readonly symbolKeys: ReadonlyMap<ts.Symbol, string>;
-	readonly declarationKeys: ReadonlyMap<ts.Node, string>;
-	readonly deferred: ReadonlyMap<ts.Node, DeferredCandidateType>;
-	readonly ephemeralKinds: ReadonlyMap<string, number>;
-	readonly externalAliases: number;
-	readonly externalStars: number;
-	readonly mergedDeclarationCount: number;
-}>;
-
-export type CandidateInputType = Readonly<{
-	readonly checker: ts.TypeChecker;
-	readonly program: ts.Program;
-	readonly files: readonly {readonly path: string; readonly absolutePath: string}[];
-	readonly rootDir: string;
-	readonly projectId: string;
-	readonly context: string;
-	readonly authoredPaths: ReadonlySet<string>;
-	readonly pathByAbsolute: ReadonlyMap<string, string>;
-}>;
 
 const keyForSymbol = (definition: CandidateDefinitionType): string => `symbol:${definition.path}:${String(definition.range.startOffset)}`;
 
@@ -125,11 +67,35 @@ const addDefinition = (
 	entry: Readonly<{canonical: ts.Symbol; declaration: ts.Node; nameNode: ts.Node}>,
 ): void => {
 	const {canonical, declaration, nameNode} = entry;
+	const definition = definitionOf(input, declaration, nameNode);
+	const canonicalPaths = new Set((canonical.declarations ?? []).map((entryDeclaration) => entryDeclaration.getSourceFile().fileName));
+	const aliasShadowed = !canonicalPaths.has(declaration.getSourceFile().fileName);
+
+	if (aliasShadowed) {
+		const key = `shadow:${definition.path}:${String(definition.range.startOffset)}`;
+
+		state.candidates.set(
+			key,
+			candidateFor({
+				input,
+				canonical: null,
+				key,
+				name: canonical.getName(),
+				kind: definition.kind,
+				declaration,
+				nameNode,
+				external: null,
+				synthetic: false,
+			}),
+		);
+		state.declarationKeys.set(declaration, key);
+		return;
+	}
+
 	const existingKey = state.symbolKeys.get(canonical);
 	const existing = existingKey === undefined ? undefined : state.candidates.get(existingKey);
 
 	if (existing === undefined) {
-		const definition = definitionOf(input, declaration, nameNode);
 		const key = keyForSymbol(definition);
 		const candidate = candidateFor({
 			input,
@@ -149,7 +115,6 @@ const addDefinition = (
 		return;
 	}
 
-	const definition = definitionOf(input, declaration, nameNode);
 	const definitions = [...existing.definitions, definition].sort(
 		(left, right) => left.path.localeCompare(right.path) || left.range.startOffset - right.range.startOffset,
 	);
@@ -245,6 +210,68 @@ const collectDeferredMember = (input: CandidateInputType, state: CollectorStateT
 	return true;
 };
 
+type NamespaceExportInputType = Readonly<{
+	input: CandidateInputType;
+	state: CollectorStateType;
+	sourceFile: ts.SourceFile;
+	node: ts.Node;
+	nameNode: ts.Node;
+	target: ts.Symbol;
+	direct: ts.Symbol;
+}>;
+
+const addAuthoredNamespaceExport = ({input, state, sourceFile, node, nameNode, target, direct}: NamespaceExportInputType): void => {
+	if ((target.flags & ts.SymbolFlags.ValueModule) === 0) {
+		return;
+	}
+
+	const definition = definitionOf(input, node, nameNode);
+	const key = `namespace:${definition.path}:${String(definition.range.startOffset)}`;
+
+	state.candidates.set(
+		key,
+		candidateFor({
+			input,
+			canonical: direct,
+			key,
+			name: nameNode.getText(sourceFile),
+			kind: 'namespace',
+			declaration: node,
+			nameNode,
+			external: null,
+			synthetic: false,
+		}),
+	);
+	state.declarationKeys.set(node, key);
+};
+
+type ExternalAliasInputType = Readonly<{
+	input: CandidateInputType;
+	state: CollectorStateType;
+	node: ts.Node;
+	nameNode: ts.Node;
+	resolved: ts.Symbol;
+	direct: ts.Symbol;
+}>;
+
+const addExternalAliasCandidate = ({input, state, node, nameNode, resolved, direct}: ExternalAliasInputType): void => {
+	const sourceFile = node.getSourceFile();
+	const external = externalAliasOf(node, resolved, sourceFile);
+
+	if (external === null) {
+		return;
+	}
+
+	const definition = definitionOf(input, node, nameNode);
+	const key = `external:${definition.path}:${String(definition.range.startOffset)}`;
+
+	state.candidates.set(
+		key,
+		candidateFor({input, canonical: direct, key, name: nameNode.getText(sourceFile), kind: 'alias', declaration: node, nameNode, external, synthetic: false}),
+	);
+	state.declarationKeys.set(node, key);
+};
+
 const collectNamedCandidate = (input: CandidateInputType, state: CollectorStateType, sourceFile: ts.SourceFile, node: ts.Node): void => {
 	const nameNode = nameNodeOf(node);
 	const eligible = nameNode !== undefined && (isStoredDeclaration(node) || ts.isExportSpecifier(node) || ts.isNamespaceExport(node));
@@ -269,6 +296,14 @@ const collectNamedCandidate = (input: CandidateInputType, state: CollectorStateT
 	if (authoredOf(resolved, input.authoredPaths).length > 0) {
 		if (!ts.isExportSpecifier(node) && !ts.isNamespaceExport(node)) {
 			addDefinition(input, state, {canonical: resolved, declaration: node, nameNode});
+			return;
+		}
+
+		// An authored namespace imported and re-exported as one binding has a
+		// module symbol as its alias target. The module file is not a candidate,
+		// so bind the export clause itself as the namespace root.
+		if (direct !== undefined) {
+			addAuthoredNamespaceExport({input, state, sourceFile, node, nameNode, target: resolved, direct});
 		}
 
 		return;
@@ -278,18 +313,7 @@ const collectNamedCandidate = (input: CandidateInputType, state: CollectorStateT
 		return;
 	}
 
-	const external = externalAliasOf(node, resolved, sourceFile);
-
-	if (external !== null) {
-		const definition = definitionOf(input, node, nameNode);
-		const key = `external:${definition.path}:${String(definition.range.startOffset)}`;
-
-		state.candidates.set(
-			key,
-			candidateFor({input, canonical: direct, key, name: nameNode.getText(sourceFile), kind: 'alias', declaration: node, nameNode, external, synthetic: false}),
-		);
-		state.declarationKeys.set(node, key);
-	}
+	addExternalAliasCandidate({input, state, node, nameNode, resolved, direct});
 };
 
 const collectFile = (input: CandidateInputType, file: {readonly path: string; readonly absolutePath: string}, state: CollectorStateType): void => {
@@ -435,34 +459,3 @@ export const collectTypeScriptCandidates = (input: CandidateInputType): Candidat
 		mergedDeclarationCount,
 	};
 };
-
-/**
- * Creates the persisted symbol record for one candidate.
- *
- * @param input - Candidate collection input.
- * @param candidate - Candidate declaration.
- * @returns Indexed symbol with deterministic identity and primary extent.
- */
-export const candidateSymbolOf = (input: CandidateInputType, candidate: CandidateType): IndexedSymbolType => ({
-	id: createSymbolId({
-		projectId: input.projectId,
-		path: candidate.path,
-		startOffset: candidate.primary.range.startOffset,
-		kind: candidate.kind,
-		name: candidate.name,
-	}),
-	name: candidate.name,
-	qualifiedName: candidate.name,
-	kind: candidate.kind,
-	path: candidate.path,
-	startLine: candidate.primary.extent.startLine,
-	startColumn: candidate.primary.extent.startColumn,
-	endLine: candidate.primary.extent.endLine,
-	endColumn: candidate.primary.extent.endColumn,
-	startOffset: candidate.primary.extent.startOffset,
-	endOffset: candidate.primary.extent.endOffset,
-	enclosingId: null,
-	externalTarget: candidate.externalTarget,
-	externalName: candidate.externalName,
-	contexts: [input.context],
-});

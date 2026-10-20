@@ -3,14 +3,9 @@ import {type FactAddressType} from '../../core/facts/index.ts';
 import {type IndexedSymbolType, type SourceFileType} from '../../core/model.ts';
 import {type LoadedProjectType} from './loadProject.ts';
 import {definitionMetadataOf} from './occurrenceMetadata.ts';
-import {
-	candidateSymbolOf,
-	collectTypeScriptCandidates,
-	type CandidateCollectionType,
-	type CandidateScopeType,
-	type CandidateType,
-	type DeferredCandidateType,
-} from './publicationCandidates.ts';
+import {collectTypeScriptCandidates} from './publicationCandidates.ts';
+import {type CandidateCollectionType, type CandidateScopeType, type CandidateType, type DeferredCandidateType} from './publicationCandidateTypes.ts';
+import {candidateSymbolOf} from './publicationCandidateSymbol.ts';
 import {createSymbolId} from './symbolIdentity.ts';
 
 export type ExtractionInputType = Readonly<{
@@ -228,26 +223,36 @@ export const symbolForTsSymbol = (runtime: ExtractionRuntimeType, symbol: ts.Sym
 		return null;
 	}
 
-	const direct = runtime.symbolIdByCanonical.get(symbol);
-
-	if (direct !== undefined) {
-		return direct;
-	}
-
+	// A merged import alias and local value declaration shares one compiler
+	// symbol. Prefer the aliased type target and its own declarations so the
+	// local value is not treated as reachable merely because the imported type is
+	// observed.
+	const valueFlags = [ts.SymbolFlags.Function, ts.SymbolFlags.Class, ts.SymbolFlags.BlockScopedVariable];
+	const mergedAliasValue = (symbol.flags & ts.SymbolFlags.Alias) !== 0 && valueFlags.some((flag) => (symbol.flags & flag) !== 0);
 	let target = symbol;
 
 	if ((target.flags & ts.SymbolFlags.Alias) !== 0) {
 		try {
-			const immediate = runtime.checker.getImmediateAliasedSymbol(target);
-			const immediateId = immediate === undefined ? undefined : runtime.symbolIdByCanonical.get(immediate);
+			if (!mergedAliasValue) {
+				const immediate = runtime.checker.getImmediateAliasedSymbol(target);
+				const immediateId = immediate === undefined ? undefined : runtime.symbolIdByCanonical.get(immediate);
 
-			if (immediateId !== undefined) {
-				return immediateId;
+				if (immediateId !== undefined) {
+					return immediateId;
+				}
 			}
 
 			target = runtime.checker.getAliasedSymbol(target);
 		} catch {
 			return null;
+		}
+	}
+
+	for (const declaration of target.declarations ?? []) {
+		const declared = runtime.symbolIdByDeclaration.get(declaration);
+
+		if (declared !== undefined) {
+			return declared;
 		}
 	}
 
@@ -257,12 +262,10 @@ export const symbolForTsSymbol = (runtime: ExtractionRuntimeType, symbol: ts.Sym
 		return resolved;
 	}
 
-	for (const declaration of target.declarations ?? []) {
-		const declared = runtime.symbolIdByDeclaration.get(declaration);
+	const direct = runtime.symbolIdByCanonical.get(symbol);
 
-		if (declared !== undefined) {
-			return declared;
-		}
+	if (direct !== undefined) {
+		return direct;
 	}
 
 	if (!runtime.promotionEnabled) {

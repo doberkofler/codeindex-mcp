@@ -301,11 +301,19 @@ const addModuleRoots = (runtime: ExtractionRuntimeType, sink: FactSinkType, file
 		const target = (exported.flags & ts.SymbolFlags.Alias) === 0 ? exported : runtime.checker.getAliasedSymbol(exported);
 		const candidate = runtime.candidateBySymbolId.get(symbolId);
 		const external = candidate?.externalTarget !== null && candidate?.externalTarget !== undefined;
-		const site = rootSiteOf(runtime, {exported, name, explicitNames, stars}) ?? {
-			kind: DECLARED_SITE_KIND,
-			path: file.path,
-			range: rangeOfNode(sourceFile, sourceFile),
-		};
+		const site =
+			rootSiteOf(runtime, {exported, name, explicitNames, stars}) ??
+			(candidate === undefined
+				? {
+						kind: DECLARED_SITE_KIND,
+						path: file.path,
+						range: rangeOfNode(sourceFile, sourceFile),
+					}
+				: {
+						kind: DECLARED_SITE_KIND,
+						path: candidate.path,
+						range: candidate.primary.range,
+					});
 		const siteKind = external && site.kind === 'alias' ? DECLARED_SITE_KIND : site.kind;
 
 		addRoot(sink, {

@@ -1,0 +1,66 @@
+{
+	"schemaVersion": 1,
+	"date": "2026-10-20",
+	"gates": {
+		"typescriptCompiler": {
+			"gA": "passed",
+			"gA2": "passed",
+			"emittedModules": 77,
+			"declarationMapFiles": 77,
+			"emittedExports": 6010,
+			"publishedRoots": 6010,
+			"missingPublishedRoots": 0,
+			"extraPublishedRoots": 0,
+			"truthDeclarations": 9191,
+			"visibleDeclarations": 9191,
+			"missingDeclarations": 0,
+			"extraDeclarations": 0,
+			"ambiguousDeclarations": 0
+		},
+		"vscode": {
+			"gA": "passed",
+			"gA2": "failed",
+			"emittedModules": 4935,
+			"declarationMapFiles": 4935,
+			"emittedExports": 19254,
+			"publishedRoots": 19254,
+			"missingPublishedRoots": 0,
+			"extraPublishedRoots": 0,
+			"truthDeclarations": 99811,
+			"visibleDeclarations": 99384,
+			"missingDeclarations": 443,
+			"extraDeclarations": 16,
+			"ambiguousDeclarations": 0
+		},
+		"materialUi": {
+			"gA": "partial",
+			"gA2": "failed",
+			"emittedModules": 892,
+			"declarationMapFiles": 892,
+			"emittedExports": 2523,
+			"publishedRoots": 2954,
+			"missingPublishedRoots": 28,
+			"extraPublishedRoots": 74,
+			"truthDeclarations": 6631,
+			"visibleDeclarations": 4829,
+			"missingDeclarations": 2176,
+			"extraDeclarations": 374,
+			"ambiguousDeclarations": 0
+		},
+		"oracleProductionCorpus": {
+			"gF": "passed",
+			"files": 1237,
+			"symbols": 29454,
+			"occurrences": 187760,
+			"invariantViolations": 0,
+			"routinePairs": 5834,
+			"cursorPairs": 0,
+			"callSpecs": 0,
+			"polymorphicTableFunctions": 0,
+			"overloadGroups": 197,
+			"bodyForwards": 905,
+			"bodyLessSpec": 55,
+			"unclassifiedBodyLessSpec": 2
+		}
+	}
+}
