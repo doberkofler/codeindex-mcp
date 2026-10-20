@@ -99,7 +99,7 @@ describe('Oracle ANTLR declaration parity', () => {
 			'field:A',
 			'field:B',
 			'collection_type:T_TAB',
-			'cursor:T_REF',
+			'ref_cursor_type:T_REF',
 			'subtype:T_SMALL',
 			'constant:C_LIMIT',
 			'variable:V_ROW',

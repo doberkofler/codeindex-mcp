@@ -55,6 +55,7 @@ export type M7ReportType = Readonly<{
 	readonly status: MeasurementStatusType;
 	readonly routinePairs: number | null;
 	readonly cursorPairs: number | null;
+	readonly specDefinedCursors: number | null;
 	readonly callSpecs: number | null;
 	readonly polymorphicTableFunctions: number | null;
 	readonly ambiguityRatePpm: number | null;

@@ -1,0 +1,138 @@
+{
+	"schemaVersion": 1,
+	"date": "2026-10-20",
+	"corpus": {
+		"files": 1237,
+		"objects": 1237,
+		"packageSpecs": 610,
+		"packageBodies": 606,
+		"packagePairs": 606,
+		"specOnlyPackages": 4
+	},
+	"gB": {
+		"status": "passed",
+		"crossFileReferences": 119923,
+		"publishedTargets": 119923,
+		"reachableTargets": 0,
+		"internalTargets": 0,
+		"exceptions": 0
+	},
+	"gC": {
+		"status": "failed",
+		"calls": {
+			"truth": 54738,
+			"matched": 47330,
+			"usageMismatch": 90,
+			"missing": 7318
+		},
+		"assignments": {
+			"truth": 15291,
+			"matched": 14862,
+			"usageMismatch": 444,
+			"missing": 618
+		}
+	},
+	"gD": {
+		"status": "failed",
+		"truthReferences": 188297,
+		"actualReferences": 171718,
+		"matchedReferences": 171718,
+		"missingReferences": 16579,
+		"extraReferences": 0,
+		"recall": 0.911952925432,
+		"precision": 1,
+		"requiredRecall": 0.995,
+		"requiredPrecision": 1,
+		"note": "PL/Scope declaration initializers are excluded; value DEFINITION rows are references when the signature already has a declaration. Pragma, SQL column, savepoint, FOR-bound constant, type-size constant, and iterator-field contexts are not emitted as references."
+	},
+	"gE": {
+		"status": "passed-frozen",
+		"routinePairs": 5886,
+		"cursorPairs": 0,
+		"specDefinedCursors": 1,
+		"overloadGroups": 197,
+		"bodyForwards": 905,
+		"bodyLessSpec": 0,
+		"unclassifiedBodyLessSpec": 0,
+		"headingMismatches": 0,
+		"packageSpecBodyless": 0,
+		"publishedStandaloneBodyless": 39,
+		"note": "Implicit IN is normalized to the default mode; a cursor fully defined in the specification needs no body; REF CURSOR declarations are ref_cursor_type, not callable cursors. Q1 live signature evidence remains blocked separately."
+	},
+	"q1": {
+		"status": "blocked-live",
+		"frozenSpecRoutines": 5654,
+		"frozenBodyRoutines": 9944,
+		"matchedRoutines": 5654,
+		"signatureMismatches": 0,
+		"livePlscopeIdentifiers": 0,
+		"liveAllProcedures": 6705,
+		"liveAllArguments": 23798,
+		"note": "Frozen PL/Scope signatures are equal for all matched spec/body routines. Fresh live signature evidence requires recompiling the frozen inventory with PLSCOPE_SETTINGS=IDENTIFIERS:ALL; current USER_IDENTIFIERS is empty, and the live schema now has 614 specs/610 bodies versus the frozen 610/606.",
+		"livePackageSpecs": 614,
+		"livePackageBodies": 610
+	},
+	"parserComparison": {
+		"date": "2026-10-20",
+		"method": "identical frozen corpus, PL/Scope export, truth policy v2, and gate validator",
+		"structural": {
+			"parser": "structural@5",
+			"symbols": 29399,
+			"occurrences": 208513,
+			"declarations": {
+				"matched": 36794,
+				"missing": 14,
+				"extra": 1
+			},
+			"references": {
+				"matched": 171718,
+				"missing": 16579,
+				"extra": 0,
+				"recall": 0.911952925432,
+				"precision": 1
+			},
+			"calls": {
+				"matched": 47330,
+				"mismatch": 90,
+				"missing": 7318
+			},
+			"assignments": {
+				"matched": 14862,
+				"mismatch": 444,
+				"missing": 618
+			},
+			"crossFileReferences": 119923,
+			"internalTargets": 0
+		},
+		"antlr": {
+			"parser": "antlr@2",
+			"symbols": 34379,
+			"occurrences": 159717,
+			"declarations": {
+				"matched": 35670,
+				"missing": 902,
+				"extra": 1025
+			},
+			"references": {
+				"matched": 119156,
+				"missing": 67088,
+				"extra": 3866,
+				"recall": 0.639783,
+				"precision": 0.96857
+			},
+			"calls": {
+				"matched": 11648,
+				"mismatch": 238,
+				"missing": 42852
+			},
+			"assignments": {
+				"matched": 0,
+				"mismatch": 14462,
+				"missing": 829
+			},
+			"crossFileReferences": 78582,
+			"internalTargets": 0
+		},
+		"decision": "retain structural; ANTLR is worse on every required reference, CALL, and ASSIGNMENT metric"
+	}
+}

@@ -27,6 +27,7 @@ type RoutineIndexType = {
 type PairSummaryType = {
 	routinePairs: number;
 	cursorPairs: number;
+	specDefinedCursors: number;
 	callSpecs: number;
 	polymorphicTableFunctions: number;
 	bodyLess: number;
@@ -113,6 +114,7 @@ const summaryOfPairs = (index: RoutineIndexType, stats: Map<string, AdapterStatT
 	const summary: PairSummaryType = {
 		routinePairs: 0,
 		cursorPairs: 0,
+		specDefinedCursors: 0,
 		callSpecs: 0,
 		polymorphicTableFunctions: 0,
 		bodyLess: 0,
@@ -132,8 +134,17 @@ const summaryOfPairs = (index: RoutineIndexType, stats: Map<string, AdapterStatT
 			continue;
 		}
 
-		summary.bodyLess += 1;
 		const form = declarationForm(spec);
+
+		if (form === 'full_definition') {
+			if (spec.declaration.kind === 'cursor') {
+				summary.specDefinedCursors += 1;
+			}
+
+			continue;
+		}
+
+		summary.bodyLess += 1;
 
 		if (form === 'call_spec') {
 			summary.callSpecs += 1;
@@ -157,6 +168,7 @@ const addPairMetrics = (
 ): void => {
 	add(stats, 'oracle_routine_pairs', summary.routinePairs);
 	add(stats, 'oracle_cursor_pairs', summary.cursorPairs);
+	add(stats, 'oracle_spec_defined_cursors', summary.specDefinedCursors);
 	add(stats, 'oracle_call_specs', summary.callSpecs);
 	add(stats, 'oracle_polymorphic_table_functions', summary.polymorphicTableFunctions);
 	add(stats, 'oracle_body_forwards', index.bodyForwards);

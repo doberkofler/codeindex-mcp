@@ -23,7 +23,7 @@ const V1_SUPPORTED_TYPES: Readonly<Record<string, string>> = {
 	'RECORD FIELD': 'field',
 	SUBTYPE: 'subtype',
 	EXCEPTION: 'exception',
-	REFCURSOR: 'cursor',
+	REFCURSOR: 'ref_cursor_type',
 	'INDEX TABLE': 'collection_type',
 	'ASSOCIATIVE ARRAY': 'collection_type',
 	'NESTED TABLE': 'collection_type',

@@ -112,11 +112,26 @@ export const objectKey = (objectType: string, objectName: string): string => `${
  * @param column - PL/Scope column.
  * @returns Authored position.
  */
-export const positionOf = (mapping: ObjectMappingType, line: number, column: number): Readonly<{path: string; line: number; column: number}> => ({
-	path: mapping.path,
-	line: line + mapping.offset,
-	column: column + (line === 1 ? mapping.columnShift : 0),
-});
+export const positionOf = (mapping: ObjectMappingType, line: number, column: number): Readonly<{path: string; line: number; column: number}> => {
+	const authoredLine = line + mapping.offset;
+	const byteColumn = column + (line === 1 ? mapping.columnShift : 0);
+	const sourceLine = mapping.lines[authoredLine - 1];
+
+	if (sourceLine === undefined || byteColumn > Buffer.byteLength(sourceLine, 'utf8')) {
+		return {path: mapping.path, line: authoredLine, column: byteColumn};
+	}
+
+	const characterPrefix = Buffer.from(sourceLine, 'utf8')
+		.subarray(0, Math.max(0, byteColumn - 1))
+		.toString('utf8');
+
+	return {
+		path: mapping.path,
+		line: authoredLine,
+		// PL/Scope reports byte columns; indexed occurrences use character columns.
+		column: characterPrefix.length + 1,
+	};
+};
 
 /**
  * Checks that a declaration position still contains the declared identifier.

@@ -36,7 +36,7 @@ const goldenOf = (): z.infer<typeof GoldenFactsSchema> => {
 };
 
 describe('Oracle golden facts', () => {
-	it('matches facts PL/Scope cannot validate', () => {
+	it('matches the checked-in golden facts', () => {
 		const golden = goldenOf();
 		const source = readFileSync(path.join(fixtureDirectory, golden.path), 'utf8');
 		const parse = parseOracleUnits({tokens: tokenizeOracleSource(source, golden.path).tokens, path: golden.path, defaultSchema: 'APP'});
@@ -66,9 +66,6 @@ describe('Oracle golden facts', () => {
 		const source = readFileSync(path.join(fixtureDirectory, golden.path), 'utf8');
 		const mapping: ObjectMappingType = {path: golden.path, offset: 0, columnShift: 0, lines: source.split('\n')};
 		const classify = createExtraClassifier({mappings: new Map([[golden.path, mapping]]), rowsByPath: new Map([[golden.path, 1]])});
-		const pragma = golden.facts.find((fact) => fact.line === 4);
-
-		expect(pragma).toBeDefined();
 		expect(classify({path: golden.path, line: 4, column: 17, name: 'RUN', kind: 'function'})).toBe('outside_plscope');
 	});
 });

@@ -5,6 +5,7 @@ import {
 	collectReferences,
 	findToken,
 	findWord,
+	normalizedPairingHeading,
 	normalizedTokens,
 	rangeOf,
 	typeReferencesOf,
@@ -161,7 +162,7 @@ export const parseCursorDeclaration = (input: DeclarationInputType): number => {
 		exported: input.exported,
 		parameters: parameterList?.parameters ?? [],
 		typeReferences: typeReferencesOf(state, name.nextIndex, end),
-		heading: normalizedTokens(state, input.start, headingEnd),
+		heading: normalizedPairingHeading(state, input.start, headingEnd),
 		form,
 	});
 
@@ -196,7 +197,7 @@ const typeKind = (state: OracleParserStateType, shape: number): OracleDeclaratio
 		return 'collection_type';
 	}
 
-	return state.cursor.word(shape, 'REF') ? 'cursor' : null;
+	return state.cursor.word(shape, 'REF') ? 'ref_cursor_type' : null;
 };
 
 const parseFields = (input: Readonly<{state: OracleParserStateType; shape: number; end: number; parent: number; unit: number; exported: boolean}>): void => {

@@ -66,7 +66,7 @@ The Oracle extractor requires an explicit `extractor.project` or
 Stored symbols use these kinds:
 
 `package`, `procedure`, `function`, `variable`, `constant`, `cursor`,
-`record_type`, `collection_type`, `subtype`, `exception`, `field`.
+`ref_cursor_type`, `record_type`, `collection_type`, `subtype`, `exception`, `field`.
 
 Parameters and routine-local declarations are ephemeral. They participate in
 resolution but are never persisted or searchable. Nested named routines remain
@@ -78,10 +78,16 @@ public symbols. Private body declarations own new symbols at their body
 locations. Overloads remain distinct.
 
 Specification and body routines and cursors pair only when their complete
-normalized headings match apart from whitespace. Heading mismatches, ambiguous
-candidates, and missing bodies produce pairing diagnostics; a fallback signature
-never silently pairs declarations. Package-body private forwards pair with their
-full implementation, which owns identity and the primary definition.
+normalized headings match apart from whitespace, parameter default clauses, and
+an explicit lone `IN`. Parameter defaults are ignored because Oracle permits a
+specification default to be omitted from the body; a lone `IN` is ignored because
+it is the default mode. Names, `OUT`/`IN OUT` modes, types, order, return types,
+and routine modifiers remain significant. Ambiguous candidates and missing
+bodies produce pairing diagnostics; an unmatched body declaration remains
+private. A cursor fully defined in its package specification needs no body, and
+`TYPE ... IS REF CURSOR` is `ref_cursor_type`, not a callable cursor.
+Package-body private forwards pair with their full implementation, which owns
+identity and the primary definition.
 
 Canonical names use `SCHEMA.PACKAGE.MEMBER`. Unquoted identifiers canonicalize to
 uppercase; quoted identifiers preserve exact case and are kept distinct from
@@ -233,11 +239,10 @@ O1 represents those as dependency edges, not symbol occurrences. It also
 rejected PL/Scope rows whose declaration position did not contain the declared
 identifier; this removes `SELECT *` column pseudo-declarations and same-line
 `CREATE OR REPLACE` column offsets. The remaining reference extras are
-classified in the external Phase 9 evidence: 377 are PL/Scope references whose
-`ITERATOR` type is outside the gate's supported set, 467 are `PRAGMA INLINE`
-arguments, 98 are implicit loop iterators typed as declarations, and the rest
-are type positions, static SQL, expression references, or residual nested-block
-declarations. They are not removed merely to raise precision.
+zero in the frozen qualification. PL/Scope references whose `ITERATOR` type is
+outside the supported set are excluded by policy; pragma names, implicit loop
+iterators, type positions, static SQL, and savepoint names are not emitted as
+references. They are not removed merely to raise precision.
 
 Literal `$IF TRUE` and `$IF FALSE` branches are evaluated during tokenization.
 Non-literal conditions keep both branches because O1 does not evaluate session

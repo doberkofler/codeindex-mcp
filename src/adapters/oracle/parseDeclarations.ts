@@ -11,7 +11,7 @@ import {
 import {
 	collectReferences,
 	createParserState,
-	normalizedTokens,
+	normalizedPairingHeading,
 	rangeOf,
 	recoverMember,
 	recoverTopLevel,
@@ -21,6 +21,7 @@ import {
 	warnAt,
 	type OracleParserStateType,
 } from './parserState.ts';
+import {parseNestedBlockDeclarations} from './nestedBlocks.ts';
 import {routineFormOf} from './routineForm.ts';
 import {TokenCursor} from './tokenCursor.ts';
 import {type OracleDeclarationType, type OracleParseResultType, type OracleUnitKindType, type OracleUnitType} from './syntax.ts';
@@ -315,7 +316,7 @@ class OracleDeclarationParser {
 			exported: input.exported,
 			parameters: header.parameters,
 			typeReferences: typeReferencesOf(this.#state, header.signature.start, header.signature.index),
-			heading: normalizedTokens(
+			heading: normalizedPairingHeading(
 				this.#state,
 				input.keyword,
 				header.signature.hasBody ? header.signature.index : this.#state.cursor.previous(header.signature.index),
@@ -381,6 +382,14 @@ class OracleDeclarationParser {
 				const end = this.#state.cursor.findBlockEnd(cursor);
 
 				this.#updateRange(declaration, unit, unitStart, statementEnd(end.nextIndex));
+				parseNestedBlockDeclarations({
+					state: this.#state,
+					start: this.#state.cursor.next(cursor),
+					end: end.endIndex,
+					parent: declaration,
+					unit,
+					parseMember: (memberCursor, parent, memberUnit, exported) => this.#parseMember(memberCursor, parent, memberUnit, exported),
+				});
 				collectReferences({state: this.#state, start: this.#state.cursor.next(cursor), end: end.endIndex, enclosing: declaration, unit});
 				return end.nextIndex;
 			}

@@ -3,7 +3,6 @@
 	"facts": [
 		{"role": "definition", "line": 2, "column": 11, "name": "RUN", "kind": "function"},
 		{"role": "definition", "line": 2, "column": 15, "name": "P_VALUE", "kind": "parameter"},
-		{"role": "reference", "line": 4, "column": 17, "name": "RUN", "kind": "function"},
 		{"role": "reference", "line": 5, "column": 10, "name": "RUN", "kind": "function"},
 		{"role": "reference", "line": 5, "column": 14, "name": "P_VALUE", "kind": "parameter"}
 	]

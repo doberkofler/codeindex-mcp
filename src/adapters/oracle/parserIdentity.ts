@@ -22,12 +22,12 @@ const ORACLE_RUNTIME_VERSION = 'antlr4ng@3.0.16';
 const IDENTITIES: Readonly<Record<OracleParserIdType, OracleParserIdentityType>> = {
 	structural: {
 		id: 'structural',
-		revision: `structural@2;lexer@${ORACLE_RUNTIME_VERSION};lexerGrammar@${ORACLE_GRAMMAR_REVISION}`,
+		revision: `structural@5;lexer@${ORACLE_RUNTIME_VERSION};lexerGrammar@${ORACLE_GRAMMAR_REVISION}`,
 		compilerVersion: `oracle19c;parser@structural;lexer@${ORACLE_RUNTIME_VERSION};lexerGrammar@${ORACLE_GRAMMAR_REVISION}`,
 	},
 	antlr: {
 		id: 'antlr',
-		revision: `antlr@1;runtime@${ORACLE_RUNTIME_VERSION};grammar@${ORACLE_GRAMMAR_REVISION}`,
+		revision: `antlr@2;runtime@${ORACLE_RUNTIME_VERSION};grammar@${ORACLE_GRAMMAR_REVISION}`,
 		compilerVersion: `oracle19c;parser@antlr;runtime@${ORACLE_RUNTIME_VERSION};grammar@${ORACLE_GRAMMAR_REVISION}`,
 	},
 };

@@ -3,6 +3,8 @@ import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {oracleExtractor} from '../src/adapters/oracle/index.ts';
 import {parseOracleUnits} from '../src/adapters/oracle/parseUnits.ts';
+import {extractOracleSymbols} from '../src/adapters/oracle/extractSymbols.ts';
+import {resolveOracleReferences} from '../src/adapters/oracle/resolveReferences.ts';
 import {buildSymbolTable} from '../src/adapters/oracle/symbolTables.ts';
 import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
 import {finalizeFacts, type FinalizedFactSetType} from '../src/core/facts/index.ts';
@@ -51,7 +53,7 @@ const usagesOf = (facts: FinalizedFactSetType, name: string, referencePath?: str
 };
 
 describe('Oracle publication vertical slice', () => {
-	it('records declaration forms and pairs headings exactly', () => {
+	it('records declaration forms and pairs headings without parameter defaults', () => {
 		const {facts, cleanup} = buildFacts();
 
 		try {
@@ -121,15 +123,16 @@ describe('Oracle publication vertical slice', () => {
 		}
 	});
 
-	it('reports heading mismatches, ambiguity, and missing bodies without silent pairing', () => {
+	it('reports missing bodies and ambiguity without treating private overloads as mismatches', () => {
 		const fixtureRoot = path.join(import.meta.dirname, 'fixtures', 'oracle-publication-project', 'database');
 		const spec = readFileSync(path.join(fixtureRoot, 'feature_api.pks'), 'utf8');
 		const body = readFileSync(path.join(fixtureRoot, 'feature_api.pkb'), 'utf8');
 		const mismatched = body.replace('p_item in out t_item, p_note out varchar2', 'p_item in t_item, p_note out varchar2');
 		const missing = body.replace(/procedure write_item[\s\S]*end write_item;/u, '');
-		const files = [parsedFileOf('feature_api.pks', spec), parsedFileOf('feature_api_mismatch.pkb', mismatched)];
+		const mismatchedCodes = diagnosticCodesOf([parsedFileOf('feature_api.pks', spec), parsedFileOf('feature_api_mismatch.pkb', mismatched)]);
 
-		expect(diagnosticCodesOf(files)).toContain(9109);
+		expect(mismatchedCodes).not.toContain(9109);
+		expect(mismatchedCodes).toContain(9111);
 		expect(diagnosticCodesOf([parsedFileOf('feature_api.pks', spec), parsedFileOf('feature_api_missing.pkb', missing)])).toContain(9111);
 		expect(
 			diagnosticCodesOf([
@@ -137,6 +140,132 @@ describe('Oracle publication vertical slice', () => {
 				parsedFileOf('dup.pkb', 'create package body p as procedure run(p number) is begin null; end run; end p;\n/'),
 			]),
 		).toContain(9110);
+		expect(
+			diagnosticCodesOf([
+				parsedFileOf('private.pks', 'create package private_api as procedure run(p_value number); end private_api;\n/'),
+				parsedFileOf(
+					'private.pkb',
+					[
+						'create package body private_api as',
+						'\tprocedure run(p_value number) is begin null; end run;',
+						'\tprocedure run(p_value varchar2) is begin null; end run;',
+						'end private_api;',
+						'/',
+					].join('\n'),
+				),
+			]),
+		).toStrictEqual([]);
+	});
+});
+
+describe('Oracle non-reference syntax', () => {
+	it('does not emit pragma, savepoint, type-size, or FOR-bound names as references', () => {
+		const source = `create package body p as
+	k constant number := 1;
+	procedure run is
+		a varchar2(k);
+		b number;
+	begin
+		for i in 1..k loop null; end loop;
+		savepoint create_task;
+		pragma inline(run, 'YES');
+	end run;
+end p;
+/`;
+		const file = parsedFileOf('nonref.pkb', source);
+		const symbols = extractOracleSymbols({projectId: 'p', context: 'APP', files: [{path: file.path, parse: file.parse}]});
+		const references = resolveOracleReferences({context: 'APP', defaultSchema: 'APP', files: symbols.analyses, packages: symbols.packages});
+		const names = new Set<string>();
+
+		for (const occurrence of references.occurrences) {
+			const symbol = symbols.symbols.find((candidate) => candidate.id === occurrence.symbolId);
+
+			if (symbol !== undefined) {
+				names.add(symbol.name.toUpperCase());
+			}
+		}
+
+		expect(names.has('K')).toBe(false);
+		expect(names.has('CREATE_TASK')).toBe(false);
+		expect(names.has('RUN')).toBe(false);
+	});
+});
+
+describe('Oracle parameter-default pairing', () => {
+	it('pairs spec and body declarations when only parameter defaults differ', () => {
+		const files = [
+			parsedFileOf(
+				'defaults.pks',
+				[
+					'create package defaults as',
+					'	procedure run(p_flag boolean := coalesce(null, false), p_note varchar2);',
+					'	cursor c_values(p_limit number default 10) return number;',
+					'end defaults;',
+					'/',
+				].join('\n'),
+			),
+			parsedFileOf(
+				'defaults.pkb',
+				[
+					'create package body defaults as',
+					'	procedure run(p_flag boolean, p_note varchar2) is',
+					'	begin',
+					'		null;',
+					'	end run;',
+					'	cursor c_values(p_limit number) return number is',
+					'		select 1 from dual;',
+					'end defaults;',
+					'/',
+				].join('\n'),
+			),
+		];
+
+		expect(files[1]?.parse.declarations.some((declaration) => declaration.kind === 'procedure' || declaration.kind === 'cursor')).toBe(true);
+		expect(diagnosticCodesOf(files)).toStrictEqual([]);
+
+		const table = buildSymbolTable({projectId: 'p', context: 'APP', files});
+		const bodyRoutines =
+			table.bindings[1]?.filter(
+				(_binding, index) => files[1]?.parse.declarations[index]?.kind === 'procedure' || files[1]?.parse.declarations[index]?.kind === 'cursor',
+			) ?? [];
+
+		expect(bodyRoutines).not.toHaveLength(0);
+		expect(bodyRoutines.every((binding) => binding.mappedSpec !== null)).toBe(true);
+	});
+
+	it('pairs explicit and omitted IN modes while preserving OUT and IN OUT', () => {
+		const files = [
+			parsedFileOf(
+				'modes.pks',
+				['create package modes as', '\tprocedure run(p_value IN varchar2, p_count NUMBER, p_result OUT NUMBER);', 'end modes;', '/'].join('\n'),
+			),
+			parsedFileOf(
+				'modes.pkb',
+				[
+					'create package body modes as',
+					'\tprocedure run(p_value varchar2, p_count IN NUMBER, p_result OUT NUMBER) is begin null; end run;',
+					'end modes;',
+					'/',
+				].join('\n'),
+			),
+		];
+
+		expect(diagnosticCodesOf(files)).toStrictEqual([]);
+	});
+
+	it('treats a full cursor definition in a package spec as complete', () => {
+		const files = [
+			parsedFileOf('cursor.pks', ['create package cursor_api as', '\tcursor c_rows return number is select 1 from dual;', 'end cursor_api;', '/'].join('\n')),
+			parsedFileOf('cursor.pkb', 'create package body cursor_api as end cursor_api;\n/'),
+		];
+
+		expect(diagnosticCodesOf(files)).toStrictEqual([]);
+	});
+
+	it('models REF CURSOR declarations as types', () => {
+		const {parse} = parsedFileOf('ref.pks', 'create package ref_api as type t_ref is ref cursor; end ref_api;\n/');
+
+		expect(parse.declarations.some((declaration) => declaration.kind === 'ref_cursor_type' && declaration.name.canonical === 'T_REF')).toBe(true);
 	});
 });
 

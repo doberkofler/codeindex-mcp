@@ -7,8 +7,6 @@ export type SpecMatchType = Readonly<{
 	ambiguous: boolean;
 }>;
 
-export const routineKindName = (declaration: OracleDeclarationType, canonical: string): string => `${declaration.kind}\u0000${canonical}`;
-
 const addToGroup = <ItemType>(group: Map<string, ItemType[]>, key: string, item: ItemType): void => {
 	const existing = group.get(key) ?? [];
 
@@ -44,7 +42,6 @@ const addSpecRoutine = (
 		files: readonly OracleParsedFileType[];
 		bindings: readonly MutableBindingType[][];
 		routinesByHeading: Map<string, SpecRoutineType[]>;
-		routinesByKindName: Map<string, SpecRoutineType[]>;
 	}>,
 ): void => {
 	const routine: SpecRoutineType = {
@@ -56,11 +53,10 @@ const addSpecRoutine = (
 	};
 
 	addToGroup(input.routinesByHeading, input.binding.heading, routine);
-	addToGroup(input.routinesByKindName, routineKindName(input.declaration, input.binding.canonical), routine);
 };
 
 /**
- * Builds exact-heading indexes for every package specification.
+ * Builds pairing-heading indexes for every package specification.
  *
  * @param files - Parsed files in one context.
  * @param graphs - Per-file canonical and nesting indexes.
@@ -84,7 +80,6 @@ export const buildSpecIndex = (
 			}
 
 			const routinesByHeading = new Map<string, SpecRoutineType[]>();
-			const routinesByKindName = new Map<string, SpecRoutineType[]>();
 
 			for (const child of graph.childrenByParent.get(unit.declaration) ?? []) {
 				const declaration = file.parse.declarations[child];
@@ -106,7 +101,6 @@ export const buildSpecIndex = (
 					files,
 					bindings,
 					routinesByHeading,
-					routinesByKindName,
 				});
 			}
 
@@ -115,7 +109,6 @@ export const buildSpecIndex = (
 				fileIndex,
 				declarationIndex: unit.declaration,
 				routinesByHeading,
-				routinesByKindName,
 			});
 		}
 	}

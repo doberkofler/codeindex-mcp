@@ -250,12 +250,24 @@ const factsOf = (state: TruthStateType): TruthFactsType => {
 			continue;
 		}
 
+		const declarationKeys = new Set<string>();
+
 		for (const declaration of group.declarations) {
-			definitions.set(keyOf(declaration, declaration.name), declaration);
+			const key = keyOf(declaration, declaration.name);
+
+			declarationKeys.add(key);
+			definitions.set(key, declaration);
 		}
 
 		for (const reference of group.references) {
-			references.set(keyOf(reference, reference.name), reference);
+			const key = keyOf(reference, reference.name);
+
+			// PL/Scope reports a constant or field initializer as both a
+			// declaration and an assignment at the same location. That assignment is
+			// the initializer, not a reference to an existing symbol.
+			if (!declarationKeys.has(key)) {
+				references.set(key, reference);
+			}
 		}
 	}
 

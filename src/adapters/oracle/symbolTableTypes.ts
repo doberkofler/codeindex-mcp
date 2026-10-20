@@ -36,7 +36,6 @@ export type SpecPackageType = Readonly<{
 	fileIndex: number;
 	declarationIndex: number;
 	routinesByHeading: ReadonlyMap<string, readonly SpecRoutineType[]>;
-	routinesByKindName: ReadonlyMap<string, readonly SpecRoutineType[]>;
 }>;
 
 export type SymbolTableType = Readonly<{

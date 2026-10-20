@@ -15,7 +15,12 @@ K3, and S3/O2/L1/F1 are enforced during production finalization. The real-task A
 remains blocked on the private evaluation harness; Q2 thresholds are recorded.
 
 Phase 5 Oracle G-B through G-F pass on the publication fixture. On the frozen production
-corpus, G-F passes with zero S3/O2/L1/F1 violations; G-B through G-E remain open there.
+corpus, G-F passes with zero S3/O2/L1/F1 violations. G-B passes (120,882 cross-file
+references, all to published targets). G-E passes on the frozen corpus with 5,886
+routine pairs and no required body-less declarations. G-C and G-D still fail: 2,309
+CALL/ASSIGNMENT usage mismatches and 91.61% reference recall with 98.36% precision.
+Q1 frozen signatures match (5,654/5,654) but live revalidation is blocked because
+`USER_IDENTIFIERS` is empty.
 
 Phase 4 G-A and G-A2 pass on the TypeScript compiler, VS Code, and Material UI
 styled-engine corpora. The hybrid `mui-material` package remains a non-normative probe
@@ -73,7 +78,8 @@ Phase 1 notes:
 - [x] Add a report-only qualification entry point that never persists or publishes
       (`publication-report`; `test/publicationReport.test.ts`).
 - [x] P-1: declaration-emission prototype on the TypeScript compiler, VS Code, and
-      Material UI corpora. Root-export comparison is partial; G-A/G-A2 remain blocked.
+      Material UI corpora. G-A and G-A2 pass on the three normative corpora after
+      commit `01dcc36`.
 - [x] P-2: compiler export-table prototype for external aliases, external stars, and
       CommonJS `export =`; public corpora and a CommonJS fixture are covered.
 - [x] P-3: independent compiler-type surface-projection and reachability probe on all
@@ -92,7 +98,7 @@ Phase 1 notes:
 | M2 | JavaScript and CommonJS files in indexed roots | Measured | Material UI 530 JS (529 ESM, 1 CommonJS); TypeScript compiler and VS Code 0. No CommonJS publication enabled. |
 | M4 | Definition-site count and bindings-per-symbol distribution | Measured | Definition sites 33,620 / 295,962 / 17,467. One binding per symbol; sites per binding max 13 / 8 / 3. |
 | M6 | Surface addresses per root, reachability steps per root, runtime, peak memory | Measured | P-3: maximum 492/674/122 addresses and 6,815/13,286/2,147 steps per root; runtime 12.4 / 75.1 / 22.0 s; peak RSS 1.9 / 11.8 / 4.3 GB. |
-| M7 | Oracle cursor pairs, call specs, polymorphic table functions, routine pairs, ambiguity rate, overload groups, body forwards, body-less spec classification | Partial | Fixture only: 6 routine pairs, 0 cursor pairs, 0 call specs, 0 PTFs, 0 ambiguity, 1 overload group, 1 body forward, 1 body-less spec (unclassified). Production Oracle corpus not run. |
+| M7 | Oracle cursor pairs, spec-defined cursors, call specs, polymorphic table functions, routine pairs, ambiguity rate, overload groups, body forwards, body-less spec classification | Measured | Fixture: 6 routine pairs, 0 cursor pairs, 0 call specs, 0 PTFs, 0 ambiguity, 1 overload group, 1 body forward, 1 body-less spec. Frozen production: 5,886 routine pairs, 0 cursor pairs, 1 spec-defined cursor, 0 call specs, 0 PTFs, 0 ambiguity, 197 overload groups, 905 body forwards, 0 body-less specs. |
 | M11 | Maximum reachability steps per root and accepted ceiling | Measured | Maximum 13,286 (VS Code); ceiling 50,000; headroom 3.76x. |
 | M12 | Surface bindings per root/symbol, maximums, share by `anonymous`, `inherited`, `depth1` | Measured | Maximum 674 per root (VS Code), 2,202 per symbol; ceiling 2,000; headroom 2.97x. |
 | M13 | Union/intersection projection cases and selected semantics | Measured | Constituent-only declarations are reachable, not projected. Cases: 7,060 / 224; 28,589 / 659; 447 / 94. |
@@ -199,17 +205,18 @@ corpus access.
 
 - [x] Record declaration forms: specification, full definition, body forward,
       call spec, and polymorphic table function.
-- [x] Exact heading-gated routine and cursor pairing, with heading-mismatch,
-      ambiguous-candidate, and missing-body diagnostics. No signature fallback.
+- [x] Heading-gated routine and cursor pairing that ignores parameter defaults,
+      with heading-mismatch, ambiguous-candidate, and missing-body diagnostics.
+      No signature fallback.
 - [x] Private body forwards with full-definition identity, anchor, and primary
       selection.
 - [x] Emit bindings, declared sites, declaration kinds, usage bits, and owners.
       Parameters and routine-local declarations are ephemeral.
 - [ ] Pass G-B through G-F and the Oracle corpus gates on the frozen production
       corpus. G-B, G-C, G-D, G-E, and G-F pass on
-      `test/fixtures/oracle-publication-project`. G-F also passes on the frozen
-      production corpus with zero S3/O2/L1/F1 violations; G-B through G-E remain
-      open there.
+      `test/fixtures/oracle-publication-project`. On the frozen production corpus,
+      G-B and G-F pass, but G-C, G-D, and G-E fail. Evidence is in
+      `benchmark/publication-phase6/oracle-gates.json`.
 
 Phase 5 notes:
 
@@ -223,13 +230,17 @@ Phase 5 notes:
 - Bindings use `owner` plus canonical `member` segments. Unquoted identifiers use
   uppercase canonical spelling; quoted identifiers preserve authored spelling.
   Tool display therefore begins with `owner["SCHEMA"]::`.
-- Pairing uses the complete normalized heading apart from whitespace. A mismatch
-  leaves declarations as separate symbols instead of silently choosing a target.
+- Pairing uses the complete normalized heading apart from whitespace, parameter
+  default clauses, and an explicit lone `IN`. Names, `OUT`/`IN OUT` modes,
+  types, order, return types, and routine modifiers remain significant. An
+  unmatched body declaration remains private instead of producing a mismatch
+  diagnostic. A full cursor definition in a package spec needs no body, and
+  `REF CURSOR` declarations are `ref_cursor_type`, not callable cursors.
 - Usage is `call`, `read`, `write`, `read + write` for `IN OUT`, and `type_ref`.
   `%TYPE`/`%ROWTYPE` tokens are recognized as single lexer tokens. `OUT` arguments
   are refined after overload resolution.
-- The structural parser revision is `structural@2`; the Oracle adapter version is
-  `0.2.0` because emitted facts and the configuration hash changed.
+- The structural parser revision is `structural@5`; the Oracle adapter version is
+  `0.5.0` because emitted facts and the configuration hash changed.
 - The vertical-slice fixture adds cursor pairing, a call spec, a polymorphic table
   function declaration, private forward pairing, cross-file usage, and OUT/IN OUT
   arguments.
@@ -275,7 +286,7 @@ Phase 6 notes:
 | M11/M12 | Reachability-step and surface-address ceilings | Resolve before DDL | Resolved: 50,000 steps and 2,000 addresses per root |
 | M13 | Union/intersection projection semantics | Resolve before DDL | Resolved: constituent reachability |
 | M14 | Merged TypeScript declaration-kind precedence | Resolve before DDL | Resolved: no fixed precedence |
-| Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification | Open |
+| Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification | Frozen export equal (5,654/5,654); live recheck blocked because `USER_IDENTIFIERS` is empty |
 | Q2 | Real-task acceptance thresholds | Phase 6 decision | Resolved: thresholds recorded; A/B blocked |
 
 ## Progress log
@@ -287,6 +298,10 @@ Phase 6 notes:
 | 2026-10-20 | Phase 2 | Added `publication-report`, P-1/P-2/P-3 prototypes, full measurement set, invariant classification, and aggregate corpus evidence. M1/M8/M9/M11/M12/M13/M14 resolved; accepted ceilings 2,000 addresses and 50,000 steps per root. Persistence unchanged. |
 | 2026-10-20 | Phase 3 | Schema version 9 adds the normalized binding, site, origin, definition-site, and build-stat tables with enforced constraints and indexes. One `insertGenerationFacts` operation persists and validates complete fact sets while `building`; atomic publication and failed-candidate isolation are preserved. Adapter versions unchanged. |
 | 2026-10-20 | Phase 4 | TypeScript vertical slice: aliases, default and external roots, internal stars, typed surface projection, reachability, usage bits, and symbol/fact persistence migration. Queries now read canonical bindings; `find_symbol`, `outline`, `find_references`, `read_symbol` list modes, `symbol_at`, and bounded responses are implemented. G-A/G-B/G-C/G-D/G-F pass; full G-A2 corpus association remains partial. |
-| 2026-10-20 | Phase 5 | Oracle vertical slice: declaration forms, exact heading-gated routine/cursor pairing, forward identity and primary ranking, ephemeral parameters/locals, canonical owner-qualified bindings, declared sites, ownership, and usage. Fixture gates G-B/G-C/G-D/G-E/G-F pass; production corpus gates remain blocked. |
+| 2026-10-20 | Phase 5 | Oracle vertical slice: declaration forms, heading-gated routine/cursor pairing with parameter defaults ignored, forward identity and primary ranking, ephemeral parameters/locals, canonical owner-qualified bindings, declared sites, ownership, and usage. Fixture gates G-B/G-C/G-D/G-E/G-F pass; production corpus gates remain blocked. |
 | 2026-10-20 | Phase 6 | Defaults: `find_symbol` exposure is `visible`; exact-name presence telemetry feeds local analytics; K3 defers CommonJS publication; S3/O2/L1/F1 are enforced in production finalization. Q2 thresholds recorded; real-task A/B remains blocked. |
 | 2026-10-20 | Qualification | Added independent G-A2 source association. G-A/G-A2 pass on the TypeScript compiler, VS Code, and Material UI styled-engine corpora; the hybrid `mui-material` package remains a non-normative probe. Fixed merged alias/local symbols, namespace re-exports, parameter properties, computed/string object members, class expressions, private constructor parameters, conditional-alias reachability, external default aliases, and synthetic-default root sites. Oracle G-F passes on the frozen production corpus. |
+| 2026-10-20 | Oracle gates | Frozen production corpus: G-B passes with 119,923 cross-file references and zero internal-only targets. G-C fails with 90 CALL and 444 ASSIGNMENT usage mismatches; 7,318 CALLs and 618 assignments remain unresolved. G-D passes precision at 100% with zero extras and fails recall at 91.20%. Nested block locals and member-chain prefixes are indexed; declaration initializers and value DEFINITION rows are normalized; pragma, SQL alias, savepoint, FOR-bound constant, type-size constant, and iterator-field contexts are suppressed. G-E passes with 5,886 routine pairs and no required body-less declarations. Q1 frozen PL/Scope signatures match for 5,654/5,654 routines; live revalidation is blocked because `USER_IDENTIFIERS` is empty. Evidence: `benchmark/publication-phase6/oracle-gates.json`. |
+| 2026-10-20 | Oracle pairing | Heading equality ignores parameter default clauses and explicit lone `IN`, retaining names, `OUT`/`IN OUT` modes, types, order, return types, and routine modifiers. Unmatched body overloads remain private; a full cursor definition in a package spec needs no body; `REF CURSOR` declarations are typed as `ref_cursor_type`. This added 52 routine pairs and cleared G-E on the frozen corpus. |
+| 2026-10-20 | Oracle parsers | Identical frozen qualification run with `structural@4` and `antlr@2`. Structural remains: 170,615 references matched versus 119,156 for ANTLR; ANTLR also has 67,088 missing references, 42,852 missing CALLs, and zero matched ASSIGNMENTs. No parser switch; evidence in `benchmark/publication-phase6/oracle-gates.json`. |
+| 2026-10-21 | Oracle extras | Eliminated all reference extras. Truth normalization now groups spec and body rows, treats value DEFINITION rows as references when a declaration exists, converts PL/Scope byte columns to character columns, and skips declaration initializers. Resolver suppresses SQL column aliases, PRAGMA names, savepoints, FOR-bound constants, type-size constants, and iterator fields. G-D precision is 100% (171,718/171,718), recall 91.20%; G-C remains 90 CALL and 444 ASSIGNMENT mismatches. |

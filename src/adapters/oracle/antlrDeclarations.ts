@@ -196,7 +196,7 @@ class OracleDeclarationCollector {
 		const record = context.record_type_def();
 		const collection = context.table_type_def() ?? context.varray_type_def();
 		const refCursor = context.ref_cursor_type_def();
-		const kind = record !== null ? 'record_type' : collection !== null ? 'collection_type' : refCursor !== null ? 'cursor' : null;
+		const kind = record !== null ? 'record_type' : collection !== null ? 'collection_type' : refCursor !== null ? 'ref_cursor_type' : null;
 
 		if (kind === null) {
 			return;

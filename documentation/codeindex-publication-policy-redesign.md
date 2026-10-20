@@ -941,12 +941,20 @@ The structural parser records each routine/cursor form:
 Pair packages by owner and canonical package name.
 
 Routine candidate lookup may use the current reduced signature and fallback. Pairing is
-accepted only when the full normalized headings match apart from whitespace. If no
-candidate matches, or several candidates tie, declarations remain separate symbols and
-the adapter emits a diagnostic. Ambiguous matches never silently choose a target
-[17,18].
+accepted only when the full normalized headings match apart from whitespace, parameter
+default clauses, and an explicit lone `IN`. Parameter names, `OUT` and `IN OUT` modes,
+types, order, return types, and routine modifiers remain significant. `DEFAULT` and `:=`
+expressions are ignored because Oracle permits a specification default to be omitted from
+the body. A lone `IN` is omitted because it is the default mode. If several candidates
+tie, declarations remain separate and the adapter emits an ambiguity diagnostic. If no
+candidate matches, the body declaration remains private; a specification declaration that
+still lacks a full body produces a missing-body diagnostic. Ambiguous matches never
+silently choose a target [17,18].
 
-Cursor declarations/definitions pair by owner, package, name, and normalized heading.
+Cursor declarations/definitions pair by owner, package, name, and normalized heading
+under the same parameter and default rules. A cursor whose full definition is already
+present in the specification needs no additional body. A `TYPE ... IS REF CURSOR`
+declaration is a type (`ref_cursor_type`), not a callable cursor [19].
 
 Call specs and polymorphic table functions do not require a body definition. Every
 other spec routine/cursor in a paired package requires exactly one full body definition
@@ -1000,7 +1008,15 @@ TypeScript usage comes from the syntactic role of the compiler-resolved identifi
 Oracle qualification maps PL/Scope `CALL` to call, `ASSIGNMENT` to write, and
 `REFERENCE` to read unless the target is a type/subtype, where it is `type_ref`.
 Annotations, heritage clauses, declared types, and Oracle `%TYPE` targets are
-`type_ref`.
+`type_ref`. A PL/Scope `ASSIGNMENT` row at the same position as a declaration is
+the declaration initializer, not a reference, and is excluded. A value-symbol
+`DEFINITION` row is a reference when the signature already has a declaration; it is
+a declaration only for a program unit or when no declaration row exists. PL/Scope
+byte columns are converted to character columns. Nested `DECLARE` block locals are
+parsed for resolution but are not persisted. Each resolvable prefix of a member
+chain is a separate reference site. Pragma names, SQL column aliases, savepoint
+names, FOR-bound constants, datatype size constants, and iterator fields are not
+emitted as references because PL/Scope does not confirm them.
 
 ### Dependency completeness
 
@@ -1185,7 +1201,7 @@ Required metric dimensions are closed:
 | `external_aliases` | empty | empty | empty |
 | `wrapped_units` | empty | empty | empty |
 | `oracle_declaration_forms` | closed routine/cursor form | empty | empty |
-| `oracle_pairing_diagnostics` | `heading_mismatch`, `ambiguous_candidate`, or `missing_body` | empty | empty |
+| `oracle_pairing_diagnostics` | `ambiguous_candidate` or `missing_body` (the heading-mismatch code is retained but no longer emitted) | empty | empty |
 | `unsupported_construct` | closed construct category | empty | empty |
 
 Unused dimensions are the empty string, never null. Generic counts are derived by the
@@ -1576,7 +1592,10 @@ corpus inventory [5,7-9].
   that is neither a call spec nor a polymorphic table function.
 - Each non-exempt spec routine/cursor in a paired package has exactly one full body
   definition.
-- Full normalized headings match for every accepted pair.
+- Full normalized headings match for every accepted pair apart from parameter defaults
+  and an explicit lone `IN`.
+- A cursor fully defined in its package specification is complete; `REF CURSOR` types
+  are not callable cursors.
 - PL/Scope signature equality across packaged spec/body routines is verified on the
   live database before becoming a gate.
 - Call-spec, polymorphic-table-function, cursor, overload, body-forward, and ambiguity
@@ -1758,7 +1777,7 @@ The report-only run must emit this complete measurement set before DDL work:
 | M2 | JavaScript and CommonJS files in indexed roots |
 | M4 | Definition-site count and bindings-per-symbol distribution |
 | M6 | Surface addresses per root, reachability-closure steps per root, runtime, and peak memory |
-| M7 | Oracle cursor pairs, call specs, polymorphic table functions, routine pairs, ambiguity rate, overload groups, body forwards, and body-less spec classification |
+| M7 | Oracle cursor pairs, spec-defined cursors, call specs, polymorphic table functions, routine pairs, ambiguity rate, overload groups, body forwards, and body-less spec classification |
 | M11 | Maximum reachability steps per root and proposed ceiling/headroom |
 | M12 | Surface bindings per root and symbol, maximums, proposed ceiling/headroom, and share by `anonymous`, `inherited`, and `depth1` |
 | M13 | Union/intersection projection cases and selected semantics |
@@ -1834,7 +1853,7 @@ responses.
 ### Phase 5: Oracle vertical slice
 
 - Record declaration forms.
-- Implement exact heading-gated routine/cursor pairing.
+- Implement heading-gated routine/cursor pairing that ignores parameter defaults.
 - Handle private body forwards with full-definition identity and primary selection.
 - Emit bindings, sites, kinds, usage, and owners.
 - Pass G-B through G-F and the Oracle corpus gates.
@@ -1887,7 +1906,7 @@ thresholds. Those metrics remain blocked, so Phase 6 is not complete.
 | M11/M12 | Final per-root reachability-step and surface-address ceilings | Resolved: 50,000 steps and 2,000 addresses per root |
 | M13 | Union/intersection constituent behavior in address projection | Resolved: constituent-only declarations are reachable, not projected |
 | M14 | Fixed declaration-kind precedence for merged TypeScript symbol identity | Resolved: no fixed precedence; keep the identity anchor kind |
-| Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification |
+| Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification | Frozen export equal (5,654/5,654); live recheck blocked because `USER_IDENTIFIERS` is empty |
 | Q2 | Real-task success, false-absence, token, and tool-call acceptance thresholds | Resolved: thresholds accepted; A/B blocked on private harness |
 
 No DDL work begins until every item marked "Resolve before DDL" has a recorded

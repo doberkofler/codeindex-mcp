@@ -20,6 +20,7 @@ export type OracleDeclarationKindType =
 	| 'variable'
 	| 'constant'
 	| 'cursor'
+	| 'ref_cursor_type'
 	| 'record_type'
 	| 'collection_type'
 	| 'subtype'
@@ -61,7 +62,10 @@ export type OracleDeclarationType = Readonly<{
 	exported: boolean;
 	parameters: readonly OracleParameterType[];
 	typeReferences: readonly OracleTypeReferenceType[];
-	/** Normalized routine/cursor heading used for exact spec/body pairing. */
+	/**
+	 * Normalized routine/cursor heading for spec/body pairing; defaults and a
+	 * lone `IN` are omitted.
+	 */
 	heading?: string | undefined;
 	/** Recorded form for routine and cursor declarations. */
 	form?: OracleDeclarationFormType | undefined;
@@ -99,6 +103,14 @@ export type OracleReferenceSiteType = Readonly<{
 	/** Top-level arguments of one call-shaped site, used for OUT usage bits. */
 	arguments?: readonly OracleReferenceArgumentType[] | undefined;
 	rowType: boolean;
+	/** Whether the site is inside a SQL statement. */
+	sql?: boolean | undefined;
+	/** Whether the site is inside a FOR-loop header. */
+	forBound?: boolean | undefined;
+	/** Whether the site is a datatype length or size argument. */
+	typeSize?: boolean | undefined;
+	/** Whether the site's base name is a loop iterator. */
+	iteratorBase?: boolean | undefined;
 	/** Syntactic usage bit before OUT-argument refinement. */
 	usage?: number | undefined;
 }>;

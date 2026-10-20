@@ -2,6 +2,8 @@ import {type DiagnosticType, type IndexedOccurrenceType} from '../../core/model.
 import {isStoredOracleDeclaration} from './declarationStorage.ts';
 import {ORACLE_DIAGNOSTIC, OracleDiagnosticCollector} from './diagnostics.ts';
 import {type OracleFileAnalysisType} from './extractSymbols.ts';
+import {occurrenceOf} from './referenceOccurrences.ts';
+import {suppressNonRoutine} from './referenceScan.ts';
 import {outArgumentRangesOf, refineOutArgumentUsage, type OutArgumentRangeType} from './referenceOutArguments.ts';
 import {type OracleMemberLookupType, type OraclePackageLookupMapType} from './scopeGraph.ts';
 import {type OracleDeclarationType, type OracleReferenceSiteType} from './syntax.ts';
@@ -357,8 +359,6 @@ const resolveSite = (state: ResolveStateType, site: OracleReferenceSiteType): st
 	return resolveRecordChain(state, site.name.parts, site) ?? resolvePackageMember(state, site.name.parts, site);
 };
 
-const contextOf = (context: string): readonly string[] => [context];
-
 const storedOwnerOf = (file: OracleFileAnalysisType, start: number): string | null => {
 	let current: number | null = start;
 
@@ -380,25 +380,6 @@ const storedOwnerOf = (file: OracleFileAnalysisType, start: number): string | nu
 	return null;
 };
 
-const usageOfSite = (site: OracleReferenceSiteType): number => site.usage ?? (site.kind === 'call' ? 1 : site.kind === 'type-anchor' ? 8 : 2);
-
-const occurrenceOf = (
-	input: Readonly<{context: string; path: string; site: OracleReferenceSiteType; symbolId: string; enclosingId: string | null}>,
-): IndexedOccurrenceType => ({
-	symbolId: input.symbolId,
-	path: input.path,
-	startLine: input.site.nameRange.startLine,
-	startColumn: input.site.nameRange.startColumn,
-	endLine: input.site.nameRange.endLine,
-	endColumn: input.site.nameRange.endColumn,
-	startOffset: input.site.nameRange.startOffset,
-	endOffset: input.site.nameRange.endOffset,
-	role: 'reference',
-	usage: usageOfSite(input.site),
-	enclosingId: input.enclosingId,
-	contexts: contextOf(input.context),
-});
-
 const isStoredTarget = (
 	symbolId: string,
 	symbolDeclarations: ReadonlyMap<string, ResolvedDeclarationType>,
@@ -416,6 +397,28 @@ type FileResolveResultType = Readonly<{
 	outArguments: readonly OutArgumentRangeType[];
 	diagnostics: readonly DiagnosticType[];
 }>;
+
+const targetOf = (input: ResolveInputType, location: ResolvedDeclarationType | undefined): OracleDeclarationType | undefined =>
+	location === undefined ? undefined : input.files[location.fileIndex]?.parse.declarations[location.declarationIndex];
+
+const skipTarget = (
+	input: Readonly<{target: OracleDeclarationType | undefined; location: ResolvedDeclarationType | undefined; fileIndex: number; site: OracleReferenceSiteType}>,
+): boolean =>
+	(input.target?.kind === 'package' && input.site.name.parts.length === 1) ||
+	(input.target !== undefined && input.location !== undefined && input.location.fileIndex !== input.fileIndex && !input.target.exported) ||
+	suppressNonRoutine(input.site, input.target);
+
+const occurrenceSiteOf = (site: OracleReferenceSiteType, target: OracleDeclarationType | undefined): OracleReferenceSiteType => {
+	if (site.kind === 'call' && target !== undefined && target.kind !== 'procedure' && target.kind !== 'function') {
+		return {...site, kind: 'reference', usage: site.name.parts.length === 1 ? 2 : 1};
+	}
+
+	if (site.kind === 'reference' && target !== undefined && (target.kind === 'procedure' || target.kind === 'function') && site.usage === 2) {
+		return {...site, kind: 'call', usage: 1};
+	}
+
+	return site;
+};
 
 const resolveFileReferences = (
 	input: ResolveInputType,
@@ -440,10 +443,16 @@ const resolveFileReferences = (
 			continue;
 		}
 
-		occurrences.push(occurrenceOf({context: input.context, path: file.path, site, symbolId, enclosingId: storedOwnerOf(file, site.enclosing)}));
-
 		const location = symbolDeclarations.get(symbolId);
-		const target = location === undefined ? undefined : input.files[location.fileIndex]?.parse.declarations[location.declarationIndex];
+		const target = targetOf(input, location);
+
+		if (skipTarget({target, location, fileIndex, site})) {
+			continue;
+		}
+
+		const occurrenceSite = occurrenceSiteOf(site, target);
+
+		occurrences.push(occurrenceOf({context: input.context, path: file.path, site: occurrenceSite, symbolId, enclosingId: storedOwnerOf(file, site.enclosing)}));
 
 		if (target !== undefined) {
 			outArguments.push(...outArgumentRangesOf(site, target, file.path));

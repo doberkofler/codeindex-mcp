@@ -4,7 +4,7 @@ import {buildFileGraph, type OracleFileGraphType} from './scopeGraph.ts';
 import {createOracleId} from './symbolIdentity.ts';
 import {mergeForwardDeclarations} from './forwardDeclarations.ts';
 import {buildPackageLookups} from './packageLookups.ts';
-import {buildSpecIndex, matchSpecRoutine, routineKindName} from './specIndex.ts';
+import {buildSpecIndex, matchSpecRoutine} from './specIndex.ts';
 import {type MutableBindingType, type OracleParsedFileType, type SpecPackageType, type SymbolTableType} from './symbolTableTypes.ts';
 import {type OracleDeclarationType, type OracleParseResultType} from './syntax.ts';
 
@@ -126,13 +126,6 @@ const mapBodyRoutine = (
 			input.diagnostics.add(
 				ORACLE_DIAGNOSTIC.pairingAmbiguous,
 				`Ambiguous specification heading for ${input.binding.canonical}`,
-				input.declaration.nameRange.startLine,
-				input.declaration.nameRange.startColumn,
-			);
-		} else if ((spec?.routinesByKindName.get(routineKindName(input.declaration, input.binding.canonical))?.length ?? 0) > 0) {
-			input.diagnostics.add(
-				ORACLE_DIAGNOSTIC.pairingHeadingMismatch,
-				`Body heading does not match the specification for ${input.binding.canonical}`,
 				input.declaration.nameRange.startLine,
 				input.declaration.nameRange.startColumn,
 			);
@@ -346,7 +339,7 @@ const reportMissingBodies = (
 	for (const spec of specs.values()) {
 		for (const routines of spec.routinesByHeading.values()) {
 			for (const routine of routines) {
-				if (routine.declaration.form === 'call_spec' || routine.declaration.form === 'polymorphic_table_function') {
+				if (routine.declaration.form !== 'specification') {
 					continue;
 				}
 
