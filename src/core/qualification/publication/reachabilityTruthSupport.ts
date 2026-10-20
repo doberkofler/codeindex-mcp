@@ -157,6 +157,30 @@ const isEphemeralDeclaration = (declaration: ts.Declaration): boolean =>
 
 export const keyOf = (path: string, nameStart: number): string => `${path}\u0000${String(nameStart)}`;
 
+const RUNTIME_METADATA_NAMES = new Set(['propTypes', 'defaultProps']);
+
+const isRuntimeMetadataMember = (declaration: ts.Declaration): boolean => {
+	let current: ts.Node = declaration.parent;
+
+	while (!ts.isSourceFile(current)) {
+		if (
+			(ts.isPropertyAssignment(current) || ts.isPropertyDeclaration(current)) &&
+			ts.isIdentifier(current.name) &&
+			RUNTIME_METADATA_NAMES.has(current.name.text)
+		) {
+			return true;
+		}
+
+		if (ts.isBinaryExpression(current) && ts.isPropertyAccessExpression(current.left) && RUNTIME_METADATA_NAMES.has(current.left.name.text)) {
+			return true;
+		}
+
+		current = current.parent;
+	}
+
+	return false;
+};
+
 export const addDeclaration = (state: TruthStateType, symbol: ts.Symbol): void => {
 	for (const declaration of authoredDeclarationsOf(symbol, state.authoredPaths)) {
 		if (isEphemeralDeclaration(declaration)) {
@@ -168,6 +192,10 @@ export const addDeclaration = (state: TruthStateType, symbol: ts.Symbol): void =
 		const nameNode = authoredNameNodeOf(sourceFile, declaration);
 
 		if (path === undefined || nameNode === null) {
+			continue;
+		}
+
+		if (isRuntimeMetadataMember(declaration)) {
 			continue;
 		}
 

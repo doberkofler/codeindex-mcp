@@ -29,6 +29,7 @@ export type ExtractionRuntimeType = {
 	readonly symbolIdByKey: Map<string, string>;
 	readonly symbolIdByCanonical: Map<ts.Symbol, string>;
 	readonly symbolIdByDeclaration: Map<ts.Node, string>;
+	readonly symbolIdByPathAndName: Map<string, string>;
 	readonly candidateBySymbolId: Map<string, CandidateType>;
 	readonly deferredNodeById: Map<ts.Node, DeferredCandidateType>;
 	readonly deferredByCanonical: Map<ts.Symbol, DeferredCandidateType[]>;
@@ -98,6 +99,7 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		symbolIdByKey: new Map(),
 		symbolIdByCanonical: new Map(),
 		symbolIdByDeclaration: new Map(),
+		symbolIdByPathAndName: new Map(),
 		candidateBySymbolId: new Map(),
 		deferredNodeById: new Map(),
 		deferredByCanonical: new Map(),
@@ -116,6 +118,12 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		runtime.symbolsById.set(symbol.id, symbol);
 		runtime.symbolIdByKey.set(candidate.key, symbol.id);
 		runtime.candidateBySymbolId.set(symbol.id, candidate);
+
+		const pathAndName = `${candidate.path}\u0000${candidate.name}`;
+
+		if (!runtime.symbolIdByPathAndName.has(pathAndName)) {
+			runtime.symbolIdByPathAndName.set(pathAndName, symbol.id);
+		}
 
 		if (candidate.canonical !== null) {
 			runtime.symbolIdByCanonical.set(candidate.canonical, symbol.id);
@@ -251,6 +259,37 @@ const resolveAliasTarget = (
 	}
 };
 
+const sourceCandidatesForDeclarationFile = (runtime: ExtractionRuntimeType, symbol: ts.Symbol): string | null => {
+	const extensions = ['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs'];
+
+	for (const declaration of symbol.declarations ?? []) {
+		const sourceFile = declaration.getSourceFile();
+
+		if (!sourceFile.isDeclarationFile) {
+			continue;
+		}
+
+		const base = sourceFile.fileName.replace(/\.d\.(?:ts|mts|cts)$/u, '');
+
+		for (const extension of extensions) {
+			const absolute = `${base}${extension}`;
+			const relative = runtime.pathByAbsolute.get(absolute);
+
+			if (relative === undefined) {
+				continue;
+			}
+
+			const symbolId = runtime.symbolIdByPathAndName.get(`${relative}\u0000${symbol.getName()}`);
+
+			if (symbolId !== undefined) {
+				return symbolId;
+			}
+		}
+	}
+
+	return null;
+};
+
 /**
  * Resolves one compiler symbol to a stored symbol, promoting projected members.
  *
@@ -299,6 +338,12 @@ export const symbolForTsSymbol = (runtime: ExtractionRuntimeType, symbol: ts.Sym
 
 	if (direct !== undefined) {
 		return direct;
+	}
+
+	const sourceCandidate = sourceCandidatesForDeclarationFile(runtime, target);
+
+	if (sourceCandidate !== null) {
+		return sourceCandidate;
 	}
 
 	if (!runtime.promotionEnabled) {

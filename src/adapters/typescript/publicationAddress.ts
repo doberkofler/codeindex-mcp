@@ -192,7 +192,29 @@ export const nameNodeOf = (node: ts.Node): ts.Node | undefined => {
 	return isNode(name) ? name : undefined;
 };
 
-const externalTargetOf = (target: ts.Symbol, sourceFile: ts.SourceFile): string | null => {
+const importTargetOf = (node: ts.ImportDeclaration, importedName: string): string | null => {
+	const clause = node.importClause;
+
+	if (clause === undefined || !ts.isStringLiteral(node.moduleSpecifier)) {
+		return null;
+	}
+
+	if (clause.name?.text === importedName) {
+		return node.moduleSpecifier.text;
+	}
+
+	const named = clause.namedBindings;
+
+	for (const element of named !== undefined && ts.isNamedImports(named) ? named.elements : []) {
+		if ((element.propertyName ?? element.name).text === importedName) {
+			return node.moduleSpecifier.text;
+		}
+	}
+
+	return named !== undefined && ts.isNamespaceImport(named) && named.name.text === importedName ? node.moduleSpecifier.text : null;
+};
+
+const externalTargetOf = (target: ts.Symbol, sourceFile: ts.SourceFile, localName?: string): string | null => {
 	for (const declaration of target.declarations ?? []) {
 		if (ts.isImportSpecifier(declaration) || ts.isImportClause(declaration) || ts.isNamespaceImport(declaration)) {
 			const importDeclaration = ts.findAncestor(declaration, ts.isImportDeclaration);
@@ -203,7 +225,7 @@ const externalTargetOf = (target: ts.Symbol, sourceFile: ts.SourceFile): string 
 		}
 	}
 
-	const importedName = target.getName();
+	const importedName = localName ?? target.getName();
 	let found: string | null = null;
 	const visit = (node: ts.Node): void => {
 		if (found !== null) {
@@ -211,20 +233,7 @@ const externalTargetOf = (target: ts.Symbol, sourceFile: ts.SourceFile): string 
 		}
 
 		if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-			const clause = node.importClause;
-			const named = clause?.namedBindings;
-
-			if (clause !== undefined) {
-				for (const element of named !== undefined && ts.isNamedImports(named) ? named.elements : []) {
-					if ((element.propertyName ?? element.name).text === importedName) {
-						found = node.moduleSpecifier.text;
-					}
-				}
-
-				if (named !== undefined && ts.isNamespaceImport(named) && named.name.text === importedName) {
-					found = node.moduleSpecifier.text;
-				}
-			}
+			found = importTargetOf(node, importedName) ?? found;
 		}
 
 		ts.forEachChild(node, visit);
@@ -233,6 +242,9 @@ const externalTargetOf = (target: ts.Symbol, sourceFile: ts.SourceFile): string 
 	visit(sourceFile);
 	return found;
 };
+
+const exportAssignmentLocalName = (node: ts.Node): string | undefined =>
+	ts.isExportAssignment(node) && ts.isIdentifier(node.expression) ? node.expression.text : undefined;
 
 export const externalAliasOf = (node: ts.Node, target: ts.Symbol, sourceFile: ts.SourceFile): Readonly<{target: string; name: string}> | null => {
 	let moduleTarget: string | null = null;
@@ -258,7 +270,7 @@ export const externalAliasOf = (node: ts.Node, target: ts.Symbol, sourceFile: ts
 		externalName = 'default';
 	}
 
-	moduleTarget ??= externalTargetOf(target, sourceFile);
+	moduleTarget ??= externalTargetOf(target, sourceFile, exportAssignmentLocalName(node));
 
 	return moduleTarget === null ? null : {target: moduleTarget, name: externalName};
 };

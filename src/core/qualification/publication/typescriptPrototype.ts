@@ -12,6 +12,7 @@ import {countUnionIntersection} from './unionIntersection.ts';
 import {runProjectionPrototype} from './projectionPrototype.ts';
 import {type ProjectionBudgetType} from './projectionModel.ts';
 import {compareReachabilityTruth} from './reachabilityTruth.ts';
+import {emitDeclarations, posixRelative, rewrittenEmittedPaths} from './typescriptPrototypeEmit.ts';
 
 const SourceMapSchema = z.object({sources: z.array(z.string())});
 
@@ -40,12 +41,6 @@ type P2AccumulatorType = {
 	exportEqualsExpressions: number;
 	missingPublishedAliases: number;
 	missingPublishedAliasesByKind: Record<string, number>;
-};
-
-const posixRelative = (rootDir: string, filePath: string): string | null => {
-	const relative = path.relative(rootDir, filePath).split(path.sep).join('/');
-
-	return relative.length === 0 || relative.startsWith('../') || path.isAbsolute(relative) ? null : relative;
 };
 
 const publishedRootsOf = (finalized: FinalizedFactSetType): readonly PublishedRootType[] => {
@@ -102,61 +97,25 @@ const sourcePathOfDeclarationMap = (mapPath: string, rootDir: string): string | 
 	}
 };
 
-const emitDeclarations = (
-	config: ConfigType,
-	context: ConfigType['projects'][number],
-	outputDirectory: string,
-	authoredFiles: readonly string[],
-): Readonly<{emittedFiles: readonly string[]; declarationMapFiles: readonly string[]; emitErrors: number}> => {
-	const project = loadTypeScriptProject(config, context.projectFilePath);
-	const options: ts.CompilerOptions = {
-		...project.program.getCompilerOptions(),
-		outDir: outputDirectory,
-		allowJs: true,
-		declaration: true,
-		emitDeclarationOnly: true,
-		declarationMap: true,
-		incremental: false,
-		composite: false,
-		noEmit: false,
-		noEmitOnError: false,
-	};
-	const rootNames = [...new Set([...project.program.getRootFileNames(), ...authoredFiles])];
-	const program = ts.createProgram({rootNames, options});
-	const emit = program.emit(
-		undefined,
-		(fileName, text) => {
-			ts.sys.writeFile(fileName, text);
-		},
-		undefined,
-		true,
-	);
-	const emittedFiles = ts.sys.readDirectory(outputDirectory, ['.d.ts', '.d.mts', '.d.cts']).sort();
-	const declarationMapFiles = ts.sys.readDirectory(outputDirectory, ['.d.ts.map', '.d.mts.map', '.d.cts.map']).sort();
-	const emitErrors = emit.diagnostics.filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error).length;
-
-	return {emittedFiles, declarationMapFiles, emitErrors};
-};
-
 const compareEmittedFile = (
 	checker: ts.TypeChecker,
 	sourceFile: ts.SourceFile,
 	rootDir: string,
 	publishedByPath: ReadonlyMap<string, ReadonlySet<string>>,
-): Readonly<{emittedExports: number; mapped: boolean; missing: number; extra: number}> => {
+): Readonly<{emittedExports: number; mapped: boolean; missing: number; extra: number; sourcePath: string | null}> => {
 	const sourcePath = sourcePathOfDeclarationMap(`${sourceFile.fileName}.map`, rootDir);
 	const names = moduleExportsOf(checker, sourceFile);
 
 	if (sourcePath === null) {
-		return {emittedExports: names.length, mapped: false, missing: 0, extra: 0};
+		return {emittedExports: names.length, mapped: false, missing: 0, extra: 0, sourcePath};
 	}
 
 	const publishedNames = publishedByPath.get(sourcePath) ?? new Set<string>();
 	const truthNames = new Set(names);
-	const missing = [...truthNames].filter((name) => !publishedNames.has(name)).length;
-	const extra = [...publishedNames].filter((name) => !truthNames.has(name)).length;
+	const missingNames = [...truthNames].filter((name) => !publishedNames.has(name));
+	const extraNames = [...publishedNames].filter((name) => !truthNames.has(name));
 
-	return {emittedExports: names.length, mapped: true, missing, extra};
+	return {emittedExports: names.length, mapped: true, missing: missingNames.length, extra: extraNames.length, sourcePath};
 };
 
 const addP1Context = (
@@ -167,6 +126,7 @@ const addP1Context = (
 		index: number;
 		directory: string;
 		authoredFiles: readonly string[];
+		authoredPaths: ReadonlySet<string>;
 		publishedByPath: ReadonlyMap<string, ReadonlySet<string>>;
 	}>,
 ): void => {
@@ -181,7 +141,17 @@ const addP1Context = (
 		return;
 	}
 
-	const program = ts.createProgram({rootNames: emitted.emittedFiles, options: {skipLibCheck: true, noEmit: true, allowJs: true}});
+	const paths = rewrittenEmittedPaths(emitted.compilerOptions, input.config.rootDir, contextOutput);
+	const program = ts.createProgram({
+		rootNames: emitted.emittedFiles,
+		options: {
+			...emitted.compilerOptions,
+			...(paths === undefined ? {} : {paths}),
+			noEmit: true,
+			allowJs: true,
+			skipLibCheck: true,
+		},
+	});
 	const checker = program.getTypeChecker();
 	const emittedPaths = new Set(emitted.emittedFiles);
 
@@ -191,6 +161,11 @@ const addP1Context = (
 		}
 
 		const compared = compareEmittedFile(checker, sourceFile, input.config.rootDir, input.publishedByPath);
+
+		if (compared.sourcePath === null || !input.authoredPaths.has(compared.sourcePath)) {
+			continue;
+		}
+
 		accumulator.emittedModules += 1;
 		accumulator.emittedExports += compared.emittedExports;
 
@@ -220,7 +195,15 @@ const p1Of = (config: ConfigType, facts: ExtractedFactSetType, finalized: Finali
 		const authoredFiles = facts.files.map((file) => file.absolutePath);
 
 		for (const [index, context] of config.projects.entries()) {
-			addP1Context(accumulator, {config, context, index, directory, authoredFiles, publishedByPath});
+			addP1Context(accumulator, {
+				config,
+				context,
+				index,
+				directory,
+				authoredFiles,
+				authoredPaths: new Set(facts.files.map((file) => file.path)),
+				publishedByPath,
+			});
 		}
 	} finally {
 		rmSync(directory, {recursive: true, force: true});

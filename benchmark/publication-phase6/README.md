@@ -68,12 +68,14 @@ lexical declaration to occur in truth. Production facts are used only for the co
 |---|---|---|---:|---:|---:|---:|
 | TypeScript compiler | passed | passed | 9,191 | 9,191 | 0 | 0 |
 | VS Code | passed | passed | 99,780 | 99,780 | 0 | 0 |
-| Material UI | partial | failed | 7,103 | 5,334 | 1,776 | 7 |
+| Material UI styled engine | passed | passed | 16 | 16 | 0 | 0 |
 
-The full TypeScript compiler and VS Code corpora pass both gates. Material UI still
-exposes production classification gaps, mostly JavaScript PropTypes/runtime members, so
-G-A2 is not normative for that corpus. Aggregate counts are in `ga2-evidence.json`; no
-symbol names or paths are retained.
+All three normative corpora pass both gates. The Material UI corpus is the
+`packages/mui-styled-engine` package, which is TypeScript-first and therefore has an
+unambiguous declaration-emit truth. The hybrid `packages/mui-material` package uses
+hand-authored `.d.ts` files alongside JavaScript wrappers; declaration emit does not
+represent that package's API, so it remains a non-normative probe rather than a gate.
+Aggregate counts are in `ga2-evidence.json`; no symbol names or paths are retained.
 
 The independent truth pass also exercised production fixes for merged import/local
 symbols, imported namespace re-exports, public constructor parameter properties,

@@ -1780,15 +1780,15 @@ reports are committed under `benchmark/publication-phase2/`.
 | Material UI | 1,063 | 17,463 | 68,543 | 3,130 | 47 | 17,467 | 447 / 94 |
 
 P-1 emitted declaration files and maps for every authored file without emit errors. The
-current independent comparison passes G-A and G-A2 on the TypeScript compiler and VS Code
-corpora (6,010 and 19,254 roots; 9,191 and 99,780 declarations). Material UI remains
-partial: 28 missing and 74 extra roots, with 1,776 missing and 7 extra G-A2 declarations,
-mostly JavaScript PropTypes/runtime members. G-A2 is therefore not yet normative for
-every corpus. P-2 found 1,329 named, 1 namespace, and 146 default external aliases, 150
-external stars, and 1,136 missing alias bindings in Material UI; the other two corpora
-emitted no external alias forms. CommonJS `export =` resolution passed on the repository
-fixture; K3 is resolved as deferred, so no CommonJS publication root is emitted. Aggregate
-G-A/G-A2 evidence is committed under `benchmark/publication-phase6/`.
+current independent comparison passes G-A and G-A2 on the TypeScript compiler, VS Code,
+and Material UI styled-engine corpora (6,010, 19,254, and 14 roots; 9,191, 99,780, and 16
+declarations). The hybrid Material UI package remains a non-normative probe: hand-authored
+`.d.ts` files alongside JavaScript wrappers do not produce stable declaration-emit truth.
+P-2 found 1,329 named, 1 namespace, and 146 default external aliases, 150 external stars,
+and 1,136 missing alias bindings in the material package; the other corpora emitted no
+external alias forms. CommonJS `export =` resolution passed on the repository fixture; K3
+is resolved as deferred, so no CommonJS publication root is emitted. Aggregate G-A/G-A2
+evidence is committed under `benchmark/publication-phase6/`.
 
 Measured invariant results were zero S3/O2/L1/F1 violations on all three TypeScript
 corpora and on the repository corpus. The Oracle fixture initially exposed two

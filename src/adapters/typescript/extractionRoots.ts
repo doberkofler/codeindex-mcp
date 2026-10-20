@@ -282,17 +282,71 @@ const rootSiteOf = (
 	return null;
 };
 
+const moduleTargetIsExternal = (runtime: ExtractionRuntimeType, target: ts.Symbol): boolean => {
+	const declarations = target.declarations ?? [];
+
+	if (declarations.length === 0) {
+		return false;
+	}
+
+	const extensions = ['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs'];
+
+	for (const declaration of declarations) {
+		const sourceFile = declaration.getSourceFile();
+
+		if (runtime.authoredPaths.has(sourceFile.fileName)) {
+			return false;
+		}
+
+		if (sourceFile.isDeclarationFile) {
+			const base = sourceFile.fileName.replace(/\.d\.(?:ts|mts|cts)$/u, '');
+
+			if (extensions.some((extension) => runtime.authoredPaths.has(`${base}${extension}`))) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+};
+
+const externalStarNamesOf = (runtime: ExtractionRuntimeType, stars: readonly ts.ExportDeclaration[]): ReadonlySet<string> => {
+	const names = new Set<string>();
+
+	for (const star of stars) {
+		const target = star.moduleSpecifier === undefined ? undefined : runtime.checker.getSymbolAtLocation(star.moduleSpecifier);
+
+		if (target === undefined || !moduleTargetIsExternal(runtime, target)) {
+			continue;
+		}
+
+		for (const exported of runtime.checker.getExportsOfModule(target)) {
+			names.add(exported.getName());
+		}
+	}
+
+	return names;
+};
+
+const rootSymbolIdOf = (runtime: ExtractionRuntimeType, exported: ts.Symbol, pathName: string, name: string): string | null =>
+	symbolForTsSymbol(runtime, exported) ??
+	runtime.symbolIdByPathAndName.get(`${pathName}\u0000${name}`) ??
+	(exported.declarations ?? []).map((declaration) => symbolForDeclaration(runtime, declaration)).find((id) => id !== null) ??
+	null;
+
 const addModuleRoots = (runtime: ExtractionRuntimeType, sink: FactSinkType, file: SourceFileType, sourceFile: ts.SourceFile): void => {
 	const moduleSymbol = runtime.checker.getSymbolAtLocation(sourceFile);
 	const explicitNames = explicitExportNames(sourceFile);
 	const stars = starDeclarations(sourceFile);
+	const externalStarNames = externalStarNamesOf(runtime, stars);
 
 	for (const exported of moduleSymbol === undefined ? [] : runtime.checker.getExportsOfModule(moduleSymbol)) {
 		const name = exported.getName();
-		const symbolId =
-			symbolForTsSymbol(runtime, exported) ??
-			(exported.declarations ?? []).map((declaration) => symbolForDeclaration(runtime, declaration)).find((id) => id !== null) ??
-			null;
+
+		if (externalStarNames.has(name) && !explicitNames.has(name)) {
+			continue;
+		}
+		const symbolId = rootSymbolIdOf(runtime, exported, file.path, name);
 
 		if (symbolId === null) {
 			continue;
