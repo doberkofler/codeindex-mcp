@@ -5,12 +5,13 @@ import {
 	type OracleDeclarationType,
 	type OracleDependencySiteType,
 	type OracleRangeType,
+	type OracleReferenceArgumentType,
 	type OracleReferenceSiteType,
 	type OracleTypeReferenceType,
 	type OracleUnitType,
 } from './syntax.ts';
 
-const TYPE_KEYWORDS = new Set(['TYPE', 'ROWTYPE']);
+const TYPE_ANCHORS = new Set(['%TYPE', '%ROWTYPE']);
 
 export type OracleParserStateType = {
 	cursor: TokenCursor;
@@ -129,51 +130,95 @@ const nameBefore = (state: OracleParserStateType, endIndex: number): OracleNameR
 	return {parts, startIndex, endIndex, nextIndex: state.cursor.next(endIndex)};
 };
 
+const TYPE_SHAPE_KEYWORDS = new Set([
+	'TABLE',
+	'VARRAY',
+	'OF',
+	'REF',
+	'CURSOR',
+	'RECORD',
+	'INDEX',
+	'BY',
+	'RETURN',
+	'CONSTANT',
+	'DEFAULT',
+	'NOT',
+	'NULL',
+	'IN',
+	'OUT',
+	'NOCOPY',
+]);
+
 export const typeReferencesOf = (state: OracleParserStateType, start: number, end: number): readonly OracleTypeReferenceType[] => {
 	const references: OracleTypeReferenceType[] = [];
+	let declaredName: OracleNameReadType | null = null;
 
 	for (let index = Math.max(0, start); index <= end; index = state.cursor.next(index)) {
-		if (state.cursor.text(index) !== '%' || !TYPE_KEYWORDS.has(state.cursor.upper(state.cursor.next(index)))) {
+		if (!TYPE_ANCHORS.has(state.cursor.upper(index))) {
+			if (
+				declaredName === null &&
+				state.cursor.identifier(index) &&
+				!TYPE_SHAPE_KEYWORDS.has(state.cursor.upper(index)) &&
+				state.cursor.text(state.cursor.previous(index)) !== '.'
+			) {
+				declaredName = state.cursor.readQualifiedName(index);
+			}
+
 			continue;
 		}
 
-		const name = nameBefore(state, index);
+		const name = nameBefore(state, state.cursor.previous(index));
 
 		if (name !== null) {
 			references.push({
 				name: oracleNameOf({parts: name.parts}),
-				range: rangeOf(state, name.startIndex, state.cursor.next(index)),
-				rowType: state.cursor.word(state.cursor.next(index), 'ROWTYPE'),
+				range: rangeOf(state, name.startIndex, index),
+				rowType: state.cursor.upper(index) === '%ROWTYPE',
 			});
 		}
+	}
+
+	if (references.length === 0 && declaredName !== null) {
+		references.push({
+			name: oracleNameOf({parts: declaredName.parts}),
+			range: rangeOf(state, declaredName.startIndex, declaredName.endIndex),
+			rowType: false,
+		});
 	}
 
 	return references;
 };
 
-const argumentInfo = (state: OracleParserStateType, open: number): Readonly<{count: number; names: readonly string[]}> => {
+const argumentInfo = (
+	state: OracleParserStateType,
+	open: number,
+): Readonly<{count: number; names: readonly string[]; arguments: readonly OracleReferenceArgumentType[]}> => {
 	const boundary = state.cursor.findDeclarationEnd(open);
 	const close = state.cursor.findBalancedClose(open, boundary);
 
 	if (close === null || state.cursor.next(open) >= close) {
-		return {count: 0, names: []};
+		return {count: 0, names: [], arguments: []};
 	}
 
 	const ranges = state.cursor.splitTopLevel(state.cursor.next(open), state.cursor.previous(close), ',');
-	const names = ranges.flatMap((range) => {
+	const argumentsWithNames = ranges.map((range) => {
 		const first = state.cursor.readQualifiedName(range.start);
 
 		if (first === null) {
-			return [];
+			return {range: rangeOf(state, range.start, range.end), name: null};
 		}
 
 		const association = state.cursor.text(first.nextIndex);
 		const named = association === '=>' || (association === '=' && state.cursor.text(state.cursor.next(first.nextIndex)) === '>');
 
-		return named ? [first.parts.at(-1)?.canonical ?? ''] : [];
+		return {range: rangeOf(state, range.start, range.end), name: named ? (first.parts.at(-1)?.canonical ?? null) : null};
 	});
 
-	return {count: ranges.length, names};
+	return {
+		count: ranges.length,
+		names: argumentsWithNames.flatMap((argument) => (argument.name === null ? [] : [argument.name])),
+		arguments: argumentsWithNames,
+	};
 };
 
 const addReference = (
@@ -187,7 +232,9 @@ const addReference = (
 		kind: OracleReferenceSiteType['kind'];
 		argumentCount: number | null;
 		argumentNames: readonly string[];
+		arguments?: readonly OracleReferenceArgumentType[] | undefined;
 		rowType: boolean;
+		usage?: number | undefined;
 	}>,
 ): void => {
 	const parsedName: OracleNameType = oracleNameOf({parts: input.name.parts});
@@ -202,7 +249,9 @@ const addReference = (
 		kind: input.kind,
 		argumentCount: input.argumentCount,
 		argumentNames: input.argumentNames,
+		...(input.arguments === undefined ? {} : {arguments: input.arguments}),
 		rowType: input.rowType,
+		...(input.usage === undefined ? {} : {usage: input.usage}),
 	});
 
 	if (input.name.parts.length < 2) {
@@ -225,24 +274,24 @@ const addReference = (
 const addNameSite = (state: OracleParserStateType, input: Readonly<{name: OracleNameReadType; index: number; unit: number; enclosing: number}>): number => {
 	const after = input.name.nextIndex;
 
-	if (state.cursor.text(after) === '%' && TYPE_KEYWORDS.has(state.cursor.upper(state.cursor.next(after)))) {
-		const anchorEnd = state.cursor.next(after);
-
+	if (TYPE_ANCHORS.has(state.cursor.upper(after))) {
 		addReference(state, {
 			name: input.name,
 			start: input.index,
-			end: anchorEnd,
+			end: after,
 			unit: input.unit,
 			enclosing: input.enclosing,
 			kind: 'type-anchor',
 			argumentCount: null,
 			argumentNames: [],
-			rowType: state.cursor.word(state.cursor.next(after), 'ROWTYPE'),
+			rowType: state.cursor.upper(after) === '%ROWTYPE',
+			usage: 8,
 		});
-		return anchorEnd;
+		return after;
 	}
 
 	const call = state.cursor.text(after) === '(' ? argumentInfo(state, after) : null;
+	const writeTarget = call === null && state.cursor.text(after) === ':=';
 
 	addReference(state, {
 		name: input.name,
@@ -253,7 +302,9 @@ const addNameSite = (state: OracleParserStateType, input: Readonly<{name: Oracle
 		kind: call === null ? 'reference' : 'call',
 		argumentCount: call?.count ?? null,
 		argumentNames: call?.names ?? [],
+		...(call === null ? {} : {arguments: call.arguments}),
 		rowType: false,
+		usage: call === null ? (writeTarget ? 4 : 2) : 1,
 	});
 
 	return input.name.endIndex;

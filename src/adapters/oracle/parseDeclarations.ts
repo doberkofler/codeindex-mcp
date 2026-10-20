@@ -11,6 +11,7 @@ import {
 import {
 	collectReferences,
 	createParserState,
+	normalizedTokens,
 	rangeOf,
 	recoverMember,
 	recoverTopLevel,
@@ -20,6 +21,7 @@ import {
 	warnAt,
 	type OracleParserStateType,
 } from './parserState.ts';
+import {routineFormOf} from './routineForm.ts';
 import {TokenCursor} from './tokenCursor.ts';
 import {type OracleDeclarationType, type OracleParseResultType, type OracleUnitKindType, type OracleUnitType} from './syntax.ts';
 import {type OracleTokenType} from './tokenize.ts';
@@ -284,7 +286,7 @@ class OracleDeclarationParser {
 		return signature === null ? null : {name, parameters: parameterList?.parameters ?? [], signature};
 	}
 
-	#parseRoutine(
+	#declareRoutine(
 		input: Readonly<{
 			keyword: number;
 			unitStart: number;
@@ -293,29 +295,32 @@ class OracleDeclarationParser {
 			exported: boolean;
 			kind: 'procedure' | 'function';
 		}>,
-	): number {
-		const header = this.#routineHeader(input.keyword);
-
-		if (header === null) {
-			warnAt(this.#state, ORACLE_DIAGNOSTIC.parse, `Unable to read ${input.kind} declaration`, input.keyword);
-			return recoverMember(this.#state, input.keyword);
-		}
-
+		header: RoutineHeaderType,
+	): Readonly<{declarationIndex: number; unitIndex: number; declarationEnd: number | null}> {
 		const {name} = header;
 		const declarationIndex = this.#state.declarations.length;
 		const unitIndex = input.unit < 0 ? this.#state.units.length : input.unit;
 		const object = input.parent === null ? splitObjectName(name, this.#state.defaultSchema) : null;
+		const unitKind = input.unit < 0 ? null : (this.#state.units[input.unit]?.kind ?? null);
+		const form = routineFormOf(this.#state, {keyword: input.keyword, signature: header.signature, unitKind});
+		const declarationEnd = form === 'call_spec' || form === 'polymorphic_table_function' ? this.#state.cursor.findDeclarationEnd(input.keyword) : null;
 
 		this.#state.declarations.push({
 			kind: input.kind,
 			name: name.parts.at(-1) ?? namePartOf(''),
-			range: rangeOf(this.#state, input.unitStart, header.signature.index),
+			range: rangeOf(this.#state, input.unitStart, declarationEnd ?? header.signature.index),
 			nameRange: rangeOf(this.#state, name.endIndex, name.endIndex),
 			parent: input.parent,
 			unit: unitIndex,
 			exported: input.exported,
 			parameters: header.parameters,
 			typeReferences: typeReferencesOf(this.#state, header.signature.start, header.signature.index),
+			heading: normalizedTokens(
+				this.#state,
+				input.keyword,
+				header.signature.hasBody ? header.signature.index : this.#state.cursor.previous(header.signature.index),
+			),
+			form,
 		});
 		this.#state.definitionStarts.add(this.#state.cursor.token(name.endIndex)?.startOffset ?? -1);
 
@@ -333,6 +338,32 @@ class OracleDeclarationParser {
 
 		addParameters({state: this.#state, parameters: header.parameters, parent: declarationIndex, unit: unitIndex, exported: input.exported});
 		collectReferences({state: this.#state, start: name.nextIndex, end: header.signature.index, enclosing: declarationIndex, unit: unitIndex});
+
+		return {declarationIndex, unitIndex, declarationEnd};
+	}
+
+	#parseRoutine(
+		input: Readonly<{
+			keyword: number;
+			unitStart: number;
+			parent: number | null;
+			unit: number;
+			exported: boolean;
+			kind: 'procedure' | 'function';
+		}>,
+	): number {
+		const header = this.#routineHeader(input.keyword);
+
+		if (header === null) {
+			warnAt(this.#state, ORACLE_DIAGNOSTIC.parse, `Unable to read ${input.kind} declaration`, input.keyword);
+			return recoverMember(this.#state, input.keyword);
+		}
+
+		const {declarationIndex, unitIndex, declarationEnd} = this.#declareRoutine(input, header);
+
+		if (declarationEnd !== null) {
+			return this.#state.cursor.next(declarationEnd);
+		}
 
 		if (!header.signature.hasBody) {
 			this.#updateRange(declarationIndex, unitIndex, input.unitStart, header.signature.index);

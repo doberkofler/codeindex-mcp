@@ -153,7 +153,7 @@ To register manually, add:
 Open `/mcps` in OpenCode and confirm that `codeindex` is connected. OpenCode
 starts the server locally over stdio; no separate daemon is required.
 
-OpenCode V2 exposes MCP tools through Code Mode by default. The six CodeIndex
+OpenCode V2 exposes MCP tools through Code Mode by default. The seven CodeIndex
 tools therefore appear in the `execute` tool catalog rather than as top-level
 entries in the model request's `tools` array. This is expected and does not mean
 the tools are unavailable. Set `codemode` to `false` on the server configuration

@@ -146,6 +146,11 @@ export const parseCursorDeclaration = (input: DeclarationInputType): number => {
 	}
 
 	const parameterList = state.cursor.text(name.nextIndex) === '(' ? parseParameterList(state, name.nextIndex) : null;
+	const definition = findWord(state, name.nextIndex, end, ['IS', 'AS']);
+	const body = definition !== null;
+	const headingEnd = definition === null ? state.cursor.previous(end) : state.cursor.previous(definition);
+	const unitKind = state.units[input.unit]?.kind;
+	const form = body ? 'full_definition' : unitKind === 'package-body' ? 'body_forward' : 'specification';
 	const index = addDeclaration(state, {
 		kind: 'cursor',
 		name: name.parts.at(-1) ?? namePartOf(''),
@@ -156,6 +161,8 @@ export const parseCursorDeclaration = (input: DeclarationInputType): number => {
 		exported: input.exported,
 		parameters: parameterList?.parameters ?? [],
 		typeReferences: typeReferencesOf(state, name.nextIndex, end),
+		heading: normalizedTokens(state, input.start, headingEnd),
+		form,
 	});
 
 	if (parameterList !== null) {

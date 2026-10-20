@@ -14,6 +14,7 @@ const DECLARED_SITE_KIND: FactSiteKindType = 'declared';
 
 export type OraclePublicationSymbolMetadataType = Readonly<{
 	readonly owner: string;
+	readonly canonicalName: string;
 	readonly exported: boolean;
 }>;
 
@@ -26,14 +27,22 @@ export type OraclePublicationInputType = Readonly<{
 
 const compareText = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0);
 
-const chainOf = (symbol: IndexedSymbolType, symbols: ReadonlyMap<string, IndexedSymbolType>, memo: Map<string, readonly string[]>): readonly string[] => {
+const canonicalNameOf = (symbol: IndexedSymbolType, metadata: ReadonlyMap<string, OraclePublicationSymbolMetadataType>): string =>
+	metadata.get(symbol.id)?.canonicalName ?? symbol.name;
+
+const chainOf = (
+	symbol: IndexedSymbolType,
+	symbols: ReadonlyMap<string, IndexedSymbolType>,
+	metadata: ReadonlyMap<string, OraclePublicationSymbolMetadataType>,
+	memo: Map<string, readonly string[]>,
+): readonly string[] => {
 	const existing = memo.get(symbol.id);
 
 	if (existing !== undefined) {
 		return existing;
 	}
 
-	const names: string[] = [symbol.name];
+	const names: string[] = [canonicalNameOf(symbol, metadata)];
 	const seen = new Set<string>([symbol.id]);
 	let parentId = symbol.enclosingId;
 
@@ -45,7 +54,7 @@ const chainOf = (symbol: IndexedSymbolType, symbols: ReadonlyMap<string, Indexed
 			break;
 		}
 
-		names.push(parent.name);
+		names.push(canonicalNameOf(parent, metadata));
 		parentId = parent.enclosingId;
 	}
 
@@ -61,7 +70,7 @@ const addressOf = (
 	memo: Map<string, readonly string[]>,
 ): FactAddressType => {
 	const owner = metadata.get(symbol.id)?.owner ?? '';
-	const names = chainOf(symbol, symbols, memo);
+	const names = chainOf(symbol, symbols, metadata, memo);
 	const segments: FactAddressSegmentType[] = [['owner', owner]];
 
 	for (const name of names) {

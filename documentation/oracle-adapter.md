@@ -63,30 +63,54 @@ The Oracle extractor requires an explicit `extractor.project` or
 
 ## 3. Symbols
 
-O1 emits these kinds:
+Stored symbols use these kinds:
 
-`package`, `procedure`, `function`, `parameter`, `variable`, `constant`,
-`cursor`, `record_type`, `collection_type`, `subtype`, `exception`, `field`.
+`package`, `procedure`, `function`, `variable`, `constant`, `cursor`,
+`record_type`, `collection_type`, `subtype`, `exception`, `field`.
+
+Parameters and routine-local declarations are ephemeral. They participate in
+resolution but are never persisted or searchable. Nested named routines remain
+stored as internal symbols.
 
 Package specifications own canonical public-member symbols. A matching package
-body adds definition occurrences for those symbols and their parameters instead
-of creating duplicate public symbols. Private and nested body declarations own
-new symbols at their body locations. Overloads remain distinct.
+body adds definition occurrences for those symbols instead of creating duplicate
+public symbols. Private body declarations own new symbols at their body
+locations. Overloads remain distinct.
+
+Specification and body routines and cursors pair only when their complete
+normalized headings match apart from whitespace. Heading mismatches, ambiguous
+candidates, and missing bodies produce pairing diagnostics; a fallback signature
+never silently pairs declarations. Package-body private forwards pair with their
+full implementation, which owns identity and the primary definition.
 
 Canonical names use `SCHEMA.PACKAGE.MEMBER`. Unquoted identifiers canonicalize to
 uppercase; quoted identifiers preserve exact case and are kept distinct from
-unquoted equivalents.
+unquoted equivalents. Binding display begins with `owner["SCHEMA"]::` and uses the
+same canonical spelling.
+
+Every stored declaration emits one lexical binding, one context exposure, and
+declared source sites. Specification and standalone declarations are published;
+body-only declarations and nested routines are internal. Oracle does not use the
+`reachable` exposure.
 
 ## 4. References
 
-References are emitted only when static resolution proves a target:
+References are emitted only when static resolution proves a target and that target
+is stored:
 
-- parameters and routine-local declarations, including nested-routine capture;
-- nested declarations;
+- nested and private declarations;
 - package-private and package-public members;
 - qualified members of indexed workspace packages;
 - record fields reached through a known record type;
 - `%TYPE` and `%ROWTYPE` anchors when the target declaration is indexed.
+
+References whose target is ephemeral are dropped. Reference ownership is the
+innermost stored definition containing the reference name.
+
+Reference usage bits are `call` for calls, `read` for ordinary reads, `write` for
+assignment targets and `OUT` arguments, `read + write` for `IN OUT` arguments, and
+`type_ref` for type positions and `%TYPE`/`%ROWTYPE` anchors. Definitions always
+use zero.
 
 Unqualified overload calls resolve by callable kind, canonical name, argument
 count, named arguments, and available defaults. Remaining ambiguity produces one
@@ -104,7 +128,6 @@ O1 dependency kinds are `package-call`, `package-reference`, and
   body path when no specification is indexed.
 - Unresolved external package calls remain directly queryable as
   `SCHEMA.PACKAGE` using the manifest default schema when source omits a schema.
-- Oracle O1 emits no binding rows.
 
 Table and column chains do not become package dependencies. Only calls, indexed
 package references, and indexed type anchors produce edges.
@@ -119,8 +142,10 @@ src/adapters/oracle/
   parseDeclarations.ts top-level, package, routine, and member orchestration
   parseMembers.ts      parameters, types, cursors, values, record fields
   scopeGraph.ts        canonical names and callable signatures
-  symbolTables.ts      spec/body linkage and declaration bindings
-  resolveReferences.ts static scope and overload resolution
+  declarationStorage.ts stored versus ephemeral declaration classes
+  symbolTables.ts      heading-gated spec/body and forward pairing
+  publicationFacts.ts  lexical bindings, contexts, and declared sites
+  resolveReferences.ts static scope, overload, ownership, and usage resolution
   extractDependencies.ts package dependency edges
   manifest.ts          validated manifest and deterministic discovery
   scanProject.ts       source manifest, hashes, and extractor identity

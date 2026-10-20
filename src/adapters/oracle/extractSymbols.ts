@@ -1,5 +1,6 @@
 import {type ExtractedOccurrenceType, type ExtractedPublicationFactsType} from '../../core/facts/index.ts';
 import {type DiagnosticType, type IndexedOccurrenceType, type IndexedSymbolType} from '../../core/model.ts';
+import {isStoredOracleDeclaration} from './declarationStorage.ts';
 import {createOraclePublicationFacts, type OraclePublicationSymbolMetadataType} from './publicationFacts.ts';
 import {type OracleFileGraphType, type OraclePackageLookupMapType} from './scopeGraph.ts';
 import {type OracleParseResultType, type OracleRangeType} from './syntax.ts';
@@ -14,6 +15,7 @@ export type OracleFileAnalysisType = Readonly<{
 	bindings: readonly Readonly<{
 		canonical: string;
 		signature: string;
+		heading: string;
 		symbolId: string;
 		definitionOnly: boolean;
 		mapped: boolean;
@@ -34,6 +36,8 @@ type InputType = Readonly<{
 	projectId: string;
 	context: string;
 	files: readonly OracleParsedFileType[];
+	/** Persist only the policy-approved stored declaration classes. */
+	storedOnly?: boolean | undefined;
 }>;
 
 const definitionOccurrence = (
@@ -60,6 +64,7 @@ const analysesOf = (files: readonly OracleParsedFileType[], table: ReturnType<ty
 		bindings: (table.bindings[index] ?? []).map((binding) => ({
 			canonical: binding.canonical,
 			signature: binding.signature,
+			heading: binding.heading,
 			symbolId: binding.symbolId,
 			definitionOnly: binding.definitionOnly,
 			mapped: binding.mappedSpec !== null,
@@ -85,20 +90,30 @@ const isRoutineKind = (kind: string): boolean => kind === 'procedure' || kind ==
 
 const isSpecUnitKind = (kind: string | undefined): boolean => kind === 'package-spec' || kind === 'procedure' || kind === 'function';
 
-const anchorRankOf = (bodyUnit: boolean, bodyForward: boolean, definitionOnly: boolean): number => {
-	if (!bodyUnit) {
+const anchorRankOf = (
+	declaration: OracleParsedFileType['parse']['declarations'][number],
+	unit: OracleParsedFileType['parse']['units'][number] | undefined,
+): number => {
+	if (declaration.kind === 'package') {
+		return unit?.kind === 'package-body' ? 1 : 0;
+	}
+
+	return declaration.form === 'full_definition' ? 1 : declaration.form === 'body_forward' ? 2 : 0;
+};
+
+const primaryRankOf = (
+	declaration: OracleParsedFileType['parse']['declarations'][number],
+	unit: OracleParsedFileType['parse']['units'][number] | undefined,
+): number => {
+	if (declaration.kind === 'package') {
+		return unit?.kind === 'package-body' ? 1 : 0;
+	}
+
+	if (declaration.form === 'full_definition') {
 		return 0;
 	}
 
-	return bodyForward ? 2 : definitionOnly ? 1 : 0;
-};
-
-const primaryRankOf = (bodyUnit: boolean, kind: string, isRoutine: boolean): number => {
-	if (bodyUnit) {
-		return kind === 'package' ? 1 : 0;
-	}
-
-	return kind === 'package' || !isRoutine ? 0 : 1;
+	return declaration.form === 'body_forward' ? 2 : 1;
 };
 
 const definitionRanks = (
@@ -110,12 +125,12 @@ const definitionRanks = (
 	const isRoutine = isRoutineKind(declaration.kind);
 	const bodyUnit = unit?.kind === 'package-body';
 	const pairedForward = isSpecUnitKind(unit?.kind) && isRoutine && bodyMappedSymbolIds.has(binding.symbolId);
-	const bodyForward = bodyUnit && binding.definitionOnly && binding.mappedSpec === null && isRoutine;
+	const bodyForward = bodyUnit && declaration.form === 'body_forward' && isRoutine;
 
 	return {
 		forwardDefinition: pairedForward || bodyForward,
-		anchorRank: anchorRankOf(bodyUnit, bodyForward, binding.definitionOnly),
-		primaryRank: primaryRankOf(bodyUnit, declaration.kind, isRoutine),
+		anchorRank: anchorRankOf(declaration, unit),
+		primaryRank: primaryRankOf(declaration, unit),
 	};
 };
 
@@ -129,11 +144,12 @@ const emitDeclaration = (
 		symbols: IndexedSymbolType[];
 		occurrences: ExtractedOccurrenceType[];
 		metadata: Map<string, OraclePublicationSymbolMetadataType>;
+		storedOnly: boolean;
 	}>,
 ): void => {
 	const {declaration, binding} = input;
 
-	if (binding.symbolId === '') {
+	if (binding.symbolId === '' || (input.storedOnly && !isStoredOracleDeclaration(input.file.parse, declaration))) {
 		return;
 	}
 
@@ -147,6 +163,7 @@ const emitDeclaration = (
 		input.symbols.push(ownSymbol);
 		input.metadata.set(ownSymbol.id, {
 			owner: unit?.schema.canonical ?? '',
+			canonicalName: declaration.name.canonical,
 			exported: (existing?.exported ?? false) || declaration.exported,
 		});
 	}
@@ -168,7 +185,7 @@ const emitDeclaration = (
 };
 
 const emitFacts = (
-	input: Readonly<{files: readonly OracleParsedFileType[]; context: string; table: ReturnType<typeof buildSymbolTable>}>,
+	input: Readonly<{files: readonly OracleParsedFileType[]; context: string; table: ReturnType<typeof buildSymbolTable>; storedOnly: boolean}>,
 ): Readonly<{
 	symbols: IndexedSymbolType[];
 	occurrences: IndexedOccurrenceType[];
@@ -184,7 +201,17 @@ const emitFacts = (
 			const binding = input.table.bindings[fileIndex]?.[index];
 
 			if (binding !== undefined) {
-				emitDeclaration({file, context: input.context, declaration, binding, bodyMappedSymbolIds, symbols, occurrences, metadata});
+				emitDeclaration({
+					file,
+					context: input.context,
+					declaration,
+					binding,
+					bodyMappedSymbolIds,
+					symbols,
+					occurrences,
+					metadata,
+					storedOnly: input.storedOnly,
+				});
 			}
 		}
 	}
@@ -213,7 +240,7 @@ const emitFacts = (
  */
 export const extractOracleSymbols = (input: InputType): OracleContextSymbolsType => {
 	const table = buildSymbolTable(input);
-	const facts = emitFacts({files: input.files, context: input.context, table});
+	const facts = emitFacts({files: input.files, context: input.context, table, storedOnly: input.storedOnly ?? false});
 
 	return {
 		analyses: analysesOf(input.files, table),

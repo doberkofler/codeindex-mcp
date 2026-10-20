@@ -405,7 +405,7 @@ describe('MCP Oracle adapter', () => {
 		try {
 			const status = await client.callTool({name: 'index_status', arguments: {}});
 			const outline = await client.callTool({name: 'outline', arguments: {path: 'database/hr_api.pks', kinds: ['package'], limit: 100}});
-			const symbols = await client.callTool({name: 'find_symbol', arguments: {query: 'owner["APP"]::hr_api.delete_employee', match: 'qualified'}});
+			const symbols = await client.callTool({name: 'find_symbol', arguments: {query: 'owner["APP"]::HR_API.DELETE_EMPLOYEE', match: 'qualified'}});
 			const symbolData = JSON.parse(textOf(symbols)) as EnvelopeType & {data: {items: readonly {id: string; match: string}[]}};
 			const exact = symbolData.data.items.find((item) => item.match === 'exact_qualified');
 			const references = await client.callTool({name: 'find_references', arguments: {symbolId: exact?.id ?? ''}});
@@ -416,7 +416,7 @@ describe('MCP Oracle adapter', () => {
 				expect(result.isError).not.toBe(true);
 			}
 
-			expect(textOf(outline)).toContain(String.raw`owner[\"APP\"]::hr_api`);
+			expect(textOf(outline)).toContain(String.raw`owner[\"APP\"]::HR_API`);
 			expect(textOf(references)).toContain('database/hr_api.pkb');
 			expect(textOf(dependencies)).toContain('database/maintenance_run.prc');
 		} finally {

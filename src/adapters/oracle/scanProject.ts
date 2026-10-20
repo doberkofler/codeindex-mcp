@@ -9,7 +9,7 @@ import {oracleParserIdOfConfig} from './parserBinding.ts';
 import {oracleParserIdentityOf} from './parserIdentity.ts';
 
 export const ORACLE_EXTRACTOR_ID = 'oracle';
-export const ORACLE_EXTRACTOR_VERSION = '0.1.0';
+export const ORACLE_EXTRACTOR_VERSION = '0.2.0';
 
 const {isAbsolute, relative, sep} = path;
 

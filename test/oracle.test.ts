@@ -180,12 +180,12 @@ describe('Oracle index integration', () => {
 		expect(status.scope.extractor.id).toBe('oracle');
 		expect(status.counts.files).toBeGreaterThan(4);
 		expect(status.counts.diagnostics).toBe(0);
-		expect(outline.items.some((symbol) => symbol.kind === 'package' && symbol.qualifiedName === 'owner["APP"]::hr_api')).toBe(true);
-		expect(outline.items.some((symbol) => symbol.kind === 'procedure' && symbol.name === 'save_employee')).toBe(true);
+		expect(outline.items.some((symbol) => symbol.kind === 'package' && symbol.qualifiedName === 'owner["APP"]::HR_API')).toBe(true);
+		expect(outline.items.some((symbol) => symbol.kind === 'procedure' && symbol.name === 'SAVE_EMPLOYEE')).toBe(true);
 	});
 
 	it('links body definitions to canonical specification symbols', () => {
-		const matches = fixture.index.findSymbols({query: 'owner["APP"]::hr_api.save_employee', match: 'qualified', limit: 10});
+		const matches = fixture.index.findSymbols({query: 'owner["APP"]::HR_API.SAVE_EMPLOYEE', match: 'qualified', limit: 10});
 		const exact = matches.items.filter((item) => item.match === 'exact_qualified');
 		const references = fixture.index.findReferences({symbolId: exact[0]?.id ?? '', limit: 100});
 
@@ -196,15 +196,15 @@ describe('Oracle index integration', () => {
 		]);
 	});
 
-	it('resolves package calls, record fields, and local variables', () => {
-		const sync = firstSymbol('owner["APP"]::sales_api.sync_employee');
-		const label = firstSymbol('owner["APP"]::hr_api.employee_label');
-		const local = firstSymbol('owner["APP"]::sales_api.sync_employee.l_name');
-		const deleteEmployee = firstSymbol('owner["APP"]::hr_api.delete_employee');
+	it('resolves package calls and record fields while keeping ephemeral declarations out of the index', () => {
+		const sync = firstSymbol('owner["APP"]::SALES_API.SYNC_EMPLOYEE');
+		const label = firstSymbol('owner["APP"]::HR_API.EMPLOYEE_LABEL');
+		const deleteEmployee = firstSymbol('owner["APP"]::HR_API.DELETE_EMPLOYEE');
 
 		expect(fixture.index.findReferences({symbolId: sync.id, limit: 100}).items.length).toBeGreaterThan(0);
 		expect(fixture.index.findReferences({symbolId: label.id, limit: 100}).items.length).toBeGreaterThan(1);
-		expect(fixture.index.findReferences({symbolId: local.id, limit: 100}).items.length).toBeGreaterThan(0);
+		expect(fixture.index.findSymbols({query: 'owner["APP"]::SALES_API.SYNC_EMPLOYEE.L_NAME', match: 'qualified', limit: 10}).items).toHaveLength(0);
+		expect(fixture.index.findSymbols({query: 'owner["APP"]::HR_API.FIND_EMPLOYEE.P_NAME', match: 'qualified', limit: 10}).items).toHaveLength(0);
 
 		const qualifiedCall = fixture.index
 			.findReferences({symbolId: deleteEmployee.id, limit: 100})
@@ -212,29 +212,18 @@ describe('Oracle index integration', () => {
 
 		expect(qualifiedCall?.startColumn).toBe(10);
 
-		const namedParameter = fixture.index
-			.findSymbols({query: 'owner["APP"]::hr_api.find_employee.p_name', match: 'qualified', limit: 10})
-			.items.find((item) => item.kind === 'parameter');
-
-		expect(namedParameter).toBeDefined();
-		expect(
-			fixture.index
-				.findReferences({symbolId: namedParameter?.id ?? '', limit: 100})
-				.items.some((item) => item.path === 'database/hr_api.pkb' && item.startLine === 41 && item.startColumn === 24),
-		).toBe(false);
-
-		const packageSymbol = firstSymbol('owner["APP"]::hr_api');
+		const packageSymbol = firstSymbol('owner["APP"]::HR_API');
 		const packageReferences = fixture.index.findReferences({symbolId: packageSymbol.id, limit: 100}).items;
 
 		expect(packageReferences.some((item) => item.path === 'database/hr_api.pkb' && item.startLine === 57)).toBe(false);
 
-		const record = firstSymbol('owner["APP"]::hr_api.t_employee');
+		const record = firstSymbol('owner["APP"]::HR_API.T_EMPLOYEE');
 		expect(fixture.index.findReferences({symbolId: record.id, limit: 100}).items.map((item) => item.path)).toContain('database/sales_api.pkb');
 
-		const field = firstSymbol('owner["APP"]::hr_api.t_employee.id');
+		const field = firstSymbol('owner["APP"]::HR_API.T_EMPLOYEE.ID');
 		expect(fixture.index.findReferences({symbolId: field.id, limit: 10}).items.map((item) => item.role)).toStrictEqual(['definition']);
 
-		const forward = firstSymbol('owner["APP"]::hr_api.forward_helper');
+		const forward = firstSymbol('owner["APP"]::HR_API.FORWARD_HELPER');
 		const forwardDefinitions = fixture.index.findReferences({symbolId: forward.id, role: 'definition', limit: 10});
 
 		expect(forwardDefinitions.items).toHaveLength(2);
@@ -256,7 +245,7 @@ describe('Oracle index integration', () => {
 	});
 
 	it('reads bounded source for an Oracle symbol', () => {
-		const symbol = firstSymbol('owner["APP"]::sales_api.sync_employee');
+		const symbol = firstSymbol('owner["APP"]::SALES_API.SYNC_EMPLOYEE');
 		const result = fixture.index.readSymbol({symbolId: symbol.id, contextLines: 1});
 
 		if (result.kind !== 'text') {

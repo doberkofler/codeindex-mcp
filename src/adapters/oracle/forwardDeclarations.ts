@@ -22,7 +22,7 @@ const collectGroups = (files: readonly OracleParsedFileType[], bindings: readonl
 				continue;
 			}
 
-			const key = `${file.path}\u0000${unit.canonical}\u0000${declaration.parent ?? -1}\u0000${binding.signature}`;
+			const key = `${file.path}\u0000${unit.canonical}\u0000${declaration.parent ?? -1}\u0000${binding.heading === '' ? binding.signature : binding.heading}`;
 			const group = groups.get(key) ?? [];
 
 			group.push({fileIndex, index});

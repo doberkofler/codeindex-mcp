@@ -156,19 +156,22 @@ describe('report-only publication qualification', () => {
 	});
 
 	it('measures Oracle pairing facts and leaves prototypes disabled', async () => {
-		const {report} = await runForFixture('oracle-project', 'oracle', 'oracle-index.json');
+		const {report} = await runForFixture('oracle-publication-project', 'oracle', 'oracle-index.json');
 
 		expect(report.extractor.id).toBe('oracle');
 		expect(report.facts.symbols).toBeGreaterThan(0);
 		expect(report.measurements.m7.status).toBe('measured');
 		expect(report.measurements.m7.routinePairs).toBeGreaterThan(0);
+		expect(report.measurements.m7.cursorPairs).toBeGreaterThan(0);
+		expect(report.measurements.m7.callSpecs).toBeGreaterThan(0);
+		expect(report.measurements.m7.polymorphicTableFunctions).toBeGreaterThan(0);
 		expect(report.measurements.m7.bodyForwards).toBeGreaterThan(0);
 		expect(report.measurements.m7.bodyLessSpec).toBeGreaterThan(0);
 		expect(report.prototypes.p1).toBeNull();
 		expect(report.prototypes.p2).toBeNull();
 		expect(report.prototypes.p3).toBeNull();
 		expect(report.measurements.r2.status).toBe('measured');
-		expect(report.measurements.r2.o2.classes).toHaveProperty('parameter_type_reference_owner');
+		expect(report.measurements.r2.o2.classes).toStrictEqual({});
 	});
 
 	it('classifies CommonJS export assignments and JavaScript files', async () => {

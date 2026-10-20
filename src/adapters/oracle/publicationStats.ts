@@ -30,41 +30,20 @@ type PairSummaryType = {
 	callSpecs: number;
 	polymorphicTableFunctions: number;
 	bodyLess: number;
+	unclassifiedBodyLess: number;
 };
 
-const routineKey = (entry: RoutineEntryType): string => `${entry.declaration.kind}\u0000${entry.binding.canonical}\u0000${entry.binding.signature}`;
+const routineKey = (entry: RoutineEntryType): string => `${entry.declaration.kind}\u0000${entry.binding.canonical}\u0000${entry.binding.heading}`;
 
 const overloadKey = (entry: RoutineEntryType): string => `${entry.declaration.kind}\u0000${entry.binding.canonical}`;
 
 const unitKindOf = (entry: RoutineEntryType): string => entry.analysis.parse.units[entry.declaration.unit]?.kind ?? 'unknown';
 
-const isSpecUnit = (entry: RoutineEntryType): boolean => {
-	const kind = unitKindOf(entry);
-
-	return kind === 'package-spec' || kind === 'procedure' || kind === 'function';
-};
+const isSpecUnit = (entry: RoutineEntryType): boolean => unitKindOf(entry) === 'package-spec';
 
 const isBodyUnit = (entry: RoutineEntryType): boolean => unitKindOf(entry) === 'package-body';
 
-const declarationForm = (entry: RoutineEntryType, sources: ReadonlyMap<string, string>): 'call_spec' | 'polymorphic_table_function' | 'unclassified' => {
-	const source = sources.get(entry.analysis.path);
-
-	if (source === undefined) {
-		return 'unclassified';
-	}
-
-	const text = source.slice(entry.declaration.range.startOffset, entry.declaration.range.endOffset);
-
-	if (/\bpolymorphic\s+table\s+function\b|\bpragma\s+interface\s*\(\s*ptf\b/iu.test(text)) {
-		return 'polymorphic_table_function';
-	}
-
-	if (/\b(?:is|as)\s+(?:language|external)\b|\blanguage\s+(?:c|java)\b|\bexternal\s+name\b/iu.test(text)) {
-		return 'call_spec';
-	}
-
-	return 'unclassified';
-};
+const declarationForm = (entry: RoutineEntryType): string => entry.declaration.form ?? 'unclassified';
 
 const add = (stats: Map<string, AdapterStatType>, metric: string, value: number, dimensions: readonly string[] = []): void => {
 	if (value === 0) {
@@ -92,6 +71,8 @@ const indexDeclaration = (stats: Map<string, AdapterStatType>, index: RoutineInd
 		return;
 	}
 
+	add(stats, 'oracle_declaration_forms', 1, [declaration.form ?? 'unclassified']);
+
 	const entry: RoutineEntryType = {analysis, declarationIndex, declaration, binding};
 
 	if (isSpecUnit(entry)) {
@@ -106,13 +87,14 @@ const indexDeclaration = (stats: Map<string, AdapterStatType>, index: RoutineInd
 		return;
 	}
 
+	if (declaration.form === 'body_forward') {
+		index.bodyForwards += 1;
+		return;
+	}
+
 	const group = index.bodyRoutines.get(routineKey(entry)) ?? [];
 	group.push(entry);
 	index.bodyRoutines.set(routineKey(entry), group);
-
-	if (binding.definitionOnly && !binding.mapped) {
-		index.bodyForwards += 1;
-	}
 };
 
 const collectRoutines = (stats: Map<string, AdapterStatType>, analyses: readonly OracleFileAnalysisType[]): RoutineIndexType => {
@@ -127,8 +109,15 @@ const collectRoutines = (stats: Map<string, AdapterStatType>, analyses: readonly
 	return index;
 };
 
-const summaryOfPairs = (index: RoutineIndexType, sources: ReadonlyMap<string, string>, stats: Map<string, AdapterStatType>): PairSummaryType => {
-	const summary: PairSummaryType = {routinePairs: 0, cursorPairs: 0, callSpecs: 0, polymorphicTableFunctions: 0, bodyLess: 0};
+const summaryOfPairs = (index: RoutineIndexType, stats: Map<string, AdapterStatType>): PairSummaryType => {
+	const summary: PairSummaryType = {
+		routinePairs: 0,
+		cursorPairs: 0,
+		callSpecs: 0,
+		polymorphicTableFunctions: 0,
+		bodyLess: 0,
+		unclassifiedBodyLess: 0,
+	};
 
 	for (const [key, spec] of index.specRoutines) {
 		const body = index.bodyRoutines.get(key);
@@ -144,12 +133,14 @@ const summaryOfPairs = (index: RoutineIndexType, sources: ReadonlyMap<string, st
 		}
 
 		summary.bodyLess += 1;
-		const form = declarationForm(spec, sources);
+		const form = declarationForm(spec);
 
 		if (form === 'call_spec') {
 			summary.callSpecs += 1;
 		} else if (form === 'polymorphic_table_function') {
 			summary.polymorphicTableFunctions += 1;
+		} else {
+			summary.unclassifiedBodyLess += 1;
 		}
 
 		add(stats, 'oracle_body_less_spec', 1, [form]);
@@ -169,17 +160,21 @@ const addPairMetrics = (
 	add(stats, 'oracle_call_specs', summary.callSpecs);
 	add(stats, 'oracle_polymorphic_table_functions', summary.polymorphicTableFunctions);
 	add(stats, 'oracle_body_forwards', index.bodyForwards);
+	add(stats, 'oracle_body_less_unclassified', summary.unclassifiedBodyLess);
 
 	for (const group of index.overloads.values()) {
-		if (new Set(group.map((entry) => entry.binding.signature)).size > 1) {
+		if (new Set(group.map((entry) => entry.binding.heading)).size > 1) {
 			add(stats, 'oracle_overload_groups', 1);
 		}
 	}
 
-	const ambiguityCount = diagnostics.filter((diagnostic) => diagnostic.code === ORACLE_DIAGNOSTIC.ambiguousOverload).length;
+	const countCode = (code: number): number => diagnostics.filter((diagnostic) => diagnostic.code === code).length;
+	const ambiguousCount = countCode(ORACLE_DIAGNOSTIC.pairingAmbiguous);
 
-	add(stats, 'oracle_pairing_diagnostics', ambiguityCount, ['ambiguous_candidate']);
-	add(stats, 'oracle_ambiguity_rate_ppm', index.specRoutines.size === 0 ? 0 : Math.round((ambiguityCount / index.specRoutines.size) * 1_000_000));
+	add(stats, 'oracle_pairing_diagnostics', countCode(ORACLE_DIAGNOSTIC.pairingHeadingMismatch), ['heading_mismatch']);
+	add(stats, 'oracle_pairing_diagnostics', ambiguousCount, ['ambiguous_candidate']);
+	add(stats, 'oracle_pairing_diagnostics', countCode(ORACLE_DIAGNOSTIC.pairingMissingBody), ['missing_body']);
+	add(stats, 'oracle_ambiguity_rate_ppm', index.specRoutines.size === 0 ? 0 : Math.round((ambiguousCount / index.specRoutines.size) * 1_000_000));
 };
 
 const sortedStats = (stats: ReadonlyMap<string, AdapterStatType>): readonly AdapterStatType[] =>
@@ -206,7 +201,7 @@ export const oraclePublicationStats = (
 ): OraclePublicationStatsType => {
 	const stats = new Map<string, AdapterStatType>();
 	const index = collectRoutines(stats, input.analyses);
-	const pairs = summaryOfPairs(index, input.sources, stats);
+	const pairs = summaryOfPairs(index, stats);
 	addPairMetrics(stats, index, pairs, input.diagnostics);
 
 	return {stats: sortedStats(stats)};

@@ -26,6 +26,14 @@ export type OracleDeclarationKindType =
 	| 'exception'
 	| 'field';
 
+/**
+ * Source form of one routine or cursor declaration.
+ *
+ * The form decides identity and primary-definition ranking and whether a
+ * specification requires a body.
+ */
+export type OracleDeclarationFormType = 'specification' | 'full_definition' | 'body_forward' | 'call_spec' | 'polymorphic_table_function';
+
 export type OracleTypeReferenceType = Readonly<{
 	name: OracleNameType;
 	range: OracleRangeType;
@@ -53,6 +61,10 @@ export type OracleDeclarationType = Readonly<{
 	exported: boolean;
 	parameters: readonly OracleParameterType[];
 	typeReferences: readonly OracleTypeReferenceType[];
+	/** Normalized routine/cursor heading used for exact spec/body pairing. */
+	heading?: string | undefined;
+	/** Recorded form for routine and cursor declarations. */
+	form?: OracleDeclarationFormType | undefined;
 }>;
 
 export type OracleUnitType = Readonly<{
@@ -66,6 +78,13 @@ export type OracleUnitType = Readonly<{
 	declaration: number;
 }>;
 
+export type OracleReferenceArgumentType = Readonly<{
+	/** Complete authored argument expression range. */
+	range: OracleRangeType;
+	/** Canonical parameter name for a named association, otherwise null. */
+	name: string | null;
+}>;
+
 export type OracleReferenceSiteType = Readonly<{
 	name: OracleNameType;
 	/** Range of the complete authored name, including qualifiers. */
@@ -77,7 +96,11 @@ export type OracleReferenceSiteType = Readonly<{
 	kind: 'call' | 'reference' | 'type-anchor';
 	argumentCount: number | null;
 	argumentNames: readonly string[];
+	/** Top-level arguments of one call-shaped site, used for OUT usage bits. */
+	arguments?: readonly OracleReferenceArgumentType[] | undefined;
 	rowType: boolean;
+	/** Syntactic usage bit before OUT-argument refinement. */
+	usage?: number | undefined;
 }>;
 
 export type OracleDependencySiteType = Readonly<{

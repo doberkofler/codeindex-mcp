@@ -1,51 +1,14 @@
-import {type DiagnosticType, type IndexedSymbolType} from '../../core/model.ts';
+import {type IndexedSymbolType} from '../../core/model.ts';
 import {ORACLE_DIAGNOSTIC, OracleDiagnosticCollector} from './diagnostics.ts';
-import {buildFileGraph, type OracleFileGraphType, type OraclePackageLookupMapType} from './scopeGraph.ts';
+import {buildFileGraph, type OracleFileGraphType} from './scopeGraph.ts';
 import {createOracleId} from './symbolIdentity.ts';
 import {mergeForwardDeclarations} from './forwardDeclarations.ts';
 import {buildPackageLookups} from './packageLookups.ts';
+import {buildSpecIndex, matchSpecRoutine, routineKindName} from './specIndex.ts';
+import {type MutableBindingType, type OracleParsedFileType, type SpecPackageType, type SymbolTableType} from './symbolTableTypes.ts';
 import {type OracleDeclarationType, type OracleParseResultType} from './syntax.ts';
 
-export type OracleParsedFileType = Readonly<{path: string; parse: OracleParseResultType}>;
-
-type ParameterBindingType = Readonly<{symbolId: string; canonical: string; declaration: OracleDeclarationType}>;
-
-type MappedSpecType = Readonly<{
-	fileIndex: number;
-	declarationIndex: number;
-	parameterBindings: readonly ParameterBindingType[];
-}>;
-
-export type MutableBindingType = {
-	canonical: string;
-	signature: string;
-	symbolId: string;
-	definitionOnly: boolean;
-	enclosingId: string | null;
-	ownSymbol: IndexedSymbolType | null;
-	mappedSpec: MappedSpecType | null;
-};
-
-type SpecRoutineType = Readonly<{
-	symbolId: string;
-	declaration: OracleDeclarationType;
-	parameterBindings: readonly ParameterBindingType[];
-}>;
-
-type SpecPackageType = Readonly<{
-	packageSymbolId: string;
-	fileIndex: number;
-	declarationIndex: number;
-	routinesBySignature: ReadonlyMap<string, SpecRoutineType>;
-	routinesByFallback: ReadonlyMap<string, readonly SpecRoutineType[]>;
-}>;
-
-export type SymbolTableType = Readonly<{
-	graphs: readonly OracleFileGraphType[];
-	bindings: readonly MutableBindingType[][];
-	packages: OraclePackageLookupMapType;
-	diagnostics: readonly DiagnosticType[];
-}>;
+export type {MutableBindingType, OracleParsedFileType, SymbolTableType} from './symbolTableTypes.ts';
 
 const symbolIdOrNull = (symbolId: string | undefined): string | null => (symbolId === undefined || symbolId === '' ? null : symbolId);
 
@@ -70,9 +33,10 @@ const parameterOrdinal = (parse: OracleParseResultType, index: number): number =
 };
 
 const emptyBindings = (parse: OracleParseResultType, graph: OracleFileGraphType): MutableBindingType[] =>
-	parse.declarations.map((_declaration, index) => ({
+	parse.declarations.map((declaration, index) => ({
 		canonical: graph.canonicals[index] ?? '',
 		signature: graph.signatures[index] ?? '',
+		heading: declaration.heading ?? '',
 		symbolId: '',
 		definitionOnly: false,
 		enclosingId: null,
@@ -118,121 +82,13 @@ const ownBinding = (
 	return {
 		canonical: input.canonical,
 		signature: input.signature,
+		heading: input.declaration.heading ?? '',
 		symbolId: id,
 		definitionOnly: false,
 		enclosingId: input.enclosingId,
 		ownSymbol: symbol,
 		mappedSpec: null,
 	};
-};
-
-const parameterBindingsOf = (
-	fileIndex: number,
-	routineIndex: number,
-	files: readonly OracleParsedFileType[],
-	bindings: readonly MutableBindingType[][],
-): readonly ParameterBindingType[] => {
-	const file = files[fileIndex];
-
-	if (file === undefined) {
-		return [];
-	}
-
-	return file.parse.declarations.flatMap((declaration, index) =>
-		declaration.parent === routineIndex && declaration.kind === 'parameter'
-			? [{symbolId: bindings[fileIndex]?.[index]?.symbolId ?? '', canonical: bindings[fileIndex]?.[index]?.canonical ?? '', declaration}]
-			: [],
-	);
-};
-
-const addSpecRoutine = (
-	input: Readonly<{
-		fileIndex: number;
-		child: number;
-		declaration: OracleDeclarationType;
-		binding: MutableBindingType;
-		signature: string;
-		files: readonly OracleParsedFileType[];
-		bindings: readonly MutableBindingType[][];
-		routinesBySignature: Map<string, SpecRoutineType>;
-		routinesByFallback: Map<string, SpecRoutineType[]>;
-	}>,
-): void => {
-	const routine: SpecRoutineType = {
-		symbolId: input.binding.symbolId,
-		declaration: input.declaration,
-		parameterBindings: parameterBindingsOf(input.fileIndex, input.child, input.files, input.bindings),
-	};
-	const fallback = `${input.declaration.kind}:${input.binding.canonical}:${input.declaration.parameters.length}`;
-	const group = input.routinesByFallback.get(fallback) ?? [];
-
-	input.routinesBySignature.set(input.signature, routine);
-	group.push(routine);
-	input.routinesByFallback.set(fallback, group);
-};
-
-const buildSpecIndex = (
-	files: readonly OracleParsedFileType[],
-	graphs: readonly OracleFileGraphType[],
-	bindings: readonly MutableBindingType[][],
-): ReadonlyMap<string, SpecPackageType> => {
-	const specs = new Map<string, SpecPackageType>();
-
-	for (const [fileIndex, file] of files.entries()) {
-		for (const unit of file.parse.units) {
-			const graph = graphs[fileIndex];
-			const binding = bindings[fileIndex]?.[unit.declaration];
-
-			if (unit.kind !== 'package-spec' || graph === undefined || binding === undefined) {
-				continue;
-			}
-
-			const routinesBySignature = new Map<string, SpecRoutineType>();
-			const routinesByFallback = new Map<string, SpecRoutineType[]>();
-
-			for (const child of graph.childrenByParent.get(unit.declaration) ?? []) {
-				const declaration = file.parse.declarations[child];
-				const childBinding = bindings[fileIndex]?.[child];
-
-				if (declaration === undefined || childBinding === undefined || (declaration.kind !== 'procedure' && declaration.kind !== 'function')) {
-					continue;
-				}
-
-				addSpecRoutine({
-					fileIndex,
-					child,
-					declaration,
-					binding: childBinding,
-					signature: graph.signatures[child] ?? '',
-					files,
-					bindings,
-					routinesBySignature,
-					routinesByFallback,
-				});
-			}
-
-			specs.set(unit.canonical, {
-				packageSymbolId: binding.symbolId,
-				fileIndex,
-				declarationIndex: unit.declaration,
-				routinesBySignature,
-				routinesByFallback,
-			});
-		}
-	}
-
-	return specs;
-};
-
-const matchSpecRoutine = (spec: SpecPackageType, signature: string, fallback: string): SpecRoutineType | null => {
-	const exact = spec.routinesBySignature.get(signature);
-
-	if (exact !== undefined) {
-		return exact;
-	}
-
-	const candidates = spec.routinesByFallback.get(fallback) ?? [];
-	return candidates.length === 1 ? (candidates[0] ?? null) : null;
 };
 
 const mapBodyPackage = (input: Readonly<{binding: MutableBindingType; unitCanonical: string; specs: ReadonlyMap<string, SpecPackageType>}>): boolean => {
@@ -257,18 +113,26 @@ const mapBodyRoutine = (
 		parentSymbolId: string | null;
 		fallbackFileIndex: number;
 		specs: ReadonlyMap<string, SpecPackageType>;
+		matchedSpecRoutines: Set<string>;
 		diagnostics: OracleDiagnosticCollector;
 	}>,
 ): boolean => {
 	const spec = input.specs.get(input.unitCanonical);
-	const fallback = `${input.declaration.kind}:${input.binding.canonical}:${input.declaration.parameters.length}`;
-	const routine = spec === undefined ? null : matchSpecRoutine(spec, input.binding.signature, fallback);
+	const match = spec === undefined ? {routine: null, ambiguous: false} : matchSpecRoutine(spec, input.binding.heading);
+	const {routine} = match;
 
 	if (routine === null) {
-		if ((spec?.routinesByFallback.get(fallback)?.length ?? 0) > 1) {
+		if (match.ambiguous) {
 			input.diagnostics.add(
-				ORACLE_DIAGNOSTIC.ambiguousOverload,
-				`Ambiguous specification match for ${input.binding.canonical}`,
+				ORACLE_DIAGNOSTIC.pairingAmbiguous,
+				`Ambiguous specification heading for ${input.binding.canonical}`,
+				input.declaration.nameRange.startLine,
+				input.declaration.nameRange.startColumn,
+			);
+		} else if ((spec?.routinesByKindName.get(routineKindName(input.declaration, input.binding.canonical))?.length ?? 0) > 0) {
+			input.diagnostics.add(
+				ORACLE_DIAGNOSTIC.pairingHeadingMismatch,
+				`Body heading does not match the specification for ${input.binding.canonical}`,
 				input.declaration.nameRange.startLine,
 				input.declaration.nameRange.startColumn,
 			);
@@ -285,6 +149,11 @@ const mapBodyRoutine = (
 		declarationIndex: spec?.declarationIndex ?? 0,
 		parameterBindings: routine.parameterBindings,
 	};
+
+	if (input.declaration.form === 'full_definition') {
+		input.matchedSpecRoutines.add(`${String(routine.fileIndex)}\u0000${String(routine.declarationIndex)}`);
+	}
+
 	return true;
 };
 
@@ -323,20 +192,26 @@ const mapBodyRoutineDeclaration = (
 		fileIndex: number;
 		parentBinding: MutableBindingType | undefined;
 		specs: ReadonlyMap<string, SpecPackageType>;
+		matchedSpecRoutines: Set<string>;
 		diagnostics: OracleDiagnosticCollector;
 	}>,
-): boolean =>
-	input.declaration.parent === input.unit.declaration && (input.declaration.kind === 'procedure' || input.declaration.kind === 'function')
+): boolean => {
+	const {declaration, binding, unit} = input;
+	const {kind} = declaration;
+
+	return declaration.parent === unit.declaration && (kind === 'procedure' || kind === 'function' || kind === 'cursor')
 		? mapBodyRoutine({
-				declaration: input.declaration,
-				binding: input.binding,
-				unitCanonical: input.unit.canonical,
+				declaration,
+				binding,
+				unitCanonical: unit.canonical,
 				parentSymbolId: symbolIdOrNull(input.parentBinding?.symbolId),
 				fallbackFileIndex: input.fileIndex,
 				specs: input.specs,
+				matchedSpecRoutines: input.matchedSpecRoutines,
 				diagnostics: input.diagnostics,
 			})
 		: false;
+};
 
 const mapBodyDeclaration = (
 	input: Readonly<{
@@ -349,6 +224,7 @@ const mapBodyDeclaration = (
 		binding: MutableBindingType;
 		bindings: readonly MutableBindingType[];
 		specs: ReadonlyMap<string, SpecPackageType>;
+		matchedSpecRoutines: Set<string>;
 		diagnostics: OracleDiagnosticCollector;
 	}>,
 ): void => {
@@ -370,7 +246,18 @@ const mapBodyDeclaration = (
 		return;
 	}
 
-	if (mapBodyRoutineDeclaration({declaration, binding, unit, fileIndex: input.fileIndex, parentBinding, specs: input.specs, diagnostics: input.diagnostics})) {
+	if (
+		mapBodyRoutineDeclaration({
+			declaration,
+			binding,
+			unit,
+			fileIndex: input.fileIndex,
+			parentBinding,
+			specs: input.specs,
+			matchedSpecRoutines: input.matchedSpecRoutines,
+			diagnostics: input.diagnostics,
+		})
+	) {
 		return;
 	}
 
@@ -396,6 +283,7 @@ const mapBodyFile = (
 		file: OracleParsedFileType;
 		bindings: MutableBindingType[];
 		specs: ReadonlyMap<string, SpecPackageType>;
+		matchedSpecRoutines: Set<string>;
 		diagnostics: OracleDiagnosticCollector;
 	}>,
 ): void => {
@@ -450,6 +338,33 @@ const assignOwnBindings = (
 	}
 };
 
+const reportMissingBodies = (
+	specs: ReadonlyMap<string, SpecPackageType>,
+	matchedSpecRoutines: ReadonlySet<string>,
+	diagnostics: OracleDiagnosticCollector,
+): void => {
+	for (const spec of specs.values()) {
+		for (const routines of spec.routinesByHeading.values()) {
+			for (const routine of routines) {
+				if (routine.declaration.form === 'call_spec' || routine.declaration.form === 'polymorphic_table_function') {
+					continue;
+				}
+
+				if (matchedSpecRoutines.has(`${String(routine.fileIndex)}\u0000${String(routine.declarationIndex)}`)) {
+					continue;
+				}
+
+				diagnostics.add(
+					ORACLE_DIAGNOSTIC.pairingMissingBody,
+					`Specification has no full body definition for ${routine.declaration.name.canonical}`,
+					routine.declaration.nameRange.startLine,
+					routine.declaration.nameRange.startColumn,
+				);
+			}
+		}
+	}
+};
+
 /**
  * Builds per-context symbol bindings and package lookup tables.
  *
@@ -464,15 +379,26 @@ export const buildSymbolTable = (input: Readonly<{projectId: string; context: st
 	assignOwnBindings({...input, graphs, bindings});
 
 	const specs = buildSpecIndex(input.files, graphs, bindings);
+	const matchedSpecRoutines = new Set<string>();
 
 	for (const [fileIndex, file] of input.files.entries()) {
 		const fileBindings = bindings[fileIndex];
 
 		if (fileBindings !== undefined) {
-			mapBodyFile({fileIndex, projectId: input.projectId, context: input.context, file, bindings: fileBindings, specs, diagnostics});
+			mapBodyFile({
+				fileIndex,
+				projectId: input.projectId,
+				context: input.context,
+				file,
+				bindings: fileBindings,
+				specs,
+				matchedSpecRoutines,
+				diagnostics,
+			});
 		}
 	}
 
+	reportMissingBodies(specs, matchedSpecRoutines, diagnostics);
 	mergeForwardDeclarations(input.files, bindings);
 
 	return {graphs, bindings, packages: buildPackageLookups(input.files, graphs, bindings), diagnostics: diagnostics.finish()};

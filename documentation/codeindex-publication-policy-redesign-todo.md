@@ -9,14 +9,18 @@ Date: 2026-10-20
 
 ## Current phase
 
-Phase 4 TypeScript vertical slice is implemented. The TypeScript adapter now emits
-lexical bindings, aliases, default roots, internal `export *`, external aliases,
-surface projection, reachability, declaration kinds, ownership, and usage bits.
-Generation queries read the normalized binding, context, site, origin, and
-definition-site tables; `read_symbol` serves text and four list modes, and
-`symbol_at` resolves stored extents. G-A passes the fixture comparison. Full
-G-A2 corpus position association remains partial because P-1 still proves only
-root-export association.
+Phase 5 Oracle vertical slice is implemented on fixtures. The Oracle adapter now
+records declaration forms, pairs routines and cursors by exact normalized heading,
+anchors private body forwards on their full implementation, and emits lexical
+bindings, contexts, declared sites, declaration kinds, ownership, and usage bits.
+Parameters and routine-local declarations are ephemeral; stored declarations are
+published or internal after whole-generation spec/body pairing. Oracle display
+uses canonical owner-qualified spelling.
+
+Phase 4 G-A passes the fixture comparison. Full G-A2 corpus position association
+remains partial because P-1 still proves only root-export association. Oracle
+G-B through G-F pass on the publication fixture; the frozen production Oracle
+corpus and PL/Scope run remain unavailable in this environment.
 
 ## Phase 0: accept the contract
 
@@ -189,11 +193,43 @@ Phase 4 notes:
 
 ## Phase 5: Oracle vertical slice
 
-- [ ] Record declaration forms.
-- [ ] Exact heading-gated routine and cursor pairing.
-- [ ] Private body forwards with full-definition identity and primary selection.
-- [ ] Emit bindings, sites, kinds, usage, and owners.
-- [ ] Pass G-B through G-F and the Oracle corpus gates.
+Implemented on 2026-10-20 for fixtures. Production corpus gates remain blocked on
+corpus access.
+
+- [x] Record declaration forms: specification, full definition, body forward,
+      call spec, and polymorphic table function.
+- [x] Exact heading-gated routine and cursor pairing, with heading-mismatch,
+      ambiguous-candidate, and missing-body diagnostics. No signature fallback.
+- [x] Private body forwards with full-definition identity, anchor, and primary
+      selection.
+- [x] Emit bindings, declared sites, declaration kinds, usage bits, and owners.
+      Parameters and routine-local declarations are ephemeral.
+- [ ] Pass G-B through G-F and the Oracle corpus gates on the frozen production
+      corpus. G-B, G-C, G-D, G-E, and G-F pass on
+      `test/fixtures/oracle-publication-project`.
+
+Phase 5 notes:
+
+- Stored Oracle declarations are packages, specification members, standalone
+  routines, body-only declarations, and nested routines. Parameters, ordinary
+  locals, routine-local types/cursors/exceptions, and loop iterators are never
+  persisted or searchable.
+- Specification members and standalone routines are published; body-only
+  declarations and nested routines are internal. Oracle does not emit
+  `reachable`.
+- Bindings use `owner` plus canonical `member` segments. Unquoted identifiers use
+  uppercase canonical spelling; quoted identifiers preserve authored spelling.
+  Tool display therefore begins with `owner["SCHEMA"]::`.
+- Pairing uses the complete normalized heading apart from whitespace. A mismatch
+  leaves declarations as separate symbols instead of silently choosing a target.
+- Usage is `call`, `read`, `write`, `read + write` for `IN OUT`, and `type_ref`.
+  `%TYPE`/`%ROWTYPE` tokens are recognized as single lexer tokens. `OUT` arguments
+  are refined after overload resolution.
+- The structural parser revision is `structural@2`; the Oracle adapter version is
+  `0.2.0` because emitted facts and the configuration hash changed.
+- The vertical-slice fixture adds cursor pairing, a call spec, a polymorphic table
+  function declaration, private forward pairing, cross-file usage, and OUT/IN OUT
+  arguments.
 
 ## Phase 6: defaults and evaluation
 
@@ -227,3 +263,4 @@ Phase 4 notes:
 | 2026-10-20 | Phase 2 | Added `publication-report`, P-1/P-2/P-3 prototypes, full measurement set, invariant classification, and aggregate corpus evidence. M1/M8/M9/M11/M12/M13/M14 resolved; accepted ceilings 2,000 addresses and 50,000 steps per root. Persistence unchanged. |
 | 2026-10-20 | Phase 3 | Schema version 9 adds the normalized binding, site, origin, definition-site, and build-stat tables with enforced constraints and indexes. One `insertGenerationFacts` operation persists and validates complete fact sets while `building`; atomic publication and failed-candidate isolation are preserved. Adapter versions unchanged. |
 | 2026-10-20 | Phase 4 | TypeScript vertical slice: aliases, default and external roots, internal stars, typed surface projection, reachability, usage bits, and symbol/fact persistence migration. Queries now read canonical bindings; `find_symbol`, `outline`, `find_references`, `read_symbol` list modes, `symbol_at`, and bounded responses are implemented. G-A/G-B/G-C/G-D/G-F pass; full G-A2 corpus association remains partial. |
+| 2026-10-20 | Phase 5 | Oracle vertical slice: declaration forms, exact heading-gated routine/cursor pairing, forward identity and primary ranking, ephemeral parameters/locals, canonical owner-qualified bindings, declared sites, ownership, and usage. Fixture gates G-B/G-C/G-D/G-E/G-F pass; production corpus gates remain blocked. |

@@ -64,8 +64,10 @@ type ComparableDeclarationType = Omit<OracleDeclarationType, 'parameters' | 'typ
 	Readonly<{parameters: readonly Omit<OracleParameterType, 'typeReferences'>[]}>;
 
 const comparableDeclaration = (declaration: OracleDeclarationType): ComparableDeclarationType => {
-	const {typeReferences, ...rest} = declaration;
+	const {typeReferences, heading, form, ...rest} = declaration;
 	void typeReferences;
+	void heading;
+	void form;
 
 	return {
 		...rest,

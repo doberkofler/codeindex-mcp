@@ -122,12 +122,13 @@ const parseContext = (
 		diagnostics.push(...parse.diagnostics);
 	}
 
-	const symbols = extractOracleSymbols({projectId: config.projectId, context: context.name, files: parsed});
+	const symbols = extractOracleSymbols({projectId: config.projectId, context: context.name, files: parsed, storedOnly: true});
 	const references = resolveOracleReferences({
 		context: context.name,
 		defaultSchema: manifest.canonicalSchema,
 		files: symbols.analyses,
 		packages: symbols.packages,
+		storedOnly: true,
 	});
 	const dependencies = extractOracleDependencies({
 		projectId: config.projectId,

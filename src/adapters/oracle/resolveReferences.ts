@@ -1,6 +1,8 @@
 import {type DiagnosticType, type IndexedOccurrenceType} from '../../core/model.ts';
+import {isStoredOracleDeclaration} from './declarationStorage.ts';
 import {ORACLE_DIAGNOSTIC, OracleDiagnosticCollector} from './diagnostics.ts';
 import {type OracleFileAnalysisType} from './extractSymbols.ts';
+import {outArgumentRangesOf, refineOutArgumentUsage, type OutArgumentRangeType} from './referenceOutArguments.ts';
 import {type OracleMemberLookupType, type OraclePackageLookupMapType} from './scopeGraph.ts';
 import {type OracleDeclarationType, type OracleReferenceSiteType} from './syntax.ts';
 
@@ -18,6 +20,8 @@ type ResolveInputType = Readonly<{
 	defaultSchema: string;
 	files: readonly OracleFileAnalysisType[];
 	packages: OraclePackageLookupMapType;
+	/** Drop occurrences whose target is not a stored declaration class. */
+	storedOnly?: boolean | undefined;
 }>;
 
 type ResolveStateType = Readonly<{
@@ -292,8 +296,12 @@ const packageCanonicalOf = (parts: OracleReferenceSiteType['name']['parts'], def
 				.map((part) => part.canonical)
 				.join('.');
 
-const resolvePackageMember = (state: ResolveStateType, parts: OracleReferenceSiteType['name']['parts'], site: OracleReferenceSiteType): string | null => {
-	const packagePartCount = parts.length >= 3 ? 2 : 1;
+const resolvePackagePath = (
+	state: ResolveStateType,
+	parts: OracleReferenceSiteType['name']['parts'],
+	site: OracleReferenceSiteType,
+	packagePartCount: number,
+): string | null => {
 	const packageCanonical = packageCanonicalOf(parts, state.input.defaultSchema, packagePartCount);
 	const member = parts[packagePartCount];
 
@@ -322,6 +330,21 @@ const resolvePackageMember = (state: ResolveStateType, parts: OracleReferenceSit
 	return symbolId;
 };
 
+const resolvePackageMember = (state: ResolveStateType, parts: OracleReferenceSiteType['name']['parts'], site: OracleReferenceSiteType): string | null => {
+	const primary = parts.length >= 3 ? 2 : 1;
+	const counts = primary === 2 && parts.length === 3 ? [2, 1] : [primary];
+
+	for (const count of counts) {
+		const symbolId = resolvePackagePath(state, parts, site, count);
+
+		if (symbolId !== null) {
+			return symbolId;
+		}
+	}
+
+	return null;
+};
+
 packageMemberResolver.current = resolvePackageMember;
 
 const resolveSite = (state: ResolveStateType, site: OracleReferenceSiteType): string | null => {
@@ -336,6 +359,29 @@ const resolveSite = (state: ResolveStateType, site: OracleReferenceSiteType): st
 
 const contextOf = (context: string): readonly string[] => [context];
 
+const storedOwnerOf = (file: OracleFileAnalysisType, start: number): string | null => {
+	let current: number | null = start;
+
+	while (current !== null) {
+		const declaration: OracleDeclarationType | undefined = file.parse.declarations[current];
+		const binding = file.bindings[current];
+
+		if (declaration === undefined) {
+			return null;
+		}
+
+		if (binding !== undefined && binding.symbolId !== '' && isStoredOracleDeclaration(file.parse, declaration)) {
+			return binding.symbolId;
+		}
+
+		current = declaration.parent;
+	}
+
+	return null;
+};
+
+const usageOfSite = (site: OracleReferenceSiteType): number => site.usage ?? (site.kind === 'call' ? 1 : site.kind === 'type-anchor' ? 8 : 2);
+
 const occurrenceOf = (
 	input: Readonly<{context: string; path: string; site: OracleReferenceSiteType; symbolId: string; enclosingId: string | null}>,
 ): IndexedOccurrenceType => ({
@@ -348,9 +394,64 @@ const occurrenceOf = (
 	startOffset: input.site.nameRange.startOffset,
 	endOffset: input.site.nameRange.endOffset,
 	role: 'reference',
+	usage: usageOfSite(input.site),
 	enclosingId: input.enclosingId,
 	contexts: contextOf(input.context),
 });
+
+const isStoredTarget = (
+	symbolId: string,
+	symbolDeclarations: ReadonlyMap<string, ResolvedDeclarationType>,
+	files: readonly OracleFileAnalysisType[],
+): boolean => {
+	const location = symbolDeclarations.get(symbolId);
+	const file = location === undefined ? undefined : files[location.fileIndex];
+	const declaration = location === undefined || file === undefined ? undefined : file.parse.declarations[location.declarationIndex];
+
+	return declaration !== undefined && file !== undefined && isStoredOracleDeclaration(file.parse, declaration);
+};
+
+type FileResolveResultType = Readonly<{
+	occurrences: readonly IndexedOccurrenceType[];
+	outArguments: readonly OutArgumentRangeType[];
+	diagnostics: readonly DiagnosticType[];
+}>;
+
+const resolveFileReferences = (
+	input: ResolveInputType,
+	fileIndex: number,
+	symbolDeclarations: ReadonlyMap<string, ResolvedDeclarationType>,
+): FileResolveResultType => {
+	const file = input.files[fileIndex];
+
+	if (file === undefined) {
+		return {occurrences: [], outArguments: [], diagnostics: []};
+	}
+
+	const collector = new OracleDiagnosticCollector(file.path);
+	const state: ResolveStateType = {input, fileIndex, file, symbolDeclarations, diagnostics: collector};
+	const occurrences: IndexedOccurrenceType[] = [];
+	const outArguments: OutArgumentRangeType[] = [];
+
+	for (const site of file.parse.references) {
+		const symbolId = resolveSite(state, site);
+
+		if (symbolId === null || (input.storedOnly === true && !isStoredTarget(symbolId, symbolDeclarations, input.files))) {
+			continue;
+		}
+
+		occurrences.push(occurrenceOf({context: input.context, path: file.path, site, symbolId, enclosingId: storedOwnerOf(file, site.enclosing)}));
+
+		const location = symbolDeclarations.get(symbolId);
+		const target = location === undefined ? undefined : input.files[location.fileIndex]?.parse.declarations[location.declarationIndex];
+
+		if (target !== undefined) {
+			outArguments.push(...outArgumentRangesOf(site, target, file.path));
+		}
+	}
+
+	return {occurrences, outArguments, diagnostics: collector.finish()};
+};
 
 /**
  * Resolves statically provable Oracle references against indexed declarations.
@@ -363,28 +464,13 @@ const occurrenceOf = (
  */
 export const resolveOracleReferences = (input: ResolveInputType): OracleResolvedReferencesType => {
 	const symbolDeclarations = buildSymbolDeclarations(input.files);
-	const occurrences: IndexedOccurrenceType[] = [];
-	const diagnostics: DiagnosticType[] = [];
-
-	for (const [fileIndex, file] of input.files.entries()) {
-		const collector = new OracleDiagnosticCollector(file.path);
-		const state: ResolveStateType = {input, fileIndex, file, symbolDeclarations, diagnostics: collector};
-
-		for (const site of file.parse.references) {
-			const symbolId = resolveSite(state, site);
-
-			if (symbolId === null) {
-				continue;
-			}
-
-			const enclosing = file.bindings[site.enclosing]?.symbolId ?? null;
-			occurrences.push(occurrenceOf({context: input.context, path: file.path, site, symbolId, enclosingId: enclosing}));
-		}
-
-		diagnostics.push(...collector.finish());
-	}
-
-	occurrences.sort(
+	const results = input.files.map((_file, fileIndex) => resolveFileReferences(input, fileIndex, symbolDeclarations));
+	const occurrences = refineOutArgumentUsage(
+		results.flatMap((result) => result.occurrences),
+		results.flatMap((result) => result.outArguments),
+	);
+	const diagnostics = results.flatMap((result) => result.diagnostics);
+	const sorted = [...occurrences].sort(
 		(left, right) =>
 			left.path.localeCompare(right.path) ||
 			left.startOffset - right.startOffset ||
@@ -392,5 +478,5 @@ export const resolveOracleReferences = (input: ResolveInputType): OracleResolved
 			left.role.localeCompare(right.role),
 	);
 
-	return {occurrences, diagnostics};
+	return {occurrences: sorted, diagnostics};
 };
