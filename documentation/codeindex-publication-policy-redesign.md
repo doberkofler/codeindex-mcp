@@ -546,7 +546,10 @@ TypeScript:
 - all authored declarations initially have equal anchor rank;
 - path then offset reproduces today's identity-bearing declaration for merged and
   overloaded symbols;
-- a fixed kind precedence remains an optional future stability improvement.
+- no fixed kind precedence is applied; `symbol.kind` remains the identity anchor's
+  declaration kind. Phase 2 measured 13 merged symbols in the TypeScript compiler
+  corpus, 559 in VS Code, and 0 in Material UI; the illustrative precedence would
+  change 5, 438, and 0 kinds respectively. That churn is rejected.
 
 Oracle:
 
@@ -696,9 +699,10 @@ supplied by other packages. Authored `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx
 `.mjs`, and `.cjs` files remain authored roots when their configured project includes
 them; JavaScript requires the project's existing `allowJs` policy.
 
-**Open:** named nested functions. The default recommendation is to store them because
-they are named callers; the dry run measures count, lines, and p95 size before the rule
-is locked.
+Named nested functions are stored. The Phase 2 dry run measured 5,988 nested functions
+and 127,430 lines in the TypeScript compiler corpus, 1,160 and 15,701 lines in VS Code,
+and 47 and 832 lines in Material UI. They are named callers, so preserving navigation
+outweighs their storage cost; ordinary local variables remain excluded.
 
 Top-level candidates are stored regardless of exposure. This preserves internal helper
 navigation and cross-file reference resolution.
@@ -797,10 +801,12 @@ Output-path traversal uses path-local cycle detection, not one global visited se
 preserves distinct equal-depth paths. A cycle with no named terminal is unsupported and
 fails the candidate build rather than truncating silently.
 
-**Open:** union and intersection address handling. Qualification must decide whether
-constituent-only members become projected addresses or reachable declarations. The
-canonical binding model supports multiple symbols sharing one address key, so this
-decision does not require a schema redesign.
+Union and intersection constituent-only declarations are `reachable`, not projected
+addresses. A projected address is emitted only when the projection reaches one
+unambiguous authored terminal. The Phase 2 prototype observed 7,060 union and 224
+intersection nodes in the TypeScript compiler corpus, 28,589 and 659 in VS Code, and 447
+and 94 in Material UI. The canonical binding model still permits multiple symbols to
+share one address key when a future projection form proves one.
 
 ### Reachability closure
 
@@ -1697,6 +1703,35 @@ The report also records P-1/P-2 outcomes and the fixed query-telemetry counters.
 contains aggregate values only: no source text, query text, symbol names, credentials,
 or absolute paths.
 
+Phase 2 evidence was collected on 2026-10-20 with `publication-report`; aggregate
+reports are committed under `benchmark/publication-phase2/`.
+
+| Corpus | Files | Symbols | Occurrences | Published | M1 nested functions | M4 definition sites | M13 union / intersection |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| TypeScript compiler | 77 | 33,134 | 260,291 | 8,630 | 5,988 | 33,620 | 7,060 / 224 |
+| VS Code | 4,935 | 293,866 | 1,864,302 | 110,128 | 1,160 | 295,962 | 28,589 / 659 |
+| Material UI | 1,063 | 17,463 | 68,543 | 3,130 | 47 | 17,467 | 447 / 94 |
+
+P-1 emitted declaration files and maps for every authored file without emit errors. Root
+export comparison remained partial: 3,009/3,004, 575/18,679, and 1,530/1,199 truth roots
+were missing from the preliminary published roots for the three corpora. P-2 found
+1,329 named, 1 namespace, and 146 default external aliases, 150 external stars, and 1,136
+missing alias bindings in Material UI; the other two corpora emitted no external alias
+forms. CommonJS `export =` resolution passed on the repository fixture and remains a
+Phase 6 decision (K3). G-A and G-A2 are therefore not normative; full address projection
+and declaration-map position association remain Phase 4 work.
+
+Measured invariant results were zero S3/O2/L1/F1 violations on all three TypeScript
+corpora and on the repository corpus. The Oracle fixture exposed two
+`parameter_type_reference_owner` O2 cases: type references in parameter declarations
+currently inherit the routine owner. Phase 5 retains nested parameter ownership and this
+named class remains report-only until that slice lands.
+
+Surface projection, reachability closure, and the M11/M12 ceilings are intentionally
+unresolved in Phase 2 because they depend on the Phase 4 projection slice. The
+provisional 10,000 surface-binding ceiling remains external configuration; DDL work is
+still blocked on the evidence checkpoint.
+
 To resolve invariant classes, a separate local diagnostic artifact may contain
 workspace-relative paths, offsets, opaque symbol/binding IDs, and category names. It
 must contain no source text, query text, credentials, or absolute paths; it is neither
@@ -1769,14 +1804,14 @@ thresholds.
 | ID | Item | Disposition |
 |---|---|---|
 | K3 | CommonJS `export =` binding name and support acceptance after P-2 | Phase 6 decision |
-| M1 | Store named nested TypeScript functions after measuring count and size | Resolve before DDL |
+| M1 | Store named nested TypeScript functions after measuring count and size | Resolved: store them; Phase 2 evidence recorded |
 | M5 | Default `find_symbol` exposure: `published` or `visible` | Phase 6 decision |
 | M8 | Oracle synonym/current-schema source and unquoted-name case folding | Resolve before DDL |
 | M9 | `find_references` grouping and pagination semantics | Resolve before DDL |
 | M10 | Deferred Oracle/ORDS scope and cross-language edges | Deferred scope |
 | M11/M12 | Final per-root reachability-step and surface-address ceilings | Resolve before DDL |
-| M13 | Union/intersection constituent behavior in address projection | Resolve before DDL |
-| M14 | Fixed declaration-kind precedence for merged TypeScript symbol identity | Resolve before DDL |
+| M13 | Union/intersection constituent behavior in address projection | Resolved: constituent-only declarations are reachable, not projected |
+| M14 | Fixed declaration-kind precedence for merged TypeScript symbol identity | Resolved: no fixed precedence; keep the identity anchor kind |
 | Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification |
 | Q2 | Real-task success, false-absence, token, and tool-call acceptance thresholds | Phase 6 decision |
 

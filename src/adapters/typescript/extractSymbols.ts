@@ -1,8 +1,9 @@
 import ts from 'typescript';
-import {type ExtractedPublicationFactsType} from '../../core/facts/index.ts';
+import {type ExtractedOccurrenceType, type ExtractedPublicationFactsType} from '../../core/facts/index.ts';
 import {debugFor} from '../../core/logging/debug.ts';
-import {type ExtractionResultType, type IndexedOccurrenceType, type IndexedSymbolType, type SourceFileType} from '../../core/model.ts';
+import {type ExtractionResultType, type IndexedSymbolType, type SourceFileType} from '../../core/model.ts';
 import {type LoadedProjectType} from './loadProject.ts';
+import {declarationKindOf, definitionMetadataOf} from './occurrenceMetadata.ts';
 import {createTypeScriptPublicationFacts} from './publicationFacts.ts';
 import {isPublishedCandidate} from './publicationScope.ts';
 import {resolveCanonical, resolveImmediateAliasSymbol, resolveOccurrenceSymbol} from './resolveSymbols.ts';
@@ -53,50 +54,6 @@ const DEFINITION_DECLARATIONS: readonly ((node: ts.Node) => boolean)[] = [
 	ts.isGetAccessorDeclaration,
 	ts.isSetAccessorDeclaration,
 ];
-
-const kindOfDeclaration = (node: ts.Node): string => {
-	if (ts.isFunctionDeclaration(node)) {
-		return 'function';
-	}
-
-	if (ts.isClassDeclaration(node)) {
-		return 'class';
-	}
-
-	if (ts.isInterfaceDeclaration(node)) {
-		return 'interface';
-	}
-
-	if (ts.isTypeAliasDeclaration(node)) {
-		return 'type';
-	}
-
-	if (ts.isEnumDeclaration(node)) {
-		return 'enum';
-	}
-
-	if (ts.isEnumMember(node)) {
-		return 'enum_member';
-	}
-
-	if (ts.isModuleDeclaration(node)) {
-		return 'namespace';
-	}
-
-	if (ts.isMethodDeclaration(node) || ts.isMethodSignature(node)) {
-		return 'method';
-	}
-
-	if (ts.isPropertyDeclaration(node) || ts.isPropertySignature(node)) {
-		return 'property';
-	}
-
-	if (ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node)) {
-		return 'accessor';
-	}
-
-	return 'variable';
-};
 
 const isNode = (value: unknown): value is ts.Node => typeof value === 'object' && value !== null && 'kind' in value && typeof value['kind'] === 'number';
 
@@ -193,7 +150,7 @@ const collectCandidates = (input: ExtractionInputType, authoredPaths: ReadonlySe
 			candidates.push({
 				canonical,
 				name: canonical.getName(),
-				kind: kindOfDeclaration(node),
+				kind: declarationKindOf(node),
 				path: file.path,
 				sourceFile,
 				declaration: node,
@@ -279,58 +236,107 @@ const isDefinitionNameNode = (node: ts.Identifier): boolean => {
 };
 
 type CollectedOccurrencesType = Readonly<{
-	occurrences: IndexedOccurrenceType[];
+	occurrences: ExtractedOccurrenceType[];
 	enclosingBySymbol: ReadonlyMap<string, string>;
 	deduplicatedOccurrences: number;
 }>;
 
-const collectOccurrences = (
-	input: ExtractionInputType,
+const definitionInAliasChain = (
 	checker: ts.TypeChecker,
 	definitions: ReadonlyMap<ts.Symbol, IndexedSymbolType>,
+	symbol: ts.Symbol | undefined,
+): IndexedSymbolType | undefined => {
+	const seen = new Set<ts.Symbol>();
+	let current = symbol;
+
+	while (current !== undefined && !seen.has(current)) {
+		seen.add(current);
+		const definition = definitions.get(current);
+
+		if (definition !== undefined) {
+			return definition;
+		}
+
+		current = resolveImmediateAliasSymbol(checker, current);
+	}
+
+	return undefined;
+};
+
+const symbolForCanonical = (
+	canonical: ts.Symbol | undefined,
+	definitions: ReadonlyMap<ts.Symbol, IndexedSymbolType>,
 	declarationNodes: ReadonlyMap<ts.Node, IndexedSymbolType>,
-): CollectedOccurrencesType => {
-	const definitionInAliasChain = (symbol: ts.Symbol | undefined): IndexedSymbolType | undefined => {
-		const seen = new Set<ts.Symbol>();
-		let current = symbol;
-
-		while (current !== undefined && !seen.has(current)) {
-			seen.add(current);
-			const definition = definitions.get(current);
-
-			if (definition !== undefined) {
-				return definition;
-			}
-
-			current = resolveImmediateAliasSymbol(checker, current);
-		}
-
+): IndexedSymbolType | undefined => {
+	if (canonical === undefined) {
 		return undefined;
-	};
+	}
 
-	const symbolForCanonical = (canonical: ts.Symbol | undefined): IndexedSymbolType | undefined => {
-		if (canonical === undefined) {
-			return undefined;
+	const direct = definitions.get(canonical);
+
+	if (direct !== undefined) {
+		return direct;
+	}
+
+	for (const declaration of canonical.declarations ?? []) {
+		const mapped = declarationNodes.get(declaration);
+
+		if (mapped !== undefined) {
+			return mapped;
 		}
+	}
 
-		const direct = definitions.get(canonical);
+	return undefined;
+};
 
-		if (direct !== undefined) {
-			return direct;
-		}
+const resolvedDefinitionOf = (
+	checker: ts.TypeChecker,
+	node: ts.Identifier,
+	definitions: ReadonlyMap<ts.Symbol, IndexedSymbolType>,
+	declarationNodes: ReadonlyMap<ts.Node, IndexedSymbolType>,
+): IndexedSymbolType | undefined => {
+	const direct = definitionInAliasChain(checker, definitions, checker.getSymbolAtLocation(node));
 
-		for (const declaration of canonical.declarations ?? []) {
-			const mapped = declarationNodes.get(declaration);
+	if (direct !== undefined) {
+		return direct;
+	}
 
-			if (mapped !== undefined) {
-				return mapped;
-			}
-		}
+	let canonical = resolveOccurrenceSymbol(checker, node);
 
-		return undefined;
-	};
+	if (symbolForCanonical(canonical, definitions, declarationNodes) === undefined) {
+		canonical = resolveCanonical(checker, node);
+	}
 
-	const occurrences: IndexedOccurrenceType[] = [];
+	return symbolForCanonical(canonical, definitions, declarationNodes);
+};
+
+const occurrenceOwnerOf = (
+	input: Readonly<{
+		role: 'definition' | 'reference';
+		declaredDefinition: IndexedSymbolType | undefined;
+		enclosingId: string | null;
+		nextEnclosingId: string | null;
+		enclosingBySymbol: ReadonlyMap<string, string>;
+	}>,
+): string | null => {
+	if (input.role === 'reference') {
+		return input.nextEnclosingId;
+	}
+
+	return input.declaredDefinition === undefined ? input.enclosingId : (input.enclosingBySymbol.get(input.declaredDefinition.id) ?? null);
+};
+
+type OccurrenceCollectInputType = ExtractionInputType &
+	Readonly<{
+		checker: ts.TypeChecker;
+		definitions: ReadonlyMap<ts.Symbol, IndexedSymbolType>;
+		declarationNodes: ReadonlyMap<ts.Node, IndexedSymbolType>;
+		primaryDeclarationNodes: ReadonlyMap<ts.Node, IndexedSymbolType>;
+	}>;
+
+const collectOccurrences = (input: OccurrenceCollectInputType): CollectedOccurrencesType => {
+	const {checker, definitions, declarationNodes, primaryDeclarationNodes} = input;
+	const occurrences: ExtractedOccurrenceType[] = [];
 	const enclosingBySymbol = new Map<string, string>();
 	const contexts = [input.context];
 
@@ -346,25 +352,15 @@ const collectOccurrences = (
 		const seenOccurrences = new Set<string>();
 		const visit = (node: ts.Node, enclosingId: string | null): void => {
 			const declarationSymbol = declarationNodes.get(node);
+			const primarySymbol = primaryDeclarationNodes.get(node);
 			const nextEnclosingId = declarationSymbol?.id ?? enclosingId;
 
-			if (declarationSymbol !== undefined && enclosingId !== null) {
-				enclosingBySymbol.set(declarationSymbol.id, enclosingId);
+			if (primarySymbol !== undefined && enclosingId !== null) {
+				enclosingBySymbol.set(primarySymbol.id, enclosingId);
 			}
 
 			if (ts.isIdentifier(node)) {
-				const locationSymbol = checker.getSymbolAtLocation(node);
-				let definition = definitionInAliasChain(locationSymbol);
-
-				if (definition === undefined) {
-					let canonical = resolveOccurrenceSymbol(checker, node);
-
-					if (symbolForCanonical(canonical) === undefined) {
-						canonical = resolveCanonical(checker, node);
-					}
-
-					definition = symbolForCanonical(canonical);
-				}
+				const definition = resolvedDefinitionOf(checker, node, definitions, declarationNodes);
 
 				if (definition !== undefined) {
 					const declaredDefinition = declarationNodes.get(node.parent);
@@ -375,6 +371,9 @@ const collectOccurrences = (
 
 					if (!seenOccurrences.has(key)) {
 						seenOccurrences.add(key);
+						const declaration = node.parent;
+						const definitionMetadata = role === 'definition' ? definitionMetadataOf(sourceFile, declaration) : {};
+
 						occurrences.push({
 							symbolId: definition.id,
 							path: file.path,
@@ -385,8 +384,9 @@ const collectOccurrences = (
 							startOffset: node.getStart(sourceFile),
 							endOffset: node.end,
 							role,
-							enclosingId: nextEnclosingId,
+							enclosingId: occurrenceOwnerOf({role, declaredDefinition, enclosingId, nextEnclosingId, enclosingBySymbol}),
 							contexts,
+							...definitionMetadata,
 						});
 					}
 				}
@@ -421,6 +421,7 @@ export const extractSymbolFacts = (input: ExtractionInputType): TypeScriptSymbol
 	const authoredPaths = new Set(input.files.map((file) => file.absolutePath));
 	const definitions = new Map<ts.Symbol, IndexedSymbolType>();
 	const declarationNodes = new Map<ts.Node, IndexedSymbolType>();
+	const primaryDeclarationNodes = new Map<ts.Node, IndexedSymbolType>();
 	const publishedSymbolIds = new Set<string>();
 
 	{
@@ -431,19 +432,25 @@ export const extractSymbolFacts = (input: ExtractionInputType): TypeScriptSymbol
 		for (const [canonical, primary] of primaries) {
 			const symbol = toIndexedSymbol(checker, primary, input.projectId, input.context);
 			definitions.set(canonical, symbol);
-			declarationNodes.set(primary.declaration, symbol);
+			primaryDeclarationNodes.set(primary.declaration, symbol);
 		}
 
 		for (const candidate of candidates) {
 			const symbol = definitions.get(candidate.canonical);
 
-			if (symbol !== undefined && candidate.published) {
+			if (symbol === undefined) {
+				continue;
+			}
+
+			declarationNodes.set(candidate.declaration, symbol);
+
+			if (candidate.published) {
 				publishedSymbolIds.add(symbol.id);
 			}
 		}
 	}
 
-	const collected = collectOccurrences(input, checker, definitions, declarationNodes);
+	const collected = collectOccurrences({...input, checker, definitions, declarationNodes, primaryDeclarationNodes});
 	const symbols = [...definitions.values()].map((definition) => ({
 		...definition,
 		enclosingId: collected.enclosingBySymbol.get(definition.id) ?? null,

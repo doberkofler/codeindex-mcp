@@ -220,11 +220,13 @@ codeindex-cli benchmark-suite    # run a declarative benchmark suite
 codeindex-cli benchmark-prepare  # clone and install pinned public projects
 codeindex-cli qualify --extractor typescript  # language-service reference cross-check
 codeindex-cli qualify --extractor oracle --identifiers ... --dependencies ...
+codeindex-cli publication-report --output report.json  # report-only Phase 2 measurements
 codeindex-cli clean      # remove local caches (dry run by default)
 ```
 
-All commands accept `--config`, `--root`, `--extractor`, `--project-file`, and
-`--database`. The benchmark command also accepts a generated corpus profile or a
+Index-backed commands accept `--config`, `--root`, `--extractor`, `--project-file`, and
+`--database`. `publication-report` is report-only: it accepts the first four and never
+opens or writes an index database. The benchmark command also accepts a generated corpus profile or a
 disposable database path. With `--baseline`, it writes an evaluation sidecar and
 fails only for `failure` gates; warnings remain successful. `--summary` writes
 Markdown. `--reference` accepts a previous benchmark report or a stored reference.

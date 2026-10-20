@@ -1,0 +1,121 @@
+import {Command} from 'commander';
+import {loadConfig} from '../../config/config.ts';
+import {enableDebug} from '../../logging/debug.ts';
+import {configureCommand, parseCommandAsync} from '../../../transports/cli/commanderSupport.ts';
+import {createPublicationReport, formatPublicationReport, writePublicationDiagnostics, writePublicationReport} from './report.ts';
+
+type PublicationReportOptionsType = Readonly<{
+	config?: string | undefined;
+	root?: string | undefined;
+	extractor?: string | undefined;
+	projectFile?: string | undefined;
+	output?: string | undefined;
+	diagnostics?: string | undefined;
+	maxSurfaceBindingsPerRoot: string;
+	skipPrototypes: boolean;
+	json: boolean;
+	debug: boolean;
+}>;
+
+export type PublicationReportIoType = Readonly<{
+	stdout: (line: string) => void;
+	stderr: (line: string) => void;
+}>;
+
+const environmentFor = (environment: NodeJS.ProcessEnv, options: PublicationReportOptionsType): NodeJS.ProcessEnv => {
+	const overrides: NodeJS.ProcessEnv = {};
+
+	for (const [name, value] of [
+		['CODE_INDEX_CONFIG', options.config],
+		['CODE_INDEX_ROOT', options.root],
+		['CODE_INDEX_EXTRACTOR', options.extractor],
+		['CODE_INDEX_PROJECT_FILE', options.projectFile],
+	] as const) {
+		if (value !== undefined) {
+			overrides[name] = value;
+		}
+	}
+
+	return {...environment, ...overrides};
+};
+
+const ceilingOf = (value: string): number => {
+	const parsed = Number(value);
+
+	if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+		throw new Error('--max-surface-bindings-per-root must be a positive integer');
+	}
+
+	return parsed;
+};
+
+const publicationCommand = (environment: NodeJS.ProcessEnv, io: PublicationReportIoType): Command =>
+	configureCommand(
+		new Command('publication-report').description('Run report-only publication measurements without opening or publishing an index database'),
+		io,
+	)
+		.option('--config <path>', 'load a JSON configuration file')
+		.option('--root <path>', 'override the indexed workspace root')
+		.option('--extractor <id>', 'override the selected extractor')
+		.option('--project-file <path>', 'override the extractor project file')
+		.option('--output <path>', 'write the aggregate JSON report to a file')
+		.option('--diagnostics <path>', 'write bounded local diagnostic examples to a file')
+		.option('--max-surface-bindings-per-root <count>', 'provisional per-root surface ceiling', '10000')
+		.option('--skip-prototypes', 'skip TypeScript P-1/P-2 prototypes', false)
+		.option('--json', 'emit the aggregate report on stdout', false)
+		.option('--debug', 'enable codeindex:* trace output', false)
+		.action((options: PublicationReportOptionsType) => {
+			if (options.debug) {
+				enableDebug();
+			}
+
+			const config = loadConfig(environmentFor(environment, options));
+			const {report, diagnostics} = createPublicationReport({
+				config,
+				provisionalCeiling: ceilingOf(options.maxSurfaceBindingsPerRoot),
+				includePrototypes: !options.skipPrototypes,
+			});
+
+			if (options.output !== undefined) {
+				writePublicationReport(options.output, report);
+			}
+
+			if (options.diagnostics !== undefined) {
+				writePublicationDiagnostics(options.diagnostics, diagnostics);
+			}
+
+			if (options.json || options.output === undefined) {
+				io.stdout(JSON.stringify(report, null, 2));
+				return;
+			}
+
+			io.stdout(formatPublicationReport(report).join('\n'));
+		});
+
+/**
+ * Registers the report-only publication qualification command.
+ *
+ * @param program - Root CLI program.
+ * @param environment - Environment source.
+ * @param io - Output sinks.
+ */
+export const addPublicationReportCommand = (program: Command, environment: NodeJS.ProcessEnv, io: PublicationReportIoType): void => {
+	program.addCommand(publicationCommand(environment, io));
+};
+
+/**
+ * Runs one report-only publication qualification command.
+ *
+ * @param argv - Arguments after `publication-report`.
+ * @param environment - Environment source.
+ * @param io - Output sinks.
+ * @returns Process exit code.
+ */
+export const runPublicationReportCommand = async (argv: readonly string[], environment: NodeJS.ProcessEnv, io: PublicationReportIoType): Promise<number> => {
+	const program = new Command('codeindex-cli');
+	program.addCommand(publicationCommand(environment, io));
+
+	const code = await parseCommandAsync(program, ['publication-report', ...argv], io, {usageExitCode: 1});
+
+	return code;
+};

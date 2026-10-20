@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {type ConfigType} from '../../core/config/config.ts';
 import {
+	type AdapterStatType,
 	type ExtractedBindingContextType,
 	type ExtractedBindingSiteType,
 	type ExtractedBindingType,
@@ -18,6 +19,7 @@ import {
 import {type ExtractorBuildType, type ExtractorType} from '../types.ts';
 import {extractOracleDependencies} from './extractDependencies.ts';
 import {extractOracleSymbols, type OracleContextSymbolsType, type OracleParsedFileType} from './extractSymbols.ts';
+import {mergeAdapterStats, oraclePublicationStats} from './publicationStats.ts';
 import {DEFAULT_ORACLE_SOURCE_EXTENSIONS, matchesOracleManifest, readOracleManifest} from './manifest.ts';
 import {assertOracleParserBinding, structuralOracleParserBinding, type OracleParserBindingType} from './parserBinding.ts';
 import {resolveOracleReferences} from './resolveReferences.ts';
@@ -46,6 +48,7 @@ type ContextResultType = Readonly<{
 	occurrences: readonly IndexedOccurrenceType[];
 	edges: readonly IndexedDependencyEdgeType[];
 	diagnostics: readonly DiagnosticType[];
+	adapterStats: readonly AdapterStatType[];
 	parseMs: number;
 }>;
 
@@ -108,12 +111,14 @@ const parseContext = (
 	const manifest = readOracleManifest(context.projectFilePath);
 	const parsed: OracleParsedFileType[] = [];
 	const diagnostics: DiagnosticType[] = [];
+	const sources = new Map<string, string>();
 
 	for (const file of scan.files.filter((candidate) => matchesOracleManifest(candidate.path, manifest.manifest))) {
 		const source = readFileSync(file.absolutePath, 'utf8');
 		const parse = parser({source, path: file.path, defaultSchema: manifest.canonicalSchema});
 
 		parsed.push({path: file.path, parse});
+		sources.set(file.path, source);
 		diagnostics.push(...parse.diagnostics);
 	}
 
@@ -131,12 +136,14 @@ const parseContext = (
 		files: symbols.analyses,
 		packages: symbols.packages,
 	});
+	const contextDiagnostics = [...diagnostics, ...symbols.diagnostics, ...references.diagnostics];
 
 	return {
 		symbols,
 		occurrences: [...symbols.occurrences, ...references.occurrences],
 		edges: dependencies.edges,
-		diagnostics: [...diagnostics, ...symbols.diagnostics, ...references.diagnostics],
+		diagnostics: contextDiagnostics,
+		adapterStats: oraclePublicationStats({analyses: symbols.analyses, sources, diagnostics: contextDiagnostics}).stats,
 		parseMs: Math.round(performance.now() - startedAt),
 	};
 };
@@ -215,7 +222,7 @@ const build = (config: ConfigType, scan: ScanResultType, parser: OracleParserBin
 				.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath) || left.startOffset - right.startOffset || left.id.localeCompare(right.id)),
 			bindings: [],
 		},
-		adapterStats: [],
+		adapterStats: mergeAdapterStats(contexts.map((context) => context.adapterStats)),
 		diagnostics: mergeDiagnostics(contexts),
 		compilerMs,
 		extractionMs,

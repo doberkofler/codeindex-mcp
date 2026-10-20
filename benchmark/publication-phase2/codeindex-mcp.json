@@ -1,0 +1,285 @@
+{
+	"schemaVersion": 1,
+	"tool": "publication-report",
+	"runtime": {
+		"scanMs": 31,
+		"compilerMs": 848,
+		"extractionMs": 3669,
+		"finalizationMs": 353,
+		"totalMs": 21019,
+		"peakRssBytes": 3352625152
+	},
+	"workspace": {
+		"projectId": "9ec930e6140da7aa",
+		"contexts": ["root"],
+		"fileCount": 190,
+		"sourceLineCount": 362920,
+		"sourceHash": "126f2d5d25b3b467c3d633f4e3e983e75b513ef8213099237daad80c78cc61c4",
+		"configHash": "1a2aa8c1da9bc72ea2068388cf1cafca0adbd2efe8dfa8646b0c8720dcc99a71",
+		"excludedFileCount": 0
+	},
+	"extractor": {
+		"id": "typescript",
+		"version": "0.1.0",
+		"compilerVersion": "6.0.3",
+		"declaredCompilerVersion": "6.0.3",
+		"compilerDrift": false
+	},
+	"facts": {
+		"files": 190,
+		"symbols": 35307,
+		"occurrences": 414302,
+		"definitions": 38639,
+		"references": 375663,
+		"bindings": 35307,
+		"bindingContexts": 35307,
+		"bindingSites": 38639,
+		"surfaceOrigins": 0,
+		"dependencyEdges": 2067,
+		"dependencyBindings": 2848
+	},
+	"exposure": {
+		"publishedSymbols": 24831,
+		"reachableSymbols": 0,
+		"internalOnlySymbols": 10476,
+		"publishedBindings": 24831,
+		"reachableBindings": 0,
+		"internalBindings": 10476
+	},
+	"measurements": {
+		"m1": {
+			"status": "measured",
+			"nestedFunctions": 0,
+			"totalLines": 0,
+			"p95ExtentLines": 0,
+			"maxExtentLines": 0
+		},
+		"m2": {
+			"status": "measured",
+			"javascriptFiles": 0,
+			"commonJsFiles": 0,
+			"esmJavaScriptFiles": 0,
+			"unclassifiedJavaScriptFiles": 0
+		},
+		"m4": {
+			"status": "measured",
+			"definitionOccurrences": 38639,
+			"definitionSites": 38639,
+			"symbolsWithMultipleBindings": 0,
+			"bindingsPerSymbol": {
+				"total": 35307,
+				"buckets": {
+					"1": 35307
+				},
+				"p50": 1,
+				"p95": 1,
+				"p99": 1,
+				"max": 1
+			},
+			"sitesPerBinding": {
+				"total": 35307,
+				"buckets": {
+					"1": 33641,
+					"3-4": 1666
+				},
+				"p50": 1,
+				"p95": 1,
+				"p99": 3,
+				"max": 3
+			}
+		},
+		"m6": {
+			"status": "partial",
+			"surfaceAddressesPerRoot": {
+				"total": 0,
+				"buckets": {},
+				"p50": 0,
+				"p95": 0,
+				"p99": 0,
+				"max": 0
+			},
+			"reachabilityStepsPerRoot": {
+				"total": 0,
+				"buckets": {},
+				"p50": 0,
+				"p95": 0,
+				"p99": 0,
+				"max": 0
+			},
+			"runtimeMs": 11197,
+			"peakRssBytes": 3337011200,
+			"note": "Reachability closure is not implemented before the Phase 4 projection slice; surface origins are preliminary."
+		},
+		"m7": {
+			"status": "blocked",
+			"routinePairs": null,
+			"cursorPairs": null,
+			"callSpecs": null,
+			"polymorphicTableFunctions": null,
+			"ambiguityRatePpm": null,
+			"overloadGroups": null,
+			"bodyForwards": null,
+			"bodyLessSpec": null,
+			"unclassifiedBodyLessSpec": null,
+			"note": "Oracle adapter statistics were not emitted for this extractor."
+		},
+		"m11": {
+			"status": "blocked",
+			"maximumReachabilityStepsPerRoot": 0,
+			"proposedCeiling": null,
+			"headroomFactor": null,
+			"note": "Reachability closure is not implemented before the Phase 4 projection slice."
+		},
+		"m12": {
+			"status": "partial",
+			"maximumSurfaceBindingsPerRoot": 0,
+			"maximumSurfaceBindingsPerSymbol": 0,
+			"proposedCeiling": 10000,
+			"headroomFactor": null,
+			"anonymous": 0,
+			"inherited": 0,
+			"depth1": 0,
+			"note": "Surface-origin classification and reachability closure are not implemented before the Phase 4 projection slice."
+		},
+		"m13": {
+			"status": "measured",
+			"unionCases": 14148,
+			"intersectionCases": 17,
+			"selectedSemantics": "undecided"
+		},
+		"m14": {
+			"status": "partial",
+			"mergedSymbols": 0,
+			"kindsets": {},
+			"proposedPrecedence": ["class", "interface", "enum", "namespace", "type", "function", "variable", "method", "property", "accessor", "enum_member"],
+			"kindChangesUnderProposedPrecedence": 0,
+			"note": "No fixed precedence is selected; this count is the rejected illustrative effect."
+		},
+		"r1": {
+			"status": "partial",
+			"symbolsByExposureAndKind": {
+				"published": {
+					"variable": 446,
+					"type": 292,
+					"class": 1236,
+					"method": 13967,
+					"property": 7653,
+					"accessor": 1237
+				},
+				"internal_only": {
+					"property": 2882,
+					"variable": 7427,
+					"type": 153,
+					"class": 6,
+					"accessor": 3,
+					"method": 5
+				}
+			},
+			"occurrencesByRole": {
+				"reference": 375663,
+				"definition": 38639
+			},
+			"usageStatus": "not_emitted",
+			"occurrencesByOwner": {
+				"null": {
+					"definition": 3123,
+					"reference": 2577
+				},
+				"present": {
+					"definition": 35516,
+					"reference": 373086
+				}
+			},
+			"sourceLinesRepresented": 224308
+		},
+		"r2": {
+			"status": "measured",
+			"s3": {
+				"status": "measured",
+				"checked": 35307,
+				"violations": 0,
+				"classes": {}
+			},
+			"o2": {
+				"status": "measured",
+				"checked": 414302,
+				"violations": 0,
+				"classes": {},
+				"note": "Definition extents are used where emitted; otherwise the primary symbol extent is the fallback."
+			},
+			"l1": {
+				"status": "measured",
+				"checked": 38639,
+				"violations": 0,
+				"classes": {}
+			},
+			"f1": {
+				"status": "measured",
+				"checked": 0,
+				"violations": 0,
+				"classes": {}
+			}
+		}
+	},
+	"prototypes": {
+		"p1": {
+			"status": "partial",
+			"contexts": 1,
+			"emittedFiles": 190,
+			"declarationMapFiles": 190,
+			"emitErrors": 0,
+			"emittedModules": 190,
+			"mappedModules": 190,
+			"unmappedModules": 0,
+			"emittedExports": 1974,
+			"publishedRoots": 1948,
+			"missingPublishedRoots": 26,
+			"extraPublishedRoots": 0,
+			"gA": "partial",
+			"gA2": "partial",
+			"note": "P-1 compares emitted root exports only. G-A2 position association and full address projection remain blocked."
+		},
+		"p2": {
+			"status": "measured",
+			"modules": 190,
+			"namedExternalAliases": 0,
+			"namespaceExternalAliases": 0,
+			"defaultExternalAliases": 0,
+			"externalStars": 0,
+			"commonJsModules": 0,
+			"exportEqualsModules": 0,
+			"exportEqualsIdentifierNames": 0,
+			"exportEqualsExpressions": 0,
+			"missingPublishedAliases": 0,
+			"missingPublishedAliasesByKind": {
+				"named": 0,
+				"namespace": 0,
+				"default": 0
+			},
+			"note": "P-2 reports compiler export-table aliases and export= forms. Alias/default/star publication remains Phase 4 work."
+		}
+	},
+	"issues": {
+		"total": 0,
+		"byCode": {}
+	},
+	"telemetry": {
+		"status": "not_collected",
+		"counters": {
+			"exact_name_no_match": 0,
+			"exact_name_P": 0,
+			"exact_name_R": 0,
+			"exact_name_I": 0,
+			"exact_name_PR": 0,
+			"exact_name_PI": 0,
+			"exact_name_RI": 0,
+			"exact_name_PRI": 0
+		}
+	},
+	"limitations": [
+		"Surface projection and reachability closure are not implemented before the Phase 4 projection slice.",
+		"Occurrence usage bits are not emitted by the current fact seam.",
+		"Query telemetry counters are fixed at zero during qualification.",
+		"P-1 compares emitted root exports only; G-A2 position association remains blocked."
+	]
+}

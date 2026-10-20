@@ -9,6 +9,7 @@ import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../
 import {debugFor, enableDebug} from '../../core/logging/debug.ts';
 import {createLogger} from '../../core/logging/logger.ts';
 import {type BuildReportType, type IndexStatusType, type IndexVerificationType} from '../../core/model.ts';
+import {addPublicationReportCommand} from '../../core/qualification/publication/publicationCommand.ts';
 import {addQualifyCommand, addVerifyReferencesCommand} from '../../core/qualification/qualifyCommand.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
@@ -270,6 +271,7 @@ const buildProgram = (context: CliContextType): Command => {
 	addBenchmarkSuiteCommand(program, context.environment, context.io, {cliPath: process.argv[1] ?? ''});
 	addBenchmarkPrepareCommand(program, context.io);
 	addQualifyCommand(program, context.environment, context.io);
+	addPublicationReportCommand(program, context.environment, context.io);
 	addOracleLiveCommand(program, context.environment, context.io);
 	addVerifyReferencesCommand(program, context.environment, context.io);
 

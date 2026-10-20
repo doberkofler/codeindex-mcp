@@ -50,6 +50,16 @@ const chooseImplementation = (files: readonly OracleParsedFileType[], group: rea
 	return chosen;
 };
 
+const reassignDescendants = (bindings: readonly MutableBindingType[][], previousSymbolId: string, nextSymbolId: string): void => {
+	for (const fileBindings of bindings) {
+		for (const descendant of fileBindings) {
+			if (descendant.enclosingId === previousSymbolId) {
+				descendant.enclosingId = nextSymbolId;
+			}
+		}
+	}
+};
+
 const mergeGroup = (files: readonly OracleParsedFileType[], bindings: readonly MutableBindingType[][], group: readonly BindingEntryType[]): void => {
 	const chosen = chooseImplementation(files, group);
 	const chosenBinding = chosen === null ? undefined : bindings[chosen.fileIndex]?.[chosen.index];
@@ -66,10 +76,13 @@ const mergeGroup = (files: readonly OracleParsedFileType[], bindings: readonly M
 		const binding = bindings[entry.fileIndex]?.[entry.index];
 
 		if (binding !== undefined) {
+			const previousSymbolId = binding.symbolId;
+
 			binding.symbolId = chosenBinding.symbolId;
 			binding.definitionOnly = true;
 			binding.ownSymbol = null;
 			binding.enclosingId = chosenBinding.enclosingId;
+			reassignDescendants(bindings, previousSymbolId, chosenBinding.symbolId);
 		}
 	}
 };

@@ -31,7 +31,7 @@ export type SymbolExposureType = 'published' | 'reachable' | 'internal_only';
 export type FactSiteKindType = 'declared' | 'alias' | 'default' | 'reexport' | 'wildcard' | 'commonjs' | 'surface';
 
 /** Adapter-defined aggregate statistic. */
-type AdapterStatType = Readonly<{
+export type AdapterStatType = Readonly<{
 	readonly metric: string;
 	readonly value: number;
 	readonly dimensions?: readonly string[] | undefined;

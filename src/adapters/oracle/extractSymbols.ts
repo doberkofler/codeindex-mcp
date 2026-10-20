@@ -1,9 +1,9 @@
-import {type ExtractedPublicationFactsType} from '../../core/facts/index.ts';
+import {type ExtractedOccurrenceType, type ExtractedPublicationFactsType} from '../../core/facts/index.ts';
 import {type DiagnosticType, type IndexedOccurrenceType, type IndexedSymbolType} from '../../core/model.ts';
 import {createOraclePublicationFacts, type OraclePublicationSymbolMetadataType} from './publicationFacts.ts';
 import {type OracleFileGraphType, type OraclePackageLookupMapType} from './scopeGraph.ts';
 import {type OracleParseResultType, type OracleRangeType} from './syntax.ts';
-import {buildSymbolTable, type OracleParsedFileType} from './symbolTables.ts';
+import {buildSymbolTable, type MutableBindingType, type OracleParsedFileType} from './symbolTables.ts';
 
 export type {OracleParsedFileType} from './symbolTables.ts';
 
@@ -16,6 +16,7 @@ export type OracleFileAnalysisType = Readonly<{
 		signature: string;
 		symbolId: string;
 		definitionOnly: boolean;
+		mapped: boolean;
 		enclosingId: string | null;
 	}>[];
 }>;
@@ -37,7 +38,7 @@ type InputType = Readonly<{
 
 const definitionOccurrence = (
 	input: Readonly<{path: string; context: string; range: OracleRangeType; symbolId: string; enclosingId: string | null}>,
-): IndexedOccurrenceType => ({
+): ExtractedOccurrenceType => ({
 	symbolId: input.symbolId,
 	path: input.path,
 	startLine: input.range.startLine,
@@ -61,9 +62,110 @@ const analysesOf = (files: readonly OracleParsedFileType[], table: ReturnType<ty
 			signature: binding.signature,
 			symbolId: binding.symbolId,
 			definitionOnly: binding.definitionOnly,
+			mapped: binding.mappedSpec !== null,
 			enclosingId: binding.enclosingId,
 		})),
 	}));
+
+const bodyMappedIdsOf = (table: ReturnType<typeof buildSymbolTable>): ReadonlySet<string> => {
+	const ids = new Set<string>();
+
+	for (const fileBindings of table.bindings) {
+		for (const binding of fileBindings) {
+			if (binding.mappedSpec !== null) {
+				ids.add(binding.symbolId);
+			}
+		}
+	}
+
+	return ids;
+};
+
+const isRoutineKind = (kind: string): boolean => kind === 'procedure' || kind === 'function' || kind === 'cursor';
+
+const isSpecUnitKind = (kind: string | undefined): boolean => kind === 'package-spec' || kind === 'procedure' || kind === 'function';
+
+const anchorRankOf = (bodyUnit: boolean, bodyForward: boolean, definitionOnly: boolean): number => {
+	if (!bodyUnit) {
+		return 0;
+	}
+
+	return bodyForward ? 2 : definitionOnly ? 1 : 0;
+};
+
+const primaryRankOf = (bodyUnit: boolean, kind: string, isRoutine: boolean): number => {
+	if (bodyUnit) {
+		return kind === 'package' ? 1 : 0;
+	}
+
+	return kind === 'package' || !isRoutine ? 0 : 1;
+};
+
+const definitionRanks = (
+	declaration: OracleParsedFileType['parse']['declarations'][number],
+	binding: MutableBindingType,
+	unit: OracleParsedFileType['parse']['units'][number] | undefined,
+	bodyMappedSymbolIds: ReadonlySet<string>,
+): Readonly<{forwardDefinition: boolean; anchorRank: number; primaryRank: number}> => {
+	const isRoutine = isRoutineKind(declaration.kind);
+	const bodyUnit = unit?.kind === 'package-body';
+	const pairedForward = isSpecUnitKind(unit?.kind) && isRoutine && bodyMappedSymbolIds.has(binding.symbolId);
+	const bodyForward = bodyUnit && binding.definitionOnly && binding.mappedSpec === null && isRoutine;
+
+	return {
+		forwardDefinition: pairedForward || bodyForward,
+		anchorRank: anchorRankOf(bodyUnit, bodyForward, binding.definitionOnly),
+		primaryRank: primaryRankOf(bodyUnit, declaration.kind, isRoutine),
+	};
+};
+
+const emitDeclaration = (
+	input: Readonly<{
+		file: OracleParsedFileType;
+		context: string;
+		declaration: OracleParsedFileType['parse']['declarations'][number];
+		binding: MutableBindingType;
+		bodyMappedSymbolIds: ReadonlySet<string>;
+		symbols: IndexedSymbolType[];
+		occurrences: ExtractedOccurrenceType[];
+		metadata: Map<string, OraclePublicationSymbolMetadataType>;
+	}>,
+): void => {
+	const {declaration, binding} = input;
+
+	if (binding.symbolId === '') {
+		return;
+	}
+
+	const unit = input.file.parse.units[declaration.unit];
+	const ranks = definitionRanks(declaration, binding, unit, input.bodyMappedSymbolIds);
+
+	if (binding.ownSymbol !== null) {
+		const ownSymbol = {...binding.ownSymbol, enclosingId: binding.enclosingId};
+		const existing = input.metadata.get(ownSymbol.id);
+
+		input.symbols.push(ownSymbol);
+		input.metadata.set(ownSymbol.id, {
+			owner: unit?.schema.canonical ?? '',
+			exported: (existing?.exported ?? false) || declaration.exported,
+		});
+	}
+
+	input.occurrences.push({
+		...definitionOccurrence({
+			path: input.file.path,
+			context: input.context,
+			range: declaration.nameRange,
+			symbolId: binding.symbolId,
+			enclosingId: binding.enclosingId,
+		}),
+		declarationKind: declaration.kind,
+		forwardDefinition: ranks.forwardDefinition,
+		extent: declaration.range,
+		anchorRank: ranks.anchorRank,
+		primaryRank: ranks.primaryRank,
+	});
+};
 
 const emitFacts = (
 	input: Readonly<{files: readonly OracleParsedFileType[]; context: string; table: ReturnType<typeof buildSymbolTable>}>,
@@ -73,35 +175,17 @@ const emitFacts = (
 	metadata: ReadonlyMap<string, OraclePublicationSymbolMetadataType>;
 }> => {
 	const symbols: IndexedSymbolType[] = [];
-	const occurrences: IndexedOccurrenceType[] = [];
+	const occurrences: ExtractedOccurrenceType[] = [];
 	const metadata = new Map<string, OraclePublicationSymbolMetadataType>();
+	const bodyMappedSymbolIds = bodyMappedIdsOf(input.table);
 
 	for (const [fileIndex, file] of input.files.entries()) {
 		for (const [index, declaration] of file.parse.declarations.entries()) {
 			const binding = input.table.bindings[fileIndex]?.[index];
 
-			if (binding === undefined || binding.symbolId === '') {
-				continue;
+			if (binding !== undefined) {
+				emitDeclaration({file, context: input.context, declaration, binding, bodyMappedSymbolIds, symbols, occurrences, metadata});
 			}
-
-			if (binding.ownSymbol !== null) {
-				const ownSymbol = {...binding.ownSymbol, enclosingId: binding.enclosingId};
-				const existing = metadata.get(ownSymbol.id);
-				const owner = file.parse.units[declaration.unit]?.schema.canonical ?? '';
-
-				symbols.push(ownSymbol);
-				metadata.set(ownSymbol.id, {owner, exported: (existing?.exported ?? false) || declaration.exported});
-			}
-
-			occurrences.push(
-				definitionOccurrence({
-					path: file.path,
-					context: input.context,
-					range: declaration.nameRange,
-					symbolId: binding.symbolId,
-					enclosingId: binding.enclosingId,
-				}),
-			);
 		}
 	}
 

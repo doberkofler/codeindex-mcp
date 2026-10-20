@@ -62,6 +62,7 @@ src/
   core/                 language-neutral indexing machinery
     generation/         worker builds, publication, lifecycle
     facts/              extracted-fact finalization, identity, exposure, validation
+    qualification/      truth comparison and report-only publication measurements
     freshness/          watcher, reconciliation, refresh state
     query/              bounded queries and graph traversal
     storage/            SQLite schema and persistence

@@ -47,6 +47,8 @@ export type SymbolTableType = Readonly<{
 	diagnostics: readonly DiagnosticType[];
 }>;
 
+const symbolIdOrNull = (symbolId: string | undefined): string | null => (symbolId === undefined || symbolId === '' ? null : symbolId);
+
 const parameterOrdinal = (parse: OracleParseResultType, index: number): number => {
 	const declaration = parse.declarations[index];
 
@@ -329,7 +331,7 @@ const mapBodyRoutineDeclaration = (
 				declaration: input.declaration,
 				binding: input.binding,
 				unitCanonical: input.unit.canonical,
-				parentSymbolId: input.parentBinding?.symbolId ?? null,
+				parentSymbolId: symbolIdOrNull(input.parentBinding?.symbolId),
 				fallbackFileIndex: input.fileIndex,
 				specs: input.specs,
 				diagnostics: input.diagnostics,
@@ -381,7 +383,7 @@ const mapBodyDeclaration = (
 			declaration,
 			canonical: binding.canonical,
 			signature: binding.signature,
-			enclosingId: parentBinding?.symbolId ?? null,
+			enclosingId: symbolIdOrNull(parentBinding?.symbolId),
 		}),
 	);
 };
@@ -429,7 +431,7 @@ const assignOwnBindings = (
 				continue;
 			}
 
-			const enclosingId = declaration.parent === null ? null : (input.bindings[fileIndex]?.[declaration.parent]?.symbolId ?? null);
+			const enclosingId = declaration.parent === null ? null : symbolIdOrNull(input.bindings[fileIndex]?.[declaration.parent]?.symbolId);
 			const binding = ownBinding({
 				projectId: input.projectId,
 				context: input.context,

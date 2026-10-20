@@ -1,5 +1,6 @@
 export {finalizeFacts} from './finalizeFacts.ts';
 export {
+	type AdapterStatType,
 	type ExtractedBindingContextType,
 	type ExtractedBindingSiteType,
 	type ExtractedBindingType,
@@ -10,6 +11,7 @@ export {
 	type FactAddressSegmentType,
 	type FactAddressType,
 	type FactExposureType,
+	type FactRangeType,
 	type FactSiteKindType,
 	type FinalizationPolicyType,
 } from './types.ts';
