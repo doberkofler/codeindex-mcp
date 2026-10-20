@@ -5,6 +5,8 @@ Operational and design documentation for CodeIndex MCP.
 | Document | Purpose |
 | --- | --- |
 | [Architecture](./architecture.md) | Core design, generation lifecycle, storage, extractor seam, and query contracts |
+| [Publication policy redesign](./codeindex-publication-policy-redesign.md) | Accepted symbol, binding, exposure, schema, and query contract |
+| [Publication policy progress](./codeindex-publication-policy-redesign-todo.md) | Implementation checklist, measurements, and open-decision status |
 | [TypeScript/JavaScript adapter](./typescript-adapter.md) | Shipped extractor behavior, production-pilot status, validation, limitations, and enhancement backlog |
 | [Oracle adapter](./oracle-adapter.md) | Static Oracle 19c SQL/PL/SQL extraction, manifest configuration, symbols, references, and package dependencies |
 | [ORDS and cross-language resolution](./ords-cross-language.md) | Planned HTTP, ORDS, and PL/SQL route evidence and cross-language graph construction |

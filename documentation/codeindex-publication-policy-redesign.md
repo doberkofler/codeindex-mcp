@@ -11,6 +11,9 @@ This document preserves the final rationale, evidence, rejected alternatives, an
 work—not the chronological review transcript. Superseded intermediate proposals have no
 normative value after acceptance.
 
+Implementation progress is tracked in
+[codeindex-publication-policy-redesign-todo.md](./codeindex-publication-policy-redesign-todo.md).
+
 ## Purpose
 
 CodeIndex must make high-value declarations easy for a model to find without deleting
