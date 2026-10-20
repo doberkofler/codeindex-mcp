@@ -184,6 +184,10 @@ Core tables:
 Persisted paths are workspace-relative POSIX paths. Absolute paths appear only in
 `index_status.scope` for the configured root and project files.
 
+The [publication policy](./codeindex-publication-policy-redesign.md) defines the next
+schema version's normalized fact tables. The list above describes the current release
+until that redesign is implemented.
+
 Previous generations are retained as `superseded` for one generation so in-flight
 queries holding a generation identifier can complete. Unreferenced content and
 artifacts are removed on publication.
@@ -287,6 +291,12 @@ An adapter emits serializable facts only. Compiler objects, database connections
 parser trees, credentials, and client-specific configuration remain inside the
 adapter boundary.
 
+Symbol persistence, binding exposure, surface projection, reachability, and the
+resulting schema and query behavior are defined by the
+[publication policy](./codeindex-publication-policy-redesign.md). That contract keeps
+language semantics in adapters and generic finalization, validation, persistence, and
+bounds in the core.
+
 ## 9. Query contract
 
 Every paged response includes a generation identifier, freshness, items, a next
@@ -300,6 +310,10 @@ cursor, and a truncation flag.
 | `find_references` | symbol id, role, optional context, limit, cursor | Definition/reference occurrences |
 | `find_dependencies` | target, optional context, direction, transitive, root, detail, limit, cursor | Direct target usage or dependency impact |
 | `read_symbol` | symbol id, context lines | Verifies current content hash |
+
+Symbol exposure (`published`, `reachable`, `internal`) and its ranking effect are
+defined by the [publication policy](./codeindex-publication-policy-redesign.md); the
+default `find_symbol` exposure remains open there.
 
 Result rules:
 

@@ -2,10 +2,10 @@
 
 Date: 2026-10-20
 
-Status: proposed authoritative contract. Once accepted, this file supersedes every
-versioned `codeindex-publication-policy-v*.md` specification and history document.
-Items marked **Open** require an owner decision or measurement; all other rules are
-normative.
+Status: accepted authoritative contract as of 2026-10-20. This file supersedes every
+versioned `codeindex-publication-policy-v*.md` specification and history document; no
+such document remains in the repository. Items marked **Open** require an owner decision
+or measurement; all other rules are normative.
 
 This document preserves the final rationale, evidence, rejected alternatives, and open
 work—not the chronological review transcript. Superseded intermediate proposals have no
@@ -1643,13 +1643,13 @@ rather than leaving them as documentary assumptions.
 
 ### Phase 0: accept the contract
 
-Complete when:
+Complete on 2026-10-20:
 
 - this document is approved as the sole publication-policy source;
 - the scoped projection and three-valued exposure are accepted;
 - canonical binding-key encoding is accepted;
-- remaining Open items are explicitly assigned to measurement or deferred scope;
-- versioned policy documents can be deleted.
+- remaining Open items are assigned in "Open decisions and measurements";
+- versioned policy documents are removed.
 
 ### Phase 1: introduce the fact seam
 
@@ -1763,19 +1763,22 @@ thresholds.
 
 ## Open decisions and measurements
 
-| ID | Item |
-|---|---|
-| K3 | CommonJS `export =` binding name and support acceptance after P-2 |
-| M1 | Store named nested TypeScript functions after measuring count and size |
-| M5 | Default `find_symbol` exposure: `published` or `visible` |
-| M8 | Oracle synonym/current-schema source and unquoted-name case folding |
-| M9 | `find_references` grouping and pagination semantics |
-| M10 | Deferred Oracle/ORDS scope and cross-language edges |
-| M11/M12 | Final per-root reachability-step and surface-address ceilings |
-| M13 | Union/intersection constituent behavior in address projection |
-| M14 | Fixed declaration-kind precedence for merged TypeScript symbol identity |
-| Q1 | PL/Scope signature equality for packaged spec/body routines |
-| Q2 | Real-task success, false-absence, token, and tool-call acceptance thresholds |
+| ID | Item | Disposition |
+|---|---|---|
+| K3 | CommonJS `export =` binding name and support acceptance after P-2 | Phase 6 decision |
+| M1 | Store named nested TypeScript functions after measuring count and size | Resolve before DDL |
+| M5 | Default `find_symbol` exposure: `published` or `visible` | Phase 6 decision |
+| M8 | Oracle synonym/current-schema source and unquoted-name case folding | Resolve before DDL |
+| M9 | `find_references` grouping and pagination semantics | Resolve before DDL |
+| M10 | Deferred Oracle/ORDS scope and cross-language edges | Deferred scope |
+| M11/M12 | Final per-root reachability-step and surface-address ceilings | Resolve before DDL |
+| M13 | Union/intersection constituent behavior in address projection | Resolve before DDL |
+| M14 | Fixed declaration-kind precedence for merged TypeScript symbol identity | Resolve before DDL |
+| Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification |
+| Q2 | Real-task success, false-absence, token, and tool-call acceptance thresholds | Phase 6 decision |
+
+No DDL work begins until every item marked "Resolve before DDL" has a recorded
+measurement or decision.
 
 ## Rejected alternatives
 
@@ -1799,16 +1802,17 @@ thresholds.
 | PL/Scope-backed production indexing | unavailable for wrapped/offline source and violates source-based adapter design |
 | ANTLR Oracle production parser | Phase 8 precision and dependency-recall gates failed |
 
-## Removal checklist for versioned documents
+## Versioned document removal
 
-After this contract is accepted:
+Completed on 2026-10-20:
 
-1. Confirm all Open items required for the first implementation phase are assigned.
-2. Search the repository for references to `codeindex-publication-policy-v`.
-3. Delete every `documentation/codeindex-publication-policy-v*.md` file, including
-   history companions.
-4. Point any architecture or contributor documentation to this file.
-5. Run the documentation formatter and repository verification.
+1. All Open items required for the first implementation phase are assigned.
+2. No documentation references to `codeindex-publication-policy-v` remain outside this
+   contract's supersession note.
+3. Every `codeindex-publication-policy-v*.md` file, including history companions, is
+   deleted.
+4. Architecture documentation points to this file.
+5. Repository verification passes.
 
 ## Sources
 
