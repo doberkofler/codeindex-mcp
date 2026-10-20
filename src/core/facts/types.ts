@@ -131,6 +131,13 @@ export type FinalizationPolicyType = Readonly<{
 	readonly mode: FinalizationModeType;
 	/** Maximum surface bindings below one published root. */
 	readonly maxBindingsPerRoot: number;
+	/**
+	 * Adapter identity for extractor-specific measured invariants.
+	 *
+	 * When present, S3, O2, L1, and F1 are measured during finalization and
+	 * reported as issues. `enforce` mode fails the candidate on any violation.
+	 */
+	readonly extractorId?: string | undefined;
 }>;
 
 /** Stable category for one finalization violation. */
@@ -147,7 +154,11 @@ export type FactIssueCodeType =
 	| 'missing_binding_context'
 	| 'missing_binding_site'
 	| 'missing_definition'
-	| 'ceiling_exceeded';
+	| 'ceiling_exceeded'
+	| 'invariant_s3'
+	| 'invariant_o2'
+	| 'invariant_l1'
+	| 'invariant_f1';
 
 /** One finalization violation without source text or absolute paths. */
 export type FactIssueType = Readonly<{

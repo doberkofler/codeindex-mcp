@@ -48,6 +48,7 @@ import {
 	definitionSitesForSymbol,
 	definitionSitesForSymbols,
 	findBindingCandidates,
+	exactNamePresence,
 	outlineReexports as readOutlineReexports,
 	outlineSymbols as readOutlineSymbols,
 	referenceCoverage,
@@ -357,6 +358,10 @@ export class IndexDatabase {
 
 	public findBindingCandidates(input: Parameters<typeof findBindingCandidates>[1]): ReturnType<typeof findBindingCandidates> {
 		return findBindingCandidates(this.#reader, input);
+	}
+
+	public exactNamePresence(input: Parameters<typeof exactNamePresence>[1]): ReturnType<typeof exactNamePresence> {
+		return exactNamePresence(this.#reader, input);
 	}
 
 	public bindingDetails(input: Parameters<typeof bindingDetailsForSymbols>[1]): ReturnType<typeof bindingDetailsForSymbols> {

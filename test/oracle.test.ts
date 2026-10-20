@@ -163,8 +163,11 @@ describe('Oracle index integration', () => {
 	afterAll(() => {
 		fixture.cleanup();
 	});
-	const firstSymbol = (query: string): ReturnType<typeof fixture.index.findSymbols>['items'][number] => {
-		const symbol = fixture.index.findSymbols({query, match: 'qualified', limit: 1}).items.at(0);
+	const firstSymbol = (
+		query: string,
+		exposure: 'published' | 'reachable' | 'visible' | 'internal' | 'any' = 'visible',
+	): ReturnType<typeof fixture.index.findSymbols>['items'][number] => {
+		const symbol = fixture.index.findSymbols({query, match: 'qualified', exposure, limit: 1}).items.at(0);
 
 		if (symbol === undefined) {
 			throw new Error(`Expected symbol ${query}`);
@@ -223,7 +226,7 @@ describe('Oracle index integration', () => {
 		const field = firstSymbol('owner["APP"]::HR_API.T_EMPLOYEE.ID');
 		expect(fixture.index.findReferences({symbolId: field.id, limit: 10}).items.map((item) => item.role)).toStrictEqual(['definition']);
 
-		const forward = firstSymbol('owner["APP"]::HR_API.FORWARD_HELPER');
+		const forward = firstSymbol('owner["APP"]::HR_API.FORWARD_HELPER', 'any');
 		const forwardDefinitions = fixture.index.findReferences({symbolId: forward.id, role: 'definition', limit: 10});
 
 		expect(forwardDefinitions.items).toHaveLength(2);

@@ -52,7 +52,7 @@ Deferred scope:
 - full-text search and embeddings;
 - dependency-tool naming, MCP tool naming, context-cost ordering, and
   `structuredContent` changes unrelated to this fact model;
-- CommonJS export assignments until the compiler-export-table prototype completes.
+- CommonJS export assignments; K3 keeps them outside the publication model.
 
 ## Decisions
 
@@ -502,7 +502,7 @@ One binding can have several source sites.
 | `default` | `export default` clause |
 | `reexport` | named re-export from another internal module |
 | `wildcard` | binding introduced through internal `export *` |
-| `commonjs` | CommonJS export assignment, when enabled |
+| `commonjs` | CommonJS export assignment; reserved while K3 keeps CommonJS publication disabled |
 | `surface` | projected address whose source site is its published root |
 
 A declared site equals a definition occurrence's name range. Export sites lie in an
@@ -747,7 +747,7 @@ A root is a published binding in one context, not merely a declaration. Roots in
 - script globals;
 - authored global/module augmentation contributions;
 - synthetic default bindings;
-- CommonJS exports when enabled.
+- CommonJS exports when enabled; K3 currently keeps CommonJS publication disabled.
 
 An internal helper called by an exported declaration is not a root. Multiple published
 aliases of one symbol are distinct roots and produce distinct projected addresses.
@@ -888,9 +888,12 @@ the type of an authored property. An authored property whose value type is exter
 still an authored, searchable declaration; members declared by that external type are
 not.
 
-ESM JavaScript follows the TypeScript path. CommonJS export assignments are **Open**
-until a compiler-export-table prototype establishes consumer-facing names for
-`module.exports`, `exports.foo`, and `module.exports.foo`.
+ESM JavaScript follows the TypeScript path. K3 is resolved as deferred: CommonJS
+export assignments remain outside the publication model. P-2 found no `export =`
+module in the three public corpora, `getExportsOfModule` exposes no consumer-facing
+name for `export =`, and the identifier and expression forms do not share one
+defensible binding name. CommonJS files remain indexed under the existing
+non-publication semantics.
 
 ## Oracle policy
 
@@ -1051,7 +1054,9 @@ Ownership classes:
 | B1 | Adapter | Stored definition sites belong to authored roots; merged external symbols retain authored declarations only |
 
 A measured invariant becomes core/adapter enforced only after the dry run resolves all
-valid violation classes.
+valid violation classes. S3, O2, L1, and F1 are measured during finalization whenever
+the production extractor identity is available, and `enforce` mode fails the candidate
+on any violation. Qualification-only parser overrides remain report-only.
 
 ## Schema redesign
 
@@ -1340,7 +1345,9 @@ When a context filter is present:
 - the global primary binding retains overall exposure;
 - the response states whether the primary exists in the requested context.
 
-The default exposure filter is **Open** until measured query-pollution data exists.
+The default exposure filter is `visible`: published or reachable bindings, never
+internal-only ones. M5 was resolved on Phase 6 corpus evidence; see
+`benchmark/publication-phase6/`.
 
 ### `outline`
 
@@ -1468,9 +1475,9 @@ independently for every configured project context.
 
 ### TypeScript published-address truth: G-A
 
-Until K3 is accepted, G-A covers TypeScript and ESM JavaScript publication only;
-CommonJS files remain indexed under existing non-publication semantics and are measured
-separately.
+K3 is resolved as deferred, so G-A covers TypeScript and ESM JavaScript publication
+only; CommonJS files remain indexed under existing non-publication semantics and are
+measured separately.
 
 1. Emit declarations with TypeScript 6.0.3 into a fresh temporary output [12].
 2. Load the emitted declarations into an independent program.
@@ -1581,8 +1588,9 @@ omits required definitions. Wrapped units are excluded and counted.
 
 ### Structural validation: G-F
 
-Every enforced invariant passes after persistence and before publication. Measured
-invariants become enforced only after all valid violation classes are resolved.
+Every enforced invariant passes after persistence and before publication. S3, O2, L1,
+and F1 are measured by the finalizer for production builds and become enforcement
+failures in `enforce` mode. Qualification-only parser overrides remain report-only.
 
 ### Real-task evaluation
 
@@ -1595,6 +1603,27 @@ Measure task success, tool calls, tokens, and false-absence claims. Keep transcr
 with the evaluator; persist aggregate counts only. Exclude cross-language tasks until
 cross-language parsing exists.
 
+Q2 acceptance thresholds, recorded on 2026-10-20:
+
+- at least 12 independently runnable cases across locate, impact, and implementation
+  classes, with 5 paired repetitions per arm and identical prompt, model, revision,
+  permissions, and external fixtures;
+- indexed correctness is non-inferior: no case loses correctness against baseline, and
+  overall indexed success is at least 90%;
+- indexed false-absence claims are at most 2% of truthful runs and never exceed the
+  baseline rate; a run where the index returned an authoritative non-empty result must
+  not claim absence;
+- median retrieval output bytes per successful case are at least 10% lower than
+  baseline;
+- median total tool calls per successful case are not higher than baseline;
+- median total tokens per successful case are at most 1.05x baseline;
+- p95 wall time is at most 1.2x baseline.
+
+A run with unavailable exact token usage, mismatched artifacts, or fewer than five
+repetitions is invalid rather than a pass. The A/B itself remains blocked until the
+private evaluation harness and model transcripts are available; no aggregate task
+metrics are claimed.
+
 The evaluation has no LSP arm unless the target client exposes a documented LSP tool
 [20].
 
@@ -1603,6 +1632,9 @@ The evaluation has no LSP arm unless the target client exposes a documented LSP 
 Measure exact-name `find_symbol` outcomes using eight fixed integer counters: no match,
 or one counter for each non-empty presence bitmask over published, reachable, and
 internal matches (`P`, `R`, `I`, `PR`, `PI`, `RI`, `PRI`).
+
+Phase 6 implements this as the `find_symbol_outcome` analytics event. Cursor
+continuations are not counted twice.
 
 Do not retain query text, symbol names, paths, prompts, or credentials. Runtime query
 telemetry belongs to the existing bounded local analytics mechanism, not `build_stats`,
@@ -1752,15 +1784,16 @@ export comparison remained partial: 3,009/3,004, 575/18,679, and 1,530/1,199 tru
 were missing from the preliminary published roots for the three corpora. P-2 found
 1,329 named, 1 namespace, and 146 default external aliases, 150 external stars, and 1,136
 missing alias bindings in Material UI; the other two corpora emitted no external alias
-forms. CommonJS `export =` resolution passed on the repository fixture and remains a
-Phase 6 decision (K3). G-A and G-A2 are therefore not normative; full address projection
-and declaration-map position association remain Phase 4 work.
+forms. CommonJS `export =` resolution passed on the repository fixture; K3 is resolved
+as deferred, so no CommonJS publication root is emitted. G-A and G-A2 are therefore not
+normative; full address projection and declaration-map position association remain
+Phase 4 work.
 
 Measured invariant results were zero S3/O2/L1/F1 violations on all three TypeScript
-corpora and on the repository corpus. The Oracle fixture exposed two
-`parameter_type_reference_owner` O2 cases: type references in parameter declarations
-currently inherit the routine owner. Phase 5 retains nested parameter ownership and this
-named class remains report-only until that slice lands.
+corpora and on the repository corpus. The Oracle fixture initially exposed two
+`parameter_type_reference_owner` O2 cases. Phase 5 removed parameter declarations from
+stored ownership, and the Oracle publication fixture now reports zero O2 cases. S3, O2,
+L1, and F1 are enforced for production builds.
 
 Surface projection and reachability closure were measured with the independent P-3
 compiler-type probe. All 6,010 TypeScript compiler roots, 19,254 VS Code roots, and 4,091
@@ -1810,13 +1843,16 @@ while exposing publication classification.
 
 ### Phase 6: defaults and evaluation
 
-- Choose the default `find_symbol` exposure from measured query pollution.
-- Run real-task A/B.
-- Decide CommonJS support from P-2.
-- Enable enforced measured invariants whose violation classes are resolved.
+Implemented on 2026-10-20, except the model-facing A/B run:
+
+- `find_symbol` defaults to `visible`.
+- Exact-name presence telemetry is recorded in local analytics.
+- CommonJS publication is deferred by K3.
+- S3, O2, L1, and F1 are enforced for production builds.
+- Q2 thresholds are accepted; the real-task A/B awaits the private harness.
 
 Complete when model-facing task metrics meet the accepted success and false-absence
-thresholds.
+thresholds. Those metrics remain blocked, so Phase 6 is not complete.
 
 ### Required automated tests
 
@@ -1841,9 +1877,9 @@ thresholds.
 
 | ID | Item | Disposition |
 |---|---|---|
-| K3 | CommonJS `export =` binding name and support acceptance after P-2 | Phase 6 decision |
+| K3 | CommonJS `export =` binding name and support acceptance after P-2 | Resolved: deferred; no CommonJS publication roots |
 | M1 | Store named nested TypeScript functions after measuring count and size | Resolved: store them; Phase 2 evidence recorded |
-| M5 | Default `find_symbol` exposure: `published` or `visible` | Phase 6 decision |
+| M5 | Default `find_symbol` exposure: `published` or `visible` | Resolved: `visible`; Phase 6 exact-name evidence recorded |
 | M8 | Oracle synonym/current-schema source and unquoted-name case folding | Resolved: source-only names, no synonym expansion, canonical uppercase for unquoted names |
 | M9 | `find_references` grouping and pagination semantics | Resolved: flat occurrences with keyset pagination |
 | M10 | Deferred Oracle/ORDS scope and cross-language edges | Deferred scope |
@@ -1851,7 +1887,7 @@ thresholds.
 | M13 | Union/intersection constituent behavior in address projection | Resolved: constituent-only declarations are reachable, not projected |
 | M14 | Fixed declaration-kind precedence for merged TypeScript symbol identity | Resolved: no fixed precedence; keep the identity anchor kind |
 | Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification |
-| Q2 | Real-task success, false-absence, token, and tool-call acceptance thresholds | Phase 6 decision |
+| Q2 | Real-task success, false-absence, token, and tool-call acceptance thresholds | Resolved: thresholds accepted; A/B blocked on private harness |
 
 No DDL work begins until every item marked "Resolve before DDL" has a recorded
 measurement or decision.

@@ -314,8 +314,8 @@ cursor, and a truncation flag.
 | `read_symbol` | symbol id, context lines | Verifies current content hash |
 
 Symbol exposure (`published`, `reachable`, `internal`) and its ranking effect are
-defined by the [publication policy](./codeindex-publication-policy-redesign.md); the
-default `find_symbol` exposure remains open there.
+defined by the [publication policy](./codeindex-publication-policy-redesign.md);
+`find_symbol` defaults to the `visible` filter (published or reachable).
 
 Result rules:
 

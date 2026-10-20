@@ -4,6 +4,8 @@ import {type AnalyticsEventType, parseAnalyticsEvent} from './events.ts';
 
 const {dirname, join} = path;
 
+const EXACT_NAME_PRESENCE = new Set(['none', 'P', 'R', 'I', 'PR', 'PI', 'RI', 'PRI']);
+
 export type AnalyticsSummaryType = Readonly<{
 	readonly files: number;
 	readonly events: number;
@@ -14,6 +16,7 @@ export type AnalyticsSummaryType = Readonly<{
 	readonly lastTimestamp: string | null;
 	readonly counts: Readonly<Record<string, number>>;
 	readonly tools: Readonly<Record<string, ToolSummaryType>>;
+	readonly exactNamePresence: Readonly<Record<string, number>>;
 	readonly builds: Readonly<{
 		readonly count: number;
 		readonly p50Ms: number | null;
@@ -57,6 +60,7 @@ type ToolAccumulatorType = {
 type AggregateStateType = {
 	readonly counts: Record<string, number>;
 	readonly freshness: Record<string, number>;
+	readonly exactNamePresence: Record<string, number>;
 	readonly tools: Map<string, ToolAccumulatorType>;
 	readonly buildDurations: number[];
 	readonly stageValues: Map<string, number[]>;
@@ -219,6 +223,14 @@ const accumulateBuild = (state: AggregateStateType, event: AnalyticsEventType): 
 const accumulateEvent = (state: AggregateStateType, event: AnalyticsEventType): void => {
 	state.counts[event.event] = (state.counts[event.event] ?? 0) + 1;
 
+	if (event.event === 'find_symbol_outcome') {
+		const presence = stringField(event, 'presence');
+
+		if (presence !== null && EXACT_NAME_PRESENCE.has(presence)) {
+			state.exactNamePresence[presence] = (state.exactNamePresence[presence] ?? 0) + 1;
+		}
+	}
+
 	if (event.event === 'mcp_tool_call') {
 		accumulateTool(state, event);
 		return;
@@ -295,6 +307,7 @@ export const summarizeAnalytics = (analyticsPath: string, since?: string): Analy
 	const state: AggregateStateType = {
 		counts: {},
 		freshness: {},
+		exactNamePresence: {},
 		tools: new Map(),
 		buildDurations: [],
 		stageValues: new Map(),
@@ -321,6 +334,7 @@ export const summarizeAnalytics = (analyticsPath: string, since?: string): Analy
 		lastTimestamp: timestamps.at(-1) ?? null,
 		counts: state.counts,
 		tools: toolSummaries(state.tools),
+		exactNamePresence: state.exactNamePresence,
 		builds: {
 			count: state.buildDurations.length,
 			p50Ms: percentile(state.buildDurations, 0.5),
@@ -360,6 +374,8 @@ export const formatAnalyticsText = (summary: AnalyticsSummaryType): readonly str
 	'tools:',
 	...toolLines(summary.tools),
 	'',
+	`find_symbol exact-name presence: ${JSON.stringify(summary.exactNamePresence)}`,
+	'',
 	`builds: ${summary.builds.count}, failures ${summary.builds.failures}, p50 ${formatValue(summary.builds.p50Ms)} ms, p95 ${formatValue(summary.builds.p95Ms)} ms`,
 	...Object.entries(summary.builds.stages).map(([stage, value]) => `  ${stage}: ${formatValue(value)} ms`),
 	'',
@@ -378,7 +394,11 @@ const tableRows = (tools: Readonly<Record<string, ToolSummaryType>>): string =>
 		.join('');
 
 export const formatAnalyticsHtml = (summary: AnalyticsSummaryType): string => {
-	const details = JSON.stringify({stages: summary.builds.stages, freshness: summary.freshness, watcher: summary.watcher}, null, 2);
+	const details = JSON.stringify(
+		{stages: summary.builds.stages, freshness: summary.freshness, watcher: summary.watcher, exactNamePresence: summary.exactNamePresence},
+		null,
+		2,
+	);
 
 	return `<!doctype html>
 <html lang="en">

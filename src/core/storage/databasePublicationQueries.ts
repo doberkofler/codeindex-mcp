@@ -1,5 +1,5 @@
 export {type BindingCandidateType} from './databaseBindingQueries.ts';
-export {bindingContextsFor, bindingDetailsForSymbols, bindingSitesFor, findBindingCandidates} from './databaseBindingQueries.ts';
+export {bindingContextsFor, bindingDetailsForSymbols, bindingSitesFor, exactNamePresence, findBindingCandidates} from './databaseBindingQueries.ts';
 export {
 	bindingBelongsToSymbol,
 	bindingExposure,

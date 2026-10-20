@@ -65,10 +65,11 @@ const measure = (action: () => void): number => {
 	return Math.round(performance.now() - startedAt);
 };
 
-const finalizePublication = (facts: ExtractorBuildType): FinalizedFactSetType => {
+const finalizePublication = (facts: ExtractorBuildType, extractorId: string | null): FinalizedFactSetType => {
 	const publication = finalizeFacts(facts, {
 		mode: 'enforce',
 		maxBindingsPerRoot: PUBLICATION_SURFACE_BINDINGS_PER_ROOT,
+		...(extractorId === null ? {} : {extractorId}),
 	});
 
 	debug('publication facts finalized', publication.stats);
@@ -307,7 +308,8 @@ const executeBuild = (
 	debugMemory('build-start');
 	const extracted = extractor.build(input.config, input.scan);
 	debugMemory('extracted');
-	const finalized = finalizePublication(extracted);
+	// Qualification-only parser overrides are not production builds; keep measured invariants report-only there.
+	const finalized = finalizePublication(extracted, input.extractor === undefined ? input.scan.extractorId : null);
 	const artifactFacts: ExtractionResultType = {
 		symbols: extracted.symbols,
 		occurrences: extracted.occurrences,

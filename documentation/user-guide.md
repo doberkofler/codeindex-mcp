@@ -184,6 +184,10 @@ The server exposes seven read-only tools:
 | `read_symbol` | Bounded source, definition sites, bindings, binding sites, or binding contexts |
 | `symbol_at` | Innermost stored declaration covering a source line or position |
 
+`find_symbol` defaults to the `visible` exposure filter, which includes published and
+reachable declarations and excludes internal-only ones. Pass `exposure: "internal"` or
+`exposure: "any"` only when internal navigation is specifically required.
+
 Each query reports its generation and freshness:
 
 - `current`: use the result.
@@ -323,7 +327,9 @@ A running MCP process does not pick up a replaced `dist/mcp.mjs`. After
 ## Analytics
 
 Local analytics are enabled by default and contain no source text, prompts,
-queries, symbol names, credentials, or absolute source paths.
+queries, symbol names, credentials, or absolute source paths. Exact-name
+`find_symbol` calls add one presence mask (`none`, `P`, `R`, `I`, `PR`, `PI`, `RI`, or
+`PRI`) so exposure defaults can be evaluated without retaining query text.
 
 ```bash
 codeindex-cli analytics

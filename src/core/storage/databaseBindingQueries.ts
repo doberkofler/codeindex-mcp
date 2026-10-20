@@ -1,5 +1,12 @@
 import {type DatabaseSync} from 'node:sqlite';
-import {type BindingDetailType, type BindingSiteSummaryType, type BindingSummaryType, type ContextExposureType, type SymbolSummaryType} from '../model.ts';
+import {
+	type BindingDetailType,
+	type BindingSiteSummaryType,
+	type BindingSummaryType,
+	type ContextExposureType,
+	type ExactNamePresenceType,
+	type SymbolSummaryType,
+} from '../model.ts';
 import {asNumber, asString, placeholders} from './databaseRows.ts';
 import {BINDING_COLUMNS, EXPOSURE_ORDER, exposureOf, siteKindOf, toSymbolSummary} from './databasePublicationRows.ts';
 
@@ -62,6 +69,40 @@ const exposureFilter = (
 	return {sql: ` and ${expression} = ?`, parameters: [exposure]};
 };
 
+const EXACT_NAME_PRESENCES: readonly ExactNamePresenceType[] = ['none', 'P', 'R', 'I', 'PR', 'PI', 'RI', 'PRI'];
+
+/**
+ * Reports which exposure classes hold an exact-name binding.
+ *
+ * The measurement is independent of the caller's exposure filter so query
+ * telemetry can compare candidate defaults without changing the result.
+ *
+ * @param reader - Reader connection.
+ * @param input - Generation, exact canonical name, and optional context.
+ * @returns Presence bitmask over published, reachable, and internal bindings.
+ */
+export const exactNamePresence = (
+	reader: DatabaseSync,
+	input: Readonly<{readonly generationId: string; readonly name: string; readonly context?: string | undefined}>,
+): ExactNamePresenceType => {
+	const exposureExpression = exposureColumn(input.context);
+	const contextFilter = contextClause(input.context, 'n');
+	const parameters: string[] = input.context === undefined ? [input.generationId, input.name] : [input.context, input.generationId, input.name];
+	const rows = reader
+		.prepare(
+			`select distinct ${exposureExpression} as exposure
+			 from symbol_name n
+			 where n.generation_id = ?
+			 and n.name = ?
+			 ${contextFilter.sql}`,
+		)
+		.all(...parameters, ...contextFilter.parameters);
+	const present = new Set(rows.map((row) => exposureOf(asString(row, 'exposure'))));
+	const bits = `${present.has('published') ? 'P' : ''}${present.has('reachable') ? 'R' : ''}${present.has('internal') ? 'I' : ''}`;
+
+	return EXACT_NAME_PRESENCES.find((presence) => presence === bits) ?? 'none';
+};
+
 /**
  * Finds bindings that satisfy a symbol-search filter before deduplication.
  *
@@ -105,7 +146,9 @@ export const findBindingCandidates = (
 	const exposureExpression = exposureColumn(input.context);
 	const exposure = exposureFilter(input.exposure, exposureExpression);
 
-	parameters.push(...contextFilter.parameters, ...exposure.parameters, input.fetchLimit);
+	const exposureContext = input.context === undefined || exposure.sql === '' ? [] : [input.context];
+
+	parameters.push(...contextFilter.parameters, ...exposureContext, ...exposure.parameters, input.fetchLimit);
 
 	const sql = `select ${BINDING_COLUMNS}, ${exposureExpression} as exposure
 		from symbol_name n

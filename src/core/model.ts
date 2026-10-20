@@ -364,6 +364,7 @@ export type {
 	OutlineResultType,
 	FindSymbolInputType,
 	FindSymbolResultType,
+	ExactNamePresenceType,
 	FindReferencesInputType,
 	ReferenceOwnerSummaryType,
 	ReferenceType,

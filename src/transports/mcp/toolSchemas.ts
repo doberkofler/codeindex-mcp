@@ -31,7 +31,10 @@ export const FindSymbolInputSchema = z.object({
 	container: z.string().optional().describe('Binding container display prefix; empty query lists its members'),
 	path: z.string().min(1).optional().describe('Only symbols with a definition occurrence in this path'),
 	context: ContextSchema,
-	exposure: z.enum(['published', 'reachable', 'visible', 'internal', 'any']).default('any').describe('Binding exposure filter'),
+	exposure: z
+		.enum(['published', 'reachable', 'visible', 'internal', 'any'])
+		.default('visible')
+		.describe('Binding exposure filter; visible means published or reachable (default)'),
 	limit: LimitSchema,
 	cursor: CursorSchema,
 });

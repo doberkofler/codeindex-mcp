@@ -138,6 +138,9 @@ export type FindSymbolResultType = PagedResultType<FindSymbolItemType> &
 		readonly match: 'name' | 'qualified';
 	}>;
 
+/** Presence bitmask for exact-name `find_symbol` matches. */
+export type ExactNamePresenceType = 'none' | 'P' | 'R' | 'I' | 'PR' | 'PI' | 'RI' | 'PRI';
+
 export type FindReferencesInputType = Readonly<{
 	readonly symbolId: string;
 	readonly role?: 'definition' | 'reference' | undefined;

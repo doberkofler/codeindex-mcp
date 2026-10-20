@@ -9,18 +9,13 @@ Date: 2026-10-20
 
 ## Current phase
 
-Phase 5 Oracle vertical slice is implemented on fixtures. The Oracle adapter now
-records declaration forms, pairs routines and cursors by exact normalized heading,
-anchors private body forwards on their full implementation, and emits lexical
-bindings, contexts, declared sites, declaration kinds, ownership, and usage bits.
-Parameters and routine-local declarations are ephemeral; stored declarations are
-published or internal after whole-generation spec/body pairing. Oracle display
-uses canonical owner-qualified spelling.
+Phase 6 defaults are implemented on 2026-10-20. `find_symbol` defaults to `visible`,
+exact-name presence outcomes feed local analytics, CommonJS publication is deferred by
+K3, and S3/O2/L1/F1 are enforced during production finalization. The real-task A/B
+remains blocked on the private evaluation harness; Q2 thresholds are recorded.
 
-Phase 4 G-A passes the fixture comparison. Full G-A2 corpus position association
-remains partial because P-1 still proves only root-export association. Oracle
-G-B through G-F pass on the publication fixture; the frozen production Oracle
-corpus and PL/Scope run remain unavailable in this environment.
+Phase 5 Oracle G-B through G-F pass on the publication fixture; the frozen production
+Oracle corpus and PL/Scope run remain unavailable in this environment.
 
 ## Phase 0: accept the contract
 
@@ -233,18 +228,39 @@ Phase 5 notes:
 
 ## Phase 6: defaults and evaluation
 
-- [ ] Choose default `find_symbol` exposure from measured query pollution (M5).
-- [ ] Run real-task A/B and record acceptance thresholds (Q2).
-- [ ] Decide CommonJS support from P-2 (K3).
-- [ ] Enable enforced measured invariants whose violation classes are resolved.
+Implemented on 2026-10-20, except the model-facing A/B run.
+
+- [x] Choose default `find_symbol` exposure from measured query pollution (M5).
+      Resolved to `visible`; exact-name presence evidence is in
+      `benchmark/publication-phase6/`.
+- [ ] Run real-task A/B and record acceptance thresholds (Q2). Thresholds are recorded;
+      the A/B is blocked on the private harness and model transcripts.
+- [x] Decide CommonJS support from P-2 (K3). Resolved as deferred; no CommonJS root or
+      `commonjs` site is emitted.
+- [x] Enable enforced measured invariants whose violation classes are resolved.
+      S3, O2, L1, and F1 are measured in production finalization and fail `enforce`
+      candidates. Qualification-only parser overrides stay report-only.
+- [x] Record exact-name `find_symbol` presence outcomes in local analytics. The eight
+      counters are aggregated by `analytics` summary output.
+
+Phase 6 notes:
+
+- The default exposure filter is `visible` (published or reachable). Internal-only
+  names require an explicit `internal` or `any` filter.
+- The corpus measurement found internal-only exact names to be 6,159 / 933 / 32,258
+  across the TypeScript compiler, Material UI, and VS Code. `visible` adds only 40 / 95
+  / 1,247 names over `published`, all reachable.
+- Query telemetry records only presence masks and never query text, names, or paths.
+- The ANTLR Oracle qualification override is not a production parser; measured
+  invariants remain report-only for that override.
 
 ## Open decisions
 
 | ID | Item | Disposition | Status |
 |---|---|---|---|
-| K3 | CommonJS `export =` binding name and support acceptance | Phase 6 decision | Open |
+| K3 | CommonJS `export =` binding name and support acceptance | Phase 6 decision | Resolved: deferred |
 | M1 | Store named nested TypeScript functions | Resolve before DDL | Resolved: store |
-| M5 | Default `find_symbol` exposure | Phase 6 decision | Open |
+| M5 | Default `find_symbol` exposure | Phase 6 decision | Resolved: `visible` |
 | M8 | Oracle synonym/current-schema source and case folding | Resolve before DDL | Resolved: source-only names, no synonym expansion, canonical case rules |
 | M9 | `find_references` grouping and pagination semantics | Resolve before DDL | Resolved: flat occurrences, keyset pagination |
 | M10 | Oracle/ORDS scope and cross-language edges | Deferred scope | Deferred |
@@ -252,7 +268,7 @@ Phase 5 notes:
 | M13 | Union/intersection projection semantics | Resolve before DDL | Resolved: constituent reachability |
 | M14 | Merged TypeScript declaration-kind precedence | Resolve before DDL | Resolved: no fixed precedence |
 | Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification | Open |
-| Q2 | Real-task acceptance thresholds | Phase 6 decision | Open |
+| Q2 | Real-task acceptance thresholds | Phase 6 decision | Resolved: thresholds recorded; A/B blocked |
 
 ## Progress log
 
@@ -264,3 +280,4 @@ Phase 5 notes:
 | 2026-10-20 | Phase 3 | Schema version 9 adds the normalized binding, site, origin, definition-site, and build-stat tables with enforced constraints and indexes. One `insertGenerationFacts` operation persists and validates complete fact sets while `building`; atomic publication and failed-candidate isolation are preserved. Adapter versions unchanged. |
 | 2026-10-20 | Phase 4 | TypeScript vertical slice: aliases, default and external roots, internal stars, typed surface projection, reachability, usage bits, and symbol/fact persistence migration. Queries now read canonical bindings; `find_symbol`, `outline`, `find_references`, `read_symbol` list modes, `symbol_at`, and bounded responses are implemented. G-A/G-B/G-C/G-D/G-F pass; full G-A2 corpus association remains partial. |
 | 2026-10-20 | Phase 5 | Oracle vertical slice: declaration forms, exact heading-gated routine/cursor pairing, forward identity and primary ranking, ephemeral parameters/locals, canonical owner-qualified bindings, declared sites, ownership, and usage. Fixture gates G-B/G-C/G-D/G-E/G-F pass; production corpus gates remain blocked. |
+| 2026-10-20 | Phase 6 | Defaults: `find_symbol` exposure is `visible`; exact-name presence telemetry feeds local analytics; K3 defers CommonJS publication; S3/O2/L1/F1 are enforced in production finalization. Q2 thresholds recorded; real-task A/B remains blocked. |

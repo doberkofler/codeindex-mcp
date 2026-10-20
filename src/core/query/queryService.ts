@@ -6,6 +6,7 @@ import {
 	type BindingSummaryType,
 	type FindDependenciesInputType,
 	type FindDependenciesResultType,
+	type ExactNamePresenceType,
 	type FindSymbolInputType,
 	type FindSymbolItemType,
 	type FindSymbolResultType,
@@ -18,6 +19,8 @@ export type QueryContextType = Readonly<{
 	readonly database: IndexDatabase;
 	readonly generationId: string;
 	readonly freshness: QueryFreshnessType;
+	/** Optional local analytics sink for exact-name presence outcomes. */
+	readonly exactNameTelemetry?: ((presence: ExactNamePresenceType) => void) | undefined;
 }>;
 
 const assertKnownContext = (context: QueryContextType, requested: string | undefined): void => {
@@ -287,6 +290,14 @@ const loadSymbolCandidates = (
 	};
 };
 
+const recordExactNameOutcome = (context: QueryContextType, input: FindSymbolInputType, query: string, match: FindSymbolResultType['match']): void => {
+	if (query.length === 0 || match !== 'name' || input.cursor !== undefined || context.exactNameTelemetry === undefined) {
+		return;
+	}
+
+	context.exactNameTelemetry(context.database.exactNamePresence({generationId: context.generationId, name: query, context: input.context}));
+};
+
 /**
  * Finds declarations through canonical bindings and deduplicates them by symbol.
  *
@@ -303,7 +314,7 @@ const loadSymbolCandidates = (
 export const findSymbols = (context: QueryContextType, input: FindSymbolInputType, maxResultBytes: number): FindSymbolResultType => {
 	const query = input.query.trim();
 	const match = input.match ?? 'name';
-	const exposure = input.exposure ?? 'any';
+	const exposure = input.exposure ?? 'visible';
 
 	if (query.length === 0 && input.container === undefined) {
 		throw new CodeIndexError('invalid_argument', 'Query must not be empty without a container');
@@ -311,6 +322,7 @@ export const findSymbols = (context: QueryContextType, input: FindSymbolInputTyp
 
 	const normalizedPath = input.path === undefined ? undefined : normalizeRelativePath(input.path);
 	assertKnownContext(context, input.context);
+	recordExactNameOutcome(context, input, query, match);
 	const queryKind = JSON.stringify([
 		'find_symbol',
 		match,

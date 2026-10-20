@@ -35,7 +35,7 @@ const issueCountsOf = (issues: readonly Readonly<{code: string}>[]): Readonly<Re
 const limitationsOf = (extractorId: string, hasPrototypes: boolean): readonly string[] => [
 	...(extractorId === 'typescript' && hasPrototypes ? [] : ['Surface projection and reachability closure are not measured for this extractor.']),
 	'Occurrence usage bits are not emitted by the current fact seam.',
-	'Query telemetry counters are fixed at zero during qualification.',
+	'Query telemetry counters remain zero because qualification runs no model-facing queries.',
 	...(hasPrototypes ? ['P-1 compares emitted root exports only; G-A2 position association remains blocked.'] : []),
 	...(extractorId === 'oracle' ? ['Oracle call-spec and polymorphic-table-function classification is a source probe.'] : []),
 ];

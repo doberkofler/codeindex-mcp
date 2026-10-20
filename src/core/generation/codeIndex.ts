@@ -18,6 +18,7 @@ import {observeExternalBuild} from './externalBuild.ts';
 import {collectStatus} from '../freshness/indexStatus.ts';
 import {
 	type BuildReportType,
+	type ExactNamePresenceType,
 	type FindDependenciesInputType,
 	type FindDependenciesResultType,
 	type FindReferencesInputType,
@@ -350,7 +351,19 @@ export class CodeIndex {
 	 * @returns Paginated symbol matches with explicit freshness.
 	 */
 	public findSymbols(input: FindSymbolInputType, maxResultBytes = this.#config.maxResultBytes): FindSymbolResultType {
-		const context = {database: this.#database, generationId: this.#generation().id, freshness: this.getFreshness()};
+		const context = {
+			database: this.#database,
+			generationId: this.#generation().id,
+			freshness: this.getFreshness(),
+			...(this.#analytics === null
+				? {}
+				: {
+						exactNameTelemetry: (presence: ExactNamePresenceType): void => {
+							this.#analytics?.record('find_symbol_outcome', {presence});
+						},
+					}),
+		};
+
 		return querySymbols(context, input, maxResultBytes);
 	}
 

@@ -2,6 +2,7 @@ import {type IndexedSymbolType} from '../model.ts';
 import {collectBindings, collectContexts, collectSites, groupBindingsBySymbol, type BindingEntryType, type PendingSiteType} from './bindings.ts';
 import {compareFactText, displayBinding} from './canonical.ts';
 import {assertPolicy, addIssue} from './issues.ts';
+import {measurePublicationInvariants, type PublicationInvariantKindType} from './measuredInvariants.ts';
 import {collectOrigins} from './origins.ts';
 import {finalizationStatsOf} from './stats.ts';
 import {finalizeSymbols} from './symbols.ts';
@@ -133,6 +134,20 @@ const assertBindingCoverage = (
 	}
 };
 
+const invariantIssueCode = (invariant: PublicationInvariantKindType): 'invariant_s3' | 'invariant_o2' | 'invariant_l1' | 'invariant_f1' =>
+	invariant === 'S3' ? 'invariant_s3' : invariant === 'O2' ? 'invariant_o2' : invariant === 'L1' ? 'invariant_l1' : 'invariant_f1';
+
+const addInvariantIssues = (issues: FactIssueType[], extractorId: string, facts: ExtractedFactSetType, finalized: FinalizedFactSetType): void => {
+	const measured = measurePublicationInvariants(facts, finalized, extractorId);
+
+	for (const violation of [measured.s3, measured.o2, measured.l1, measured.f1].flatMap((summary) => summary.violations)) {
+		addIssue(issues, invariantIssueCode(violation.invariant), `${violation.invariant} ${violation.class}`, {
+			symbolId: violation.symbolId,
+			bindingId: violation.bindingId,
+		});
+	}
+};
+
 /**
  * Finalizes one serializable adapter fact bundle.
  *
@@ -142,13 +157,14 @@ const assertBindingCoverage = (
  *
  * In `report` mode violations are returned and remain non-fatal. A safety
  * ceiling overrun aborts both modes because a truncated report or generation is
- * never valid.
+ * never valid. When `extractorId` is present, measured invariants S3, O2, L1,
+ * and F1 are enforced with the other finalization issues.
  *
  * @param facts - Adapter-emitted serializable facts.
- * @param policy - Mode and mandatory finite safety ceiling.
+ * @param policy - Mode, extractor identity, and mandatory finite safety ceiling.
  * @returns Derived facts, aggregate statistics, and any violations.
- * @throws {@link Error} On invalid policy, duplicate/colliding identities, or a
- * ceiling overrun.
+ * @throws {@link Error} On invalid policy, duplicate/colliding identities, a
+ * ceiling overrun, or an enforced measured-invariant violation.
  */
 export const finalizeFacts = (facts: ExtractedFactSetType, policy: FinalizationPolicyType): FinalizedFactSetType => {
 	assertPolicy(policy);
@@ -176,18 +192,7 @@ export const finalizeFacts = (facts: ExtractedFactSetType, policy: FinalizationP
 	const finalSites = sortSites(sites);
 	const finalOrigins = sortOrigins(origins);
 	const finalOccurrences = sortOccurrences(facts.occurrences);
-	const ceilingIssues = issues.filter((issue) => issue.code === 'ceiling_exceeded');
-
-	if (ceilingIssues.length > 0) {
-		throw new Error(`Publication fact report is incomplete: ${ceilingIssues.map((issue) => issue.message).join('; ')}`);
-	}
-
-	if (policy.mode === 'enforce' && issues.length > 0) {
-		const [first] = issues;
-		throw new Error(`Publication fact finalization failed with ${String(issues.length)} violation(s): ${first?.code ?? 'unknown'}: ${first?.message ?? ''}`);
-	}
-
-	return {
+	const candidate: FinalizedFactSetType = {
 		symbols: finalizedSymbols,
 		bindings: finalBindings,
 		bindingContexts: finalContexts,
@@ -207,4 +212,21 @@ export const finalizeFacts = (facts: ExtractedFactSetType, policy: FinalizationP
 		}),
 		issues,
 	};
+
+	if (policy.extractorId !== undefined) {
+		addInvariantIssues(issues, policy.extractorId, facts, candidate);
+	}
+
+	const ceilingIssues = issues.filter((issue) => issue.code === 'ceiling_exceeded');
+
+	if (ceilingIssues.length > 0) {
+		throw new Error(`Publication fact report is incomplete: ${ceilingIssues.map((issue) => issue.message).join('; ')}`);
+	}
+
+	if (policy.mode === 'enforce' && issues.length > 0) {
+		const [first] = issues;
+		throw new Error(`Publication fact finalization failed with ${String(issues.length)} violation(s): ${first?.code ?? 'unknown'}: ${first?.message ?? ''}`);
+	}
+
+	return candidate;
 };
