@@ -35,6 +35,9 @@ const config = {
 		// consumes dynamic worker messages, so it is not authored application code.
 		'scripts/benchmarkOracleAntlr.mjs',
 		'scripts/oracleAntlrBenchmarkWorker.mjs',
+		// Runtime-comparison harness: dynamic corpus metadata and native process
+		// output sit outside the authored TypeScript application.
+		'benchmark/oracle-antlr-runtime/**/*.mjs',
 	],
 };
 
