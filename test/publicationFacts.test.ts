@@ -177,7 +177,6 @@ describe('publication fact finalization', () => {
 		expect(derived.container).toBe('module["src/ünïcode.ts"]');
 		expect(derived.name).toBe('api');
 		expect(derived.bindingId).toBe(framedId('b_', ['s1', JSON.stringify(segments)]));
-		expect(firstOf(report.bindingSites).siteId).toBe(framedId('o_', ['s1', 'src/a.ts', '0', 'definition']));
 	});
 
 	it('is deterministic and orders derived records independently of input order', () => {
@@ -359,9 +358,9 @@ describe('publication adapter seam', () => {
 			const extracted = typeScriptExtractor.build(config, scan);
 			const report = finalizeFacts(extracted, REPORT_POLICY);
 
-			expect(extracted.bindings).toHaveLength(extracted.symbols.length);
-			expect(report.bindings).toHaveLength(extracted.symbols.length);
-			expect(report.bindingContexts).toHaveLength(extracted.symbols.length);
+			expect(extracted.bindings.length).toBeGreaterThanOrEqual(extracted.symbols.length);
+			expect(report.bindings).toHaveLength(extracted.bindings.length);
+			expect(report.bindingContexts).toHaveLength(extracted.bindingContexts.length);
 			expect(report.issues).toStrictEqual([]);
 		} finally {
 			cleanup();
@@ -376,9 +375,9 @@ describe('publication adapter seam', () => {
 			const extracted = oracleExtractor.build(config, scan);
 			const report = finalizeFacts(extracted, REPORT_POLICY);
 
-			expect(extracted.bindings).toHaveLength(extracted.symbols.length);
-			expect(report.bindings).toHaveLength(extracted.symbols.length);
-			expect(report.bindingContexts).toHaveLength(extracted.symbols.length);
+			expect(extracted.bindings.length).toBeGreaterThanOrEqual(extracted.symbols.length);
+			expect(report.bindings).toHaveLength(extracted.bindings.length);
+			expect(report.bindingContexts).toHaveLength(extracted.bindingContexts.length);
 			expect(report.stats.publishedSymbols).toBeGreaterThan(0);
 			expect(report.stats.internalOnlySymbols).toBeGreaterThan(0);
 			expect(report.issues).toStrictEqual([]);

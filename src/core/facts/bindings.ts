@@ -8,6 +8,7 @@ import {
 	type ExtractedOccurrenceType,
 	type FactExposureType,
 	type FactIssueType,
+	type FactSiteKindType,
 	type FinalizedBindingContextType,
 	type FinalizedBindingSiteType,
 } from './types.ts';
@@ -43,6 +44,9 @@ const defaultIdentityFactory: BindingIdentityFactoryType = {
 const compareText = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0);
 
 const exposureRank = (exposure: FactExposureType): number => (exposure === 'published' ? 2 : exposure === 'reachable' ? 1 : 0);
+
+const siteKindRank = (kind: FactSiteKindType): number =>
+	kind === 'declared' ? 0 : kind === 'default' ? 1 : kind === 'alias' ? 2 : kind === 'reexport' ? 3 : kind === 'wildcard' ? 4 : kind === 'commonjs' ? 5 : 6;
 
 /**
  * Looks up one canonical binding entry by symbol and address.
@@ -179,9 +183,9 @@ export const collectSites = (
 	identities: BindingIdentityFactoryType = defaultIdentityFactory,
 ): SiteCollectionType => {
 	const sites: PendingSiteType[] = [];
-	const sitesByBinding = new Map<string, PendingSiteType[]>();
+	const sitesByKey = new Map<string, PendingSiteType>();
 	const seen = new Set<string>();
-	const siteIds = new Map<string, string>();
+	void identities;
 
 	for (const site of facts.bindingSites) {
 		const invalid = addressIssue(site.segments);
@@ -199,28 +203,28 @@ export const collectSites = (
 		}
 
 		const identity = siteIdentity(site.symbolId, site.path, site.range.startOffset, site.kind);
+		const location = `${entry.bindingId}\u0000${site.path}\u0000${String(site.range.startOffset)}`;
+		const existing = sitesByKey.get(location);
 
-		if (seen.has(identity)) {
+		if (seen.has(identity) || (existing !== undefined && siteKindRank(existing.kind) <= siteKindRank(site.kind))) {
 			continue;
 		}
 
 		seen.add(identity);
-		const siteId = identities.site(site.symbolId, site.path, site.range.startOffset);
-		const collided = siteIds.get(siteId);
+		const row: PendingSiteType = {bindingId: entry.bindingId, kind: site.kind, path: site.path, range: site.range, symbolId: site.symbolId};
+		sitesByKey.set(location, row);
+	}
 
-		if (collided !== undefined && collided !== identity) {
-			addIssue(issues, 'site_id_collision', 'two definition-site identities produced the same 96-bit identifier', {
-				symbolId: site.symbolId,
-			});
-			continue;
-		}
-
-		siteIds.set(siteId, identity);
-		const row: PendingSiteType = {siteId, bindingId: entry.bindingId, kind: site.kind, path: site.path, range: site.range, symbolId: site.symbolId};
+	for (const row of sitesByKey.values()) {
 		sites.push(row);
-		const group = sitesByBinding.get(entry.bindingId) ?? [];
+	}
+
+	const sitesByBinding = new Map<string, PendingSiteType[]>();
+
+	for (const row of sites) {
+		const group = sitesByBinding.get(row.bindingId) ?? [];
 		group.push(row);
-		sitesByBinding.set(entry.bindingId, group);
+		sitesByBinding.set(row.bindingId, group);
 	}
 
 	return {sites, sitesByBinding};

@@ -12,7 +12,6 @@ import {
 	type DiagnosticType,
 	type ExtractionResultType,
 	type GenerationRowType,
-	type IndexedSymbolType,
 	type ScanResultType,
 	type SourceFileType,
 } from '../model.ts';
@@ -95,7 +94,6 @@ const persistFacts = (
 		language: string;
 		files: readonly SourceFileType[];
 		projects: ScanResultType['projects'];
-		symbols: readonly IndexedSymbolType[];
 		finalized: FinalizedFactSetType;
 		dependencies: DependencyExtractionResultType;
 		diagnostics: readonly DiagnosticType[];
@@ -107,7 +105,6 @@ const persistFacts = (
 		language: input.language,
 		files: input.files,
 		projects: input.projects,
-		symbols: input.symbols,
 		facts: input.finalized,
 		dependencies: input.dependencies,
 		diagnostics: input.diagnostics,
@@ -326,7 +323,6 @@ const executeBuild = (
 		language: input.scan.extractorId,
 		files: extracted.files,
 		projects: input.scan.projects,
-		symbols: extracted.symbols,
 		finalized,
 		dependencies: extracted.dependencies,
 		diagnostics: extracted.diagnostics,

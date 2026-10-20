@@ -104,9 +104,9 @@ export type ExtractedPublicationFactsType = Readonly<{
 /**
  * Complete serializable fact bundle crossing the adapter seam.
  *
- * Compiler and parser objects never appear in this shape. Existing persistence
- * consumes `files`, `symbols`, `occurrences`, `dependencies`, and `diagnostics`
- * unchanged while the publication facts remain report-only.
+ * Compiler and parser objects never appear in this shape. The core finalizes
+ * these facts and storage persists the resulting bindings, contexts, sites,
+ * origins, occurrences, and aggregate statistics.
  */
 export type ExtractedFactSetType = Readonly<{
 	readonly files: readonly SourceFileType[];
@@ -175,7 +175,6 @@ export type FinalizedBindingContextType = Readonly<{
 }>;
 
 export type FinalizedBindingSiteType = Readonly<{
-	readonly siteId: string;
 	readonly bindingId: string;
 	readonly kind: FactSiteKindType;
 	readonly path: string;
@@ -218,7 +217,7 @@ export type FinalizationStatsType = Readonly<{
 	readonly maxSurfaceBindingsPerRoot: number;
 }>;
 
-/** Complete derived fact set. Existing persistence does not consume this shape yet. */
+/** Complete derived fact set persisted by one generation build. */
 export type FinalizedFactSetType = Readonly<{
 	readonly symbols: readonly FinalizedSymbolType[];
 	readonly bindings: readonly FinalizedBindingType[];

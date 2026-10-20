@@ -25,8 +25,13 @@ export const OutlineInputSchema = z.object({
 const ContextSchema = z.string().min(1).optional().describe('Optional project context name from index_status.scope.projects');
 
 export const FindSymbolInputSchema = z.object({
-	query: z.string().min(1).describe('Exact qualified name, exact simple name, or name prefix'),
+	query: z.string().describe('Exact qualified name, exact simple name, or name prefix; may be empty only with container'),
+	match: z.enum(['name', 'qualified']).default('name').describe('Compare the simple name or full qualified display'),
+	kind: z.string().max(MAX_SYMBOL_KIND_LENGTH).regex(SYMBOL_KIND_PATTERN).optional().describe('Optional adapter-defined symbol kind filter'),
+	container: z.string().optional().describe('Binding container display prefix; empty query lists its members'),
+	path: z.string().min(1).optional().describe('Only symbols with a definition occurrence in this path'),
 	context: ContextSchema,
+	exposure: z.enum(['published', 'reachable', 'visible', 'internal', 'any']).default('any').describe('Binding exposure filter'),
 	limit: LimitSchema,
 	cursor: CursorSchema,
 });
@@ -34,6 +39,12 @@ export const FindSymbolInputSchema = z.object({
 export const FindReferencesInputSchema = z.object({
 	symbolId: z.string().min(1).describe('Symbol identifier returned by find_symbol or outline'),
 	role: z.enum(['definition', 'reference']).optional(),
+	path: z.string().min(1).optional().describe('Only occurrences in this path'),
+	enclosingId: z.string().min(1).optional().describe('Only occurrences owned by this symbol'),
+	usage: z
+		.union([z.literal(0), z.literal(1), z.literal(2), z.literal(4), z.literal(6), z.literal(8)])
+		.optional()
+		.describe('Usage bitmask filter'),
 	context: ContextSchema,
 	limit: LimitSchema,
 	cursor: CursorSchema,
@@ -58,5 +69,17 @@ export const FindDependenciesInputSchema = z.object({
 
 export const ReadSymbolInputSchema = z.object({
 	symbolId: z.string().min(1).describe('Symbol identifier returned by find_symbol or outline'),
+	siteId: z.string().min(1).optional().describe('Optional definition site identifier from find_symbol or outline'),
+	mode: z.enum(['text', 'sites', 'names', 'binding_sites', 'binding_contexts']).default('text').describe('Text extent or one bounded list mode'),
+	bindingId: z.string().min(1).optional().describe('Required binding identifier for binding_sites and binding_contexts'),
+	context: ContextSchema,
 	contextLines: z.number().int().min(0).max(20).default(2).describe('Additional lines before and after the declaration'),
+	limit: z.number().int().min(1).max(100).default(50),
+	cursor: CursorSchema,
+});
+
+export const SymbolAtInputSchema = z.object({
+	path: z.string().min(1).describe('Repository-relative POSIX path'),
+	line: z.number().int().min(1).describe('One-based line number'),
+	column: z.number().int().min(1).optional().describe('One-based column; omitted means the innermost extent covering the line'),
 });

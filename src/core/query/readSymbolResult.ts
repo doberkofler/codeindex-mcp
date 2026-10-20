@@ -1,9 +1,10 @@
-import {type QueryFreshnessType, type ReadSymbolResultType, type SymbolSummaryType} from '../model.ts';
+import {type DefinitionSiteSummaryType, type QueryFreshnessType, type ReadSymbolTextResultType, type SymbolSummaryType} from '../model.ts';
 import {readSymbolSource, type ReadSymbolSourceType} from './readSymbolSource.ts';
 
 export type ReadSymbolResultInputType = Readonly<{
 	content: string;
 	symbol: SymbolSummaryType;
+	site: DefinitionSiteSummaryType;
 	generationId: string;
 	freshness: QueryFreshnessType;
 	contextLines: number;
@@ -12,29 +13,31 @@ export type ReadSymbolResultInputType = Readonly<{
 }>;
 
 /**
- * Builds one read_symbol result whose serialized data fits the byte budget.
+ * Builds one read_symbol text result whose serialized data fits the byte budget.
  *
  * The first pass bounds the source alone. Later passes reserve the serialized
  * metadata and truncation fields, so the complete result never relies on the
  * transport to replace it with `response_too_large`.
  *
- * @param input - Source text, symbol metadata, and response bounds.
+ * @param input - Source text, symbol and definition-site metadata, and response bounds.
  * @returns A source slice bounded with its complete result metadata.
  */
-export const readSymbolResult = (input: ReadSymbolResultInputType): ReadSymbolResultType => {
+export const readSymbolResult = (input: ReadSymbolResultInputType): ReadSymbolTextResultType => {
 	const readSource = (budget: number): ReadSymbolSourceType =>
 		readSymbolSource({
 			content: input.content,
-			symbolStartLine: input.symbol.startLine,
-			symbolEndLine: input.symbol.endLine,
+			symbolStartLine: input.site.startLine,
+			symbolEndLine: input.site.endLine,
 			maxReadLines: input.maxReadLines,
 			maxResultBytes: Math.max(1, budget),
 			contextLines: input.contextLines,
 		});
-	const createResult = (source: ReadSymbolSourceType): ReadSymbolResultType => ({
+	const createResult = (source: ReadSymbolSourceType): ReadSymbolTextResultType => ({
+		kind: 'text',
 		generationId: input.generationId,
 		freshness: input.freshness,
 		symbol: input.symbol,
+		site: input.site,
 		path: input.symbol.path,
 		startLine: source.startLine,
 		endLine: source.endLine,

@@ -9,11 +9,14 @@ Date: 2026-10-20
 
 ## Current phase
 
-Phase 3 schema and persistence is complete. `SCHEMA_VERSION` is 9, a complete finalized
-fact set is persisted through one storage operation, and candidate facts are validated
-while the generation remains `building`. Current query modules still read the symbol
-table, so Phase 3 retains legacy symbol display and kind until the Phase 4 query
-migration. Adapter versions are unchanged because no adapter-emitted fact changed.
+Phase 4 TypeScript vertical slice is implemented. The TypeScript adapter now emits
+lexical bindings, aliases, default roots, internal `export *`, external aliases,
+surface projection, reachability, declaration kinds, ownership, and usage bits.
+Generation queries read the normalized binding, context, site, origin, and
+definition-site tables; `read_symbol` serves text and four list modes, and
+`symbol_at` resolves stored extents. G-A passes the fixture comparison. Full
+G-A2 corpus position association remains partial because P-1 still proves only
+root-export association.
 
 ## Phase 0: accept the contract
 
@@ -145,11 +148,44 @@ Phase 3 notes:
 
 ## Phase 4: TypeScript vertical slice
 
-- [ ] Bindings, aliases, external projections, default roots, surface projection,
+Complete on 2026-10-20 except the full G-A2 corpus position association.
+
+- [x] Bindings, aliases, external projections, default roots, surface projection,
       reachability, declaration kinds, ownership, and usage.
-- [ ] Every query and list mode against the new schema.
-- [ ] Pass G-A, G-A2, G-B, G-C, G-D, and G-F.
-- [ ] Bounded tool responses for ESM TypeScript and ESM JavaScript.
+- [x] Every query and list mode against the new schema.
+- [x] Pass G-A, G-B, G-C, G-D, and G-F.
+- [ ] Pass full-corpus G-A2 source association. Fixture comparison passes; P-1 still
+      proves root-export association only.
+- [x] Bounded tool responses for ESM TypeScript and ESM JavaScript.
+
+Phase 4 notes:
+
+- Lexical addresses are the stored declaration chain. Published aliases, defaults,
+  re-exports, wildcard imports, script globals, external aliases, and surface paths are
+  independent bindings for the same symbol.
+- TypeScript surface projection follows compiler types, emits typed segments (`member`,
+  `sig`, `param`, `return`, `construct`, `awaited`, `element`), records one origin per
+  published root, and marks named-type terminals reachable instead of projecting through
+  them below depth zero.
+- `syntheticExternalDefault` and anonymous default declarations become synthetic root
+  symbols. `export default identifier` reuses the internal symbol.
+- Reference usage is classified from the compiler-resolved identifier position as
+  `call`, `read`, `write`, or `type_ref`.
+- `find_symbol` deduplicates symbols after binding filtering, ranks exact before prefix,
+  and returns binding details, definition sites, and nested truncation. `outline` returns
+  path-local definitions plus a bounded re-export list. `find_references` returns flat
+  occurrences with usage and owner summaries. `read_symbol` serves `text`, `sites`,
+  `names`, `binding_sites`, and `binding_contexts`. `symbol_at` returns innermost
+  candidates, ambiguity, and lexical ancestors.
+- `finalizeFacts` runs in `enforce` mode for every normal build. Temporary-database
+  validation still runs while the candidate is `building`.
+- G-A and P-2 pass on the vertical-slice fixture with zero missing and extra roots.
+  The reference corpus still passes precision 1 with recall 1.
+- `index_status` reports persisted `build_stats` rows alongside counts and scope.
+- `generated` is excluded from authored TypeScript roots as generated output. The ANTLR
+  lexer and parser remain available to type resolution but are not published facts.
+- The TypeScript adapter version is `0.2.0`; emitted facts and configuration hash
+  changed. Oracle remains `0.1.0` until Phase 5.
 
 ## Phase 5: Oracle vertical slice
 
@@ -190,3 +226,4 @@ Phase 3 notes:
 | 2026-10-20 | Phase 1 | Fact seam, report-only finalizer, TypeScript and Oracle lexical facts, and finalizer/adapter tests added. Persistence and tool contracts unchanged. |
 | 2026-10-20 | Phase 2 | Added `publication-report`, P-1/P-2/P-3 prototypes, full measurement set, invariant classification, and aggregate corpus evidence. M1/M8/M9/M11/M12/M13/M14 resolved; accepted ceilings 2,000 addresses and 50,000 steps per root. Persistence unchanged. |
 | 2026-10-20 | Phase 3 | Schema version 9 adds the normalized binding, site, origin, definition-site, and build-stat tables with enforced constraints and indexes. One `insertGenerationFacts` operation persists and validates complete fact sets while `building`; atomic publication and failed-candidate isolation are preserved. Adapter versions unchanged. |
+| 2026-10-20 | Phase 4 | TypeScript vertical slice: aliases, default and external roots, internal stars, typed surface projection, reachability, usage bits, and symbol/fact persistence migration. Queries now read canonical bindings; `find_symbol`, `outline`, `find_references`, `read_symbol` list modes, `symbol_at`, and bounded responses are implemented. G-A/G-B/G-C/G-D/G-F pass; full G-A2 corpus association remains partial. |

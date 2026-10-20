@@ -2,15 +2,17 @@ import {type IndexDatabase} from '../storage/database.ts';
 import {findDependencyConsumers, toDependencyConsumers, toDependencyEvidenceConsumers, type DependencyConsumerMatchType} from './dependencyQuery.ts';
 import {CodeIndexError} from '../errors/errors.ts';
 import {
+	type BindingDetailType,
+	type BindingSummaryType,
 	type FindDependenciesInputType,
 	type FindDependenciesResultType,
-	type FindReferencesInputType,
-	type FindReferencesResultType,
 	type FindSymbolInputType,
+	type FindSymbolItemType,
 	type FindSymbolResultType,
 	type QueryFreshnessType,
 } from '../model.ts';
 import {boundedPagedResult, decodeCursor, normalizeRelativePath} from './querySupport.ts';
+import {type BindingCandidateType} from '../storage/databasePublicationQueries.ts';
 
 export type QueryContextType = Readonly<{
 	readonly database: IndexDatabase;
@@ -30,80 +32,323 @@ const assertKnownContext = (context: QueryContextType, requested: string | undef
 	}
 };
 
+const exposureRank = (exposure: 'published' | 'reachable' | 'internal'): number => (exposure === 'published' ? 2 : exposure === 'reachable' ? 1 : 0);
+
+const matchRank = (match: BindingCandidateType['match']): number => (match.startsWith('exact') ? 0 : 1);
+
+const compareTuples = (left: readonly (number | string)[], right: readonly (number | string)[]): number => {
+	for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+		const leftValue = left[index] ?? 0;
+		const rightValue = right[index] ?? 0;
+
+		if (leftValue < rightValue) {
+			return -1;
+		}
+
+		if (leftValue > rightValue) {
+			return 1;
+		}
+	}
+
+	return left.length - right.length;
+};
+
+const declaredSiteRank = (detail: BindingDetailType): number => (detail.sites.some((site) => site.kind === 'declared' || site.kind === 'default') ? 0 : 1);
+
+const primaryBindingOf = (details: readonly BindingDetailType[], symbolStart: number, symbolEnd: number): BindingDetailType | null => {
+	let selected: BindingDetailType | null = null;
+
+	for (const detail of details) {
+		if (selected === null) {
+			selected = detail;
+			continue;
+		}
+
+		const leftMatches = detail.sites.some(
+			(site) => (site.kind === 'declared' || site.kind === 'default') && site.start === symbolStart && site.end === symbolEnd,
+		)
+			? 0
+			: 1;
+		const rightMatches = selected.sites.some(
+			(site) => (site.kind === 'declared' || site.kind === 'default') && site.start === symbolStart && site.end === symbolEnd,
+		)
+			? 0
+			: 1;
+
+		if (
+			leftMatches < rightMatches ||
+			(leftMatches === rightMatches &&
+				(exposureRank(detail.exposure) > exposureRank(selected.exposure) ||
+					(exposureRank(detail.exposure) === exposureRank(selected.exposure) &&
+						(detail.container.localeCompare(selected.container) < 0 ||
+							(detail.container === selected.container &&
+								(detail.name.localeCompare(selected.name) < 0 || (detail.name === selected.name && detail.bindingId.localeCompare(selected.bindingId) < 0)))))))
+		) {
+			selected = detail;
+		}
+	}
+
+	return selected;
+};
+
+const summaryOf = (detail: BindingDetailType): BindingSummaryType => ({
+	bindingId: detail.bindingId,
+	name: detail.name,
+	container: detail.container,
+	qualifiedName: detail.qualifiedName,
+	exposure: detail.exposure,
+	inRequestedContext: detail.inRequestedContext,
+});
+
+const emptyDetail = (binding: BindingSummaryType): BindingDetailType => ({
+	...binding,
+	contexts: [],
+	contextsTotal: 0,
+	contextsTruncated: false,
+	sites: [],
+	sitesTotal: 0,
+	sitesTruncated: false,
+});
+
+const symbolExposureOf = (details: readonly BindingDetailType[]): FindSymbolItemType['symbolExposure'] => {
+	const best = details.reduce((selected, detail) => Math.max(selected, exposureRank(detail.exposure)), 0);
+
+	return best === 2 ? 'published' : best === 1 ? 'reachable' : 'internal_only';
+};
+
+const reduceItem = (item: FindSymbolItemType, level: number): FindSymbolItemType => {
+	if (level === 0) {
+		return item;
+	}
+
+	if (level === 1) {
+		return {...item, otherNames: [], namesTruncated: item.namesTotal > 0};
+	}
+
+	const compact = level >= 3;
+	const contexts = compact ? [] : item.matched.contexts.slice(0, 1);
+	const sites = compact ? [] : item.matched.sites.slice(0, 1);
+
+	return {
+		...item,
+		contexts: compact ? [] : item.contexts,
+		otherNames: [],
+		namesTruncated: item.namesTotal > 0,
+		matched: {
+			...item.matched,
+			contexts,
+			contextsTruncated: contexts.length < item.matched.contextsTotal,
+			sites,
+			sitesTruncated: sites.length < item.matched.sitesTotal,
+		},
+		sites: item.sites.slice(0, 1),
+		sitesTruncated: item.sitesTotal > 1,
+	};
+};
+
+const candidateScore = (candidate: BindingCandidateType, detail: BindingDetailType): readonly [number, number, number, string, string, string, string] => [
+	matchRank(candidate.match),
+	-exposureRank(candidate.binding.exposure),
+	declaredSiteRank(detail),
+	candidate.binding.container,
+	candidate.binding.name,
+	candidate.binding.bindingId,
+	candidate.symbol.id,
+];
+
+const selectBestCandidates = (
+	candidates: readonly BindingCandidateType[],
+	detailsBySymbol: ReadonlyMap<string, readonly BindingDetailType[]>,
+): readonly BindingCandidateType[] => {
+	const best = new Map<string, {candidate: BindingCandidateType; score: readonly (number | string)[]}>();
+
+	for (const candidate of candidates) {
+		const detail = detailsBySymbol.get(candidate.symbol.id)?.find((entry) => entry.bindingId === candidate.binding.bindingId) ?? emptyDetail(candidate.binding);
+		const score = candidateScore(candidate, detail);
+		const current = best.get(candidate.symbol.id);
+
+		if (current === undefined || compareTuples(score, current.score) < 0) {
+			best.set(candidate.symbol.id, {candidate, score});
+		}
+	}
+
+	return [...best.values()].map((entry) => entry.candidate);
+};
+
+const buildSymbolItem = (candidate: BindingCandidateType, details: readonly BindingDetailType[], sites: FindSymbolItemType['sites']): FindSymbolItemType => {
+	const matched = details.find((detail) => detail.bindingId === candidate.binding.bindingId) ?? emptyDetail(candidate.binding);
+	const primarySite = sites.find((site) => site.primary) ?? sites[0];
+	const primary =
+		primaryBindingOf(details, primarySite?.nameStart ?? candidate.symbol.startOffset, primarySite?.nameEnd ?? candidate.symbol.endOffset) ?? matched;
+	const others = details.filter((detail) => detail.bindingId !== matched.bindingId).map((detail) => summaryOf(detail));
+
+	return {
+		...candidate.symbol,
+		symbolId: candidate.symbol.id,
+		symbolExposure: symbolExposureOf(details),
+		match: candidate.match,
+		matched,
+		primary: summaryOf(primary),
+		otherNames: others.slice(0, 5),
+		namesTotal: details.length,
+		namesTruncated: others.length > 5,
+		sites: sites.slice(0, 5),
+		sitesTotal: sites.length,
+		sitesTruncated: sites.length > 5,
+	};
+};
+
+const compareSymbolItems = (left: FindSymbolItemType, right: FindSymbolItemType): number =>
+	matchRank(left.match) - matchRank(right.match) ||
+	exposureRank(right.matched.exposure) - exposureRank(left.matched.exposure) ||
+	declaredSiteRank(left.matched) - declaredSiteRank(right.matched) ||
+	left.matched.container.localeCompare(right.matched.container) ||
+	left.matched.name.localeCompare(right.matched.name) ||
+	left.matched.bindingId.localeCompare(right.matched.bindingId) ||
+	left.symbolId.localeCompare(right.symbolId);
+
+const boundedResult = (
+	input: Readonly<{
+		context: QueryContextType;
+		items: readonly FindSymbolItemType[];
+		page: readonly FindSymbolItemType[];
+		offset: number;
+		level: number;
+		queryKind: string;
+		maxResultBytes: number;
+		exposure: FindSymbolResultType['exposure'];
+		match: FindSymbolResultType['match'];
+	}>,
+): FindSymbolResultType | null => {
+	try {
+		return boundedPagedResult({
+			generationId: input.context.generationId,
+			items: input.page.map((item) => reduceItem(item, input.level)),
+			offset: input.offset,
+			queryKind: input.queryKind,
+			hasMore: input.items.length > input.offset + input.page.length,
+			maxResultBytes: input.maxResultBytes,
+			createResult: (paged) => ({
+				generationId: input.context.generationId,
+				freshness: input.context.freshness,
+				exposure: input.exposure,
+				match: input.match,
+				items: paged.items,
+				nextCursor: paged.nextCursor,
+				truncated: paged.truncated,
+			}),
+		});
+	} catch (error) {
+		if (error instanceof CodeIndexError && error.code === 'response_too_large') {
+			return null;
+		}
+
+		throw error;
+	}
+};
+
+const loadSymbolCandidates = (
+	context: QueryContextType,
+	input: FindSymbolInputType,
+	search: Readonly<{
+		query: string;
+		match: 'name' | 'qualified';
+		exposure: FindSymbolResultType['exposure'];
+		normalizedPath: string | undefined;
+		offset: number;
+	}>,
+): Readonly<{
+	candidates: readonly BindingCandidateType[];
+	detailsBySymbol: ReadonlyMap<string, readonly BindingDetailType[]>;
+	definitionsBySymbol: ReturnType<QueryContextType['database']['definitionSites']>;
+}> => {
+	const fetchLimit = Math.min(10 ** 4, Math.max(10 ** 3, (search.offset + input.limit + 1) * 20));
+	const candidates = context.database.findBindingCandidates({
+		generationId: context.generationId,
+		query: search.query,
+		match: search.match,
+		...(input.kind === undefined ? {} : {kind: input.kind}),
+		...(input.container === undefined ? {} : {container: input.container}),
+		...(search.normalizedPath === undefined ? {} : {path: search.normalizedPath}),
+		...(input.context === undefined ? {} : {context: input.context}),
+		exposure: search.exposure,
+		fetchLimit,
+	});
+	const symbolIds = [...new Set(candidates.map((candidate) => candidate.symbol.id))];
+
+	return {
+		candidates,
+		detailsBySymbol: context.database.bindingDetails({
+			generationId: context.generationId,
+			symbolIds,
+			...(input.context === undefined ? {} : {context: input.context}),
+		}),
+		definitionsBySymbol: context.database.definitionSites({generationId: context.generationId, symbolIds}),
+	};
+};
+
 /**
- * Finds declarations by exact or prefix name.
+ * Finds declarations through canonical bindings and deduplicates them by symbol.
+ *
+ * Candidate bindings are filtered and ranked before pagination. Each item
+ * reports its matched binding, global primary binding, remaining bindings, and
+ * definition sites.
  *
  * @param context - Database, published generation, and freshness.
- * @param input - Query text and page bounds.
+ * @param input - Query text, filters, and page bounds.
  * @param maxResultBytes - Maximum serialized result-data size.
  * @returns Paginated symbol matches.
- * @throws {@link CodeIndexError} When the query is empty or the cursor is invalid.
+ * @throws {@link CodeIndexError} When the query is empty, a filter is invalid, or the cursor is invalid.
  */
 export const findSymbols = (context: QueryContextType, input: FindSymbolInputType, maxResultBytes: number): FindSymbolResultType => {
 	const query = input.query.trim();
+	const match = input.match ?? 'name';
+	const exposure = input.exposure ?? 'any';
 
-	if (query.length === 0) {
-		throw new CodeIndexError('invalid_argument', 'Query must not be empty');
+	if (query.length === 0 && input.container === undefined) {
+		throw new CodeIndexError('invalid_argument', 'Query must not be empty without a container');
 	}
 
+	const normalizedPath = input.path === undefined ? undefined : normalizeRelativePath(input.path);
 	assertKnownContext(context, input.context);
-	const offset = decodeCursor(input.cursor, context.generationId, 'find_symbol').o;
-	const rows = context.database.findSymbols({
-		generationId: context.generationId,
-		query,
-		context: input.context,
-		limit: input.limit + 1,
-		offset,
-	});
-	const items = rows.slice(0, input.limit);
+	const queryKind = JSON.stringify([
+		'find_symbol',
+		match,
+		exposure,
+		input.kind ?? null,
+		input.container ?? null,
+		normalizedPath ?? null,
+		input.context ?? null,
+	]);
+	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
+	const {candidates, detailsBySymbol, definitionsBySymbol} = loadSymbolCandidates(context, input, {query, match, exposure, normalizedPath, offset});
+	const items = selectBestCandidates(candidates, detailsBySymbol)
+		.map((candidate) => buildSymbolItem(candidate, detailsBySymbol.get(candidate.symbol.id) ?? [], definitionsBySymbol.get(candidate.symbol.id) ?? []))
+		.sort(compareSymbolItems);
+	const page = items.slice(offset, offset + input.limit);
 
-	return boundedPagedResult({
-		generationId: context.generationId,
-		items,
-		offset,
-		queryKind: 'find_symbol',
-		hasMore: rows.length > items.length,
-		maxResultBytes,
-		createResult: (page) => ({generationId: context.generationId, freshness: context.freshness, ...page}),
-	});
-};
+	for (let level = 0; level < 4; level += 1) {
+		const result = boundedResult({
+			context,
+			items,
+			page,
+			offset,
+			level,
+			queryKind,
+			maxResultBytes,
+			exposure,
+			match,
+		});
 
-/**
- * Finds stored occurrences for one symbol.
- *
- * @param context - Database, published generation, and freshness.
- * @param input - Symbol, optional role, and page bounds.
- * @param maxResultBytes - Maximum serialized result-data size.
- * @returns Paginated definition and reference occurrences.
- * @throws {@link CodeIndexError} When the symbol is unknown or the cursor is invalid.
- */
-export const findReferences = (context: QueryContextType, input: FindReferencesInputType, maxResultBytes: number): FindReferencesResultType => {
-	if (context.database.getSymbol(context.generationId, input.symbolId) === null) {
-		throw new CodeIndexError('symbol_not_found', `Unknown symbol: ${input.symbolId}`);
+		if (result !== null) {
+			return result;
+		}
 	}
 
-	assertKnownContext(context, input.context);
-	const offset = decodeCursor(input.cursor, context.generationId, 'find_references').o;
-	const rows = context.database.findReferences({
-		generationId: context.generationId,
-		symbolId: input.symbolId,
-		role: input.role,
-		context: input.context,
-		limit: input.limit + 1,
-		offset,
-	});
-	const items = rows.slice(0, input.limit);
-
-	return boundedPagedResult({
-		generationId: context.generationId,
-		items,
-		offset,
-		queryKind: 'find_references',
-		hasMore: rows.length > items.length,
-		maxResultBytes,
-		createResult: (page) => ({generationId: context.generationId, freshness: context.freshness, ...page}),
-	});
+	throw new CodeIndexError('response_too_large', 'One symbol result item exceeds the configured response bound');
 };
+
+export {findReferences} from './referenceQuery.ts';
 
 /**
  * Builds complete-set dependency counts, independent of the returned page.

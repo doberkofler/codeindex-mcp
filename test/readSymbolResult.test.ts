@@ -13,7 +13,24 @@ const symbol: SymbolSummaryType = {
 	startColumn: 1,
 	endColumn: 1,
 	enclosingId: null,
+	startOffset: 0,
+	endOffset: 10,
 	contexts: ['root'],
+};
+
+const site = {
+	siteId: 'o_site',
+	path: 'src/demo.ts',
+	nameStart: 0,
+	nameEnd: 3,
+	extentStart: 0,
+	extentEnd: 11,
+	startLine: 1,
+	endLine: 2,
+	declarationKind: 'function',
+	forwardDefinition: false,
+	primary: true,
+	identityAnchor: true,
 };
 
 const freshness = {state: 'current' as const, checkedAt: '2026-01-01T00:00:00.000Z', dirtyFileCount: null};
@@ -23,6 +40,7 @@ describe('read symbol result', () => {
 		const result = readSymbolResult({
 			content: 'line1\nline2\nline3',
 			symbol,
+			site,
 			generationId: 'generation',
 			freshness,
 			contextLines: 0,
@@ -45,6 +63,7 @@ describe('read symbol result', () => {
 		const result = readSymbolResult({
 			content: 'line1\nline2\nline3',
 			symbol,
+			site,
 			generationId: 'generation',
 			freshness,
 			contextLines: 0,

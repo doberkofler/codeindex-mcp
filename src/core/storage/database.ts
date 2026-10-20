@@ -1,12 +1,11 @@
 import {type DatabaseSync} from 'node:sqlite';
 import {
 	type BuildLeaseType,
+	type BuildStatType,
 	type GenerationRowType,
 	type IndexedDependencyBindingType,
-	type ReferenceType,
 	type SourceFileType,
 	type StoredDependencyEdgeType,
-	type SymbolMatchType,
 	type SymbolSummaryType,
 	type WorkingCopyIdentityType,
 } from '../model.ts';
@@ -37,9 +36,26 @@ import {acquireLease, BUILD_LEASE_TTL_MS, readLease, releaseLease, renewLease, r
 import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
-import {asString, SYMBOL_COLUMNS, toSymbolSummary} from './databaseRows.ts';
-import {listProjectContextNames as listStoredProjectContextNames, listSymbolContexts} from './databaseContextQueries.ts';
-import {findReferences as findStoredReferences, findSymbols as findStoredSymbols, outlineQuerySql} from './databaseSymbolQueries.ts';
+import {asString} from './databaseRows.ts';
+import {listProjectContextNames as listStoredProjectContextNames} from './databaseContextQueries.ts';
+import {
+	bindingBelongsToSymbol,
+	bindingContextsFor,
+	bindingDetailsForSymbols,
+	bindingExposure,
+	bindingSitesFor,
+	definitionSiteById,
+	definitionSitesForSymbol,
+	definitionSitesForSymbols,
+	findBindingCandidates,
+	outlineReexports as readOutlineReexports,
+	outlineSymbols as readOutlineSymbols,
+	referenceCoverage,
+	referenceRows,
+	symbolAncestors,
+	symbolSummaryById,
+	symbolsAtPosition,
+} from './databasePublicationQueries.ts';
 import {transaction} from './databaseTransaction.ts';
 
 const debug = debugFor('database');
@@ -302,6 +318,20 @@ export class IndexDatabase {
 		}
 	}
 
+	public listBuildStats(generationId: string): readonly BuildStatType[] {
+		return this.#reader
+			.prepare('select language, metric, dim1, dim2, dim3, value from build_stats where generation_id = ? order by language, metric, dim1, dim2, dim3')
+			.all(generationId)
+			.map((row) => ({
+				language: asString(row, 'language'),
+				metric: asString(row, 'metric'),
+				dim1: asString(row, 'dim1'),
+				dim2: asString(row, 'dim2'),
+				dim3: asString(row, 'dim3'),
+				value: Number(row['value']),
+			}));
+	}
+
 	public getFile(generationId: string, filePath: string): SourceFileType | null {
 		return readFile(this.#reader, generationId, filePath);
 	}
@@ -314,44 +344,68 @@ export class IndexDatabase {
 	}
 
 	public getSymbol(generationId: string, id: string): SymbolSummaryType | null {
-		const row = this.#reader.prepare(`select ${SYMBOL_COLUMNS} from symbol where generation_id = ? and id = ?`).get(generationId, id);
-		return row === undefined ? null : toSymbolSummary(row, listSymbolContexts(this.#reader, generationId, [id]).get(id) ?? []);
-	}
-	public listOutline(
-		input: Readonly<{generationId: string; path: string; kinds: readonly string[]; limit: number; offset: number}>,
-	): readonly SymbolSummaryType[] {
-		const {generationId, path: pathName, kinds, limit, offset} = input;
-		const rows = this.#reader.prepare(outlineQuerySql(kinds.length)).all(generationId, pathName, ...kinds, limit, offset);
-		const contexts = listSymbolContexts(
-			this.#reader,
-			generationId,
-			rows.map((row) => asString(row, 'id')),
-		);
-		debug('list outline', {generationId, path: pathName, kinds, limit, offset, rows: rows.length});
-		return rows.map((row) => {
-			const id = asString(row, 'id');
-
-			return toSymbolSummary(row, contexts.get(id) ?? []);
-		});
+		return symbolSummaryById(this.#reader, generationId, id);
 	}
 
-	public findSymbols(
-		input: Readonly<{generationId: string; query: string; context?: string | undefined; limit: number; offset: number}>,
-	): readonly SymbolMatchType[] {
-		return findStoredSymbols(this.#reader, input);
+	public symbolAncestors(generationId: string, id: string): readonly SymbolSummaryType[] {
+		return symbolAncestors(this.#reader, generationId, id);
 	}
 
-	public findReferences(
-		input: Readonly<{
-			generationId: string;
-			symbolId: string;
-			role: 'definition' | 'reference' | undefined;
-			context?: string | undefined;
-			limit: number;
-			offset: number;
-		}>,
-	): readonly ReferenceType[] {
-		return findStoredReferences(this.#reader, input);
+	public symbolsAtPosition(input: Readonly<{generationId: string; path: string; line: number; column: number | null}>): ReturnType<typeof symbolsAtPosition> {
+		return symbolsAtPosition(this.#reader, input);
+	}
+
+	public findBindingCandidates(input: Parameters<typeof findBindingCandidates>[1]): ReturnType<typeof findBindingCandidates> {
+		return findBindingCandidates(this.#reader, input);
+	}
+
+	public bindingDetails(input: Parameters<typeof bindingDetailsForSymbols>[1]): ReturnType<typeof bindingDetailsForSymbols> {
+		return bindingDetailsForSymbols(this.#reader, input);
+	}
+
+	public bindingContexts(generationId: string, bindingIds: readonly string[]): ReturnType<typeof bindingContextsFor> {
+		return bindingContextsFor(this.#reader, generationId, bindingIds);
+	}
+
+	public bindingSites(generationId: string, bindingIds: readonly string[]): ReturnType<typeof bindingSitesFor> {
+		return bindingSitesFor(this.#reader, generationId, bindingIds);
+	}
+
+	public definitionSites(input: Parameters<typeof definitionSitesForSymbols>[1]): ReturnType<typeof definitionSitesForSymbols> {
+		return definitionSitesForSymbols(this.#reader, input);
+	}
+
+	public definitionSitesForSymbol(generationId: string, symbolId: string): ReturnType<typeof definitionSitesForSymbol> {
+		return definitionSitesForSymbol(this.#reader, generationId, symbolId);
+	}
+
+	public definitionSite(generationId: string, symbolId: string, siteId: string): ReturnType<typeof definitionSiteById> {
+		return definitionSiteById(this.#reader, generationId, symbolId, siteId);
+	}
+
+	public bindingBelongsToSymbol(generationId: string, symbolId: string, bindingId: string): boolean {
+		return bindingBelongsToSymbol(this.#reader, generationId, symbolId, bindingId);
+	}
+
+	public bindingExposure(generationId: string, bindingId: string, context?: string): ReturnType<typeof bindingExposure> {
+		return bindingExposure(this.#reader, generationId, bindingId, context);
+	}
+
+	public outlineSymbols(input: Parameters<typeof readOutlineSymbols>[1]): ReturnType<typeof readOutlineSymbols> {
+		debug('list outline', {generationId: input.generationId, path: input.path, kinds: input.kinds, limit: input.limit, offset: input.offset});
+		return readOutlineSymbols(this.#reader, input);
+	}
+
+	public outlineReexports(generationId: string, pathName: string): ReturnType<typeof readOutlineReexports> {
+		return readOutlineReexports(this.#reader, generationId, pathName);
+	}
+
+	public findReferenceRows(input: Parameters<typeof referenceRows>[1]): ReturnType<typeof referenceRows> {
+		return referenceRows(this.#reader, input);
+	}
+
+	public referenceCoverage(input: Parameters<typeof referenceCoverage>[1]): ReturnType<typeof referenceCoverage> {
+		return referenceCoverage(this.#reader, input);
 	}
 
 	public findDependencyEdgesByTargetIdentifier(generationId: string, targetIdentifier: string, context?: string): readonly StoredDependencyEdgeType[] {

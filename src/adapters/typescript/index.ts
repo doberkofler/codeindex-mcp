@@ -1,5 +1,6 @@
 import {type ConfigType, toRepositoryPath, type ProjectContextConfigType} from '../../core/config/config.ts';
 import {
+	type AdapterStatType,
 	type ExtractedBindingContextType,
 	type ExtractedBindingSiteType,
 	type ExtractedBindingType,
@@ -217,6 +218,23 @@ const extractContext = (
 	return {context: {files, facts, dependencies, diagnostics: project.diagnostics}, compilerMs};
 };
 
+const mergeAdapterStats = (contexts: readonly ExtractedContextType[]): readonly AdapterStatType[] => {
+	const merged = new Map<string, AdapterStatType>();
+
+	for (const context of contexts) {
+		for (const stat of context.facts.adapterStats) {
+			const key = [stat.metric, (stat.dimensions ?? []).join('\u0000')].join('\u0000');
+			const existing = merged.get(key);
+
+			merged.set(key, {metric: stat.metric, value: (existing?.value ?? 0) + stat.value, dimensions: stat.dimensions});
+		}
+	}
+
+	return [...merged.values()].sort(
+		(left, right) => left.metric.localeCompare(right.metric) || (left.dimensions ?? []).join('\u0000').localeCompare((right.dimensions ?? []).join('\u0000')),
+	);
+};
+
 const mergeContexts = (contexts: readonly ExtractedContextType[]): Omit<ExtractorBuildType, 'compilerMs' | 'extractionMs'> => {
 	if (contexts.length === 1) {
 		const [context] = contexts;
@@ -231,7 +249,7 @@ const mergeContexts = (contexts: readonly ExtractedContextType[]): Omit<Extracto
 			...context.facts.publication,
 			occurrences: context.facts.occurrences,
 			dependencies: context.dependencies,
-			adapterStats: [],
+			adapterStats: context.facts.adapterStats,
 			diagnostics: dedupeDiagnostics([...context.diagnostics, ...context.facts.diagnostics]),
 		};
 	}
@@ -245,7 +263,7 @@ const mergeContexts = (contexts: readonly ExtractedContextType[]): Omit<Extracto
 			edges: contexts.flatMap((context) => context.dependencies.edges),
 			bindings: contexts.flatMap((context) => context.dependencies.bindings),
 		},
-		adapterStats: [],
+		adapterStats: mergeAdapterStats(contexts),
 		diagnostics: mergeDiagnostics(contexts),
 	};
 };

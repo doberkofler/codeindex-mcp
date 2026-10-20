@@ -188,4 +188,13 @@ describe('report-only publication qualification', () => {
 		expect(report.prototypes.p2?.namedExternalAliases).toBeGreaterThan(0);
 		expect(report.prototypes.p2?.missingPublishedAliasesByKind).toHaveProperty('named');
 	});
+
+	it('passes G-A root-export truth after alias, default, and star publication', async () => {
+		const {report} = await runForFixture('publication-project', 'typescript', 'tsconfig.json');
+
+		expect(report.prototypes.p1?.gA).toBe('passed');
+		expect(report.prototypes.p1?.missingPublishedRoots).toBe(0);
+		expect(report.prototypes.p1?.extraPublishedRoots).toBe(0);
+		expect(report.prototypes.p2?.missingPublishedAliases).toBe(0);
+	});
 });

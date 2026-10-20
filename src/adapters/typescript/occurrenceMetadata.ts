@@ -3,6 +3,27 @@ import {type ExtractedOccurrenceType, type FactRangeType} from '../../core/facts
 
 export type DefinitionMetadataType = Pick<ExtractedOccurrenceType, 'declarationKind' | 'forwardDefinition' | 'extent' | 'anchorRank' | 'primaryRank'>;
 
+const KIND_PREDICATES: readonly (readonly [(node: ts.Node) => boolean, string])[] = [
+	[ts.isFunctionDeclaration, 'function'],
+	[ts.isClassDeclaration, 'class'],
+	[ts.isInterfaceDeclaration, 'interface'],
+	[ts.isTypeAliasDeclaration, 'type'],
+	[ts.isEnumDeclaration, 'enum'],
+	[ts.isEnumMember, 'enum_member'],
+	[ts.isModuleDeclaration, 'namespace'],
+	[ts.isMethodDeclaration, 'method'],
+	[ts.isMethodSignature, 'method'],
+	[ts.isPropertyDeclaration, 'property'],
+	[ts.isPropertySignature, 'property'],
+	[ts.isPropertyAssignment, 'property'],
+	[ts.isShorthandPropertyAssignment, 'property'],
+	[ts.isGetAccessorDeclaration, 'accessor'],
+	[ts.isSetAccessorDeclaration, 'accessor'],
+	[ts.isExportSpecifier, 'alias'],
+	[ts.isNamespaceExport, 'alias'],
+	[ts.isExportAssignment, 'alias'],
+];
+
 /**
  * Maps a supported declaration node to the adapter's stable kind string.
  *
@@ -10,44 +31,10 @@ export type DefinitionMetadataType = Pick<ExtractedOccurrenceType, 'declarationK
  * @returns Adapter declaration kind.
  */
 export const declarationKindOf = (node: ts.Node): string => {
-	if (ts.isFunctionDeclaration(node)) {
-		return 'function';
-	}
-
-	if (ts.isClassDeclaration(node)) {
-		return 'class';
-	}
-
-	if (ts.isInterfaceDeclaration(node)) {
-		return 'interface';
-	}
-
-	if (ts.isTypeAliasDeclaration(node)) {
-		return 'type';
-	}
-
-	if (ts.isEnumDeclaration(node)) {
-		return 'enum';
-	}
-
-	if (ts.isEnumMember(node)) {
-		return 'enum_member';
-	}
-
-	if (ts.isModuleDeclaration(node)) {
-		return 'namespace';
-	}
-
-	if (ts.isMethodDeclaration(node) || ts.isMethodSignature(node)) {
-		return 'method';
-	}
-
-	if (ts.isPropertyDeclaration(node) || ts.isPropertySignature(node)) {
-		return 'property';
-	}
-
-	if (ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node)) {
-		return 'accessor';
+	for (const [predicate, kind] of KIND_PREDICATES) {
+		if (predicate(node)) {
+			return kind;
+		}
 	}
 
 	return 'variable';
@@ -67,13 +54,7 @@ const rangeOfNode = (sourceFile: ts.SourceFile, node: ts.Node): FactRangeType =>
 	};
 };
 
-const isForwardDeclaration = (node: ts.Node): boolean => {
-	if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
-		return node.body === undefined;
-	}
-
-	return false;
-};
+const isForwardDeclaration = (node: ts.Node): boolean => (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) && node.body === undefined;
 
 const primaryRankOf = (node: ts.Node): number => (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) ? (node.body === undefined ? 1 : 0) : 0);
 

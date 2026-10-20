@@ -50,7 +50,7 @@ describe('IndexDatabase', () => {
 			symbolCount: 1,
 			occurrenceCount: 1,
 		});
-		expect(database.findReferences({generationId, symbolId: 'symbol-0', role: undefined, limit: 10, offset: 0})).toHaveLength(1);
+		expect(database.findReferenceRows({generationId, symbolId: 'symbol-0', limit: 10, offset: 0})).toHaveLength(1);
 
 		database.close();
 

@@ -1,11 +1,4 @@
-import {
-	type GenerationRowType,
-	type GenerationStateType,
-	type IndexedDependencyBindingType,
-	type ReferenceType,
-	type StoredDependencyEdgeType,
-	type SymbolSummaryType,
-} from '../model.ts';
+import {type GenerationRowType, type GenerationStateType, type IndexedDependencyBindingType, type StoredDependencyEdgeType} from '../model.ts';
 
 export type SqlRowType = Readonly<Record<string, unknown>>;
 
@@ -82,31 +75,6 @@ export const toGeneration = (row: SqlRowType): GenerationRowType => ({
 	diagnosticCount: asNumber(row, 'diagnostic_count'),
 	stages: stagesOf(row),
 	error: asNullableString(row, 'error'),
-});
-
-export const toSymbolSummary = (row: SqlRowType, contexts: readonly string[] = []): SymbolSummaryType => ({
-	id: asString(row, 'id'),
-	name: asString(row, 'name'),
-	qualifiedName: asString(row, 'qualified_name'),
-	kind: asString(row, 'kind'),
-	path: asString(row, 'path'),
-	startLine: asNumber(row, 'start_line'),
-	startColumn: asNumber(row, 'start_column'),
-	endLine: asNumber(row, 'end_line'),
-	endColumn: asNumber(row, 'end_column'),
-	enclosingId: asNullableString(row, 'enclosing_id'),
-	contexts,
-});
-
-export const toReference = (row: SqlRowType, contexts: readonly string[] = []): ReferenceType => ({
-	path: asString(row, 'path'),
-	startLine: asNumber(row, 'start_line'),
-	startColumn: asNumber(row, 'start_column'),
-	endLine: asNumber(row, 'end_line'),
-	endColumn: asNumber(row, 'end_column'),
-	role: asString(row, 'role') === 'definition' ? 'definition' : 'reference',
-	enclosingId: asNullableString(row, 'enclosing_id'),
-	contexts,
 });
 
 const BOUNDED_KIND_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/u;

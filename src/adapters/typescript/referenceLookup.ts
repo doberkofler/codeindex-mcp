@@ -9,7 +9,7 @@ import {type ReferenceSkipReasonType} from './referenceGate.ts';
 
 export type LocatedDeclarationType = Readonly<{
 	readonly declarationNode: ts.Node;
-	readonly nameNode: ts.Identifier;
+	readonly nameNode: ts.Node;
 }>;
 
 export type ReferenceLookupType = Readonly<{readonly locations: readonly ReferenceLocationType[]}> | Readonly<{readonly skip: ReferenceSkipReasonType}>;
@@ -219,7 +219,9 @@ export const lookupReferences = (
 		return {skip: 'definition_outside_authored_files'};
 	}
 
-	const testedSymbol = resolveOccurrenceSymbol(input.checker, input.located.nameNode);
+	const testedSymbol = ts.isIdentifier(input.located.nameNode)
+		? resolveOccurrenceSymbol(input.checker, input.located.nameNode)
+		: input.checker.getSymbolAtLocation(input.located.nameNode);
 
 	if (testedSymbol === undefined) {
 		return {skip: 'reference_lookup_failed'};

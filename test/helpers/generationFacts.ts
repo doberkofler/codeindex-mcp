@@ -14,7 +14,6 @@ export type GenerationFactSeedType = Readonly<{
 	readonly language: string;
 	readonly files: readonly SourceFileType[];
 	readonly projects: readonly ScanProjectResultType[];
-	readonly symbols: FinalizedFactSetType['symbols'];
 	readonly facts: FinalizedFactSetType;
 	readonly dependencies: DependencyExtractionResultType;
 	readonly diagnostics: readonly DiagnosticType[];
@@ -125,7 +124,6 @@ export const createGenerationFactSeed = (
 		language: 'typescript',
 		files,
 		projects,
-		symbols: facts.symbols,
 		facts,
 		dependencies: extracted.dependencies,
 		diagnostics: [],

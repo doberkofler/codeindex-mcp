@@ -129,6 +129,7 @@ const indexStatusSchema = z.object({
 		dependencyBindings: z.number(),
 		diagnostics: z.number(),
 	}),
+	buildStats: z.array(z.object({language: z.string(), metric: z.string(), dim1: z.string(), dim2: z.string(), dim3: z.string(), value: z.number()})),
 	build: z.object({
 		startedAt: z.string().nullable(),
 		completedAt: z.string().nullable(),

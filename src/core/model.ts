@@ -102,6 +102,14 @@ export type IndexedSymbolType = Readonly<{
 	readonly startOffset: number;
 	readonly endOffset: number;
 	readonly enclosingId: string | null;
+	/**
+	 * External module target for a synthetic authored alias.
+	 *
+	 * Authored declarations leave both external fields absent.
+	 */
+	readonly externalTarget?: string | null | undefined;
+	/** Imported external name (`*` for a namespace, `default` for a default alias). */
+	readonly externalName?: string | null | undefined;
 	/** Compiler contexts that produced this declaration. */
 	readonly contexts?: readonly string[] | undefined;
 }>;
@@ -117,6 +125,11 @@ export type IndexedOccurrenceType = Readonly<{
 	readonly endOffset: number;
 	readonly role: 'definition' | 'reference';
 	readonly enclosingId: string | null;
+	/**
+	 * Usage bitmask for a reference: `call` 1, `read` 2, `write` 4,
+	 * `type_ref` 8. Definitions use zero and absent values default to zero.
+	 */
+	readonly usage?: number | undefined;
 	/** Compiler contexts that resolved this occurrence. */
 	readonly contexts?: readonly string[] | undefined;
 }>;
@@ -192,7 +205,7 @@ type DependencyEvidenceType = Readonly<{
 	readonly bindings: readonly DependencyEvidenceBindingType[];
 }>;
 
-type DependencyQueryMeaningType = 'direct_usage' | 'dependency_impact';
+export type DependencyQueryMeaningType = 'direct_usage' | 'dependency_impact';
 
 type DependencyDetailType = 'compact' | 'evidence';
 
@@ -211,7 +224,7 @@ export type DependencyEvidenceConsumerType = DependencyConsumerType &
 
 export type DependencyConsumerItemType = DependencyConsumerType | DependencyEvidenceConsumerType;
 
-type DependencyRootSummaryType = Readonly<{
+export type DependencyRootSummaryType = Readonly<{
 	readonly path: string;
 	readonly consumerCount: number;
 }>;
@@ -279,6 +292,15 @@ export type IndexVerificationType = Readonly<{
 	}>;
 }>;
 
+export type BuildStatType = Readonly<{
+	readonly language: string;
+	readonly metric: string;
+	readonly dim1: string;
+	readonly dim2: string;
+	readonly dim3: string;
+	readonly value: number;
+}>;
+
 export type IndexStatusType = Readonly<{
 	readonly ready: boolean;
 	readonly state: GenerationStateType | 'absent';
@@ -310,6 +332,7 @@ export type IndexStatusType = Readonly<{
 		readonly dependencyBindings: number;
 		readonly diagnostics: number;
 	}>;
+	readonly buildStats: readonly BuildStatType[];
 	readonly build: Readonly<{
 		readonly startedAt: string | null;
 		readonly completedAt: string | null;
@@ -326,96 +349,29 @@ export type IndexStatusType = Readonly<{
 	readonly lastError: string | null;
 }>;
 
-export type SymbolSummaryType = Readonly<{
-	readonly id: string;
-	readonly name: string;
-	readonly qualifiedName: string;
-	readonly kind: string;
-	readonly path: string;
-	readonly startLine: number;
-	readonly startColumn: number;
-	readonly endLine: number;
-	readonly endColumn: number;
-	readonly enclosingId: string | null;
-	readonly contexts: readonly string[];
-}>;
-
-export type OutlineInputType = Readonly<{
-	readonly path: string;
-	readonly kinds?: readonly string[] | undefined;
-	readonly limit: number;
-	readonly cursor?: string | undefined;
-}>;
-
-type PagedResultType<ItemType> = Readonly<{
-	readonly generationId: string;
-	readonly freshness: QueryFreshnessType;
-	readonly items: readonly ItemType[];
-	readonly nextCursor: string | null;
-	readonly truncated: boolean;
-}>;
-
-export type OutlineResultType = PagedResultType<SymbolSummaryType>;
-
-export type FindSymbolInputType = Readonly<{
-	readonly query: string;
-	readonly context?: string | undefined;
-	readonly limit: number;
-	readonly cursor?: string | undefined;
-}>;
-
-export type SymbolMatchType = SymbolSummaryType &
-	Readonly<{
-		readonly match: 'exact_qualified' | 'exact_name' | 'prefix_qualified' | 'prefix_name';
-	}>;
-
-export type FindSymbolResultType = PagedResultType<SymbolMatchType>;
-
-export type FindReferencesInputType = Readonly<{
-	readonly symbolId: string;
-	readonly role?: 'definition' | 'reference' | undefined;
-	readonly context?: string | undefined;
-	readonly limit: number;
-	readonly cursor?: string | undefined;
-}>;
-
-export type ReferenceType = Readonly<{
-	readonly path: string;
-	readonly startLine: number;
-	readonly startColumn: number;
-	readonly endLine: number;
-	readonly endColumn: number;
-	readonly role: 'definition' | 'reference';
-	readonly enclosingId: string | null;
-	readonly contexts: readonly string[];
-}>;
-
-export type FindReferencesResultType = PagedResultType<ReferenceType>;
-
-export type FindDependenciesResultType = PagedResultType<DependencyConsumerItemType> &
-	Readonly<{
-		readonly queryMeaning: DependencyQueryMeaningType;
-		readonly summary: Readonly<{
-			readonly totalConsumers: number;
-			readonly directConsumers: number;
-			readonly transitiveConsumers: number;
-			readonly roots: readonly DependencyRootSummaryType[];
-		}>;
-	}>;
-
-export type ReadSymbolInputType = Readonly<{
-	readonly symbolId: string;
-	readonly contextLines: number;
-}>;
-
-export type ReadSymbolResultType = Readonly<{
-	readonly generationId: string;
-	readonly freshness: QueryFreshnessType;
-	readonly symbol: SymbolSummaryType;
-	readonly path: string;
-	readonly startLine: number;
-	readonly endLine: number;
-	readonly source: string;
-	readonly truncated: boolean;
-	readonly truncatedReason: 'lines' | 'bytes' | null;
-}>;
+export type {
+	SymbolSummaryType,
+	BindingExposureType,
+	ContextExposureType,
+	BindingSiteKindType,
+	BindingSiteSummaryType,
+	DefinitionSiteSummaryType,
+	BindingSummaryType,
+	BindingDetailType,
+	FindSymbolItemType,
+	OutlineReexportType,
+	OutlineInputType,
+	OutlineResultType,
+	FindSymbolInputType,
+	FindSymbolResultType,
+	FindReferencesInputType,
+	ReferenceOwnerSummaryType,
+	ReferenceType,
+	FindReferencesResultType,
+	FindDependenciesResultType,
+	ReadSymbolInputType,
+	ReadSymbolTextResultType,
+	ReadSymbolResultType,
+	SymbolAtInputType,
+	SymbolAtResultType,
+} from './modelPublication.ts';

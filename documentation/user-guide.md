@@ -172,16 +172,17 @@ only when downstream effect matters, and optionally name one direct consumer as
 the root. The `target` argument is a canonical directly queryable identifier:
 an npm package name for TypeScript, or `SCHEMA.PACKAGE` for Oracle.
 
-The server exposes six read-only tools:
+The server exposes seven read-only tools:
 
 | Tool | Use |
 | --- | --- |
 | `index_status` | Readiness, indexed scope, freshness, counts, diagnostics, limitations |
-| `outline` | Declarations in one workspace-relative file, in source order |
-| `find_symbol` | Exact or prefix symbol lookup; optional project-context filter |
-| `find_references` | Definitions and references for one symbol; optional project-context filter |
+| `outline` | Declarations in one workspace-relative file, plus a bounded re-export list |
+| `find_symbol` | Exact or prefix name/qualified lookup with exposure, kind, container, path, and context filters |
+| `find_references` | Flat definitions and references for one symbol with usage and owner filters |
 | `find_dependencies` | Direct dependency usage or grouped dependency impact; optional project-context filter |
-| `read_symbol` | Bounded source for one symbol, rejecting stale files |
+| `read_symbol` | Bounded source, definition sites, bindings, binding sites, or binding contexts |
+| `symbol_at` | Innermost stored declaration covering a source line or position |
 
 Each query reports its generation and freshness:
 

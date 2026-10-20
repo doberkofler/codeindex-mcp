@@ -12,18 +12,6 @@ const resolveAliasSymbol = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Symb
 	}
 };
 
-export const resolveImmediateAliasSymbol = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Symbol | undefined => {
-	if ((symbol.flags & ts.SymbolFlags.Alias) === 0) {
-		return undefined;
-	}
-
-	try {
-		return checker.getImmediateAliasedSymbol(symbol);
-	} catch {
-		return undefined;
-	}
-};
-
 export const resolveCanonical = (checker: ts.TypeChecker, node: ts.Node): ts.Symbol | undefined => {
 	const symbol = checker.getSymbolAtLocation(node);
 	return symbol === undefined ? undefined : resolveAliasSymbol(checker, symbol);

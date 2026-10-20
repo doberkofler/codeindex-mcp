@@ -26,19 +26,19 @@ describe('CodeIndex queries', () => {
 			name: 'formatUser',
 			kind: 'variable',
 			path: 'src/models.ts',
-			match: 'exact_qualified',
+			match: 'exact_name',
 		});
 	});
 
 	it('finds class members with qualified names', () => {
 		fixture = createFixtureIndex('simple-project');
 
-		const result = fixture.index.findSymbols({query: 'UserService.find', limit: 10});
+		const result = fixture.index.findSymbols({query: 'module["src/models.ts"]::UserService.find', match: 'qualified', limit: 10});
 
 		expect(result.items[0]).toMatchObject({
 			name: 'find',
 			kind: 'method',
-			qualifiedName: 'UserService.find',
+			qualifiedName: 'module["src/models.ts"]::UserService.find',
 			path: 'src/models.ts',
 		});
 	});
@@ -85,7 +85,7 @@ describe('CodeIndex queries', () => {
 		fixture = createFixtureIndex('external-reexport');
 		const symbol = fixture.index.findSymbols({query: 'debounce', limit: 10}).items.at(0);
 
-		expect(symbol).toMatchObject({name: 'debounce', path: 'src/facade.ts', kind: 'variable'});
+		expect(symbol).toMatchObject({name: 'debounce', path: 'src/facade.ts', kind: 'alias'});
 
 		if (symbol === undefined) {
 			throw new Error('Expected debounce façade symbol');
@@ -107,6 +107,10 @@ describe('CodeIndex queries', () => {
 		}
 
 		const result = fixture.index.readSymbol({symbolId: symbol.id, contextLines: 1});
+
+		if (result.kind !== 'text') {
+			throw new Error('Expected text read result');
+		}
 
 		expect(result.source).toContain('export const formatUser');
 		expect(result.startLine).toBeLessThanOrEqual(symbol.startLine);

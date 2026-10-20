@@ -1,6 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {existsSync, readFileSync} from 'node:fs';
-import path from 'node:path';
+import {existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {type AnalyticsRecorderType} from '../analytics/recorder.ts';
 import {type ConfigType} from '../config/config.ts';
@@ -14,7 +13,7 @@ import {buildGeneration} from './buildGeneration.ts';
 import {type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
 import {findDependencies as queryDependencies, findReferences as queryReferences, findSymbols as querySymbols} from '../query/queryService.ts';
-import {CodeIndexError, IndexNotReadyError, StaleFileError} from '../errors/errors.ts';
+import {CodeIndexError, IndexNotReadyError} from '../errors/errors.ts';
 import {observeExternalBuild} from './externalBuild.ts';
 import {collectStatus} from '../freshness/indexStatus.ts';
 import {
@@ -34,18 +33,31 @@ import {
 	type ReadSymbolInputType,
 	type ReadSymbolResultType,
 	type ScanResultType,
+	type SymbolAtInputType,
+	type SymbolAtResultType,
 } from '../model.ts';
-import {boundedPagedResult, decodeCursor, normalizeRelativePath} from '../query/querySupport.ts';
 import {publishedFiles} from './publishedFiles.ts';
 import {startProcessSample} from '../resources/processSample.ts';
-import {readSymbolResult} from '../query/readSymbolResult.ts';
-import {hashContent} from './sourceFiles.ts';
+import {queryOutline} from '../query/outlineQuery.ts';
+import {queryReadSymbol} from '../query/readSymbolQuery.ts';
+import {querySymbolAt} from '../query/symbolAtQuery.ts';
 import {RefreshCoordinator, type RefreshReasonType} from '../freshness/refreshCoordinator.ts';
 import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
 
-const {sep} = path;
 const debug = debugFor('index');
 const LEASE_RENEW_MS = 3000;
+
+const assertKnownContext = (database: IndexDatabase, generationId: string, requested: string | undefined): void => {
+	if (requested === undefined) {
+		return;
+	}
+
+	const known = database.listProjectContextNames(generationId);
+
+	if (!known.includes(requested)) {
+		throw new CodeIndexError('invalid_argument', `Unknown project context: ${requested}. Available contexts: ${known.join(', ')}`);
+	}
+};
 
 export type {CodeIndexOptionsType} from './codeIndexOptions.ts';
 
@@ -300,31 +312,33 @@ export class CodeIndex {
 
 	public getOutline(input: OutlineInputType, maxResultBytes = this.#config.maxResultBytes): OutlineResultType {
 		const generation = this.#generation();
-		const freshness = this.getFreshness();
-		const pathName = normalizeRelativePath(input.path);
-		const offset = decodeCursor(input.cursor, generation.id, 'outline').o;
-		const kinds = input.kinds ?? [];
-		const rows = this.#database.listOutline({generationId: generation.id, path: pathName, kinds, limit: input.limit + 1, offset});
-		debug('outline', {generationId: generation.id, path: pathName, kinds, limit: input.limit, offset, rows: rows.length});
 
-		if (offset === 0 && rows.length === 0) {
-			const file = this.#database.getFile(generation.id, pathName);
-
-			if (file === null) {
-				throw new CodeIndexError('file_not_indexed', `File is not in the published index: ${pathName}`);
-			}
-		}
-
-		const items = rows.slice(0, input.limit);
-
-		return boundedPagedResult({
+		return queryOutline({
+			database: this.#database,
 			generationId: generation.id,
-			items,
-			offset,
-			queryKind: 'outline',
-			hasMore: rows.length > items.length,
+			freshness: this.getFreshness(),
+			input,
 			maxResultBytes,
-			createResult: (page) => ({generationId: generation.id, freshness, ...page}),
+		});
+	}
+
+	/**
+	 * Finds the innermost stored definition covering one source position.
+	 *
+	 * @param input - Path, line, and optional column.
+	 * @param maxResultBytes - Maximum serialized result-data size.
+	 * @returns Candidate definitions, ambiguity, and lexical ancestors.
+	 * @throws {@link CodeIndexError} When the path is invalid or not indexed.
+	 */
+	public symbolAt(input: SymbolAtInputType, maxResultBytes = this.#config.maxResultBytes): SymbolAtResultType {
+		const generation = this.#generation();
+
+		return querySymbolAt({
+			database: this.#database,
+			generationId: generation.id,
+			freshness: this.getFreshness(),
+			selector: input,
+			maxResultBytes,
 		});
 	}
 
@@ -385,52 +399,21 @@ export class CodeIndex {
 			throw new CodeIndexError('symbol_not_found', `Unknown symbol: ${input.symbolId}`);
 		}
 
-		if (this.#coordinator.isPathDirty(symbol.path)) {
-			debug('read_symbol dirty path', {symbolId: symbol.id, path: symbol.path});
-			throw new StaleFileError(symbol.path);
-		}
+		assertKnownContext(this.#database, generation.id, input.context);
 
-		const file = this.#database.getFile(generation.id, symbol.path);
-
-		if (file === null) {
-			throw new CodeIndexError('file_not_indexed', `Symbol file is not in the published index: ${symbol.path}`);
-		}
-
-		const absolutePath = path.resolve(this.#config.rootDir, symbol.path);
-
-		if (!absolutePath.startsWith(`${path.resolve(this.#config.rootDir)}${sep}`)) {
-			throw new CodeIndexError('invalid_argument', 'Symbol path escapes the configured root');
-		}
-
-		let content: string;
-
-		try {
-			content = readFileSync(absolutePath, 'utf8');
-		} catch {
-			throw new StaleFileError(symbol.path);
-		}
-
-		if (hashContent(content) !== file.sha256) {
-			debug('read_symbol stale', {symbolId: symbol.id, path: symbol.path});
-			throw new StaleFileError(symbol.path);
-		}
-
-		if (this.#coordinator.isPathDirty(symbol.path)) {
-			debug('read_symbol became dirty', {symbolId: symbol.id, path: symbol.path});
-			throw new StaleFileError(symbol.path);
-		}
-
-		debug('read_symbol', {generationId: generation.id, symbolId: symbol.id, path: symbol.path, contextLines: input.contextLines});
-
-		return readSymbolResult({
-			content,
-			symbol,
-			generationId: generation.id,
-			freshness: this.getFreshness(),
-			contextLines: input.contextLines,
-			maxReadLines: this.#config.maxReadLines,
-			maxResultBytes,
-		});
+		return queryReadSymbol(
+			{
+				database: this.#database,
+				rootDir: this.#config.rootDir,
+				generationId: generation.id,
+				freshness: this.getFreshness(),
+				symbol,
+				isPathDirty: (pathName) => this.#coordinator.isPathDirty(pathName),
+				maxReadLines: this.#config.maxReadLines,
+				maxResultBytes,
+			},
+			input,
+		);
 	}
 
 	public async close(): Promise<void> {

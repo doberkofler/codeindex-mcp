@@ -46,6 +46,7 @@ const status: IndexStatusType = {
 	},
 	hashes: {source: 'source', configuration: 'config'},
 	counts: {files: 4, symbols: 10, occurrences: 20, dependencyEdges: 5, dependencyBindings: 6, diagnostics: 0},
+	buildStats: [],
 	build: {startedAt: null, completedAt: null, durationMs: null, stages: null},
 	freshness: {state: 'current', checkedAt: '2026-10-18T00:00:00.000Z', dirtyFileCount: 0, staleFiles: 0, sourceChanged: false},
 	lease: null,

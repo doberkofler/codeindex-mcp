@@ -93,6 +93,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 		},
 		hashes: hashesOf(published),
 		counts: countsOf(published),
+		buildStats: published === null ? [] : input.database.listBuildStats(published.id),
 		build: buildOf(published),
 		freshness: freshnessOf(refresh),
 		lease,

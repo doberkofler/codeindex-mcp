@@ -5,7 +5,6 @@ import {
 	type DiagnosticType,
 	type IndexedDependencyBindingType,
 	type IndexedDependencyEdgeType,
-	type IndexedSymbolType,
 	type ScanProjectResultType,
 	type SourceFileType,
 } from '../model.ts';
@@ -22,14 +21,6 @@ export type GenerationFactsInputType = Readonly<{
 	readonly language: string;
 	readonly files: readonly SourceFileType[];
 	readonly projects: readonly ScanProjectResultType[];
-	/**
-	 * Symbol-table rows used by the current query modules.
-	 *
-	 * The canonical binding rows remain authoritative for the redesign. While
-	 * query migration is still pending, the existing symbol display and kind are
-	 * preserved so schema-only rollout cannot change tool output.
-	 */
-	readonly symbols: readonly IndexedSymbolType[];
 	readonly facts: FinalizedFactSetType;
 	readonly dependencies: Readonly<{
 		readonly edges: readonly IndexedDependencyEdgeType[];
@@ -74,20 +65,14 @@ const insertFileRows = (writer: DatabaseSync, input: GenerationFactsInputType): 
 	}
 };
 
-const insertSymbolRows = (writer: DatabaseSync, input: GenerationFactsInputType, exposureById: ReadonlyMap<string, string>): void => {
+const insertSymbolRows = (writer: DatabaseSync, input: GenerationFactsInputType): void => {
 	const statement = writer.prepare(
 		`insert into symbol (generation_id, id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column,
 		 start_offset, end_offset, enclosing_id, external_target, external_name, exposure)
-		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, null, ?)`,
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	);
 
-	for (const symbol of input.symbols) {
-		const exposure = exposureById.get(symbol.id);
-
-		if (exposure === undefined) {
-			throw new Error('Every persisted symbol must have a finalized exposure');
-		}
-
+	for (const symbol of input.facts.symbols) {
 		statement.run(
 			input.generationId,
 			symbol.id,
@@ -102,7 +87,9 @@ const insertSymbolRows = (writer: DatabaseSync, input: GenerationFactsInputType,
 			symbol.startOffset,
 			symbol.endOffset,
 			symbol.enclosingId,
-			exposure,
+			symbol.externalTarget ?? null,
+			symbol.externalName ?? null,
+			symbol.exposure,
 		);
 	}
 };
@@ -190,26 +177,33 @@ const insertOccurrenceRows = (writer: DatabaseSync, input: GenerationFactsInputT
 	for (const occurrence of input.facts.occurrences) {
 		const columns = occurrenceColumnsOf(occurrence);
 
-		statement.run(
-			input.generationId,
-			occurrence.symbolId,
-			occurrence.path,
-			occurrence.startLine,
-			occurrence.startColumn,
-			occurrence.endLine,
-			occurrence.endColumn,
-			occurrence.startOffset,
-			occurrence.endOffset,
-			occurrence.role,
-			occurrence.enclosingId,
-			columns.declarationKind,
-			columns.forwardDefinition,
-			0,
-			columns.extentStart,
-			columns.extentEnd,
-			columns.anchorRank,
-			columns.primaryRank,
-		);
+		try {
+			statement.run(
+				input.generationId,
+				occurrence.symbolId,
+				occurrence.path,
+				occurrence.startLine,
+				occurrence.startColumn,
+				occurrence.endLine,
+				occurrence.endColumn,
+				occurrence.startOffset,
+				occurrence.endOffset,
+				occurrence.role,
+				occurrence.enclosingId,
+				columns.declarationKind,
+				columns.forwardDefinition,
+				occurrence.usage ?? 0,
+				columns.extentStart,
+				columns.extentEnd,
+				columns.anchorRank,
+				columns.primaryRank,
+			);
+		} catch (error) {
+			throw new Error(
+				`Occurrence insert failed for ${occurrence.symbolId} ${occurrence.path} ${String(occurrence.startOffset)} ${occurrence.role}: ${error instanceof Error ? error.message : String(error)}`,
+				{cause: error},
+			);
+		}
 	}
 };
 
@@ -300,7 +294,7 @@ const validateGenerationFacts = (reader: DatabaseSync, input: GenerationFactsInp
 
 	const checks: readonly (readonly [string, number, number])[] = [
 		['file', counts.files, input.files.length],
-		['symbol', counts.symbols, input.symbols.length],
+		['symbol', counts.symbols, input.facts.symbols.length],
 		['symbol_name', counts.bindings, input.facts.bindings.length],
 		['symbol_name_context', counts.bindingContexts, input.facts.bindingContexts.length],
 		['symbol_name_site', counts.bindingSites, input.facts.bindingSites.length],
@@ -411,15 +405,10 @@ const validateGenerationFacts = (reader: DatabaseSync, input: GenerationFactsInp
 export const insertGenerationFacts = (writer: DatabaseSync, reader: DatabaseSync, input: GenerationFactsInputType): GenerationFactCountsType => {
 	assertBuilding(writer, input.generationId);
 
-	if (input.symbols.length !== input.facts.symbols.length) {
-		throw new Error('Persisted symbol rows and finalized symbols must describe the same set');
-	}
-
-	const exposureById = new Map(input.facts.symbols.map((symbol) => [symbol.id, symbol.exposure]));
 	const buildStats = buildStatsOf(input.facts, input.language);
 	const counts = {
 		files: input.files.length,
-		symbols: input.symbols.length,
+		symbols: input.facts.symbols.length,
 		bindings: input.facts.bindings.length,
 		bindingContexts: input.facts.bindingContexts.length,
 		bindingSites: input.facts.bindingSites.length,
@@ -435,7 +424,7 @@ export const insertGenerationFacts = (writer: DatabaseSync, reader: DatabaseSync
 	transaction(writer, () => {
 		insertProjectContexts(writer, input.generationId, input.projects);
 		insertFileRows(writer, input);
-		insertSymbolRows(writer, input, exposureById);
+		insertSymbolRows(writer, input);
 		insertSymbolContexts(writer, input.generationId, input.facts.symbols);
 		insertBindingRows(writer, input);
 		insertBindingContextRows(writer, input);

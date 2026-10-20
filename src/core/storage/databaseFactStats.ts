@@ -71,7 +71,7 @@ const coreBuildStats = (facts: FinalizedFactSetType, language: string): readonly
 	const exposures = bindingExposures(facts);
 	const bindingGroups = groupedCount(facts.bindings.map((binding: FinalizedBindingType) => exposures.get(binding.bindingId) ?? 'internal'));
 	const siteGroups = groupedCount(facts.bindingSites.map((site) => site.kind));
-	const occurrenceGroups = groupedCount(facts.occurrences.map((occurrence) => `${occurrence.role}\u00000`));
+	const occurrenceGroups = groupedCount(facts.occurrences.map((occurrence) => `${occurrence.role}\u0000${String(occurrence.usage ?? 0)}`));
 
 	for (const [key, value] of symbolGroups) {
 		const [exposure, kind] = key.split('\u0000');

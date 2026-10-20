@@ -13,12 +13,13 @@ import {
 	IndexStatusInputSchema,
 	OutlineInputSchema,
 	ReadSymbolInputSchema,
+	SymbolAtInputSchema,
 } from './toolSchemas.ts';
 
 const debug = debugFor('mcp');
 
 const SERVER_INSTRUCTIONS = `For code navigation in this workspace, use the code index before broad grep or whole-file reads.
-Use find_symbol to locate a declaration by name, outline to inspect a known file, find_references to find consumers, find_dependencies to find dependency usage, and read_symbol to read the smallest useful source range.
+Use find_symbol to locate a declaration by name, outline to inspect a known file, find_references to find consumers, find_dependencies to find dependency usage, and read_symbol to read the smallest useful source range. Use symbol_at to resolve a source position to its innermost stored declaration.
 For "where is dependency X used?" or "where do we use target X?", call find_dependencies once with transitive false and compact detail. Do not call index_status first. A current, untruncated direct result is the complete answer: report the returned paths and stop. Do not search manifests, grep source, read the listed files, or expand into downstream consumers unless the question asks for those facts.
 Use detail evidence only when import statements, bindings, or locations are requested. Request transitive true only when the question asks about downstream dependency impact; those results prove authored-module reachability, not binding use. Filter with root to inspect one direct consumer.
 Package manifests and lint or build configuration are outside the indexed workspace; use at most one targeted repository search when those facts are required.
@@ -124,7 +125,7 @@ const register = (server: McpServer, registration: ToolRegistrationType, inputSc
 };
 
 /**
- * Builds the local stdio MCP server that exposes the six read-only index tools.
+ * Builds the local stdio MCP server that exposes the seven read-only index tools.
  *
  * The adapter validates transport input, calls one `CodeIndex` method, and
  * translates the result. It deliberately contains no SQL or compiler behavior.
@@ -215,13 +216,27 @@ export const buildMcpServer = (
 		server,
 		{
 			name: 'read_symbol',
-			description: 'Read bounded source for one symbol; refuses stale files and reports truncation.',
+			description:
+				'Read bounded source for one symbol or list its definition sites, bindings, binding sites, or binding contexts; refuses stale files and reports truncation.',
 			maxResultBytes,
 			logger,
 			analytics,
 			invoke: (rawArgs) => successEnvelope(index.readSymbol(ReadSymbolInputSchema.parse(rawArgs), successDataBudget(maxResultBytes))),
 		},
 		ReadSymbolInputSchema,
+	);
+
+	register(
+		server,
+		{
+			name: 'symbol_at',
+			description: 'Find the innermost stored definition covering a source position or line.',
+			maxResultBytes,
+			logger,
+			analytics,
+			invoke: (rawArgs) => successEnvelope(index.symbolAt(SymbolAtInputSchema.parse(rawArgs), successDataBudget(maxResultBytes))),
+		},
+		SymbolAtInputSchema,
 	);
 
 	return server;

@@ -1,5 +1,3 @@
-import {type ReadSymbolResultType} from '../model.ts';
-
 type ReadSymbolSourceInputType = Readonly<{
 	content: string;
 	symbolStartLine: number;
@@ -14,7 +12,7 @@ export type ReadSymbolSourceType = Readonly<{
 	startLine: number;
 	endLine: number;
 	source: string;
-	truncatedReason: ReadSymbolResultType['truncatedReason'];
+	truncatedReason: 'lines' | 'bytes' | null;
 }>;
 
 /**
@@ -63,7 +61,7 @@ export const readSymbolSource = (input: ReadSymbolSourceInputType): ReadSymbolSo
 	const requestedLastLine = Math.min(lines.length, input.symbolEndLine + contextLines);
 	const maximumLastLine = Math.min(requestedLastLine, firstLine + input.maxReadLines - 1);
 	let lastLine = maximumLastLine;
-	let reason: ReadSymbolResultType['truncatedReason'] = lastLine < requestedLastLine ? 'lines' : null;
+	let reason: 'lines' | 'bytes' | null = lastLine < requestedLastLine ? 'lines' : null;
 
 	const slice = (): string => lines.slice(firstLine - 1, lastLine).join('\n');
 	let source = slice();

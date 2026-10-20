@@ -5,9 +5,9 @@ import {type ScanResultType} from '../core/model.ts';
 /**
  * One serializable fact bundle crossing the adapter seam.
  *
- * The existing persistence path consumes the legacy symbol, occurrence,
- * dependency, and diagnostic fields. Publication bindings, contexts, sites, and
- * origins remain report-only until the schema redesign is accepted.
+ * The bundle carries files, symbols, occurrences, dependencies, diagnostics, and
+ * the complete extracted publication facts. The core finalizer derives canonical
+ * identities and exposure; storage persists the finalized set atomically.
  */
 export type ExtractorBuildType = ExtractedFactSetType;
 

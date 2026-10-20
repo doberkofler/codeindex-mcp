@@ -59,7 +59,7 @@ describe('MCP adapter', () => {
 		extractorId = 'typescript',
 	): Promise<Client> => (connection = await openFixture(fixtureName, maxResultBytes, projects, extractorId)).client;
 
-	it('registers exactly six read-only tools', async () => {
+	it('registers exactly seven read-only tools', async () => {
 		const client = await connect();
 		const tools = await client.listTools();
 
@@ -70,6 +70,7 @@ describe('MCP adapter', () => {
 			'index_status',
 			'outline',
 			'read_symbol',
+			'symbol_at',
 		]);
 	});
 
@@ -382,7 +383,7 @@ describe('MCP paginated response bounds', () => {
 	});
 
 	it('applies the byte bound to symbol pages', async () => {
-		const maxResultBytes = 1000;
+		const maxResultBytes = 2048;
 		const client = await connect('dependency-graph', maxResultBytes);
 		const result = await client.callTool({name: 'find_symbol', arguments: {query: 'alpha', limit: 100}});
 		const text = textOf(result);
@@ -397,14 +398,14 @@ describe('MCP paginated response bounds', () => {
 });
 
 describe('MCP Oracle adapter', () => {
-	it('serves all six tools for an Oracle manifest', async () => {
+	it('serves all seven tools for an Oracle manifest', async () => {
 		const connection = await openFixture('oracle-project', 32_768, [{name: 'app', project: 'oracle-index.json'}], 'oracle');
 		const {client} = connection;
 
 		try {
 			const status = await client.callTool({name: 'index_status', arguments: {}});
 			const outline = await client.callTool({name: 'outline', arguments: {path: 'database/hr_api.pks', kinds: ['package'], limit: 100}});
-			const symbols = await client.callTool({name: 'find_symbol', arguments: {query: 'APP.HR_API.DELETE_EMPLOYEE'}});
+			const symbols = await client.callTool({name: 'find_symbol', arguments: {query: 'owner["APP"]::hr_api.delete_employee', match: 'qualified'}});
 			const symbolData = JSON.parse(textOf(symbols)) as EnvelopeType & {data: {items: readonly {id: string; match: string}[]}};
 			const exact = symbolData.data.items.find((item) => item.match === 'exact_qualified');
 			const references = await client.callTool({name: 'find_references', arguments: {symbolId: exact?.id ?? ''}});
@@ -415,7 +416,7 @@ describe('MCP Oracle adapter', () => {
 				expect(result.isError).not.toBe(true);
 			}
 
-			expect(textOf(outline)).toContain('APP.HR_API');
+			expect(textOf(outline)).toContain(String.raw`owner[\"APP\"]::hr_api`);
 			expect(textOf(references)).toContain('database/hr_api.pkb');
 			expect(textOf(dependencies)).toContain('database/maintenance_run.prc');
 		} finally {
