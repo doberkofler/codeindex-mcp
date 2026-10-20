@@ -2,19 +2,19 @@
 	"schemaVersion": 1,
 	"tool": "publication-report",
 	"runtime": {
-		"scanMs": 31,
-		"compilerMs": 848,
-		"extractionMs": 3669,
-		"finalizationMs": 353,
-		"totalMs": 21019,
-		"peakRssBytes": 3352625152
+		"scanMs": 29,
+		"compilerMs": 894,
+		"extractionMs": 3704,
+		"finalizationMs": 348,
+		"totalMs": 21065,
+		"peakRssBytes": 2966503424
 	},
 	"workspace": {
 		"projectId": "9ec930e6140da7aa",
 		"contexts": ["root"],
-		"fileCount": 190,
-		"sourceLineCount": 362920,
-		"sourceHash": "126f2d5d25b3b467c3d633f4e3e983e75b513ef8213099237daad80c78cc61c4",
+		"fileCount": 191,
+		"sourceLineCount": 362965,
+		"sourceHash": "cb5381b99bb0ce87a55a0fa1d12dfa4b6e27e9dd1c07c93c7dc47b1c7a260fa4",
 		"configHash": "1a2aa8c1da9bc72ea2068388cf1cafca0adbd2efe8dfa8646b0c8720dcc99a71",
 		"excludedFileCount": 0
 	},
@@ -26,25 +26,25 @@
 		"compilerDrift": false
 	},
 	"facts": {
-		"files": 190,
-		"symbols": 35307,
-		"occurrences": 414302,
-		"definitions": 38639,
-		"references": 375663,
-		"bindings": 35307,
-		"bindingContexts": 35307,
-		"bindingSites": 38639,
+		"files": 191,
+		"symbols": 35320,
+		"occurrences": 414346,
+		"definitions": 38652,
+		"references": 375694,
+		"bindings": 35320,
+		"bindingContexts": 35320,
+		"bindingSites": 38652,
 		"surfaceOrigins": 0,
-		"dependencyEdges": 2067,
-		"dependencyBindings": 2848
+		"dependencyEdges": 2069,
+		"dependencyBindings": 2851
 	},
 	"exposure": {
-		"publishedSymbols": 24831,
+		"publishedSymbols": 24834,
 		"reachableSymbols": 0,
-		"internalOnlySymbols": 10476,
-		"publishedBindings": 24831,
+		"internalOnlySymbols": 10486,
+		"publishedBindings": 24834,
 		"reachableBindings": 0,
-		"internalBindings": 10476
+		"internalBindings": 10486
 	},
 	"measurements": {
 		"m1": {
@@ -63,13 +63,13 @@
 		},
 		"m4": {
 			"status": "measured",
-			"definitionOccurrences": 38639,
-			"definitionSites": 38639,
+			"definitionOccurrences": 38652,
+			"definitionSites": 38652,
 			"symbolsWithMultipleBindings": 0,
 			"bindingsPerSymbol": {
-				"total": 35307,
+				"total": 35320,
 				"buckets": {
-					"1": 35307
+					"1": 35320
 				},
 				"p50": 1,
 				"p95": 1,
@@ -77,9 +77,9 @@
 				"max": 1
 			},
 			"sitesPerBinding": {
-				"total": 35307,
+				"total": 35320,
 				"buckets": {
-					"1": 33641,
+					"1": 33654,
 					"3-4": 1666
 				},
 				"p50": 1,
@@ -106,8 +106,8 @@
 				"p99": 0,
 				"max": 0
 			},
-			"runtimeMs": 11197,
-			"peakRssBytes": 3337011200,
+			"runtimeMs": 11207,
+			"peakRssBytes": 2966503424,
 			"note": "Reachability closure is not implemented before the Phase 4 projection slice; surface origins are preliminary."
 		},
 		"m7": {
@@ -126,9 +126,11 @@
 		"m11": {
 			"status": "blocked",
 			"maximumReachabilityStepsPerRoot": 0,
-			"proposedCeiling": null,
+			"proposedCeiling": 50000,
 			"headroomFactor": null,
-			"note": "Reachability closure is not implemented before the Phase 4 projection slice."
+			"headroomTargetFactor": 2,
+			"headroomStatus": "blocked_on_projection",
+			"note": "Reachability closure and measured headroom are blocked on the Phase 4 projection slice; the ceiling is provisional only."
 		},
 		"m12": {
 			"status": "partial",
@@ -136,16 +138,18 @@
 			"maximumSurfaceBindingsPerSymbol": 0,
 			"proposedCeiling": 10000,
 			"headroomFactor": null,
+			"headroomTargetFactor": 2,
+			"headroomStatus": "blocked_on_projection",
 			"anonymous": 0,
 			"inherited": 0,
 			"depth1": 0,
-			"note": "Surface-origin classification and reachability closure are not implemented before the Phase 4 projection slice."
+			"note": "Surface-origin classification, measured headroom, and reachability closure are blocked on the Phase 4 projection slice; the ceiling is provisional only."
 		},
 		"m13": {
 			"status": "measured",
-			"unionCases": 14148,
+			"unionCases": 14153,
 			"intersectionCases": 17,
-			"selectedSemantics": "undecided"
+			"selectedSemantics": "constituent_reachability"
 		},
 		"m14": {
 			"status": "partial",
@@ -159,7 +163,7 @@
 			"status": "partial",
 			"symbolsByExposureAndKind": {
 				"published": {
-					"variable": 446,
+					"variable": 449,
 					"type": 292,
 					"class": 1236,
 					"method": 13967,
@@ -167,8 +171,8 @@
 					"accessor": 1237
 				},
 				"internal_only": {
-					"property": 2882,
-					"variable": 7427,
+					"property": 2886,
+					"variable": 7433,
 					"type": 153,
 					"class": 6,
 					"accessor": 3,
@@ -176,40 +180,40 @@
 				}
 			},
 			"occurrencesByRole": {
-				"reference": 375663,
-				"definition": 38639
+				"reference": 375694,
+				"definition": 38652
 			},
 			"usageStatus": "not_emitted",
 			"occurrencesByOwner": {
 				"null": {
-					"definition": 3123,
-					"reference": 2577
+					"definition": 3128,
+					"reference": 2580
 				},
 				"present": {
-					"definition": 35516,
-					"reference": 373086
+					"definition": 35524,
+					"reference": 373114
 				}
 			},
-			"sourceLinesRepresented": 224308
+			"sourceLinesRepresented": 224331
 		},
 		"r2": {
 			"status": "measured",
 			"s3": {
 				"status": "measured",
-				"checked": 35307,
+				"checked": 35320,
 				"violations": 0,
 				"classes": {}
 			},
 			"o2": {
 				"status": "measured",
-				"checked": 414302,
+				"checked": 414346,
 				"violations": 0,
 				"classes": {},
 				"note": "Definition extents are used where emitted; otherwise the primary symbol extent is the fallback."
 			},
 			"l1": {
 				"status": "measured",
-				"checked": 38639,
+				"checked": 38652,
 				"violations": 0,
 				"classes": {}
 			},
@@ -225,14 +229,14 @@
 		"p1": {
 			"status": "partial",
 			"contexts": 1,
-			"emittedFiles": 190,
-			"declarationMapFiles": 190,
+			"emittedFiles": 191,
+			"declarationMapFiles": 191,
 			"emitErrors": 0,
-			"emittedModules": 190,
-			"mappedModules": 190,
+			"emittedModules": 191,
+			"mappedModules": 191,
 			"unmappedModules": 0,
-			"emittedExports": 1974,
-			"publishedRoots": 1948,
+			"emittedExports": 1977,
+			"publishedRoots": 1951,
 			"missingPublishedRoots": 26,
 			"extraPublishedRoots": 0,
 			"gA": "partial",
@@ -241,7 +245,7 @@
 		},
 		"p2": {
 			"status": "measured",
-			"modules": 190,
+			"modules": 191,
 			"namedExternalAliases": 0,
 			"namespaceExternalAliases": 0,
 			"defaultExternalAliases": 0,

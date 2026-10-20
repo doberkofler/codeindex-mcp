@@ -3,6 +3,7 @@ import path from 'node:path';
 import {type AdapterStatType, type ExtractedFactSetType} from '../../facts/index.ts';
 import {type FinalizedFactSetType} from '../../facts/types.ts';
 import {type SourceFileType} from '../../model.ts';
+import {PROVISIONAL_HEADROOM_TARGET_FACTOR, PROVISIONAL_REACHABILITY_STEPS_PER_ROOT} from './ceilings.ts';
 import {distributionOf, percentileOf} from './distribution.ts';
 import {
 	type M1ReportType,
@@ -199,9 +200,11 @@ export const m7Of = (stats: readonly AdapterStatType[]): M7ReportType => {
 export const m11Of = (): M11ReportType => ({
 	status: 'blocked',
 	maximumReachabilityStepsPerRoot: 0,
-	proposedCeiling: null,
+	proposedCeiling: PROVISIONAL_REACHABILITY_STEPS_PER_ROOT,
 	headroomFactor: null,
-	note: 'Reachability closure is not implemented before the Phase 4 projection slice.',
+	headroomTargetFactor: PROVISIONAL_HEADROOM_TARGET_FACTOR,
+	headroomStatus: 'blocked_on_projection',
+	note: 'Reachability closure and measured headroom are blocked on the Phase 4 projection slice; the ceiling is provisional only.',
 });
 
 /**
@@ -227,9 +230,11 @@ export const m12Of = (finalized: FinalizedFactSetType, provisionalCeiling: numbe
 		maximumSurfaceBindingsPerSymbol: maximum([...countsBySymbol.values()]),
 		proposedCeiling: provisionalCeiling,
 		headroomFactor: null,
+		headroomTargetFactor: PROVISIONAL_HEADROOM_TARGET_FACTOR,
+		headroomStatus: 'blocked_on_projection',
 		anonymous: 0,
 		inherited: 0,
 		depth1: 0,
-		note: 'Surface-origin classification and reachability closure are not implemented before the Phase 4 projection slice.',
+		note: 'Surface-origin classification, measured headroom, and reachability closure are blocked on the Phase 4 projection slice; the ceiling is provisional only.',
 	};
 };

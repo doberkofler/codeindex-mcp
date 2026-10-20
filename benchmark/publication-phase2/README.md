@@ -86,6 +86,7 @@ owner until Phase 5 implements nested parameter ownership; the class is report-o
 ## Blocked measurements
 
 Surface addresses and reachability steps remain 0 because the Phase 4 projection slice
-has not landed. M11/M12 ceilings are consequently provisional only: the external
-surface ceiling stays 10,000 and reachability is unresolved. DDL work remains blocked
-by the evidence checkpoint.
+has not landed. M11/M12 ceilings are recorded as explicitly non-normative provisional
+values: 10,000 surface bindings and 50,000 reachability steps per root, each with a
+target headroom factor of 2. Measured headroom is null. Phase 4 must replace both values
+from observed maxima before DDL work leaves the evidence checkpoint.

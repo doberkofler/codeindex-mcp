@@ -70,6 +70,8 @@ export type M11ReportType = Readonly<{
 	readonly maximumReachabilityStepsPerRoot: number;
 	readonly proposedCeiling: number | null;
 	readonly headroomFactor: number | null;
+	readonly headroomTargetFactor: number;
+	readonly headroomStatus: 'blocked_on_projection' | 'computed';
 	readonly note?: string | undefined;
 }>;
 
@@ -79,6 +81,8 @@ export type M12ReportType = Readonly<{
 	readonly maximumSurfaceBindingsPerSymbol: number;
 	readonly proposedCeiling: number | null;
 	readonly headroomFactor: number | null;
+	readonly headroomTargetFactor: number;
+	readonly headroomStatus: 'blocked_on_projection' | 'computed';
 	readonly anonymous: number;
 	readonly inherited: number;
 	readonly depth1: number;

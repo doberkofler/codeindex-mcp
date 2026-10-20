@@ -9,9 +9,9 @@ Date: 2026-10-20
 
 ## Current phase
 
-Phase 2 implementation complete. The evidence checkpoint remains open on M11/M12 and
-the Oracle live gates (M8/M9); no DDL work is approved. Schema remains version 8; no
-redesigned facts are persisted or published.
+Phase 2 implementation complete. Provisional M11/M12 ceilings are recorded, but
+evidence-based headroom and the Oracle live gates (M8/M9) remain open; no DDL work is
+approved. Schema remains version 8; no redesigned facts are persisted or published.
 
 ## Phase 0: accept the contract
 
@@ -71,9 +71,10 @@ Phase 1 notes:
       because surface projection belongs to Phase 4.
 - [x] Classify every S3, O2, L1, and F1 violation into named classes. TypeScript corpora
       are clean; Oracle exposes `parameter_type_reference_owner`.
-- [ ] Record proposed per-root ceilings and headroom. Surface projection has not landed,
-      so M11/M12 cannot produce evidence-based values; the 10,000 provisional surface
-      ceiling remains external configuration.
+- [x] Record proposed per-root ceilings and headroom. Recorded non-normative provisional
+      ceilings of 10,000 surface bindings and 50,000 reachability steps per root, each
+      with a target headroom factor of 2. Surface projection has not landed, so measured
+      headroom is null and final values remain blocked.
 - [x] Record P-1/P-2 outcomes in the policy document and this file.
 
 | ID | Measurement | Status | Result |
@@ -83,8 +84,8 @@ Phase 1 notes:
 | M4 | Definition-site count and bindings-per-symbol distribution | Measured | Definition sites 33,620 / 295,962 / 17,467. One binding per symbol; sites per binding max 13 / 8 / 3. |
 | M6 | Surface addresses per root, reachability steps per root, runtime, peak memory | Partial | Surface origins 0; reachability blocked. Runtime 9.4 s / 65.8 s / 20.6 s; peak RSS 2.0 / 11.8 / 4.3 GB. |
 | M7 | Oracle cursor pairs, call specs, polymorphic table functions, routine pairs, ambiguity rate, overload groups, body forwards, body-less spec classification | Partial | Fixture only: 6 routine pairs, 0 cursor pairs, 0 call specs, 0 PTFs, 0 ambiguity, 1 overload group, 1 body forward, 1 body-less spec (unclassified). Production Oracle corpus not run. |
-| M11 | Maximum reachability steps per root and proposed ceiling | Blocked | Requires Phase 4 closure; no proposed value. |
-| M12 | Surface bindings per root/symbol, maximums, share by `anonymous`, `inherited`, `depth1` | Blocked | Observed 0 under lexical facts; provisional 10,000 ceiling; no headroom evidence. |
+| M11 | Maximum reachability steps per root and proposed ceiling | Blocked | Provisional 50,000 ceiling; target headroom 2x; measured maximum and headroom blocked on Phase 4 closure. |
+| M12 | Surface bindings per root/symbol, maximums, share by `anonymous`, `inherited`, `depth1` | Blocked | Provisional 10,000 ceiling; target headroom 2x; observed 0 under lexical facts; measured headroom blocked on Phase 4 projection. |
 | M13 | Union/intersection projection cases and selected semantics | Measured | Constituent-only declarations are reachable, not projected. Cases: 7,060 / 224; 28,589 / 659; 447 / 94. |
 | M14 | Merged TypeScript symbols by declaration-kind set and fixed precedence effect | Measured | No fixed precedence. 13 / 559 / 0 merged symbols; illustrative precedence would change 5 / 438 / 0 kinds. |
 | R1 | Persistence × exposure × kind, occurrence role/usage/owner, source lines | Partial | Usage bits are not emitted. Source lines represented 106,173 / 816,806 / 43,408; owner and role counts recorded in reports. |
@@ -150,7 +151,7 @@ Do not start Phase 3 before this checkpoint is complete.
 | M8 | Oracle synonym/current-schema source and case folding | Resolve before DDL | Open |
 | M9 | `find_references` grouping and pagination semantics | Resolve before DDL | Open |
 | M10 | Oracle/ORDS scope and cross-language edges | Deferred scope | Deferred |
-| M11/M12 | Reachability-step and surface-address ceilings | Resolve before DDL | Open |
+| M11/M12 | Reachability-step and surface-address ceilings | Resolve before DDL | Provisional values recorded; final evidence open |
 | M13 | Union/intersection projection semantics | Resolve before DDL | Resolved: constituent reachability |
 | M14 | Merged TypeScript declaration-kind precedence | Resolve before DDL | Resolved: no fixed precedence |
 | Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification | Open |
@@ -162,4 +163,4 @@ Do not start Phase 3 before this checkpoint is complete.
 |---|---|---|
 | 2026-10-20 | Phase 0 | Contract accepted; versioned policy documents removed; architecture references updated (`158c70d`). |
 | 2026-10-20 | Phase 1 | Fact seam, report-only finalizer, TypeScript and Oracle lexical facts, and finalizer/adapter tests added. Persistence and tool contracts unchanged. |
-| 2026-10-20 | Phase 2 | Added `publication-report`, P-1/P-2 prototypes, full measurement set, invariant classification, and aggregate corpus evidence. M1/M13/M14 resolved; M11/M12 blocked on Phase 4 projection. Persistence unchanged. |
+| 2026-10-20 | Phase 2 | Added `publication-report`, P-1/P-2 prototypes, full measurement set, invariant classification, and aggregate corpus evidence. M1/M13/M14 resolved; M11/M12 provisional ceilings recorded but final headroom blocked on Phase 4 projection. Persistence unchanged. |

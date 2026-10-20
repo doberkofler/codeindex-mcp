@@ -840,6 +840,11 @@ Ceilings are external configuration included in `config_hash`. Initial values co
 dry-run maxima plus documented headroom. Do not hard-code values derived from one
 consumer corpus as package defaults.
 
+Phase 2 records provisional, non-normative per-root ceilings until projection lands:
+10,000 surface bindings and 50,000 reachability steps, each with a target headroom
+factor of 2. Measured headroom is null and Phase 4 must recompute both values from
+observed maxima before DDL is approved.
+
 ### External declarations and exports
 
 | Rule | Behavior |
@@ -1727,10 +1732,11 @@ corpora and on the repository corpus. The Oracle fixture exposed two
 currently inherit the routine owner. Phase 5 retains nested parameter ownership and this
 named class remains report-only until that slice lands.
 
-Surface projection, reachability closure, and the M11/M12 ceilings are intentionally
-unresolved in Phase 2 because they depend on the Phase 4 projection slice. The
-provisional 10,000 surface-binding ceiling remains external configuration; DDL work is
-still blocked on the evidence checkpoint.
+Surface projection and reachability closure remain unresolved because they depend on
+the Phase 4 projection slice. Phase 2 records non-normative provisional ceilings of
+10,000 surface bindings and 50,000 reachability steps per root, with a 2x headroom
+target. Measured headroom is null; final values and DDL approval remain blocked on the
+evidence checkpoint.
 
 To resolve invariant classes, a separate local diagnostic artifact may contain
 workspace-relative paths, offsets, opaque symbol/binding IDs, and category names. It

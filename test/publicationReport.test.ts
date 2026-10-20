@@ -99,6 +99,14 @@ describe('report-only publication qualification', () => {
 		expect(report.measurements.m6.status).toBe('partial');
 		expect(report.measurements.m7.status).toBe('blocked');
 		expect(report.measurements.m11.status).toBe('blocked');
+		expect(report.measurements.m11.proposedCeiling).toBe(50_000);
+		expect(report.measurements.m11.headroomFactor).toBeNull();
+		expect(report.measurements.m11.headroomTargetFactor).toBe(2);
+		expect(report.measurements.m11.headroomStatus).toBe('blocked_on_projection');
+		expect(report.measurements.m12.proposedCeiling).toBe(10_000);
+		expect(report.measurements.m12.headroomFactor).toBeNull();
+		expect(report.measurements.m12.headroomTargetFactor).toBe(2);
+		expect(report.measurements.m12.headroomStatus).toBe('blocked_on_projection');
 		expect(report.measurements.m13.status).toBe('measured');
 		expect(report.measurements.m13.selectedSemantics).toBe('constituent_reachability');
 		expect(report.measurements.m14.status).not.toBe('blocked');

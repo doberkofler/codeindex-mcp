@@ -2,12 +2,12 @@
 	"schemaVersion": 1,
 	"tool": "publication-report",
 	"runtime": {
-		"scanMs": 32,
-		"compilerMs": 549,
-		"extractionMs": 3317,
-		"finalizationMs": 312,
-		"totalMs": 9377,
-		"peakRssBytes": 2033336320
+		"scanMs": 33,
+		"compilerMs": 531,
+		"extractionMs": 3263,
+		"finalizationMs": 295,
+		"totalMs": 8718,
+		"peakRssBytes": 1628962816
 	},
 	"workspace": {
 		"projectId": "a2a2d02c9c908caa",
@@ -109,8 +109,8 @@
 				"p99": 0,
 				"max": 0
 			},
-			"runtimeMs": 8029,
-			"peakRssBytes": 1994686464,
+			"runtimeMs": 7569,
+			"peakRssBytes": 1590542336,
 			"note": "Reachability closure is not implemented before the Phase 4 projection slice; surface origins are preliminary."
 		},
 		"m7": {
@@ -129,9 +129,11 @@
 		"m11": {
 			"status": "blocked",
 			"maximumReachabilityStepsPerRoot": 0,
-			"proposedCeiling": null,
+			"proposedCeiling": 50000,
 			"headroomFactor": null,
-			"note": "Reachability closure is not implemented before the Phase 4 projection slice."
+			"headroomTargetFactor": 2,
+			"headroomStatus": "blocked_on_projection",
+			"note": "Reachability closure and measured headroom are blocked on the Phase 4 projection slice; the ceiling is provisional only."
 		},
 		"m12": {
 			"status": "partial",
@@ -139,10 +141,12 @@
 			"maximumSurfaceBindingsPerSymbol": 0,
 			"proposedCeiling": 10000,
 			"headroomFactor": null,
+			"headroomTargetFactor": 2,
+			"headroomStatus": "blocked_on_projection",
 			"anonymous": 0,
 			"inherited": 0,
 			"depth1": 0,
-			"note": "Surface-origin classification and reachability closure are not implemented before the Phase 4 projection slice."
+			"note": "Surface-origin classification, measured headroom, and reachability closure are blocked on the Phase 4 projection slice; the ceiling is provisional only."
 		},
 		"m13": {
 			"status": "measured",

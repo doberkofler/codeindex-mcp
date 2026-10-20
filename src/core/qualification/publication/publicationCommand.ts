@@ -2,6 +2,7 @@ import {Command} from 'commander';
 import {loadConfig} from '../../config/config.ts';
 import {enableDebug} from '../../logging/debug.ts';
 import {configureCommand, parseCommandAsync} from '../../../transports/cli/commanderSupport.ts';
+import {PROVISIONAL_SURFACE_BINDINGS_PER_ROOT} from './ceilings.ts';
 import {createPublicationReport, formatPublicationReport, writePublicationDiagnostics, writePublicationReport} from './report.ts';
 
 type PublicationReportOptionsType = Readonly<{
@@ -60,7 +61,7 @@ const publicationCommand = (environment: NodeJS.ProcessEnv, io: PublicationRepor
 		.option('--project-file <path>', 'override the extractor project file')
 		.option('--output <path>', 'write the aggregate JSON report to a file')
 		.option('--diagnostics <path>', 'write bounded local diagnostic examples to a file')
-		.option('--max-surface-bindings-per-root <count>', 'provisional per-root surface ceiling', '10000')
+		.option('--max-surface-bindings-per-root <count>', 'provisional per-root surface ceiling', String(PROVISIONAL_SURFACE_BINDINGS_PER_ROOT))
 		.option('--skip-prototypes', 'skip TypeScript P-1/P-2 prototypes', false)
 		.option('--json', 'emit the aggregate report on stdout', false)
 		.option('--debug', 'enable codeindex:* trace output', false)
