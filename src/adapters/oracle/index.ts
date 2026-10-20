@@ -1,5 +1,12 @@
 import {readFileSync} from 'node:fs';
 import {type ConfigType} from '../../core/config/config.ts';
+import {
+	type ExtractedBindingContextType,
+	type ExtractedBindingSiteType,
+	type ExtractedBindingType,
+	type ExtractedPublicationFactsType,
+	type ExtractedSurfaceOriginType,
+} from '../../core/facts/index.ts';
 import {debugFor} from '../../core/logging/debug.ts';
 import {
 	type DiagnosticType,
@@ -41,6 +48,55 @@ type ContextResultType = Readonly<{
 	diagnostics: readonly DiagnosticType[];
 	parseMs: number;
 }>;
+
+const addressKey = (segments: ExtractedBindingType['segments']): string => JSON.stringify(segments);
+
+const mergePublicationFacts = (contexts: readonly ContextResultType[]): ExtractedPublicationFactsType => {
+	const bindings = new Map<string, ExtractedBindingType>();
+	const contextsByName = new Map<string, ExtractedBindingContextType>();
+	const sites = new Map<string, ExtractedBindingSiteType>();
+	const origins = new Map<string, ExtractedSurfaceOriginType>();
+
+	for (const context of contexts) {
+		const {publication} = context.symbols;
+
+		for (const binding of publication.bindings) {
+			const key = `${binding.symbolId}\u0000${addressKey(binding.segments)}`;
+			bindings.set(key, binding);
+		}
+
+		for (const bindingContext of publication.bindingContexts) {
+			const key = `${bindingContext.symbolId}\u0000${addressKey(bindingContext.segments)}\u0000${bindingContext.context}`;
+			contextsByName.set(key, bindingContext);
+		}
+
+		for (const site of publication.bindingSites) {
+			const key = `${site.symbolId}\u0000${addressKey(site.segments)}\u0000${site.kind}\u0000${site.path}\u0000${String(site.range.startOffset)}`;
+			sites.set(key, site);
+		}
+
+		for (const origin of publication.surfaceOrigins) {
+			const key = `${origin.symbolId}\u0000${addressKey(origin.segments)}\u0000${origin.context}`;
+			origins.set(key, origin);
+		}
+	}
+
+	return {
+		bindings: [...bindings.values()].sort(
+			(left, right) => left.symbolId.localeCompare(right.symbolId) || addressKey(left.segments).localeCompare(addressKey(right.segments)),
+		),
+		bindingContexts: [...contextsByName.values()].sort(
+			(left, right) =>
+				left.context.localeCompare(right.context) ||
+				left.symbolId.localeCompare(right.symbolId) ||
+				addressKey(left.segments).localeCompare(addressKey(right.segments)),
+		),
+		bindingSites: [...sites.values()].sort(
+			(left, right) => left.path.localeCompare(right.path) || left.range.startOffset - right.range.startOffset || left.symbolId.localeCompare(right.symbolId),
+		),
+		surfaceOrigins: [...origins.values()].sort((left, right) => left.symbolId.localeCompare(right.symbolId) || left.context.localeCompare(right.context)),
+	};
+};
 
 const parseContext = (
 	config: ConfigType,
@@ -151,6 +207,7 @@ const build = (config: ConfigType, scan: ScanResultType, parser: OracleParserBin
 	const result = {
 		files: scan.files,
 		symbols: mergeSymbols(contexts),
+		...mergePublicationFacts(contexts),
 		occurrences: mergeOccurrences(contexts),
 		dependencies: {
 			edges: contexts
@@ -158,6 +215,7 @@ const build = (config: ConfigType, scan: ScanResultType, parser: OracleParserBin
 				.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath) || left.startOffset - right.startOffset || left.id.localeCompare(right.id)),
 			bindings: [],
 		},
+		adapterStats: [],
 		diagnostics: mergeDiagnostics(contexts),
 		compilerMs,
 		extractionMs,

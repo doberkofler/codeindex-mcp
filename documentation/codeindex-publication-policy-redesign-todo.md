@@ -9,8 +9,8 @@ Date: 2026-10-20
 
 ## Current phase
 
-Phase 1: introduce the fact seam. Schema remains version 8; no redesigned facts are
-persisted or published.
+Phase 1 complete. Phase 2 (dry run and prototypes) is next. Schema remains version 8;
+no redesigned facts are persisted or published.
 
 ## Phase 0: accept the contract
 
@@ -25,20 +25,38 @@ Complete on 2026-10-20 (commit `158c70d`).
 
 ## Phase 1: introduce the fact seam
 
-- [ ] Define the serializable extracted fact bundle (`files`, `symbols`, `bindings`,
+- [x] Define the serializable extracted fact bundle (`files`, `symbols`, `bindings`,
       `bindingContexts`, `bindingSites`, `surfaceOrigins`, `occurrences`,
       `dependencies`, `adapterStats`, `diagnostics`, `compilerMs`, `extractionMs`) at
       the `ExtractorType.build()` seam.
-- [ ] Add one `finalizeFacts(facts, policy)` entry point under `src/core/facts/` with
+- [x] Add one `finalizeFacts(facts, policy)` entry point under `src/core/facts/` with
       `mode: 'enforce' | 'report'`.
-- [ ] Keep existing persistence, schema version 8, and tool responses unchanged.
-- [ ] Run classification report-only inside the build worker.
-- [ ] Confirm both adapters emit bounded in-memory facts without compiler or parser
+- [x] Keep existing persistence, schema version 8, and tool responses unchanged.
+- [x] Run classification report-only inside the build worker.
+- [x] Confirm both adapters emit bounded in-memory facts without compiler or parser
       objects crossing the seam.
-- [ ] Add pure finalizer tests: canonical JSON, UTF-8 ID framing, deterministic
+- [x] Add pure finalizer tests: canonical JSON, UTF-8 ID framing, deterministic
       ordering, primary/anchor selection, exposure derivation, duplicate rejection, and
       synthetic collision failure.
-- [ ] Confirm adapter, finalizer, and config-hash boundaries with a review pass.
+- [x] Confirm adapter, finalizer, and config-hash boundaries with a review pass.
+
+Phase 1 notes:
+
+- `src/core/facts/` now owns the serializable fact contract, canonical keys, derived
+  binding/site IDs, deterministic ordering, exposure aggregation, primary/anchor
+  selection, structural validation, and the report safety ceiling.
+- Both adapters emit preliminary lexical bindings, one context per binding, declared
+  sites, and empty surface origins. Persistence still consumes the legacy symbol and
+  occurrence fields only.
+- Preliminary classification is deliberately incomplete: TypeScript does not yet expand
+  aliases, default roots, internal `export *`, or surface projection; Oracle does not yet
+  project package member addresses beyond lexical containment. Those remain Phase 4 and
+  Phase 5 work.
+- Report-only finalization runs in `buildGeneration` before persistence and logs
+  aggregate counts through debug output. It never persists or publishes redesigned
+  facts.
+- `SCHEMA_VERSION`, adapter versions, `config_hash` inputs, and tool responses are
+  unchanged.
 
 ## Phase 2: dry run and prototypes
 
@@ -131,3 +149,4 @@ Do not start Phase 3 before this checkpoint is complete.
 | Date | Phase | Note |
 |---|---|---|
 | 2026-10-20 | Phase 0 | Contract accepted; versioned policy documents removed; architecture references updated (`158c70d`). |
+| 2026-10-20 | Phase 1 | Fact seam, report-only finalizer, TypeScript and Oracle lexical facts, and finalizer/adapter tests added. Persistence and tool contracts unchanged. |

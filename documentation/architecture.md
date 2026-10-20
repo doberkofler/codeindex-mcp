@@ -61,6 +61,7 @@ All authored executable source lives under `src/`:
 src/
   core/                 language-neutral indexing machinery
     generation/         worker builds, publication, lifecycle
+    facts/              extracted-fact finalization, identity, exposure, validation
     freshness/          watcher, reconciliation, refresh state
     query/              bounded queries and graph traversal
     storage/            SQLite schema and persistence

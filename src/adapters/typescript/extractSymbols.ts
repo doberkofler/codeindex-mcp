@@ -1,7 +1,10 @@
 import ts from 'typescript';
+import {type ExtractedPublicationFactsType} from '../../core/facts/index.ts';
 import {debugFor} from '../../core/logging/debug.ts';
 import {type ExtractionResultType, type IndexedOccurrenceType, type IndexedSymbolType, type SourceFileType} from '../../core/model.ts';
 import {type LoadedProjectType} from './loadProject.ts';
+import {createTypeScriptPublicationFacts} from './publicationFacts.ts';
+import {isPublishedCandidate} from './publicationScope.ts';
 import {resolveCanonical, resolveImmediateAliasSymbol, resolveOccurrenceSymbol} from './resolveSymbols.ts';
 import {createSymbolId} from './symbolIdentity.ts';
 
@@ -17,7 +20,15 @@ type CandidateType = Readonly<{
 	readonly nameNode: ts.Identifier;
 	readonly startOffset: number;
 	readonly endOffset: number;
+	readonly scope: 'module' | 'global';
+	readonly published: boolean;
 }>;
+
+/** Symbol facts with the preliminary publication facts for one context. */
+export type TypeScriptSymbolFactsType = ExtractionResultType &
+	Readonly<{
+		readonly publication: ExtractedPublicationFactsType;
+	}>;
 
 type ExtractionInputType = Readonly<{
 	readonly project: LoadedProjectType;
@@ -147,6 +158,8 @@ const collectCandidates = (input: ExtractionInputType, authoredPaths: ReadonlySe
 			continue;
 		}
 
+		const scope: 'module' | 'global' = ts.isExternalModule(sourceFile) ? 'module' : 'global';
+
 		walkSourceFile(sourceFile, (node) => {
 			const nameNode = candidateNameNode(node);
 
@@ -187,6 +200,8 @@ const collectCandidates = (input: ExtractionInputType, authoredPaths: ReadonlySe
 				nameNode,
 				startOffset: node.getStart(sourceFile),
 				endOffset: node.end,
+				scope,
+				published: isPublishedCandidate(node, scope),
 			});
 		});
 	}
@@ -400,12 +415,13 @@ const collectOccurrences = (
  * @param input - Loaded project, authored files, project identity, and context.
  * @returns Indexed symbols, occurrences, and diagnostics tagged with that context.
  */
-export const extractSymbolFacts = (input: ExtractionInputType): ExtractionResultType => {
+export const extractSymbolFacts = (input: ExtractionInputType): TypeScriptSymbolFactsType => {
 	const startedAt = performance.now();
 	const {checker} = input.project;
 	const authoredPaths = new Set(input.files.map((file) => file.absolutePath));
 	const definitions = new Map<ts.Symbol, IndexedSymbolType>();
 	const declarationNodes = new Map<ts.Node, IndexedSymbolType>();
+	const publishedSymbolIds = new Set<string>();
 
 	{
 		const candidates = collectCandidates(input, authoredPaths);
@@ -417,6 +433,14 @@ export const extractSymbolFacts = (input: ExtractionInputType): ExtractionResult
 			definitions.set(canonical, symbol);
 			declarationNodes.set(primary.declaration, symbol);
 		}
+
+		for (const candidate of candidates) {
+			const symbol = definitions.get(candidate.canonical);
+
+			if (symbol !== undefined && candidate.published) {
+				publishedSymbolIds.add(symbol.id);
+			}
+		}
 	}
 
 	const collected = collectOccurrences(input, checker, definitions, declarationNodes);
@@ -424,6 +448,15 @@ export const extractSymbolFacts = (input: ExtractionInputType): ExtractionResult
 		...definition,
 		enclosingId: collected.enclosingBySymbol.get(definition.id) ?? null,
 	}));
+	const scopeByPath = new Map<string, 'module' | 'global'>();
+
+	for (const file of input.files) {
+		const sourceFile = input.project.program.getSourceFile(file.absolutePath);
+
+		if (sourceFile !== undefined) {
+			scopeByPath.set(file.path, ts.isExternalModule(sourceFile) ? 'module' : 'global');
+		}
+	}
 
 	symbols.sort((left, right) => left.path.localeCompare(right.path) || left.startOffset - right.startOffset || left.id.localeCompare(right.id));
 	collected.occurrences.sort(
@@ -446,5 +479,12 @@ export const extractSymbolFacts = (input: ExtractionInputType): ExtractionResult
 		occurrences: collected.occurrences,
 		diagnostics: [],
 		diagnosticCount: 0,
+		publication: createTypeScriptPublicationFacts({
+			context: input.context,
+			symbols,
+			occurrences: collected.occurrences,
+			scopeByPath,
+			publishedSymbolIds,
+		}),
 	};
 };

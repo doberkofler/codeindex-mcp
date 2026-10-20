@@ -1,7 +1,8 @@
 import {randomUUID} from 'node:crypto';
 import {type ConfigType} from '../config/config.ts';
 import {extractorFor} from '../../adapters/registry.ts';
-import {type ExtractorType} from '../../adapters/types.ts';
+import {type ExtractorBuildType, type ExtractorType} from '../../adapters/types.ts';
+import {finalizeFacts} from '../facts/index.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {
@@ -18,6 +19,15 @@ import {type IndexDatabase} from '../storage/database.ts';
 import {computeSourceHash} from './sourceFiles.ts';
 
 const debug = debugFor('build');
+
+/**
+ * Provisional report-only surface ceiling.
+ *
+ * Phase 2 replaces this with an externally configured ceiling derived from
+ * corpus maxima plus documented headroom. It is not a production persistence
+ * policy and no truncated report is ever accepted.
+ */
+const PUBLICATION_REPORT_MAX_BINDINGS_PER_ROOT = 10_000;
 
 type BuildInputType = Readonly<{
 	config: ConfigType;
@@ -62,6 +72,15 @@ const measure = (action: () => void): number => {
 	const startedAt = performance.now();
 	action();
 	return Math.round(performance.now() - startedAt);
+};
+
+const reportPublication = (facts: ExtractorBuildType): void => {
+	const publication = finalizeFacts(facts, {
+		mode: 'report',
+		maxBindingsPerRoot: PUBLICATION_REPORT_MAX_BINDINGS_PER_ROOT,
+	});
+
+	debug('publication report', publication.stats);
 };
 
 const debugMemory = (stage: string): void => {
@@ -274,6 +293,7 @@ const executeBuild = (
 	debugMemory('build-start');
 	const extracted = extractor.build(input.config, input.scan);
 	debugMemory('extracted');
+	reportPublication(extracted);
 	const facts: ExtractionResultType = {
 		symbols: extracted.symbols,
 		occurrences: extracted.occurrences,

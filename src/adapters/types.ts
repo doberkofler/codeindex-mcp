@@ -1,15 +1,15 @@
 import {type ConfigType} from '../core/config/config.ts';
-import {type DependencyExtractionResultType, type DiagnosticType, type ExtractionResultType, type ScanResultType, type SourceFileType} from '../core/model.ts';
+import {type ExtractedFactSetType} from '../core/facts/index.ts';
+import {type ScanResultType} from '../core/model.ts';
 
-export type ExtractorBuildType = Readonly<{
-	readonly files: readonly SourceFileType[];
-	readonly symbols: ExtractionResultType['symbols'];
-	readonly occurrences: ExtractionResultType['occurrences'];
-	readonly dependencies: DependencyExtractionResultType;
-	readonly diagnostics: readonly DiagnosticType[];
-	readonly compilerMs: number;
-	readonly extractionMs: number;
-}>;
+/**
+ * One serializable fact bundle crossing the adapter seam.
+ *
+ * The existing persistence path consumes the legacy symbol, occurrence,
+ * dependency, and diagnostic fields. Publication bindings, contexts, sites, and
+ * origins remain report-only until the schema redesign is accepted.
+ */
+export type ExtractorBuildType = ExtractedFactSetType;
 
 /**
  * Language adapter contract.

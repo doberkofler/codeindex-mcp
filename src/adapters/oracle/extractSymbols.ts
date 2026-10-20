@@ -1,4 +1,6 @@
+import {type ExtractedPublicationFactsType} from '../../core/facts/index.ts';
 import {type DiagnosticType, type IndexedOccurrenceType, type IndexedSymbolType} from '../../core/model.ts';
+import {createOraclePublicationFacts, type OraclePublicationSymbolMetadataType} from './publicationFacts.ts';
 import {type OracleFileGraphType, type OraclePackageLookupMapType} from './scopeGraph.ts';
 import {type OracleParseResultType, type OracleRangeType} from './syntax.ts';
 import {buildSymbolTable, type OracleParsedFileType} from './symbolTables.ts';
@@ -23,6 +25,7 @@ export type OracleContextSymbolsType = Readonly<{
 	packages: OraclePackageLookupMapType;
 	symbols: readonly IndexedSymbolType[];
 	occurrences: readonly IndexedOccurrenceType[];
+	publication: ExtractedPublicationFactsType;
 	diagnostics: readonly DiagnosticType[];
 }>;
 
@@ -64,9 +67,14 @@ const analysesOf = (files: readonly OracleParsedFileType[], table: ReturnType<ty
 
 const emitFacts = (
 	input: Readonly<{files: readonly OracleParsedFileType[]; context: string; table: ReturnType<typeof buildSymbolTable>}>,
-): Readonly<{symbols: IndexedSymbolType[]; occurrences: IndexedOccurrenceType[]}> => {
+): Readonly<{
+	symbols: IndexedSymbolType[];
+	occurrences: IndexedOccurrenceType[];
+	metadata: ReadonlyMap<string, OraclePublicationSymbolMetadataType>;
+}> => {
 	const symbols: IndexedSymbolType[] = [];
 	const occurrences: IndexedOccurrenceType[] = [];
+	const metadata = new Map<string, OraclePublicationSymbolMetadataType>();
 
 	for (const [fileIndex, file] of input.files.entries()) {
 		for (const [index, declaration] of file.parse.declarations.entries()) {
@@ -77,7 +85,12 @@ const emitFacts = (
 			}
 
 			if (binding.ownSymbol !== null) {
-				symbols.push({...binding.ownSymbol, enclosingId: binding.enclosingId});
+				const ownSymbol = {...binding.ownSymbol, enclosingId: binding.enclosingId};
+				const existing = metadata.get(ownSymbol.id);
+				const owner = file.parse.units[declaration.unit]?.schema.canonical ?? '';
+
+				symbols.push(ownSymbol);
+				metadata.set(ownSymbol.id, {owner, exported: (existing?.exported ?? false) || declaration.exported});
 			}
 
 			occurrences.push(
@@ -101,7 +114,7 @@ const emitFacts = (
 			left.role.localeCompare(right.role),
 	);
 
-	return {symbols, occurrences};
+	return {symbols, occurrences, metadata};
 };
 
 /**
@@ -123,6 +136,12 @@ export const extractOracleSymbols = (input: InputType): OracleContextSymbolsType
 		packages: table.packages,
 		symbols: facts.symbols,
 		occurrences: facts.occurrences,
+		publication: createOraclePublicationFacts({
+			context: input.context,
+			symbols: facts.symbols,
+			occurrences: facts.occurrences,
+			metadata: facts.metadata,
+		}),
 		diagnostics: table.diagnostics,
 	};
 };
