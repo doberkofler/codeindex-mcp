@@ -11,7 +11,7 @@ export const CASE_SCHEMA_VERSION = 1 as const;
 export const SUITE_SCHEMA_VERSION = 2 as const;
 
 /** Test classes required by the Q2 acceptance thresholds. */
-export const CASE_CLASSES = ['locate', 'impact', 'implementation'] as const;
+export const CASE_CLASSES = ['locate', 'impact', 'implementation', 'semantic'] as const;
 
 export type CaseClassType = (typeof CASE_CLASSES)[number];
 

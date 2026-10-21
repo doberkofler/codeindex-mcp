@@ -104,6 +104,13 @@ test('case schema rejects missing, unknown, and unsupported fields', () => {
 	assert.throws(() => caseOf(baseCase({tags: ['locate', 'locate']})), /duplicates/);
 });
 
+test('case schema accepts the semantic class used by class-stratified reports', () => {
+	const parsed = caseOf(baseCase({class: 'semantic'}));
+
+	assert.equal(parsed.class, 'semantic');
+	assert.throws(() => caseOf(baseCase({class: 'bogus'})), /class.*must be one of/);
+});
+
 test('case schema defaults optional workflow and post-run fields', () => {
 	const parsed = caseOf(baseCase({check: {command: 'node', args: ['--test'], expectedExitCode: 0}}));
 

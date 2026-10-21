@@ -270,3 +270,44 @@ export const comparisonDigestOf = (identity: IdentityType): string =>
 		repetitions: identity.repetitions,
 		planHash: identity.planHash,
 	});
+
+/**
+ * Hashes the fields that must match across every result in a campaign.
+ *
+ * The case, treatment, repetition, and candidate artifact are deliberately
+ * excluded: a campaign compares different cases, treatments, and repetitions,
+ * while the model, subject, agent, accepted baseline, and CodeIndex
+ * configuration must stay identical. Pooling results that disagree on any of
+ * these fields is never a valid comparison.
+ *
+ * @param identity - Complete execution identity.
+ * @returns Digest of the campaign-comparable fields.
+ */
+export const executionCampaignDigestOf = (identity: ExecutionIdentityType): string =>
+	hashOf({
+		harness: identity.harness,
+		suite: identity.suite,
+		model: identity.model,
+		agent: identity.agent,
+		subject: identity.subject,
+		artifacts: {accepted: identity.artifacts.accepted},
+		codeIndex: identity.codeIndex,
+		randomizationSeed: identity.randomizationSeed,
+	});
+
+/**
+ * Hashes the comparison identity of one case.
+ *
+ * Two results enter a paired comparison for one case only when this digest is
+ * equal. Treatment-specific fields and the candidate artifact are removed
+ * because the comparison exists to measure them; everything else stays
+ * compared.
+ *
+ * @param identity - Complete execution identity.
+ * @returns Digest of the campaign-comparable fields plus the case.
+ */
+export const executionCaseComparisonDigestOf = (identity: ExecutionIdentityType): string =>
+	hashOf({
+		campaign: executionCampaignDigestOf(identity),
+		case: identity.case,
+	});

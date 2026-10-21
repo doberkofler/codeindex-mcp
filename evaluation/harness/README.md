@@ -378,6 +378,37 @@ Per treatment: success rate, index-usage rate, median output bytes, median tool
 calls, median tokens, p95 wall time, invalid and retried runs, and counts of
 `execute` and unknown-tool runs.
 
+## Paired reports and statistics
+
+`report.json` is derived only from stored results and the campaign manifest. It
+states the campaign ID, the suite identity, the claim class, the component
+versions it used, and every source `identityDigest`; a document that cannot state
+those facts is not a report.
+
+The report retains one entry per run, so every aggregate can be recomputed from
+the results and their raw event streams. Each treatment summary carries median,
+p95, minimum, maximum, and an explicit `sampleCount` for retrieval bytes, total
+output bytes, tool calls, wall time, and exact tokens. A percentile from one
+observation is reported with `sampleCount: 1`, never as a bare percentile.
+
+Case-level correctness is paired against both `no-index` and `accepted`.
+Retrieval bytes, tool calls, exact tokens, and wall time also carry paired
+per-case deltas. Candidate-versus-baseline ratios get a deterministic
+paired-by-case percentile-bootstrap 95% interval when at least two complete case
+pairs exist; the seed is derived from the campaign and metric, so recomputing the
+report yields the same interval. With one pair the point delta is reported and
+the interval is `null`.
+
+Locate, impact, implementation, and semantic classes are summarized beside the
+overall verdict. A class report contains the same treatment summaries, paired
+deltas, and gates as the overall report.
+
+Reports group only by the three declared treatments. Results with an undeclared
+treatment, a duplicate slot, an unknown case class, a different campaign
+identity, or an incompatible per-case comparison identity are rejected instead
+of pooled. A used-versus-not-used index grouping is therefore not expressible,
+which is deliberate: routing is class-confounded.
+
 ## Q2 thresholds
 
 Taken verbatim from the publication policy and applied to candidate versus

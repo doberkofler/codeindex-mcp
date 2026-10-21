@@ -5,7 +5,7 @@ import {artifactIdentityOf, artifactRefOf, type ArtifactIdentityType, type Artif
 import {EXECUTION_SCHEMA_VERSION, comparisonDigestOf, executionIdentityDigestOf, executionIdentityOf, identityDigestOf, identityOf} from './identity.ts';
 import {campaignStoreRecordOf, clientStoreOf, isolationRecordOf, prepareClientStore, type ClientStoreType} from './isolation.ts';
 import {catalogOf} from './mcp.ts';
-import {compare} from './report.ts';
+import {compare, type ReportMetadataType} from './report.ts';
 import {effectiveValidityOf, readResult, resultPathOf, resumeStateOf, writeJsonAtomic, writeResult, type StoredResultType} from './result.ts';
 import {runOnce, withRestoration, type RunArtifactsType, type RunResultType} from './runner.ts';
 import {caseHashOf} from './schema.ts';
@@ -74,6 +74,74 @@ const settingsOf = (): Readonly<{subjectRepo: string}> => {
 	}
 
 	return {subjectRepo: path.resolve(harnessRoot, parsed.subjectRepo)};
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const throwManifestShape = (field: string): never => {
+	throw new Error(`manifest field "${field}" has an invalid shape`);
+};
+
+const componentsOf = (value: unknown): Readonly<Record<string, string | number>> => {
+	if (!isRecord(value)) {
+		throw new Error('manifest field "components" must be an object');
+	}
+
+	const components: Record<string, string | number> = {};
+
+	for (const [key, component] of Object.entries(value)) {
+		if (typeof component !== 'string' && typeof component !== 'number') {
+			throw new Error('manifest field "components" may contain only string or number values');
+		}
+
+		components[key] = component;
+	}
+
+	return components;
+};
+
+/**
+ * Reads the declared campaign facts a report must state.
+ *
+ * A report without a manifest cannot name its campaign, suite, component
+ * versions, and claim class, so it is not written at all.
+ *
+ * @param directory - Campaign result directory.
+ * @returns Manifest fields required by the report.
+ */
+const manifestMetadataOf = (directory: string): ReportMetadataType => {
+	const file = path.join(directory, 'manifest.json');
+
+	if (!existsSync(file)) {
+		throw new Error(`no campaign manifest at ${file}; a report requires declared campaign identity`);
+	}
+
+	const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
+	const record = isRecord(parsed) ? parsed : throwManifestShape('root');
+	const suite = isRecord(record['suite']) ? record['suite'] : throwManifestShape('suite');
+	const campaignId = record['campaignId'];
+	const schemaVersion = record['schemaVersion'];
+	const claimClass = record['claimClass'];
+	const suiteId = suite['id'];
+	const suiteVersion = suite['version'];
+	const suiteHash = suite['hash'];
+	const suiteStatus = suite['status'];
+
+	if (typeof campaignId !== 'string' || typeof schemaVersion !== 'string' || typeof claimClass !== 'string') {
+		throw new Error('manifest field "campaignId, schemaVersion, or claimClass" has an invalid shape');
+	}
+
+	if (typeof suiteId !== 'string' || typeof suiteVersion !== 'number' || typeof suiteHash !== 'string' || typeof suiteStatus !== 'string') {
+		throw new Error('manifest field "suite" has an invalid shape');
+	}
+
+	return {
+		campaignId,
+		schemaVersion,
+		suite: {id: suiteId, version: suiteVersion, hash: suiteHash, status: suiteStatus},
+		components: componentsOf(record['components']),
+		claimClass,
+	};
 };
 
 const treatmentsOf = (value: string | undefined, all: readonly TreatmentDefinitionType[]): readonly TreatmentDefinitionType[] => {
@@ -487,7 +555,7 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 		throw error;
 	}
 
-	const comparison = compare(results);
+	const comparison = compare(results, manifest);
 	writeJsonAtomic(path.join(runDir, 'report.json'), comparison, true);
 	writeJsonAtomic(path.join(runDir, 'run.json'), {...manifest, status: 'complete', finishedAt: new Date().toISOString()}, true);
 
@@ -496,15 +564,21 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 
 const printSummary = (runDir: string, results: readonly RunResultType[], comparison: ReturnType<typeof compare>): void => {
 	process.stdout.write(`results ${runDir}\n`);
-	process.stdout.write(`runs ${results.length}, valid ${results.filter((run) => run.valid).length}\n`);
+	process.stdout.write(
+		`report ${comparison.campaign.campaignId} schema=${comparison.schemaVersion} suite=${comparison.campaign.suite.id}@${comparison.campaign.suite.version} claim=${comparison.campaign.claimClass}\n`,
+	);
+	process.stdout.write(`runs ${results.length}, valid ${results.filter((run) => run.valid).length}, sources ${comparison.sources.identityDigests.length}\n`);
 
 	for (const [name, summary] of [
 		['no-index', comparison.noIndex],
 		['accepted', comparison.accepted],
 		['candidate', comparison.candidate],
 	] as const) {
+		const tokens = summary.statistics.tokens;
+		const tokenText = tokens.state === 'exact' ? tokens.median.toFixed(0) : tokens.state;
+
 		process.stdout.write(
-			`${name.padEnd(9)} success ${(summary.successRate * 100).toFixed(1)}%  index-use ${(summary.indexUsageRate * 100).toFixed(0)}%  tokens ${summary.medianTokens.toFixed(0)}  calls ${summary.medianToolCalls.toFixed(1)}  bytes ${summary.medianOutputBytes.toFixed(0)}  p95 ${(summary.p95WallMs / 1000).toFixed(1)}s  invalid ${summary.invalidRuns}  retried ${summary.retriedRuns}  execute ${summary.executeRuns}  unknown ${summary.unknownToolRuns}\n`,
+			`${name.padEnd(9)} success ${(summary.successRate * 100).toFixed(1)}%  index-use ${(summary.indexUsageRate * 100).toFixed(0)}%  tokens ${tokenText} (n=${tokens.sampleCount})  calls ${summary.medianToolCalls.toFixed(1)}  bytes ${summary.medianOutputBytes.toFixed(0)}  p95 ${(summary.p95WallMs / 1000).toFixed(1)}s (n=${summary.statistics.wallTimeMs.sampleCount})  invalid ${summary.invalidRuns}  retried ${summary.retriedRuns}  execute ${summary.executeRuns}  unknown ${summary.unknownToolRuns}\n`,
 		);
 	}
 
@@ -512,11 +586,18 @@ const printSummary = (runDir: string, results: readonly RunResultType[], compari
 		process.stdout.write(`${threshold.passed ? 'PASS' : 'FAIL'} ${threshold.name} (${threshold.detail})\n`);
 	}
 
+	for (const report of comparison.classes) {
+		process.stdout.write(
+			`class ${report.class.padEnd(14)} cases ${report.caseIds.length}  candidate success ${(report.candidate.successRate * 100).toFixed(1)}%  bytes ${report.candidate.statistics.retrievalBytes.median.toFixed(0)}  calls ${report.candidate.statistics.toolCalls.median.toFixed(1)}  p95 ${(report.candidate.statistics.wallTimeMs.p95 / 1000).toFixed(1)}s (n=${report.candidate.statistics.wallTimeMs.sampleCount})  ${report.passed ? 'PASS' : 'NOT PASSED'}\n`,
+		);
+	}
+
 	process.stdout.write(`Q2 ${comparison.passed ? 'PASSED' : 'NOT PASSED'}\n`);
 };
 
-const resultsIn = (directory: string): readonly RunResultType[] => {
+const resultsIn = (directory: string, campaignId: string): readonly RunResultType[] => {
 	const bySlot = new Map<string, Readonly<{attempt: number; record: StoredResultType}>>();
+	const validByIdentity = new Map<string, number>();
 
 	const walk = (current: string): void => {
 		for (const entry of readdirSync(current)) {
@@ -538,6 +619,18 @@ const resultsIn = (directory: string): readonly RunResultType[] => {
 			if (record === null || effectiveValidityOf(record) !== 'valid') {
 				continue;
 			}
+
+			if (record.campaignId !== campaignId) {
+				throw new Error(`attempt ${full} belongs to campaign ${record.campaignId}, not ${campaignId}`);
+			}
+
+			const validCount = (validByIdentity.get(record.identityDigest) ?? 0) + 1;
+
+			if (validCount > 1) {
+				throw new Error(`two effectively valid attempts exist for identity ${record.identityDigest}; the campaign is not reportable`);
+			}
+
+			validByIdentity.set(record.identityDigest, validCount);
 
 			const attempt = Number(match[1]);
 			const stored = bySlot.get(current);
@@ -562,8 +655,10 @@ const reportCommand = (flags: Map<string, string[]>): void => {
 		throw new Error(`no results at ${directory}`);
 	}
 
-	const results = resultsIn(directory);
-	printSummary(directory, results, compare(results));
+	const metadata = manifestMetadataOf(directory);
+	const results = resultsIn(directory, metadata.campaignId);
+
+	printSummary(directory, results, compare(results, metadata));
 };
 
 const latestRun = (resultsRoot: string): string => {
