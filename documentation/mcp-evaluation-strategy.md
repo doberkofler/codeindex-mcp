@@ -60,6 +60,11 @@ Claim rules:
   separately.
 - Missing required telemetry invalidates the affected metric, not the remaining
   measurements. Limit the claim to the metrics that remain valid.
+- Run identity, evidence retention, and the sanitized evidence a public claim may
+  cite are defined by the
+  [harness result contract](./evaluation-harness.md#7-result-contract). Resume
+  requires identical run identity; a paired comparison requires the comparison
+  identity defined there.
 - The Q2 v4 result remains evidence only for its recorded configuration.
 
 ## 2. Non-goals
@@ -149,7 +154,9 @@ All three treatments inspect exactly the same pinned subject-repository revision
 agent, prompt, permissions, context, timeout, and repetition schedule match. Only
 CodeIndex availability or the selected CodeIndex artifact differs. Run all treatments in
 one campaign with fresh agent sessions, randomized paired order, and restored workspace
-state. Do not compare a candidate with historical model runs.
+state. Do not compare a candidate with historical model runs: only an equal
+[run identity](./evaluation-harness.md#73-run-identity-and-resume-equality) permits
+reuse or comparison.
 
 Use direct native MCP with `codemode: false`. Remove generic `execute` from every
 treatment, or keep it identical and report every failed or unknown-tool invocation. Do
