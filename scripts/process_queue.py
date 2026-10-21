@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
 """Process Markdown or JSON work queues in isolated OpenCode sessions.
 
-Each agent run streams concise progress to stdout and writes its raw JSONL
-event stream to $QUEUE_LOG_DIR, else $XDG_STATE_HOME/process-queue, else
-~/.local/state/process-queue.
+Interactive runs show transient progress. Every item emits a persistent summary
+and writes raw agent JSONL plus complete history to $QUEUE_LOG_DIR, else
+$XDG_STATE_HOME/process-queue, else ~/.local/state/process-queue.
 """
 
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from datetime import datetime
 import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+import queue as queue_module
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from typing import Any, TextIO
 
@@ -30,11 +34,19 @@ MAX_PREVIEW_LINES = 20
 MAX_PREVIEW_LINE_LENGTH = 400
 TERMINAL_WIDTH_FALLBACK = 120
 TERMINATE_TIMEOUT_SECONDS = 5.0
+DEFAULT_AGENT_TIMEOUT_SECONDS = 3600.0
+DEFAULT_VERIFY_TIMEOUT_SECONDS = 900.0
+FAILURE_TAIL_LINES = 20
 CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+ANSI_ESCAPE_SEQUENCE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))")
 
 
 class QueueError(Exception):
     """Raised when a queue or agent result violates the runner contract."""
+
+
+class TerminationRequested(Exception):
+    """Raised when the runner receives SIGTERM."""
 
 
 @dataclass(frozen=True)
@@ -42,6 +54,12 @@ class QueueItem:
     issue: int
     description: str
     position: int
+
+
+@dataclass(frozen=True)
+class RunLogs:
+    agent: Path
+    history: Path
 
 
 class Queue:
@@ -185,12 +203,16 @@ def require_clean_tree(context: str) -> None:
         raise QueueError(f"Dirty tree {context}")
 
 
+def repository_root() -> Path:
+    return Path(run_git("rev-parse", "--show-toplevel"))
+
+
 def require_one_agent_commit(previous_head: str, queue_path: Path) -> None:
     head_with_parents = run_git("rev-list", "--parents", "-n", "1", "HEAD").split()
     if len(head_with_parents) != 2 or head_with_parents[1] != previous_head:
         raise QueueError("Agent must create exactly one non-merge commit")
 
-    repository = Path(run_git("rev-parse", "--show-toplevel")).resolve()
+    repository = repository_root().resolve()
     try:
         relative_queue = queue_path.resolve().relative_to(repository).as_posix()
     except ValueError as error:
@@ -236,15 +258,24 @@ def log_directory() -> Path:
     return base / "process-queue"
 
 
-def allocate_log_path(directory: Path, issue: int) -> Path:
-    directory.mkdir(parents=True, exist_ok=True)
+def allocate_log_paths(directory: Path, issue: int | str) -> RunLogs:
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
-    candidate = directory / f"{stamp}-{issue}.jsonl"
+    stem = f"{stamp}-{issue}"
+    agent = directory / f"{stem}.jsonl"
+    history = directory / f"{stem}.log"
     sequence = 1
-    while candidate.exists():
-        candidate = directory / f"{stamp}-{issue}-{sequence}.jsonl"
+    while agent.exists() or history.exists():
+        stem = f"{stamp}-{issue}-{sequence}"
+        agent = directory / f"{stem}.jsonl"
+        history = directory / f"{stem}.log"
         sequence += 1
-    return candidate
+    return RunLogs(agent=agent, history=history)
+
+
+def open_private(path: Path) -> TextIO:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    return os.fdopen(descriptor, "w", encoding="utf-8")
 
 
 def display_path(path: Path) -> str:
@@ -260,7 +291,7 @@ def terminal_width() -> int:
 
 
 def sanitize(value: str) -> str:
-    return CONTROL_CHARACTERS.sub("", value)
+    return CONTROL_CHARACTERS.sub("", ANSI_ESCAPE_SEQUENCE.sub("", value))
 
 
 def clip(value: str, width: int) -> str:
@@ -325,21 +356,75 @@ def format_duration(seconds: float) -> str:
     return f"{whole // 60}m{whole % 60:02d}s"
 
 
+class LiveDisplay:
+    """Transient TTY-only phase and rolling preview display."""
+
+    def __init__(self, stream: TextIO) -> None:
+        self.stream = stream
+        self.enabled = stream.isatty()
+        self.phase = "starting"
+        self.started = time.monotonic()
+        self.preview: deque[str] = deque(maxlen=8)
+        self.rendered_lines = 0
+        self.frame = 0
+
+    def set_phase(self, phase: str) -> None:
+        self.phase = phase
+        self.render()
+
+    def add(self, text: str) -> None:
+        for line in sanitize(text).splitlines():
+            if line.strip():
+                self.preview.append(shorten(line))
+        self.render()
+
+    def render(self) -> None:
+        if not self.enabled:
+            return
+        self._clear()
+        frames = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+        elapsed = format_duration(time.monotonic() - self.started)
+        lines = [f"{frames[self.frame % len(frames)]} {self.phase} · {elapsed}"]
+        self.frame += 1
+        lines.extend(f"  {line}" for line in self.preview)
+        for line in lines:
+            print(f"\033[2K{clip(line, terminal_width())}", file=self.stream)
+        self.stream.flush()
+        self.rendered_lines = len(lines)
+
+    def clear(self) -> None:
+        if self.enabled:
+            self._clear()
+            self.stream.flush()
+
+    def _clear(self) -> None:
+        if self.rendered_lines == 0:
+            return
+        print(f"\033[{self.rendered_lines}A", end="", file=self.stream)
+        for _ in range(self.rendered_lines):
+            print("\033[2K", file=self.stream)
+        print(f"\033[{self.rendered_lines}A", end="", file=self.stream)
+        self.rendered_lines = 0
+
+
 class RunReporter:
     def __init__(
         self,
         model: str,
         verbose: bool,
         stream: TextIO,
+        live: LiveDisplay | None = None,
     ) -> None:
         self.model = model
         self.verbose = verbose
         self.stream = stream
+        self.live = live or LiveDisplay(stream)
         self.started = time.monotonic()
         self.tool_calls = 0
         self.seen_tools: set[str] = set()
         self.tokens = 0
         self.cost = 0.0
+        self.final_text = ""
 
     def _timestamp(self) -> str:
         elapsed = int(time.monotonic() - self.started)
@@ -351,10 +436,16 @@ class RunReporter:
     def start(self, item: QueueItem) -> None:
         self._write(f"[queue] {item.description}")
         self._write(f"[agent] {AGENT_NAME} · {self.model}")
+        self.live.set_phase("agent")
 
     def _message(self, label: str, text: str) -> None:
         lines = sanitize(text).strip("\n").splitlines()
         if not lines:
+            return
+        if label == "agent":
+            self.final_text = sanitize(text).strip()
+        if self.live.enabled:
+            self.live.add(f"{label} › {lines[-1]}")
             return
         prefix = f"{self._timestamp()} {label} › "
         visible = lines[:MAX_PREVIEW_LINES]
@@ -385,7 +476,10 @@ class RunReporter:
             error = state.get("error")
             if isinstance(error, str) and error.strip():
                 message += f": {shorten(error, 200)}"
-        self._write(f"{self._timestamp()} {message}")
+        if self.live.enabled:
+            self.live.add(message)
+        else:
+            self._write(f"{self._timestamp()} {message}")
 
     def _step_finish(self, part: Any) -> None:
         if not isinstance(part, dict):
@@ -423,7 +517,11 @@ class RunReporter:
             event: Any = json.loads(stripped)
         except json.JSONDecodeError:
             if self.verbose:
-                self._write(f"{self._timestamp()} log: {shorten(stripped)}")
+                message = f"log: {shorten(stripped)}"
+                if self.live.enabled:
+                    self.live.add(message)
+                else:
+                    self._write(f"{self._timestamp()} {message}")
             return
         if not isinstance(event, dict):
             return
@@ -441,12 +539,18 @@ class RunReporter:
         elif kind == "error":
             self._error(event)
         elif self.verbose:
-            self._write(f"{self._timestamp()} event: {shorten(str(kind))}")
+            message = f"event: {shorten(str(kind))}"
+            if self.live.enabled:
+                self.live.add(message)
+            else:
+                self._write(f"{self._timestamp()} {message}")
 
     def interrupted(self) -> None:
+        self.live.clear()
         self._write("[queue] interrupted; terminating OpenCode")
 
-    def finish(self, returncode: int, log_path: Path) -> None:
+    def finish(self, returncode: int, logs: RunLogs) -> None:
+        self.live.clear()
         elapsed = time.monotonic() - self.started
         status = "finished" if returncode == 0 else f"failed (exit {returncode})"
         details = [format_duration(elapsed)]
@@ -458,73 +562,301 @@ class RunReporter:
         if self.cost:
             details.append(f"${self.cost:.4f}")
         self._write(f"[agent] {status} in " + " · ".join(details))
-        self._write(f"[log] {display_path(log_path)}")
+        if self.final_text:
+            lines = self.final_text.splitlines()
+            for index, line in enumerate(lines[:MAX_PREVIEW_LINES]):
+                prefix = "[summary] " if index == 0 else "          "
+                self._write(f"{prefix}{clip(line, MAX_PREVIEW_LINE_LENGTH)}")
+            if len(lines) > MAX_PREVIEW_LINES:
+                self._write(f"          … {len(lines) - MAX_PREVIEW_LINES} more lines (see log)")
+        self._write(f"[log] {display_path(logs.history)}")
+        self._write(f"[agent-log] {display_path(logs.agent)}")
 
 
 def terminate(process: subprocess.Popen[str]) -> None:
-    if process.poll() is not None:
-        return
-    process.terminate()
     try:
-        process.wait(timeout=TERMINATE_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        process.kill()
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+
+    deadline = time.monotonic() + TERMINATE_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        process.poll()
+        try:
+            os.killpg(process.pid, 0)
+        except (PermissionError, ProcessLookupError):
+            break
+        time.sleep(0.05)
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (PermissionError, ProcessLookupError):
+            pass
+
+    if process.poll() is None:
         process.wait()
 
 
-def run_agent(item: QueueItem, queue_path: Path, model: str, verbose: bool) -> None:
-    log_path = allocate_log_path(log_directory(), item.issue)
-    reporter = RunReporter(model, verbose, sys.stdout)
-    reporter.start(item)
+def read_process_stream(
+    source: str,
+    stream: TextIO,
+    events: queue_module.Queue[tuple[str, str | None]],
+) -> None:
+    try:
+        for line in stream:
+            events.put((source, line))
+    finally:
+        events.put((source, None))
 
-    with log_path.open("w", encoding="utf-8") as log:
+
+def print_failure_tail(lines: deque[str]) -> None:
+    if not lines:
+        return
+    print(f"[failure] last {len(lines)} log lines:", file=sys.stderr)
+    for line in lines:
+        print(f"  {clip(line, MAX_PREVIEW_LINE_LENGTH)}", file=sys.stderr)
+
+
+def start_stream_threads(
+    process: subprocess.Popen[str],
+) -> tuple[queue_module.Queue[tuple[str, str | None]], list[threading.Thread]]:
+    if process.stdout is None or process.stderr is None:
+        terminate(process)
+        raise QueueError("Child process streams are unavailable")
+    events: queue_module.Queue[tuple[str, str | None]] = queue_module.Queue()
+    threads = [
+        threading.Thread(
+            target=read_process_stream,
+            args=("stdout", process.stdout, events),
+            daemon=True,
+        ),
+        threading.Thread(
+            target=read_process_stream,
+            args=("stderr", process.stderr, events),
+            daemon=True,
+        ),
+    ]
+    for thread in threads:
+        thread.start()
+    return events, threads
+
+
+def run_agent(
+    item: QueueItem,
+    queue_path: Path,
+    model: str,
+    verbose: bool,
+    timeout: float,
+) -> RunLogs:
+    logs = allocate_log_paths(log_directory(), item.issue)
+    live = LiveDisplay(sys.stdout)
+    reporter = RunReporter(model, verbose, sys.stdout, live)
+    reporter.start(item)
+    tail: deque[str] = deque(maxlen=FAILURE_TAIL_LINES)
+    timed_out = False
+
+    with open_private(logs.agent) as agent_log, open_private(logs.history) as history_log:
         process = subprocess.Popen(
             agent_command(model, prompt_for(item, queue_path)),
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             bufsize=1,
+            start_new_session=True,
         )
+        events, threads = start_stream_threads(process)
+        deadline = time.monotonic() + timeout
+        open_streams = len(threads)
         try:
-            assert process.stdout is not None
-            for line in process.stdout:
-                log.write(line)
-                log.flush()
-                reporter.consume(line)
+            while open_streams:
+                if not timed_out and time.monotonic() >= deadline:
+                    timed_out = True
+                    terminate(process)
+                try:
+                    source, line = events.get(timeout=0.1)
+                except queue_module.Empty:
+                    live.render()
+                    continue
+                if line is None:
+                    open_streams -= 1
+                    continue
+                clean_line = sanitize(line.rstrip("\r\n"))
+                if clean_line:
+                    tail.append(f"{source}: {clean_line}")
+                history_log.write(f"[{source}] {line}")
+                history_log.flush()
+                if source == "stdout":
+                    agent_log.write(line)
+                    agent_log.flush()
+                    reporter.consume(line)
+                elif verbose:
+                    reporter.consume(line)
             returncode = process.wait()
         except KeyboardInterrupt:
             reporter.interrupted()
             terminate(process)
             raise
         except Exception:
+            live.clear()
             terminate(process)
             raise
+        finally:
+            for thread in threads:
+                thread.join(timeout=TERMINATE_TIMEOUT_SECONDS)
 
-    reporter.finish(returncode, log_path)
-    if returncode != 0:
+    reporter.finish(returncode, logs)
+    if timed_out:
+        print_failure_tail(tail)
         raise QueueError(
-            f"OpenCode exited with status {returncode}; log: {display_path(log_path)}"
+            f"OpenCode timed out after {format_duration(timeout)}; log: "
+            f"{display_path(logs.history)}"
         )
+    if returncode != 0:
+        print_failure_tail(tail)
+        raise QueueError(
+            f"OpenCode exited with status {returncode}; log: {display_path(logs.history)}"
+        )
+    return logs
 
 
-def process(queue_path: Path, model: str, verbose: bool) -> None:
+def run_verification(command: str, timeout: float, logs: RunLogs, phase: str) -> None:
+    live = LiveDisplay(sys.stdout)
+    live.set_phase(phase)
+    print(f"[verify] {phase} · {command}", flush=True)
+    started = time.monotonic()
+    tail: deque[str] = deque(maxlen=FAILURE_TAIL_LINES)
+    timed_out = False
+
+    if not logs.history.exists():
+        with open_private(logs.history):
+            pass
+    with logs.history.open("a", encoding="utf-8") as history_log:
+        process = subprocess.Popen(
+            ["/bin/sh", "-c", command],
+            cwd=repository_root(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+            start_new_session=True,
+        )
+        events, threads = start_stream_threads(process)
+        deadline = time.monotonic() + timeout
+        open_streams = len(threads)
+        try:
+            while open_streams:
+                if not timed_out and time.monotonic() >= deadline:
+                    timed_out = True
+                    terminate(process)
+                try:
+                    source, line = events.get(timeout=0.1)
+                except queue_module.Empty:
+                    live.render()
+                    continue
+                if line is None:
+                    open_streams -= 1
+                    continue
+                clean_line = sanitize(line.rstrip("\r\n"))
+                if clean_line:
+                    tail.append(f"{source}: {clean_line}")
+                    live.add(clean_line)
+                history_log.write(f"[verify:{source}] {line}")
+                history_log.flush()
+            returncode = process.wait()
+        except KeyboardInterrupt:
+            terminate(process)
+            raise
+        except Exception:
+            terminate(process)
+            raise
+        finally:
+            live.clear()
+            for thread in threads:
+                thread.join(timeout=TERMINATE_TIMEOUT_SECONDS)
+
+    elapsed = format_duration(time.monotonic() - started)
+    if timed_out:
+        print(f"[verify] {phase} timed out after {format_duration(timeout)}", flush=True)
+        print_failure_tail(tail)
+        raise QueueError(f"Verification timed out; log: {display_path(logs.history)}")
+    if returncode != 0:
+        print(f"[verify] {phase} failed (exit {returncode}) in {elapsed}", flush=True)
+        print_failure_tail(tail)
+        raise QueueError(
+            f"Verification exited with status {returncode}; log: {display_path(logs.history)}"
+        )
+    print(f"[verify] {phase} passed in {elapsed}", flush=True)
+
+
+def process(
+    queue_path: Path,
+    model: str,
+    verbose: bool,
+    verify_command: str | None,
+    agent_timeout: float,
+    verify_timeout: float,
+) -> None:
+    run_started = time.monotonic()
+    completed = 0
+    total_item_time = 0.0
+
+    load_queue(queue_path)
+    require_clean_tree("before verification preflight")
+    if verify_command is None:
+        print("[verify] skipped by explicit --no-verify", flush=True)
+    else:
+        preflight_logs = allocate_log_paths(log_directory(), "preflight")
+        run_verification(verify_command, verify_timeout, preflight_logs, "preflight")
+        require_clean_tree("after verification preflight")
+
     while True:
         queue = load_queue(queue_path)
         item = queue.next_item()
         if item is None:
+            elapsed = time.monotonic() - run_started
+            details = [f"{completed} completed", f"{format_duration(elapsed)} total"]
+            if completed:
+                details.append(f"{format_duration(total_item_time / completed)} average")
+            print(f"[run] {' · '.join(details)}", flush=True)
             return
 
+        item_started = time.monotonic()
         require_clean_tree(f"before: {item.description}")
         previous_head = run_git("rev-parse", "HEAD")
-        run_agent(item, queue_path, model, verbose)
+        logs = run_agent(item, queue_path, model, verbose, agent_timeout)
         require_clean_tree(f"after: {item.description}")
         require_one_agent_commit(previous_head, queue_path)
+        if verify_command is not None:
+            run_verification(verify_command, verify_timeout, logs, "post-commit")
+            require_clean_tree(f"after verification: {item.description}")
 
         queue.mark_done(item)
         run_git("add", "--", str(queue_path))
         run_git("commit", "-m", f"chore: mark done: {item.description}")
-        print(f"[queue] #{item.issue} done", flush=True)
+        duration = time.monotonic() - item_started
+        completed += 1
+        total_item_time += duration
+        commit = run_git("rev-parse", "--short", "HEAD~1")
+        print(
+            f"[result] #{item.issue} done · commit {commit} · {format_duration(duration)}",
+            flush=True,
+        )
+
+
+def positive_seconds(value: str) -> float:
+    try:
+        seconds = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a number of seconds") from error
+    if seconds <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return seconds
+
+
+def handle_sigterm(_signum: int, _frame: object) -> None:
+    raise TerminationRequested
 
 
 def main() -> int:
@@ -539,16 +871,56 @@ def main() -> int:
         action="store_true",
         help="show agent diagnostics and unrecognized events",
     )
+    verification = parser.add_mutually_exclusive_group(required=True)
+    verification.add_argument(
+        "--verify",
+        metavar="COMMAND",
+        help="trusted shell command run before agents and after each agent commit",
+    )
+    verification.add_argument(
+        "--no-verify",
+        action="store_true",
+        help="explicitly skip independent verification",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=positive_seconds,
+        default=DEFAULT_AGENT_TIMEOUT_SECONDS,
+        metavar="SECONDS",
+        help=f"agent wall-clock timeout (default: {DEFAULT_AGENT_TIMEOUT_SECONDS:g})",
+    )
+    parser.add_argument(
+        "--verify-timeout",
+        type=positive_seconds,
+        default=DEFAULT_VERIFY_TIMEOUT_SECONDS,
+        metavar="SECONDS",
+        help=f"verification wall-clock timeout (default: {DEFAULT_VERIFY_TIMEOUT_SECONDS:g})",
+    )
     arguments = parser.parse_args()
+    if arguments.verify is not None and not arguments.verify.strip():
+        parser.error("--verify command must not be empty")
     model = arguments.model or os.environ.get("QUEUE_MODEL") or DEFAULT_MODEL
+    previous_sigterm = signal.signal(signal.SIGTERM, handle_sigterm)
     try:
-        process(Path(arguments.queue), model, arguments.verbose)
+        process(
+            Path(arguments.queue),
+            model,
+            arguments.verbose,
+            arguments.verify,
+            arguments.timeout,
+            arguments.verify_timeout,
+        )
     except KeyboardInterrupt:
         print("process-queue: interrupted", file=sys.stderr)
         return 130
+    except TerminationRequested:
+        print("process-queue: terminated", file=sys.stderr)
+        return 143
     except (OSError, QueueError, subprocess.CalledProcessError) as error:
         print(f"process-queue: {error}", file=sys.stderr)
         return 1
+    finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
     return 0
 
 

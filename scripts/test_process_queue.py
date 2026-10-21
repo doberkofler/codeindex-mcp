@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -145,8 +146,19 @@ class ProcessQueueTest(unittest.TestCase):
         environment["QUEUE_LOG_DIR"] = str(self.log_directory)
         environment.pop("QUEUE_MODEL", None)
         runner = Path(__file__).with_name("process_queue.py")
+        verification_arguments = (
+            []
+            if "--verify" in arguments or "--no-verify" in arguments
+            else ["--no-verify"]
+        )
         return subprocess.run(
-            [sys.executable, str(runner), *arguments, str(self.queue_path)],
+            [
+                sys.executable,
+                str(runner),
+                *arguments,
+                *verification_arguments,
+                str(self.queue_path),
+            ],
             cwd=self.repository,
             env=environment,
             check=False,
@@ -213,7 +225,7 @@ subprocess.run(
         runner = Path(__file__).with_name("process_queue.py")
 
         result = subprocess.run(
-            [sys.executable, str(runner), str(self.queue_path)],
+            [sys.executable, str(runner), "--no-verify", str(self.queue_path)],
             cwd=self.repository,
             env=environment,
             check=False,
@@ -242,6 +254,7 @@ subprocess.run(
             f"""import json
 from pathlib import Path
 import subprocess
+import sys
 
 events = [
     {{
@@ -267,6 +280,7 @@ events = [
 ]
 for event in events:
     print(json.dumps(event), flush=True)
+print("agent diagnostic", file=sys.stderr, flush=True)
 Path("implementation.txt").write_text("implemented", encoding="utf-8")
 subprocess.run(["git", "add", "implementation.txt"], check=True)
 subprocess.run(
@@ -291,13 +305,18 @@ raise SystemExit({exit_code})
         self.assertIn("120 tokens", result.stdout)
         self.assertIn("$0.0012", result.stdout)
         self.assertIn("[agent] finished", result.stdout)
-        self.assertIn("[queue] #14 done", result.stdout)
+        self.assertIn("[result] #14 done", result.stdout)
         self.assertNotIn('"type"', result.stdout)
         self.assertNotIn('"type"', result.stderr)
 
         logs = sorted(self.log_directory.glob("*.jsonl"))
         self.assertEqual(len(logs), 1)
-        self.assertIn('"type": "tool_use"', logs[0].read_text(encoding="utf-8"))
+        agent_log = logs[0].read_text(encoding="utf-8")
+        self.assertIn('"type": "tool_use"', agent_log)
+        self.assertNotIn("agent diagnostic", agent_log)
+        history_logs = sorted(self.log_directory.glob("*.log"))
+        self.assertEqual(len(history_logs), 1)
+        self.assertIn("agent diagnostic", history_logs[0].read_text(encoding="utf-8"))
 
     def test_reports_agent_failure_with_log_path(self) -> None:
         agent = self._write_event_agent(exit_code=7)
@@ -310,6 +329,96 @@ raise SystemExit({exit_code})
         logs = sorted(self.log_directory.glob("*.jsonl"))
         self.assertEqual(len(logs), 1)
         self.assertIn(logs[0].name, result.stdout)
+
+    def test_requires_explicit_verification_policy(self) -> None:
+        agent = self._write_recording_agent()
+        environment = os.environ.copy()
+        environment["OPENCODE_BIN"] = str(agent)
+        environment["QUEUE_LOG_DIR"] = str(self.log_directory)
+        runner = Path(__file__).with_name("process_queue.py")
+
+        result = subprocess.run(
+            [sys.executable, str(runner), str(self.queue_path)],
+            cwd=self.repository,
+            env=environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--verify --no-verify is required", result.stderr)
+
+    def test_verifies_before_agent_and_after_commit(self) -> None:
+        agent = self._write_recording_agent()
+        counter = self.log_directory / "verify-count.txt"
+        source = (
+            "from pathlib import Path; "
+            f"p=Path({str(counter)!r}); "
+            "n=int(p.read_text()) + 1 if p.exists() else 1; "
+            "p.write_text(str(n))"
+        )
+        command = f"{shlex.quote(sys.executable)} -c {shlex.quote(source)}"
+
+        result = self._run_queue(agent, "--verify", command)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(counter.read_text(encoding="utf-8"), "2")
+        self.assertLess(
+            result.stdout.index("[verify] preflight passed"),
+            result.stdout.index("[queue] #14"),
+        )
+        self.assertIn("[verify] post-commit passed", result.stdout)
+
+    def test_failed_preflight_does_not_start_agent(self) -> None:
+        agent = self._write_recording_agent()
+
+        result = self._run_queue(agent, "--verify", "echo broken; exit 9")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("[verify] preflight failed (exit 9)", result.stdout)
+        self.assertIn("broken", result.stderr)
+        self.assertFalse((self.repository / "argv.json").exists())
+
+    def test_preflight_verification_timeout_does_not_start_agent(self) -> None:
+        agent = self._write_recording_agent()
+
+        result = self._run_queue(
+            agent,
+            "--verify",
+            f"{shlex.quote(sys.executable)} -c 'import time; time.sleep(60)'",
+            "--verify-timeout",
+            "0.2",
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("preflight timed out", result.stdout)
+        self.assertFalse((self.repository / "argv.json").exists())
+
+    def test_timeout_terminates_agent_process_group(self) -> None:
+        agent = self._write_agent(
+            """import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+Path("agent.pid").write_text(str(os.getpid()), encoding="utf-8")
+Path("child.pid").write_text(str(child.pid), encoding="utf-8")
+time.sleep(60)
+"""
+        )
+
+        result = self._run_queue(agent, "--timeout", "1")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("timed out", result.stderr)
+        for name in ("agent.pid", "child.pid"):
+            pid = int((self.repository / name).read_text(encoding="utf-8"))
+            with self.assertRaises(ProcessLookupError):
+                os.kill(pid, 0)
 
     def test_hides_unstructured_output_by_default(self) -> None:
         agent = self._write_agent(
@@ -331,7 +440,12 @@ subprocess.run(
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("unstructured diagnostic", result.stdout)
 
-    def test_interrupt_terminates_agent_without_traceback(self) -> None:
+    def _assert_signal_terminates_agent(
+        self,
+        sent_signal: signal.Signals,
+        expected_returncode: int,
+        expected_message: str,
+    ) -> tuple[str, str]:
         agent = self._write_agent(
             """import os
 from pathlib import Path
@@ -348,7 +462,7 @@ time.sleep(60)
         runner = Path(__file__).with_name("process_queue.py")
 
         process = subprocess.Popen(
-            [sys.executable, str(runner), str(self.queue_path)],
+            [sys.executable, str(runner), "--no-verify", str(self.queue_path)],
             cwd=self.repository,
             env=environment,
             text=True,
@@ -369,15 +483,31 @@ time.sleep(60)
         self.assertTrue(pid_path.exists())
         agent_pid = int(pid_path.read_text(encoding="utf-8"))
 
-        process.send_signal(signal.SIGINT)
+        process.send_signal(sent_signal)
         stdout, stderr = process.communicate(timeout=15)
 
-        self.assertEqual(process.returncode, 130, stderr)
-        self.assertIn("interrupted; terminating OpenCode", stdout)
-        self.assertIn("process-queue: interrupted", stderr)
+        self.assertEqual(process.returncode, expected_returncode, stderr)
+        self.assertIn(expected_message, stderr)
         self.assertNotIn("Traceback", stderr)
         with self.assertRaises(ProcessLookupError):
             os.kill(agent_pid, 0)
+        return stdout, stderr
+
+    def test_interrupt_terminates_agent_without_traceback(self) -> None:
+        stdout, _stderr = self._assert_signal_terminates_agent(
+            signal.SIGINT,
+            130,
+            "process-queue: interrupted",
+        )
+
+        self.assertIn("interrupted; terminating OpenCode", stdout)
+
+    def test_sigterm_terminates_agent_without_traceback(self) -> None:
+        self._assert_signal_terminates_agent(
+            signal.SIGTERM,
+            143,
+            "process-queue: terminated",
+        )
 
 
 class RunReporterTest(unittest.TestCase):
