@@ -10,7 +10,7 @@
 - [x] #24 [EVAL-016] Freeze the 18-case suite and six-case calibration subset
 - [x] #25 [EVAL-017] Implement complete-route model-free comparison
 - [x] #26 [EVAL-018] Implement one-call grouped `find_references` results
-- [ ] #27 [EVAL-019] Compact status responses and authoritative stop/fallback guidance
+- [x] #27 [EVAL-019] Compact status responses and authoritative stop/fallback guidance
 - [ ] #28 [EVAL-020] Execute the model-free accepted-versus-candidate gate
 - [ ] #29 [EVAL-021] Establish reproducible local-model environment and smoke test
 - [ ] #30 [EVAL-022] Calibrate 27B and 35B models and select the local reference
