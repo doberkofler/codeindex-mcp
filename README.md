@@ -23,12 +23,13 @@ ordinary tool names, the generic `execute` policy, the artifact identity, and
 the MCP server configuration. A treatment definition is hashed, and the
 canonical treatment set participates in run identity.
 
-All treatments run in detached worktrees of the same pinned revision, with the
-same `node_modules`, the same built `dist` used to stage artifacts, and one
-byte-identical agent definition. The generated `.opencode/opencode.jsonc`
-differs only in whether a CodeIndex artifact is configured, and which artifact
-it is. `accepted` and `candidate` differ only by artifact and the resulting
-CodeIndex interface.
+All treatments run in isolated workspaces of the same pinned subject: detached
+worktrees when the subject is a version-control checkout, and disposable content-
+manifest copies otherwise. Every treatment uses the same `node_modules`, the same
+built `dist` used to stage artifacts, and one byte-identical agent definition. The
+generated `.opencode/opencode.jsonc` differs only in whether a CodeIndex artifact
+is configured, and which artifact it is. `accepted` and `candidate` differ only by
+artifact and the resulting CodeIndex interface.
 
 ## Equivalence
 
@@ -246,12 +247,57 @@ no generic `execute` call in any treatment, and no unknown tool in any
 treatment. `report.json` records each threshold with its measured value and pass
 state.
 
+## Artifact verification
+
+Every CodeIndex artifact is verified before the first model call and its
+identity is recorded in `run.json` and in every result.
+
+- The entry point declared by the suite must exist.
+- The artifact `package.json` must declare object-valued `dependencies`, and every
+  declared dependency must resolve from the artifact root.
+- The artifact tree is hashed as sorted `{path, digest}` pairs; `node_modules`,
+  `.git`, and mtimes are excluded, so the same files always produce the same
+  digest.
+- When the suite declares `artifact.digest`, the computed digest must match it.
+  A mismatch rejects the campaign before any model starts.
+- When the suite declares no digest, the computed digest is still recorded as the
+  artifact identity for the campaign.
+
+The `check` command prints each artifact digest and file count. The manifest
+stores the accepted and candidate `{id, digest}` references plus per-treatment
+verification details, and each result stores `artifacts: {accepted, candidate,
+loaded}`.
+
 ## Isolation and restoration
 
-Every treatment is a detached git worktree of the subject repository at the
-pinned revision. Before every execution the harness restores the treatment
-workspace (`git checkout -- .`, `git clean -fd`), re-applies the generated
-treatment configuration, and asserts no authored change remains.
+Every treatment is isolated in `workspaces/<treatment>`:
+
+- `detached-worktree` (default): a detached git worktree of the subject
+  repository at the pinned revision. The subject itself must be at that exact,
+  clean revision.
+- `disposable-copy`: used only when the subject is not a version-control
+  checkout. The workspace is a copy of the subject tree, identified by a content
+  manifest hash instead of a revision.
+
+Before every execution the harness verifies that the workspace is a clean
+checkout at the pinned subject: matching HEAD and no tracked, staged, or
+untracked non-ignored change for a worktree, or a matching content manifest for a
+copy. A dirty or mismatched workspace is rejected before the model starts; it is
+never silently repaired.
+
+After every execution the workspace is restored: `git reset --hard <revision>`
+and `git clean -fd` for a worktree, or a fresh copy from the subject for a
+disposable copy. Tracked edits, staged changes, and untracked non-ignored files
+are discarded, so edits from one run cannot reach the next run. Ignored build
+output, the generated `.opencode` configuration, and the shared `node_modules`
+link are rebuilt rather than removed permanently. The restoration result is
+recorded as `isolation.restored`.
+
+A restoration failure is never thrown away: the affected result is written with
+`outcome: "failed"`, `valid: false`, `isolation.restored: false`, and the
+restoration reason, then the campaign stops so no later execution observes the
+edited workspace. `run.json` is marked `failed` with the same reason.
+
 `node_modules` is a symlink to the subject checkout's installed tree; `dist` is
 copied from the subject build so the workspace can run repository commands.
 
@@ -281,12 +327,18 @@ The agent runs as a process-group leader. The hard timeout is
 grace period. A timed-out execution is terminal for its slot and is written as
 an inspectable result with `outcome: "timed-out"`, `timedOut: true`, a null exit
 code, and the captured partial stream. Every result records `outcome`,
-`isolationMode`, `clientStore`, `timeoutMs`, and the exit signal.
+`isolation`, `artifacts`, `timeoutMs`, and the exit signal.
 
-The run manifest records the same isolation decisions under `isolation` and
-`campaignStore`, so a reviewer can reconstruct the client-store mode without
-reading a result. A failed, timed-out, or successful execution cannot replace
-the published generation of the normal session database.
+`isolation` records `{mode, clientStore, checkoutClean, revisionMatch, restored}`:
+the subject isolation mode, the client-store mode, the verified pre-execution
+checkout state, and whether the workspace was restored afterwards.
+
+The run manifest records the subject identity (`subject.mode`, `subject.revision`,
+`subject.declaredRevision`, `subject.contentManifestHash`, `subject.lockFileHash`),
+the verified artifact references, `isolation`, and `campaignStore`, so a reviewer
+can reconstruct the isolation and artifact identity without reading a result. A
+failed, timed-out, or successful execution cannot replace the published generation
+of the normal session database.
 
 ## Corpus
 

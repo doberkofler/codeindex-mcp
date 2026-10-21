@@ -1,6 +1,7 @@
 import {existsSync, mkdirSync, readFileSync, readdirSync, statSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {artifactIdentityOf, artifactRefOf, type ArtifactIdentityType} from './artifact.ts';
 import {comparisonDigestOf, identityDigestOf, identityOf} from './identity.ts';
 import {
 	campaignStoreRecordOf,
@@ -11,7 +12,7 @@ import {
 } from './isolation.ts';
 import {catalogOf} from './mcp.ts';
 import {compare} from './report.ts';
-import {runOnce, writeResult, type RunResultType} from './runner.ts';
+import {runOnce, withRestoration, writeResult, type RunArtifactsType, type RunResultType} from './runner.ts';
 import {loadSuite, planHashOf, planOf, resolveTreatmentOf, selectCases, treatmentIdsOf} from './suite.ts';
 import {
 	canonicalTreatmentsOf,
@@ -22,11 +23,11 @@ import {
 	type TreatmentIdType,
 } from './treatment.ts';
 import {
-	applyTreatment,
+	assertCheckout,
 	ensureWorkspaces,
 	restoreWorkspace,
+	subjectIdentityOf,
 	treatmentConfigOf,
-	unexpectedChanges,
 	workspaceContextOf,
 } from './workspace.ts';
 
@@ -142,6 +143,52 @@ const surfacesOf = async (
 	return surfaces;
 };
 
+type ArtifactMapType = ReadonlyMap<TreatmentIdType, ArtifactIdentityType | null>;
+
+/**
+ * Verifies every selected artifact before any model starts.
+ *
+ * A CodeIndex treatment must present a complete package: a resolvable entry
+ * point, every declared dependency, and a content digest that matches the
+ * suite when the suite pins one. Every artifact is hashed so its identity can
+ * be recorded even when no digest is declared.
+ *
+ * @param context - Workspace paths.
+ * @param treatments - Selected treatment definitions.
+ * @returns Verified identities keyed by treatment id, null for no-index.
+ */
+const artifactsOf = (
+	context: ReturnType<typeof workspaceContextOf>,
+	treatments: readonly TreatmentDefinitionType[],
+): ArtifactMapType => {
+	const artifacts = new Map<TreatmentIdType, ArtifactIdentityType | null>();
+
+	for (const treatment of treatments) {
+		artifacts.set(
+			treatment.id,
+			treatment.artifact === null ? null : artifactIdentityOf(context.artifactRoot(treatment), treatment),
+		);
+	}
+
+	return artifacts;
+};
+
+/**
+ * Builds the artifact references recorded with every result.
+ *
+ * @param artifacts - Verified identities for the selected treatments.
+ * @param treatment - Treatment whose artifact the execution loads.
+ * @returns Accepted, candidate, and loaded references.
+ */
+const runArtifactsOf = (
+	artifacts: ArtifactMapType,
+	treatment: TreatmentDefinitionType,
+): RunArtifactsType => ({
+	accepted: artifactRefOf(artifacts.get('accepted') ?? null),
+	candidate: artifactRefOf(artifacts.get('candidate') ?? null),
+	loaded: artifactRefOf(artifacts.get(treatment.id) ?? null),
+});
+
 const listCommand = (flags: Map<string, string[]>): void => {
 	const suitePath = flagOf(flags, 'suite');
 
@@ -193,12 +240,20 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 		campaignDir: runDir,
 	});
 
+	const settings = settingsOf();
+	const subject = subjectIdentityOf(settings.subjectRepo, suite.revision);
+	const context = workspaceContextOf(root, {subjectRepo: settings.subjectRepo, subject});
+	const pinned =
+		subject.revision === null
+			? `revision=${subject.declaredRevision} (copy) content=${subject.contentManifestHash.slice(0, 16)}`
+			: `revision=${subject.revision.slice(0, 7)}`;
+
 	process.stderr.write(
 		`run ${runDir}\nplan ${plan.length} execution(s): ${selected.length} case(s) x ${treatments.length} treatment(s) x ${repetitions} repetition(s)\n`,
 	);
 	process.stderr.write(`plan-hash ${planHash}\nidentity ${identityDigest}\n`);
 	process.stderr.write(
-		`isolation detached-worktree, standalone server, client store ${clientStore.mode}${clientStore.path === null ? '' : ` at ${clientStore.path}`}\n`,
+		`isolation ${subject.mode}, ${pinned}, standalone server, client store ${clientStore.mode}${clientStore.path === null ? '' : ` at ${clientStore.path}`}\n`,
 	);
 
 	if (flags.has('dry-run')) {
@@ -209,11 +264,16 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 		return;
 	}
 
-	const settings = settingsOf();
-	const context = workspaceContextOf(root, {subjectRepo: settings.subjectRepo, revision: suite.revision});
 	ensureWorkspaces(context, treatments);
+	const artifacts = artifactsOf(context, treatments);
 	mkdirSync(runDir, {recursive: true});
 	prepareClientStore(clientStore);
+
+	for (const [id, identity] of artifacts) {
+		if (identity !== null) {
+			process.stderr.write(`artifact ${id} ${identity.id} ${identity.digest} (${identity.fileCount} files)\n`);
+		}
+	}
 
 	const surfaces = await surfacesOf(context, treatments);
 
@@ -225,13 +285,24 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 		}
 
 		const {digest: configDigest} = treatmentConfigOf(context, treatment);
+		const artifact = artifacts.get(treatment.id) ?? null;
 
 		return {
 			id: treatment.id,
 			kind: treatment.kind,
 			definitionHash: treatment.definitionHash,
 			configDigest,
-			artifact: treatment.artifact,
+			artifact:
+				artifact === null
+					? null
+					: {
+							id: artifact.id,
+							root: artifact.root,
+							entryPoint: artifact.entryPoint,
+							digest: artifact.digest,
+							declaredDigest: artifact.declaredDigest,
+							fileCount: artifact.fileCount,
+						},
 			mcp: treatment.mcp,
 			toolSurface: surface,
 		};
@@ -253,7 +324,18 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 			differences: treatmentDifferencesOf(suite.treatments),
 			sharedConfigHash: identity.sharedConfigHash,
 		},
-		isolation: isolationRecordOf(clientStore),
+		subject: {
+			mode: subject.mode,
+			revision: subject.revision,
+			declaredRevision: subject.declaredRevision,
+			contentManifestHash: subject.contentManifestHash,
+			lockFileHash: subject.lockFileHash,
+		},
+		artifacts: {
+			accepted: artifactRefOf(artifacts.get('accepted') ?? null),
+			candidate: artifactRefOf(artifacts.get('candidate') ?? null),
+		},
+		isolation: isolationRecordOf(clientStore, subject.mode),
 		campaignStore: campaignStoreRecordOf(clientStore),
 		treatments: manifestTreatments,
 		startedAt: new Date().toISOString(),
@@ -263,66 +345,87 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 
 	const results: RunResultType[] = [];
 
-	for (const [index, entry] of plan.entries()) {
-		const testCase = selected.find((item) => item.id === entry.caseId);
+	try {
+		for (const [index, entry] of plan.entries()) {
+			const testCase = selected.find((item) => item.id === entry.caseId);
 
-		if (testCase === undefined) {
-			throw new Error(`unknown case ${entry.caseId}`);
-		}
+			if (testCase === undefined) {
+				throw new Error(`unknown case ${entry.caseId}`);
+			}
 
-		const treatment = resolveTreatmentOf(entry, treatments);
-		const surface = surfaces.get(treatment.id);
+			const treatment = resolveTreatmentOf(entry, treatments);
+			const surface = surfaces.get(treatment.id);
 
-		if (surface === undefined) {
-			throw new Error(`no captured surface for treatment ${treatment.id}`);
-		}
+			if (surface === undefined) {
+				throw new Error(`no captured surface for treatment ${treatment.id}`);
+			}
 
-		const file = path.join(runDir, entry.caseId, entry.treatment, `rep-${entry.repetition}.json`);
+			const file = path.join(runDir, entry.caseId, entry.treatment, `rep-${entry.repetition}.json`);
 
-		if (flags.has('resume') && existsSync(file)) {
-			const stored = JSON.parse(readFileSync(file, 'utf8')) as RunResultType;
+			if (flags.has('resume') && existsSync(file)) {
+				const stored = JSON.parse(readFileSync(file, 'utf8')) as RunResultType;
 
-			if (stored.identityHash === identityDigest && stored.treatmentDefinitionHash === treatment.definitionHash) {
-				results.push(stored);
-				continue;
+				if (stored.identityHash === identityDigest && stored.treatmentDefinitionHash === treatment.definitionHash) {
+					results.push(stored);
+					continue;
+				}
+			}
+
+			// Reject, never silently repair: a dirty or mismatched workspace would
+			// mean the execution observes content the suite did not pin.
+			const verification = assertCheckout(context, treatment);
+
+			process.stderr.write(`[${index + 1}/${plan.length}] ${entry.caseId} ${entry.treatment} rep-${entry.repetition}\n`);
+
+			const execution = await runOnce({
+				cwd: context.workspacePath(treatment.id),
+				testCase,
+				treatment,
+				surface,
+				repetition: entry.repetition,
+				model: suite.model,
+				revision: suite.revision,
+				identityHash: identityDigest,
+				clientStore,
+				isolation: {
+					mode: subject.mode,
+					clientStore: clientStore.mode,
+					checkoutClean: verification.checkoutClean,
+					revisionMatch: verification.revisionMatch,
+				},
+				artifacts: runArtifactsOf(artifacts, treatment),
+				rawBase: path.join(runDir, 'raw', entry.caseId, entry.treatment, `rep-${entry.repetition}`),
+			});
+			const result = withRestoration(execution, restoreWorkspace(context, treatment));
+
+			if (result.attempts.length > 1) {
+				process.stderr.write(`  retried ${result.attempts.length - 1} time(s); last reason ${result.invalidReason ?? 'accepted'}\n`);
+			}
+
+			writeResult(file, result);
+			results.push(result);
+
+			if (!result.isolation.restored) {
+				throw new Error(
+					`restoration failed for ${treatment.id} after ${entry.caseId} rep-${entry.repetition}: ${result.invalidReason ?? 'unknown'}; the campaign stopped so no later execution observes edited content`,
+				);
+			}
+
+			if (index < plan.length - 1) {
+				await new Promise<void>((resolve) => {
+					setTimeout(resolve, PACE_MS);
+				});
 			}
 		}
-
-		restoreWorkspace(context, treatment);
-		const changes = unexpectedChanges(context, treatment);
-
-		if (changes.length > 0) {
-			throw new Error(`workspace ${treatment.id} is not clean: ${changes.join('; ')}`);
-		}
-
-		applyTreatment(context, treatment);
-		process.stderr.write(`[${index + 1}/${plan.length}] ${entry.caseId} ${entry.treatment} rep-${entry.repetition}\n`);
-
-		const result = await runOnce({
-			cwd: context.workspacePath(treatment.id),
-			testCase,
-			treatment,
-			surface,
-			repetition: entry.repetition,
-			model: suite.model,
-			revision: suite.revision,
-			identityHash: identityDigest,
-			clientStore,
-			rawBase: path.join(runDir, 'raw', entry.caseId, entry.treatment, `rep-${entry.repetition}`),
+	} catch (error) {
+		writeResult(path.join(runDir, 'run.json'), {
+			...manifest,
+			status: 'failed',
+			failure: error instanceof Error ? error.message : String(error),
+			finishedAt: new Date().toISOString(),
 		});
 
-		if (result.attempts.length > 1) {
-			process.stderr.write(`  retried ${result.attempts.length - 1} time(s); last reason ${result.invalidReason ?? 'accepted'}\n`);
-		}
-
-		writeResult(file, result);
-		results.push(result);
-
-		if (index < plan.length - 1) {
-			await new Promise<void>((resolve) => {
-				setTimeout(resolve, PACE_MS);
-			});
-		}
+		throw error;
 	}
 
 	const comparison = compare(results);
@@ -406,23 +509,31 @@ const checkCommand = (flags: Map<string, string[]>): void => {
 
 	const {suite, cases} = loadSuite(path.resolve(root, suitePath));
 	const settings = settingsOf();
-	const context = workspaceContextOf(root, {subjectRepo: settings.subjectRepo, revision: suite.revision});
-	ensureWorkspaces(context, suite.treatments);
+	const subject = subjectIdentityOf(settings.subjectRepo, suite.revision);
+	const context = workspaceContextOf(root, {subjectRepo: settings.subjectRepo, subject});
+	const treatments = canonicalTreatmentsOf(suite.treatments);
 
-	const changes = canonicalTreatmentsOf(suite.treatments).flatMap((treatment) =>
-		unexpectedChanges(context, treatment).map((line) => `${treatment.id}: ${line}`),
-	);
+	ensureWorkspaces(context, treatments);
+	const artifacts = artifactsOf(context, treatments);
 	const classes = new Set(cases.map((item) => item.class));
 
 	process.stdout.write(`suite ${suite.id} v${suite.version}, ${cases.length} case(s), classes ${[...classes].join(', ')}\n`);
 	process.stdout.write(`model ${suite.model}, revision ${suite.revision}\n`);
 	process.stdout.write(`treatments ${treatmentIdsOf(suite.treatments).join(', ')}\n`);
 	process.stdout.write(`ordinary tools ${suite.treatments[0]?.ordinaryTools.join(', ') ?? 'none'}\n`);
-	process.stdout.write(`workspaces ready, unexpected changes: ${changes.length}\n`);
+	process.stdout.write(
+		`subject ${subject.mode}, revision ${subject.revision ?? subject.declaredRevision}, content ${subject.contentManifestHash}, lock ${subject.lockFileHash ?? 'none'}\n`,
+	);
 
-	if (changes.length > 0) {
-		throw new Error(changes.join('\n'));
+	for (const treatment of treatments) {
+		const artifact = artifacts.get(treatment.id) ?? null;
+
+		process.stdout.write(
+			`artifact ${treatment.id} ${artifact === null ? 'none' : `${artifact.id} ${artifact.digest} (${artifact.fileCount} files)`}\n`,
+		);
 	}
+
+	process.stdout.write(`workspaces ready at the pinned subject\n`);
 };
 
 const {command, flags} = argsOf(process.argv.slice(2));

@@ -5,6 +5,15 @@ import path from 'node:path';
 /** Where an execution's OpenCode client state lives. */
 export type ClientStoreModeType = 'ephemeral' | 'campaign-local';
 
+/**
+ * How the evaluated subject is isolated from the operator's checkout.
+ *
+ * `detached-worktree` requires a version-control client and pins a revision.
+ * `disposable-copy` is the fallback when no VCS is available and pins a content
+ * manifest instead.
+ */
+export type IsolationModeType = 'detached-worktree' | 'disposable-copy';
+
 /** Resolved client store for one campaign. */
 export type ClientStoreType = Readonly<{
 	mode: ClientStoreModeType;
@@ -120,12 +129,14 @@ export const campaignStoreRecordOf = (
  * Manifest record for the execution isolation mode.
  *
  * @param store - Resolved client store.
+ * @param mode - Subject isolation mode.
  * @returns Isolation mode, standalone server flag, and client store mode.
  */
 export const isolationRecordOf = (
 	store: ClientStoreType,
-): Readonly<{mode: 'detached-worktree'; standalone: true; clientStore: ClientStoreModeType}> => ({
-	mode: 'detached-worktree',
+	mode: IsolationModeType,
+): Readonly<{mode: IsolationModeType; standalone: true; clientStore: ClientStoreModeType}> => ({
+	mode,
 	standalone: true,
 	clientStore: store.mode,
 });

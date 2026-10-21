@@ -29,7 +29,7 @@ test('the default client store is in-memory and never the default database', () 
 	assert.deepEqual(store, {mode: 'ephemeral', path: null, opencodeDb: ':memory:'});
 	assert.equal(store.opencodeDb === ':memory:', true);
 	assert.deepEqual(campaignStoreRecordOf(store), {kind: 'in-memory'});
-	assert.deepEqual(isolationRecordOf(store), {
+	assert.deepEqual(isolationRecordOf(store, 'detached-worktree'), {
 		mode: 'detached-worktree',
 		standalone: true,
 		clientStore: 'ephemeral',
@@ -69,7 +69,7 @@ test('an absolute campaign store is accepted and recorded', (testContext: TestCo
 
 	assert.equal(store.path, storePath);
 	assert.deepEqual(campaignStoreRecordOf(store), {kind: 'campaign-local-file', path: storePath});
-	assert.deepEqual(isolationRecordOf(store), {
+	assert.deepEqual(isolationRecordOf(store, 'detached-worktree'), {
 		mode: 'detached-worktree',
 		standalone: true,
 		clientStore: 'campaign-local',

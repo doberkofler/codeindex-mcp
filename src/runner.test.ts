@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test, {type TestContext} from 'node:test';
 import {clientStoreOf, type ClientStoreType} from './isolation.ts';
-import {runOnce, writeResult} from './runner.ts';
+import {runOnce, withRestoration, writeResult} from './runner.ts';
 import {caseOf, type CaseType} from './schema.ts';
 import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
 
@@ -79,6 +79,13 @@ const execute = (
 		revision: 'abc1234',
 		identityHash: 'a'.repeat(64),
 		clientStore: store,
+		isolation: {
+			mode: 'detached-worktree',
+			clientStore: store.mode,
+			checkoutClean: true,
+			revisionMatch: true,
+		},
+		artifacts: {accepted: null, candidate: null, loaded: null},
 		rawBase: path.join(root, 'raw', 'case-a'),
 		command,
 		retry: NO_RETRY,
@@ -108,8 +115,14 @@ test('a successful execution uses a standalone private in-memory server', async 
 	assert.equal(result.valid, true);
 	assert.equal(result.exitCode, 0);
 	assert.equal(result.timedOut, false);
-	assert.equal(result.isolationMode, 'detached-worktree');
-	assert.equal(result.clientStore, 'ephemeral');
+	assert.deepEqual(result.isolation, {
+		mode: 'detached-worktree',
+		clientStore: 'ephemeral',
+		checkoutClean: true,
+		revisionMatch: true,
+		restored: false,
+	});
+	assert.deepEqual(result.artifacts, {accepted: null, candidate: null, loaded: null});
 	assert.equal(result.grade.success, true);
 	assert.equal(readFileSync(path.join(witness, 'db.txt'), 'utf8').trim(), ':memory:');
 	assert.equal(args.includes('--standalone'), true);
@@ -183,7 +196,7 @@ test('a campaign-local store path is passed instead of the default database', as
 
 	const result = await execute(root, command, testCaseOf(), store);
 
-	assert.equal(result.clientStore, 'campaign-local');
+	assert.equal(result.isolation.clientStore, 'campaign-local');
 	assert.equal(readFileSync(path.join(witness, 'db.txt'), 'utf8').trim(), store.path);
 	assert.notEqual(store.path, path.join(root, 'data', 'opencode', 'opencode.db'));
 });
@@ -251,4 +264,58 @@ test('a hard timeout terminates the whole process group and stays inspectable', 
 
 	assert.equal(stored.outcome, 'timed-out');
 	assert.equal(stored.timedOut, true);
+});
+
+test('a restoration failure is persisted as an inspectable failed result', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const command = scriptOf(
+		root,
+		'success',
+		[
+			"cat <<'EVENTS'",
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
+			'EVENTS',
+		].join('\n'),
+	);
+	const execution = await execute(root, command, testCaseOf());
+	const result = withRestoration(execution, {restored: false, reason: 'workspace .git is missing'});
+	const file = path.join(root, 'results', 'rep-1.json');
+
+	writeResult(file, result);
+
+	const stored = JSON.parse(readFileSync(file, 'utf8')) as {
+		outcome: string;
+		valid: boolean;
+		invalidReason: string | null;
+		isolation: {restored: boolean};
+		attempts: readonly unknown[];
+	};
+
+	assert.equal(execution.isolation.restored, false);
+	assert.equal(result.outcome, 'failed');
+	assert.equal(result.valid, false);
+	assert.match(result.invalidReason ?? '', /restoration failed: workspace \.git is missing/);
+	assert.equal(result.isolation.restored, false);
+	assert.equal(result.attempts.length, 1);
+	assert.deepEqual(stored, {...result, outcome: 'failed', valid: false});
+});
+
+test('a successful restoration keeps the execution outcome', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const command = scriptOf(
+		root,
+		'success',
+		[
+			"cat <<'EVENTS'",
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
+			'EVENTS',
+		].join('\n'),
+	);
+	const result = withRestoration(await execute(root, command, testCaseOf()), {restored: true, reason: null});
+
+	assert.equal(result.outcome, 'completed');
+	assert.equal(result.valid, true);
+	assert.equal(result.isolation.restored, true);
 });
