@@ -6,7 +6,7 @@
 - [x] #20 [EVAL-012] Audit existing Q2 cases and TypeScript ground truth
 - [x] #21 [EVAL-013] Build controlled TypeScript semantic cases
 - [x] #22 [EVAL-014] Build CodeIndex repository cases
-- [ ] #23 [EVAL-015] Pilot TypeScript, VS Code, and Material UI as external corpus
+- [x] #23 [EVAL-015] Pilot TypeScript, VS Code, and Material UI as external corpus
 - [ ] #24 [EVAL-016] Freeze the 18-case suite and six-case calibration subset
 - [ ] #25 [EVAL-017] Implement complete-route model-free comparison
 - [ ] #26 [EVAL-018] Implement one-call grouped `find_references` results
