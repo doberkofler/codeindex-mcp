@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test, {type TestContext} from 'node:test';
@@ -269,7 +269,21 @@ const cliSandbox = (testContext: TestContext): Readonly<{root: string; env: Node
 	const bin = path.join(root, 'bin');
 	const marker = path.join(root, 'opencode-invoked');
 	mkdirSync(bin, {recursive: true});
-	writeFileSync(path.join(bin, 'opencode'), '#!/bin/sh\nprintf invoked > "$MARKER"\n', {encoding: 'utf8', mode: 0o755});
+	writeFileSync(
+		path.join(bin, 'opencode'),
+		[
+			'#!/bin/sh',
+			'count=$(cat "$MARKER" 2>/dev/null || printf 0)',
+			'count=$((count + 1))',
+			'printf "%s" "$count" > "$MARKER"',
+			"cat <<'EVENTS'",
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
+			'EVENTS',
+			'',
+		].join('\n'),
+		{encoding: 'utf8', mode: 0o755},
+	);
 
 	// The CLI resolves its subject from the harness root, so the fixture is a
 	// complete harness with its own subject checkout.
@@ -298,7 +312,7 @@ const cliSandbox = (testContext: TestContext): Readonly<{root: string; env: Node
 
 	return {
 		root,
-		env: {...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}`, MARKER: marker, EVALUATION_ROOT: root},
+		env: {...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}`, MARKER: marker, EVALUATION_ROOT: root, EVAL_PACE_MS: '0'},
 		marker,
 		suitePath: 'evaluation/suites/suite.json',
 	};
@@ -334,4 +348,50 @@ test('an empty selection fails before any process starts', (testContext) => {
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /unknown case "missing-case"/);
 	assert.equal(existsSync(fixture.marker), false);
+});
+
+test('resume reuses completed slots and reruns only missing or partial ones', (testContext) => {
+	const fixture = cliSandbox(testContext);
+	const evaluate = (flags: readonly string[]) =>
+		spawnSync(
+			process.execPath,
+			['src/cli.ts', 'evaluate', '--suite', fixture.suitePath, '--case', 'case-a', '--treatment', 'no-index', '--repetitions', '2', ...flags],
+			{cwd: fixture.root, env: fixture.env, encoding: 'utf8'},
+		);
+	const resultFiles = (): readonly string[] => {
+		const root = path.join(fixture.root, 'results');
+
+		return existsSync(root)
+			? readdirSync(root, {recursive: true, encoding: 'utf8'})
+					.filter((entry) => /^attempt-\d+\.json$/.test(path.basename(entry)))
+					.map((entry) => path.join(root, entry))
+					.sort()
+			: [];
+	};
+	const invocations = (): number => (existsSync(fixture.marker) ? Number(readFileSync(fixture.marker, 'utf8')) : 0);
+
+	const first = evaluate([]);
+
+	assert.equal(first.status, 0, first.stderr);
+	assert.equal(invocations(), 2);
+	assert.equal(resultFiles().length, 2);
+
+	const resumed = evaluate(['--resume']);
+
+	assert.equal(resumed.status, 0, resumed.stderr);
+	assert.equal(invocations(), 2);
+	assert.match(resumed.stderr, /resumed attempt 1/);
+
+	const [truncated, removed] = resultFiles();
+
+	assert.notEqual(truncated, undefined);
+	assert.notEqual(removed, undefined);
+	writeFileSync(truncated!, '{"recordType":"result"', 'utf8');
+	rmSync(removed!);
+
+	const repaired = evaluate(['--resume']);
+
+	assert.equal(repaired.status, 0, repaired.stderr);
+	assert.equal(invocations(), 4);
+	assert.equal(resultFiles().length, 3);
 });

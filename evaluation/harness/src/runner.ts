@@ -1,18 +1,20 @@
 import {spawn, type ChildProcess} from 'node:child_process';
-import {mkdirSync, renameSync, writeFileSync} from 'node:fs';
+import {mkdirSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {type ArtifactRefType} from './artifact.ts';
 import {isRateLimited, parseEvents, type RunEventsType, type TelemetryType} from './events.ts';
 import {gradeOf, type GradeType} from './grade.ts';
+import {EXECUTION_SCHEMA_VERSION, type ExecutionIdentityType} from './identity.ts';
 import {type ClientStoreModeType, type ClientStoreType, type IsolationModeType} from './isolation.ts';
 import {postRunOf, skippedPostRunOf, type PostRunResultType} from './postRun.ts';
+import {type DefectType} from './result.ts';
 import {promptOf} from './suite.ts';
 import {type CaseType} from './schema.ts';
 import {routingOf, type RoutingType, type ToolSurfaceType, type TreatmentDefinitionType} from './treatment.ts';
 import {workflowOf, type WorkflowResultType} from './workflow.ts';
 
 /** Final execution outcome, independent of correctness and workflow. */
-export type OutcomeType = 'completed' | 'failed' | 'timed-out';
+export type OutcomeType = 'completed' | 'failed' | 'timed-out' | 'aborted';
 
 /** Environment facts verified before an execution and recorded in its result. */
 export type ExecutionIsolationType = Readonly<{
@@ -49,7 +51,12 @@ export type AttemptLogType = Readonly<{
 
 /** One persisted run result. */
 export type RunResultType = Readonly<{
-	identityHash: string;
+	recordType: 'result';
+	schemaVersion: string;
+	campaignId: string;
+	identity: ExecutionIdentityType;
+	identityDigest: string;
+	attempt: number;
 	caseId: string;
 	caseClass: string;
 	treatment: string;
@@ -58,6 +65,7 @@ export type RunResultType = Readonly<{
 	model: string;
 	revision: string;
 	startedAt: string;
+	completedAt: string;
 	durationMs: number;
 	exitCode: number | null;
 	signal: NodeJS.Signals | null;
@@ -65,6 +73,8 @@ export type RunResultType = Readonly<{
 	/** Hard wall-clock bound declared by the case. */
 	timeoutMs: number;
 	outcome: OutcomeType;
+	/** Harness-detected invalidity causes recorded at write time. */
+	defects: readonly DefectType[];
 	/** Subject and client isolation verified for this execution. */
 	isolation: ExecutionIsolationType;
 	/** Artifact identities associated with this execution. */
@@ -203,7 +213,9 @@ const attemptOnce = async (
 		repetition: number;
 		model: string;
 		revision: string;
-		identityHash: string;
+		campaignId: string;
+		identity: ExecutionIdentityType;
+		identityDigest: string;
 		clientStore: ClientStoreType;
 		/** Verified pre-execution isolation state. */
 		isolation: Omit<ExecutionIsolationType, 'restored'>;
@@ -300,6 +312,7 @@ const attemptOnce = async (
 	});
 
 	const durationMs = Date.now() - started;
+	const completedAt = new Date().toISOString();
 	const exitCode = exit.code;
 	const events = parseEvents(stdout);
 	const grade = gradeOf(input.testCase, events.finalText);
@@ -336,7 +349,12 @@ const attemptOnce = async (
 
 	return {
 		result: {
-			identityHash: input.identityHash,
+			recordType: 'result',
+			schemaVersion: EXECUTION_SCHEMA_VERSION,
+			campaignId: input.campaignId,
+			identity: input.identity,
+			identityDigest: input.identityDigest,
+			attempt,
 			caseId: input.testCase.id,
 			caseClass: input.testCase.class,
 			treatment: input.treatment.id,
@@ -345,12 +363,14 @@ const attemptOnce = async (
 			model: input.model,
 			revision: input.revision,
 			startedAt,
+			completedAt,
 			durationMs,
 			exitCode,
 			signal: exit.signal,
 			timedOut,
 			timeoutMs: input.testCase.timeoutMs,
 			outcome,
+			defects: [],
 			isolation: {...input.isolation, restored: false},
 			artifacts: input.artifacts,
 			usage: events.usage,
@@ -397,7 +417,9 @@ export const runOnce = async (
 		repetition: number;
 		model: string;
 		revision: string;
-		identityHash: string;
+		campaignId: string;
+		identity: ExecutionIdentityType;
+		identityDigest: string;
 		clientStore: ClientStoreType;
 		/** Verified pre-execution isolation state. */
 		isolation: Omit<ExecutionIsolationType, 'restored'>;
@@ -408,21 +430,29 @@ export const runOnce = async (
 		command?: string;
 		/** Retry policy override for focused tests. */
 		retry?: RetryPolicyType;
+		/** First attempt ordinal, used to continue a slot's stored sequence. */
+		firstAttempt?: number;
+		/** Called once for every attempt before the next attempt starts. */
+		onAttempt?: (result: RunResultType) => void;
 	}>,
 ): Promise<RunResultType> => {
 	const attempts: AttemptLogType[] = [];
 	const retry = input.retry ?? DEFAULT_RETRY;
+	const firstAttempt = input.firstAttempt ?? 1;
 	let last: AttemptResultType | null = null;
 
-	for (let attempt = 1; attempt <= retry.maxAttempts; attempt += 1) {
+	for (let index = 0; index < retry.maxAttempts; index += 1) {
+		const attempt = firstAttempt + index;
+
 		last = await attemptOnce(input, attempt);
 		attempts.push(last.log);
+		input.onAttempt?.({...last.result, attempts: [...attempts], rateLimited: attempts.some((item) => item.rateLimited)});
 
 		if (last.result.valid || last.result.timedOut) {
 			break;
 		}
 
-		if (attempt < retry.maxAttempts) {
+		if (index < retry.maxAttempts - 1) {
 			await sleep(retry.backoffMs(attempt, last.log.rateLimited));
 		}
 	}
@@ -461,21 +491,9 @@ export const withRestoration = (result: RunResultType, restoration: Readonly<{re
 	return {
 		...result,
 		outcome: 'failed',
+		defects: result.defects.includes('dirty-isolation') ? result.defects : [...result.defects, 'dirty-isolation'],
 		valid: false,
 		invalidReason: result.invalidReason === null ? reason : `${result.invalidReason}; ${reason}`,
 		isolation: {...result.isolation, restored: false},
 	};
-};
-
-/**
- * Writes a result file atomically.
- *
- * @param file - Destination path.
- * @param value - JSON-serializable result.
- */
-export const writeResult = (file: string, value: unknown): void => {
-	mkdirSync(path.dirname(file), {recursive: true});
-	const temporary = `${file}.tmp`;
-	writeFileSync(temporary, `${JSON.stringify(value, null, '\t')}\n`, 'utf8');
-	renameSync(temporary, file);
 };

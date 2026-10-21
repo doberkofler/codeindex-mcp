@@ -1,12 +1,14 @@
 import {existsSync, mkdirSync, readFileSync, readdirSync, statSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {artifactIdentityOf, artifactRefOf, type ArtifactIdentityType} from './artifact.ts';
-import {comparisonDigestOf, identityDigestOf, identityOf} from './identity.ts';
+import {artifactIdentityOf, artifactRefOf, type ArtifactIdentityType, type ArtifactRefType} from './artifact.ts';
+import {EXECUTION_SCHEMA_VERSION, comparisonDigestOf, executionIdentityDigestOf, executionIdentityOf, identityDigestOf, identityOf} from './identity.ts';
 import {campaignStoreRecordOf, clientStoreOf, isolationRecordOf, prepareClientStore, type ClientStoreType} from './isolation.ts';
 import {catalogOf} from './mcp.ts';
 import {compare} from './report.ts';
-import {runOnce, withRestoration, writeResult, type RunArtifactsType, type RunResultType} from './runner.ts';
+import {effectiveValidityOf, readResult, resultPathOf, resumeStateOf, writeJsonAtomic, writeResult, type StoredResultType} from './result.ts';
+import {runOnce, withRestoration, type RunArtifactsType, type RunResultType} from './runner.ts';
+import {caseHashOf} from './schema.ts';
 import {loadSuite, planHashOf, planOf, resolveTreatmentOf, selectCases, treatmentIdsOf} from './suite.ts';
 import {
 	canonicalTreatmentsOf,
@@ -19,7 +21,7 @@ import {
 import {assertCheckout, ensureWorkspaces, restoreWorkspace, subjectIdentityOf, treatmentConfigOf, workspaceContextOf} from './workspace.ts';
 
 /** Harness schema version recorded in every run identity. */
-const HARNESS_VERSION = 9;
+const HARNESS_VERSION = 10;
 
 /** Pause between executions to stay inside the provider's rolling window. */
 const PACE_MS = Number(process.env['EVAL_PACE_MS'] ?? 5_000);
@@ -170,6 +172,28 @@ const runArtifactsOf = (artifacts: ArtifactMapType, treatment: TreatmentDefiniti
 	loaded: artifactRefOf(artifacts.get(treatment.id) ?? null),
 });
 
+/**
+ * Writes the campaign manifest once and verifies it on resume.
+ *
+ * A manifest change that alters the campaign identity defines a different
+ * campaign; it must never rewrite an existing manifest in place.
+ *
+ * @param file - Manifest path.
+ * @param manifest - Campaign manifest.
+ */
+const ensureManifestAt = (file: string, manifest: Readonly<{campaignId: string; identityDigest: string}>): void => {
+	if (!existsSync(file)) {
+		writeJsonAtomic(file, manifest, false);
+		return;
+	}
+
+	const existing = JSON.parse(readFileSync(file, 'utf8')) as {campaignId?: unknown; identityDigest?: unknown};
+
+	if (existing.campaignId !== manifest.campaignId || existing.identityDigest !== manifest.identityDigest) {
+		throw new Error(`campaign manifest at ${file} describes a different campaign; use a new campaign directory`);
+	}
+};
+
 const listCommand = (flags: Map<string, string[]>): void => {
 	const suitePath = flagOf(flags, 'suite');
 
@@ -256,7 +280,8 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 
 	const surfaces = await surfacesOf(context, treatments);
 
-	const manifestTreatments = canonicalTreatmentsOf(treatments).map((treatment) => {
+	const treatmentContexts = new Map<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>();
+	const manifestTreatments = treatments.map((treatment) => {
 		const surface = surfaces.get(treatment.id);
 
 		if (surface === undefined) {
@@ -265,6 +290,8 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 
 		const {digest: configDigest} = treatmentConfigOf(context, treatment);
 		const artifact = artifacts.get(treatment.id) ?? null;
+
+		treatmentContexts.set(treatment.id, {surface, configDigest});
 
 		return {
 			id: treatment.id,
@@ -286,9 +313,15 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 			toolSurface: surface,
 		};
 	});
+	const campaignId = `${suite.id}-${identityDigest.slice(0, 16)}`;
+	const randomizationSeed = identityDigest;
 	const manifest = {
-		schemaVersion: suite.schemaVersion,
+		recordType: 'manifest',
+		schemaVersion: EXECUTION_SCHEMA_VERSION,
+		campaignId,
+		claimClass: 'none',
 		suite: {id: suite.id, version: suite.version, status: suite.status, hash: suite.hash},
+		cases: selected.map((testCase) => ({id: testCase.id, hash: caseHashOf(testCase)})),
 		harness: HARNESS_VERSION,
 		identity,
 		identityDigest,
@@ -296,8 +329,19 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 		model: suite.model,
 		revision: suite.revision,
 		repetitions,
+		randomizationSeed,
 		planHash,
-		plan,
+		slots: plan,
+		plan: {repetitions, randomizationSeed, slotCount: plan.length},
+		components: {
+			harnessVersion: HARNESS_VERSION,
+			eventParserVersion: HARNESS_VERSION,
+			toolNormalizerVersion: HARNESS_VERSION,
+			workflowClassifierVersion: HARNESS_VERSION,
+			graderVersion: HARNESS_VERSION,
+		},
+		truthAuthority: {kind: 'language-service', reference: 'typescript-language-service'},
+		retention: {privacyClass: 'restricted', rawUntil: null},
 		equivalence: {
 			equivalent: treatmentDifferencesOf(suite.treatments).length === 0,
 			differences: treatmentDifferencesOf(suite.treatments),
@@ -320,7 +364,8 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 		startedAt: new Date().toISOString(),
 	};
 
-	writeResult(path.join(runDir, 'run.json'), {...manifest, status: 'running'});
+	ensureManifestAt(path.join(runDir, 'manifest.json'), manifest);
+	writeJsonAtomic(path.join(runDir, 'run.json'), {...manifest, status: 'running'}, true);
 
 	const results: RunResultType[] = [];
 
@@ -333,21 +378,40 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 			}
 
 			const treatment = resolveTreatmentOf(entry, treatments);
-			const surface = surfaces.get(treatment.id);
+			const treatmentContext = treatmentContexts.get(treatment.id);
 
-			if (surface === undefined) {
+			if (treatmentContext === undefined) {
 				throw new Error(`no captured surface for treatment ${treatment.id}`);
 			}
 
-			const file = path.join(runDir, entry.caseId, entry.treatment, `rep-${entry.repetition}.json`);
+			const acceptedRef: ArtifactRefType | null = artifactRefOf(artifacts.get('accepted') ?? null);
+			const candidateRef: ArtifactRefType | null = artifactRefOf(artifacts.get('candidate') ?? null);
+			const executionIdentity = executionIdentityOf({
+				suite,
+				testCase,
+				model: suite.model,
+				treatment,
+				surface: treatmentContext.surface,
+				subject: {
+					mode: subject.mode,
+					revision: subject.revision,
+					contentManifestHash: subject.contentManifestHash,
+					lockFileHash: subject.lockFileHash,
+				},
+				artifacts: {accepted: acceptedRef, candidate: candidateRef},
+				configDigest: treatmentContext.configDigest,
+				repetitionIndex: entry.repetition,
+				randomizationSeed,
+				harnessVersion: HARNESS_VERSION,
+			});
+			const slotIdentityDigest = executionIdentityDigestOf(executionIdentity);
+			const slotDirectory = path.join(runDir, entry.caseId, entry.treatment, `rep-${entry.repetition}`);
+			const resume = resumeStateOf(slotDirectory, slotIdentityDigest);
 
-			if (flags.has('resume') && existsSync(file)) {
-				const stored = JSON.parse(readFileSync(file, 'utf8')) as RunResultType;
-
-				if (stored.identityHash === identityDigest && stored.treatmentDefinitionHash === treatment.definitionHash) {
-					results.push(stored);
-					continue;
-				}
+			if (flags.has('resume') && resume.record !== null) {
+				process.stderr.write(`[${index + 1}/${plan.length}] ${entry.caseId} ${entry.treatment} rep-${entry.repetition} resumed attempt ${resume.attempt}\n`);
+				results.push(resume.record);
+				continue;
 			}
 
 			// Reject, never silently repair: a dirty or mismatched workspace would
@@ -356,15 +420,18 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 
 			process.stderr.write(`[${index + 1}/${plan.length}] ${entry.caseId} ${entry.treatment} rep-${entry.repetition}\n`);
 
+			const attemptResults: RunResultType[] = [];
 			const execution = await runOnce({
 				cwd: context.workspacePath(treatment.id),
 				testCase,
 				treatment,
-				surface,
+				surface: treatmentContext.surface,
 				repetition: entry.repetition,
 				model: suite.model,
 				revision: suite.revision,
-				identityHash: identityDigest,
+				campaignId,
+				identity: executionIdentity,
+				identityDigest: slotIdentityDigest,
 				clientStore,
 				isolation: {
 					mode: subject.mode,
@@ -373,7 +440,11 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 					revisionMatch: verification.revisionMatch,
 				},
 				artifacts: runArtifactsOf(artifacts, treatment),
-				rawBase: path.join(runDir, 'raw', entry.caseId, entry.treatment, `rep-${entry.repetition}`),
+				rawBase: path.join(slotDirectory, 'raw'),
+				firstAttempt: resume.nextAttempt,
+				onAttempt: (attemptResult) => {
+					attemptResults.push(attemptResult);
+				},
 			});
 			const result = withRestoration(execution, restoreWorkspace(context, treatment));
 
@@ -381,7 +452,12 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 				process.stderr.write(`  retried ${result.attempts.length - 1} time(s); last reason ${result.invalidReason ?? 'accepted'}\n`);
 			}
 
-			writeResult(file, result);
+			for (const [attemptIndex, attemptResult] of attemptResults.entries()) {
+				const stored = attemptIndex === attemptResults.length - 1 ? result : attemptResult;
+
+				writeResult(resultPathOf(slotDirectory, stored.attempt), stored);
+			}
+
 			results.push(result);
 
 			if (!result.isolation.restored) {
@@ -397,19 +473,23 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 			}
 		}
 	} catch (error) {
-		writeResult(path.join(runDir, 'run.json'), {
-			...manifest,
-			status: 'failed',
-			failure: error instanceof Error ? error.message : String(error),
-			finishedAt: new Date().toISOString(),
-		});
+		writeJsonAtomic(
+			path.join(runDir, 'run.json'),
+			{
+				...manifest,
+				status: 'failed',
+				failure: error instanceof Error ? error.message : String(error),
+				finishedAt: new Date().toISOString(),
+			},
+			true,
+		);
 
 		throw error;
 	}
 
 	const comparison = compare(results);
-	writeResult(path.join(runDir, 'report.json'), comparison);
-	writeResult(path.join(runDir, 'run.json'), {...manifest, status: 'complete', finishedAt: new Date().toISOString()});
+	writeJsonAtomic(path.join(runDir, 'report.json'), comparison, true);
+	writeJsonAtomic(path.join(runDir, 'run.json'), {...manifest, status: 'complete', finishedAt: new Date().toISOString()}, true);
 
 	printSummary(runDir, results, comparison);
 };
@@ -436,7 +516,7 @@ const printSummary = (runDir: string, results: readonly RunResultType[], compari
 };
 
 const resultsIn = (directory: string): readonly RunResultType[] => {
-	const results: RunResultType[] = [];
+	const bySlot = new Map<string, Readonly<{attempt: number; record: StoredResultType}>>();
 
 	const walk = (current: string): void => {
 		for (const entry of readdirSync(current)) {
@@ -444,15 +524,33 @@ const resultsIn = (directory: string): readonly RunResultType[] => {
 
 			if (statSync(full).isDirectory()) {
 				walk(full);
-			} else if (entry.endsWith('.json') && /^rep-\d+\.json$/.test(entry)) {
-				results.push(JSON.parse(readFileSync(full, 'utf8')) as RunResultType);
+				continue;
+			}
+
+			const match = /^attempt-(\d+)\.json$/.exec(entry);
+
+			if (match === null) {
+				continue;
+			}
+
+			const record = readResult(full);
+
+			if (record === null || effectiveValidityOf(record) !== 'valid') {
+				continue;
+			}
+
+			const attempt = Number(match[1]);
+			const stored = bySlot.get(current);
+
+			if (stored === undefined || attempt > stored.attempt) {
+				bySlot.set(current, {attempt, record});
 			}
 		}
 	};
 
 	walk(directory);
 
-	return results;
+	return [...bySlot.values()].map((entry) => entry.record);
 };
 
 const reportCommand = (flags: Map<string, string[]>): void => {

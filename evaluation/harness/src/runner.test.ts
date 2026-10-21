@@ -3,8 +3,10 @@ import {chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wri
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test, {type TestContext} from 'node:test';
+import {executionIdentityDigestOf, type ExecutionIdentityType} from './identity.ts';
 import {clientStoreOf, type ClientStoreType} from './isolation.ts';
-import {runOnce, withRestoration, writeResult} from './runner.ts';
+import {readResult, writeResult} from './result.ts';
+import {runOnce, withRestoration} from './runner.ts';
 import {caseOf, type CaseType} from './schema.ts';
 import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
 
@@ -55,6 +57,42 @@ const treatment: TreatmentDefinitionType = treatmentOf({
 	mcp: null,
 });
 
+const identity: ExecutionIdentityType = {
+	harness: {schemaVersion: '1.0', version: 1},
+	suite: {id: 'suite', version: 1, hash: 'a'.repeat(64)},
+	case: {id: 'case-a', hash: 'b'.repeat(64), promptHash: 'c'.repeat(64), timeoutMs: 5_000},
+	model: {
+		provider: 'provider',
+		modelId: 'model',
+		digest: 'd'.repeat(64),
+		quantization: null,
+		runtime: null,
+		runtimeVersion: null,
+		generationSettingsDigest: 'e'.repeat(64),
+	},
+	agent: {
+		id: 'evaluator',
+		version: '1',
+		instructionsHash: 'f'.repeat(64),
+		toolListHash: '1'.repeat(64),
+		permissionsHash: '2'.repeat(64),
+		contextBudgetTokens: 0,
+	},
+	treatment: {id: 'no-index', kind: 'no-index', definitionHash: '3'.repeat(64), mcpSurfaceHash: '4'.repeat(64)},
+	subject: {
+		revision: 'abc1234',
+		isolationMode: 'detached-worktree',
+		contentManifestHash: '5'.repeat(64),
+		projectFilesHash: '5'.repeat(64),
+		lockFileHash: null,
+		externalFixtureHash: null,
+	},
+	artifacts: {accepted: null, candidate: null},
+	codeIndex: {configDigest: '6'.repeat(64)},
+	repetitionIndex: 1,
+	randomizationSeed: '7'.repeat(64),
+};
+
 const clientStore = (root: string): ClientStoreType =>
 	clientStoreOf({
 		campaignStore: null,
@@ -72,7 +110,9 @@ const execute = (root: string, command: string, testCase: CaseType, store: Clien
 		repetition: 1,
 		model: 'provider/model',
 		revision: 'abc1234',
-		identityHash: 'a'.repeat(64),
+		campaignId: 'campaign',
+		identity,
+		identityDigest: executionIdentityDigestOf(identity),
 		clientStore: store,
 		isolation: {
 			mode: 'detached-worktree',
@@ -321,13 +361,17 @@ test('a failed execution is persisted as an inspectable failed result', async (t
 
 	writeResult(file, result);
 
-	const stored = JSON.parse(readFileSync(file, 'utf8')) as {outcome: string; exitCode: number | null; valid: boolean};
+	const stored = readResult(file);
 
 	assert.equal(result.outcome, 'failed');
 	assert.equal(result.valid, false);
 	assert.equal(result.exitCode, 3);
 	assert.equal(result.invalidReason, 'agent exited with 3');
-	assert.deepEqual(stored, {...result, outcome: 'failed', exitCode: 3, valid: false});
+	assert.notEqual(stored, null);
+	assert.equal(stored?.outcome, 'failed');
+	assert.equal(stored?.exitCode, 3);
+	assert.equal(stored?.valid, false);
+	assert.match(stored?.integrity.contentDigest ?? '', /^[0-9a-f]{64}$/);
 });
 
 test('a hard timeout terminates the whole process group and stays inspectable', async (testContext: TestContext) => {
@@ -413,13 +457,7 @@ test('a restoration failure is persisted as an inspectable failed result', async
 
 	writeResult(file, result);
 
-	const stored = JSON.parse(readFileSync(file, 'utf8')) as {
-		outcome: string;
-		valid: boolean;
-		invalidReason: string | null;
-		isolation: {restored: boolean};
-		attempts: readonly unknown[];
-	};
+	const stored = readResult(file);
 
 	assert.equal(execution.isolation.restored, false);
 	assert.equal(result.outcome, 'failed');
@@ -427,7 +465,9 @@ test('a restoration failure is persisted as an inspectable failed result', async
 	assert.match(result.invalidReason ?? '', /restoration failed: workspace \.git is missing/);
 	assert.equal(result.isolation.restored, false);
 	assert.equal(result.attempts.length, 1);
-	assert.deepEqual(stored, {...result, outcome: 'failed', valid: false});
+	assert.equal(stored?.outcome, 'failed');
+	assert.equal(stored?.valid, false);
+	assert.deepEqual(stored?.defects, ['dirty-isolation']);
 });
 
 test('missing token usage invalidates only the token metrics', async (testContext: TestContext) => {

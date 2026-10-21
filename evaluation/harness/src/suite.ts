@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {caseHashOf, caseOf, hashOf, suiteFieldsOf, suiteHashOf, type CaseType, type SuiteType} from './schema.ts';
-import {canonicalTreatmentsOf, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
+import {TREATMENT_IDS, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
 
 /** Answer contract appended to every case prompt, identical for both arms. */
 export const ANSWER_CONTRACT = [
@@ -194,7 +194,7 @@ export const planOf = <Treatment extends string>(
  * @returns The one matching definition.
  */
 export const resolveTreatmentOf = (entry: PlanEntryType, treatments: readonly TreatmentDefinitionType[]): TreatmentDefinitionType => {
-	const matches = canonicalTreatmentsOf(treatments).filter((treatment) => treatment.id === entry.treatment);
+	const matches = treatments.filter((treatment) => treatment.id === entry.treatment);
 
 	if (matches.length !== 1) {
 		throw new Error(`plan entry ${entry.caseId}/${entry.treatment} resolves ${matches.length} treatments`);
@@ -216,7 +216,10 @@ export const resolveTreatmentOf = (entry: PlanEntryType, treatments: readonly Tr
  * @returns Treatment ids in plan order.
  */
 export const treatmentIdsOf = (treatments: readonly TreatmentDefinitionType[]): readonly TreatmentIdType[] =>
-	canonicalTreatmentsOf(treatments).map((treatment) => treatment.id);
+	treatments
+		.slice()
+		.sort((left, right) => TREATMENT_IDS.indexOf(left.id) - TREATMENT_IDS.indexOf(right.id))
+		.map((treatment) => treatment.id);
 
 /**
  * Hashes an ordered plan.

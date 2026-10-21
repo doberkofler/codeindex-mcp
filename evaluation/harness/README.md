@@ -75,7 +75,9 @@ harness.json                      optional subject override, ignored by Git
 ../cases/*.json                   one case per file
 ../artifacts/{accepted,candidate}/ staged artifact trees, ignored by Git
 ../workspaces/{no-index,accepted,candidate}
-../results/<run-id>/              immutable per-run results plus report.json
+../results/<campaign-id>/         manifest.json, run state, report.json
+../results/<campaign-id>/<case>/<treatment>/rep-<n>/
+                                  attempt-<n>.json and its raw event streams
 ../reports/                       reviewed aggregate reports
 ```
 
@@ -233,18 +235,49 @@ From this directory, `node src/cli.ts` accepts the same flags with
 
 `--treatment` accepts `all`, one treatment, or a comma-separated subset.
 `--list` and `--dry-run` validate schemas and print the plan without starting a
-model or MCP process. `--resume` reuses a stored result only when its full
-identity digest and treatment definition hash match the planned slot.
+model or MCP process. `--resume` reuses a stored result only when its complete
+execution identity digest equals the planned slot's digest; any suite, case,
+prompt, timeout, model, agent, treatment, subject, artifact, configuration,
+harness, repetition, or randomization change defines a different identity.
 `--campaign-store` opts into one campaign-local client database; without it the
 campaign is fully ephemeral. The path is resolved against the run directory, is
 rejected inside OpenCode's normal data directory, and is recorded in the run
 manifest.
 
+### Result records and resume
+
+Each execution attempt is one immutable JSON document at
+`results/<campaign-id>/<case>/<treatment>/rep-<n>/attempt-<n>.json`. The document
+carries the complete execution identity and its digest, the campaign id, the
+attempt ordinal, timing, outcome, defects, isolation, process status, telemetry,
+normalized calls, grades, artifacts, and an `integrity` block. Raw stdout,
+stderr, and normalized material stay beside it.
+
+Writing is atomic: the harness writes and flushes a same-directory temporary
+file, then renames it to the final name. A complete write for an existing
+attempt is rejected instead of overwritten. `integrity.contentDigest` covers the
+canonical record without the integrity block, and `integrity.sizeBytes` is the
+exact stored byte length, so a partial, truncated, extended, or re-serialized
+document is never a result.
+
+`--resume` scans a slot's attempts from the highest ordinal and reuses the first
+complete, readable, effectively valid record whose identity digest matches.
+Completed, failed, and timed-out executions all satisfy their slot; an `aborted`
+execution, a record with defects, a corrupt file, and every identity mismatch do
+not. Corrupt attempts are treated as absent, while a record for another identity
+is retained untouched and the new identity receives the next attempt ordinal.
+The campaign manifest is written once and is never rewritten in place.
+
+Readers implement schema major version 1 and accept any minor version, ignore
+unknown fields, and reject a failed integrity check. A document that is not a
+valid result is never evidence and never receives an invalidation cause.
+
 Each execution retries internally up to six times with jittered exponential
 backoff, and 5 s of pacing separates executions (`EVAL_PACE_MS`). A hard timeout
 is not retried: it is the recorded outcome of its slot. A retry is never a
-repetition: the accepted attempt is the recorded result, and every attempt is
-retained with its raw event stream under `results/<run>/raw/`.
+repetition: every attempt is written as its own immutable record and raw event
+stream in the slot directory, and the highest complete attempt decides what a
+later resume reuses.
 
 ## Answer contract
 
