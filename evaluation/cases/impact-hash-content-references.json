@@ -4,7 +4,7 @@
 	"title": "hashContent consumers",
 	"class": "impact",
 	"tags": ["impact", "references"],
-	"prompt": "Which source files reference the symbol hashContent, excluding its own definition file? List every referencing file and nothing else.",
+	"prompt": "Which files under src/ reference the symbol hashContent, excluding its own definition file? List every referencing file and nothing else.",
 	"scope": ["src/**"],
 	"expectedFiles": [
 		"src/core/qualification/oracle/live/oracleLiveCandidates.ts",

@@ -543,8 +543,11 @@ Twelve cases over the subject repository at the pinned revision, four per class:
 
 The four impact cases ask for consumers of one symbol, because direct
 `find_dependencies` usage covers external package targets only. Expected files
-were verified against the pinned revision with `find_symbol` and
-`find_references`.
+were verified against the pinned revision with the TypeScript language service;
+the per-case review is recorded in
+[`../audits/q2-v5-e0.md`](../audits/q2-v5-e0.md). Implementation cases remain
+file-identification descriptors until bounded change cases with post-run checks
+replace them; the suite is not ready to freeze.
 
 ## Model
 

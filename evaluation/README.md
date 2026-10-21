@@ -9,6 +9,7 @@ The method is specified in
 | `harness/` | Runner, schemas, isolation, normalization, grading, and reporting code |
 | `cases/` | Public synthetic and repository cases with exact ground truth |
 | `suites/` | Public suite manifests |
+| `audits/` | Recorded E0 case and truth review notes |
 | `reports/` | Reviewed aggregate reports safe for publication |
 
 Generated material is never committed:

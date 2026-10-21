@@ -4,7 +4,7 @@
 	"title": "SCHEMA_VERSION consumers",
 	"class": "impact",
 	"tags": ["impact", "references"],
-	"prompt": "Which source files reference the database SCHEMA_VERSION symbol, excluding its own definition file? List every referencing file and nothing else.",
+	"prompt": "Which files under src/ reference the database SCHEMA_VERSION symbol, excluding its own definition file? List every referencing file and nothing else.",
 	"scope": ["src/**"],
 	"expectedFiles": [
 		"src/core/storage/databaseIdentity.ts",
