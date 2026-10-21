@@ -8,7 +8,7 @@
 - [x] #22 [EVAL-014] Build CodeIndex repository cases
 - [x] #23 [EVAL-015] Pilot TypeScript, VS Code, and Material UI as external corpus
 - [x] #24 [EVAL-016] Freeze the 18-case suite and six-case calibration subset
-- [ ] #25 [EVAL-017] Implement complete-route model-free comparison
+- [x] #25 [EVAL-017] Implement complete-route model-free comparison
 - [ ] #26 [EVAL-018] Implement one-call grouped `find_references` results
 - [ ] #27 [EVAL-019] Compact status responses and authoritative stop/fallback guidance
 - [ ] #28 [EVAL-020] Execute the model-free accepted-versus-candidate gate
