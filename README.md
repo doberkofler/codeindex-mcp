@@ -168,6 +168,8 @@ node src/cli.ts evaluate --suite evaluation/suites/q2.json --dry-run
 node src/cli.ts evaluate --suite evaluation/suites/q2.json \
 	--case locate-schema-version --treatment candidate --repetitions 1
 node src/cli.ts evaluate --suite evaluation/suites/q2.json --treatment all
+node src/cli.ts evaluate --suite evaluation/suites/q2.json \
+	--campaign-store /tmp/codeindex-campaign/client.db
 node src/cli.ts report   --run <run-id>
 node --test src/*.test.ts
 ```
@@ -176,11 +178,16 @@ node --test src/*.test.ts
 `--list` and `--dry-run` validate schemas and print the plan without starting a
 model or MCP process. `--resume` reuses a stored result only when its full
 identity digest and treatment definition hash match the planned slot.
+`--campaign-store` opts into one campaign-local client database; without it the
+campaign is fully ephemeral. The path is resolved against the run directory, is
+rejected inside OpenCode's normal data directory, and is recorded in the run
+manifest.
 
 Each execution retries internally up to six times with jittered exponential
-backoff, and 5 s of pacing separates executions (`EVAL_PACE_MS`). A retry is
-never a repetition: the accepted attempt is the recorded result, and every
-attempt is retained with its raw event stream under `results/<run>/raw/`.
+backoff, and 5 s of pacing separates executions (`EVAL_PACE_MS`). A hard timeout
+is not retried: it is the recorded outcome of its slot. A retry is never a
+repetition: the accepted attempt is the recorded result, and every attempt is
+retained with its raw event stream under `results/<run>/raw/`.
 
 ## Answer contract
 
@@ -250,6 +257,36 @@ copied from the subject build so the workspace can run repository commands.
 
 `PWD` is set to the workspace for the child process because OpenCode resolves
 project configuration from `PWD` rather than the spawn working directory.
+
+### OpenCode client state
+
+Every execution starts `opencode run --standalone` with an explicit
+`OPENCODE_DB`, so it never contacts the shared background service and never
+reads or writes `~/.local/share/opencode/opencode.db`:
+
+- the default store is `OPENCODE_DB=:memory:`, which gives every execution an
+  empty session database that disappears with the private server;
+- `--campaign-store <path>` selects one campaign-local SQLite file for resume or
+  post-run inspection, records it in `run.json`, and rejects any path inside
+  OpenCode's data directory (`XDG_DATA_HOME/opencode` or
+  `~/.local/share/opencode`);
+- no execution passes `--continue`, `--session`, or `--fork`, so a repetition
+  cannot inherit a prior session;
+- stdout and stderr are captured from the process pipes until the private
+  server exits; an in-memory database is never inspected afterwards.
+
+The agent runs as a process-group leader. The hard timeout is
+`case.timeoutMs`: the harness sends `SIGTERM` to the whole group, escalates to
+`SIGKILL` after two seconds, and stops waiting for stdio close after a bounded
+grace period. A timed-out execution is terminal for its slot and is written as
+an inspectable result with `outcome: "timed-out"`, `timedOut: true`, a null exit
+code, and the captured partial stream. Every result records `outcome`,
+`isolationMode`, `clientStore`, `timeoutMs`, and the exit signal.
+
+The run manifest records the same isolation decisions under `isolation` and
+`campaignStore`, so a reviewer can reconstruct the client-store mode without
+reading a result. A failed, timed-out, or successful execution cannot replace
+the published generation of the normal session database.
 
 ## Corpus
 

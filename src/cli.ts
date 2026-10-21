@@ -2,6 +2,13 @@ import {existsSync, mkdirSync, readFileSync, readdirSync, statSync} from 'node:f
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {comparisonDigestOf, identityDigestOf, identityOf} from './identity.ts';
+import {
+	campaignStoreRecordOf,
+	clientStoreOf,
+	isolationRecordOf,
+	prepareClientStore,
+	type ClientStoreType,
+} from './isolation.ts';
 import {catalogOf} from './mcp.ts';
 import {compare} from './report.ts';
 import {runOnce, writeResult, type RunResultType} from './runner.ts';
@@ -24,7 +31,7 @@ import {
 } from './workspace.ts';
 
 /** Harness schema version recorded in every run identity. */
-const HARNESS_VERSION = 6;
+const HARNESS_VERSION = 7;
 
 /** Pause between executions to stay inside the provider's rolling window. */
 const PACE_MS = Number(process.env['EVAL_PACE_MS'] ?? 5_000);
@@ -180,11 +187,19 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 	const identityDigest = identityDigestOf(identity);
 	const comparisonDigest = comparisonDigestOf(identity);
 	const runDir = path.join(root, 'results', `${suite.id}-${identityDigest.slice(0, 16)}`);
+	const campaignStoreFlag = flagOf(flags, 'campaign-store');
+	const clientStore: ClientStoreType = clientStoreOf({
+		campaignStore: campaignStoreFlag === undefined ? null : campaignStoreFlag === 'true' ? '' : campaignStoreFlag,
+		campaignDir: runDir,
+	});
 
 	process.stderr.write(
 		`run ${runDir}\nplan ${plan.length} execution(s): ${selected.length} case(s) x ${treatments.length} treatment(s) x ${repetitions} repetition(s)\n`,
 	);
 	process.stderr.write(`plan-hash ${planHash}\nidentity ${identityDigest}\n`);
+	process.stderr.write(
+		`isolation detached-worktree, standalone server, client store ${clientStore.mode}${clientStore.path === null ? '' : ` at ${clientStore.path}`}\n`,
+	);
 
 	if (flags.has('dry-run')) {
 		for (const entry of plan) {
@@ -198,6 +213,7 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 	const context = workspaceContextOf(root, {subjectRepo: settings.subjectRepo, revision: suite.revision});
 	ensureWorkspaces(context, treatments);
 	mkdirSync(runDir, {recursive: true});
+	prepareClientStore(clientStore);
 
 	const surfaces = await surfacesOf(context, treatments);
 
@@ -237,6 +253,8 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 			differences: treatmentDifferencesOf(suite.treatments),
 			sharedConfigHash: identity.sharedConfigHash,
 		},
+		isolation: isolationRecordOf(clientStore),
+		campaignStore: campaignStoreRecordOf(clientStore),
 		treatments: manifestTreatments,
 		startedAt: new Date().toISOString(),
 	};
@@ -289,6 +307,7 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 			model: suite.model,
 			revision: suite.revision,
 			identityHash: identityDigest,
+			clientStore,
 			rawBase: path.join(runDir, 'raw', entry.caseId, entry.treatment, `rep-${entry.repetition}`),
 		});
 
@@ -419,7 +438,7 @@ try {
 		listCommand(flags);
 	} else {
 		process.stdout.write(
-			'usage: cli.ts <evaluate|report|check|list> --suite <path> [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume]\n',
+			'usage: cli.ts <evaluate|report|check|list> --suite <path> [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path]\n',
 		);
 		process.exitCode = command === 'help' ? 0 : 2;
 	}

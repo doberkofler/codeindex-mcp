@@ -1,8 +1,9 @@
-import {spawn} from 'node:child_process';
+import {spawn, type ChildProcess} from 'node:child_process';
 import {mkdirSync, renameSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {isRateLimited, parseEvents, type RunEventsType} from './events.ts';
 import {gradeOf, type GradeType} from './grade.ts';
+import {type ClientStoreModeType, type ClientStoreType} from './isolation.ts';
 import {promptOf} from './suite.ts';
 import {type CaseType} from './schema.ts';
 import {routingOf, type RoutingType, type ToolSurfaceType, type TreatmentDefinitionType} from './treatment.ts';
@@ -10,12 +11,16 @@ import {routingOf, type RoutingType, type ToolSurfaceType, type TreatmentDefinit
 /** Workflow assessment kept separate from correctness. */
 export type WorkflowResultType = Readonly<{compliant: boolean; violations: readonly string[]}>;
 
+/** Final execution outcome, independent of correctness and workflow. */
+export type OutcomeType = 'completed' | 'failed' | 'timed-out';
+
 /** One execution attempt, including throttled attempts that are not runs. */
 export type AttemptLogType = Readonly<{
 	attempt: number;
 	startedAt: string;
 	durationMs: number;
 	exitCode: number | null;
+	signal: NodeJS.Signals | null;
 	timedOut: boolean;
 	rateLimited: boolean;
 	invalidReason: string | null;
@@ -36,7 +41,15 @@ export type RunResultType = Readonly<{
 	startedAt: string;
 	durationMs: number;
 	exitCode: number | null;
+	signal: NodeJS.Signals | null;
 	timedOut: boolean;
+	/** Hard wall-clock bound declared by the case. */
+	timeoutMs: number;
+	outcome: OutcomeType;
+	/** Execution isolation mode. */
+	isolationMode: 'detached-worktree';
+	/** Whether client state was ephemeral or the campaign-local store. */
+	clientStore: ClientStoreModeType;
 	usage: RunEventsType['usage'];
 	toolCalls: RunEventsType['toolCalls'];
 	outputBytes: number;
@@ -63,10 +76,25 @@ const STDERR_TAIL = 4_000;
 const RAW_STDOUT_LIMIT = 1_000_000;
 const RAW_STDERR_LIMIT = 64_000;
 
+/** Time between the timeout's graceful signal and the group-wide SIGKILL. */
+const TERMINATE_GRACE_MS = 2_000;
+
+/** Upper bound on waiting for stdio close after the group has been killed. */
+const HARD_CLOSE_GRACE_MS = 5_000;
+
+/** Default executable; tests replace it with a controlled agent script. */
+const AGENT_COMMAND = 'opencode';
+
 /** Retry policy: bounded attempts with exponential, jittered backoff. */
 const MAX_ATTEMPTS = 6;
 const RATE_LIMIT_BACKOFF_MS = [30_000, 60_000, 120_000, 240_000, 300_000] as const;
 const OTHER_FAILURE_BACKOFF_MS = 10_000;
+
+/** Retry policy for one slot. */
+export type RetryPolicyType = Readonly<{
+	maxAttempts: number;
+	backoffMs: (attempt: number, rateLimited: boolean) => number;
+}>;
 
 const sleep = async (milliseconds: number): Promise<void> => {
 	await new Promise<void>((resolve) => {
@@ -83,6 +111,40 @@ const backoffOf = (attempt: number, rateLimited: boolean): number => {
 	const jitter = Math.round(base * 0.2 * Math.random());
 
 	return base + jitter;
+};
+
+const DEFAULT_RETRY: RetryPolicyType = {
+	maxAttempts: MAX_ATTEMPTS,
+	backoffMs: backoffOf,
+};
+
+/**
+ * Signals a process group, falling back to the direct child.
+ *
+ * The agent is spawned as a process-group leader (`detached: true`), so a
+ * negative PID reaches the standalone server and every tool subprocess it
+ * started. A group that has already gone away yields ESRCH, which is not an
+ * error at this point.
+ *
+ * @param child - Spawned agent process.
+ * @param signal - Signal to deliver.
+ */
+const signalGroup = (child: ChildProcess, signal: NodeJS.Signals): void => {
+	if (child.pid === undefined) {
+		return;
+	}
+
+	if (process.platform === 'win32') {
+		child.kill(signal);
+
+		return;
+	}
+
+	try {
+		process.kill(-child.pid, signal);
+	} catch {
+		child.kill(signal);
+	}
 };
 
 /**
@@ -138,7 +200,10 @@ const attemptOnce = async (
 		model: string;
 		revision: string;
 		identityHash: string;
+		clientStore: ClientStoreType;
 		rawBase: string | null;
+		/** Executable override; production uses `opencode`. */
+		command?: string;
 	}>,
 	attempt: number,
 ): Promise<AttemptResultType> => {
@@ -147,12 +212,21 @@ const attemptOnce = async (
 	const prompt = promptOf(input.testCase);
 
 	const child = spawn(
-		'opencode',
+		input.command ?? AGENT_COMMAND,
 		['run', '--standalone', '--agent', 'evaluator', '--model', input.model, '--format', 'json', '--auto', prompt],
 		{
 			cwd: input.cwd,
+			// A new process group lets the timeout reach the standalone server and
+			// every tool subprocess. The group is never the harness's own.
+			detached: process.platform !== 'win32',
 			// OpenCode resolves the project from PWD, which spawn does not update.
-			env: {...process.env, PWD: input.cwd, OPENCODE_DISABLE_TELEMETRY: '1'},
+			// OPENCODE_DB is always explicit; an inherited value is never reused.
+			env: {
+				...process.env,
+				PWD: input.cwd,
+				OPENCODE_DB: input.clientStore.opencodeDb,
+				OPENCODE_DISABLE_TELEMETRY: '1',
+			},
 			stdio: ['ignore', 'pipe', 'pipe'],
 		},
 	);
@@ -160,11 +234,9 @@ const attemptOnce = async (
 	let stdout = '';
 	let stderr = '';
 	let timedOut = false;
-
-	const timer = setTimeout(() => {
-		timedOut = true;
-		child.kill('SIGKILL');
-	}, input.testCase.timeoutMs);
+	let timeoutTimer: NodeJS.Timeout | undefined;
+	let escalationTimer: NodeJS.Timeout | undefined;
+	let hardCloseTimer: NodeJS.Timeout | undefined;
 
 	child.stdout.setEncoding('utf8');
 	child.stderr.setEncoding('utf8');
@@ -175,13 +247,45 @@ const attemptOnce = async (
 		stderr += chunk;
 	});
 
-	const exitCode = await new Promise<number | null>((resolve) => {
-		child.on('close', (code) => resolve(code));
-		child.on('error', () => resolve(null));
+	const exit = await new Promise<Readonly<{code: number | null; signal: NodeJS.Signals | null}>>((resolve) => {
+		let settled = false;
+
+		const finish = (code: number | null, signal: NodeJS.Signals | null): void => {
+			if (settled) {
+				return;
+			}
+
+			settled = true;
+			clearTimeout(timeoutTimer);
+			clearTimeout(escalationTimer);
+			clearTimeout(hardCloseTimer);
+			resolve({code, signal});
+		};
+
+		child.on('close', (code, signal) => {
+			finish(code, signal);
+		});
+		child.on('error', () => {
+			finish(null, null);
+		});
+
+		timeoutTimer = setTimeout(() => {
+			timedOut = true;
+			signalGroup(child, 'SIGTERM');
+			escalationTimer = setTimeout(() => {
+				signalGroup(child, 'SIGKILL');
+			}, TERMINATE_GRACE_MS);
+		}, input.testCase.timeoutMs);
+
+		// A descendant that escaped the group can hold the pipes open. Never wait
+		// indefinitely for `close`: the captured streams are already complete.
+		hardCloseTimer = setTimeout(() => {
+			finish(null, 'SIGKILL');
+		}, input.testCase.timeoutMs + TERMINATE_GRACE_MS + HARD_CLOSE_GRACE_MS);
 	});
-	clearTimeout(timer);
 
 	const durationMs = Date.now() - started;
+	const exitCode = exit.code;
 	const events = parseEvents(stdout);
 	const grade = gradeOf(input.testCase, events.finalText);
 	const workflow = workflowOf(input.testCase, events);
@@ -201,6 +305,7 @@ const attemptOnce = async (
 					: routing.executeCalls > 0
 						? 'generic execute was called although it is absent from every treatment'
 						: null;
+	const outcome: OutcomeType = timedOut ? 'timed-out' : invalidReason === null ? 'completed' : 'failed';
 	const throttled = isRateLimited(stdout, stderr, events.errors.join('\n'));
 	const rawFile = input.rawBase === null ? null : `${input.rawBase}.attempt-${attempt}.jsonl`;
 
@@ -223,7 +328,12 @@ const attemptOnce = async (
 			startedAt,
 			durationMs,
 			exitCode,
+			signal: exit.signal,
 			timedOut,
+			timeoutMs: input.testCase.timeoutMs,
+			outcome,
+			isolationMode: 'detached-worktree',
+			clientStore: input.clientStore.mode,
 			usage: events.usage,
 			toolCalls: events.toolCalls,
 			outputBytes: events.outputBytes,
@@ -238,7 +348,7 @@ const attemptOnce = async (
 			finalText: events.finalText.slice(0, FINAL_TEXT_TAIL),
 			stderrTail: stderr.slice(-STDERR_TAIL),
 		},
-		log: {attempt, startedAt, durationMs, exitCode, timedOut, rateLimited: throttled, invalidReason, rawFile},
+		log: {attempt, startedAt, durationMs, exitCode, signal: exit.signal, timedOut, rateLimited: throttled, invalidReason, rawFile},
 	};
 };
 
@@ -246,9 +356,11 @@ const attemptOnce = async (
  * Runs one arm/repetition pair, retrying throttled or failed attempts.
  *
  * Retries are not repetitions: the accepted attempt is what the result records,
- * and every discarded attempt is retained in `attempts` for audit.
+ * and every discarded attempt is retained in `attempts` for audit. A hard
+ * timeout is terminal for the slot, because re-running a timed-out execution
+ * would substitute a different observation.
  *
- * @param input - Workspace, case, arm, repetition, and model.
+ * @param input - Workspace, case, arm, repetition, model, and isolation.
  * @returns The persisted-shape result.
  */
 export const runOnce = async (
@@ -261,22 +373,28 @@ export const runOnce = async (
 		model: string;
 		revision: string;
 		identityHash: string;
+		clientStore: ClientStoreType;
 		rawBase: string | null;
+		/** Executable override; production uses `opencode`. */
+		command?: string;
+		/** Retry policy override for focused tests. */
+		retry?: RetryPolicyType;
 	}>,
 ): Promise<RunResultType> => {
 	const attempts: AttemptLogType[] = [];
+	const retry = input.retry ?? DEFAULT_RETRY;
 	let last: AttemptResultType | null = null;
 
-	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+	for (let attempt = 1; attempt <= retry.maxAttempts; attempt += 1) {
 		last = await attemptOnce(input, attempt);
 		attempts.push(last.log);
 
-		if (last.result.valid) {
+		if (last.result.valid || last.result.timedOut) {
 			break;
 		}
 
-		if (attempt < MAX_ATTEMPTS) {
-			await sleep(backoffOf(attempt, last.log.rateLimited));
+		if (attempt < retry.maxAttempts) {
+			await sleep(retry.backoffMs(attempt, last.log.rateLimited));
 		}
 	}
 
