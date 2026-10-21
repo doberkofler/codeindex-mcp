@@ -83,6 +83,51 @@ unknown fields. Case IDs, suite IDs, tags, file lists, and treatment definitions
 are validated before a workspace is prepared. Hashes use canonical JSON, so
 object key order never changes an identity.
 
+A case declares exact ground truth, a bounded context set, and optional
+declarative workflow gates:
+
+```json
+{
+	"schemaVersion": 1,
+	"id": "locate-schema-version",
+	"title": "Schema version constant",
+	"class": "locate",
+	"tags": ["locate"],
+	"prompt": "Which file defines SCHEMA_VERSION?",
+	"scope": ["src/**"],
+	"expectedFiles": ["src/core/storage/schema.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 12,
+		"maxOutputBytes": 200000,
+		"requiredFirstTool": null,
+		"requiredTools": [],
+		"forbiddenTools": [],
+		"maxCallsByFamily": {"search": 4},
+		"maxOutputBytesByFamily": {"search": 120000},
+		"maxDuplicateReads": 0,
+		"maxFallbacksAfterAuthoritative": 0,
+		"maxBroadSearches": 0,
+		"maxDurationMs": 180000,
+		"maxTokens": null
+	},
+	"check": {
+		"command": "node",
+		"args": ["--test", "test/example.test.ts"],
+		"expectedExitCode": 0,
+		"timeoutMs": 120000
+	},
+	"timeoutMs": 180000
+}
+```
+
+`expectedFiles` must be non-empty. `contextFiles` are allowed supporting
+evidence, not required answers. Expected, context, and forbidden sets are
+disjoint. `check` is optional and runs only for cases that declare it. Every
+optional workflow field defaults to no gate except the required
+`maxTotalCalls` and `maxOutputBytes`.
+
 A suite starts as `draft`. A `frozen` suite must pin every referenced case with
 `caseHashes`:
 
@@ -203,14 +248,47 @@ the question.
 
 ## Grading
 
-- **success** — every `expectedFiles` entry is named, no `forbiddenFiles` entry
-  is named, and `absent` is false.
-- **false absence** — `absent` is true on a case with expected files.
-- Malformed or missing JSON is a failure, and an unparseable answer is recorded
-  with its reason rather than silently scoring zero.
+Correctness, workflow compliance, process success, and telemetry validity are
+four separate outcomes. None is folded into another.
 
-Correctness and workflow are reported separately. Workflow gates are
-`maxTotalCalls`, `maxOutputBytes`, and optional `requiredFirstTool`.
+Correctness is exact:
+
+- **pass** — every `expectedFiles` entry is named, no `forbiddenFiles` entry is
+  named, and no file outside `expectedFiles ∪ contextFiles` is named.
+- **extra file** — a named file outside the expected and bounded-context sets
+  fails the answer; context is permission to cite evidence, never a second
+  expected set.
+- **false absence** — `absent` is true on a case with expected files.
+- **malformed answer** — missing JSON, wrong types, and `absent` with named
+  files fail and retain their reason instead of silently scoring zero.
+- Paths are normalized to repository-relative POSIX form and matched exactly.
+  A suffixed or absolute path does not satisfy an expected file.
+
+Every check records `result` (`pass`, `fail`, or `unevaluated`), a list of
+`{id, kind, expected, observed, result}` assertions, and a bounded reason. A
+check is `unevaluated` when the measurement it needs is unavailable, and an
+unevaluated check is never a pass.
+
+Post-run checks are declarative and deterministic. The command is spawned
+without a shell in the workspace after the agent exits, with a hard timeout and
+its own process group. Its result is `postRun`, separate from `grade` and
+`workflow`; a failing command does not rewrite a correct answer or an invalid
+process outcome. Workspace restoration removes any mutation it makes.
+
+Workflow predicates are declarative:
+
+- total, per-family, and output-byte budgets;
+- required and forbidden exact tool names;
+- the first retrieval tool, ignoring write, execute, and task calls before it;
+- duplicate reads of one exact validated input, ignoring distinct ranges;
+- retrieval fallback after a successful authoritative CodeIndex result;
+- structurally classified broad searches;
+- wall-clock and exact-or-unavailable token budgets.
+
+A broad search is classified from its effective path/include scope. A missing
+scope, `.`, `**`, or a root-only include is broad; a bounded path or include
+narrows the search, so it stays bounded even when the other scope is
+recursive. Query text never decides breadth.
 
 ## Event normalization
 

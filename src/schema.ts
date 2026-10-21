@@ -1,3 +1,4 @@
+import {TOOL_FAMILIES, type ToolFamilyType} from './events.ts';
 import {hashOf} from './hash.ts';
 import {canonicalTreatmentsOf, treatmentOf, treatmentSetHashOf, validateTreatmentSet, type TreatmentDefinitionType} from './treatment.ts';
 
@@ -14,13 +15,42 @@ export const CASE_CLASSES = ['locate', 'impact', 'implementation'] as const;
 
 export type CaseClassType = (typeof CASE_CLASSES)[number];
 
+/** Per-family call or output budget. Absent families have no gate. */
+export type FamilyLimitsType = Readonly<Partial<Record<ToolFamilyType, number>>>;
+
 export type WorkflowType = Readonly<{
 	/** Maximum number of tool calls a run may make. */
 	maxTotalCalls: number;
 	/** Tool name that must be the first retrieval tool, when set. */
 	requiredFirstTool: string | null;
-	/** Maximum summed tool-output characters. */
+	/** Maximum summed tool-output bytes. */
 	maxOutputBytes: number;
+	/** Tool names that must each be called at least once. */
+	requiredTools: readonly string[];
+	/** Tool names that must not be called. */
+	forbiddenTools: readonly string[];
+	/** Maximum calls per tool family. */
+	maxCallsByFamily: FamilyLimitsType;
+	/** Maximum tool-output bytes per tool family. */
+	maxOutputBytesByFamily: FamilyLimitsType;
+	/** Maximum repeated reads of one exact, validated input. */
+	maxDuplicateReads: number | null;
+	/** Maximum retrieval calls after a successful authoritative index result. */
+	maxFallbacksAfterAuthoritative: number | null;
+	/** Maximum structurally broad searches. */
+	maxBroadSearches: number | null;
+	/** Maximum wall-clock duration in milliseconds. */
+	maxDurationMs: number | null;
+	/** Maximum claimable uncached input + output + reasoning tokens. */
+	maxTokens: number | null;
+}>;
+
+/** One deterministic post-run command, executed in the isolated workspace. */
+export type PostRunCheckType = Readonly<{
+	command: string;
+	args: readonly string[];
+	expectedExitCode: number;
+	timeoutMs: number;
 }>;
 
 export type CaseType = Readonly<{
@@ -35,8 +65,13 @@ export type CaseType = Readonly<{
 	contextFiles: readonly string[];
 	forbiddenFiles: readonly string[];
 	workflow: WorkflowType;
+	/** Optional deterministic post-run command; null when the case declares none. */
+	check: PostRunCheckType | null;
 	timeoutMs: number;
 }>;
+
+/** Default bound for a post-run command when the case does not declare one. */
+export const DEFAULT_POST_RUN_TIMEOUT_MS = 120_000;
 
 export type SuiteFieldsType = Readonly<{
 	schemaVersion: typeof SUITE_SCHEMA_VERSION;
@@ -71,10 +106,26 @@ const CASE_KEYS = new Set([
 	'contextFiles',
 	'forbiddenFiles',
 	'workflow',
+	'check',
 	'timeoutMs',
 ]);
 
-const WORKFLOW_KEYS = new Set(['maxTotalCalls', 'requiredFirstTool', 'maxOutputBytes']);
+const WORKFLOW_KEYS = new Set([
+	'maxTotalCalls',
+	'requiredFirstTool',
+	'maxOutputBytes',
+	'requiredTools',
+	'forbiddenTools',
+	'maxCallsByFamily',
+	'maxOutputBytesByFamily',
+	'maxDuplicateReads',
+	'maxFallbacksAfterAuthoritative',
+	'maxBroadSearches',
+	'maxDurationMs',
+	'maxTokens',
+]);
+
+const CHECK_KEYS = new Set(['command', 'args', 'expectedExitCode', 'timeoutMs']);
 
 const SUITE_KEYS = new Set([
 	'schemaVersion',
@@ -168,6 +219,76 @@ const requirePositiveInteger = (value: unknown, field: string, context: string):
 	return value;
 };
 
+const requireNonNegativeInteger = (value: unknown, field: string, context: string): number => {
+	if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+		throw new Error(`${context} field "${field}" must be a non-negative integer`);
+	}
+
+	return value;
+};
+
+const optionalNonNegativeInteger = (value: unknown, field: string, context: string): number | null => {
+	if (value === undefined || value === null) {
+		return null;
+	}
+
+	return requireNonNegativeInteger(value, field, context);
+};
+
+const familyLimitsOf = (value: unknown, field: string, context: string): FamilyLimitsType => {
+	if (value === undefined || value === null) {
+		return {};
+	}
+
+	const record = requireObject(value, `${context} field "${field}"`);
+	const limits: Partial<Record<ToolFamilyType, number>> = {};
+
+	for (const [family, limit] of Object.entries(record)) {
+		if (!(TOOL_FAMILIES as readonly string[]).includes(family)) {
+			throw new Error(`${context} field "${field}" has unknown tool family "${family}"`);
+		}
+
+		limits[family as ToolFamilyType] = requireNonNegativeInteger(limit, `${field}.${family}`, context);
+	}
+
+	return limits;
+};
+
+const checkOf = (value: unknown): PostRunCheckType | null => {
+	if (value === undefined || value === null) {
+		return null;
+	}
+
+	const record = requireObject(value, 'case field "check"');
+	rejectUnknownKeys(record, CHECK_KEYS, 'case field "check"');
+	const rawArgs = record['args'] ?? [];
+
+	if (!Array.isArray(rawArgs) || !rawArgs.every((item): item is string => typeof item === 'string')) {
+		throw new Error('case field "check.args" must be an array of strings');
+	}
+
+	const expectedExitCode = record['expectedExitCode'] ?? 0;
+
+	if (typeof expectedExitCode !== 'number' || !Number.isInteger(expectedExitCode) || expectedExitCode < 0 || expectedExitCode > 255) {
+		throw new Error('case field "check.expectedExitCode" must be an integer between 0 and 255');
+	}
+
+	const timeoutMs = requirePositiveInteger(record['timeoutMs'] ?? DEFAULT_POST_RUN_TIMEOUT_MS, 'check.timeoutMs', 'case');
+
+	return {
+		command: requireString(record['command'], 'check.command', 'case'),
+		args: rawArgs,
+		expectedExitCode,
+		timeoutMs,
+	};
+};
+
+const disjointOf = (left: readonly string[], right: readonly string[]): readonly string[] => {
+	const values = new Set(right);
+
+	return left.filter((item) => values.has(item));
+};
+
 const requireHexDigest = (value: unknown, field: string, context: string): string => {
 	if (typeof value !== 'string' || !HEX_DIGEST.test(value)) {
 		throw new Error(`${context} field "${field}" must be a 64-character lowercase hex digest`);
@@ -196,14 +317,38 @@ export const caseOf = (value: unknown): CaseType => {
 	const workflow = requireObject(record['workflow'], 'case field "workflow"');
 	rejectUnknownKeys(workflow, WORKFLOW_KEYS, 'case field "workflow"');
 
-	const requiredFirstTool = workflow['requiredFirstTool'];
+	const rawFirstTool = workflow['requiredFirstTool'];
+	const requiredFirstTool =
+		rawFirstTool === undefined || rawFirstTool === null
+			? null
+			: requireString(rawFirstTool, 'workflow.requiredFirstTool', 'case');
+	const contextFiles = requireStringArray(record['contextFiles'] ?? [], 'contextFiles', 'case');
+	const forbiddenFiles = requireStringArray(record['forbiddenFiles'] ?? [], 'forbiddenFiles', 'case');
+	const expectedFiles = requireStringArray(record['expectedFiles'], 'expectedFiles', 'case');
+	const requiredTools = requireStringArray(workflow['requiredTools'] ?? [], 'workflow.requiredTools', 'case');
+	const forbiddenTools = requireStringArray(workflow['forbiddenTools'] ?? [], 'workflow.forbiddenTools', 'case');
 
-	if (requiredFirstTool !== null && (typeof requiredFirstTool !== 'string' || requiredFirstTool.trim().length === 0)) {
-		throw new Error('case field "workflow.requiredFirstTool" must be a non-empty string or null');
+	if (expectedFiles.length === 0) {
+		throw new Error('case field "expectedFiles" must not be empty; an absence case is not admissible as a correctness case');
 	}
 
-	const contextFiles = record['contextFiles'] ?? [];
-	const forbiddenFiles = record['forbiddenFiles'] ?? [];
+	const overlap = disjointOf(expectedFiles, contextFiles);
+
+	if (overlap.length > 0) {
+		throw new Error(`case fields "expectedFiles" and "contextFiles" overlap: ${overlap.join(', ')}`);
+	}
+
+	const forbiddenOverlap = disjointOf(forbiddenFiles, [...expectedFiles, ...contextFiles]);
+
+	if (forbiddenOverlap.length > 0) {
+		throw new Error(`case field "forbiddenFiles" overlaps expected or context files: ${forbiddenOverlap.join(', ')}`);
+	}
+
+	const toolOverlap = disjointOf(requiredTools, forbiddenTools);
+
+	if (toolOverlap.length > 0) {
+		throw new Error(`case fields "workflow.requiredTools" and "workflow.forbiddenTools" overlap: ${toolOverlap.join(', ')}`);
+	}
 
 	return {
 		schemaVersion: CASE_SCHEMA_VERSION,
@@ -213,14 +358,28 @@ export const caseOf = (value: unknown): CaseType => {
 		tags: requireStringArray(record['tags'], 'tags', 'case'),
 		prompt: requireString(record['prompt'], 'prompt', 'case'),
 		scope: requireStringArray(record['scope'], 'scope', 'case'),
-		expectedFiles: requireStringArray(record['expectedFiles'], 'expectedFiles', 'case'),
-		contextFiles: requireStringArray(contextFiles, 'contextFiles', 'case'),
-		forbiddenFiles: requireStringArray(forbiddenFiles, 'forbiddenFiles', 'case'),
+		expectedFiles,
+		contextFiles,
+		forbiddenFiles,
 		workflow: {
 			maxTotalCalls: requirePositiveInteger(workflow['maxTotalCalls'], 'workflow.maxTotalCalls', 'case'),
 			requiredFirstTool,
 			maxOutputBytes: requirePositiveInteger(workflow['maxOutputBytes'], 'workflow.maxOutputBytes', 'case'),
+			requiredTools,
+			forbiddenTools,
+			maxCallsByFamily: familyLimitsOf(workflow['maxCallsByFamily'], 'workflow.maxCallsByFamily', 'case'),
+			maxOutputBytesByFamily: familyLimitsOf(workflow['maxOutputBytesByFamily'], 'workflow.maxOutputBytesByFamily', 'case'),
+			maxDuplicateReads: optionalNonNegativeInteger(workflow['maxDuplicateReads'], 'workflow.maxDuplicateReads', 'case'),
+			maxFallbacksAfterAuthoritative: optionalNonNegativeInteger(
+				workflow['maxFallbacksAfterAuthoritative'],
+				'workflow.maxFallbacksAfterAuthoritative',
+				'case',
+			),
+			maxBroadSearches: optionalNonNegativeInteger(workflow['maxBroadSearches'], 'workflow.maxBroadSearches', 'case'),
+			maxDurationMs: optionalNonNegativeInteger(workflow['maxDurationMs'], 'workflow.maxDurationMs', 'case'),
+			maxTokens: optionalNonNegativeInteger(workflow['maxTokens'], 'workflow.maxTokens', 'case'),
 		},
+		check: checkOf(record['check']),
 		timeoutMs: requirePositiveInteger(record['timeoutMs'], 'timeoutMs', 'case'),
 	};
 };

@@ -538,3 +538,55 @@ test('a successful restoration keeps the execution outcome', async (testContext:
 	assert.equal(result.valid, true);
 	assert.equal(result.isolation.restored, true);
 });
+
+test('a declared post-run check is reported separately from correctness and process success', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const command = scriptOf(
+		root,
+		'success',
+		[
+			"cat <<'EVENTS'",
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
+			'EVENTS',
+		].join('\n'),
+	);
+	const passing = await execute(
+		root,
+		command,
+		testCaseOf({check: {command: process.execPath, args: ['-e', 'process.exit(0)']}}),
+	);
+	const failing = await execute(
+		root,
+		command,
+		testCaseOf({check: {command: process.execPath, args: ['-e', 'process.exit(4)']}}),
+	);
+
+	assert.equal(passing.postRun?.result, 'pass');
+	assert.equal(failing.postRun?.result, 'fail');
+	assert.equal(failing.postRun?.exitCode, 4);
+	assert.equal(failing.grade.success, true);
+	assert.equal(failing.valid, true);
+	assert.equal(failing.outcome, 'completed');
+});
+
+test('a workflow violation does not change answer correctness or process validity', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const command = scriptOf(
+		root,
+		'one-call',
+		[
+			"cat <<'EVENTS'",
+			String.raw`{"type":"tool_use","part":{"type":"tool","callID":"call-1","tool":"read","state":{"status":"completed","input":{"path":"src/a.ts"},"output":"abcd"}}}`,
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
+			'EVENTS',
+		].join('\n'),
+	);
+	const result = await execute(root, command, testCaseOf({workflow: {maxTotalCalls: 1, requiredFirstTool: 'grep', maxOutputBytes: 1_000}}));
+
+	assert.equal(result.grade.success, true);
+	assert.equal(result.workflow.result, 'fail');
+	assert.equal(result.valid, true);
+	assert.equal(result.outcome, 'completed');
+});

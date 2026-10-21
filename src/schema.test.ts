@@ -115,6 +115,61 @@ test('case schema rejects missing, unknown, and unsupported fields', () => {
 	assert.throws(() => caseOf(baseCase({tags: ['locate', 'locate']})), /duplicates/);
 });
 
+test('case schema defaults optional workflow and post-run fields', () => {
+	const parsed = caseOf(baseCase({check: {command: 'node', args: ['--test'], expectedExitCode: 0}}));
+
+	assert.deepEqual(parsed.workflow.requiredTools, []);
+	assert.deepEqual(parsed.workflow.forbiddenTools, []);
+	assert.deepEqual(parsed.workflow.maxCallsByFamily, {});
+	assert.deepEqual(parsed.workflow.maxOutputBytesByFamily, {});
+	assert.equal(parsed.workflow.maxDuplicateReads, null);
+	assert.equal(parsed.workflow.maxFallbacksAfterAuthoritative, null);
+	assert.equal(parsed.workflow.maxBroadSearches, null);
+	assert.equal(parsed.workflow.maxDurationMs, null);
+	assert.equal(parsed.workflow.maxTokens, null);
+	assert.deepEqual(parsed.check, {
+		command: 'node',
+		args: ['--test'],
+		expectedExitCode: 0,
+		timeoutMs: 120_000,
+	});
+});
+
+test('case schema rejects incomplete, overlapping, and subjective ground truth', () => {
+	assert.throws(() => caseOf(baseCase({expectedFiles: []})), /expectedFiles.*must not be empty/);
+	assert.throws(
+		() => caseOf(baseCase({contextFiles: ['src/a.ts']})),
+		/expectedFiles.*contextFiles.*overlap/,
+	);
+	assert.throws(
+		() => caseOf(baseCase({forbiddenFiles: ['src/a.ts']})),
+		/forbiddenFiles.*overlaps/,
+	);
+	assert.throws(
+		() => caseOf(baseCase({workflow: {maxTotalCalls: 1, maxOutputBytes: 1, requiredTools: ['read'], forbiddenTools: ['read']}})),
+		/requiredTools.*forbiddenTools.*overlap/,
+	);
+});
+
+test('case schema rejects malformed workflow and post-run predicates', () => {
+	assert.throws(
+		() => caseOf(baseCase({workflow: {maxTotalCalls: 1, maxOutputBytes: 1, maxCallsByFamily: {bogus: 1}}})),
+		/unknown tool family/,
+	);
+	assert.throws(
+		() => caseOf(baseCase({workflow: {maxTotalCalls: 1, maxOutputBytes: 1, maxCallsByFamily: {search: -1}}})),
+		/non-negative integer/,
+	);
+	assert.throws(
+		() => caseOf(baseCase({check: {command: 'node', args: ['--test'], expectedExitCode: 300}})),
+		/expectedExitCode/,
+	);
+	assert.throws(
+		() => caseOf(baseCase({check: {command: '', args: []}})),
+		/check.command/,
+	);
+});
+
 test('suite schema accepts version 2 and rejects unknown or unsupported fields', () => {
 	const parsed = suiteFieldsOf(baseSuite());
 

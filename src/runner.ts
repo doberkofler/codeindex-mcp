@@ -5,12 +5,14 @@ import {type ArtifactRefType} from './artifact.ts';
 import {isRateLimited, parseEvents, type RunEventsType, type TelemetryType} from './events.ts';
 import {gradeOf, type GradeType} from './grade.ts';
 import {type ClientStoreModeType, type ClientStoreType, type IsolationModeType} from './isolation.ts';
+import {postRunOf, skippedPostRunOf, type PostRunResultType} from './postRun.ts';
 import {promptOf} from './suite.ts';
 import {type CaseType} from './schema.ts';
 import {routingOf, type RoutingType, type ToolSurfaceType, type TreatmentDefinitionType} from './treatment.ts';
+import {workflowOf, type WorkflowResultType} from './workflow.ts';
 
-/** Workflow assessment kept separate from correctness. */
-export type WorkflowResultType = Readonly<{compliant: boolean; violations: readonly string[]}>;
+export {workflowOf} from './workflow.ts';
+export type {WorkflowResultType} from './workflow.ts';
 
 /** Final execution outcome, independent of correctness and workflow. */
 export type OutcomeType = 'completed' | 'failed' | 'timed-out';
@@ -91,6 +93,8 @@ export type RunResultType = Readonly<{
 	errors: readonly string[];
 	grade: GradeType;
 	workflow: WorkflowResultType;
+	/** Declared deterministic post-run command result; null when none was declared. */
+	postRun: PostRunResultType | null;
 	valid: boolean;
 	invalidReason: string | null;
 	/** True when the accepted attempt was throttled and retried. */
@@ -175,33 +179,6 @@ const signalGroup = (child: ChildProcess, signal: NodeJS.Signals): void => {
 	} catch {
 		child.kill(signal);
 	}
-};
-
-/**
- * Assesses the declarative workflow gates for one run.
- *
- * @param testCase - Case policy.
- * @param events - Parsed events.
- * @returns Compliance and the violated gates.
- */
-export const workflowOf = (testCase: CaseType, events: RunEventsType): WorkflowResultType => {
-	const violations: string[] = [];
-
-	if (events.toolCalls.length > testCase.workflow.maxTotalCalls) {
-		violations.push(`tool calls ${events.toolCalls.length} > ${testCase.workflow.maxTotalCalls}`);
-	}
-
-	if (events.outputBytes > testCase.workflow.maxOutputBytes) {
-		violations.push(`output bytes ${events.outputBytes} > ${testCase.workflow.maxOutputBytes}`);
-	}
-
-	const required = testCase.workflow.requiredFirstTool;
-
-	if (required !== null && events.toolCalls[0]?.tool !== required) {
-		violations.push(`first tool ${events.toolCalls[0]?.tool ?? 'none'} != ${required}`);
-	}
-
-	return {compliant: violations.length === 0, violations};
 };
 
 type AttemptResultType = Readonly<{
@@ -326,7 +303,13 @@ const attemptOnce = async (
 	const exitCode = exit.code;
 	const events = parseEvents(stdout);
 	const grade = gradeOf(input.testCase, events.finalText);
-	const workflow = workflowOf(input.testCase, events);
+	const workflow = workflowOf(input.testCase, events, durationMs);
+	const postRun =
+		input.testCase.check === null
+			? null
+			: timedOut
+				? skippedPostRunOf(input.testCase.check, 'the agent timed out before the post-run command could execute')
+				: await postRunOf(input.testCase.check, input.cwd);
 	const routing = routingOf(
 		input.surface,
 		events.toolCalls.map((call) => call.tool),
@@ -384,6 +367,7 @@ const attemptOnce = async (
 			errors: events.errors,
 			grade,
 			workflow,
+			postRun,
 			valid: invalidReason === null,
 			invalidReason,
 			finalText: events.finalText.slice(0, FINAL_TEXT_TAIL),
