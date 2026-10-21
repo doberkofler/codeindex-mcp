@@ -1,48 +1,7 @@
-import {Client} from '@modelcontextprotocol/client';
-import {InMemoryTransport} from '@modelcontextprotocol/server';
+import {type Client} from '@modelcontextprotocol/client';
 import {afterEach, describe, expect, it} from 'vitest';
-import {buildMcpServer} from '../src/transports/mcp/buildMcpServer.ts';
-import {createFixtureIndex, silentLogger, type FixtureProjectType} from './helpers/fixture.ts';
-
-type EnvelopeType = Readonly<{ok: boolean; data?: unknown; error?: Readonly<{code: string; message: string}>}>;
-
-type ConnectionType = Readonly<{client: Client; close: () => Promise<void>}>;
-
-const textOf = (result: Readonly<{content: readonly {type: string; text?: string}[]}>): string => {
-	const content = result.content.at(0);
-
-	if (content?.type !== 'text' || content.text === undefined) {
-		throw new Error('Expected text content');
-	}
-
-	return content.text;
-};
-
-const openFixture = async (
-	fixtureName: string,
-	maxResultBytes: number,
-	projects?: readonly FixtureProjectType[],
-	extractorId = 'typescript',
-): Promise<ConnectionType> => {
-	const fixture = createFixtureIndex(fixtureName, projects, extractorId);
-	const server = buildMcpServer({index: fixture.index, logger: silentLogger, maxResultBytes});
-	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-
-	await server.connect(serverTransport);
-
-	const client = new Client({name: 'code-index-test', version: '0.1.0'});
-
-	await client.connect(clientTransport);
-
-	return {
-		client,
-		close: async (): Promise<void> => {
-			await client.close();
-			await server.close();
-			fixture.cleanup();
-		},
-	};
-};
+import {type FixtureProjectType} from './helpers/fixture.ts';
+import {openFixture, textOf, type ConnectionType, type EnvelopeType} from './helpers/mcpClient.ts';
 
 describe('MCP adapter', () => {
 	let connection: ConnectionType | undefined;
@@ -85,6 +44,8 @@ describe('MCP adapter', () => {
 		expect(instructions).toContain('A current, untruncated direct result is the complete answer');
 		expect(instructions).toContain('Do not search manifests, grep source, read the listed files, or expand into downstream consumers');
 		expect(instructions).toContain('Use detail evidence only when import statements, bindings, or locations are requested');
+		expect(instructions).toContain('When guidance.action is stop and guidance.fallbackRequired is false');
+		expect(instructions).toContain('report it and do not run a fallback search');
 		expect(description).toContain('a current untruncated result is the complete answer');
 	});
 
@@ -149,16 +110,6 @@ describe('MCP adapter', () => {
 
 		expect(envelope.ok).toBe(true);
 		expect(envelope.data.items[0]).toMatchObject({name: 'ServiceRequest', contexts: ['browser', 'contracts', 'server']});
-	});
-
-	it('reports status through the protocol', async () => {
-		const client = await connect();
-		const result = await client.callTool({name: 'index_status', arguments: {}});
-		const envelope = JSON.parse(textOf(result)) as EnvelopeType & {data: {ready: boolean; counts: {files: number}}};
-
-		expect(envelope.ok).toBe(true);
-		expect(envelope.data.ready).toBe(true);
-		expect(envelope.data.counts.files).toBe(4);
 	});
 });
 

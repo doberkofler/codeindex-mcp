@@ -23,7 +23,7 @@ Six read-only MCP tools are exposed:
 
 | Tool | Purpose |
 | --- | --- |
-| `index_status` | Readiness, scope, counts, freshness, diagnostics, limitations |
+| `index_status` | Bounded readiness, scope, counts, freshness, and last error; full detail adds build and limitation data |
 | `outline` | Declarations in one file, in source order |
 | `find_symbol` | Exact or prefix symbol search |
 | `find_references` | Occurrences for one symbol ID, or one-call name resolution with file/owner grouping |

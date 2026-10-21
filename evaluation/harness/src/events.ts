@@ -50,6 +50,11 @@ export type ToolCallType = Readonly<{
 	inputText: string;
 	/** UTF-8 bytes of the tool output or error text. */
 	outputBytes: number;
+	/**
+	 * Explicit authority marker from the response guidance, or null when the
+	 * response carried none (including every pre-guidance artifact).
+	 */
+	authoritative: boolean | null;
 	/** Duration reported by the tool part, or null when it was not reported. */
 	durationMs: number | null;
 	/** Error text when the tool failed, else null. */
@@ -303,6 +308,34 @@ const durationOf = (state: Record<string, unknown>): number | null => {
 	return start !== null && end !== null && end >= start ? end - start : null;
 };
 
+/**
+ * Reads the explicit authority marker from a serialized tool response.
+ *
+ * @param output - Tool output text.
+ * @returns True for stop guidance, false for any other guidance, null when absent.
+ */
+const authoritativeOf = (output: string): boolean | null => {
+	if (output.length === 0) {
+		return null;
+	}
+
+	try {
+		const parsed: unknown = JSON.parse(output);
+
+		if (!isRecord(parsed) || !isRecord(parsed['guidance'])) {
+			return null;
+		}
+
+		const guidance = parsed['guidance'];
+		const action = guidance['action'];
+		const fallbackRequired = guidance['fallbackRequired'];
+
+		return typeof action === 'string' && typeof fallbackRequired === 'boolean' ? action === 'stop' && !fallbackRequired : null;
+	} catch {
+		return null;
+	}
+};
+
 const normalizeToolCall = (part: Record<string, unknown>, input: Readonly<{index: number; rawIndex: number; parentIndex: number | null}>): ToolCallType => {
 	const state = recordAt(part['state']);
 	const rawInput = state['input'];
@@ -321,6 +354,7 @@ const normalizeToolCall = (part: Record<string, unknown>, input: Readonly<{index
 		inputValid: inputRecord !== null,
 		inputText: JSON.stringify(inputRecord ?? '').slice(0, MAX_INPUT_TEXT),
 		outputBytes: Buffer.byteLength(output, 'utf8'),
+		authoritative: authoritativeOf(output),
 		durationMs: durationOf(state),
 		error: error === null ? null : error.slice(0, MAX_ERROR_TEXT),
 	};

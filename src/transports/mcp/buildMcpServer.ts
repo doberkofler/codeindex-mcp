@@ -1,12 +1,14 @@
 import {McpServer, type ServerContext} from '@modelcontextprotocol/server';
 import {type ZodType} from 'zod';
 import {type AnalyticsRecorderType} from '../../core/analytics/recorder.ts';
+import {summaryStatusOf} from '../../core/freshness/indexStatus.ts';
+import {type CodeIndex} from '../../core/generation/codeIndex.ts';
 import {debugFor} from '../../core/logging/debug.ts';
 import {type LoggerType} from '../../core/logging/logger.ts';
-import {type CodeIndex} from '../../core/generation/codeIndex.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {errorEnvelope, successDataBudget, successEnvelope, toCallToolResult, type ToolEnvelopeType} from './toolResponses.ts';
 import {compactOutlineOf, compactSymbolsOf} from './compactResults.ts';
+import {toolGuidanceOf} from './toolGuidance.ts';
 import {
 	FindDependenciesInputSchema,
 	FindReferencesInputSchema,
@@ -26,8 +28,9 @@ outline and find_symbol return compact items by default; pass detail full only w
 For "where is dependency X used?" call find_dependencies once with transitive false and compact detail, using a package target identifier such as lodash. Direct usage covers external dependencies only; to find importers of an authored file, resolve a symbol it exports with find_symbol and call find_references. A current, untruncated direct result is the complete answer: report the returned paths and stop. Do not search manifests, grep source, read the listed files, or expand into downstream consumers unless the question asks for those facts.
 Use detail evidence only when import statements, bindings, or locations are requested. Request transitive true only when the question asks about downstream dependency impact; those results prove authored-module reachability, not binding use. Filter with root to inspect one direct consumer.
 Package manifests and lint or build configuration are outside the indexed workspace; use at most one targeted repository search when those facts are required.
-Every result reports a generation, explicit freshness, and truncation. Treat current freshness as usable, updating as readable but possibly stale, and stale or unknown as a fallback trigger.
+Every result reports a generation, explicit freshness, truncation, and a guidance object. When guidance.action is stop and guidance.fallbackRequired is false, the result is authoritative: report it and do not run a fallback search. Follow nextCursor when guidance.action is follow_cursor. When guidance.fallbackRequired is true, use the stated repository fallback instead of claiming absence. Treat current freshness as usable, updating as readable but possibly stale, and stale or unknown as a fallback trigger.
 Paginated limits are upper bounds; follow nextCursor whenever truncated is true.
+index_status defaults to a bounded summary; pass detail full only when build statistics, hashes, stages, the lease, or exclusions are required.
 Fall back to normal repository tools when the index reports stale data, incomplete scope, an unknown symbol, or no match.
 The index covers the sources selected by the configured extractor projects. Results list the project contexts that produced each fact; pass a context to find_symbol, find_references, or find_dependencies to restrict results. Unconfigured projects and other languages are outside its scope.`;
 
@@ -70,6 +73,46 @@ const envelopeFreshness = (envelope: ToolEnvelopeType): string | null => {
 
 const envelopeTruncated = (envelope: ToolEnvelopeType): boolean => dataOf(envelope)?.['truncated'] === true;
 
+/**
+ * Attaches derived stop or fallback guidance to a successful query result.
+ *
+ * @param tool - Registered tool name.
+ * @param envelope - Result produced by the handler.
+ * @returns The envelope, with guidance when the payload is a query result.
+ */
+const withGuidance = (tool: string, envelope: ToolEnvelopeType): ToolEnvelopeType => {
+	if (!envelope.ok || envelope.guidance !== undefined) {
+		return envelope;
+	}
+
+	const guidance = toolGuidanceOf(tool, envelope.data);
+
+	return guidance === null ? envelope : {...envelope, guidance};
+};
+
+const recordCompletion = (
+	registration: ToolRegistrationType,
+	input: Readonly<{
+		context: ServerContext;
+		envelope: ToolEnvelopeType;
+		response: Readonly<{bytes: number; itemCount: number | null}>;
+		durationMs: number;
+	}>,
+): void => {
+	const {context, envelope, response, durationMs} = input;
+	const errorCode = envelope.ok ? null : envelope.error.code;
+	const fields = {tool: registration.name, durationMs, bytes: response.bytes, items: response.itemCount, ok: envelope.ok, errorCode};
+
+	debug('tool call complete', fields);
+	registration.logger.debug('tool call complete', fields);
+	registration.analytics?.record('mcp_tool_call', {
+		...fields,
+		sessionId: sessionIdOf(context),
+		freshness: envelopeFreshness(envelope),
+		truncated: envelopeTruncated(envelope),
+	});
+};
+
 const register = (server: McpServer, registration: ToolRegistrationType, inputSchema: ZodType): void => {
 	server.registerTool(
 		registration.name,
@@ -91,36 +134,10 @@ const register = (server: McpServer, registration: ToolRegistrationType, inputSc
 				envelope = errorEnvelope(error);
 			}
 
+			envelope = withGuidance(registration.name, envelope);
 			const durationMs = Math.round(performance.now() - startedAt);
 			const response = toCallToolResult(envelope, registration.maxResultBytes);
-			debug('tool call complete', {
-				tool: registration.name,
-				durationMs,
-				bytes: response.bytes,
-				items: response.itemCount,
-				ok: envelope.ok,
-				errorCode: envelope.ok ? null : envelope.error.code,
-			});
-
-			registration.logger.debug('tool call complete', {
-				tool: registration.name,
-				durationMs,
-				bytes: response.bytes,
-				items: response.itemCount,
-				ok: envelope.ok,
-				errorCode: envelope.ok ? null : envelope.error.code,
-			});
-			registration.analytics?.record('mcp_tool_call', {
-				tool: registration.name,
-				sessionId: sessionIdOf(context),
-				durationMs,
-				bytes: response.bytes,
-				items: response.itemCount,
-				ok: envelope.ok,
-				errorCode: envelope.ok ? null : envelope.error.code,
-				freshness: envelopeFreshness(envelope),
-				truncated: envelopeTruncated(envelope),
-			});
+			recordCompletion(registration, {context, envelope, response, durationMs});
 
 			return response.result;
 		},
@@ -159,37 +176,33 @@ const findSymbolsHandlerOf =
 		return successEnvelope(detail === 'full' ? result : compactSymbolsOf(result));
 	};
 
-/**
- * Builds the local stdio MCP server that exposes the seven read-only index tools.
- *
- * The adapter validates transport input, calls one `CodeIndex` method, and
- * translates the result. It deliberately contains no SQL or compiler behavior.
- *
- * @param input - Index facade, logger, and response byte limit.
- * @returns The configured MCP server.
- */
-export const buildMcpServer = (
-	input: Readonly<{
-		index: CodeIndex;
-		logger: LoggerType;
-		analytics?: AnalyticsRecorderType;
-		maxResultBytes: number;
-	}>,
-): McpServer => {
-	const server = new McpServer({name: PROGRAM_NAME, version: PROGRAM_VERSION}, {instructions: SERVER_INSTRUCTIONS});
-	const {index, logger, maxResultBytes, analytics = null} = input;
-	debug('mcp server built', {name: PROGRAM_NAME, version: PROGRAM_VERSION, maxResultBytes});
+type ServerInputType = Readonly<{
+	index: CodeIndex;
+	logger: LoggerType;
+	analytics?: AnalyticsRecorderType;
+	maxResultBytes: number;
+}>;
+
+const registerTools = (server: McpServer, input: ServerInputType): void => {
+	const {index, logger, maxResultBytes} = input;
+	const analytics = input.analytics ?? null;
 	const tool = (registration: ToolRegistrationType, inputSchema: ZodType): void => {
 		register(server, registration, inputSchema);
 	};
 	tool(
 		{
 			name: 'index_status',
-			description: 'Report index readiness, scope, counts, freshness, diagnostics, and exclusions.',
+			description:
+				'Report index readiness, scope, counts, freshness, diagnostics, and the last error. Defaults to a bounded summary; pass detail full to add hashes, build statistics, build stages, the build lease, and exclusions.',
 			maxResultBytes,
 			logger,
 			analytics,
-			invoke: () => successEnvelope(index.getStatus()),
+			invoke: (rawArgs) => {
+				const {detail} = IndexStatusInputSchema.parse(rawArgs);
+				const status = index.getStatus();
+
+				return successEnvelope(detail === 'full' ? status : summaryStatusOf(status));
+			},
 		},
 		IndexStatusInputSchema,
 	);
@@ -198,7 +211,7 @@ export const buildMcpServer = (
 		{
 			name: 'outline',
 			description:
-				'List declarations defined in one indexed file, in source order. Compact detail (default) returns symbolId, name, kind, and line range; full detail adds qualified names, bindings, and definition sites.',
+				'List declarations defined in one indexed file, in source order. Compact detail (default) returns symbolId, name, kind, and line range; full detail adds qualified names, bindings, and definition sites. A current untruncated outline is the complete declaration list for that file: report it and stop.',
 			maxResultBytes,
 			logger,
 			analytics,
@@ -211,7 +224,7 @@ export const buildMcpServer = (
 		{
 			name: 'find_symbol',
 			description:
-				'Find a declaration by exact qualified name, exact simple name, or name prefix. Compact detail (default) returns symbolId, name, qualified name, kind, and line range; full detail adds bindings, names, and definition sites.',
+				'Find a declaration by exact qualified name, exact simple name, or name prefix. Compact detail (default) returns symbolId, name, qualified name, kind, and line range; full detail adds bindings, names, and definition sites. A current untruncated result is the complete declaration set: report it and stop.',
 			maxResultBytes,
 			logger,
 			analytics,
@@ -250,7 +263,7 @@ export const buildMcpServer = (
 		{
 			name: 'read_symbol',
 			description:
-				'Read bounded source for one symbol or list its definition sites, bindings, binding sites, or binding contexts; refuses stale files and reports truncation.',
+				'Read bounded source for one symbol or list its definition sites, bindings, binding sites, or binding contexts; refuses stale files and reports truncation. A current text result is authoritative source: report it and stop.',
 			maxResultBytes,
 			logger,
 			analytics,
@@ -262,7 +275,7 @@ export const buildMcpServer = (
 	tool(
 		{
 			name: 'symbol_at',
-			description: 'Find the innermost stored definition covering a source position or line.',
+			description: 'Find the innermost stored definition covering a source position or line. A current non-empty result is authoritative: report it and stop.',
 			maxResultBytes,
 			logger,
 			analytics,
@@ -270,6 +283,22 @@ export const buildMcpServer = (
 		},
 		SymbolAtInputSchema,
 	);
+};
+
+/**
+ * Builds the local stdio MCP server that exposes the seven read-only index tools.
+ *
+ * The adapter validates transport input, calls one `CodeIndex` method, and
+ * translates the result. It deliberately contains no SQL or compiler behavior.
+ *
+ * @param input - Index facade, logger, and response byte limit.
+ * @returns The configured MCP server.
+ */
+export const buildMcpServer = (input: ServerInputType): McpServer => {
+	const server = new McpServer({name: PROGRAM_NAME, version: PROGRAM_VERSION}, {instructions: SERVER_INSTRUCTIONS});
+
+	debug('mcp server built', {name: PROGRAM_NAME, version: PROGRAM_VERSION, maxResultBytes: input.maxResultBytes});
+	registerTools(server, input);
 
 	return server;
 };

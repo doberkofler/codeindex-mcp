@@ -183,8 +183,9 @@ Core tables:
 | `extraction_artifact` | Per-file reusable facts keyed by content, extractor, and context |
 | `build_lease` | Single-writer ownership |
 
-Persisted paths are workspace-relative POSIX paths. Absolute paths appear only in
-`index_status.scope` for the configured root and project files.
+Persisted paths are workspace-relative POSIX paths. Absolute paths appear only in the
+full `index_status.scope` payload for the configured root and project files; the default
+summary omits the absolute root.
 
 The [publication policy](./codeindex-publication-policy-redesign.md) defines the next
 schema version's normalized fact tables. The list above describes the current release
@@ -306,7 +307,7 @@ cursor, and a truncation flag.
 
 | Tool | Input | Notes |
 | --- | --- | --- |
-| `index_status` | none | Readiness, scope, counts, freshness, diagnostics, limitations |
+| `index_status` | detail | Bounded readiness, scope, counts, freshness, and last error; full adds hashes, build statistics, stages, lease, and limitations |
 | `outline` | path, kinds, detail, limit, cursor | Source order; compact by default |
 | `find_symbol` | query, optional context, detail, limit, cursor | Exact qualified, exact name, prefix qualified, prefix name |
 | `find_references` | symbol id or query, group, role, filters, limit, cursor | Occurrences, file groups, owner groups, ambiguity, or text-search fallback |
@@ -325,6 +326,16 @@ routinely exhaust the response budget for a single file.
 
 Result rules:
 
+- Every successful query result carries `guidance` with `action`,
+  `fallbackRequired`, and `message`. `action: stop` with
+  `fallbackRequired: false` marks an authoritative, current, non-empty,
+  untruncated result, so no fallback search is required.
+- `action: follow_cursor` means the page is truncated; follow `nextCursor`
+  before answering. `action: text_search` is the only case that requires a
+  repository fallback, and `action: refine` asks for one candidate to be chosen.
+- `index_status` defaults to a bounded summary of readiness, scope, counts,
+  freshness, and the last error. `detail: full` adds hashes, build statistics,
+  build stages, the lease, and exclusions.
 - A requested limit is an upper bound. Pages shorten to fit the response byte
   budget.
 - Follow `nextCursor` when `truncated` is true. Cursors are bound to a

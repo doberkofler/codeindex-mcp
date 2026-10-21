@@ -1,5 +1,5 @@
 import {afterAll, describe, expect, it} from 'vitest';
-import {collectStatus, type StatusInputType} from '../src/core/freshness/indexStatus.ts';
+import {collectStatus, summaryStatusOf, type StatusInputType} from '../src/core/freshness/indexStatus.ts';
 import {type RefreshCoordinatorSnapshotType} from '../src/core/freshness/refreshCoordinator.ts';
 import {type GenerationRowType, type RefreshStateType} from '../src/core/model.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
@@ -97,6 +97,41 @@ describe('index status', () => {
 			build: {startedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T00:00:02.000Z', durationMs: 2000},
 		});
 		expect(status.build.stages).toStrictEqual({scanMs: 1, compilerMs: 2, extractionMs: 3, insertionMs: 4, verificationMs: 5, publicationMs: 6});
+	});
+
+	it('projects a bounded summary that preserves freshness, counts, and the retained error', () => {
+		const status = statusOf({
+			published: generation({
+				stages: {scanMs: 1, compilerMs: 2, extractionMs: 3, insertionMs: 4, verificationMs: 5, publicationMs: 6},
+			}),
+			lastError: 'retained',
+		});
+		const summary = summaryStatusOf(status);
+
+		expect(summary).toMatchObject({
+			ready: true,
+			state: 'published',
+			refresh: 'current',
+			generationId: 'generation',
+			building: false,
+			scope: {
+				projectName: fixture.config.projectName,
+				contexts: ['root'],
+				extractor: {id: 'typescript', compilerVersion: '5.0.0'},
+			},
+			counts: {files: 1, symbols: 2, occurrences: 3, dependencyEdges: 4, dependencyBindings: 5, diagnostics: 6},
+			freshness: {state: 'current', dirtyFileCount: null, staleFiles: 0, sourceChanged: false},
+			lastError: 'retained',
+		});
+		expect(summary).not.toHaveProperty('scope.root');
+		expect(summary).not.toHaveProperty('scope.projectId');
+		expect(summary).not.toHaveProperty('scope.workingCopyId');
+		expect(summary).not.toHaveProperty('hashes');
+		expect(summary).not.toHaveProperty('buildStats');
+		expect(summary).not.toHaveProperty('build');
+		expect(summary).not.toHaveProperty('lease');
+		expect(summary).not.toHaveProperty('exclusions');
+		expect(Buffer.byteLength(JSON.stringify({ok: true, data: summary}), 'utf8')).toBeLessThanOrEqual(600);
 	});
 
 	it('reports absent and incomplete generations', () => {

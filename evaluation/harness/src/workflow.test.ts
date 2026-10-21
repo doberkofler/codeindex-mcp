@@ -10,6 +10,7 @@ type CallInputType = Readonly<{
 	input?: Record<string, unknown>;
 	status?: ToolCallType['status'];
 	outputBytes?: number;
+	authoritative?: boolean | null;
 	index?: number;
 }>;
 
@@ -25,6 +26,7 @@ const callOf = (input: CallInputType): ToolCallType => ({
 	inputValid: true,
 	inputText: JSON.stringify(input.input ?? {}),
 	outputBytes: input.outputBytes ?? 0,
+	authoritative: input.authoritative ?? null,
 	durationMs: 1,
 	error: null,
 });
@@ -146,11 +148,21 @@ test('fallback after an authoritative index result is measured, not assumed', ()
 		callOf({tool: 'codeindex_find_symbol', family: 'index', input: {query: 'A'}, status: 'error', index: 1, outputBytes: 0}),
 		call('read', 'read', {path: 'src/a.ts'}, 2, 5),
 	];
+	const truncatedIndex = [
+		callOf({tool: 'codeindex_find_symbol', family: 'index', input: {query: 'A'}, index: 1, outputBytes: 20, authoritative: false}),
+		call('read', 'read', {path: 'src/a.ts'}, 2, 5),
+	];
+	const statusOnly = [
+		callOf({tool: 'codeindex_index_status', family: 'index', input: {}, index: 1, outputBytes: 20}),
+		call('read', 'read', {path: 'src/a.ts'}, 2, 5),
+	];
 
 	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 1}), afterSuccess, 'routing.fallback-after-authoritative')?.result, 'pass');
 	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), afterSuccess, 'routing.fallback-after-authoritative')?.result, 'fail');
 	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), beforeSuccess, 'routing.fallback-after-authoritative')?.result, 'pass');
 	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), failedIndex, 'routing.fallback-after-authoritative')?.result, 'pass');
+	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), truncatedIndex, 'routing.fallback-after-authoritative')?.result, 'pass');
+	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), statusOnly, 'routing.fallback-after-authoritative')?.result, 'pass');
 });
 
 test('broad-search classification is structural and ignores query text', () => {

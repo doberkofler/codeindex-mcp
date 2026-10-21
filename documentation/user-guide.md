@@ -176,7 +176,7 @@ The server exposes seven read-only tools:
 
 | Tool | Use |
 | --- | --- |
-| `index_status` | Readiness, indexed scope, freshness, counts, diagnostics, limitations |
+| `index_status` | Bounded readiness, indexed scope, freshness, counts, and last error; full detail adds build data, diagnostics, and limitations |
 | `outline` | Declarations in one workspace-relative file, plus a bounded re-export list; compact detail by default |
 | `find_symbol` | Exact or prefix name/qualified lookup with exposure, kind, container, path, and context filters; compact detail by default |
 | `find_references` | Occurrences for one symbol ID, or one-call name resolution with file/owner grouping |
@@ -203,6 +203,15 @@ Each query reports its generation and freshness:
 - `updating`: the previous generation remains readable but may omit the latest
   edits.
 - `stale` or `unknown`: use repository search or direct file reads instead.
+
+Each successful query result also reports `guidance`. A `stop` action with
+`fallbackRequired: false` marks an authoritative result: report it and stop without a
+fallback search. Follow `nextCursor` when the action is `follow_cursor`. A
+`text_search` action is the fallback case; `refine` asks for one candidate to be chosen.
+
+`index_status` defaults to a bounded summary of readiness, project contexts, counts,
+freshness, and the last error. Pass `detail: "full"` only when hashes, build statistics,
+build stages, the build lease, or exclusions are required.
 
 Results are bounded. Follow `nextCursor` when `truncated` is true. A requested
 limit is an upper bound; pages shorten automatically to fit the byte budget.

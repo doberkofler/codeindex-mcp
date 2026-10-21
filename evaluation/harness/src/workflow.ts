@@ -152,8 +152,21 @@ const duplicateReadsOf = (calls: readonly ToolCallType[]): number => {
 	return duplicates;
 };
 
+/**
+ * Reports whether one index call returned an authoritative answer.
+ *
+ * New artifacts mark authority explicitly. Pre-guidance artifacts keep the
+ * historical non-empty-success heuristic, except for `index_status`, which is
+ * not an answer and must never count as one.
+ *
+ * @param call - Normalized tool call.
+ * @returns True when a fallback after this call is wasteful.
+ */
+const isAuthoritativeIndexCall = (call: ToolCallType): boolean =>
+	call.family === 'index' && call.status === 'completed' && (call.authoritative ?? (call.outputBytes > 0 && call.tool !== 'codeindex_index_status'));
+
 const fallbacksAfterAuthoritativeOf = (calls: readonly ToolCallType[]): number => {
-	const authoritative = calls.find((call) => call.family === 'index' && call.status === 'completed' && call.outputBytes > 0);
+	const authoritative = calls.find(isAuthoritativeIndexCall);
 
 	if (authoritative === undefined) {
 		return 0;

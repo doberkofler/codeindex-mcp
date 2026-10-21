@@ -1,7 +1,7 @@
 import {type ConfigType} from '../config/config.ts';
 import {extractorFor} from '../../adapters/registry.ts';
 import {type IndexDatabase} from '../storage/database.ts';
-import {type BuildLeaseType, type GenerationRowType, type IndexStatusType, type QueryFreshnessType} from '../model.ts';
+import {type BuildLeaseType, type GenerationRowType, type IndexStatusSummaryType, type IndexStatusType, type QueryFreshnessType} from '../model.ts';
 import {type RefreshCoordinatorSnapshotType} from './refreshCoordinator.ts';
 
 const CORE_EXCLUSIONS: readonly string[] = [
@@ -101,3 +101,30 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 		lastError: refresh.lastError ?? input.lastError,
 	};
 };
+
+/**
+ * Projects status onto the bounded default response.
+ *
+ * The summary keeps readiness, freshness, counts, the configured project
+ * contexts, and the retained error. Hashes, build statistics, build stages,
+ * the lease, and exclusions stay available through `detail: full` so the
+ * default response fits the 600-byte status budget.
+ *
+ * @param status - Complete status payload.
+ * @returns The compact status payload.
+ */
+export const summaryStatusOf = (status: IndexStatusType): IndexStatusSummaryType => ({
+	ready: status.ready,
+	state: status.state,
+	refresh: status.refresh,
+	generationId: status.generationId,
+	building: status.building,
+	scope: {
+		projectName: status.scope.projectName,
+		contexts: status.scope.projects.map((project) => project.name),
+		extractor: status.scope.extractor,
+	},
+	counts: status.counts,
+	freshness: status.freshness,
+	lastError: status.lastError,
+});

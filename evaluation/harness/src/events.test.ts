@@ -183,6 +183,31 @@ test('top-level, server-envelope, and nested tool calls normalize into one seque
 	);
 });
 
+test('explicit result guidance marks authority independently of output size', () => {
+	const part = (callID: string, action: string, fallbackRequired: boolean): unknown => ({
+		type: 'tool',
+		callID,
+		tool: 'codeindex_find_symbol',
+		state: {
+			status: 'completed',
+			input: {query: 'A'},
+			output: JSON.stringify({ok: true, data: {items: [{}]}, guidance: {action, fallbackRequired, message: 'guidance'}}),
+		},
+	});
+	const events = parseEvents(
+		lines(
+			{type: 'tool_use', part: part('stop', 'stop', false)},
+			{type: 'tool_use', part: part('cursor', 'follow_cursor', false)},
+			{type: 'tool_use', part: {type: 'tool', callID: 'plain', tool: 'codeindex_find_symbol', state: {status: 'completed', input: {}, output: '{}'}}},
+		),
+	);
+
+	assert.deepEqual(
+		events.toolCalls.map((call) => call.authoritative),
+		[true, false, null],
+	);
+});
+
 test('the same provider call is not counted twice across envelopes', () => {
 	const part = {
 		type: 'tool',

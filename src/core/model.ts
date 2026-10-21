@@ -349,6 +349,23 @@ export type IndexStatusType = Readonly<{
 	readonly lastError: string | null;
 }>;
 
+/** Bounded status projection for the default MCP response. */
+export type IndexStatusSummaryType = Readonly<{
+	readonly ready: boolean;
+	readonly state: IndexStatusType['state'];
+	readonly refresh: IndexStatusType['refresh'];
+	readonly generationId: string | null;
+	readonly building: boolean;
+	readonly scope: Readonly<{
+		readonly projectName: string;
+		readonly contexts: readonly string[];
+		readonly extractor: IndexStatusType['scope']['extractor'];
+	}>;
+	readonly counts: IndexStatusType['counts'];
+	readonly freshness: IndexStatusType['freshness'];
+	readonly lastError: string | null;
+}>;
+
 export type {
 	SymbolSummaryType,
 	BindingExposureType,

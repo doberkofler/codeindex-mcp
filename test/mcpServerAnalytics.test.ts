@@ -18,7 +18,17 @@ const page = (freshness: unknown): Readonly<{generationId: string; freshness: un
 
 const open = async (): Promise<ConnectionType> => {
 	const index = {
-		getStatus: () => ({ready: true}),
+		getStatus: () => ({
+			ready: true,
+			state: 'published',
+			refresh: 'current',
+			generationId: 'generation-1',
+			building: false,
+			scope: {projectName: 'root', projects: [], extractor: {id: 'typescript', version: '1', compilerVersion: '5.0.0'}},
+			counts: {files: 0, symbols: 0, occurrences: 0, dependencyEdges: 0, dependencyBindings: 0, diagnostics: 0},
+			freshness: {state: 'current', checkedAt: '2026-01-01T00:00:00.000Z', dirtyFileCount: null, staleFiles: 0, sourceChanged: false},
+			lastError: null,
+		}),
 		getOutline: () => page({state: 'current'}),
 		findSymbols: () => page('current'),
 		findReferences: () => page(42),
@@ -70,12 +80,24 @@ describe('MCP server analytics', () => {
 
 		const freshness = vi.mocked(analytics.record).mock.calls.map(([, fields]) => (fields as {freshness?: unknown} | undefined)?.freshness);
 
-		expect(freshness).toStrictEqual([null, 'current', 'current', null, null]);
+		expect(freshness).toStrictEqual(['current', 'current', 'current', null, null]);
 		expect(vi.mocked(analytics.record).mock.calls.map(([event]) => event)).toStrictEqual(Array.from({length: 5}, () => 'mcp_tool_call'));
 	});
 
 	it('keeps analytics optional', async () => {
-		const index = {getStatus: () => ({ready: true})} as unknown as CodeIndex;
+		const index = {
+			getStatus: () => ({
+				ready: true,
+				state: 'published',
+				refresh: 'current',
+				generationId: 'generation-1',
+				building: false,
+				scope: {projectName: 'root', projects: [], extractor: {id: 'typescript', version: '1', compilerVersion: '5.0.0'}},
+				counts: {files: 0, symbols: 0, occurrences: 0, dependencyEdges: 0, dependencyBindings: 0, diagnostics: 0},
+				freshness: {state: 'current', checkedAt: '2026-01-01T00:00:00.000Z', dirtyFileCount: null, staleFiles: 0, sourceChanged: false},
+				lastError: null,
+			}),
+		} as unknown as CodeIndex;
 		const server = buildMcpServer({index, logger: silentLogger, maxResultBytes: 1024});
 		const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 

@@ -114,6 +114,7 @@ const runOf = (overrides: RunOverridesType = {}): RunResultType => {
 		inputValid: false,
 		inputText: '',
 		outputBytes: index === 0 ? retrievalBytes : 0,
+		authoritative: null,
 		durationMs: 10,
 		error: null,
 	}));

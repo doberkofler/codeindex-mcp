@@ -9,7 +9,14 @@ const LimitSchema = z.number().int().min(1).max(100).default(50);
 const DependencyLimitSchema = z.number().int().min(1).max(100).default(25);
 const CursorSchema = z.string().min(1).optional();
 
-export const IndexStatusInputSchema = z.object({});
+export const IndexStatusInputSchema = z.object({
+	detail: z
+		.enum(['summary', 'full'])
+		.default('summary')
+		.describe(
+			'summary (default) returns the bounded readiness, scope, counts, freshness, and last error; full adds hashes, build statistics, stages, lease, and exclusions',
+		),
+});
 
 export const OutlineInputSchema = z.object({
 	path: z.string().min(1).describe('Repository-relative POSIX path, for example src/data/user/index.ts'),

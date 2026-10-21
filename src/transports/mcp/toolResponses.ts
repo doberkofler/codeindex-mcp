@@ -1,22 +1,28 @@
 import {type CallToolResult} from '@modelcontextprotocol/server';
 import {type ErrorCodeType, isCodeIndexError} from '../../core/errors/errors.ts';
 import {debugFor} from '../../core/logging/debug.ts';
+import {type ToolGuidanceType} from './toolGuidance.ts';
 
 const debug = debugFor('mcp');
 const SUCCESS_ENVELOPE_OVERHEAD_BYTES = Buffer.byteLength(JSON.stringify({ok: true, data: null}), 'utf8') - Buffer.byteLength('null', 'utf8');
+const GUIDANCE_ENVELOPE_OVERHEAD_BYTES = 192;
 const INTERNAL_ERROR_MESSAGE = 'Internal index failure';
 
-export type ToolEnvelopeType = Readonly<{ok: true; data: unknown}> | Readonly<{ok: false; error: Readonly<{code: ErrorCodeType; message: string}>}>;
+export type ToolEnvelopeType =
+	| Readonly<{ok: true; data: unknown; guidance?: ToolGuidanceType | undefined}>
+	| Readonly<{ok: false; error: Readonly<{code: ErrorCodeType; message: string}>}>;
 
-export const successEnvelope = (data: unknown): ToolEnvelopeType => ({ok: true, data});
+export const successEnvelope = (data: unknown, guidance?: ToolGuidanceType): ToolEnvelopeType =>
+	guidance === undefined ? {ok: true, data} : {ok: true, data, guidance};
 
 /**
  * Converts a complete MCP response budget into the budget available to data.
  *
  * @param maxResultBytes - Maximum serialized success-envelope size.
- * @returns Bytes available after the fixed success-envelope framing.
+ * @returns Bytes available after the success framing and result guidance.
  */
-export const successDataBudget = (maxResultBytes: number): number => Math.max(1, maxResultBytes - SUCCESS_ENVELOPE_OVERHEAD_BYTES);
+export const successDataBudget = (maxResultBytes: number): number =>
+	Math.max(1, maxResultBytes - SUCCESS_ENVELOPE_OVERHEAD_BYTES - GUIDANCE_ENVELOPE_OVERHEAD_BYTES);
 const failureEnvelope = (code: ErrorCodeType, message: string): ToolEnvelopeType => ({ok: false, error: {code, message}});
 
 /**

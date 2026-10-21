@@ -351,7 +351,10 @@ Workflow predicates are declarative:
 - required and forbidden exact tool names;
 - the first retrieval tool, ignoring write, execute, and task calls before it;
 - duplicate reads of one exact validated input, ignoring distinct ranges;
-- retrieval fallback after a successful authoritative CodeIndex result;
+- retrieval fallback after a successful authoritative CodeIndex result: the
+  response's `guidance.action` must be `stop` with `fallbackRequired: false`;
+  pre-guidance artifacts use the non-empty completed index call as the fallback
+  marker, and `index_status` is never an answer;
 - structurally classified broad searches;
 - wall-clock and exact-or-unavailable token budgets.
 
