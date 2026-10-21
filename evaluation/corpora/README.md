@@ -24,6 +24,8 @@ snapshot do not.
   configuration when a campaign runs.
 - The revision and lock hash must match the prepared checkout before a campaign
   uses it.
-- `caseHashes` stays empty until the suite freeze pins cases against this corpus.
+- `caseHashes` stays empty until a suite freeze admits cases against this corpus.
+  Release suite version 1 admits no external case, so the selected manifest keeps
+  an empty hash set.
 - Source is read-only. Preparation may install dependencies with lifecycle scripts
   disabled and may clean untracked generated files, but a run never edits source.

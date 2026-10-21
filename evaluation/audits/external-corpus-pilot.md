@@ -124,8 +124,9 @@ uses 3 times the peak memory, and produces a 25 times larger database; its extra
 not justify that cost at the pilot stage.
 
 The selected manifest pins the repository, revision, project file, lock hash, preparation,
-truth authority, limitations, and empty case hashes. Cases and hashes are added only by the
-suite freeze.
+truth authority, limitations, and empty case hashes. Cases and hashes are added only by a
+suite freeze that admits them. Release suite version 1 admits no external case, so the
+selected manifest keeps an empty hash set.
 
 ## Reproduction
 

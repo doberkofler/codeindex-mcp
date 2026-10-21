@@ -1,0 +1,65 @@
+{
+	"schemaVersion": 2,
+	"id": "codeindex-calibration",
+	"version": 1,
+	"status": "frozen",
+	"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516",
+	"model": "ollama/qwen3:8b",
+	"repetitions": 1,
+	"treatments": [
+		{
+			"id": "no-index",
+			"kind": "no-index",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": null,
+			"mcp": null
+		},
+		{
+			"id": "accepted",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-accepted",
+				"root": "artifacts/accepted",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		},
+		{
+			"id": "candidate",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-candidate",
+				"root": "artifacts/candidate",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		}
+	],
+	"cases": [
+		"locate-schema-version",
+		"impact-build-generation-references",
+		"impact-schema-version-references",
+		"semantic-renamed-reexport",
+		"semantic-interface-implementations",
+		"impl-default-result-bytes"
+	],
+	"caseHashes": {
+		"locate-schema-version": "c76264bf0e9a6d18f65be9592e22a6cafc850b6d420c7367cce99cc1eb0a5c7c",
+		"impact-build-generation-references": "d64bff67a6371e942796dbec670385bade280248a4a1f6ffcbdbf08d2776053c",
+		"impact-schema-version-references": "e298f45bb6b51d554d15c84e550c1adf6e3e2c356d8b7a9c774e8f1da9a52505",
+		"semantic-renamed-reexport": "b500a59ec735fd6a97d763726cf5a482cdc019233eb81ccbd91d749f1139caf8",
+		"semantic-interface-implementations": "4d01ffd36a2f2751071bc2e3b787793a7c133aa5c3832a95cf4248542b2b80fe",
+		"impl-default-result-bytes": "1aead68f05c4fa31be51a6198a589162168d98bcb341ba5aeb2928cca49be5f0"
+	}
+}

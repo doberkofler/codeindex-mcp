@@ -558,6 +558,16 @@ edits were exercised in a disposable worktree. The per-case review is recorded i
 [`../audits/repository-e0.md`](../audits/repository-e0.md). Treat the locate and
 impact cases as the repository candidates when the final suite is assembled.
 
+The frozen release suite [`../suites/release.json`](../suites/release.json) selects
+twelve of those repository cases (four locate, six impact, and two implementation)
+and the six controlled semantic cases for 18 cases total. The frozen six-case
+calibration subset [`../suites/calibration.json`](../suites/calibration.json) uses
+one locate, two impact, two semantic, and one implementation case at one
+repetition. Both suites pin revision
+`3b6b791d148ef6e96bcddd7850e1bc3c43cc4516` and every case hash. The freeze record,
+pattern coverage, corpus manifests, and expected runtime are in
+[`../audits/frozen-suite-e0.md`](../audits/frozen-suite-e0.md).
+
 The selected external corpus is pinned in
 [`../corpora/external-material-ui.json`](../corpora/external-material-ui.json) at
 revision `28eadba9ec2899226ecbf4058b8fba1ddeab9e6d`, project
@@ -565,17 +575,19 @@ revision `28eadba9ec2899226ecbf4058b8fba1ddeab9e6d`, project
 the benchmark preparation. The model-free pilot that selected it is recorded in
 [`../audits/external-corpus-pilot.md`](../audits/external-corpus-pilot.md). A
 campaign against it uses a checkout at that revision; the manifest records no
-absolute path. Cases and their hashes arrive with the suite freeze.
+absolute path. No external case is admitted to release suite version 1, so the
+corpus manifest's `caseHashes` remains empty until exact file sets and grep
+admission are recorded.
 
 The draft controlled semantic suite [`../suites/semantic.json`](../suites/semantic.json)
 adds six `semantic` cases over the reviewed disposable fixture at
 [`../fixtures/controlled-typescript`](../fixtures/controlled-typescript/README.md).
 They cover renamed re-exports, a multi-hop barrel chain, shadowed common names,
 contract implementations, a type-only import through a renamed type, and default
-export consumers. The suite declares revision `HEAD` while draft; the final suite
-freeze must replace it with an immutable commit. `src/semantic.test.ts` verifies
-each expected set against the TypeScript language service and measures literal
-search admission. The review is recorded in
+export consumers. The draft suite declares revision `HEAD`; the frozen release
+suite pins the same six cases and their hashes at an immutable commit.
+`src/semantic.test.ts` verifies each expected set against the TypeScript language
+service and measures literal search admission. The review is recorded in
 [`../audits/semantic-e0.md`](../audits/semantic-e0.md).
 
 ## Model
