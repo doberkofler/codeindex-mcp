@@ -302,8 +302,12 @@ const attemptOnce = async (
 		}, input.testCase.timeoutMs);
 
 		// A descendant that escaped the group can hold the pipes open. Never wait
-		// indefinitely for `close`: the captured streams are already complete.
+		// indefinitely for `close`: the captured streams are complete enough and
+		// an open pipe would otherwise keep the harness process alive.
 		hardCloseTimer = setTimeout(() => {
+			child.stdout?.destroy();
+			child.stderr?.destroy();
+			child.unref();
 			finish(null, 'SIGKILL');
 		}, input.testCase.timeoutMs + TERMINATE_GRACE_MS + HARD_CLOSE_GRACE_MS);
 	});

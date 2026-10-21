@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test, {type TestContext} from 'node:test';
@@ -228,50 +228,90 @@ test('repeated selection produces the same ordered plan and hash', () => {
 	assert.equal(planHashOf(first), planHashOf(second));
 });
 
-const cliSandbox = (testContext: TestContext): Readonly<{env: NodeJS.ProcessEnv; marker: string}> => {
+const gitIn = (cwd: string, args: readonly string[]): string => {
+	const result = spawnSync('git', args, {cwd, encoding: 'utf8'});
+
+	if (result.status !== 0) {
+		throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`);
+	}
+
+	return result.stdout;
+};
+
+const cliSandbox = (
+	testContext: TestContext,
+): Readonly<{root: string; env: NodeJS.ProcessEnv; marker: string; suitePath: string}> => {
 	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-cli-'));
 	const bin = path.join(root, 'bin');
 	const marker = path.join(root, 'opencode-invoked');
 	mkdirSync(bin, {recursive: true});
 	writeFileSync(path.join(bin, 'opencode'), '#!/bin/sh\nprintf invoked > "$MARKER"\n', {encoding: 'utf8', mode: 0o755});
+
+	// The CLI resolves its subject from the harness root, so the fixture is a
+	// complete harness with its own subject checkout.
+	cpSync(path.join(ROOT, 'src'), path.join(root, 'src'), {recursive: true});
+	cpSync(path.join(ROOT, 'package.json'), path.join(root, 'package.json'));
+	const subject = path.join(root, 'subject');
+	mkdirSync(path.join(subject, 'src'), {recursive: true});
+	writeFileSync(path.join(subject, 'src', 'a.ts'), 'export const a = 1;\n', 'utf8');
+	gitIn(subject, ['init', '-q']);
+	gitIn(subject, ['config', 'user.email', 'harness@example.invalid']);
+	gitIn(subject, ['config', 'user.name', 'Harness']);
+	gitIn(subject, ['add', '.']);
+	gitIn(subject, ['commit', '-q', '-m', 'fixture']);
+	const revision = gitIn(subject, ['rev-parse', 'HEAD']).trim();
+
+	writeFileSync(path.join(root, 'harness.json'), `${JSON.stringify({subjectRepo: subject}, null, '\t')}\n`, 'utf8');
+	const caseDir = path.join(root, 'evaluation', 'cases');
+	const suiteDir = path.join(root, 'evaluation', 'suites');
+	mkdirSync(caseDir, {recursive: true});
+	mkdirSync(suiteDir, {recursive: true});
+	writeFileSync(path.join(caseDir, 'case-a.json'), `${JSON.stringify(baseCase(), null, '\t')}\n`, 'utf8');
+	writeFileSync(
+		path.join(suiteDir, 'suite.json'),
+		`${JSON.stringify(baseSuite({revision}), null, '\t')}\n`,
+		'utf8',
+	);
 	testContext.after(() => {
 		rmSync(root, {recursive: true, force: true});
 	});
 
 	return {
+		root,
 		env: {...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}`, MARKER: marker},
 		marker,
+		suitePath: 'evaluation/suites/suite.json',
 	};
 };
 
 test('--list and --dry-run start no model process', (testContext) => {
-	const {env, marker} = cliSandbox(testContext);
-	const list = spawnSync(process.execPath, ['src/cli.ts', 'list', '--suite', 'evaluation/suites/q2.json'], {
-		cwd: ROOT,
-		env,
+	const fixture = cliSandbox(testContext);
+	const list = spawnSync(process.execPath, ['src/cli.ts', 'list', '--suite', fixture.suitePath], {
+		cwd: fixture.root,
+		env: fixture.env,
 		encoding: 'utf8',
 	});
 	const dryRun = spawnSync(
 		process.execPath,
-		['src/cli.ts', 'evaluate', '--suite', 'evaluation/suites/q2.json', '--case', 'locate-schema-version', '--dry-run'],
-		{cwd: ROOT, env, encoding: 'utf8'},
+		['src/cli.ts', 'evaluate', '--suite', fixture.suitePath, '--case', 'case-a', '--dry-run'],
+		{cwd: fixture.root, env: fixture.env, encoding: 'utf8'},
 	);
 
 	assert.equal(list.status, 0, list.stderr);
 	assert.equal(dryRun.status, 0, dryRun.stderr);
 	assert.match(dryRun.stderr, /plan-hash [0-9a-f]{64}/);
-	assert.equal(existsSync(marker), false);
+	assert.equal(existsSync(fixture.marker), false);
 });
 
 test('an empty selection fails before any process starts', (testContext) => {
-	const {env, marker} = cliSandbox(testContext);
+	const fixture = cliSandbox(testContext);
 	const result = spawnSync(
 		process.execPath,
-		['src/cli.ts', 'evaluate', '--suite', 'evaluation/suites/q2.json', '--case', 'missing-case', '--dry-run'],
-		{cwd: ROOT, env, encoding: 'utf8'},
+		['src/cli.ts', 'evaluate', '--suite', fixture.suitePath, '--case', 'missing-case', '--dry-run'],
+		{cwd: fixture.root, env: fixture.env, encoding: 'utf8'},
 	);
 
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /unknown case "missing-case"/);
-	assert.equal(existsSync(marker), false);
+	assert.equal(existsSync(fixture.marker), false);
 });

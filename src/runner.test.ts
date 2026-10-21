@@ -143,7 +143,11 @@ test('every repetition starts with no inherited session and no default database 
 		root,
 		'repetition',
 		[
-			`printf '%s\\n' "$OPENCODE_DB" > ${quote(path.join(witness, 'db.txt'))}`,
+			`count=$(cat ${quote(path.join(witness, 'count'))} 2>/dev/null || printf 0)`,
+			`count=$((count + 1))`,
+			`printf '%s' "$count" > ${quote(path.join(witness, 'count'))}`,
+			`printf '%s\\n' "$OPENCODE_DB" > ${quote(path.join(witness, 'db'))}-$count.txt`,
+			`printf '%s\\n' "$@" > ${quote(path.join(witness, 'args'))}-$count.txt`,
 			"cat <<'EVENTS'",
 			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
 			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
@@ -159,10 +163,123 @@ test('every repetition starts with no inherited session and no default database 
 
 		assert.equal(first.valid, true);
 		assert.equal(second.valid, true);
-		assert.equal(readFileSync(path.join(witness, 'db.txt'), 'utf8').trim(), ':memory:');
+
+		for (const attempt of [1, 2] as const) {
+			const args = readFileSync(path.join(witness, `args-${attempt}.txt`), 'utf8').split('\n');
+
+			assert.equal(readFileSync(path.join(witness, `db-${attempt}.txt`), 'utf8').trim(), ':memory:');
+			assert.equal(args.includes('--standalone'), true);
+			assert.equal(args.includes('--continue'), false);
+			assert.equal(args.includes('--session'), false);
+			assert.equal(args.includes('--fork'), false);
+		}
+
 		assert.equal(readFileSync(defaultDatabase, 'utf8'), 'operator-session-store');
 		assert.deepEqual(existsSync(path.join(dataDirectory, 'opencode.db-wal')), false);
 		assert.deepEqual(existsSync(path.join(root, 'campaign')), false);
+	} finally {
+		if (previous === undefined) {
+			delete process.env['XDG_DATA_HOME'];
+		} else {
+			process.env['XDG_DATA_HOME'] = previous;
+		}
+	}
+});
+
+test('successful, failed, and timed-out executions leave the normal database unchanged', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const dataDirectory = path.join(root, 'data', 'opencode');
+	mkdirSync(dataDirectory, {recursive: true});
+	const defaultDatabase = path.join(dataDirectory, 'opencode.db');
+	writeFileSync(defaultDatabase, 'operator-session-store', 'utf8');
+	const success = scriptOf(
+		root,
+		'success',
+		[
+			"cat <<'EVENTS'",
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
+			'EVENTS',
+		].join('\n'),
+	);
+	const failure = scriptOf(
+		root,
+		'failure',
+		[
+			"cat <<'EVENTS'",
+			String.raw`{"type":"error","error":{"type":"provider.no-route","message":"boom"}}`,
+			'EVENTS',
+			'exit 3',
+		].join('\n'),
+	);
+	const timeout = scriptOf(root, 'timeout', 'sleep 30');
+	const previous = process.env['XDG_DATA_HOME'];
+	process.env['XDG_DATA_HOME'] = path.join(root, 'data');
+
+	try {
+		const outcomes = [
+			(await execute(root, success, testCaseOf())).outcome,
+			(await execute(root, failure, testCaseOf())).outcome,
+			(await execute(root, timeout, testCaseOf({timeoutMs: 150}))).outcome,
+		];
+
+		assert.deepEqual(outcomes, ['completed', 'failed', 'timed-out']);
+		assert.equal(readFileSync(defaultDatabase, 'utf8'), 'operator-session-store');
+		assert.deepEqual(existsSync(path.join(dataDirectory, 'opencode.db-wal')), false);
+		assert.deepEqual(existsSync(path.join(dataDirectory, 'opencode.db-shm')), false);
+	} finally {
+		if (previous === undefined) {
+			delete process.env['XDG_DATA_HOME'];
+		} else {
+			process.env['XDG_DATA_HOME'] = previous;
+		}
+	}
+});
+
+test('a campaign-local store never resumes a session from a prior repetition', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const witness = path.join(root, 'witness');
+	const dataDirectory = path.join(root, 'data', 'opencode');
+	mkdirSync(witness, {recursive: true});
+	mkdirSync(dataDirectory, {recursive: true});
+	const defaultDatabase = path.join(dataDirectory, 'opencode.db');
+	writeFileSync(defaultDatabase, 'operator-session-store', 'utf8');
+	const store = clientStoreOf({
+		campaignStore: path.join(root, 'campaign', 'client.db'),
+		campaignDir: path.join(root, 'campaign'),
+		environment: {XDG_DATA_HOME: path.join(root, 'data')},
+		homeDirectory: path.join(root, 'home'),
+	});
+	const command = scriptOf(
+		root,
+		'campaign',
+		[
+			`printf '%s\\n' "$OPENCODE_DB" >> ${quote(path.join(witness, 'db.txt'))}`,
+			`printf '%s\\n' "$@" >> ${quote(path.join(witness, 'args.txt'))}`,
+			"cat <<'EVENTS'",
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
+			'EVENTS',
+		].join('\n'),
+	);
+	const previous = process.env['XDG_DATA_HOME'];
+	process.env['XDG_DATA_HOME'] = path.join(root, 'data');
+
+	try {
+		const first = await execute(root, command, testCaseOf(), store);
+		const second = await execute(root, command, testCaseOf(), store);
+
+		assert.equal(first.valid, true);
+		assert.equal(second.valid, true);
+		assert.deepEqual(readFileSync(path.join(witness, 'db.txt'), 'utf8').trim().split('\n'), [store.path, store.path]);
+
+		const args = readFileSync(path.join(witness, 'args.txt'), 'utf8').split('\n');
+
+		assert.equal(args.filter((arg) => arg === '--standalone').length, 2);
+		assert.equal(args.includes('--continue'), false);
+		assert.equal(args.includes('--session'), false);
+		assert.equal(args.includes('--fork'), false);
+		assert.equal(readFileSync(defaultDatabase, 'utf8'), 'operator-session-store');
 	} finally {
 		if (previous === undefined) {
 			delete process.env['XDG_DATA_HOME'];
@@ -264,6 +381,36 @@ test('a hard timeout terminates the whole process group and stays inspectable', 
 
 	assert.equal(stored.outcome, 'timed-out');
 	assert.equal(stored.timedOut, true);
+});
+
+test('a descendant that escapes the process group cannot hold the harness open', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const pidFile = path.join(root, 'escaped.pid');
+	const command = scriptOf(
+		root,
+		'escaped',
+		[
+			`node -e 'const {spawn} = require("node:child_process"); const child = spawn("sleep", ["10"], {detached: true, stdio: ["ignore", "inherit", "inherit"]}); child.unref(); require("node:fs").writeFileSync(process.argv[1], String(child.pid))' ${quote(pidFile)}`,
+			'sleep 30',
+		].join('\n'),
+	);
+
+	try {
+		const result = await execute(root, command, testCaseOf({timeoutMs: 1_000}));
+
+		assert.equal(result.outcome, 'timed-out');
+		assert.equal(result.exitCode, null);
+		assert.equal(result.signal === 'SIGTERM' || result.signal === 'SIGKILL', true);
+		assert.equal(result.durationMs < 20_000, true);
+	} finally {
+		if (existsSync(pidFile)) {
+			try {
+				process.kill(Number(readFileSync(pidFile, 'utf8')), 'SIGKILL');
+			} catch {
+				// The escaped descendant already exited.
+			}
+		}
+	}
 });
 
 test('a restoration failure is persisted as an inspectable failed result', async (testContext: TestContext) => {

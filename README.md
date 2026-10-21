@@ -324,7 +324,9 @@ reads or writes `~/.local/share/opencode/opencode.db`:
 The agent runs as a process-group leader. The hard timeout is
 `case.timeoutMs`: the harness sends `SIGTERM` to the whole group, escalates to
 `SIGKILL` after two seconds, and stops waiting for stdio close after a bounded
-grace period. A timed-out execution is terminal for its slot and is written as
+grace period. A descendant that escaped the process group cannot hold the harness
+open: the captured pipes are released and the child is detached before the result
+is written. A timed-out execution is terminal for its slot and is written as
 an inspectable result with `outcome: "timed-out"`, `timedOut: true`, a null exit
 code, and the captured partial stream. Every result records `outcome`,
 `isolation`, `artifacts`, `timeoutMs`, and the exit signal.
