@@ -1,0 +1,63 @@
+{
+	"schemaVersion": 2,
+	"id": "q2-real-task",
+	"version": 5,
+	"status": "draft",
+	"revision": "9643b53",
+	"model": "deepseek/deepseek-flash",
+	"repetitions": 5,
+	"treatments": [
+		{
+			"id": "no-index",
+			"kind": "no-index",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": null,
+			"mcp": null
+		},
+		{
+			"id": "accepted",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-accepted",
+				"root": "artifacts/accepted",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		},
+		{
+			"id": "candidate",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-candidate",
+				"root": "artifacts/candidate",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		}
+	],
+	"cases": [
+		"locate-schema-version",
+		"locate-read-symbol-tool",
+		"locate-stale-file-error",
+		"locate-result-size-guard",
+		"impl-result-limit-default",
+		"impl-analytics-append",
+		"impl-worker-dispatch",
+		"impl-generation-publish",
+		"impact-build-generation-references",
+		"impact-hash-content-references",
+		"impact-bounded-paged-result-references",
+		"impact-schema-version-references"
+	]
+}

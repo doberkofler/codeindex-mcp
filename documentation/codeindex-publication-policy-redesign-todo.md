@@ -26,7 +26,7 @@ and durable measurements have been merged into the policy.
 
 - [ ] Keep every Q2 threshold unchanged.
 - [ ] Never reinterpret the Q2 v4 failure as a pass.
-- [ ] Keep prompts, grading data, traces, and private results outside this repository.
+- [ ] Keep private corpora, hidden cases, raw traces, model responses, and restricted results outside this repository; public synthetic cases and reviewed aggregate evidence may be committed.
 - [ ] Run targeted diagnostics before another full campaign.
 - [ ] Preserve the normalized fact model unless new semantic qualification disproves it.
 - [ ] A replay or simulation can select a design; only the running implementation can

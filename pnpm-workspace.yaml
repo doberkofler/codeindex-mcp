@@ -1,2 +1,5 @@
+packages:
+  - evaluation/harness
+
 allowBuilds:
   oracledb: true

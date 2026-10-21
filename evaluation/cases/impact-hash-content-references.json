@@ -1,0 +1,22 @@
+{
+	"schemaVersion": 1,
+	"id": "impact-hash-content-references",
+	"title": "hashContent consumers",
+	"class": "impact",
+	"tags": ["impact", "references"],
+	"prompt": "Which source files reference the symbol hashContent, excluding its own definition file? List every referencing file and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": [
+		"src/core/qualification/oracle/live/oracleLiveCandidates.ts",
+		"src/core/qualification/oracle/live/oracleLiveSource.ts",
+		"src/core/query/readSymbolQuery.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

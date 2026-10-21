@@ -38,6 +38,11 @@ const config = {
 		// Runtime-comparison harness: dynamic corpus metadata and native process
 		// output sit outside the authored TypeScript application.
 		'benchmark/oracle-antlr-runtime/**/*.mjs',
+		// Evaluation harness: a separate private workspace package with its own
+		// strict TypeScript check and node:test suite. It validates untrusted
+		// event streams at runtime, and its cohesion-oriented functions
+		// intentionally exceed the application complexity thresholds.
+		'evaluation/harness/**',
 	],
 };
 

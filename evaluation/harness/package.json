@@ -1,0 +1,18 @@
+{
+	"name": "codeindex-evaluation",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Controlled evaluation harness for the CodeIndex MCP publication campaign.",
+	"type": "module",
+	"scripts": {
+		"check": "node src/cli.ts check --suite suites/q2.json",
+		"list": "node src/cli.ts list --suite suites/q2.json",
+		"evaluate": "node src/cli.ts evaluate --suite suites/q2.json",
+		"report": "node src/cli.ts report",
+		"test": "node --test src/*.test.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"engines": {
+		"node": ">=26"
+	}
+}

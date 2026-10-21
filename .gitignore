@@ -2,6 +2,10 @@ node_modules/
 dist/
 coverage/
 benchmark/results/
+evaluation/artifacts/
+evaluation/results/
+evaluation/workspaces/
+evaluation/harness/harness.json
 *.log
 *.tsbuildinfo
 .DS_Store

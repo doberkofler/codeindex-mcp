@@ -214,8 +214,10 @@ and Material UI. Compare setup cost, usable semantic cases, build time, fixture 
 and distinct evidence. Choose the cheapest repository that adds material coverage; do not
 select by reputation or size alone.
 
-Prompts, grading data, raw traces, model responses, and private results stay outside this
-public repository. Only reviewed aggregate evidence may be committed.
+The harness, public synthetic cases, suites, and grading rules may be committed
+under `evaluation/`. Private corpora, proprietary source, hidden cases, raw traces,
+model responses, and restricted results stay outside this public repository. Only
+reviewed aggregate evidence may be committed.
 
 ## 6. Task corpus
 

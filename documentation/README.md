@@ -28,9 +28,10 @@ The architecture is intended to support additional source languages through
 adapters. It intentionally contains no consumer-specific workspace paths, corpus
 content, evaluation transcripts, credentials, or proprietary source excerpts.
 
-Private evaluation material is not part of this repository. The private harness
-may pin a released tag and launch the installed MCP executable, but its corpus,
-grading rules, results, and architecture notes remain outside the public tree.
+The evaluation harness, public synthetic cases, suites, and reviewed aggregate
+reports live under [`evaluation/`](../evaluation/README.md). Private corpora,
+proprietary source, hidden cases, raw transcripts, and restricted results remain
+outside the public tree; only reviewed aggregate evidence may be cited publicly.
 
 ## Version
 

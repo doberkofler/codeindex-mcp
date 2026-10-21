@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "impl-result-limit-default",
+	"title": "Result byte limit default",
+	"class": "implementation",
+	"tags": ["config", "implementation"],
+	"prompt": "Which source file defines the default value of the maximum serialized result size used when no configuration or environment override is present? Name the file and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": ["src/core/config/config.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 12,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

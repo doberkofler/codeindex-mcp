@@ -309,6 +309,7 @@ verify, benchmark, and qualification operations.
 - [MCP evaluation strategy](./documentation/mcp-evaluation-strategy.md)
 - [Codebase testing strategy](./documentation/codebase-testing-strategy.md)
 - [Evaluation harness methodology](./documentation/evaluation-harness.md)
+- [Evaluation harness and public cases](./evaluation/README.md)
 
 ## Development
 

@@ -115,8 +115,8 @@ chose, whether the result answered the question, the fallback used, and the
 reproducible failure.
 
 Tool-call counts do not measure adoption or benefit. MCP cannot observe fallback
-tools or model turns; use the [evaluation harness](./documentation/evaluation-harness.md)
-for correctness, token, and latency claims.
+tools or model turns; use the [evaluation harness](./evaluation/README.md) for
+correctness, token, and latency claims.
 
 ## Commits and releases
 

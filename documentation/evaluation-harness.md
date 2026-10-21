@@ -12,10 +12,11 @@ local-model use, and evaluation cadence. The strategy's
 is authoritative; [§13](#13-tier-gate-and-stop-rule-enforcement) lists where this harness
 enforces it.
 
-This document describes an evaluation method, not a shipped component. The
-public package contains no corpus, grading data, model transcripts, or runner.
-A private harness may implement this method while launching the installed MCP
-executable.
+This document describes an evaluation method, not a shipped runtime component.
+The harness, public synthetic cases, suites, and reviewed aggregate reports live
+under [`evaluation/`](../evaluation/README.md). The published package contains no
+corpus, grading data, model transcripts, or runner. Private corpora, hidden cases,
+and restricted raw results remain outside this repository.
 
 ## Scope and claim boundary
 

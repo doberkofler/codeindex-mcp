@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "impact-build-generation-references",
+	"title": "buildGeneration consumers",
+	"class": "impact",
+	"tags": ["impact", "references"],
+	"prompt": "Which source files reference the symbol buildGeneration, excluding its own definition file? List every referencing file and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": ["src/core/generation/buildWorker.ts", "src/core/generation/codeIndex.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}
