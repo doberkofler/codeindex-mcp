@@ -26,7 +26,7 @@ Six read-only MCP tools are exposed:
 | `index_status` | Readiness, scope, counts, freshness, diagnostics, limitations |
 | `outline` | Declarations in one file, in source order |
 | `find_symbol` | Exact or prefix symbol search |
-| `find_references` | Definition and reference occurrences for one symbol |
+| `find_references` | Occurrences for one symbol ID, or one-call name resolution with file/owner grouping |
 | `find_dependencies` | Direct target usage or transitive dependency impact |
 | `read_symbol` | Bounded source for one symbol, rejecting stale files |
 

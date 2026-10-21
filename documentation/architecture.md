@@ -309,7 +309,7 @@ cursor, and a truncation flag.
 | `index_status` | none | Readiness, scope, counts, freshness, diagnostics, limitations |
 | `outline` | path, kinds, detail, limit, cursor | Source order; compact by default |
 | `find_symbol` | query, optional context, detail, limit, cursor | Exact qualified, exact name, prefix qualified, prefix name |
-| `find_references` | symbol id, role, optional context, limit, cursor | Definition/reference occurrences |
+| `find_references` | symbol id or query, group, role, filters, limit, cursor | Occurrences, file groups, owner groups, ambiguity, or text-search fallback |
 | `find_dependencies` | target, optional context, direction, transitive, root, detail, limit, cursor | Direct target usage or dependency impact |
 | `read_symbol` | symbol id, context lines | Verifies current content hash |
 

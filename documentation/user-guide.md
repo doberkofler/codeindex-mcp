@@ -179,10 +179,19 @@ The server exposes seven read-only tools:
 | `index_status` | Readiness, indexed scope, freshness, counts, diagnostics, limitations |
 | `outline` | Declarations in one workspace-relative file, plus a bounded re-export list; compact detail by default |
 | `find_symbol` | Exact or prefix name/qualified lookup with exposure, kind, container, path, and context filters; compact detail by default |
-| `find_references` | Flat definitions and references for one symbol with usage and owner filters |
+| `find_references` | Occurrences for one symbol ID, or one-call name resolution with file/owner grouping |
 | `find_dependencies` | Direct dependency usage or grouped dependency impact; optional project-context filter |
 | `read_symbol` | Bounded source, definition sites, bindings, binding sites, or binding contexts |
 | `symbol_at` | Innermost stored declaration covering a source line or position |
+
+`find_references` accepts exactly one selector: an opaque `symbolId`, or a `query` with the
+same match, kind, container, path, exposure, and context filters as `find_symbol`. A
+`symbolId` keeps flat occurrence mode by default; a `query` resolves one symbol in the same
+call and defaults to `group: "file"` with references only. Use `group: "owner"` for
+`(path, owner)` groups or `group: "occurrence"` for flat occurrences. An ambiguous query
+returns at most five compact candidates, and a no-match query returns a text-search
+fallback rather than a source-absence claim. A current, untruncated file result is the
+complete path set.
 
 `find_symbol` defaults to the `visible` exposure filter, which includes published and
 reachable declarations and excludes internal-only ones. Pass `exposure: "internal"` or

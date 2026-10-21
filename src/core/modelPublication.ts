@@ -141,8 +141,17 @@ export type FindSymbolResultType = PagedResultType<FindSymbolItemType> &
 /** Presence bitmask for exact-name `find_symbol` matches. */
 export type ExactNamePresenceType = 'none' | 'P' | 'R' | 'I' | 'PR' | 'PI' | 'RI' | 'PRI';
 
+type ReferenceSelectorType = 'symbolId' | 'query';
+export type ReferenceGroupModeType = 'file' | 'owner' | 'occurrence';
+
 export type FindReferencesInputType = Readonly<{
-	readonly symbolId: string;
+	readonly symbolId?: string | undefined;
+	readonly query?: string | undefined;
+	readonly match?: 'name' | 'qualified' | undefined;
+	readonly kind?: string | undefined;
+	readonly container?: string | undefined;
+	readonly exposure?: 'published' | 'reachable' | 'visible' | 'internal' | 'any' | undefined;
+	readonly group?: ReferenceGroupModeType | undefined;
 	readonly role?: 'definition' | 'reference' | undefined;
 	readonly path?: string | undefined;
 	readonly enclosingId?: string | undefined;
@@ -176,11 +185,112 @@ export type ReferenceType = Readonly<{
 	readonly contexts: readonly string[];
 }>;
 
-export type FindReferencesResultType = PagedResultType<ReferenceType> &
+type ReferenceCoverageType = Readonly<{
+	readonly unclassifiedReferences: number;
+	readonly crossFileRefsObserved: boolean;
+}>;
+
+type ReferenceTotalsType = Readonly<{
+	readonly occurrencesTotal: number;
+	readonly definitionsTotal: number;
+}>;
+
+/** One file or owner group of distinct occurrences. */
+export type ReferenceGroupType = Readonly<{
+	readonly path: string;
+	readonly count: number;
+	readonly usage: number;
+	readonly contexts: readonly string[];
+	readonly contextsTruncated: boolean;
+}>;
+
+/** One owner group; a null owner means top-level code in the path. */
+export type ReferenceOwnerGroupType = ReferenceGroupType &
 	Readonly<{
-		readonly unclassifiedReferences: number;
-		readonly crossFileRefsObserved: boolean;
+		readonly owner: ReferenceOwnerSummaryType | null;
 	}>;
+
+/** One compact symbol candidate returned for an ambiguous query. */
+export type ReferenceCandidateType = Readonly<{
+	readonly symbolId: string;
+	readonly name: string;
+	readonly qualifiedName: string;
+	readonly kind: string;
+	readonly path: string;
+	readonly startLine: number;
+	readonly endLine: number;
+	readonly match: 'exact_qualified' | 'exact_name' | 'prefix_qualified' | 'prefix_name';
+}>;
+
+type FindReferencesBaseResultType = Readonly<{
+	readonly generationId: string;
+	readonly freshness: QueryFreshnessType;
+	readonly selector: ReferenceSelectorType;
+}>;
+
+export type FindReferencesOccurrencesResultType = FindReferencesBaseResultType &
+	PagedResultType<ReferenceType> &
+	ReferenceCoverageType &
+	ReferenceTotalsType &
+	Readonly<{
+		readonly kind: 'occurrences';
+		readonly group: 'occurrence';
+	}>;
+
+type FindReferencesFilesResultType = FindReferencesBaseResultType &
+	PagedResultType<ReferenceGroupType> &
+	ReferenceCoverageType &
+	ReferenceTotalsType &
+	Readonly<{
+		readonly kind: 'files';
+		readonly group: 'file';
+		readonly groupsTotal: number;
+	}>;
+
+type FindReferencesOwnersResultType = FindReferencesBaseResultType &
+	PagedResultType<ReferenceOwnerGroupType> &
+	ReferenceCoverageType &
+	ReferenceTotalsType &
+	Readonly<{
+		readonly kind: 'owners';
+		readonly group: 'owner';
+		readonly groupsTotal: number;
+	}>;
+
+type FindReferencesAmbiguousResultType = FindReferencesBaseResultType &
+	Readonly<{
+		readonly kind: 'ambiguous';
+		readonly selector: 'query';
+		readonly candidates: readonly ReferenceCandidateType[];
+		readonly candidatesTotal: number;
+		readonly candidatesTruncated: boolean;
+	}>;
+
+type FindReferencesNoneResultType = FindReferencesBaseResultType &
+	Readonly<{
+		readonly kind: 'none';
+		readonly selector: 'query';
+		readonly reason: 'no_stored_match';
+		readonly fallback: 'text_search';
+		readonly message: string;
+		readonly limitations: readonly string[];
+	}>;
+
+export type QueryFindReferencesResultType =
+	| FindReferencesFilesResultType
+	| FindReferencesOwnersResultType
+	| FindReferencesAmbiguousResultType
+	| FindReferencesNoneResultType;
+
+export type FindReferencesResultType = FindReferencesOccurrencesResultType | QueryFindReferencesResultType;
+
+export type SymbolIdFindReferencesInputType = FindReferencesInputType & Readonly<{symbolId: string; group?: 'occurrence' | undefined}>;
+
+export type SymbolIdGroupedFindReferencesInputType = FindReferencesInputType & Readonly<{symbolId: string; group: 'file' | 'owner'}>;
+
+export type SymbolIdGroupedFindReferencesResultType = FindReferencesFilesResultType | FindReferencesOwnersResultType;
+
+export type QueryFindReferencesInputType = FindReferencesInputType & Readonly<{symbolId?: undefined; group?: 'file' | 'owner' | undefined}>;
 
 export type FindDependenciesResultType = PagedResultType<DependencyConsumerItemType> &
 	Readonly<{

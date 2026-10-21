@@ -22,7 +22,13 @@ import {
 	type FindDependenciesInputType,
 	type FindDependenciesResultType,
 	type FindReferencesInputType,
+	type FindReferencesOccurrencesResultType,
 	type FindReferencesResultType,
+	type QueryFindReferencesInputType,
+	type QueryFindReferencesResultType,
+	type SymbolIdFindReferencesInputType,
+	type SymbolIdGroupedFindReferencesInputType,
+	type SymbolIdGroupedFindReferencesResultType,
 	type FindSymbolInputType,
 	type FindSymbolResultType,
 	type GenerationRowType,
@@ -367,13 +373,11 @@ export class CodeIndex {
 		return querySymbols(context, input, maxResultBytes);
 	}
 
-	/**
-	 * Finds stored occurrences for one symbol.
-	 *
-	 * @param input - Symbol, optional role, and page bounds.
-	 * @param maxResultBytes - Maximum serialized result-data size.
-	 * @returns Paginated definition and reference occurrences.
-	 */
+	/** Finds occurrences for one symbol identifier or resolves one symbol query in the same call. */
+	public findReferences(input: SymbolIdFindReferencesInputType, maxResultBytes?: number): FindReferencesOccurrencesResultType;
+	public findReferences(input: SymbolIdGroupedFindReferencesInputType, maxResultBytes?: number): SymbolIdGroupedFindReferencesResultType;
+	public findReferences(input: QueryFindReferencesInputType, maxResultBytes?: number): QueryFindReferencesResultType;
+	public findReferences(input: FindReferencesInputType, maxResultBytes?: number): FindReferencesResultType;
 	public findReferences(input: FindReferencesInputType, maxResultBytes = this.#config.maxResultBytes): FindReferencesResultType {
 		const context = {database: this.#database, generationId: this.#generation().id, freshness: this.getFreshness()};
 		return queryReferences(context, input, maxResultBytes);
@@ -409,7 +413,10 @@ export class CodeIndex {
 		const symbol = this.#database.getSymbol(generation.id, input.symbolId);
 
 		if (symbol === null) {
-			throw new CodeIndexError('symbol_not_found', `Unknown symbol: ${input.symbolId}`);
+			throw new CodeIndexError(
+				'symbol_not_found',
+				`Unknown symbol: ${input.symbolId}. Symbol IDs are opaque; copy one from find_symbol or outline instead of constructing it.`,
+			);
 		}
 
 		assertKnownContext(this.#database, generation.id, input.context);

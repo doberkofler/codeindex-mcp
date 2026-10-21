@@ -1407,19 +1407,27 @@ Lock the final interval query after L1 qualification.
 Retain `role = definition | reference`. Add optional path, enclosing-owner, usage, and
 context filters. Usage with `role=definition` is an input error.
 
-`find_references` returns a flat, deduplicated occurrence list; it does not group by symbol
-or enclosing owner. Each occurrence includes its stored owner summary or null.
-Context-filtered results use `occurrence_context`. Ordering is path, start offset, role,
-symbol ID, then the remaining occurrence-key fields. Pagination uses a generation-bound
-keyset cursor over that tuple plus a filter digest. Return the unclassified-reference
-count and `cross_file_refs_observed`. Grouping is not part of the contract until a future
-decision defines grouping-specific pagination.
+`find_references` accepts exactly one selector: `symbolId` or `query`. Both or neither
+returns `invalid_argument` naming both fields. `query` uses the same match, kind,
+container, path, exposure, and context semantics as `find_symbol`.
 
-This remains the implemented compatibility contract. Q2 v4 reopened M9: model-facing
-impact questions need name resolution followed by references, while their usual answer is
-only a unique path set. A future accepted contract may add query-based resolution and
-file/owner grouping without changing the existing `symbolId` default. Until accepted,
-callers must not depend on those proposed modes.
+`group` is `occurrence`, `file`, or `owner`. A `symbolId` selector defaults to flat
+`occurrence` mode and keeps the compatibility contract. A `query` selector resolves one
+symbol in the same call and defaults to `file` grouping. Grouped modes default an omitted
+`role` to `reference`; occurrence mode keeps definitions and references.
+
+Flat occurrences remain deduplicated and include the stored owner summary or null.
+Context-filtered results use `occurrence_context`. Grouped results count one occurrence per
+path, start offset, and role regardless of context-row count. File groups order by path;
+owner groups order by path and owner ID with a null owner first. Grouped items carry count,
+usage-mask union, at most eight context names, and `contextsTruncated`. Pagination uses a
+generation-bound cursor bound to the group, selector, filters, and ordering.
+
+The discriminated result is `occurrences`, `files`, `owners`, `ambiguous`, or `none`.
+Ambiguity returns at most five compact candidates plus the total. No match reports indexing
+limitations and a text-search fallback, never a source-absence claim. Every mode retains
+group totals, occurrence and definition totals, the unclassified-reference count, and
+`crossFileRefsObserved` under byte reduction. Contexts drop before trailing whole groups.
 
 ### `read_symbol`
 
@@ -1996,7 +2004,7 @@ The failed gates are not reinterpreted as passes.
 | M1 | Store named nested TypeScript functions after measuring count and size | Resolved: store them; Phase 2 evidence recorded |
 | M5 | Default `find_symbol` exposure: `published` or `visible` | Resolved: `visible`; Phase 6 exact-name evidence recorded |
 | M8 | Oracle synonym/current-schema source and unquoted-name case folding | Resolved: source-only names, no synonym expansion, canonical uppercase for unquoted names |
-| M9 | `find_references` grouping and pagination semantics | Reopened by Q2 v4; flat occurrences remain the compatibility contract while query-based file/owner grouping is evaluated |
+| M9 | `find_references` grouping and pagination semantics | Resolved: `symbolId` keeps flat occurrence mode; `query` resolves in one call and defaults to file grouping, with owner grouping and explicit ambiguity/none results |
 | M10 | Deferred Oracle/ORDS scope and cross-language edges | Deferred scope |
 | M11/M12 | Final per-root reachability-step and surface-address ceilings | Resolved: 50,000 steps and 2,000 addresses per root |
 | M13 | Union/intersection constituent behavior in address projection | Resolved: constituent-only declarations are reachable, not projected |

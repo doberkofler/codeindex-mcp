@@ -52,7 +52,10 @@ import {
 	outlineReexports as readOutlineReexports,
 	outlineSymbols as readOutlineSymbols,
 	referenceCoverage,
+	referenceGroupContexts,
+	referenceGroupRows,
 	referenceRows,
+	referenceTotals,
 	symbolAncestors,
 	symbolSummaryById,
 	symbolsAtPosition,
@@ -411,6 +414,18 @@ export class IndexDatabase {
 
 	public referenceCoverage(input: Parameters<typeof referenceCoverage>[1]): ReturnType<typeof referenceCoverage> {
 		return referenceCoverage(this.#reader, input);
+	}
+
+	public referenceTotals(input: Parameters<typeof referenceTotals>[1]): ReturnType<typeof referenceTotals> {
+		return referenceTotals(this.#reader, input);
+	}
+
+	public referenceGroupRows(input: Parameters<typeof referenceGroupRows>[1]): ReturnType<typeof referenceGroupRows> {
+		return referenceGroupRows(this.#reader, input);
+	}
+
+	public referenceGroupContexts(input: Parameters<typeof referenceGroupContexts>[1]): ReturnType<typeof referenceGroupContexts> {
+		return referenceGroupContexts(this.#reader, input);
 	}
 
 	public findDependencyEdgesByTargetIdentifier(generationId: string, targetIdentifier: string, context?: string): readonly StoredDependencyEdgeType[] {

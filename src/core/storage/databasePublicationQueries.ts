@@ -12,4 +12,4 @@ export {
 	symbolSummaryById,
 	symbolsAtPosition,
 } from './databaseDefinitionQueries.ts';
-export {referenceCoverage, referenceRows} from './databaseReferenceQueries.ts';
+export {referenceCoverage, referenceGroupContexts, referenceGroupRows, referenceRows, referenceTotals} from './databaseReferenceQueries.ts';

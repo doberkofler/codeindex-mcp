@@ -48,9 +48,29 @@ export const FindSymbolInputSchema = z.object({
 });
 
 export const FindReferencesInputSchema = z.object({
-	symbolId: z.string().min(1).describe('Symbol identifier returned by find_symbol or outline'),
-	role: z.enum(['definition', 'reference']).optional(),
-	path: z.string().min(1).optional().describe('Only occurrences in this path'),
+	symbolId: z.string().min(1).optional().describe('Symbol identifier returned by find_symbol or outline; use exactly one of symbolId or query'),
+	query: z
+		.string()
+		.optional()
+		.describe('Symbol name or name prefix resolved in the same call; use exactly one of symbolId or query. Defaults to file grouping'),
+	match: z.enum(['name', 'qualified']).default('name').describe('Compare the simple name or full qualified display for query resolution'),
+	kind: z
+		.string()
+		.max(MAX_SYMBOL_KIND_LENGTH)
+		.regex(SYMBOL_KIND_PATTERN)
+		.optional()
+		.describe('Optional adapter-defined symbol kind filter for query resolution'),
+	container: z.string().optional().describe('Binding container display prefix for query resolution; empty query lists its members'),
+	exposure: z
+		.enum(['published', 'reachable', 'visible', 'internal', 'any'])
+		.default('visible')
+		.describe('Binding exposure filter for query resolution; visible means published or reachable (default)'),
+	group: z
+		.enum(['file', 'owner', 'occurrence'])
+		.optional()
+		.describe('Grouping mode; query defaults to file, symbolId defaults to occurrence. Grouped modes default to references only'),
+	role: z.enum(['definition', 'reference']).optional().describe('Occurrence role; grouped modes default to reference, occurrence mode defaults to both'),
+	path: z.string().min(1).optional().describe('Only symbols with a definition in this path and occurrences in this path'),
 	enclosingId: z.string().min(1).optional().describe('Only occurrences owned by this symbol'),
 	usage: z
 		.union([z.literal(0), z.literal(1), z.literal(2), z.literal(4), z.literal(6), z.literal(8)])

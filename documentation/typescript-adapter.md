@@ -115,7 +115,7 @@ The adapter supplies facts used by:
 | --- | --- |
 | `outline` | Authored declarations in source order |
 | `find_symbol` | Exact qualified, exact simple, then bounded prefix lookup |
-| `find_references` | Definition/reference occurrences for one indexed symbol |
+| `find_references` | Definition/reference occurrences for one symbol ID or one resolved name query |
 | `find_dependencies` | Direct target usage or authored-module dependency impact |
 | `read_symbol` | Bounded source after current-file digest verification |
 
