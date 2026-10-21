@@ -9,15 +9,19 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import Mock, patch
 
 from scripts.process_queue import (
     DEFAULT_MODEL,
+    GithubQueue,
     JsonQueue,
     MarkdownQueue,
     QueueError,
     RunReporter,
     load_queue,
     prompt_for,
+    start_sleep_inhibitor,
+    stop_sleep_inhibitor,
 )
 
 
@@ -85,6 +89,96 @@ class JsonQueueTest(unittest.TestCase):
                 JsonQueue(path)
 
 
+class GithubQueueTest(unittest.TestCase):
+    def test_parses_canonical_issue_urls(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "queue.json")
+            document = {
+                "version": 1,
+                "kind": "github-issues",
+                "items": [
+                    {"url": "https://github.com/doberkofler/codeindex-mcp/issues/16"}
+                ],
+            }
+
+            queue = GithubQueue(path, document)
+
+            self.assertEqual(queue.items[0].issue, 16)
+            self.assertEqual(
+                queue.items[0].source_url,
+                "https://github.com/doberkofler/codeindex-mcp/issues/16",
+            )
+
+    def test_rejects_copied_or_ambiguous_issue_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "queue.json")
+            document = {
+                "version": 1,
+                "kind": "github-issues",
+                "items": [
+                    {
+                        "url": "https://github.com/doberkofler/codeindex-mcp/issues/16",
+                        "done": False,
+                    }
+                ],
+            }
+
+            with self.assertRaisesRegex(QueueError, 'only a "url" field'):
+                GithubQueue(path, document)
+
+    def test_rejects_boolean_version(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "queue.json")
+            document = {"version": True, "kind": "github-issues", "items": []}
+
+            with self.assertRaisesRegex(QueueError, "version must be 1"):
+                GithubQueue(path, document)
+
+    def test_skips_issues_already_closed_on_github(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "queue.json")
+            document = {
+                "version": 1,
+                "kind": "github-issues",
+                "items": [
+                    {"url": "https://github.com/doberkofler/codeindex-mcp/issues/16"}
+                ],
+            }
+            queue = GithubQueue(path, document)
+
+            with (
+                patch("scripts.process_queue.has_completion_commit", return_value=False),
+                patch(
+                    "scripts.process_queue.read_github_issue",
+                    return_value={"state": "CLOSED", "title": "Closed", "body": ""},
+                ),
+            ):
+                item = queue.next_item()
+
+            self.assertIsNone(item)
+
+    def test_skips_issues_with_local_completion_commits_without_github_access(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "queue.json")
+            document = {
+                "version": 1,
+                "kind": "github-issues",
+                "items": [
+                    {"url": "https://github.com/doberkofler/codeindex-mcp/issues/16"}
+                ],
+            }
+            queue = GithubQueue(path, document)
+
+            with (
+                patch("scripts.process_queue.has_completion_commit", return_value=True),
+                patch("scripts.process_queue.read_github_issue") as read_issue,
+            ):
+                item = queue.next_item()
+
+            self.assertIsNone(item)
+            read_issue.assert_not_called()
+
+
 class QueueTest(unittest.TestCase):
     def test_rejects_unknown_extension(self) -> None:
         with self.assertRaisesRegex(QueueError, r"\.md or \.json"):
@@ -103,6 +197,35 @@ class QueueTest(unittest.TestCase):
             self.assertIn("Run tests/lint/typecheck", prompt)
             self.assertIn("Make one commit", prompt)
             self.assertIn(f"Do not modify the queue file: {path.resolve()}", prompt)
+            self.assertNotIn("GitHub issue", prompt)
+
+
+class SleepInhibitorTest(unittest.TestCase):
+    def test_starts_macos_idle_sleep_inhibitor_for_runner_process(self) -> None:
+        inhibitor = Mock()
+        with (
+            patch("scripts.process_queue.sys.platform", "darwin"),
+            patch("scripts.process_queue.shutil.which", return_value="/usr/bin/caffeinate"),
+            patch("scripts.process_queue.subprocess.Popen", return_value=inhibitor) as popen,
+        ):
+            result = start_sleep_inhibitor()
+
+        self.assertIs(result, inhibitor)
+        popen.assert_called_once_with(
+            ["/usr/bin/caffeinate", "-i", "-w", str(os.getpid())],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+    def test_stops_sleep_inhibitor(self) -> None:
+        inhibitor = Mock()
+        inhibitor.poll.return_value = None
+
+        stop_sleep_inhibitor(inhibitor)
+
+        inhibitor.terminate.assert_called_once_with()
+        inhibitor.wait.assert_called_once_with(timeout=5.0)
 
 
 class ProcessQueueTest(unittest.TestCase):
@@ -207,6 +330,59 @@ subprocess.run(
         self.assertIs(queue["items"][0]["done"], True)
         self.assertEqual(self._git("rev-list", "--count", "HEAD").stdout.strip(), "3")
 
+    def test_processes_github_issue_and_records_closure_footer(self) -> None:
+        issue_url = "https://github.com/doberkofler/codeindex-mcp/issues/16"
+        self.queue_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "kind": "github-issues",
+                    "items": [{"url": issue_url}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        github = self.repository / "fake-gh"
+        github.write_text(
+            """#!/usr/bin/env python3
+import json
+
+print(json.dumps({
+    "number": 16,
+    "state": "OPEN",
+    "title": "[EVAL-008] Normalize events",
+    "body": "## Acceptance criteria\\n\\n- [ ] Preserve raw events.",
+    "url": "https://github.com/doberkofler/codeindex-mcp/issues/16",
+}))
+""",
+            encoding="utf-8",
+        )
+        github.chmod(0o755)
+        agent = self._write_recording_agent()
+
+        previous_gh_bin = os.environ.get("GH_BIN")
+        os.environ["GH_BIN"] = str(github)
+        try:
+            result = self._run_queue(agent)
+        finally:
+            if previous_gh_bin is None:
+                os.environ.pop("GH_BIN", None)
+            else:
+                os.environ["GH_BIN"] = previous_gh_bin
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        prompt = self._agent_argv()[-1]
+        self.assertIn(f"GitHub issue: {issue_url}", prompt)
+        self.assertIn("Preserve raw events", prompt)
+        self.assertIn("Do not close the GitHub issue", prompt)
+        self.assertEqual(self._git("rev-list", "--count", "HEAD").stdout.strip(), "3")
+        completion_message = self._git("log", "-1", "--format=%B").stdout
+        self.assertIn("Closes doberkofler/codeindex-mcp#16", completion_message)
+        self.assertEqual(
+            json.loads(self.queue_path.read_text(encoding="utf-8"))["items"],
+            [{"url": issue_url}],
+        )
+
     def test_passes_explicit_model(self) -> None:
         agent = self._write_recording_agent()
 
@@ -238,6 +414,51 @@ subprocess.run(
         self.assertEqual(
             self._agent_argv()[7:9], ["--model", "ollama/qwen3.8:27b-mlx"]
         )
+
+    def test_reads_closed_github_queue_from_stdin_without_starting_agent(self) -> None:
+        issue_url = "https://github.com/doberkofler/codeindex-mcp/issues/16"
+        github = self.repository / "fake-gh"
+        github.write_text(
+            """#!/usr/bin/env python3
+import json
+
+print(json.dumps({
+    "number": 16,
+    "state": "CLOSED",
+    "title": "[EVAL-008] Normalize events",
+    "body": "",
+    "url": "https://github.com/doberkofler/codeindex-mcp/issues/16",
+}))
+""",
+            encoding="utf-8",
+        )
+        github.chmod(0o755)
+        agent = self._write_agent("raise SystemExit(99)\n")
+        environment = os.environ.copy()
+        environment["OPENCODE_BIN"] = str(agent)
+        environment["GH_BIN"] = str(github)
+        environment["QUEUE_LOG_DIR"] = str(self.log_directory)
+        runner = Path(__file__).with_name("process_queue.py")
+        document = {
+            "version": 1,
+            "kind": "github-issues",
+            "items": [{"url": issue_url}],
+        }
+
+        result = subprocess.run(
+            [sys.executable, str(runner), "--no-verify", "-"],
+            cwd=self.repository,
+            env=environment,
+            input=json.dumps(document),
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[run] 0 completed", result.stdout)
+        self.assertFalse((self.repository / "argv.json").exists())
 
     def test_rejects_agent_that_does_not_commit(self) -> None:
         agent = self._write_agent("raise SystemExit(0)\n")

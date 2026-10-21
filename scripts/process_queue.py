@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Process Markdown or JSON work queues in isolated OpenCode sessions.
+"""Process Markdown TODO or explicit GitHub-issue queues in isolated sessions.
 
 Interactive runs show transient progress. Every item emits a persistent summary
 and writes raw agent JSONL plus complete history to $QUEUE_LOG_DIR, else
 $XDG_STATE_HOME/process-queue, else ~/.local/state/process-queue.
+
+GitHub queues use {"version": 1, "kind": "github-issues", "items": [{"url":
+"https://github.com/OWNER/REPOSITORY/issues/NUMBER"}]}. Completion commits close
+issues after reaching the default branch. macOS runs prevent idle system sleep.
 """
 
 from __future__ import annotations
@@ -28,6 +32,9 @@ from typing import Any, TextIO
 
 
 MARKDOWN_ITEM = re.compile(r"^- \[(?P<done>[ xX])\] #(?P<issue>[1-9][0-9]*) (?P<title>\S.*)$")
+GITHUB_ISSUE_URL = re.compile(
+    r"https://github\.com/(?P<owner>[A-Za-z0-9_.-]+)/(?P<repository>[A-Za-z0-9_.-]+)/issues/(?P<issue>[1-9][0-9]*)/?"
+)
 DEFAULT_MODEL = "deepseek/deepseek-flash"
 AGENT_NAME = "build"
 MAX_PREVIEW_LINES = 20
@@ -54,6 +61,8 @@ class QueueItem:
     issue: int
     description: str
     position: int
+    source_url: str | None = None
+    details: str | None = None
 
 
 @dataclass(frozen=True)
@@ -67,6 +76,9 @@ class Queue:
         raise NotImplementedError
 
     def mark_done(self, item: QueueItem) -> None:
+        raise NotImplementedError
+
+    def commit_done(self, item: QueueItem) -> None:
         raise NotImplementedError
 
 
@@ -130,14 +142,17 @@ class MarkdownQueue(Queue):
         self.lines[item.position] = f"- [x] {line.removeprefix('- [ ] ')}"
         atomic_write(self.path, "".join(self.lines))
 
+    def commit_done(self, item: QueueItem) -> None:
+        self.mark_done(item)
+        run_git("add", "--", str(self.path))
+        run_git("commit", "-m", f"chore: mark done: {item.description}")
+
 
 class JsonQueue(Queue):
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, parsed: Any | None = None) -> None:
         self.path = path
-        try:
-            parsed: Any = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as error:
-            raise QueueError(f"Invalid JSON queue: {error}") from error
+        if parsed is None:
+            parsed = parse_json_queue(path)
         if not isinstance(parsed, dict) or not isinstance(parsed.get("items"), list):
             raise QueueError('JSON queue must be an object containing an "items" array')
         self.document: dict[str, Any] = parsed
@@ -179,12 +194,120 @@ class JsonQueue(Queue):
         value["done"] = True
         atomic_write(self.path, f"{json.dumps(self.document, indent=2, ensure_ascii=False)}\n")
 
+    def commit_done(self, item: QueueItem) -> None:
+        self.mark_done(item)
+        run_git("add", "--", str(self.path))
+        run_git("commit", "-m", f"chore: mark done: {item.description}")
 
-def load_queue(path: Path) -> Queue:
+
+class GithubQueue(Queue):
+    def __init__(self, path: Path | None, parsed: Any) -> None:
+        self.path = path
+        if not isinstance(parsed, dict):
+            raise QueueError("GitHub queue must be a JSON object")
+        version = parsed.get("version")
+        if isinstance(version, bool) or version != 1:
+            raise QueueError("GitHub queue version must be 1")
+        if parsed.get("kind") != "github-issues":
+            raise QueueError('GitHub queue kind must be "github-issues"')
+        values = parsed.get("items")
+        if not isinstance(values, list):
+            raise QueueError('GitHub queue must contain an "items" array')
+        self.items = self._parse_items(values)
+
+    def _parse_items(self, values: list[Any]) -> list[QueueItem]:
+        items: list[QueueItem] = []
+        urls: set[str] = set()
+        for position, value in enumerate(values):
+            if not isinstance(value, dict) or set(value) != {"url"}:
+                raise QueueError(
+                    f'GitHub queue item {position + 1} must contain only a "url" field'
+                )
+            url = value.get("url")
+            if not isinstance(url, str):
+                raise QueueError(f"GitHub queue item {position + 1} has an invalid URL")
+            match = GITHUB_ISSUE_URL.fullmatch(url)
+            if match is None:
+                raise QueueError(f"GitHub queue item {position + 1} has an invalid issue URL")
+            canonical_url = url.removesuffix("/")
+            if canonical_url in urls:
+                raise QueueError(f"Duplicate GitHub issue URL: {canonical_url}")
+            urls.add(canonical_url)
+            issue = int(match.group("issue"))
+            items.append(
+                QueueItem(
+                    issue=issue,
+                    description=f"#{issue}",
+                    position=position,
+                    source_url=canonical_url,
+                )
+            )
+        return items
+
+    def next_item(self) -> QueueItem | None:
+        for item in self.items:
+            if item.source_url is None or has_completion_commit(item.source_url):
+                continue
+            issue = read_github_issue(item.source_url)
+            if issue["state"] == "CLOSED":
+                continue
+            return QueueItem(
+                issue=item.issue,
+                description=f"#{item.issue} {issue['title']}",
+                position=item.position,
+                source_url=item.source_url,
+                details=issue["body"],
+            )
+        return None
+
+    def mark_done(self, item: QueueItem) -> None:
+        if item.source_url is None:
+            raise QueueError(f"GitHub queue item #{item.issue} has no source URL")
+
+    def commit_done(self, item: QueueItem) -> None:
+        self.mark_done(item)
+        source_url = item.source_url
+        if source_url is None:
+            raise QueueError(f"GitHub queue item #{item.issue} has no source URL")
+        closure_reference = github_closure_reference(source_url)
+        run_git(
+            "commit",
+            "--allow-empty",
+            "-m",
+            f"chore: mark done: {item.description}",
+            "-m",
+            f"Closes {closure_reference}",
+        )
+
+
+def parse_json_queue(path: Path) -> Any:
+    return parse_json_content(path.read_text(encoding="utf-8"))
+
+
+def parse_json_content(content: str) -> Any:
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as error:
+        raise QueueError(f"Invalid JSON queue: {error}") from error
+
+
+def load_queue(path: Path | None, content: str | None = None) -> Queue:
+    if path is None:
+        if content is None:
+            raise QueueError("Missing stdin queue content")
+        parsed = parse_json_content(content)
+        if isinstance(parsed, dict) and parsed.get("kind") == "github-issues":
+            return GithubQueue(None, parsed)
+        raise QueueError('stdin requires a JSON queue with kind "github-issues"')
     if path.suffix.lower() == ".md":
         return MarkdownQueue(path)
     if path.suffix.lower() == ".json":
-        return JsonQueue(path)
+        parsed = parse_json_queue(path)
+        if isinstance(parsed, dict) and parsed.get("kind") == "github-issues":
+            return GithubQueue(path, parsed)
+        if isinstance(parsed, dict) and "kind" in parsed:
+            raise QueueError(f"Unsupported JSON queue kind: {parsed.get('kind')!r}")
+        return JsonQueue(path, parsed)
     raise QueueError("Queue must have a .md or .json extension")
 
 
@@ -198,6 +321,69 @@ def run_git(*arguments: str) -> str:
     return result.stdout.strip()
 
 
+def has_completion_commit(issue_url: str) -> bool:
+    closure_reference = github_closure_reference(issue_url)
+    return bool(
+        run_git(
+            "log",
+            "-n",
+            "1",
+            "--format=%H",
+            "--extended-regexp",
+            f"--grep=^Closes {re.escape(closure_reference)}$",
+        )
+    )
+
+
+def github_closure_reference(issue_url: str) -> str:
+    match = GITHUB_ISSUE_URL.fullmatch(issue_url)
+    if match is None:
+        raise QueueError(f"Invalid GitHub issue URL: {issue_url}")
+    return f"{match.group('owner')}/{match.group('repository')}#{match.group('issue')}"
+
+
+def read_github_issue(issue_url: str) -> dict[str, str]:
+    result = subprocess.run(
+        [
+            os.environ.get("GH_BIN", "gh"),
+            "issue",
+            "view",
+            issue_url,
+            "--json",
+            "number,state,title,body,url",
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        value: Any = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise QueueError(f"GitHub returned invalid JSON for {issue_url}") from error
+    if not isinstance(value, dict):
+        raise QueueError(f"GitHub returned an invalid issue for {issue_url}")
+    expected = GITHUB_ISSUE_URL.fullmatch(issue_url)
+    number = value.get("number")
+    state = value.get("state")
+    title = value.get("title")
+    body = value.get("body")
+    url = value.get("url")
+    if (
+        expected is None
+        or isinstance(number, bool)
+        or not isinstance(number, int)
+        or number != int(expected.group("issue"))
+        or state not in {"OPEN", "CLOSED"}
+        or not isinstance(title, str)
+        or not title.strip()
+        or not isinstance(body, str)
+        or not isinstance(url, str)
+        or url.removesuffix("/") != issue_url
+    ):
+        raise QueueError(f"GitHub returned an invalid issue for {issue_url}")
+    return {"state": state, "title": title.strip(), "body": body}
+
+
 def require_clean_tree(context: str) -> None:
     if run_git("status", "--porcelain"):
         raise QueueError(f"Dirty tree {context}")
@@ -207,29 +393,44 @@ def repository_root() -> Path:
     return Path(run_git("rev-parse", "--show-toplevel"))
 
 
-def require_one_agent_commit(previous_head: str, queue_path: Path) -> None:
+def require_one_agent_commit(previous_head: str, queue_path: Path | None) -> None:
     head_with_parents = run_git("rev-list", "--parents", "-n", "1", "HEAD").split()
     if len(head_with_parents) != 2 or head_with_parents[1] != previous_head:
         raise QueueError("Agent must create exactly one non-merge commit")
+
+    changed_paths = run_git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD").splitlines()
+    if not changed_paths:
+        raise QueueError("Agent commit must contain changes")
+    if queue_path is None:
+        return
 
     repository = repository_root().resolve()
     try:
         relative_queue = queue_path.resolve().relative_to(repository).as_posix()
     except ValueError as error:
         raise QueueError("Queue must be inside the Git repository") from error
-    changed_paths = run_git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD").splitlines()
-    if not changed_paths:
-        raise QueueError("Agent commit must contain changes")
     if relative_queue in changed_paths:
         raise QueueError("Agent commit must not modify the queue")
 
 
-def prompt_for(item: QueueItem, queue_path: Path) -> str:
-    return f"""Implement exactly this item, nothing else: {item.description}
+def prompt_for(item: QueueItem, queue_path: Path | None) -> str:
+    source = ""
+    completion_rule = ""
+    queue_rule = "- Queue source is read-only stdin.\n"
+    if queue_path is not None:
+        queue_rule = f"- Do not modify the queue file: {queue_path.resolve()}\n"
+    if item.source_url is not None:
+        source = f"\nGitHub issue: {item.source_url}\n\nIssue body:\n{item.details or ''}\n"
+        completion_rule = (
+            "- Do not close the GitHub issue; the queue runner records completion "
+            "after verification.\n"
+        )
+    return f"""Implement exactly this item, nothing else: {item.description}{source}
 Rules:
 - Run tests/lint/typecheck; fix until green.
 - Make one commit (conventional commit message).
-- Do not modify the queue file: {queue_path.resolve()}
+{queue_rule}\
+{completion_rule}\
 - The queue runner marks the current item done after validating your commit."""
 
 
@@ -643,7 +844,7 @@ def start_stream_threads(
 
 def run_agent(
     item: QueueItem,
-    queue_path: Path,
+    queue_path: Path | None,
     model: str,
     verbose: bool,
     timeout: float,
@@ -791,7 +992,8 @@ def run_verification(command: str, timeout: float, logs: RunLogs, phase: str) ->
 
 
 def process(
-    queue_path: Path,
+    queue_path: Path | None,
+    queue_content: str | None,
     model: str,
     verbose: bool,
     verify_command: str | None,
@@ -802,7 +1004,7 @@ def process(
     completed = 0
     total_item_time = 0.0
 
-    load_queue(queue_path)
+    load_queue(queue_path, queue_content)
     require_clean_tree("before verification preflight")
     if verify_command is None:
         print("[verify] skipped by explicit --no-verify", flush=True)
@@ -812,7 +1014,7 @@ def process(
         require_clean_tree("after verification preflight")
 
     while True:
-        queue = load_queue(queue_path)
+        queue = load_queue(queue_path, queue_content)
         item = queue.next_item()
         if item is None:
             elapsed = time.monotonic() - run_started
@@ -832,9 +1034,7 @@ def process(
             run_verification(verify_command, verify_timeout, logs, "post-commit")
             require_clean_tree(f"after verification: {item.description}")
 
-        queue.mark_done(item)
-        run_git("add", "--", str(queue_path))
-        run_git("commit", "-m", f"chore: mark done: {item.description}")
+        queue.commit_done(item)
         duration = time.monotonic() - item_started
         completed += 1
         total_item_time += duration
@@ -859,9 +1059,39 @@ def handle_sigterm(_signum: int, _frame: object) -> None:
     raise TerminationRequested
 
 
+def start_sleep_inhibitor() -> subprocess.Popen[bytes] | None:
+    if sys.platform != "darwin":
+        return None
+    executable = shutil.which("caffeinate")
+    if executable is None:
+        raise QueueError("macOS caffeinate executable is unavailable")
+    return subprocess.Popen(
+        [executable, "-i", "-w", str(os.getpid())],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+def stop_sleep_inhibitor(process: subprocess.Popen[bytes] | None) -> None:
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=TERMINATE_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("queue", nargs="?", default="TODO.md", help="Markdown or JSON queue file")
+    parser.add_argument(
+        "queue",
+        nargs="?",
+        default="TODO.md",
+        help='Markdown or JSON queue file; use "-" for a GitHub JSON queue on stdin',
+    )
     parser.add_argument(
         "--model",
         help=f"provider/model[#variant]; defaults to QUEUE_MODEL, then {DEFAULT_MODEL}",
@@ -900,10 +1130,15 @@ def main() -> int:
     if arguments.verify is not None and not arguments.verify.strip():
         parser.error("--verify command must not be empty")
     model = arguments.model or os.environ.get("QUEUE_MODEL") or DEFAULT_MODEL
+    queue_path = None if arguments.queue == "-" else Path(arguments.queue)
+    queue_content = sys.stdin.read() if queue_path is None else None
     previous_sigterm = signal.signal(signal.SIGTERM, handle_sigterm)
+    sleep_inhibitor: subprocess.Popen[bytes] | None = None
     try:
+        sleep_inhibitor = start_sleep_inhibitor()
         process(
-            Path(arguments.queue),
+            queue_path,
+            queue_content,
             model,
             arguments.verbose,
             arguments.verify,
@@ -920,6 +1155,7 @@ def main() -> int:
         print(f"process-queue: {error}", file=sys.stderr)
         return 1
     finally:
+        stop_sleep_inhibitor(sleep_inhibitor)
         signal.signal(signal.SIGTERM, previous_sigterm)
     return 0
 
