@@ -326,6 +326,199 @@ The next frozen suite contains 18 cases. With three treatments and five repetiti
 complete hosted campaign contains 270 valid executions. Report the overall verdict and
 class-stratified verdicts. Add paired-by-case bootstrap 95% intervals for every ratio.
 
+### 8.1 Execution contract: tiers, order, invalidation, retry, and stop rules
+
+This subsection is the authoritative execution contract. It binds the evidence layers of
+[§4](#4-evidence-layers), the cheap workflow of [§11](#11-cheap-workflow), and the
+accepted Q2 gates above. It adds no metric, threshold, adapter, or gate; the identifiers
+below name obligations already defined in §4, §8, §10, and §11. Where §4 states what a
+tier measures, this subsection states what the tier authorizes, in which order it runs,
+when its evidence is invalid, and what a failure blocks.
+
+Normative sources, in precedence order:
+
+1. the accepted Q2 gates in
+   [the publication-policy redesign](./codeindex-publication-policy-redesign.md#real-task-evaluation),
+   recorded on 2026-10-20 and retained verbatim in §8 above;
+2. the scope and claim authority of [§1.1](#11-evaluation-scope) and
+   [§1.2](#12-claim-authority);
+3. this subsection, for tier order, invalidation, retry, and stop rules;
+4. the [harness](./evaluation-harness.md) for mechanics.
+
+Every tier remains TypeScript-only per §1.1. A result inherits the weakest claim class
+among its evidence per §1.2.
+
+#### 8.1.1 Tiers
+
+| Tier | Purpose | Cost | Allowed claim class | Normative source |
+|---|---|---|---|---|
+| E0 | Prove that cases, exact truth, graders, and the pinned revision are admissible before any model call | No model calls; local CPU only | None. E0 authorizes execution only and supports no product claim | §4 E0 |
+| E1 | Prove that the interface can produce the exact expected answer and measure the complete minimum route | No model calls; local CPU. Latency and resource gates only on the stable reference machine | None. Measurements explain server cost and do not predict agent choice | §4 E1, §7 |
+| E2 | Measure the effect of the artifact on correctness, workflow, payload, tokens, and latency with three treatments | Stage 2: four local executions. Stage 3: suite × 3 treatments × 3 repetitions, 162 executions for the 18-case suite. Stage 4: 270 hosted executions | Stages 2–3: local-model-scoped only. Stage 4: hosted-model-scoped release authority. Never model-independent | §1.2, §8, §11 |
+| E3 | Measure operational reliability without a model: watcher and build, freshness, restart, generation reuse, stale refusal, resource growth, recovery | No model calls; dedicated reference machine | None alone; supplies the reliability facts a hosted claim must not contradict | §4 E3 |
+
+| Tier | Mandatory exit gate | Failure blocks |
+|---|---|---|
+| E0 | G-E0 (§8.1.8) | Every model tier and every corpus change; a failed E0 rejects the campaign |
+| E1 | G-E1 (§8.1.8) | Stage 2 and every later stage for the affected routes; an interface miss triggers S1 |
+| E2 | G-E2D, then G-E2L, then G-E2H (§8.1.8) | Each stage blocks the next; stage 4 blocks the release claim and any statement that the change improves agent work |
+| E3 | G-E3 (§8.1.8) | Stage 4 when the change touches build, watcher, publication, storage, or isolation; and any reliability claim about the artifact |
+
+#### 8.1.2 Mandatory stage order
+
+Stages run in this order once per suite version, case-hash set, artifact pair, model
+identity, revision, and configuration. None may be reordered, merged, or run
+speculatively.
+
+| Stage | Tier | Scope | Exit gate |
+|---|---|---|---|
+| 0 | E0 | Case and truth validation (§4 E0) | G-E0 |
+| 1 | E1, plus E3 when the change touches build, watcher, publication, storage, or isolation | Complete-route comparison for every claimed question (§4 E1) | G-E1, G-E3 |
+| 2 | E2 | Two predeclared impact cases, one repetition, accepted and candidate treatments | G-E2D |
+| 3 | E2 | Full suite, one fixed local model, three treatments, three paired repetitions | G-E2L |
+| 4 | E2 | Frozen 18-case suite, pinned hosted model, three treatments, five paired repetitions (deferred release authority, §1.2) | G-E2H |
+
+Rules:
+
+- A cheaper failure blocks every more expensive stage. No aggregate, anecdote, or partial
+  success at stage 3 or 4 overturns a failed stage 0, 1, or 2 (§2, §11 Before any model
+  call, step 5).
+- Stage 0 and stage 1 are never skipped. A change that alters no MCP response is exempt
+  from stages 2–4 under §11 Release evaluation, and only after stage 1 shows the affected
+  responses are unchanged. Any user-visible MCP change always requires stages 2–4.
+- Changing the suite, a case hash, an artifact, the model identity, the revision, or the
+  configuration creates a new comparison. Earlier stage results do not carry over
+  (§1.2, §8.1.4).
+- Stage 1 uses the released MCP entry through the official client. Implementation
+  internals and MCP analytics are not evidence (§2, §4 E1).
+
+#### 8.1.3 Gate results
+
+Every gate returns exactly one of three results:
+
+| Result | Meaning | Authorizes |
+|---|---|---|
+| pass | Evidence is complete and the predeclared criterion is met | The next stage only |
+| fail | Evidence is valid and the predeclared criterion is not met | Nothing; it triggers the matching stop rule (§8.1.7) |
+| invalid | Evidence is unusable for a cause recorded under §8.1.4 | A failed-slot retry (§8.1.5) and nothing else |
+
+An invalid gate is never recorded as a pass. A fail is never converted to invalid by
+re-measuring. A stage verdict is `pass` only when every gate in the stage passes; any
+`fail` gate fails the stage, and any `invalid` gate leaves the verdict incomplete until its
+slots are retried. If an invalid cause cannot be repaired inside the stage, the verdict is
+not `pass`, and only the claims permitted by §1.2 may be reported.
+
+#### 8.1.4 Invalidation rules
+
+An execution, slot, case, metric, or stage is invalid when any condition in this table
+holds. Invalidity is a property of the evidence, not of the result.
+
+| Condition | Invalid scope | Normative source |
+|---|---|---|
+| Artifact mismatch: MCP artifact hash, accepted-artifact identity, or candidate-artifact identity differs from the manifest, or the two artifacts are swapped | Every slot using the affected artifact | §8, harness §7 |
+| Model mismatch: model identity, digest, quantization, runtime version, or generation settings differ from the predeclaration | Every slot using the affected model | §1.2, §10 |
+| Prompt or agent mismatch: case prompt, agent instructions, permissions, or context budget differ from the frozen case and treatment definition | Affected case, all treatments | §4 E2, §8 |
+| Revision or case mismatch: subject revision, checkout content, case hash, suite version, or truth authority differs | Affected case or stage | §4 E0, harness §3.2 |
+| Configuration mismatch: CodeIndex configuration, timeout, harness schema, Node or platform identity differs between compared executions | Affected comparison | harness §7, §8 |
+| Non-equivalent treatments or tool-list mismatch: ordinary tool set, tool names presented to the model, generic `execute` availability, randomization, or external fixtures differ between treatments | Affected stage | §4 E2, harness §3.3 |
+| Missing required telemetry: exact token usage for a token claim, tool-name list, normalized call sequence, wall time, or exit status is absent or unparseable | The affected metric, and the slots that carry only that metric | §1.2, harness §2 |
+| Insufficient repetitions: fewer than the stage's declared repetitions | Affected slot set | §8 |
+| Dirty isolation: checkout not clean or not at revision, inherited or persisted session state, shared background service used, `OPENCODE_DB` not ephemeral or campaign-local, incomplete restoration, or edits from a prior run visible | Affected execution; the stage when equivalence is broken | §4 E2, harness §5.1 |
+
+Scope rule: invalidate the smallest unit whose evidence is defective — one execution, one
+slot, one case, one measured quantity, then the stage. A shared cause invalidates every slot
+that shares it. Never invalidate a whole stage for a defect confined to one slot, and never
+keep a slot whose cause is shared.
+
+#### 8.1.5 Failed-slot-only retry
+
+A slot is the tuple (suite version, case hash, treatment, repetition index). A stage is an
+ordered slot set.
+
+- A valid execution is final. Never discard, replace, or re-run it because its result is
+  inconvenient, off-trend, or contradicts the hypothesis (§2, §8).
+- Retry only a slot recorded invalid under §8.1.4, and only after the exact cause is named
+  and corrected. Record the cause with the retry.
+- Correcting a shared cause invalidates every slot that shares it. Retry all of them or
+  abandon the stage. Do not splice results produced under different preconditions into one
+  stage.
+- Retain the invalid record beside its replacement and report the invalidity cause. When a
+  retry contradicts a valid execution, the valid execution stands and the retry is
+  recorded as additional evidence.
+- A failed (valid) execution is never retried; it triggers the matching stop rule. An
+  uncorrected repeat of an invalid attempt is prohibited.
+
+#### 8.1.6 Gate immutability
+
+Gates, thresholds, cases, expected file sets, treatments, repetition counts, statistics,
+and stop rules are fixed and recorded before the first execution of a stage.
+
+- Seeing results never justifies relaxing a threshold, adding an exclusion, dropping a
+  case or class, redefining a metric, raising a repetition count to average away a failure,
+  or changing the declared statistic (§2, §8, harness §11 step 5).
+- A defective gate is replaced only by a new predeclared policy that states the defect, the
+  replacement, and the reason. The new policy governs future stages only, and it
+  invalidates comparison with every result produced under the old one. Those results are
+  retained as historical evidence and are not re-graded.
+- Re-running a failing stage unchanged to obtain a different sample is optional stopping
+  and is prohibited. A re-run requires a cause recorded before it starts: a product fix, a
+  case-truth fix, or a harness fix.
+- The accepted Q2 gates are retained verbatim in §8 and are not restated with any
+  tolerance; §8.1.8 copies them only to map each item to its check. Changing any of them
+  requires the new-policy path in this subsection.
+
+#### 8.1.7 Stop rules
+
+Each trigger is closed. No other observation authorizes a stop, and no trigger authorizes
+advancing to a more expensive stage.
+
+| Stop rule | Trigger | Next permitted action | Source |
+|---|---|---|---|
+| S1 interface miss | A stage 1 complete route for a claimed case fails exact answer equality, requires an undeclared setup call, or violates the pagination, truncation, stale-file, or error contract | Stop before any model call. Fix the interface. Re-run stage 1 for the affected routes only | §4 E1, §11, §12 |
+| S2 correctness loss | Any execution loses correctness against its baseline, any case misses its exact expected file set, or an indexed run claims absence after an authoritative non-empty index result | Stop the stage. Fix the product, or return to E0 for a truth defect. Re-run from the cheapest failed stage | §8, §11 |
+| S3 telemetry invalidity | A required metric lacks exact token usage, tool-name list, normalized call sequence, wall time, or exit status | Invalidate only the affected metric and slots, limit the claim to the valid metrics, re-run those slots after the harness fix. Never estimate a missing value | §1.2, §10, harness §2 |
+| S4 budget overrun | A local calibration or diagnostic exceeds its declared wall-clock budget, or a stage exceeds its declared execution or spend budget | Abandon that configuration for prechecks, record no result, and select another candidate local model or abandon prechecks for this change. Do not reduce cases or repetitions to fit the budget | §10, §11 |
+| S5 isolation or artifact failure | Dirty checkout, inherited or persisted session state, incomplete restoration, artifact or harness version mismatch, or non-equivalent treatments | Invalidate every affected slot, or the stage when equivalence was broken. Repair isolation and re-run the stage | §4 E2, §8.1.4, harness §5 |
+| S6 statistically supported regression | A paired-by-case 95% interval for a candidate effect excludes parity in the harmful direction, or any accepted Q2 gate fails | Fail the stage. Fix or abandon the change. Do not drop the regressed metric, class, or case | §8, §11 Local regression |
+
+#### 8.1.8 Gate-to-check map
+
+`executable` means a named check the harness or a model-free script performs and a
+reviewer can re-run. `manual review` means a named reviewer decision over retained
+evidence. The harness is a proposed method and no runner ships in this repository, so an
+`executable` gate without an implemented check cannot pass.
+
+| Gate | Criterion | Kind | Enforced at |
+|---|---|---|---|
+| G-E0a | Case and suite schemas validate; hashes, revision, and planned runs resolve | executable | Harness case and suite validation with `--list` and `--dry-run`; starts no model process (harness §4, §6) |
+| G-E0b | Exact `expectedFiles`, bounded `contextFiles`, and `forbiddenFiles` agree with the TypeScript language service or a reviewed source manifest | manual review | Recorded E0 review note per case against the language service or reviewed manifest (§4 E0) |
+| G-E0c | The grader accepts known passing answers and rejects known failing answers | executable | Harness check run over retained fixture answers; repeated on every grader change (§4 E0) |
+| G-E0d | A semantic case admits: best single-identifier grep precision at most 0.5 or an expected file missed | executable | Model-free grep measurement stored with the case (§6 Case admission) |
+| G-E1a | Exact answer equality for the complete no-index, accepted, and candidate routes | executable | Model-free route comparison through the official client (§4 E1) |
+| G-E1b | Complete-route call count, response bytes, and elapsed time, with core query time separated | executable | Model-free measurement; latency and resource comparison only on the reference machine (§7) |
+| G-E1c | Pagination, truncation, stale-file, and failure behaviour match the tool contract | executable | Model-free checks against the published MCP entry (§4 E1) |
+| G-E1d | Comparisons cover only cases where CodeIndex claims an advantage, with no forced unique-literal lookup | manual review | Case list reviewed before stage 1 (§4 E1) |
+| G-E2D | Two impact cases, one repetition, accepted versus candidate: every candidate answer correct, target workflow improved, no observed metric regressed | executable and manual review | Harness runs exactly four executions; a reviewer judges improvement and regression from raw traces, because one repetition supports no interval (§11) |
+| G-E2L | Full suite, three treatments, three paired repetitions: no correctness loss, target metric improved, no statistically supported regression in any tracked metric, no gate moved backward | executable | Harness report with per-run values, medians, and paired-by-case bootstrap 95% intervals (harness §7) |
+| G-E2H | The retained Q2 gates plus the candidate-versus-accepted conditions, at five paired repetitions over 18 cases | executable and manual review | Harness campaign and report; a reviewer audits the predeclaration and confirms the named target metric before execution (§8, §11) |
+| G-E3 | Closed build-failure causes, time-to-fresh, restart and generation reuse, stale refusal, resource growth, unattended recovery | executable and manual review | Scripted edit run and soak outside the harness; harness generation metrics supply build time, memory, and database size (harness §8). A reviewer confirms no manual intervention and no unrecovered failure. No numeric E3 threshold is accepted, so E3 numbers are directional |
+
+In the retained Q2 wording, `arm` means `treatment`. The accepted Q2 thresholds are
+enumerated as Q2-1 to Q2-9 for mapping only. The bullet wording and values in §8 remain
+authoritative; this table adds no tolerance and no reinterpretation.
+
+| Item | Retained threshold | Stage 4 check |
+|---|---|---|
+| Q2-1 | at least 12 independently runnable cases | Suite manifest and case count |
+| Q2-2 | 5 paired repetitions per arm | Repetition count and slot completeness |
+| Q2-3 | identical model, prompt, revision, permissions, and external fixtures | Run-manifest identity comparison (§8.1.4) |
+| Q2-4 | no case loses correctness, and indexed success is at least 90% | Per-case correctness assertions and overall success ratio |
+| Q2-5 | indexed false-absence claims are at most 2% and never exceed baseline | False-absence counter over truthful runs, including the authoritative-non-empty rule |
+| Q2-6 | median retrieval output bytes per successful case are at least 10% below baseline | Per-case median retrieval bytes over successful cases |
+| Q2-7 | median tool calls per successful case are not above baseline | Normalized call-count median over successful cases |
+| Q2-8 | median uncached input + output + reasoning tokens are at most 1.05x baseline | Exact usage; cache reads reported separately; invalid without usage |
+| Q2-9 | indexed p95 wall time is at most 1.2x baseline | Wall-time p95 with its sample count |
+
 ## 9. Current baseline
 
 Q2 v4 used `deepseek/deepseek-flash`, direct native MCP, 12 cases, 5 repetitions, and 120
@@ -381,6 +574,10 @@ for that suite. Changing it requires a new complete paired baseline. Q2 v4's
 `deepseek/deepseek-flash` result remains historical evidence, not an automatic selection.
 
 ## 11. Cheap workflow
+
+[§8.1](#81-execution-contract-tiers-order-invalidation-retry-and-stop-rules) is the
+authoritative contract for tier order, gates, invalidation, retry, and stop rules. This
+section describes the cheap stages that contract orders; it defines no additional gate.
 
 ### Before any model call
 

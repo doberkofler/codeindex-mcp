@@ -6,7 +6,11 @@ CodeIndex artifact, and with a candidate artifact
 
 This document owns harness mechanics. The
 [MCP evaluation strategy](./mcp-evaluation-strategy.md) owns product questions, test
-data, metrics, gates, local-model use, and evaluation cadence.
+data, metrics, gates, evaluation tiers, the stage order, stop rules, retry policy,
+local-model use, and evaluation cadence. The strategy's
+[execution contract](./mcp-evaluation-strategy.md#81-execution-contract-tiers-order-invalidation-retry-and-stop-rules)
+is authoritative; [§13](#13-tier-gate-and-stop-rule-enforcement) lists where this harness
+enforces it.
 
 This document describes an evaluation method, not a shipped component. The
 public package contains no corpus, grading data, model transcripts, or runner.
@@ -16,9 +20,9 @@ executable.
 ## Scope and claim boundary
 
 The [MCP evaluation strategy](./mcp-evaluation-strategy.md) owns product questions,
-test data, metrics, gates, local-model use, claim authority, and evaluation cadence.
-This section repeats the strategy's scope statement because it constrains every harness
-run.
+test data, metrics, gates, evaluation tiers, the stage order, stop rules, retry policy,
+claim authority, and evaluation cadence. This section repeats the strategy's scope
+statement because it constrains every harness run.
 
 The following statement is repeated verbatim from the strategy and is normative here:
 
@@ -414,3 +418,26 @@ result from a clean checkout, and explain every grade from retained evidence.
 - Strip credentials, request values, and absolute user paths before persisting
   derived reports.
 - Treat raw agent traces as sensitive: they may contain source excerpts.
+
+## 13. Tier, gate, and stop-rule enforcement
+
+The strategy's
+[§8.1 execution contract](./mcp-evaluation-strategy.md#81-execution-contract-tiers-order-invalidation-retry-and-stop-rules)
+owns tiers E0–E3, the mandatory stage order, gate results, invalidation rules,
+failed-slot retry, gate immutability, and stop rules. This document supplies mechanics
+only; it neither defines nor reinterprets a gate.
+
+| Contract obligation | Harness mechanism |
+| --- | --- |
+| G-E0 case, suite, and planned-run validation | Case schema validation, `--list`, and `--dry-run` reject before any model process ([§4](#4-case-schema), [§6](#6-cli-shape)) |
+| G-E1 complete-route comparison | Outside the harness: a model-free script drives the published entry. The harness normalizes and retains the recorded call sequence ([§8.1](#81-workflow-policy)) |
+| Gate immutability | Frozen suites reference immutable case hashes; changing a frozen case requires a new suite version ([§3.2](#32-suite)) |
+| Run identity and mismatch invalidation | Run manifest identity; `--resume` matches the complete identity; mismatched revision, model, prompt, bundle, or configuration is rejected ([§6](#6-cli-shape), [§7](#7-result-contract), [§10](#10-verification)) |
+| Isolation and restoration | Dedicated checkout, ephemeral client state, atomic persistence, restoration after every execution ([§5](#5-isolation), [§5.1](#51-opencode-client-state)) |
+| Treatment equivalence | Treatment definitions record every difference; equivalence checks reject non-equivalent treatments ([§3.3](#33-treatment), [§9](#9-architecture)) |
+| Telemetry validity | Exact token extraction with availability status; missing usage invalidates the affected metric, never estimated from bytes ([§2](#2-goals), [§7](#7-result-contract)) |
+| Failed-slot-only retry | One immutable result per execution identity; `--resume` neither repeats nor skips a completed slot; failed and invalid executions stay inspectable ([§6](#6-cli-shape), [§7](#7-result-contract)) |
+| Stop rules | The harness records pass, fail, or invalid per execution with raw evidence. Applying a stop rule is a reviewer decision, not a harness verdict |
+
+Harness behaviour that contradicts this table is a harness defect. Fix the harness; do not
+relax the contract.
