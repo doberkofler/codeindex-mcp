@@ -1,15 +1,18 @@
 # CodeIndex Publication Policy Redesign
 
-Date: 2026-10-20
+Date: 2026-10-21
 
-Status: accepted authoritative contract as of 2026-10-20. This file supersedes every
+Status: accepted authoritative contract as of 2026-10-20, updated with implementation
+and evaluation evidence through 2026-10-21. This file supersedes every
 versioned `codeindex-publication-policy-v*.md` specification and history document; no
 such document remains in the repository. Items marked **Open** require an owner decision
 or measurement; all other rules are normative.
 
-This document preserves the final rationale, evidence, rejected alternatives, and open
-work—not the chronological review transcript. Superseded intermediate proposals have no
-normative value after acceptance.
+This document preserves the final rationale, evidence, implemented status, rejected
+alternatives, and open work—not the chronological review transcript. Superseded
+intermediate proposals have no normative value after acceptance. Post-acceptance evidence
+does not change a tool or build contract unless this document says that the change is
+accepted.
 
 Implementation progress is tracked in
 [codeindex-publication-policy-redesign-todo.md](./codeindex-publication-policy-redesign-todo.md).
@@ -103,6 +106,7 @@ These facts constrain the implementation:
   - TypeScript: `node.getStart(sourceFile)` through `node.end`;
   - Oracle: `declaration.range`.
 - TypeScript is pinned to 6.0.3.
+- The TypeScript adapter version is 0.2.0; the Oracle adapter version is 0.5.0.
 - Current `SCHEMA_VERSION` is 9.
 - `find_symbol` and `find_references` already accept a context filter.
 - `find_references.role` is optionally `definition` or `reference`.
@@ -1237,7 +1241,9 @@ whole-build transaction, provides publication isolation [10].
 ### Shared result records
 
 Tool responses use these semantic records; production names may follow repository
-conventions:
+conventions. The records below describe full detail. `find_symbol` and `outline` return
+compact items by default; callers request `detail = full` only when bindings, names, or
+definition sites are required:
 
 ```ts
 type BindingExposure = 'published' | 'reachable' | 'internal';
@@ -1323,10 +1329,16 @@ Parameters:
 - `match = name | qualified`;
 - optional kind, container, declaration path, context;
 - `exposure = published | reachable | visible | internal | any`;
+- `detail = compact | full`;
 - limit and keyset cursor.
 
 `visible` means published or reachable.
 `match` defaults to `name`.
+`detail` defaults to `compact`.
+
+Compact items contain symbol ID, name, qualified name, kind, path, and line range. Full
+items contain the binding, name, and definition-site records described above. Matching,
+deduplication, ordering, pagination, and exposure semantics are identical in both modes.
 
 Matching compares the requested field exactly or by whole-field prefix. The core never
 splits qualified names.
@@ -1376,6 +1388,10 @@ remain in the lexical tree. Bindings of symbols defined elsewhere appear only un
 defined there. Collapse one wildcard clause to one entry with a name count. `outline`
 has no line parameter.
 
+`detail` defaults to `compact`. Compact items contain symbol ID, name, kind, and line
+range. Full items add qualified names, bindings, and definition sites. Re-export bounds
+and ordering are identical in both modes.
+
 ### `symbol_at`
 
 With a column, return the innermost definition extent containing the position. Without
@@ -1398,6 +1414,12 @@ symbol ID, then the remaining occurrence-key fields. Pagination uses a generatio
 keyset cursor over that tuple plus a filter digest. Return the unclassified-reference
 count and `cross_file_refs_observed`. Grouping is not part of the contract until a future
 decision defines grouping-specific pagination.
+
+This remains the implemented compatibility contract. Q2 v4 reopened M9: model-facing
+impact questions need name resolution followed by references, while their usual answer is
+only a unique path set. A future accepted contract may add query-based resolution and
+file/owner grouping without changing the existing `symbolId` default. Until accepted,
+callers must not depend on those proposed modes.
 
 ### `read_symbol`
 
@@ -1639,9 +1661,30 @@ Q2 acceptance thresholds, recorded on 2026-10-20:
 - p95 wall time is at most 1.2x baseline.
 
 A run with unavailable exact token usage, mismatched artifacts, or fewer than five
-repetitions is invalid rather than a pass. The A/B itself remains blocked until the
-private evaluation harness and model transcripts are available; no aggregate task
-metrics are claimed.
+repetitions is invalid rather than a pass.
+
+Q2 v4 completed on 2026-10-21 with `deepseek/deepseek-flash`, direct native MCP tools
+(`codemode: false`), identical agent and user prompts, 12 cases, 5 repetitions, and 120
+valid executions. Both arms were 100% correct with no false-absence claims. The indexed
+arm nevertheless failed every efficiency gate:
+
+| Metric | Baseline | Indexed | Gate result |
+|---|---:|---:|---|
+| Median retrieval output | 3,268 bytes | 6,969 bytes | Fail: 2.132x baseline |
+| Median tool calls | 2 | 3 | Fail: +1 call |
+| Median uncached input + output + reasoning | 985 tokens | 2,508 tokens | Fail: 2.547x baseline |
+| p95 wall time | 10.2 s | 13.8 s | Fail: 1.351x baseline |
+
+Only 29 of 60 indexed runs used CodeIndex. Impact cases exposed the main interface cost:
+the baseline usually used one grep, while the indexed arm resolved a name and then
+requested detailed occurrences. Code Mode had separately inflated an earlier campaign;
+native `codeindex_*` tool names verify that v4 did not route CodeIndex through that
+wrapper. Generic `execute` remained available in both arms and was sometimes selected
+incorrectly, but removing those calls does not change the verdict.
+
+The Q2 thresholds remain unchanged. A later suite may improve arm instrumentation and
+add mechanically defined semantic cases, but it must report the existing verdict plus
+class-stratified results rather than reinterpret this failure as a pass.
 
 The evaluation has no LSP arm unless the target client exposes a documented LSP tool
 [20].
@@ -1661,6 +1704,41 @@ which describes facts fixed at generation build time. `CODE_INDEX_ANALYTICS=fals
 disables these writes with the rest of analytics.
 
 ## Empirical evidence retained by this redesign
+
+### Post-implementation TypeScript architecture and operations
+
+The released `v0.5.0` tag is commit `25fe5ba`; the evaluated redesign is `fed1b6e`.
+Across the TypeScript adapter, core facts/query/storage modules, and MCP transport, the
+redesign changed 53 files with 7,881 insertions and 990 deletions. The schema grew from
+16 to 22 tables. The added structure represents canonical bindings, per-context names
+and exposure, binding sites, surface origins, definition sites, and build statistics.
+
+This static comparison proves architectural scope, not performance regression. No
+retained benchmark reference compares both commits on the same corpus and machine. The
+existing benchmark baseline files have `reference: null`; a controlled build, storage,
+core-query, MCP-payload, and agent A/B remains required.
+
+The two-call reference workflow predates the redesign. `v0.5.0` also required
+`find_symbol(query)` followed by `find_references(symbolId)`. The redesign made the
+second response richer, which increased payload, but reverting the fact model would not
+remove caller orchestration. This is evidence for deepening the query module rather than
+discarding canonical bindings and publication finalization.
+
+Separate `v0.5.0` field telemetry from one project, developer, and machine recorded 418
+rebuild attempts, 245 failures (58.6%), 41% of build time spent in failed attempts, 23.8
+s median complete rebuilds, 4.48 GiB median peak RSS, and a 3.1 s median publication
+stage. Those observations predate the redesign and cannot quantify its cost. They
+motivate build-lifecycle work only after a controlled A/B and current telemetry establish
+the comparison.
+
+The same trace shows a strong but non-causal association with editing churn: 189 of 224
+attempts with a change in their first 13 seconds failed, versus 11 of 149 without one.
+Time from the first attempt to a successful publication had p95 67.9 s and excludes 67
+chains that ended without a nearby success, so it is a lower bound. Watcher event to the
+first successful build that started afterward had p95 869.8 s, but includes events that
+did not change content and is therefore an upper bound. These measurements require a
+closed failure taxonomy and end-to-end time-to-fresh telemetry; they do not identify a
+failure cause by themselves.
 
 TypeScript 6.0.3 declaration-emission probes established:
 
@@ -1716,23 +1794,30 @@ corpora, results, and rejected-runtime evidence remain in
 
 ## Verification status
 
-The following claims remain provisional until their named gate or prototype passes:
+Implementation and qualification status on 2026-10-21:
 
-- G-A/G-A2 truth construction on the complete TypeScript corpus;
-- emitted support-declaration retention as a complete reachability oracle;
-- unique source association for emitted inferred-anonymous truth addresses;
-- union/intersection projection semantics;
-- compiler export-table names for CommonJS `export =` forms;
-- `LanguageService.findReferences` behavior through every supported barrel form;
-- private, protected, and `#` member treatment across all supported TypeScript forms;
-- Oracle call-spec and RETURN-only cursor behavior on the current database release;
-- PL/Scope signature equality between packaged spec declarations and body definitions;
-- `ALL_PROCEDURES` treatment of package-body-only routines;
-- combined Definition + ForwardDefinition interoperability with SCIP consumers.
+| Area | Status |
+|---|---|
+| Fact seam, finalization, schema, and persistence | Implemented; schema version 9 |
+| TypeScript G-A and G-A2 | Pass on the TypeScript compiler, VS Code, and Material UI styled-engine corpora |
+| TypeScript reference comparison | Precision and recall remain 1 on the repository reference corpus |
+| Oracle G-B through G-F | Pass on the frozen production corpus under the accepted omission policy |
+| Oracle reference truth | 100% precision; 186,742 / 186,877 policy-visible recall (99.93%); raw recall including 1,420 ambiguous omitted calls is 186,742 / 188,297 (99.17%) |
+| Q1 packaged spec/body signatures | Pass live: 5,886 / 5,886 |
+| Q2 real-task evaluation | Valid run completed; correctness passes, efficiency gates fail |
+
+The following remain deferred or unverified:
+
+- CommonJS `export =` publication, deferred by K3;
+- `LanguageService.findReferences` behavior through every future barrel form;
+- project-local TypeScript compiler loading and compatibility;
+- combined Definition + ForwardDefinition interoperability with SCIP consumers;
+- controlled `v0.5.0` versus current build/query performance;
+- whether grouped one-call references close the Q2 impact gap.
 
 SQLite FK behavior, deterministic hash encoding, canonical JSON serialization, and
-cursor scoping are implementation claims. Verify them with focused automated tests
-rather than leaving them as documentary assumptions.
+cursor scoping are covered by focused automated tests. Those tests remain required; the
+contract must not rely on documentary assumptions alone.
 
 ## Implementation sequence
 
@@ -1748,6 +1833,8 @@ Complete on 2026-10-20:
 
 ### Phase 1: introduce the fact seam
 
+Completed on 2026-10-20.
+
 - Create the serializable extracted fact bundle.
 - Add the deep core finalization module.
 - Keep existing persistence and tool responses unchanged.
@@ -1757,6 +1844,8 @@ Complete when both adapters can produce bounded in-memory facts without compiler
 objects crossing the seam.
 
 ### Phase 2: dry run and prototypes
+
+Completed on 2026-10-20.
 
 Remain on schema version 8 throughout this phase; do not persist redesigned facts.
 
@@ -1819,7 +1908,7 @@ Surface projection and reachability closure were measured with the independent P
 compiler-type probe. All 6,010 TypeScript compiler roots, 19,254 VS Code roots, and 4,091
 Material UI roots completed within the probe budget, with no depth-limited roots. The
 observed maxima and accepted 2,000/50,000 ceilings are recorded under "Projection
-ceilings". DDL approval is the only remaining evidence-checkpoint item. Aggregate P-3
+ceilings". The evidence checkpoint and DDL approval completed on 2026-10-20. Aggregate P-3
 reports are committed under `benchmark/publication-phase2/`; the M8 read-only probe is
 recorded in `benchmark/publication-phase2/oracle-live-evidence.json`.
 
@@ -1829,6 +1918,8 @@ must contain no source text, query text, credentials, or absolute paths; it is n
 persisted in the index nor sent to analytics. Commit only scrubbed aggregate evidence.
 
 ### Phase 3: schema and persistence
+
+Completed on 2026-10-20.
 
 - Bump `SCHEMA_VERSION`.
 - Bump each adapter version when its emitted facts change.
@@ -1842,6 +1933,8 @@ collision failure, failed-candidate isolation, and same-generation status counts
 
 ### Phase 4: TypeScript vertical slice
 
+Completed on 2026-10-20.
+
 - Implement bindings, aliases, external projections, default roots, surface projection,
   reachability, declaration kinds, ownership, and usage.
 - Implement every query/list mode against the new schema.
@@ -1851,6 +1944,8 @@ Complete when ESM TypeScript and ESM JavaScript pass qualification with bounded 
 responses.
 
 ### Phase 5: Oracle vertical slice
+
+Completed and qualified on the frozen production corpus on 2026-10-21.
 
 - Record declaration forms.
 - Implement heading-gated routine/cursor pairing that ignores parameter defaults.
@@ -1863,16 +1958,16 @@ while exposing publication classification.
 
 ### Phase 6: defaults and evaluation
 
-Implemented on 2026-10-20, except the model-facing A/B run:
+Defaults were implemented on 2026-10-20. The model-facing A/B completed on 2026-10-21:
 
 - `find_symbol` defaults to `visible`.
 - Exact-name presence telemetry is recorded in local analytics.
 - CommonJS publication is deferred by K3.
 - S3, O2, L1, and F1 are enforced for production builds.
-- Q2 thresholds are accepted; the real-task A/B awaits the private harness.
+- Q2 thresholds are accepted; Q2 v4 passed correctness and failed all efficiency gates.
 
-Complete when model-facing task metrics meet the accepted success and false-absence
-thresholds. Those metrics remain blocked, so Phase 6 is not complete.
+Phase 6 remains incomplete until model-facing task metrics meet every accepted threshold.
+The failed gates are not reinterpreted as passes.
 
 ### Required automated tests
 
@@ -1901,16 +1996,16 @@ thresholds. Those metrics remain blocked, so Phase 6 is not complete.
 | M1 | Store named nested TypeScript functions after measuring count and size | Resolved: store them; Phase 2 evidence recorded |
 | M5 | Default `find_symbol` exposure: `published` or `visible` | Resolved: `visible`; Phase 6 exact-name evidence recorded |
 | M8 | Oracle synonym/current-schema source and unquoted-name case folding | Resolved: source-only names, no synonym expansion, canonical uppercase for unquoted names |
-| M9 | `find_references` grouping and pagination semantics | Resolved: flat occurrences with keyset pagination |
+| M9 | `find_references` grouping and pagination semantics | Reopened by Q2 v4; flat occurrences remain the compatibility contract while query-based file/owner grouping is evaluated |
 | M10 | Deferred Oracle/ORDS scope and cross-language edges | Deferred scope |
 | M11/M12 | Final per-root reachability-step and surface-address ceilings | Resolved: 50,000 steps and 2,000 addresses per root |
 | M13 | Union/intersection constituent behavior in address projection | Resolved: constituent-only declarations are reachable, not projected |
 | M14 | Fixed declaration-kind precedence for merged TypeScript symbol identity | Resolved: no fixed precedence; keep the identity anchor kind |
-| Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification | Frozen export equal (5,654/5,654); live recheck blocked because `USER_IDENTIFIERS` is empty |
-| Q2 | Real-task success, false-absence, token, and tool-call acceptance thresholds | Resolved: thresholds accepted; A/B blocked on private harness |
+| Q1 | PL/Scope signature equality for packaged spec/body routines | Resolved: live pass, 5,886/5,886 |
+| Q2 | Real-task success, false-absence, token, and tool-call acceptance thresholds | Thresholds unchanged; Q2 v4 completed and failed output, call, token, and latency gates |
 
-No DDL work begins until every item marked "Resolve before DDL" has a recorded
-measurement or decision.
+The original pre-DDL checkpoint is complete. New work does not reopen the accepted fact
+model unless an explicit decision changes this contract.
 
 ## Rejected alternatives
 
@@ -1933,6 +2028,8 @@ measurement or decision.
 | In-place schema migration | repository policy rebuilds derived indexes on schema-version change |
 | PL/Scope-backed production indexing | unavailable for wrapped/offline source and violates source-based adapter design |
 | ANTLR Oracle production parser | Phase 8 precision and dependency-recall gates failed |
+| Revert to the `v0.5.0` fact model to reduce Q2 cost | loses binding/exposure correctness and does not remove the pre-existing `find_symbol` then `find_references` workflow |
+| Treat `v0.5.0` field telemetry as redesign cost | workload, source revision, compiler, and machine differ; only a controlled same-corpus A/B can attribute cost |
 
 ## Versioned document removal
 
