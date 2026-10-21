@@ -202,12 +202,13 @@ def require_one_agent_commit(previous_head: str, queue_path: Path) -> None:
         raise QueueError("Agent commit must not modify the queue")
 
 
-def prompt_for(item: QueueItem) -> str:
+def prompt_for(item: QueueItem, queue_path: Path) -> str:
     return f"""Implement exactly this item, nothing else: {item.description}
 Rules:
 - Run tests/lint/typecheck; fix until green.
 - Make one commit (conventional commit message).
-- Do not touch other queue items."""
+- Do not modify the queue file: {queue_path.resolve()}
+- The queue runner marks the current item done after validating your commit."""
 
 
 def agent_command(model: str, prompt: str) -> list[str]:
@@ -471,14 +472,14 @@ def terminate(process: subprocess.Popen[str]) -> None:
         process.wait()
 
 
-def run_agent(item: QueueItem, model: str, verbose: bool) -> None:
+def run_agent(item: QueueItem, queue_path: Path, model: str, verbose: bool) -> None:
     log_path = allocate_log_path(log_directory(), item.issue)
     reporter = RunReporter(model, verbose, sys.stdout)
     reporter.start(item)
 
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(
-            agent_command(model, prompt_for(item)),
+            agent_command(model, prompt_for(item, queue_path)),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -516,7 +517,7 @@ def process(queue_path: Path, model: str, verbose: bool) -> None:
 
         require_clean_tree(f"before: {item.description}")
         previous_head = run_git("rev-parse", "HEAD")
-        run_agent(item, model, verbose)
+        run_agent(item, queue_path, model, verbose)
         require_clean_tree(f"after: {item.description}")
         require_one_agent_commit(previous_head, queue_path)
 

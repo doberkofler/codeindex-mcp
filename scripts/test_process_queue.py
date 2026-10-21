@@ -97,10 +97,11 @@ class QueueTest(unittest.TestCase):
             self.assertIsNotNone(item)
             assert item is not None
 
-            prompt = prompt_for(item)
+            prompt = prompt_for(item, path)
 
             self.assertIn("Run tests/lint/typecheck", prompt)
             self.assertIn("Make one commit", prompt)
+            self.assertIn(f"Do not modify the queue file: {path.resolve()}", prompt)
 
 
 class ProcessQueueTest(unittest.TestCase):
@@ -187,6 +188,9 @@ subprocess.run(
         )
         self.assertEqual(argv[7:9], ["--model", DEFAULT_MODEL])
         self.assertTrue(argv[-1].startswith("Implement exactly this item"))
+        self.assertIn(
+            f"Do not modify the queue file: {self.queue_path.resolve()}", argv[-1]
+        )
         queue = json.loads(self.queue_path.read_text(encoding="utf-8"))
         self.assertIs(queue["items"][0]["done"], True)
         self.assertEqual(self._git("rev-list", "--count", "HEAD").stdout.strip(), "3")
