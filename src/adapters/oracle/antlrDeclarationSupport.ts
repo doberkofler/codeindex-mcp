@@ -78,6 +78,7 @@ export const typeReferenceOfElement = (input: OracleParseInputType, element: Gen
 		name: oracleNameOf({parts: parts.map((part) => namePartOf(part.getText()))}),
 		range: rangeOf(input, first.start, last.stop),
 		rowType,
+		anchored: rowType,
 	};
 };
 
@@ -113,6 +114,7 @@ export const typeReferencesOf = (input: OracleParseInputType, typeSpec: Type_spe
 			name: oracleNameOf({parts: names}),
 			range: rangeOf(input, typeName.start, anchored ? typeSpec.stop : typeName.stop),
 			rowType,
+			anchored,
 		},
 	];
 };

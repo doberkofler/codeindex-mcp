@@ -68,18 +68,28 @@ const chainPartsAt = (state: OracleParserStateType, index: number): Readonly<{pa
 		return null;
 	}
 
-	const before = state.cursor.previous(dot);
+	let before = state.cursor.previous(dot);
 	let base: Readonly<{parts: readonly OracleNamePartType[]; startIndex: number}> | null = null;
 
-	if (state.cursor.identifier(before)) {
-		base = chainPartsAt(state, before) ?? {parts: [namePartOf(state.cursor.text(before))], startIndex: before};
-	} else if (state.cursor.text(before) === ')') {
-		const open = matchingOpen(state, before);
-		const baseIndex = open === null ? -1 : state.cursor.previous(open);
-
-		if (baseIndex >= 0 && state.cursor.identifier(baseIndex)) {
-			base = chainPartsAt(state, baseIndex) ?? {parts: [namePartOf(state.cursor.text(baseIndex))], startIndex: baseIndex};
+	// Walk back over any run of index groups so that `table(key)(row).field` and
+	// `collection(i).field` share the same chain reconstruction.
+	for (;;) {
+		if (state.cursor.identifier(before)) {
+			base = chainPartsAt(state, before) ?? {parts: [namePartOf(state.cursor.text(before))], startIndex: before};
+			break;
 		}
+
+		if (state.cursor.text(before) !== ')') {
+			break;
+		}
+
+		const open = matchingOpen(state, before);
+
+		if (open === null) {
+			break;
+		}
+
+		before = state.cursor.previous(open);
 	}
 
 	return base === null ? null : {parts: [...base.parts, namePartOf(state.cursor.text(index))], startIndex: base.startIndex};
@@ -111,6 +121,7 @@ export const addChainPrefixes = (
 		enclosing: number;
 		sql?: boolean | undefined;
 		forBound?: boolean | undefined;
+		forRange?: boolean | undefined;
 		typeSize?: boolean | undefined;
 		iteratorBase?: boolean | undefined;
 		emit: (
@@ -127,6 +138,7 @@ export const addChainPrefixes = (
 				rowType: false;
 				sql?: boolean | undefined;
 				forBound?: boolean | undefined;
+				forRange?: boolean | undefined;
 				typeSize?: boolean | undefined;
 				iteratorBase?: boolean | undefined;
 				usage: number;
@@ -160,6 +172,7 @@ export const addChainPrefixes = (
 			rowType: false,
 			sql: input.sql,
 			forBound: input.forBound,
+			forRange: input.forRange,
 			typeSize: input.typeSize,
 			iteratorBase: input.iteratorBase,
 			usage: 2,

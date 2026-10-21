@@ -1,4 +1,5 @@
 import {ORACLE_DIAGNOSTIC} from './diagnostics.ts';
+import {typeReferencesOf} from './referenceArguments.ts';
 import {namePartOf} from './name.ts';
 import {
 	addDeclaration,
@@ -8,7 +9,6 @@ import {
 	normalizedPairingHeading,
 	normalizedTokens,
 	rangeOf,
-	typeReferencesOf,
 	warnAt,
 	type OracleParserStateType,
 } from './parserState.ts';

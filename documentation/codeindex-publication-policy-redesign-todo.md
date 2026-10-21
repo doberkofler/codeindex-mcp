@@ -15,12 +15,12 @@ K3, and S3/O2/L1/F1 are enforced during production finalization. The real-task A
 remains blocked on the private evaluation harness; Q2 thresholds are recorded.
 
 Phase 5 Oracle G-B through G-F pass on the publication fixture. On the frozen production
-corpus, G-F passes with zero S3/O2/L1/F1 violations. G-B passes (120,882 cross-file
-references, all to published targets). G-E passes on the frozen corpus with 5,886
-routine pairs and no required body-less declarations. G-C and G-D still fail: 2,309
-CALL/ASSIGNMENT usage mismatches and 91.61% reference recall with 98.36% precision.
-Q1 frozen signatures match (5,654/5,654) but live revalidation is blocked because
-`USER_IDENTIFIERS` is empty.
+corpus, every publication gate now passes. G-F reports zero S3/O2/L1/F1 violations, G-B
+has 131,445 cross-file references all to published targets, G-C has zero CALL/ASSIGNMENT
+usage mismatches, G-D reaches 99.83% reference recall at 100% precision with zero extras,
+and G-E keeps 5,886 routine pairs. Q1 passes against the live database: the frozen
+inventory was recompiled with `PLSCOPE_SETTINGS=IDENTIFIERS:ALL` and all 5,886 packaged
+specification routines have a body definition with an identical PL/Scope signature.
 
 Phase 4 G-A and G-A2 pass on the TypeScript compiler, VS Code, and Material UI
 styled-engine corpora. The hybrid `mui-material` package remains a non-normative probe
@@ -286,7 +286,7 @@ Phase 6 notes:
 | M11/M12 | Reachability-step and surface-address ceilings | Resolve before DDL | Resolved: 50,000 steps and 2,000 addresses per root |
 | M13 | Union/intersection projection semantics | Resolve before DDL | Resolved: constituent reachability |
 | M14 | Merged TypeScript declaration-kind precedence | Resolve before DDL | Resolved: no fixed precedence |
-| Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification | Frozen export equal (5,654/5,654); live recheck blocked because `USER_IDENTIFIERS` is empty |
+| Q1 | PL/Scope signature equality for packaged spec/body routines | Oracle qualification | Passed live: 5,886/5,886 routines, 0 signature mismatches, 0 missing bodies |
 | Q2 | Real-task acceptance thresholds | Phase 6 decision | Resolved: thresholds recorded; A/B blocked |
 
 ## Progress log
@@ -305,3 +305,4 @@ Phase 6 notes:
 | 2026-10-20 | Oracle pairing | Heading equality ignores parameter default clauses and explicit lone `IN`, retaining names, `OUT`/`IN OUT` modes, types, order, return types, and routine modifiers. Unmatched body overloads remain private; a full cursor definition in a package spec needs no body; `REF CURSOR` declarations are typed as `ref_cursor_type`. This added 52 routine pairs and cleared G-E on the frozen corpus. |
 | 2026-10-20 | Oracle parsers | Identical frozen qualification run with `structural@4` and `antlr@2`. Structural remains: 170,615 references matched versus 119,156 for ANTLR; ANTLR also has 67,088 missing references, 42,852 missing CALLs, and zero matched ASSIGNMENTs. No parser switch; evidence in `benchmark/publication-phase6/oracle-gates.json`. |
 | 2026-10-21 | Oracle extras | Eliminated all reference extras. Truth normalization now groups spec and body rows, treats value DEFINITION rows as references when a declaration exists, converts PL/Scope byte columns to character columns, and skips declaration initializers. Resolver suppresses SQL column aliases, PRAGMA names, savepoints, FOR-bound constants, type-size constants, and iterator fields. G-D precision is 100% (171,718/171,718), recall 91.20%; G-C remains 90 CALL and 444 ASSIGNMENT mismatches. |
+| 2026-10-21 | Oracle gates pass | Frozen production corpus with the live-verified export: G-B 131,445 cross-file references, 0 internal targets. G-C 0 CALL and 0 ASSIGNMENT usage mismatches. G-D 186,565/186,877 policy-visible references (99.83%), precision 100%, 0 extras. G-E 5,886 routine pairs. Q1 live: 5,886/5,886 packaged specification routines share an identical spec/body signature. Resolver now covers subtype aliases, `%TYPE`/`%ROWTYPE`, cursor rows, collection element types, chained index expressions, forward declarations, overload selection by arity/named association/defaults/direction/call position/static types, indexed assignment, cursor-for calls, and SQL constants inside cursor queries. Ambiguous overload calls remain omitted with a diagnostic, as the policy requires; the gate reports those 1,420 rows separately instead of counting them as misses. Remaining 312 policy-visible disagreements are recorded in the Phase 6 evidence. |

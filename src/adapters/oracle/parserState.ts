@@ -13,6 +13,7 @@ import {
 	nextIntoState,
 	pragmaArgumentEnd,
 } from './referenceScan.ts';
+import {argumentShapeOf, assignFollows, forRangeAt, statementStart} from './referenceArguments.ts';
 import {type OracleNameReadType, type TokenCursor} from './tokenCursor.ts';
 import {
 	type OracleDeclarationType,
@@ -20,7 +21,6 @@ import {
 	type OracleRangeType,
 	type OracleReferenceArgumentType,
 	type OracleReferenceSiteType,
-	type OracleTypeReferenceType,
 	type OracleUnitType,
 } from './syntax.ts';
 
@@ -182,93 +182,6 @@ export const findToken = (state: OracleParserStateType, start: number, end: numb
 
 	return null;
 };
-const nameBefore = (state: OracleParserStateType, endIndex: number): OracleNameReadType | null => {
-	if (!state.cursor.identifier(endIndex)) {
-		return null;
-	}
-
-	const parts: OracleNamePartType[] = [namePartOf(state.cursor.text(endIndex))];
-	let startIndex = endIndex;
-	let cursor = endIndex;
-
-	for (;;) {
-		const dot = state.cursor.previous(cursor);
-
-		if (state.cursor.text(dot) !== '.') {
-			break;
-		}
-
-		const component = state.cursor.previous(dot);
-
-		if (!state.cursor.identifier(component)) {
-			break;
-		}
-
-		parts.unshift(namePartOf(state.cursor.text(component)));
-		startIndex = component;
-		cursor = component;
-	}
-
-	return {parts, startIndex, endIndex, nextIndex: state.cursor.next(endIndex)};
-};
-const TYPE_SHAPE_KEYWORDS = new Set([
-	'TABLE',
-	'VARRAY',
-	'OF',
-	'REF',
-	'CURSOR',
-	'RECORD',
-	'INDEX',
-	'BY',
-	'RETURN',
-	'CONSTANT',
-	'DEFAULT',
-	'NOT',
-	'NULL',
-	'IN',
-	'OUT',
-	'NOCOPY',
-]);
-
-export const typeReferencesOf = (state: OracleParserStateType, start: number, end: number): readonly OracleTypeReferenceType[] => {
-	const references: OracleTypeReferenceType[] = [];
-	let declaredName: OracleNameReadType | null = null;
-
-	for (let index = Math.max(0, start); index <= end; index = state.cursor.next(index)) {
-		if (!TYPE_ANCHORS.has(state.cursor.upper(index))) {
-			if (
-				declaredName === null &&
-				state.cursor.identifier(index) &&
-				!TYPE_SHAPE_KEYWORDS.has(state.cursor.upper(index)) &&
-				state.cursor.text(state.cursor.previous(index)) !== '.'
-			) {
-				declaredName = state.cursor.readQualifiedName(index);
-			}
-
-			continue;
-		}
-
-		const name = nameBefore(state, state.cursor.previous(index));
-
-		if (name !== null) {
-			references.push({
-				name: oracleNameOf({parts: name.parts}),
-				range: rangeOf(state, name.startIndex, index),
-				rowType: state.cursor.upper(index) === '%ROWTYPE',
-			});
-		}
-	}
-
-	if (references.length === 0 && declaredName !== null) {
-		references.push({
-			name: oracleNameOf({parts: declaredName.parts}),
-			range: rangeOf(state, declaredName.startIndex, declaredName.endIndex),
-			rowType: false,
-		});
-	}
-
-	return references;
-};
 const argumentInfo = (
 	state: OracleParserStateType,
 	open: number,
@@ -281,18 +194,7 @@ const argumentInfo = (
 	}
 
 	const ranges = state.cursor.splitTopLevel(state.cursor.next(open), state.cursor.previous(close), ',');
-	const argumentsWithNames = ranges.map((range) => {
-		const first = state.cursor.readQualifiedName(range.start);
-
-		if (first === null) {
-			return {range: rangeOf(state, range.start, range.end), name: null};
-		}
-
-		const association = state.cursor.text(first.nextIndex);
-		const named = association === '=>' || (association === '=' && state.cursor.text(state.cursor.next(first.nextIndex)) === '>');
-
-		return {range: rangeOf(state, range.start, range.end), name: named ? (first.parts.at(-1)?.canonical ?? null) : null};
-	});
+	const argumentsWithNames = ranges.map((range) => ({range: rangeOf(state, range.start, range.end), ...argumentShapeOf(state, range)}));
 
 	return {
 		count: ranges.length,
@@ -315,8 +217,10 @@ const addReference = (
 		rowType: boolean;
 		sql?: boolean | undefined;
 		forBound?: boolean | undefined;
+		forRange?: boolean | undefined;
 		typeSize?: boolean | undefined;
 		iteratorBase?: boolean | undefined;
+		statementCall?: boolean | undefined;
 		usage?: number | undefined;
 	}>,
 ): void => {
@@ -336,8 +240,10 @@ const addReference = (
 		rowType: input.rowType,
 		...(input.sql === undefined ? {} : {sql: input.sql}),
 		...(input.forBound === undefined ? {} : {forBound: input.forBound}),
+		...(input.forRange === undefined ? {} : {forRange: input.forRange}),
 		...(input.typeSize === undefined ? {} : {typeSize: input.typeSize}),
 		...(input.iteratorBase === undefined ? {} : {iteratorBase: input.iteratorBase}),
+		...(input.statementCall === undefined ? {} : {statementCall: input.statementCall}),
 		...(input.usage === undefined ? {} : {usage: input.usage}),
 	});
 
@@ -357,6 +263,100 @@ const addReference = (
 		kind: dependencyKind,
 	});
 };
+const addTypeAnchorSite = (
+	state: OracleParserStateType,
+	input: Readonly<{
+		unit: number;
+		enclosing: number;
+		sql?: boolean | undefined;
+		forBound?: boolean | undefined;
+		forRange?: boolean | undefined;
+		typeSize?: boolean | undefined;
+		iteratorBase?: boolean | undefined;
+	}>,
+	node: Readonly<{name: OracleNameReadType; start: number; after: number}>,
+): number | null => {
+	const {name, start, after} = node;
+	if (!TYPE_ANCHORS.has(state.cursor.upper(after))) {
+		return null;
+	}
+
+	addReference(state, {
+		name,
+		start,
+		end: after,
+		unit: input.unit,
+		enclosing: input.enclosing,
+		kind: 'type-anchor',
+		argumentCount: null,
+		argumentNames: [],
+		rowType: state.cursor.upper(after) === '%ROWTYPE',
+		sql: input.sql,
+		forBound: input.forBound,
+		forRange: input.forRange,
+		typeSize: input.typeSize,
+		iteratorBase: input.iteratorBase,
+		usage: 8,
+	});
+
+	return after;
+};
+
+type CallShapeType = Readonly<{
+	siteOf: (
+		value: Readonly<{
+			name: OracleNameReadType;
+			start: number;
+			input: {
+				unit: number;
+				enclosing: number;
+				sql?: boolean | undefined;
+				forBound?: boolean | undefined;
+				forRange?: boolean | undefined;
+				typeSize?: boolean | undefined;
+				iteratorBase?: boolean | undefined;
+			};
+		}>,
+	) => Parameters<typeof addReference>[1];
+}>;
+
+const callShapeOf = (state: OracleParserStateType, after: number, forceWrite: boolean): CallShapeType => {
+	const call = state.cursor.text(after) === '(' ? argumentInfo(state, after) : null;
+	const writeTarget = call === null && (forceWrite || state.cursor.text(after) === ':=');
+	// `collection(index)(index) := value` writes a nested element, so the base
+	// name is an assignment target rather than a call.
+	const indexedWrite = call !== null && (assignFollows(state, after) || forceWrite);
+	const reference = call === null || indexedWrite;
+	const argumentProperties = call === null ? {} : {arguments: call.arguments};
+	const usage = reference ? (writeTarget || indexedWrite ? 4 : 2) : 1;
+
+	return {
+		siteOf: ({name, start, input}) => {
+			const statementProperties = reference ? {} : {statementCall: statementStart(state, start)};
+
+			return {
+				name,
+				start,
+				end: name.endIndex,
+				unit: input.unit,
+				enclosing: input.enclosing,
+				kind: reference ? 'reference' : 'call',
+				argumentCount: call?.count ?? null,
+				argumentNames: call?.names ?? [],
+				...argumentProperties,
+				rowType: false,
+				sql: input.sql,
+				forBound: input.forBound,
+				forRange: input.forRange,
+				typeSize: input.typeSize,
+				iteratorBase: input.iteratorBase,
+				...statementProperties,
+				usage,
+			};
+		},
+	};
+};
+
 const addNameSite = (
 	state: OracleParserStateType,
 	input: Readonly<{
@@ -367,6 +367,7 @@ const addNameSite = (
 		forceWrite?: boolean | undefined;
 		sql?: boolean | undefined;
 		forBound?: boolean | undefined;
+		forRange?: boolean | undefined;
 		typeSize?: boolean | undefined;
 		iteratorBase?: boolean | undefined;
 	}>,
@@ -381,59 +382,57 @@ const addNameSite = (
 		enclosing: input.enclosing,
 		sql: input.sql,
 		forBound: input.forBound,
+		forRange: input.forRange,
 		typeSize: input.typeSize,
 		emit: addReference,
 	});
 
-	if (TYPE_ANCHORS.has(state.cursor.upper(after))) {
-		addReference(state, {
-			name,
-			start,
-			end: after,
-			unit: input.unit,
-			enclosing: input.enclosing,
-			kind: 'type-anchor',
-			argumentCount: null,
-			argumentNames: [],
-			rowType: state.cursor.upper(after) === '%ROWTYPE',
-			sql: input.sql,
-			forBound: input.forBound,
-			typeSize: input.typeSize,
-			iteratorBase: input.iteratorBase,
-			usage: 8,
-		});
-		return after;
+	const anchorEnd = addTypeAnchorSite(state, input, {name, start, after});
+
+	if (anchorEnd !== null) {
+		return anchorEnd;
 	}
 
-	const call = state.cursor.text(after) === '(' ? argumentInfo(state, after) : null;
-	const writeTarget = call === null && (input.forceWrite === true || state.cursor.text(after) === ':=');
+	const shape = callShapeOf(state, after, input.forceWrite === true);
 
-	addReference(state, {
-		name,
-		start,
-		end: input.name.endIndex,
-		unit: input.unit,
-		enclosing: input.enclosing,
-		kind: call === null ? 'reference' : 'call',
-		argumentCount: call?.count ?? null,
-		argumentNames: call?.names ?? [],
-		...(call === null ? {} : {arguments: call.arguments}),
-		rowType: false,
-		sql: input.sql,
-		forBound: input.forBound,
-		typeSize: input.typeSize,
-		iteratorBase: input.iteratorBase,
-		usage: call === null ? (writeTarget ? 4 : 2) : 1,
-	});
+	addReference(state, shape.siteOf({name, start, input}));
 
 	return input.name.endIndex;
 };
+type ScanFlagsType = Readonly<{sql: boolean; forHeader: boolean; forRange: boolean; intoTarget: boolean; consumed: boolean}>;
+
+const nextScanFlags = (input: Readonly<{state: OracleParserStateType; index: number; flags: ScanFlagsType; iterators: Set<string>}>): ScanFlagsType => {
+	const {state, index, flags, iterators} = input;
+
+	addLoopIterator(state, index, iterators);
+
+	const forRangeSeed = state.cursor.word(index, 'FOR') ? forRangeAt(state, index) : flags.forRange;
+	const forHeader = nextForHeader(state, index, flags.forHeader);
+	const {consumed, intoTarget} = nextIntoState({state, index, intoTarget: flags.intoTarget});
+
+	return {
+		sql: isSqlStart(state, index) || (flags.sql && !isSqlEnd(state, index)),
+		forHeader,
+		forRange: forHeader && forRangeSeed,
+		intoTarget,
+		consumed,
+	};
+};
+
+const skipNameAt = (state: OracleParserStateType, index: number, name: OracleNameReadType): boolean =>
+	isDeclarationName(state, index, name) ||
+	state.cursor.word(state.cursor.previous(index), 'END') ||
+	isNamedAssociation(state, state.cursor.next(name.endIndex));
+
+/**
+ * Collects every reference site in one declaration range.
+ *
+ * @param input - Parser state, token range, and enclosing declaration.
+ */
 export const collectReferences = (input: Readonly<{state: OracleParserStateType; start: number; end: number; enclosing: number; unit: number}>): void => {
 	const {state, start, end, enclosing, unit} = input;
 	let index = Math.max(0, start);
-	let intoTarget = false;
-	let sql = false;
-	let forHeader = false;
+	let flags: ScanFlagsType = {sql: false, forHeader: false, forRange: false, intoTarget: false, consumed: false};
 	const iteratorNames = new Set<string>();
 
 	while (index <= end && index < state.cursor.length) {
@@ -444,18 +443,9 @@ export const collectReferences = (input: Readonly<{state: OracleParserStateType;
 			continue;
 		}
 
-		sql = isSqlStart(state, index) || (sql && !isSqlEnd(state, index));
-		addLoopIterator(state, index, iteratorNames);
-		forHeader = nextForHeader(state, index, forHeader);
-		const {consumed, intoTarget: nextInto} = nextIntoState({state, index, intoTarget});
-		intoTarget = nextInto;
+		flags = nextScanFlags({state, index, flags, iterators: iteratorNames});
 
-		if (consumed) {
-			index = state.cursor.next(index);
-			continue;
-		}
-
-		if (isIgnoredIdentifier(state, index)) {
+		if (flags.consumed || isIgnoredIdentifier(state, index)) {
 			index = state.cursor.next(index);
 			continue;
 		}
@@ -467,11 +457,7 @@ export const collectReferences = (input: Readonly<{state: OracleParserStateType;
 			continue;
 		}
 
-		if (
-			isDeclarationName(state, index, name) ||
-			state.cursor.word(state.cursor.previous(index), 'END') ||
-			isNamedAssociation(state, state.cursor.next(name.endIndex))
-		) {
+		if (skipNameAt(state, index, name)) {
 			index = state.cursor.next(name.endIndex);
 			continue;
 		}
@@ -482,15 +468,24 @@ export const collectReferences = (input: Readonly<{state: OracleParserStateType;
 				index,
 				unit,
 				enclosing,
-				forceWrite: intoTarget,
-				sql,
-				forBound: forHeader,
+				forceWrite: flags.intoTarget,
+				sql: flags.sql,
+				forBound: flags.forHeader,
+				forRange: flags.forRange,
 				typeSize: isTypeSizeArgument(state, index),
 				iteratorBase: iteratorNames.has(name.parts[0]?.canonical ?? ''),
 			}),
 		);
 	}
 };
+
+/**
+ * Splits an authored object name into its schema and object parts.
+ *
+ * @param name - Authored qualified name.
+ * @param defaultSchema - Schema used when the name is unqualified.
+ * @returns Schema and object parts.
+ */
 export const splitObjectName = (name: OracleNameReadType, defaultSchema: string): Readonly<{schema: OracleNamePartType; object: OracleNamePartType}> => {
 	const object = name.parts.at(-1) ?? namePartOf('');
 	const schema = name.parts.length >= 2 ? (name.parts[0] ?? namePartOf(defaultSchema)) : namePartOf(defaultSchema);

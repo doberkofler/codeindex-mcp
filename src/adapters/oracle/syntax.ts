@@ -39,6 +39,8 @@ export type OracleTypeReferenceType = Readonly<{
 	name: OracleNameType;
 	range: OracleRangeType;
 	rowType: boolean;
+	/** True for a `%TYPE` anchor, whose declared type is unknown statically. */
+	anchored: boolean;
 }>;
 
 export type OracleParameterType = Readonly<{
@@ -87,6 +89,12 @@ export type OracleReferenceArgumentType = Readonly<{
 	range: OracleRangeType;
 	/** Canonical parameter name for a named association, otherwise null. */
 	name: string | null;
+	/** Canonical leading name of the argument value, when it starts with one. */
+	leadName?: OracleNameType | undefined;
+	/** Whether the value ends with an index expression, so its type is the element type. */
+	indexed?: boolean | undefined;
+	/** Built-in type implied by a literal argument. */
+	literalType?: string | undefined;
 }>;
 
 export type OracleReferenceSiteType = Readonly<{
@@ -107,10 +115,14 @@ export type OracleReferenceSiteType = Readonly<{
 	sql?: boolean | undefined;
 	/** Whether the site is inside a FOR-loop header. */
 	forBound?: boolean | undefined;
+	/** Whether the FOR header is a numeric range (`FOR i IN 1 .. n`) rather than a cursor. */
+	forRange?: boolean | undefined;
 	/** Whether the site is a datatype length or size argument. */
 	typeSize?: boolean | undefined;
 	/** Whether the site's base name is a loop iterator. */
 	iteratorBase?: boolean | undefined;
+	/** Whether a call-shaped site is a complete statement rather than an expression. */
+	statementCall?: boolean | undefined;
 	/** Syntactic usage bit before OUT-argument refinement. */
 	usage?: number | undefined;
 }>;

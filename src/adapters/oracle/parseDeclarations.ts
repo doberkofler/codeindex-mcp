@@ -1,4 +1,5 @@
 import {ORACLE_DIAGNOSTIC} from './diagnostics.ts';
+import {typeReferencesOf} from './referenceArguments.ts';
 import {namePartOf} from './name.ts';
 import {
 	addParameters,
@@ -17,7 +18,6 @@ import {
 	recoverTopLevel,
 	splitObjectName,
 	statementEnd,
-	typeReferencesOf,
 	warnAt,
 	type OracleParserStateType,
 } from './parserState.ts';

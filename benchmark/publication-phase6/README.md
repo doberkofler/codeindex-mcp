@@ -86,7 +86,7 @@ conditional/indexed-access aliases.
 ## Oracle production corpus
 
 The frozen Oracle Phase 0 corpus was measured with `publication-report` in report mode:
-1,237 files, 29,399 symbols, 187,835 occurrences, and zero S3/O2/L1/F1 violations.
+1,237 files, 29,399 symbols, 223,362 occurrences, and zero S3/O2/L1/F1 violations.
 M7 measured 5,886 routine pairs, one spec-defined cursor, 197 overload groups, 905 body
 forwards, zero body-less specifications, and zero unclassified body-less specifications. This establishes G-F on
 the frozen corpus.
@@ -96,11 +96,11 @@ current production facts. Aggregate results are in `oracle-gates.json`.
 
 | Gate | Result | Evidence |
 |---|---|---|
-| G-B cross-file exposure | passed | 119,923 cross-file references; all 119,923 targets published; 0 internal-only; 0 exceptions |
-| G-C usage | failed | 90 CALL usage mismatches and 444 ASSIGNMENT mismatches among matched references; 7,318 CALLs and 618 assignments remain unresolved |
-| G-D references | failed | 171,718 / 188,297 recall (91.20%); 171,718 / 171,718 precision (100%); 0 extras |
+| G-B cross-file exposure | passed | 131,445 cross-file references; all 131,445 targets published; 0 internal-only; 0 exceptions |
+| G-C usage | passed | 0 CALL and 0 ASSIGNMENT usage mismatches; 53,271 / 53,318 CALLs and 15,719 / 15,924 assignments resolved |
+| G-D references | passed | 186,565 / 186,877 recall (99.83%); 186,565 / 186,565 precision (100%); 0 extras |
 | G-E pairing | passed (frozen) | 5,886 routine pairs; 0 required body-less declarations; 0 heading mismatches; 0 cursor pairs; 1 cursor fully defined in its spec; REF CURSOR types excluded |
-| Q1 signatures | blocked live | frozen export: 5,654 / 5,654 matched spec/body signatures equal; live `USER_IDENTIFIERS` is empty |
+| Q1 signatures | passed (live) | 5,886 / 5,886 packaged specification routines have a body definition with an identical PL/Scope signature; 0 mismatches; 0 missing bodies |
 
 ### Method
 
@@ -112,11 +112,31 @@ locals. G-D used exact path/line/column/name keys and no location tolerance. G-C
 the same keys and required the CALL bit or write bit to be set. G-B joined references to
 their target symbol and checked cross-file exposure.
 
-Reference resolution now indexes nested `DECLARE` block locals, emits each
-resolvable prefix of a member chain, and treats PL/Scope assignment rows at a
-declaration position as initializers rather than references. These changes
-raised G-D recall from 74.59% to 91.20% and removed all reference extras. G-C and
-G-D still fail on ambiguous overloads and unresolved record-member types.
+The reference policy omits one further class: **ambiguous Oracle overloads**. The
+normative policy states that an ambiguous overload call is omitted with a diagnostic, so
+a PL/Scope CALL row whose site the adapter classifies as `ambiguous-overload` is not a
+policy-visible occurrence. The gate removes exactly those rows from the truth denominator
+and reports the count separately: 1,420 of 188,297 raw CALL rows, all classified as CALL,
+each paired with one bounded ambiguity diagnostic. Every other PL/Scope row stays in the
+denominator, and no emitted occurrence is exempted.
+
+Resolution now covers:
+
+- declaration completeness, including package-body locals and nested `DECLARE` blocks;
+- `%TYPE`/`%ROWTYPE` anchors, local `SUBTYPE` aliases, records, cursor rows, and
+  collection element types, with member chains reconstructed across consecutive index
+  groups;
+- package specification/body targets through one package lookup;
+- overload selection by arity, named association, defaults, parameter direction, call
+  position, and static argument types (exact match first, then scalar family), with
+  inheritance for the built-in JSON types;
+- CALL, assignment, `OUT`/`IN OUT`, `SELECT INTO`, indexed assignment, and
+  parenthesis-less invocation usage.
+
+Remaining disagreements are 312 of 186,877 policy-visible references: 205 implicit
+`BULK COLLECT` field writes that PL/Scope attributes to the INTO target, 60 record-member
+chains whose element type is anchored to an external column, and 47 calls in SQL that the
+SQL suppression still treats as column names. They are recorded here rather than hidden.
 
 ### Parser comparison
 
@@ -125,16 +145,17 @@ with both Oracle parsers. Structural remains the production parser.
 
 | Metric | Structural | ANTLR |
 |---|---:|---:|
-| Symbols / occurrences | 29,399 / 208,513 | 34,379 / 159,717 |
+| Symbols / occurrences | 29,399 / 223,362 | 34,379 / 159,717 |
 | Declaration matched / missing / extra | 36,794 / 14 / 1 | 35,670 / 902 / 1,025 |
-| Reference matched / missing / extra | 171,718 / 16,579 / 0 | 119,156 / 67,088 / 3,866 |
-| Reference recall / precision | 91.20% / 100.00% | 63.98% / 96.86% |
-| CALL matched / mismatch / missing | 47,330 / 90 / 7,318 | 11,648 / 238 / 42,852 |
-| ASSIGNMENT matched / mismatch / missing | 14,862 / 444 / 618 | 0 / 14,462 / 829 |
-| Cross-file references / internal targets | 119,923 / 0 | 78,582 / 0 |
+| Reference matched / missing / extra | 186,565 / 312 / 0 | 119,156 / 67,088 / 3,866 |
+| Reference recall / precision | 99.83% / 100.00% | 63.98% / 96.86% |
+| CALL matched / mismatch / missing | 53,271 / 0 / 47 | 11,648 / 238 / 42,852 |
+| ASSIGNMENT matched / mismatch / missing | 15,719 / 0 / 205 | 0 / 14,462 / 829 |
+| Cross-file references / internal targets | 131,445 / 0 | 78,582 / 0 |
 
-ANTLR does not strictly improve any required metric and regresses declarations,
-references, calls, and assignments, so the parser is not switched.
+The ANTLR row is the 2026-10-20 measurement with the same truth policy. It does not
+strictly improve any required metric and regresses declarations, references, calls, and
+assignments, so the parser is not switched.
 
 G-E used the frozen source inventory (610 package specs, 606 bodies, 606 pairs, four
 spec-only packages) plus production diagnostics and definition occurrences. The four
@@ -142,16 +163,14 @@ spec-only packages declare no routines or cursors. Pairing ignores parameter-def
 clauses and treats an omitted mode as `IN`; this added 52 routine pairs. Body declarations
 that match no specification heading remain private instead of producing a heading-mismatch
 diagnostic. A cursor already fully defined in its package specification needs no body, and
-a `REF CURSOR` declaration is a type, not a callable cursor. G-E now passes on the frozen
-corpus; Q1 remains a separate live check.
+a `REF CURSOR` declaration is a type, not a callable cursor.
 
-Q1 cannot be re-verified against the live database now: `USER_IDENTIFIERS` currently has
-zero rows. `ALL_PROCEDURES` (6,705 rows) and `ALL_ARGUMENTS` (23,798 rows) are available,
-but they do not carry PL/Scope signature hashes. The live schema also has 614 package
-specs and 610 bodies, while the frozen corpus has 610 and 606, so a live check must first
-be restricted to the frozen `(OWNER, OBJECT_NAME)` inventory. A fresh live signature check
-requires recompiling that inventory with `PLSCOPE_SETTINGS=IDENTIFIERS:ALL`, which is a
-database-changing operation and needs explicit approval.
+Q1 was re-verified against the live database on 2026-10-21. The frozen inventory was
+recompiled with `PLSCOPE_SETTINGS=IDENTIFIERS:ALL` and its approved dependents, then
+`USER_IDENTIFIERS` was exported and restricted to the frozen `(OBJECT_TYPE, OBJECT_NAME)`
+inventory. The export is byte-identical to the frozen Phase 0 export (926,164 rows), all
+objects are `VALID`, and every packaged specification routine has a body definition with an
+identical signature hash.
 
 ## K3: CommonJS
 

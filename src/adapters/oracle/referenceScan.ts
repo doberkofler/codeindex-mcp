@@ -131,7 +131,7 @@ export const suppressNonRoutine = (site: OracleReferenceSiteType, target: Oracle
 		return true;
 	}
 
-	if (site.forBound === true && target?.kind === 'constant') {
+	if (site.forRange === true && target?.kind === 'constant') {
 		return true;
 	}
 
