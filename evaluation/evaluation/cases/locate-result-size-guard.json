@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "locate-result-size-guard",
+	"title": "Result size guard",
+	"class": "locate",
+	"tags": [
+		"query",
+		"locate"
+	],
+	"prompt": "Which source file enforces the per-item result byte bound and raises response_too_large when one item exceeds it? Name the file and nothing else.",
+	"scope": [
+		"src/**"
+	],
+	"expectedFiles": [
+		"src/core/query/querySupport.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 12,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

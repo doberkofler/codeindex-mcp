@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "locate-read-symbol-tool",
+	"title": "read_symbol MCP tool registration",
+	"class": "locate",
+	"tags": [
+		"mcp",
+		"locate"
+	],
+	"prompt": "Which source file registers the MCP tool named read_symbol? Name the file and nothing else.",
+	"scope": [
+		"src/**"
+	],
+	"expectedFiles": [
+		"src/transports/mcp/buildMcpServer.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 12,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

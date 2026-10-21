@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "impl-generation-publish",
+	"title": "Generation build orchestration",
+	"class": "implementation",
+	"tags": [
+		"generation",
+		"implementation"
+	],
+	"prompt": "Which source file orchestrates building one complete index generation and atomically publishing it after extraction, insertion, and validation succeed? Name the file and nothing else.",
+	"scope": [
+		"src/**"
+	],
+	"expectedFiles": [
+		"src/core/generation/buildGeneration.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 12,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

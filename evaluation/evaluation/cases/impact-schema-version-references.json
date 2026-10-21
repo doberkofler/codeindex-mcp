@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "impact-schema-version-references",
+	"title": "SCHEMA_VERSION consumers",
+	"class": "impact",
+	"tags": [
+		"impact",
+		"references"
+	],
+	"prompt": "Which source files reference the database SCHEMA_VERSION symbol, excluding its own definition file? List every referencing file and nothing else.",
+	"scope": [
+		"src/**"
+	],
+	"expectedFiles": [
+		"src/core/storage/databaseIdentity.ts",
+		"src/core/storage/databaseOpen.ts",
+		"src/transports/console/service.ts",
+		"src/transports/mcp/runServer.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}
