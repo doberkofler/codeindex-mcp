@@ -1,9 +1,12 @@
+import io
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 from scripts.process_queue import (
@@ -11,6 +14,7 @@ from scripts.process_queue import (
     JsonQueue,
     MarkdownQueue,
     QueueError,
+    RunReporter,
     load_queue,
     prompt_for,
 )
@@ -103,7 +107,10 @@ class ProcessQueueTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary_directory.cleanup)
+        self.log_temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.log_temporary_directory.cleanup)
         self.repository = Path(self.temporary_directory.name)
+        self.log_directory = Path(self.log_temporary_directory.name)
         self.queue_path = self.repository / "queue.json"
         self.queue_path.write_text(
             '{"items":[{"issue":14,"evaluation":"EVAL-006",'
@@ -134,6 +141,7 @@ class ProcessQueueTest(unittest.TestCase):
     def _run_queue(self, agent: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["OPENCODE_BIN"] = str(agent)
+        environment["QUEUE_LOG_DIR"] = str(self.log_directory)
         environment.pop("QUEUE_MODEL", None)
         runner = Path(__file__).with_name("process_queue.py")
         return subprocess.run(
@@ -173,8 +181,11 @@ subprocess.run(
 
         self.assertEqual(result.returncode, 0, result.stderr)
         argv = self._agent_argv()
-        self.assertEqual(argv[:5], ["run", "--standalone", "--auto", "--agent", "build"])
-        self.assertEqual(argv[5:7], ["--model", DEFAULT_MODEL])
+        self.assertEqual(
+            argv[:7],
+            ["run", "--standalone", "--auto", "--agent", "build", "--format", "json"],
+        )
+        self.assertEqual(argv[7:9], ["--model", DEFAULT_MODEL])
         self.assertTrue(argv[-1].startswith("Implement exactly this item"))
         queue = json.loads(self.queue_path.read_text(encoding="utf-8"))
         self.assertIs(queue["items"][0]["done"], True)
@@ -187,12 +198,13 @@ subprocess.run(
 
         self.assertEqual(result.returncode, 0, result.stderr)
         argv = self._agent_argv()
-        self.assertEqual(argv[5:7], ["--model", "openai/gpt-5.6-sol"])
+        self.assertEqual(argv[7:9], ["--model", "openai/gpt-5.6-sol"])
 
     def test_reads_model_from_environment(self) -> None:
         agent = self._write_recording_agent()
         environment = os.environ.copy()
         environment["OPENCODE_BIN"] = str(agent)
+        environment["QUEUE_LOG_DIR"] = str(self.log_directory)
         environment["QUEUE_MODEL"] = "ollama/qwen3.8:27b-mlx"
         runner = Path(__file__).with_name("process_queue.py")
 
@@ -208,7 +220,7 @@ subprocess.run(
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
-            self._agent_argv()[5:7], ["--model", "ollama/qwen3.8:27b-mlx"]
+            self._agent_argv()[7:9], ["--model", "ollama/qwen3.8:27b-mlx"]
         )
 
     def test_rejects_agent_that_does_not_commit(self) -> None:
@@ -220,6 +232,177 @@ subprocess.run(
         self.assertIn("Agent must create exactly one non-merge commit", result.stderr)
         queue = json.loads(self.queue_path.read_text(encoding="utf-8"))
         self.assertIs(queue["items"][0]["done"], False)
+
+    def _write_event_agent(self, exit_code: int = 0) -> Path:
+        return self._write_agent(
+            f"""import json
+from pathlib import Path
+import subprocess
+
+events = [
+    {{
+        "type": "tool_use",
+        "part": {{
+            "id": "call_1",
+            "tool": "read",
+            "state": {{
+                "status": "completed",
+                "input": {{"path": "README.md"}},
+                "title": "read",
+            }},
+        }},
+    }},
+    {{
+        "type": "step_finish",
+        "part": {{
+            "cost": 0.0012,
+            "tokens": {{"input": 100, "output": 20, "reasoning": 0}},
+        }},
+    }},
+    {{"type": "text", "part": {{"text": "Implemented\\nthe runner."}}}},
+]
+for event in events:
+    print(json.dumps(event), flush=True)
+Path("implementation.txt").write_text("implemented", encoding="utf-8")
+subprocess.run(["git", "add", "implementation.txt"], check=True)
+subprocess.run(
+    ["git", "commit", "--quiet", "-m", "feat: implement item"],
+    check=True,
+)
+raise SystemExit({exit_code})
+"""
+        )
+
+    def test_renders_progress_and_writes_raw_log(self) -> None:
+        agent = self._write_event_agent()
+
+        result = self._run_queue(agent)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[agent] build · deepseek/deepseek-flash", result.stdout)
+        self.assertIn("✓ read README.md", result.stdout)
+        self.assertIn("agent › Implemented", result.stdout)
+        self.assertIn("the runner.", result.stdout)
+        self.assertIn("1 tool", result.stdout)
+        self.assertIn("120 tokens", result.stdout)
+        self.assertIn("$0.0012", result.stdout)
+        self.assertIn("[agent] finished", result.stdout)
+        self.assertIn("[queue] #14 done", result.stdout)
+        self.assertNotIn('"type"', result.stdout)
+        self.assertNotIn('"type"', result.stderr)
+
+        logs = sorted(self.log_directory.glob("*.jsonl"))
+        self.assertEqual(len(logs), 1)
+        self.assertIn('"type": "tool_use"', logs[0].read_text(encoding="utf-8"))
+
+    def test_reports_agent_failure_with_log_path(self) -> None:
+        agent = self._write_event_agent(exit_code=7)
+
+        result = self._run_queue(agent)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("[agent] failed (exit 7)", result.stdout)
+        self.assertIn("OpenCode exited with status 7", result.stderr)
+        logs = sorted(self.log_directory.glob("*.jsonl"))
+        self.assertEqual(len(logs), 1)
+        self.assertIn(logs[0].name, result.stdout)
+
+    def test_hides_unstructured_output_by_default(self) -> None:
+        agent = self._write_agent(
+            """import subprocess
+
+print("unstructured diagnostic", flush=True)
+with open("implementation.txt", "w", encoding="utf-8") as stream:
+    stream.write("implemented")
+subprocess.run(["git", "add", "implementation.txt"], check=True)
+subprocess.run(
+    ["git", "commit", "--quiet", "-m", "feat: implement item"],
+    check=True,
+)
+"""
+        )
+
+        result = self._run_queue(agent)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("unstructured diagnostic", result.stdout)
+
+    def test_interrupt_terminates_agent_without_traceback(self) -> None:
+        agent = self._write_agent(
+            """import os
+from pathlib import Path
+import time
+
+Path("agent.pid").write_text(str(os.getpid()), encoding="utf-8")
+time.sleep(60)
+"""
+        )
+        environment = os.environ.copy()
+        environment["OPENCODE_BIN"] = str(agent)
+        environment["QUEUE_LOG_DIR"] = str(self.log_directory)
+        environment.pop("QUEUE_MODEL", None)
+        runner = Path(__file__).with_name("process_queue.py")
+
+        process = subprocess.Popen(
+            [sys.executable, str(runner), str(self.queue_path)],
+            cwd=self.repository,
+            env=environment,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        def kill_runner() -> None:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+
+        self.addCleanup(kill_runner)
+        pid_path = self.repository / "agent.pid"
+        deadline = time.monotonic() + 10
+        while not pid_path.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertTrue(pid_path.exists())
+        agent_pid = int(pid_path.read_text(encoding="utf-8"))
+
+        process.send_signal(signal.SIGINT)
+        stdout, stderr = process.communicate(timeout=15)
+
+        self.assertEqual(process.returncode, 130, stderr)
+        self.assertIn("interrupted; terminating OpenCode", stdout)
+        self.assertIn("process-queue: interrupted", stderr)
+        self.assertNotIn("Traceback", stderr)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(agent_pid, 0)
+
+
+class RunReporterTest(unittest.TestCase):
+    def test_verbose_shows_unstructured_output(self) -> None:
+        output = io.StringIO()
+        reporter = RunReporter("deepseek/deepseek-flash", True, output)
+
+        reporter.consume("unstructured diagnostic")
+
+        self.assertIn("unstructured diagnostic", output.getvalue())
+
+    def test_default_hides_unstructured_output(self) -> None:
+        output = io.StringIO()
+        reporter = RunReporter("deepseek/deepseek-flash", False, output)
+
+        reporter.consume("unstructured diagnostic")
+
+        self.assertEqual(output.getvalue(), "")
+
+    def test_strips_terminal_control_sequences(self) -> None:
+        output = io.StringIO()
+        reporter = RunReporter("deepseek/deepseek-flash", False, output)
+
+        reporter.consume(
+            json.dumps({"type": "text", "part": {"text": "\u001b[31mred\u001b[0m"}})
+        )
+
+        self.assertNotIn("\u001b", output.getvalue())
+        self.assertIn("red", output.getvalue())
 
 
 if __name__ == "__main__":
