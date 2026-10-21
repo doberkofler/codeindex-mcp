@@ -10,6 +10,7 @@ The method is specified in
 | `cases/` | Public synthetic and repository cases with exact ground truth |
 | `fixtures/` | Reviewed disposable workspaces used by controlled cases |
 | `suites/` | Public suite manifests |
+| `corpora/` | Pinned corpus manifests, including the selected external repository |
 | `audits/` | Recorded E0 case and truth review notes |
 | `reports/` | Reviewed aggregate reports safe for publication |
 
@@ -47,6 +48,12 @@ their post-run checks, is listed with:
 node evaluation/harness/src/cli.ts list --suite suites/repository.json
 node evaluation/harness/src/cli.ts evaluate --suite suites/repository.json --dry-run
 ```
+
+The selected external corpus is pinned in
+[`corpora/external-material-ui.json`](corpora/external-material-ui.json). The
+model-free comparison that selected it is recorded in
+[`audits/external-corpus-pilot.md`](audits/external-corpus-pilot.md). A campaign
+against it points `harness.json` at the prepared checkout at the pinned revision.
 
 The subject defaults to this repository root. Override it with
 `evaluation/harness/harness.json`:

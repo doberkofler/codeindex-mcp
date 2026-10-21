@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "external-material-ui",
+	"status": "selected",
+	"role": "external-corpus",
+	"repository": "https://github.com/mui/material-ui.git",
+	"revision": "28eadba9ec2899226ecbf4058b8fba1ddeab9e6d",
+	"directory": "material-ui",
+	"projectFile": "packages/mui-material/tsconfig.json",
+	"lockFile": "pnpm-lock.yaml",
+	"lockFileSha256": "e20d5ee2fbfeeb32aa24d25acad9561dae2ab268215dea3f75958852cd48db7c",
+	"preparation": [
+		"git clone --filter=blob:none https://github.com/mui/material-ui.git material-ui",
+		"git -C material-ui checkout 28eadba9ec2899226ecbf4058b8fba1ddeab9e6d",
+		"pnpm install --frozen-lockfile --ignore-scripts",
+		"git -C material-ui clean -fd"
+	],
+	"privacyClass": "public",
+	"sourceMayBeMutated": false,
+	"truthAuthority": {
+		"kind": "language-service",
+		"reference": "typescript@6.0.3"
+	},
+	"environment": {
+		"node": "v26.10.0",
+		"typescript": "6.0.3",
+		"codeIndex": "0.3.0+b9c35968c7fc13a360fc2782ccff77a73c107a0e",
+		"harness": 10
+	},
+	"caseHashes": {},
+	"distinctEvidence": ["tsx-components", "javascript-modules", "renamed-reexports", "barrel-chains", "default-exports", "package-boundaries"],
+	"limitations": [
+		"Installation generates untracked declaration files outside the selected project scope; preparation must clean the checkout before an isolated campaign.",
+		"The project includes 524 JavaScript modules, so publication and navigation evidence is not TypeScript-only.",
+		"Package aliases and re-export depth require language-service truth; lexical search over identifiers is not admissible."
+	]
+}

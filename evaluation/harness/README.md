@@ -558,6 +558,15 @@ edits were exercised in a disposable worktree. The per-case review is recorded i
 [`../audits/repository-e0.md`](../audits/repository-e0.md). Treat the locate and
 impact cases as the repository candidates when the final suite is assembled.
 
+The selected external corpus is pinned in
+[`../corpora/external-material-ui.json`](../corpora/external-material-ui.json) at
+revision `28eadba9ec2899226ecbf4058b8fba1ddeab9e6d`, project
+`packages/mui-material/tsconfig.json`, and the `pnpm-lock.yaml` hash recorded by
+the benchmark preparation. The model-free pilot that selected it is recorded in
+[`../audits/external-corpus-pilot.md`](../audits/external-corpus-pilot.md). A
+campaign against it uses a checkout at that revision; the manifest records no
+absolute path. Cases and their hashes arrive with the suite freeze.
+
 The draft controlled semantic suite [`../suites/semantic.json`](../suites/semantic.json)
 adds six `semantic` cases over the reviewed disposable fixture at
 [`../fixtures/controlled-typescript`](../fixtures/controlled-typescript/README.md).
