@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "locate-stale-file-error",
+	"title": "Stale file error type",
+	"class": "locate",
+	"tags": [
+		"errors",
+		"locate"
+	],
+	"prompt": "Which source file defines the error that read_symbol raises when the file on disk no longer matches the indexed content hash? Name the file and nothing else.",
+	"scope": [
+		"src/**"
+	],
+	"expectedFiles": [
+		"src/core/errors/staleFileError.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 12,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "impact-bounded-paged-result-references",
+	"title": "boundedPagedResult consumers",
+	"class": "impact",
+	"tags": [
+		"impact",
+		"references"
+	],
+	"prompt": "Which source files reference the symbol boundedPagedResult, excluding its own definition file? List every referencing file and nothing else.",
+	"scope": [
+		"src/**"
+	],
+	"expectedFiles": [
+		"src/core/query/outlineQuery.ts",
+		"src/core/query/queryService.ts",
+		"src/core/query/readSymbolQuery.ts",
+		"src/core/query/referenceQuery.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

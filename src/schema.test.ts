@@ -1,0 +1,253 @@
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import test, {type TestContext} from 'node:test';
+import {fileURLToPath} from 'node:url';
+import {
+	CASE_SCHEMA_VERSION,
+	SUITE_SCHEMA_VERSION,
+	canonicalJson,
+	caseHashOf,
+	caseOf,
+	hashOf,
+	suiteFieldsOf,
+	treatmentHashOf,
+} from './schema.ts';
+import {loadSuite, planHashOf, planOf, selectCases} from './suite.ts';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+const baseCase = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+	schemaVersion: CASE_SCHEMA_VERSION,
+	id: 'case-a',
+	title: 'Case A',
+	class: 'locate',
+	tags: ['locate'],
+	prompt: 'Which file defines A?',
+	scope: ['src/**'],
+	expectedFiles: ['src/a.ts'],
+	contextFiles: [],
+	forbiddenFiles: [],
+	workflow: {maxTotalCalls: 12, requiredFirstTool: null, maxOutputBytes: 1_000},
+	timeoutMs: 1_000,
+	...overrides,
+});
+
+const baseSuite = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+	schemaVersion: SUITE_SCHEMA_VERSION,
+	id: 'suite-a',
+	version: 1,
+	status: 'draft',
+	revision: 'abc1234',
+	model: 'ollama/qwen3:8b',
+	repetitions: 1,
+	arms: ['baseline', 'indexed'],
+	cases: ['case-a'],
+	...overrides,
+});
+
+const corpus = (
+	testContext: TestContext,
+	input: Readonly<{suite: Record<string, unknown>; cases: Record<string, Record<string, unknown>>}>,
+): Readonly<{root: string; suitePath: string}> => {
+	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-'));
+	const suiteDir = path.join(root, 'evaluation', 'suites');
+	const caseDir = path.join(root, 'evaluation', 'cases');
+	mkdirSync(suiteDir, {recursive: true});
+	mkdirSync(caseDir, {recursive: true});
+
+	for (const [id, value] of Object.entries(input.cases)) {
+		writeFileSync(path.join(caseDir, `${id}.json`), `${JSON.stringify(value, null, '\t')}\n`, 'utf8');
+	}
+
+	const suitePath = path.join(suiteDir, 'suite.json');
+	writeFileSync(suitePath, `${JSON.stringify(input.suite, null, '\t')}\n`, 'utf8');
+	testContext.after(() => {
+		rmSync(root, {recursive: true, force: true});
+	});
+
+	return {root, suitePath};
+};
+
+test('case schema accepts version 1 and applies empty defaults', () => {
+	const parsed = caseOf(baseCase({contextFiles: undefined, forbiddenFiles: undefined}));
+
+	assert.equal(parsed.schemaVersion, CASE_SCHEMA_VERSION);
+	assert.deepEqual(parsed.contextFiles, []);
+	assert.deepEqual(parsed.forbiddenFiles, []);
+	assert.equal(parsed.workflow.requiredFirstTool, null);
+});
+
+test('case schema rejects missing, unknown, and unsupported fields', () => {
+	const missingVersion = baseCase();
+	delete missingVersion['schemaVersion'];
+	assert.throws(() => caseOf(missingVersion), /schemaVersion.*required/);
+	assert.throws(() => caseOf(baseCase({schemaVersion: 2})), /schemaVersion/);
+	assert.throws(() => caseOf(baseCase({unexpected: true})), /unknown field.*unexpected/);
+	assert.throws(
+		() => caseOf(baseCase({workflow: {maxTotalCalls: 1, requiredFirstTool: null, maxOutputBytes: 1, extra: true}})),
+		/unknown field.*extra/,
+	);
+	assert.throws(() => caseOf(baseCase({tags: ['locate', 'locate']})), /duplicates/);
+});
+
+test('suite schema accepts version 1 and rejects unknown or unsupported fields', () => {
+	const parsed = suiteFieldsOf(baseSuite());
+
+	assert.equal(parsed.schemaVersion, SUITE_SCHEMA_VERSION);
+	assert.equal(parsed.caseHashes, null);
+	assert.throws(() => suiteFieldsOf(baseSuite({schemaVersion: 2})), /schemaVersion/);
+	assert.throws(() => suiteFieldsOf(baseSuite({unexpected: true})), /unknown field.*unexpected/);
+	assert.throws(() => suiteFieldsOf(baseSuite({cases: []})), /must not be empty/);
+	assert.throws(() => suiteFieldsOf(baseSuite({arms: []})), /must not be empty/);
+});
+
+test('frozen suite requires a hash for every case and rejects changed content', (testContext) => {
+	const original = baseCase();
+	const pinned = caseHashOf(caseOf(original));
+	const suite = baseSuite({status: 'frozen', caseHashes: {'case-a': pinned}});
+	const {suitePath} = corpus(testContext, {suite, cases: {'case-a': original}});
+	const loaded = loadSuite(suitePath);
+
+	assert.equal(loaded.suite.status, 'frozen');
+	assert.deepEqual(loaded.suite.caseHashes, {'case-a': pinned});
+	assert.match(loaded.suite.hash, /^[0-9a-f]{64}$/);
+
+	const changed = baseCase({prompt: 'Changed prompt'});
+	writeFileSync(path.join(path.dirname(path.dirname(suitePath)), 'cases', 'case-a.json'), `${JSON.stringify(changed, null, '\t')}\n`, 'utf8');
+	assert.throws(() => loadSuite(suitePath), /new suite version/);
+});
+
+test('frozen suite rejects a missing case hash set', () => {
+	assert.throws(() => suiteFieldsOf(baseSuite({status: 'frozen'})), /caseHashes.*required/);
+	assert.throws(
+		() => suiteFieldsOf(baseSuite({status: 'frozen', caseHashes: {}})),
+		/exactly one entry per listed case/,
+	);
+});
+
+test('canonical hashing ignores object key order and remains stable', () => {
+	assert.equal(canonicalJson({b: 2, a: [1, {d: 4, c: 3}]}), '{"a":[1,{"c":3,"d":4}],"b":2}');
+	assert.equal(hashOf({b: 2, a: 1}), hashOf({a: 1, b: 2}));
+	assert.notEqual(hashOf({a: 1}), hashOf({a: 2}));
+	assert.equal(caseHashOf(caseOf(baseCase())), caseHashOf(caseOf(baseCase())));
+});
+
+test('suite and treatment hashes are stable and content-bound', (testContext) => {
+	const {suitePath} = corpus(testContext, {
+		suite: baseSuite(),
+		cases: {'case-a': baseCase()},
+	});
+	const first = loadSuite(suitePath);
+	const second = loadSuite(suitePath);
+
+	assert.equal(first.suite.hash, second.suite.hash);
+	assert.equal(
+		treatmentHashOf({id: 'accepted', artifact: 'a'.repeat(64), tools: ['find_symbol']}),
+		treatmentHashOf({id: 'accepted', artifact: 'a'.repeat(64), tools: ['find_symbol']}),
+	);
+	assert.notEqual(
+		treatmentHashOf({id: 'accepted', artifact: 'a'.repeat(64), tools: ['find_symbol']}),
+		treatmentHashOf({id: 'accepted', artifact: 'b'.repeat(64), tools: ['find_symbol']}),
+	);
+
+	writeFileSync(
+		path.join(path.dirname(path.dirname(suitePath)), 'cases', 'case-a.json'),
+		`${JSON.stringify(baseCase({prompt: 'Changed prompt'}), null, '\t')}\n`,
+		'utf8',
+	);
+	assert.notEqual(loadSuite(suitePath).suite.hash, first.suite.hash);
+});
+
+test('case selection is an ordered union and tags intersect', () => {
+	const cases = [
+		caseOf(baseCase({id: 'case-a', tags: ['locate', 'schema']})),
+		caseOf(baseCase({id: 'case-b', tags: ['locate']})),
+		caseOf(baseCase({id: 'case-c', tags: ['impact']})),
+	];
+
+	assert.deepEqual(
+		selectCases(cases, {caseIds: ['case-c', 'case-a', 'case-c']}).map((item) => item.id),
+		['case-c', 'case-a'],
+	);
+	assert.deepEqual(
+		selectCases(cases, {tags: ['locate']}).map((item) => item.id),
+		['case-a', 'case-b'],
+	);
+	assert.deepEqual(
+		selectCases(cases, {caseIds: ['case-b', 'case-c'], tags: ['locate']}).map((item) => item.id),
+		['case-b'],
+	);
+	assert.throws(() => selectCases(cases, {caseIds: ['missing']}), /unknown case/);
+	assert.throws(() => selectCases(cases, {tags: ['missing']}), /selection is empty/);
+	assert.throws(() => selectCases(cases, {caseIds: ['case-a'], tags: ['impact']}), /selection is empty/);
+});
+
+test('repeated selection produces the same ordered plan and hash', () => {
+	const cases = [caseOf(baseCase({id: 'case-a'})), caseOf(baseCase({id: 'case-b'}))];
+	const first = planOf(selectCases(cases, {caseIds: ['case-b', 'case-a']}), ['baseline', 'indexed'], 2);
+	const second = planOf(selectCases(cases, {caseIds: ['case-b', 'case-a']}), ['baseline', 'indexed'], 2);
+
+	assert.deepEqual(first, second);
+	assert.deepEqual(first.map((entry) => `${entry.caseId}/${entry.arm}/${entry.repetition}`), [
+		'case-b/baseline/1',
+		'case-b/baseline/2',
+		'case-b/indexed/1',
+		'case-b/indexed/2',
+		'case-a/baseline/1',
+		'case-a/baseline/2',
+		'case-a/indexed/1',
+		'case-a/indexed/2',
+	]);
+	assert.equal(planHashOf(first), planHashOf(second));
+});
+
+const cliSandbox = (testContext: TestContext): Readonly<{env: NodeJS.ProcessEnv; marker: string}> => {
+	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-cli-'));
+	const bin = path.join(root, 'bin');
+	const marker = path.join(root, 'opencode-invoked');
+	mkdirSync(bin, {recursive: true});
+	writeFileSync(path.join(bin, 'opencode'), '#!/bin/sh\nprintf invoked > "$MARKER"\n', {encoding: 'utf8', mode: 0o755});
+	testContext.after(() => {
+		rmSync(root, {recursive: true, force: true});
+	});
+
+	return {
+		env: {...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}`, MARKER: marker},
+		marker,
+	};
+};
+
+test('--list and --dry-run start no model process', (testContext) => {
+	const {env, marker} = cliSandbox(testContext);
+	const list = spawnSync(process.execPath, ['src/cli.ts', 'list', '--suite', 'evaluation/suites/q2.json'], {
+		cwd: ROOT,
+		env,
+		encoding: 'utf8',
+	});
+	const dryRun = spawnSync(
+		process.execPath,
+		['src/cli.ts', 'evaluate', '--suite', 'evaluation/suites/q2.json', '--case', 'locate-schema-version', '--dry-run'],
+		{cwd: ROOT, env, encoding: 'utf8'},
+	);
+
+	assert.equal(list.status, 0, list.stderr);
+	assert.equal(dryRun.status, 0, dryRun.stderr);
+	assert.match(dryRun.stderr, /plan-hash [0-9a-f]{64}/);
+	assert.equal(existsSync(marker), false);
+});
+
+test('an empty selection fails before any process starts', (testContext) => {
+	const {env, marker} = cliSandbox(testContext);
+	const result = spawnSync(
+		process.execPath,
+		['src/cli.ts', 'evaluate', '--suite', 'evaluation/suites/q2.json', '--case', 'missing-case', '--dry-run'],
+		{cwd: ROOT, env, encoding: 'utf8'},
+	);
+
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /unknown case "missing-case"/);
+	assert.equal(existsSync(marker), false);
+});

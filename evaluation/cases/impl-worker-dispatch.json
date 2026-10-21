@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "impl-worker-dispatch",
+	"title": "Build worker dispatch",
+	"class": "implementation",
+	"tags": [
+		"entry",
+		"implementation"
+	],
+	"prompt": "Which executable entry file dispatches to the build worker when workerData is present, before starting the MCP or CLI startup path? Name the file and nothing else.",
+	"scope": [
+		"src/**"
+	],
+	"expectedFiles": [
+		"src/entries/mcp.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 12,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

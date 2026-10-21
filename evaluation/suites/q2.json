@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"id": "q2-real-task",
+	"version": 4,
+	"status": "draft",
+	"revision": "fed1b6e",
+	"model": "deepseek/deepseek-flash",
+	"repetitions": 5,
+	"arms": [
+		"baseline",
+		"indexed"
+	],
+	"cases": [
+		"locate-schema-version",
+		"locate-read-symbol-tool",
+		"locate-stale-file-error",
+		"locate-result-size-guard",
+		"impl-result-limit-default",
+		"impl-analytics-append",
+		"impl-worker-dispatch",
+		"impl-generation-publish",
+		"impact-build-generation-references",
+		"impact-hash-content-references",
+		"impact-bounded-paged-result-references",
+		"impact-schema-version-references"
+	]
+}
