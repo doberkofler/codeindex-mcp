@@ -6,7 +6,14 @@ import sys
 import tempfile
 import unittest
 
-from scripts.process_queue import JsonQueue, MarkdownQueue, QueueError, load_queue, prompt_for
+from scripts.process_queue import (
+    DEFAULT_MODEL,
+    JsonQueue,
+    MarkdownQueue,
+    QueueError,
+    load_queue,
+    prompt_for,
+)
 
 
 class MarkdownQueueTest(unittest.TestCase):
@@ -167,7 +174,7 @@ subprocess.run(
         self.assertEqual(result.returncode, 0, result.stderr)
         argv = self._agent_argv()
         self.assertEqual(argv[:5], ["run", "--standalone", "--auto", "--agent", "build"])
-        self.assertNotIn("--model", argv)
+        self.assertEqual(argv[5:7], ["--model", DEFAULT_MODEL])
         self.assertTrue(argv[-1].startswith("Implement exactly this item"))
         queue = json.loads(self.queue_path.read_text(encoding="utf-8"))
         self.assertIs(queue["items"][0]["done"], True)

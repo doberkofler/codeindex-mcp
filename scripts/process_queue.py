@@ -16,6 +16,7 @@ from typing import Any
 
 
 MARKDOWN_ITEM = re.compile(r"^- \[(?P<done>[ xX])\] #(?P<issue>[1-9][0-9]*) (?P<title>\S.*)$")
+DEFAULT_MODEL = "deepseek/deepseek-flash"
 
 
 class QueueError(Exception):
@@ -195,7 +196,7 @@ Rules:
 - Do not touch other queue items."""
 
 
-def agent_command(model: str | None, prompt: str) -> list[str]:
+def agent_command(model: str, prompt: str) -> list[str]:
     command = [
         os.environ.get("OPENCODE_BIN", "opencode"),
         "run",
@@ -204,13 +205,12 @@ def agent_command(model: str | None, prompt: str) -> list[str]:
         "--agent",
         "build",
     ]
-    if model is not None:
-        command.extend(["--model", model])
+    command.extend(["--model", model])
     command.append(prompt)
     return command
 
 
-def process(queue_path: Path, model: str | None) -> None:
+def process(queue_path: Path, model: str) -> None:
     while True:
         queue = load_queue(queue_path)
         item = queue.next_item()
@@ -233,10 +233,10 @@ def main() -> int:
     parser.add_argument("queue", nargs="?", default="TODO.md", help="Markdown or JSON queue file")
     parser.add_argument(
         "--model",
-        help="provider/model[#variant]; defaults to QUEUE_MODEL, then OpenCode's own default",
+        help=f"provider/model[#variant]; defaults to QUEUE_MODEL, then {DEFAULT_MODEL}",
     )
     arguments = parser.parse_args()
-    model = arguments.model or os.environ.get("QUEUE_MODEL") or None
+    model = arguments.model or os.environ.get("QUEUE_MODEL") or DEFAULT_MODEL
     try:
         process(Path(arguments.queue), model)
     except (OSError, QueueError, subprocess.CalledProcessError) as error:
