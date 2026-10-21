@@ -3,7 +3,7 @@
 - [x] #17 [EVAL-009] Implement correctness and workflow graders
 - [x] #18 [EVAL-010] Implement atomic results and complete-identity resume
 - [x] #19 [EVAL-011] Implement paired reports, statistics, and harness verification
-- [ ] #20 [EVAL-012] Audit existing Q2 cases and TypeScript ground truth
+- [x] #20 [EVAL-012] Audit existing Q2 cases and TypeScript ground truth
 - [ ] #21 [EVAL-013] Build controlled TypeScript semantic cases
 - [ ] #22 [EVAL-014] Build CodeIndex repository cases
 - [ ] #23 [EVAL-015] Pilot TypeScript, VS Code, and Material UI as external corpus
