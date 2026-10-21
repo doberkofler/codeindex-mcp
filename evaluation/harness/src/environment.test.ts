@@ -17,6 +17,8 @@ import {loadSuite} from './suite.ts';
 
 const EVALUATION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ENVIRONMENT_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3-8b-smoke.json');
+const QWEN_27B_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3.8-27b-calibration.json');
+const QWEN_35B_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3.6-35b-calibration.json');
 const CALIBRATION_PATH = path.join(EVALUATION_ROOT, 'suites', 'calibration.json');
 const DIGEST = '500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41';
 
@@ -67,11 +69,30 @@ test('committed smoke environment pins the calibration model and full identity',
 	assert.deepEqual(environmentDifferencesOf(environment, probe()), []);
 });
 
+test('committed calibration environment pins the candidate model and settings', () => {
+	const qwen27b = loadEnvironmentManifest(QWEN_27B_PATH);
+	const qwen35b = loadEnvironmentManifest(QWEN_35B_PATH);
+
+	assert.equal(qwen27b.purpose, 'calibration');
+	assert.equal(qwen27b.model.reference, 'ollama/qwen3.8:27b-mlx');
+	assert.equal(qwen27b.model.digest, '5642e97495e1a088883805981563dcdc4a040c2f53388b7a41d1f24d3622cf7e');
+	assert.equal(qwen27b.model.quantization, 'nvfp4');
+	assert.equal(qwen27b.model.contextLength, 262_144);
+	assert.equal(qwen27b.runtime.ollama, '0.40.7');
+	assert.equal(qwen35b.purpose, 'calibration');
+	assert.equal(qwen35b.model.reference, 'ollama/qwen3.6:35b-mlx');
+	assert.equal(qwen35b.model.digest, 'e92a3e94bbca90a85491dc34e9257bfee2318cedaa16360828c4d8edf14295b9');
+	assert.equal(qwen35b.model.quantization, 'nvfp4');
+	assert.equal(qwen35b.model.contextLength, 262_144);
+	assert.equal(qwen35b.runtime.ollama, '0.40.7');
+});
+
 test('environment rejects missing facts instead of defaulting them', () => {
 	const valid = manifest();
 	const withoutGeneration = Object.fromEntries(Object.entries(valid.model).filter(([key]) => key !== 'generation'));
 
-	assert.throws(() => environmentManifestOf({...valid, purpose: 'calibration'}), /purpose/u);
+	assert.throws(() => environmentManifestOf({...valid, purpose: 'regression'}), /purpose/u);
+	assert.equal(environmentManifestOf({...valid, purpose: 'calibration'}).purpose, 'calibration');
 	assert.throws(() => environmentManifestOf({...valid, model: withoutGeneration}), /model.generation/u);
 	assert.throws(() => environmentManifestOf({...valid, model: {...valid.model, digest: DIGEST.slice(0, 12)}}), /digest/u);
 	assert.throws(() => environmentManifestOf({...valid, host: {...valid.host, memoryBytes: 0}}), /memoryBytes/u);

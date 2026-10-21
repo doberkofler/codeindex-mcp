@@ -3,7 +3,7 @@ import path from 'node:path';
 import test from 'node:test';
 import {fileURLToPath} from 'node:url';
 import {caseHashOf} from './schema.ts';
-import {loadSuite, planOf, selectCases} from './suite.ts';
+import {loadSuite, planOf, selectCases, suiteWithModelOf} from './suite.ts';
 
 const EVALUATION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const RELEASE_PATH = path.join(EVALUATION_ROOT, 'suites', 'release.json');
@@ -66,4 +66,14 @@ test('calibration suite is a frozen six-case subset with twelve smoke executions
 	}
 
 	assert.equal(planOf(selectCases(cases, {}), ['no-index', 'accepted'], 1).length, 12);
+});
+
+test('a calibration rebinding changes the model and suite hash but not case hashes', () => {
+	const {suite, cases} = loadSuite(CALIBRATION_PATH);
+	const rebased = suiteWithModelOf(suite, cases, 'ollama/qwen3.8:27b-mlx');
+
+	assert.equal(rebased.model, 'ollama/qwen3.8:27b-mlx');
+	assert.notEqual(rebased.hash, suite.hash);
+	assert.deepEqual(rebased.caseHashes, suite.caseHashes);
+	assert.deepEqual(rebased.cases, suite.cases);
 });

@@ -183,6 +183,23 @@ test('top-level, server-envelope, and nested tool calls normalize into one seque
 	);
 });
 
+test('the OpenCode shell event name normalizes to the declared bash tool', () => {
+	const events = parseEvents(
+		lines({
+			type: 'tool_use',
+			part: {
+				type: 'tool',
+				callID: 'call-shell',
+				tool: 'shell',
+				state: {status: 'completed', input: {command: 'pwd'}, output: 'workspace'},
+			},
+		}),
+	);
+
+	assert.equal(events.toolCalls[0]?.tool, 'bash');
+	assert.equal(events.toolCalls[0]?.family, 'execute');
+});
+
 test('explicit result guidance marks authority independently of output size', () => {
 	const part = (callID: string, action: string, fallbackRequired: boolean): unknown => ({
 		type: 'tool',

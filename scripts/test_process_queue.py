@@ -326,6 +326,7 @@ subprocess.run(
         self.assertIn(
             f"Do not modify the queue file: {self.queue_path.resolve()}", argv[-1]
         )
+        self.assertIn("Do not start background jobs", argv[-1])
         queue = json.loads(self.queue_path.read_text(encoding="utf-8"))
         self.assertIs(queue["items"][0]["done"], True)
         self.assertEqual(self._git("rev-list", "--count", "HEAD").stdout.strip(), "3")
@@ -467,6 +468,36 @@ print(json.dumps({
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("Agent must create exactly one non-merge commit", result.stderr)
+        queue = json.loads(self.queue_path.read_text(encoding="utf-8"))
+        self.assertIs(queue["items"][0]["done"], False)
+
+    def test_rejects_agent_that_starts_a_background_job(self) -> None:
+        agent = self._write_agent(
+            """import json
+from pathlib import Path
+import subprocess
+
+print(json.dumps({
+    "type": "tool_use",
+    "part": {
+        "id": "background-1",
+        "tool": "shell",
+        "state": {
+            "status": "running",
+            "input": {"command": "long-running-command", "background": True},
+        },
+    },
+}))
+Path("implementation.txt").write_text("implemented", encoding="utf-8")
+subprocess.run(["git", "add", "implementation.txt"], check=True)
+subprocess.run(["git", "commit", "--quiet", "-m", "feat: implement item"], check=True)
+"""
+        )
+
+        result = self._run_queue(agent)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Agent started a background job", result.stderr)
         queue = json.loads(self.queue_path.read_text(encoding="utf-8"))
         self.assertIs(queue["items"][0]["done"], False)
 

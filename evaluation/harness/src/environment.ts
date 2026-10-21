@@ -6,8 +6,8 @@ import {hashOf} from './hash.ts';
 /** Version of the local-model environment manifest understood by this harness. */
 export const ENVIRONMENT_SCHEMA_VERSION = 1 as const;
 
-/** Declared use of a pinned environment. Only smoke is admitted in v1. */
-export const ENVIRONMENT_PURPOSES = ['smoke'] as const;
+/** Declared use of a pinned environment. */
+export const ENVIRONMENT_PURPOSES = ['smoke', 'calibration'] as const;
 
 export type EnvironmentPurposeType = (typeof ENVIRONMENT_PURPOSES)[number];
 
@@ -534,7 +534,7 @@ export const capturedEnvironmentOf = (
 	});
 
 /**
- * Limits the environment to the declared smoke model.
+ * Limits the environment to the declared model.
  *
  * @param environment - Validated environment manifest.
  * @param model - Suite model reference.
@@ -542,6 +542,21 @@ export const capturedEnvironmentOf = (
 export const assertEnvironmentModel = (environment: EnvironmentManifestType, model: string): void => {
 	if (environment.model.reference !== model) {
 		throw new Error(`environment pins "${environment.model.reference}" but the suite declares "${model}"`);
+	}
+};
+
+/**
+ * Requires a manifest to be declared for the command that loads it.
+ *
+ * A smoke manifest and a calibration manifest describe different obligations,
+ * so neither may silently stand in for the other.
+ *
+ * @param environment - Validated environment manifest.
+ * @param purpose - Purpose required by the command.
+ */
+export const assertEnvironmentPurpose = (environment: EnvironmentManifestType, purpose: EnvironmentPurposeType): void => {
+	if (environment.purpose !== purpose) {
+		throw new Error(`environment ${environment.id} declares purpose "${environment.purpose}", not "${purpose}"`);
 	}
 };
 

@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "ollama-qwen3.8-27b-calibration",
+	"purpose": "calibration",
+	"recordedAt": "2026-10-21T21:34:52.441Z",
+	"host": {
+		"referenceMachine": "apple-m5-max-64gb",
+		"nodeVersion": "v26.10.0",
+		"platform": "darwin",
+		"arch": "arm64",
+		"cpuModel": "Apple M5 Max",
+		"cpuCount": 18,
+		"memoryBytes": 68719476736,
+		"osVersion": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:06:40 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T6050"
+	},
+	"runtime": {
+		"ollama": "0.40.7",
+		"opencode": "2.1.2",
+		"ollamaEndpoint": "http://127.0.0.1:11434"
+	},
+	"model": {
+		"reference": "ollama/qwen3.8:27b-mlx",
+		"digest": "5642e97495e1a088883805981563dcdc4a040c2f53388b7a41d1f24d3622cf7e",
+		"architecture": "qwen3_5",
+		"parameters": "27.8B",
+		"quantization": "nvfp4",
+		"contextLength": 262144,
+		"embeddingLength": 5120,
+		"generation": {
+			"temperature": 1,
+			"topP": 0.95,
+			"topK": 20,
+			"repeatPenalty": 1,
+			"stop": []
+		}
+	}
+}

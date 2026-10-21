@@ -5,10 +5,16 @@ execution: host, Node, OpenCode, Ollama, provider model digest, quantization,
 context, generation settings, and the reference-machine label. The harness
 rejects a manifest that omits any of them; a missing fact is never defaulted.
 
-`ollama-qwen3-8b-smoke.json` is the declared smoke environment. It runs the
-frozen six-case calibration subset with the accepted treatment only. The 8B
-model checks the environment and harness path; it makes no quality claim and is
-not a regression sentinel.
+A manifest declares one `purpose`:
+
+- `smoke` pins an accepted-only harness check. `ollama-qwen3-8b-smoke.json` is the
+  declared smoke environment. It runs the frozen six-case calibration subset with
+  the accepted treatment only. The 8B model checks the environment and harness
+  path; it makes no quality claim and is not a regression sentinel.
+- `calibration` pins a model entering the two-treatment qualification.
+  `ollama-qwen3.8-27b-calibration.json` and `ollama-qwen3.6-35b-calibration.json`
+  are those candidates. A calibrated reference is cited by the audit record, not
+  by renaming or duplicating a manifest.
 
 ## Commands
 
@@ -44,3 +50,22 @@ the host or starting a model. Generated results stay under `results/`, which is
 never committed. A changed model digest, quantization, runtime version, context,
 generation setting, or host fact requires a new manifest and a new smoke
 baseline.
+
+Calibrate one or more candidates against the same frozen six-case subset:
+
+```bash
+node evaluation/harness/src/cli.ts calibrate \
+  --suite suites/calibration.json \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --environment environments/ollama-qwen3.6-35b-calibration.json \
+  --budget-ms 900000
+```
+
+The command verifies every pinned environment, then runs six cases × `no-index`
+and `accepted` × one repetition per model. It stops a model at its wall-clock
+budget, writes `calibration.json` beside that model's results, and writes one
+`selection.json` naming the predeclared winner. A model qualifies only when all
+12 executions are valid, no case loses accepted correctness against `no-index`,
+no execution needs an intervention, and the budget is met. A changed model
+artifact or environment fact changes the environment hash, campaign identity,
+and therefore the baseline.

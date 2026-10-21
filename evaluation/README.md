@@ -92,6 +92,23 @@ setting, or host fact before the first model call. The 8B model is a harness
 smoke only and makes no quality claim. The recorded execution is in
 [`audits/local-model-smoke-e1.md`](audits/local-model-smoke-e1.md).
 
+Local candidates are calibrated with the same frozen six cases, `no-index` and
+`accepted`, and one repetition, for 12 executions per model:
+
+```bash
+node evaluation/harness/src/cli.ts calibrate \
+  --suite suites/calibration.json \
+  --budget-ms 900000 \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --environment environments/ollama-qwen3.6-35b-calibration.json
+```
+
+The command verifies each pinned environment, enforces the budget per model, and
+records a qualification decision and one selection. The selection is local-model
+scoped; it is not evidence for a different model or a model-independent claim.
+The calibration report and selection record are in
+[`audits/local-model-calibration-e1.md`](audits/local-model-calibration-e1.md).
+
 The draft controlled semantic suite is listed with:
 
 ```bash

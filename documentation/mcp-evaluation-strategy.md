@@ -584,6 +584,13 @@ accepted-only smoke record is
 If exact token telemetry is unavailable, correctness, calls, bytes, and latency remain
 usable, but the token gate is invalid. Never estimate missing usage from bytes.
 
+When more than one model qualifies, select the regression sentinel in this fixed order:
+qualifiers only, then more exact accepted answers, then lower accepted median wall time,
+then lower accepted median retrieval bytes, then the model reference for a stable
+tie-break. Record the decision beside the calibration decisions. A changed model artifact,
+quantization, runtime, context, generation setting, host fact, or budget starts a new
+calibration baseline; no earlier qualification carries over.
+
 The hosted reference model for the next suite remains open until local calibration is
 complete. Select one capable hosted model, record the decision, and pin its exact identity
 for that suite. Changing it requires a new complete paired baseline. Q2 v4's

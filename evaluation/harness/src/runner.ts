@@ -7,6 +7,7 @@ import {gradeOf, type GradeType} from './grade.ts';
 import {EXECUTION_SCHEMA_VERSION, type ExecutionIdentityType} from './identity.ts';
 import {type ClientStoreModeType, type ClientStoreType, type IsolationModeType} from './isolation.ts';
 import {postRunOf, skippedPostRunOf, type PostRunResultType} from './postRun.ts';
+import {isolatedProcessEnvironmentOf} from './processEnvironment.ts';
 import {type DefectType} from './result.ts';
 import {promptOf} from './suite.ts';
 import {type CaseType} from './schema.ts';
@@ -222,6 +223,8 @@ const attemptOnce = async (
 		/** Artifact identities recorded with the result. */
 		artifacts: RunArtifactsType;
 		rawBase: string | null;
+		/** Wall-clock bound override, used to cap a slot at its campaign budget. */
+		timeoutMs?: number;
 		/** Executable override; production uses `opencode`. */
 		command?: string;
 	}>,
@@ -230,6 +233,7 @@ const attemptOnce = async (
 	const startedAt = new Date().toISOString();
 	const started = Date.now();
 	const prompt = promptOf(input.testCase);
+	const timeoutMs = input.timeoutMs ?? input.testCase.timeoutMs;
 
 	const child = spawn(
 		input.command ?? AGENT_COMMAND,
@@ -241,12 +245,11 @@ const attemptOnce = async (
 			detached: process.platform !== 'win32',
 			// OpenCode resolves the project from PWD, which spawn does not update.
 			// OPENCODE_DB is always explicit; an inherited value is never reused.
-			env: {
-				...process.env,
+			env: isolatedProcessEnvironmentOf({
 				PWD: input.cwd,
 				OPENCODE_DB: input.clientStore.opencodeDb,
 				OPENCODE_DISABLE_TELEMETRY: '1',
-			},
+			}),
 			stdio: ['ignore', 'pipe', 'pipe'],
 		},
 	);
@@ -295,7 +298,7 @@ const attemptOnce = async (
 			escalationTimer = setTimeout(() => {
 				signalGroup(child, 'SIGKILL');
 			}, TERMINATE_GRACE_MS);
-		}, input.testCase.timeoutMs);
+		}, timeoutMs);
 
 		// A descendant that escaped the group can hold the pipes open. Never wait
 		// indefinitely for `close`: the captured streams are complete enough and
@@ -307,7 +310,7 @@ const attemptOnce = async (
 				child.unref();
 				finish(null, 'SIGKILL');
 			},
-			input.testCase.timeoutMs + TERMINATE_GRACE_MS + HARD_CLOSE_GRACE_MS,
+			timeoutMs + TERMINATE_GRACE_MS + HARD_CLOSE_GRACE_MS,
 		);
 	});
 
@@ -368,7 +371,7 @@ const attemptOnce = async (
 			exitCode,
 			signal: exit.signal,
 			timedOut,
-			timeoutMs: input.testCase.timeoutMs,
+			timeoutMs,
 			outcome,
 			defects: [],
 			isolation: {...input.isolation, restored: false},
@@ -426,6 +429,8 @@ export const runOnce = async (
 		/** Artifact identities recorded with the result. */
 		artifacts: RunArtifactsType;
 		rawBase: string | null;
+		/** Wall-clock bound override, used to cap a slot at its campaign budget. */
+		timeoutMs?: number;
 		/** Executable override; production uses `opencode`. */
 		command?: string;
 		/** Retry policy override for focused tests. */

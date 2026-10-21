@@ -3,16 +3,20 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {artifactIdentityOf, artifactRefOf, type ArtifactIdentityType, type ArtifactRefType} from './artifact.ts';
+import {calibrationDecisionOf, calibrationSelectionOf, type CalibrationDecisionType} from './calibration.ts';
 import {
 	assertEnvironmentMatches,
 	assertEnvironmentModel,
+	assertEnvironmentPurpose,
 	capturedEnvironmentOf,
+	ENVIRONMENT_PURPOSES,
 	environmentHashOf,
 	environmentProbeOf,
 	hostFactsOf,
 	loadEnvironmentManifest,
 	type EnvironmentManifestType,
 } from './environment.ts';
+import {hashOf} from './hash.ts';
 import {
 	EXECUTION_SCHEMA_VERSION,
 	comparisonDigestOf,
@@ -33,7 +37,7 @@ import {routeReportOf, type RouteCaseReportType} from './routeReport.ts';
 import {ROUTE_TREATMENTS, runRoute, type RouteRunType, type RouteTreatmentType} from './route.ts';
 import {runOnce, withRestoration, type RunArtifactsType, type RunResultType} from './runner.ts';
 import {caseHashOf} from './schema.ts';
-import {loadSuite, planHashOf, planOf, resolveTreatmentOf, selectCases, treatmentIdsOf} from './suite.ts';
+import {loadSuite, planHashOf, planOf, resolveTreatmentOf, selectCases, suiteWithModelOf, treatmentIdsOf} from './suite.ts';
 import {
 	canonicalTreatmentsOf,
 	toolSurfaceOf,
@@ -46,6 +50,15 @@ import {assertCheckout, ensureWorkspaces, restoreWorkspace, subjectIdentityOf, t
 
 /** Harness schema version recorded in every run identity. */
 const HARNESS_VERSION = 10;
+
+/** Declared wall-clock budget for one local-model calibration. */
+const CALIBRATION_BUDGET_MS = 15 * 60 * 1_000;
+
+/** Frozen calibration subset size required by strategy §10. */
+const CALIBRATION_CASE_COUNT = 6;
+
+/** Treatments compared by a local calibration. */
+const CALIBRATION_TREATMENTS = ['no-index', 'accepted'] as const;
 
 /** Pause between executions to stay inside the provider's rolling window. */
 const PACE_MS = Number(process.env['EVAL_PACE_MS'] ?? 5_000);
@@ -311,6 +324,18 @@ type EvaluationOptionsType = Readonly<{
 	repetitions?: number;
 	environment?: EnvironmentManifestType | null;
 	requireFrozen?: boolean;
+	/** Model override for a calibrated local candidate; case hashes stay pinned. */
+	model?: string;
+	/** Total wall-clock budget for all planned executions. */
+	budgetMs?: number;
+}>;
+
+type EvaluationRunType = Readonly<{
+	runDir: string;
+	results: readonly RunResultType[];
+	/** Null only when a budget stopped the campaign before its first execution. */
+	comparison: ReturnType<typeof compare> | null;
+	budget: Readonly<{budgetMs: number; elapsedMs: number; exceeded: boolean}> | null;
 }>;
 
 /**
@@ -360,16 +385,17 @@ const environmentCommand = async (flags: Map<string, string[]>): Promise<void> =
 			throw new Error('--id is required');
 		}
 
-		const purpose = flagOf(flags, 'purpose') ?? 'smoke';
+		const requestedPurpose = flagOf(flags, 'purpose') ?? 'smoke';
+		const purpose = ENVIRONMENT_PURPOSES.find((item) => item === requestedPurpose);
 
-		if (purpose !== 'smoke') {
-			throw new Error('--purpose must be smoke');
+		if (purpose === undefined) {
+			throw new Error(`--purpose must be one of ${ENVIRONMENT_PURPOSES.join(', ')}`);
 		}
 
 		const probe = await environmentProbeOf({model, endpoint: flagOf(flags, 'endpoint') ?? 'http://127.0.0.1:11434'});
 		const environment = capturedEnvironmentOf({
 			id,
-			purpose: 'smoke',
+			purpose,
 			referenceMachine,
 			recordedAt: new Date().toISOString(),
 			probe,
@@ -416,6 +442,7 @@ const smokeCommand = async (flags: Map<string, string[]>): Promise<void> => {
 	const {suite} = loadSuite(path.resolve(evaluationRoot, suitePath));
 	const environment = loadEnvironmentManifest(manifestPathOf(flags, 'environment'));
 
+	assertEnvironmentPurpose(environment, 'smoke');
 	assertEnvironmentModel(environment, suite.model);
 
 	if (!flags.has('dry-run')) {
@@ -427,17 +454,157 @@ const smokeCommand = async (flags: Map<string, string[]>): Promise<void> => {
 	await evaluateCommand(flags, {treatments: ['accepted'], repetitions: 1, environment, requireFrozen: true});
 };
 
-const evaluateCommand = async (flags: Map<string, string[]>, options: EvaluationOptionsType = {}): Promise<void> => {
+const calibrationBudgetOf = (flags: Map<string, string[]>): number => {
+	const raw = flagOf(flags, 'budget-ms');
+	const budgetMs = raw === undefined ? CALIBRATION_BUDGET_MS : Number(raw);
+
+	if (!Number.isInteger(budgetMs) || budgetMs <= 0) {
+		throw new Error('--budget-ms must be a positive integer');
+	}
+
+	return budgetMs;
+};
+
+/**
+ * Runs the frozen two-treatment calibration for one or more local models.
+ *
+ * The suite's case hashes stay frozen; only its model reference is rebound to
+ * the environment under test. Every model receives the same 15-minute budget,
+ * and a decision is written beside its retained executions.
+ *
+ * @param flags - Parsed CLI flags.
+ */
+const calibrationCommand = async (flags: Map<string, string[]>): Promise<void> => {
 	const suitePath = flagOf(flags, 'suite');
 
 	if (suitePath === undefined) {
 		throw new Error('--suite is required');
 	}
 
+	const environmentPaths = allOf(flags, 'environment');
+
+	if (environmentPaths.length === 0) {
+		throw new Error('--environment is required');
+	}
+
+	for (const forbidden of ['case', 'tag', 'treatment', 'repetitions', 'resume']) {
+		if (flags.has(forbidden)) {
+			throw new Error(`calibrate does not accept --${forbidden}; the frozen calibration plan is fixed`);
+		}
+	}
+
 	const {suite, cases} = loadSuite(path.resolve(evaluationRoot, suitePath));
 
+	if (suite.status !== 'frozen') {
+		throw new Error(`suite ${suite.id} must be frozen for calibration`);
+	}
+
+	if (suite.repetitions !== 1 || cases.length !== CALIBRATION_CASE_COUNT) {
+		throw new Error(
+			`calibration requires the frozen ${CALIBRATION_CASE_COUNT}-case subset at one repetition; suite ${suite.id} declares ${cases.length} case(s) at ${suite.repetitions} repetition(s)`,
+		);
+	}
+
+	const budgetMs = calibrationBudgetOf(flags);
+	const environments = environmentPaths.map((value) => loadEnvironmentManifest(path.resolve(evaluationRoot, value)));
+
+	for (const environment of environments) {
+		assertEnvironmentPurpose(environment, 'calibration');
+	}
+
+	if (new Set(environments.map((environment) => environment.model.reference)).size !== environments.length) {
+		throw new Error('calibrate received the same model reference more than once');
+	}
+
+	if (!flags.has('dry-run')) {
+		for (const environment of environments) {
+			process.stderr.write(`calibration environment ${environment.id} verification\n`);
+			await verifiedEnvironmentOf(environment);
+		}
+	}
+
+	process.stderr.write(
+		`calibration ${suite.id} v${suite.version}, ${cases.length} case(s) x ${CALIBRATION_TREATMENTS.length} treatment(s) x 1 repetition, budget ${budgetMs} ms per model\n`,
+	);
+
+	const decisions: CalibrationDecisionType[] = [];
+
+	for (const environment of environments) {
+		const run = await evaluateCommand(flags, {
+			treatments: [...CALIBRATION_TREATMENTS],
+			repetitions: 1,
+			environment,
+			requireFrozen: true,
+			model: environment.model.reference,
+			budgetMs,
+		});
+
+		if (run === null) {
+			continue;
+		}
+
+		const decision = calibrationDecisionOf({
+			model: environment.model.reference,
+			environmentId: environment.id,
+			environmentHash: environmentHashOf(environment),
+			budgetMs,
+			elapsedMs: run.budget?.elapsedMs ?? 0,
+			plannedSlots: cases.length * CALIBRATION_TREATMENTS.length,
+			results: run.results,
+		});
+
+		writeJsonAtomic(path.join(run.runDir, 'calibration.json'), decision, true);
+		decisions.push(decision);
+		process.stdout.write(
+			`${decision.passed ? 'QUALIFIED' : 'DISQUALIFIED'} ${decision.model} valid ${decision.validExecutions}/${decision.plannedSlots} accepted-exact ${decision.acceptedExact} no-index-exact ${decision.noIndexExact} elapsed ${decision.elapsedMs} ms\n`,
+		);
+
+		if (decision.disqualification !== null) {
+			process.stdout.write(`disqualification ${decision.disqualification}\n`);
+		}
+
+		if (decision.telemetry.limitation !== null) {
+			process.stdout.write(`telemetry ${decision.telemetry.limitation}\n`);
+		}
+	}
+
+	if (flags.has('dry-run')) {
+		return;
+	}
+
+	const selection = calibrationSelectionOf(decisions);
+	const selectionDigest = hashOf({suite: suite.hash, budgetMs, decisions});
+	const selectionDir = path.join(evaluationRoot, 'results', `${suite.id}-selection-${selectionDigest.slice(0, 16)}`);
+
+	writeJsonAtomic(
+		path.join(selectionDir, 'selection.json'),
+		{
+			recordType: 'calibration-selection',
+			schemaVersion: 1,
+			suite: {id: suite.id, version: suite.version, hash: suite.hash},
+			budgetMs,
+			selection,
+			decisions,
+		},
+		true,
+	);
+	process.stdout.write(`selection ${selection.selected ?? 'none'} (${selection.reason})\n`);
+	process.stdout.write(`record ${path.join(selectionDir, 'selection.json')}\n`);
+};
+
+const evaluateCommand = async (flags: Map<string, string[]>, options: EvaluationOptionsType = {}): Promise<EvaluationRunType | null> => {
+	const suitePath = flagOf(flags, 'suite');
+
+	if (suitePath === undefined) {
+		throw new Error('--suite is required');
+	}
+
+	const loaded = loadSuite(path.resolve(evaluationRoot, suitePath));
+	const suite = options.model === undefined ? loaded.suite : suiteWithModelOf(loaded.suite, loaded.cases, options.model);
+	const {cases} = loaded;
+
 	if (options.requireFrozen === true && suite.status !== 'frozen') {
-		throw new Error(`suite ${suite.id} must be frozen for a smoke run`);
+		throw new Error(`suite ${suite.id} must be frozen`);
 	}
 
 	const selected = selectCases(cases, {caseIds: allOf(flags, 'case'), tags: allOf(flags, 'tag')});
@@ -447,6 +614,11 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 			: treatmentsOf(options.treatments.join(','), suite.treatments);
 	const repetitions = options.repetitions ?? Number(flagOf(flags, 'repetitions') ?? suite.repetitions);
 	const environment = options.environment ?? null;
+
+	if (environment !== null) {
+		assertEnvironmentModel(environment, suite.model);
+	}
+
 	const plan = planOf(selected, treatmentIdsOf(treatments), repetitions);
 	const planHash = planHashOf(plan);
 	const identity = identityOf({
@@ -495,7 +667,7 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 			process.stderr.write(`  ${entry.caseId} ${entry.treatment} rep-${entry.repetition}\n`);
 		}
 
-		return;
+		return null;
 	}
 
 	ensureWorkspaces(context, treatments);
@@ -607,6 +779,9 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 	writeJsonAtomic(path.join(runDir, 'run.json'), {...manifest, status: 'running'}, true);
 
 	const results: RunResultType[] = [];
+	const budgetStartedAt = Date.now();
+	const budgetDeadline = options.budgetMs === undefined ? null : budgetStartedAt + options.budgetMs;
+	let budgetExceeded = false;
 
 	try {
 		for (const [index, entry] of plan.entries()) {
@@ -614,6 +789,12 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 
 			if (testCase === undefined) {
 				throw new Error(`unknown case ${entry.caseId}`);
+			}
+
+			if (budgetDeadline !== null && Date.now() >= budgetDeadline) {
+				budgetExceeded = true;
+				process.stderr.write(`budget exceeded before ${entry.caseId} ${entry.treatment} rep-${entry.repetition}; abandoning the remaining slots\n`);
+				break;
 			}
 
 			const treatment = resolveTreatmentOf(entry, treatments);
@@ -682,6 +863,7 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 				artifacts: runArtifactsOf(artifacts, treatment),
 				rawBase: path.join(slotDirectory, 'raw'),
 				firstAttempt: resume.nextAttempt,
+				...(budgetDeadline === null ? {} : {timeoutMs: Math.max(1, budgetDeadline - Date.now())}),
 				onAttempt: (attemptResult) => {
 					attemptResults.push(attemptResult);
 				},
@@ -727,11 +909,33 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 		throw error;
 	}
 
-	const comparison = compare(results, manifest);
-	writeJsonAtomic(path.join(runDir, 'report.json'), comparison, true);
-	writeJsonAtomic(path.join(runDir, 'run.json'), {...manifest, status: 'complete', finishedAt: new Date().toISOString()}, true);
+	const elapsedMs = Date.now() - budgetStartedAt;
+	const budget = options.budgetMs === undefined ? null : {budgetMs: options.budgetMs, elapsedMs, exceeded: budgetExceeded || elapsedMs > options.budgetMs};
 
-	printSummary(runDir, results, comparison);
+	if (budget?.exceeded === true) {
+		process.stderr.write(`budget exceeded after ${elapsedMs} ms of ${options.budgetMs} ms\n`);
+	}
+
+	// Calibration writes its own qualification decision. The ordinary paired
+	// report requires treatment-identical agent surfaces, which calibration
+	// intentionally does not have because accepted adds native MCP tools.
+	const comparison = options.budgetMs !== undefined || results.length === 0 ? null : compare(results, manifest);
+
+	if (comparison !== null) {
+		writeJsonAtomic(path.join(runDir, 'report.json'), comparison, true);
+	}
+
+	writeJsonAtomic(
+		path.join(runDir, 'run.json'),
+		{...manifest, status: budget?.exceeded === true ? 'incomplete' : 'complete', budget, finishedAt: new Date().toISOString()},
+		true,
+	);
+
+	if (comparison !== null) {
+		printSummary(runDir, results, comparison);
+	}
+
+	return {runDir, results, comparison, budget};
 };
 
 const printSummary = (runDir: string, results: readonly RunResultType[], comparison: ReturnType<typeof compare>): void => {
@@ -1123,6 +1327,8 @@ try {
 		await evaluateCommand(flags);
 	} else if (command === 'smoke') {
 		await smokeCommand(flags);
+	} else if (command === 'calibrate') {
+		await calibrationCommand(flags);
 	} else if (command === 'environment') {
 		await environmentCommand(flags);
 	} else if (command === 'route') {
@@ -1135,7 +1341,7 @@ try {
 		listCommand(flags);
 	} else {
 		process.stdout.write(
-			'usage: cli.ts <evaluate|smoke|environment|route|report|check|list> --suite <path> [--environment <path>] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
+			'usage: cli.ts <evaluate|smoke|calibrate|environment|route|report|check|list> --suite <path> [--environment <path>] [--budget-ms n] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
 		);
 		process.exitCode = command === 'help' ? 0 : 2;
 	}

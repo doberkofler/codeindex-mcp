@@ -308,6 +308,9 @@ const durationOf = (state: Record<string, unknown>): number | null => {
 	return start !== null && end !== null && end >= start ? end - start : null;
 };
 
+/** Maps provider event aliases onto the tool names declared to the evaluator. */
+const canonicalToolOf = (tool: string): string => (tool === 'shell' ? 'bash' : tool);
+
 /**
  * Reads the explicit authority marker from a serialized tool response.
  *
@@ -340,7 +343,7 @@ const normalizeToolCall = (part: Record<string, unknown>, input: Readonly<{index
 	const state = recordAt(part['state']);
 	const rawInput = state['input'];
 	const inputRecord = isRecord(rawInput) ? rawInput : null;
-	const tool = stringAt(part['tool']) ?? 'unknown';
+	const tool = canonicalToolOf(stringAt(part['tool']) ?? 'unknown');
 	const output = outputTextOf(state);
 	const error = stringAt(state['error']);
 

@@ -428,6 +428,7 @@ def prompt_for(item: QueueItem, queue_path: Path | None) -> str:
     return f"""Implement exactly this item, nothing else: {item.description}{source}
 Rules:
 - Run tests/lint/typecheck; fix until green.
+- Do not start background jobs; wait for every required command to finish.
 - Make one commit (conventional commit message).
 {queue_rule}\
 {completion_rule}\
@@ -626,6 +627,7 @@ class RunReporter:
         self.tokens = 0
         self.cost = 0.0
         self.final_text = ""
+        self.background_job_started = False
 
     def _timestamp(self) -> str:
         elapsed = int(time.monotonic() - self.started)
@@ -662,6 +664,9 @@ class RunReporter:
             return
         state = part.get("state")
         status = state.get("status") if isinstance(state, dict) else None
+        tool_input = state.get("input") if isinstance(state, dict) else None
+        if isinstance(tool_input, dict) and tool_input.get("background") is True:
+            self.background_job_started = True
         identifier = part.get("id")
         finished = status in {"completed", "error"}
         if finished:
@@ -917,6 +922,11 @@ def run_agent(
         print_failure_tail(tail)
         raise QueueError(
             f"OpenCode exited with status {returncode}; log: {display_path(logs.history)}"
+        )
+    if reporter.background_job_started:
+        raise QueueError(
+            f"Agent started a background job; all work must finish before exit; log: "
+            f"{display_path(logs.history)}"
         )
     return logs
 

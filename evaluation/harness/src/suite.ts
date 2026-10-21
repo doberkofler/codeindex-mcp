@@ -1,6 +1,6 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
-import {caseHashOf, caseOf, hashOf, suiteFieldsOf, suiteHashOf, type CaseType, type SuiteType} from './schema.ts';
+import {caseHashOf, caseOf, hashOf, suiteFieldsOf, suiteHashOf, type CaseType, type SuiteFieldsType, type SuiteType} from './schema.ts';
 import {TREATMENT_IDS, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
 
 /** Answer contract appended to every case prompt, identical for both arms. */
@@ -104,6 +104,35 @@ export const loadSuite = (suitePath: string): Readonly<{suite: SuiteType; cases:
 	};
 
 	return {suite, cases};
+};
+
+/**
+ * Rebinds a frozen suite to another model without changing its case content.
+ *
+ * A local calibration changes only the model identity. The suite hash is
+ * recomputed over the overridden fields so the campaign identity records the
+ * model that actually ran, while every pinned case hash stays authoritative.
+ *
+ * @param suite - Loaded suite.
+ * @param cases - Cases in manifest order.
+ * @param model - Model reference to record.
+ * @returns The suite with the new model and a matching hash.
+ */
+export const suiteWithModelOf = (suite: SuiteType, cases: readonly CaseType[], model: string): SuiteType => {
+	const fields: SuiteFieldsType = {
+		schemaVersion: suite.schemaVersion,
+		id: suite.id,
+		version: suite.version,
+		status: suite.status,
+		revision: suite.revision,
+		model,
+		repetitions: suite.repetitions,
+		treatments: suite.treatments,
+		cases: suite.cases,
+		caseHashes: suite.caseHashes,
+	};
+
+	return {...fields, hash: suiteHashOf(fields, cases)};
 };
 
 /**

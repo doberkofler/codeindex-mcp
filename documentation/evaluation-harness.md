@@ -370,6 +370,16 @@ changed model artifact, quantization, runtime, context, generation setting, or
 reference machine is visible without reading raw results. The `smoke` command
 verifies the pin before the first model call and refuses a mismatch.
 
+A `calibration` manifest serves the frozen two-treatment local qualification.
+`calibrate` verifies every pinned environment, rebinds the frozen suite to each
+environment's model without changing case hashes, and runs six cases ×
+`no-index` and `accepted` × one repetition. It caps every execution at the
+remaining wall-clock budget and writes one decision per model plus one selection
+record. A model qualifies only when all 12 executions are valid, accepted
+correctness is never below `no-index`, no execution needs an intervention, and
+the elapsed time is inside the budget. The budget is a qualification criterion,
+not a target to meet by dropping cases or repetitions.
+
 ### 7.3 Run identity and resume equality
 
 Run identity is a closed set of fields. It is the only basis for reuse: a result

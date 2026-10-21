@@ -289,6 +289,28 @@ model digest, quantization, runtime, context, generation setting, or host fact
 defines a new smoke baseline. `smoke` rejects any treatment other than
 `accepted` and any repetition count other than one.
 
+`calibrate` runs the same frozen six-case subset with the `no-index` and
+`accepted` treatments at one repetition, which is 12 executions per model. It
+requires a `calibration` environment, applies one wall-clock budget to every
+model, and writes a per-model `calibration.json` beside the retained results:
+
+```bash
+node src/cli.ts calibrate --suite suites/calibration.json --budget-ms 900000 \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --environment environments/ollama-qwen3.6-35b-calibration.json
+```
+
+A model qualifies only when every execution is valid, no case loses accepted
+correctness against `no-index`, no retry, timeout, defect, or unrestored
+workspace occurs, and the elapsed time is inside the budget. `--budget-ms`
+defaults to 900000. The command writes one `selection.json` under `results/`
+whose `selection` object applies the predeclared order: qualifiers only, then
+more exact accepted answers, then lower accepted median wall time, then lower
+accepted median retrieval bytes. Missing token telemetry is recorded as a
+limitation and invalidates only the token metrics. A changed model digest,
+quantization, runtime, context, generation setting, host fact, or budget defines
+a new baseline.
+
 ### Result records and resume
 
 Each execution attempt is one immutable JSON document at

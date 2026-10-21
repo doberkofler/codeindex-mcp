@@ -1,4 +1,5 @@
 import {spawn} from 'node:child_process';
+import {isolatedProcessEnvironmentOf} from './processEnvironment.ts';
 
 /** The native MCP catalog presented by one CodeIndex artifact. */
 export type CatalogType = Readonly<{
@@ -44,7 +45,11 @@ const toolNamesOf = (value: unknown): readonly string[] => {
  */
 export const catalogOf = async (entryPoint: string, cwd: string): Promise<CatalogType> =>
 	new Promise<CatalogType>((resolve, reject) => {
-		const child = spawn(process.execPath, [entryPoint], {cwd, stdio: ['pipe', 'pipe', 'pipe']});
+		const child = spawn(process.execPath, [entryPoint], {
+			cwd,
+			env: isolatedProcessEnvironmentOf(),
+			stdio: ['pipe', 'pipe', 'pipe'],
+		});
 		let buffer = '';
 		let settled = false;
 		let serverName = 'unknown';

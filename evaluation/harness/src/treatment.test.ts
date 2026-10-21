@@ -134,6 +134,7 @@ test('catalog query returns the native tool names and rejects mismatches', async
 		server,
 		[
 			"import {createInterface} from 'node:readline';",
+			"if (process.env.CODE_INDEX_ROOT !== undefined) { throw new Error('inherited CodeIndex configuration'); }",
 			'const lines = createInterface({input: process.stdin});',
 			"lines.on('line', (line) => {",
 			'\tconst message = JSON.parse(line);',
@@ -152,7 +153,19 @@ test('catalog query returns the native tool names and rejects mismatches', async
 		rmSync(root, {recursive: true, force: true});
 	});
 
-	const catalog = await catalogOf(server, root);
+	const inheritedRoot = process.env['CODE_INDEX_ROOT'];
+	process.env['CODE_INDEX_ROOT'] = '/invalid/inherited/root';
+	let catalog: Awaited<ReturnType<typeof catalogOf>>;
+
+	try {
+		catalog = await catalogOf(server, root);
+	} finally {
+		if (inheritedRoot === undefined) {
+			delete process.env['CODE_INDEX_ROOT'];
+		} else {
+			process.env['CODE_INDEX_ROOT'] = inheritedRoot;
+		}
+	}
 
 	assert.equal(catalog.serverName, 'fake');
 	assert.deepEqual(catalog.tools, ['find_symbol', 'read_symbol']);
