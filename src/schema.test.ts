@@ -13,9 +13,9 @@ import {
 	caseOf,
 	hashOf,
 	suiteFieldsOf,
-	treatmentHashOf,
 } from './schema.ts';
 import {loadSuite, planHashOf, planOf, selectCases} from './suite.ts';
+import {treatmentHashOf, treatmentOf} from './treatment.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -35,6 +35,28 @@ const baseCase = (overrides: Record<string, unknown> = {}): Record<string, unkno
 	...overrides,
 });
 
+const ordinaryTools = ['bash', 'glob', 'grep', 'list', 'read'];
+
+const baseTreatments = (): readonly Record<string, unknown>[] => [
+	{id: 'no-index', kind: 'no-index', ordinaryTools, codeMode: 'absent', artifact: null, mcp: null},
+	{
+		id: 'accepted',
+		kind: 'codeindex',
+		ordinaryTools,
+		codeMode: 'absent',
+		artifact: {id: 'accepted-artifact', root: 'artifacts/accepted', entryPoint: 'mcp.mjs'},
+		mcp: {server: 'codeindex', codemode: false},
+	},
+	{
+		id: 'candidate',
+		kind: 'codeindex',
+		ordinaryTools,
+		codeMode: 'absent',
+		artifact: {id: 'candidate-artifact', root: 'artifacts/candidate', entryPoint: 'mcp.mjs'},
+		mcp: {server: 'codeindex', codemode: false},
+	},
+];
+
 const baseSuite = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
 	schemaVersion: SUITE_SCHEMA_VERSION,
 	id: 'suite-a',
@@ -43,7 +65,7 @@ const baseSuite = (overrides: Record<string, unknown> = {}): Record<string, unkn
 	revision: 'abc1234',
 	model: 'ollama/qwen3:8b',
 	repetitions: 1,
-	arms: ['baseline', 'indexed'],
+	treatments: baseTreatments(),
 	cases: ['case-a'],
 	...overrides,
 });
@@ -93,15 +115,17 @@ test('case schema rejects missing, unknown, and unsupported fields', () => {
 	assert.throws(() => caseOf(baseCase({tags: ['locate', 'locate']})), /duplicates/);
 });
 
-test('suite schema accepts version 1 and rejects unknown or unsupported fields', () => {
+test('suite schema accepts version 2 and rejects unknown or unsupported fields', () => {
 	const parsed = suiteFieldsOf(baseSuite());
 
 	assert.equal(parsed.schemaVersion, SUITE_SCHEMA_VERSION);
 	assert.equal(parsed.caseHashes, null);
-	assert.throws(() => suiteFieldsOf(baseSuite({schemaVersion: 2})), /schemaVersion/);
+	assert.throws(() => suiteFieldsOf(baseSuite({schemaVersion: 3})), /schemaVersion/);
 	assert.throws(() => suiteFieldsOf(baseSuite({unexpected: true})), /unknown field.*unexpected/);
 	assert.throws(() => suiteFieldsOf(baseSuite({cases: []})), /must not be empty/);
-	assert.throws(() => suiteFieldsOf(baseSuite({arms: []})), /must not be empty/);
+	assert.throws(() => suiteFieldsOf(baseSuite({schemaVersion: 1})), /schemaVersion/);
+	assert.throws(() => suiteFieldsOf(baseSuite({treatments: []})), /treatments.*non-empty/);
+	assert.throws(() => suiteFieldsOf(baseSuite({treatments: baseTreatments().slice(0, 2)})), /missing treatment/);
 });
 
 test('frozen suite requires a hash for every case and rejects changed content', (testContext) => {
@@ -187,19 +211,19 @@ test('case selection is an ordered union and tags intersect', () => {
 
 test('repeated selection produces the same ordered plan and hash', () => {
 	const cases = [caseOf(baseCase({id: 'case-a'})), caseOf(baseCase({id: 'case-b'}))];
-	const first = planOf(selectCases(cases, {caseIds: ['case-b', 'case-a']}), ['baseline', 'indexed'], 2);
-	const second = planOf(selectCases(cases, {caseIds: ['case-b', 'case-a']}), ['baseline', 'indexed'], 2);
+	const first = planOf(selectCases(cases, {caseIds: ['case-b', 'case-a']}), ['no-index', 'accepted'], 2);
+	const second = planOf(selectCases(cases, {caseIds: ['case-b', 'case-a']}), ['no-index', 'accepted'], 2);
 
 	assert.deepEqual(first, second);
-	assert.deepEqual(first.map((entry) => `${entry.caseId}/${entry.arm}/${entry.repetition}`), [
-		'case-b/baseline/1',
-		'case-b/baseline/2',
-		'case-b/indexed/1',
-		'case-b/indexed/2',
-		'case-a/baseline/1',
-		'case-a/baseline/2',
-		'case-a/indexed/1',
-		'case-a/indexed/2',
+	assert.deepEqual(first.map((entry) => `${entry.caseId}/${entry.treatment}/${entry.repetition}`), [
+		'case-b/no-index/1',
+		'case-b/no-index/2',
+		'case-b/accepted/1',
+		'case-b/accepted/2',
+		'case-a/no-index/1',
+		'case-a/no-index/2',
+		'case-a/accepted/1',
+		'case-a/accepted/2',
 	]);
 	assert.equal(planHashOf(first), planHashOf(second));
 });

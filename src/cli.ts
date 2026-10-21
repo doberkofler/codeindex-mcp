@@ -1,14 +1,30 @@
-import {existsSync, mkdirSync, readFileSync, readdirSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, readdirSync, statSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {hashOf, type ArmNameType} from './schema.ts';
-import {loadSuite, planHashOf, planOf, selectCases} from './suite.ts';
+import {comparisonDigestOf, identityDigestOf, identityOf} from './identity.ts';
+import {catalogOf} from './mcp.ts';
 import {compare} from './report.ts';
 import {runOnce, writeResult, type RunResultType} from './runner.ts';
-import {applyArm, ensureWorkspaces, restoreWorkspace, unexpectedChanges, workspaceContextOf} from './workspace.ts';
+import {loadSuite, planHashOf, planOf, resolveTreatmentOf, selectCases, treatmentIdsOf} from './suite.ts';
+import {
+	canonicalTreatmentsOf,
+	toolSurfaceOf,
+	treatmentDifferencesOf,
+	type ToolSurfaceType,
+	type TreatmentDefinitionType,
+	type TreatmentIdType,
+} from './treatment.ts';
+import {
+	applyTreatment,
+	ensureWorkspaces,
+	restoreWorkspace,
+	treatmentConfigOf,
+	unexpectedChanges,
+	workspaceContextOf,
+} from './workspace.ts';
 
 /** Harness schema version recorded in every run identity. */
-const HARNESS_VERSION = 5;
+const HARNESS_VERSION = 6;
 
 /** Pause between executions to stay inside the provider's rolling window. */
 const PACE_MS = Number(process.env['EVAL_PACE_MS'] ?? 5_000);
@@ -58,16 +74,65 @@ const settingsOf = (): Readonly<{subjectRepo: string}> => {
 	return {subjectRepo: parsed.subjectRepo};
 };
 
-const armsOf = (value: string | undefined, suiteArms: readonly string[]): readonly ArmNameType[] => {
-	if (value === undefined || value === 'both') {
-		return suiteArms.filter((arm): arm is ArmNameType => arm === 'baseline' || arm === 'indexed');
+const treatmentsOf = (value: string | undefined, all: readonly TreatmentDefinitionType[]): readonly TreatmentDefinitionType[] => {
+	const canonical = canonicalTreatmentsOf(all);
+
+	if (value === undefined || value === 'all') {
+		return canonical;
 	}
 
-	if (value !== 'baseline' && value !== 'indexed') {
-		throw new Error(`unsupported arm "${value}"`);
+	const requested = value.split(',').map((item) => item.trim());
+
+	for (const id of requested) {
+		if (!(canonical.map((treatment) => treatment.id) as readonly string[]).includes(id)) {
+			throw new Error(`unsupported treatment "${id}"`);
+		}
 	}
 
-	return [value];
+	return canonical.filter((treatment) => requested.includes(treatment.id));
+};
+
+type SurfaceMapType = ReadonlyMap<TreatmentIdType, ToolSurfaceType>;
+
+/**
+ * Captures the exact tool-name list presented for every selected treatment.
+ *
+ * The ordinary list comes from the validated definition. The CodeIndex list
+ * comes from the artifact's native MCP catalog. No model process starts before
+ * every catalog has been captured.
+ *
+ * @param context - Workspace paths.
+ * @param treatments - Selected treatment definitions.
+ * @returns Surfaces keyed by treatment id and the artifact catalogs.
+ */
+const surfacesOf = async (
+	context: ReturnType<typeof workspaceContextOf>,
+	treatments: readonly TreatmentDefinitionType[],
+): Promise<ReadonlyMap<TreatmentIdType, ToolSurfaceType>> => {
+	const surfaces = new Map<TreatmentIdType, ToolSurfaceType>();
+
+	for (const treatment of treatments) {
+		if (treatment.kind === 'no-index') {
+			surfaces.set(treatment.id, toolSurfaceOf(treatment));
+			continue;
+		}
+
+		const catalog = await catalogOf(context.artifactPath(treatment), context.workspacePath(treatment.id));
+
+		if (catalog.tools.length === 0) {
+			throw new Error(`treatment ${treatment.id} artifact presented an empty MCP tool catalog`);
+		}
+
+		const surface = toolSurfaceOf(treatment, catalog.tools);
+
+		if (!surface.native || surface.tools.includes('execute')) {
+			throw new Error(`treatment ${treatment.id} did not present a native MCP tool surface`);
+		}
+
+		surfaces.set(treatment.id, surface);
+	}
+
+	return surfaces;
 };
 
 const listCommand = (flags: Map<string, string[]>): void => {
@@ -83,6 +148,8 @@ const listCommand = (flags: Map<string, string[]>): void => {
 	process.stdout.write(
 		`${suite.id} v${suite.version} schema=${suite.schemaVersion} (${suite.status}) model=${suite.model} revision=${suite.revision}\n`,
 	);
+	process.stdout.write(`treatments ${treatmentIdsOf(suite.treatments).join(', ')}\n`);
+	process.stdout.write(`ordinary tools ${suite.treatments[0]?.ordinaryTools.join(', ') ?? 'none'}\n`);
 
 	for (const item of selected) {
 		process.stdout.write(`  ${item.id}\t${item.class}\t${item.title}\n`);
@@ -98,30 +165,30 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 
 	const {suite, cases} = loadSuite(path.resolve(root, suitePath));
 	const selected = selectCases(cases, {caseIds: allOf(flags, 'case'), tags: allOf(flags, 'tag')});
-	const arms = armsOf(flagOf(flags, 'arm'), suite.arms);
+	const treatments = treatmentsOf(flagOf(flags, 'treatment'), suite.treatments);
 	const repetitions = Number(flagOf(flags, 'repetitions') ?? suite.repetitions);
-	const plan = planOf(selected, arms, repetitions);
+	const plan = planOf(selected, treatmentIdsOf(treatments), repetitions);
 	const planHash = planHashOf(plan);
-	const identityHash = hashOf({
-		suite: suite.hash,
-		model: suite.model,
-		revision: suite.revision,
-		arms,
+	const identity = identityOf({
+		suite,
+		cases: selected,
+		treatments: suite.treatments,
 		repetitions,
-		harness: HARNESS_VERSION,
-		cases: selected.map((item) => item.id),
 		planHash,
-	}).slice(0, 16);
-	const runDir = path.join(root, 'results', `${suite.id}-${identityHash}`);
+		harnessVersion: HARNESS_VERSION,
+	});
+	const identityDigest = identityDigestOf(identity);
+	const comparisonDigest = comparisonDigestOf(identity);
+	const runDir = path.join(root, 'results', `${suite.id}-${identityDigest.slice(0, 16)}`);
 
 	process.stderr.write(
-		`run ${runDir}\nplan ${plan.length} execution(s): ${selected.length} case(s) x ${arms.length} arm(s) x ${repetitions} repetition(s)\n`,
+		`run ${runDir}\nplan ${plan.length} execution(s): ${selected.length} case(s) x ${treatments.length} treatment(s) x ${repetitions} repetition(s)\n`,
 	);
-	process.stderr.write(`plan-hash ${planHash}\n`);
+	process.stderr.write(`plan-hash ${planHash}\nidentity ${identityDigest}\n`);
 
 	if (flags.has('dry-run')) {
 		for (const entry of plan) {
-			process.stderr.write(`  ${entry.caseId} ${entry.arm} rep-${entry.repetition}\n`);
+			process.stderr.write(`  ${entry.caseId} ${entry.treatment} rep-${entry.repetition}\n`);
 		}
 
 		return;
@@ -129,20 +196,51 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 
 	const settings = settingsOf();
 	const context = workspaceContextOf(root, {subjectRepo: settings.subjectRepo, revision: suite.revision});
-	ensureWorkspaces(context);
+	ensureWorkspaces(context, treatments);
 	mkdirSync(runDir, {recursive: true});
 
+	const surfaces = await surfacesOf(context, treatments);
+
+	const manifestTreatments = canonicalTreatmentsOf(treatments).map((treatment) => {
+		const surface = surfaces.get(treatment.id);
+
+		if (surface === undefined) {
+			throw new Error(`treatment ${treatment.id} has no captured tool surface`);
+		}
+
+		const {digest: configDigest} = treatmentConfigOf(context, treatment);
+
+		return {
+			id: treatment.id,
+			kind: treatment.kind,
+			definitionHash: treatment.definitionHash,
+			configDigest,
+			artifact: treatment.artifact,
+			mcp: treatment.mcp,
+			toolSurface: surface,
+		};
+	});
 	const manifest = {
+		schemaVersion: suite.schemaVersion,
 		suite: {id: suite.id, version: suite.version, status: suite.status, hash: suite.hash},
-		identityHash,
+		harness: HARNESS_VERSION,
+		identity,
+		identityDigest,
+		comparisonDigest,
 		model: suite.model,
 		revision: suite.revision,
-		arms,
 		repetitions,
-		harness: HARNESS_VERSION,
-		startedAt: new Date().toISOString(),
+		planHash,
 		plan,
+		equivalence: {
+			equivalent: treatmentDifferencesOf(suite.treatments).length === 0,
+			differences: treatmentDifferencesOf(suite.treatments),
+			sharedConfigHash: identity.sharedConfigHash,
+		},
+		treatments: manifestTreatments,
+		startedAt: new Date().toISOString(),
 	};
+
 	writeResult(path.join(runDir, 'run.json'), {...manifest, status: 'running'});
 
 	const results: RunResultType[] = [];
@@ -154,32 +252,44 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 			throw new Error(`unknown case ${entry.caseId}`);
 		}
 
-		const file = path.join(runDir, entry.caseId, entry.arm, `rep-${entry.repetition}.json`);
+		const treatment = resolveTreatmentOf(entry, treatments);
+		const surface = surfaces.get(treatment.id);
+
+		if (surface === undefined) {
+			throw new Error(`no captured surface for treatment ${treatment.id}`);
+		}
+
+		const file = path.join(runDir, entry.caseId, entry.treatment, `rep-${entry.repetition}.json`);
 
 		if (flags.has('resume') && existsSync(file)) {
-			results.push(JSON.parse(readFileSync(file, 'utf8')) as RunResultType);
-			continue;
+			const stored = JSON.parse(readFileSync(file, 'utf8')) as RunResultType;
+
+			if (stored.identityHash === identityDigest && stored.treatmentDefinitionHash === treatment.definitionHash) {
+				results.push(stored);
+				continue;
+			}
 		}
 
-		restoreWorkspace(context, entry.arm);
-		const changes = unexpectedChanges(context, entry.arm);
+		restoreWorkspace(context, treatment);
+		const changes = unexpectedChanges(context, treatment);
 
 		if (changes.length > 0) {
-			throw new Error(`workspace ${entry.arm} is not clean: ${changes.join('; ')}`);
+			throw new Error(`workspace ${treatment.id} is not clean: ${changes.join('; ')}`);
 		}
 
-		applyArm(context, entry.arm);
-		process.stderr.write(`[${index + 1}/${plan.length}] ${entry.caseId} ${entry.arm} rep-${entry.repetition}\n`);
+		applyTreatment(context, treatment);
+		process.stderr.write(`[${index + 1}/${plan.length}] ${entry.caseId} ${entry.treatment} rep-${entry.repetition}\n`);
 
 		const result = await runOnce({
-			cwd: context.workspacePath(entry.arm),
+			cwd: context.workspacePath(treatment.id),
 			testCase,
-			arm: entry.arm,
+			treatment,
+			surface,
 			repetition: entry.repetition,
 			model: suite.model,
 			revision: suite.revision,
-			identityHash,
-			rawBase: path.join(runDir, 'raw', entry.caseId, entry.arm, `rep-${entry.repetition}`),
+			identityHash: identityDigest,
+			rawBase: path.join(runDir, 'raw', entry.caseId, entry.treatment, `rep-${entry.repetition}`),
 		});
 
 		if (result.attempts.length > 1) {
@@ -207,10 +317,13 @@ const printSummary = (runDir: string, results: readonly RunResultType[], compari
 	process.stdout.write(`results ${runDir}\n`);
 	process.stdout.write(`runs ${results.length}, valid ${results.filter((run) => run.valid).length}\n`);
 
-	for (const arm of ['baseline', 'indexed'] as const) {
-		const summary = arm === 'baseline' ? comparison.baseline : comparison.indexed;
+	for (const [name, summary] of [
+		['no-index', comparison.noIndex],
+		['accepted', comparison.accepted],
+		['candidate', comparison.candidate],
+	] as const) {
 		process.stdout.write(
-			`${arm.padEnd(9)} success ${(summary.successRate * 100).toFixed(1)}%  index-use ${(summary.indexUsageRate * 100).toFixed(0)}%  tokens ${summary.medianTokens.toFixed(0)}  calls ${summary.medianToolCalls.toFixed(1)}  bytes ${summary.medianOutputBytes.toFixed(0)}  p95 ${(summary.p95WallMs / 1000).toFixed(1)}s  invalid ${summary.invalidRuns}  retried ${summary.retriedRuns}\n`,
+			`${name.padEnd(9)} success ${(summary.successRate * 100).toFixed(1)}%  index-use ${(summary.indexUsageRate * 100).toFixed(0)}%  tokens ${summary.medianTokens.toFixed(0)}  calls ${summary.medianToolCalls.toFixed(1)}  bytes ${summary.medianOutputBytes.toFixed(0)}  p95 ${(summary.p95WallMs / 1000).toFixed(1)}s  invalid ${summary.invalidRuns}  retried ${summary.retriedRuns}  execute ${summary.executeRuns}  unknown ${summary.unknownToolRuns}\n`,
 		);
 	}
 
@@ -219,6 +332,26 @@ const printSummary = (runDir: string, results: readonly RunResultType[], compari
 	}
 
 	process.stdout.write(`Q2 ${comparison.passed ? 'PASSED' : 'NOT PASSED'}\n`);
+};
+
+const resultsIn = (directory: string): readonly RunResultType[] => {
+	const results: RunResultType[] = [];
+
+	const walk = (current: string): void => {
+		for (const entry of readdirSync(current)) {
+			const full = path.join(current, entry);
+
+			if (statSync(full).isDirectory()) {
+				walk(full);
+			} else if (entry.endsWith('.json') && /^rep-\d+\.json$/.test(entry)) {
+				results.push(JSON.parse(readFileSync(full, 'utf8')) as RunResultType);
+			}
+		}
+	};
+
+	walk(directory);
+
+	return results;
 };
 
 const reportCommand = (flags: Map<string, string[]>): void => {
@@ -230,30 +363,7 @@ const reportCommand = (flags: Map<string, string[]>): void => {
 		throw new Error(`no results at ${directory}`);
 	}
 
-	const results: RunResultType[] = [];
-
-	for (const caseId of readdirSync(directory)) {
-		const caseDir = path.join(directory, caseId);
-
-		if (!existsSync(path.join(caseDir, 'baseline')) && !existsSync(path.join(caseDir, 'indexed'))) {
-			continue;
-		}
-
-		for (const arm of ['baseline', 'indexed'] as const) {
-			const armDir = path.join(caseDir, arm);
-
-			if (!existsSync(armDir)) {
-				continue;
-			}
-
-			for (const file of readdirSync(armDir)) {
-				if (file.endsWith('.json')) {
-					results.push(JSON.parse(readFileSync(path.join(armDir, file), 'utf8')) as RunResultType);
-				}
-			}
-		}
-	}
-
+	const results = resultsIn(directory);
 	printSummary(directory, results, compare(results));
 };
 
@@ -278,13 +388,17 @@ const checkCommand = (flags: Map<string, string[]>): void => {
 	const {suite, cases} = loadSuite(path.resolve(root, suitePath));
 	const settings = settingsOf();
 	const context = workspaceContextOf(root, {subjectRepo: settings.subjectRepo, revision: suite.revision});
-	ensureWorkspaces(context);
+	ensureWorkspaces(context, suite.treatments);
 
-	const changes = (['baseline', 'indexed'] as const).flatMap((arm) => unexpectedChanges(context, arm).map((line) => `${arm}: ${line}`));
+	const changes = canonicalTreatmentsOf(suite.treatments).flatMap((treatment) =>
+		unexpectedChanges(context, treatment).map((line) => `${treatment.id}: ${line}`),
+	);
 	const classes = new Set(cases.map((item) => item.class));
 
 	process.stdout.write(`suite ${suite.id} v${suite.version}, ${cases.length} case(s), classes ${[...classes].join(', ')}\n`);
 	process.stdout.write(`model ${suite.model}, revision ${suite.revision}\n`);
+	process.stdout.write(`treatments ${treatmentIdsOf(suite.treatments).join(', ')}\n`);
+	process.stdout.write(`ordinary tools ${suite.treatments[0]?.ordinaryTools.join(', ') ?? 'none'}\n`);
 	process.stdout.write(`workspaces ready, unexpected changes: ${changes.length}\n`);
 
 	if (changes.length > 0) {
@@ -304,7 +418,9 @@ try {
 	} else if (command === 'list') {
 		listCommand(flags);
 	} else {
-		process.stdout.write('usage: cli.ts <evaluate|report|check|list> --suite <path> [--case id] [--tag tag] [--arm both] [--repetitions n] [--dry-run] [--resume]\n');
+		process.stdout.write(
+			'usage: cli.ts <evaluate|report|check|list> --suite <path> [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume]\n',
+		);
 		process.exitCode = command === 'help' ? 0 : 2;
 	}
 } catch (error) {

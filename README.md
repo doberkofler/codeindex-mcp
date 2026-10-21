@@ -1,67 +1,133 @@
 # CodeIndex Q2 evaluation harness
 
-Private, repeatable A/B evaluation of the CodeIndex MCP server against a plain
-retrieval baseline, implementing the method in
+Private, repeatable evaluation of the CodeIndex MCP server against a plain
+retrieval baseline and against the currently accepted CodeIndex artifact,
+implementing the method in
 `codeindex-mcp/documentation/evaluation-harness.md`.
 
-Everything here stays private: cases, prompts, transcripts, and results live
-outside the published package.
+Everything here stays private: cases, prompts, transcripts, artifacts, and
+results live outside the published package.
 
-## What it measures
+## Treatments
 
-One controlled comparison per suite:
+Every campaign declares exactly three treatments:
 
-| Arm | Treatment |
+| Treatment | Tools and artifact |
 | --- | --- |
-| `baseline` | Same agent system prompt, same model, no `codeindex` MCP server configured. |
-| `indexed` | Same agent system prompt plus the `codeindex` retrieval policy, MCP server configured. |
+| `no-index` | The same ordinary retrieval tools; no CodeIndex MCP server. |
+| `accepted` | The same ordinary tools plus the accepted CodeIndex artifact. |
+| `candidate` | The same ordinary tools plus the candidate CodeIndex artifact. |
 
-Both arms run in identical detached worktrees of the same pinned revision, with
-the same `node_modules`, the same built `dist`, and the same agent definition.
-Only one file differs:
+The treatment definitions are data in the suite. They declare the exact
+ordinary tool names, the generic `execute` policy, the artifact identity, and
+the MCP server configuration. A treatment definition is hashed, and the
+canonical treatment set participates in run identity.
 
-- `.opencode/opencode.jsonc` — present in `indexed`, absent in `baseline`.
+All treatments run in detached worktrees of the same pinned revision, with the
+same `node_modules`, the same built `dist` used to stage artifacts, and one
+byte-identical agent definition. The generated `.opencode/opencode.jsonc`
+differs only in whether a CodeIndex artifact is configured, and which artifact
+it is. `accepted` and `candidate` differ only by artifact and the resulting
+CodeIndex interface.
 
-The agent prompt and the user prompt are byte-identical across arms, so the
-treatment is exactly the availability of the codeindex server.
+## Equivalence
 
-The indexed server sets `codemode: false` so its tools are exposed directly as
-`codeindex_*` provider tools. OpenCode's default Code Mode routes every call
-through `execute` plus a `search` discovery helper, which added 6-11 KiB per run
-and made the earlier campaign a measurement of that wrapper rather than of the
-index.
+Before a campaign starts, the harness validates the treatment set. It rejects a
+stage when:
+
+- a treatment is missing or duplicated;
+- the ordinary tool list differs between treatments;
+- the generic `execute` policy differs between treatments;
+- the MCP server or `codemode` policy differs between CodeIndex treatments;
+- a `no-index` treatment declares an artifact or MCP server;
+- a CodeIndex treatment omits its artifact or MCP server.
+
+Suite parsing rejects these mismatches before any workspace or process is
+prepared. Run identity also includes model, revision, case prompts and
+timeouts, shared configuration, repetitions, and the ordered plan, so a change
+to any comparable field yields a different identity.
+
+## Tool surface capture
+
+Before the first model call, the harness captures the exact tool-name list
+presented for each treatment:
+
+- ordinary names come from the validated treatment definition;
+- CodeIndex names come from the artifact's native `tools/list` response and are
+  recorded under the server prefix OpenCode presents (`codeindex_*`);
+- every name is sorted and hashed into the treatment's `toolSurface`.
+
+The manifest and every result record the surface. Every observed tool call is
+classified as ordinary, native CodeIndex, generic `execute`, or unknown. Any
+tool outside the captured surface is recorded and makes the execution invalid.
+Generic `execute` and `search` are disabled in every treatment; a call to either
+is recorded and fails the report.
 
 ## Repository layout
 
 ```
 harness.json                 subject repository path
-evaluation/suites/q2.json    suite manifest (model, revision, reps, arms, cases)
+evaluation/suites/q2.json    suite manifest (model, revision, reps, treatments, cases)
 evaluation/cases/*.json      one case per file
+artifacts/{accepted,candidate}/dist artifact trees, staged locally and ignored by Git
 src/                         harness (Node 26 native TypeScript, no dependencies)
-workspaces/{baseline,indexed}
+workspaces/{no-index,accepted,candidate}
 results/<run-id>/            immutable per-run results plus report.json
 ```
 
 ## Case and suite schema
 
-Both document types require `schemaVersion: 1` and reject unknown fields. Case
-IDs, suite IDs, tags, and file lists are validated before a workspace is
-prepared. Hashes use canonical JSON, so object key order never changes an
-identity.
+Cases require `schemaVersion: 1`. Suites require `schemaVersion: 2`. Both reject
+unknown fields. Case IDs, suite IDs, tags, file lists, and treatment definitions
+are validated before a workspace is prepared. Hashes use canonical JSON, so
+object key order never changes an identity.
 
 A suite starts as `draft`. A `frozen` suite must pin every referenced case with
 `caseHashes`:
 
 ```json
 {
-	"schemaVersion": 1,
+	"schemaVersion": 2,
 	"id": "q2-real-task",
-	"version": 5,
+	"version": 6,
 	"status": "frozen",
 	"revision": "fed1b6e",
 	"model": "deepseek/deepseek-flash",
 	"repetitions": 5,
-	"arms": ["baseline", "indexed"],
+	"treatments": [
+		{
+			"id": "no-index",
+			"kind": "no-index",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": null,
+			"mcp": null
+		},
+		{
+			"id": "accepted",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-accepted",
+				"root": "artifacts/accepted",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {"server": "codeindex", "codemode": false}
+		},
+		{
+			"id": "candidate",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-candidate",
+				"root": "artifacts/candidate",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {"server": "codeindex", "codemode": false}
+		}
+	],
 	"cases": ["locate-schema-version"],
 	"caseHashes": {
 		"locate-schema-version": "<64-character lowercase hex>"
@@ -72,6 +138,27 @@ A suite starts as `draft`. A `frozen` suite must pin every referenced case with
 Loading a frozen suite recomputes each case hash and refuses changed content.
 Changing a frozen case requires a new suite version.
 
+## Staging artifacts
+
+Artifact roots are relative to this harness and must be complete runnable
+packages: `package.json`, `mcp.mjs`, every chunk it imports, and resolvable
+dependencies. A packaged release already has this shape. For a local build, stage
+one build per side:
+
+```bash
+mkdir -p artifacts/accepted artifacts/candidate
+cp -R <accepted-build>/dist/. artifacts/accepted/
+cp <accepted-build>/package.json artifacts/accepted/
+ln -s <accepted-build>/node_modules artifacts/accepted/node_modules
+cp -R <candidate-build>/dist/. artifacts/candidate/
+cp <candidate-build>/package.json artifacts/candidate/
+ln -s <candidate-build>/node_modules artifacts/candidate/node_modules
+```
+
+`artifacts/` is ignored by Git. The MCP entry point is `mcp.mjs` inside each
+staged tree. `candidate` normally comes from the current subject build; `accepted`
+comes from the released artifact under evaluation.
+
 ## Commands
 
 ```bash
@@ -79,16 +166,16 @@ node src/cli.ts check    --suite evaluation/suites/q2.json
 node src/cli.ts list     --suite evaluation/suites/q2.json
 node src/cli.ts evaluate --suite evaluation/suites/q2.json --dry-run
 node src/cli.ts evaluate --suite evaluation/suites/q2.json \
-	--case locate-schema-version --repetitions 1
-node src/cli.ts evaluate --suite evaluation/suites/q2.json
+	--case locate-schema-version --treatment candidate --repetitions 1
+node src/cli.ts evaluate --suite evaluation/suites/q2.json --treatment all
 node src/cli.ts report   --run <run-id>
 node --test src/*.test.ts
 ```
 
+`--treatment` accepts `all`, one treatment, or a comma-separated subset.
 `--list` and `--dry-run` validate schemas and print the plan without starting a
-model or MCP process. `--resume` skips executions whose result file already
-exists and matches the run identity (suite hash, selected cases, plan hash,
-model, revision, arms, repetitions, harness version).
+model or MCP process. `--resume` reuses a stored result only when its full
+identity digest and treatment definition hash match the planned slot.
 
 Each execution retries internally up to six times with jittered exponential
 backoff, and 5 s of pacing separates executions (`EVAL_PACE_MS`). A retry is
@@ -120,41 +207,46 @@ Correctness and workflow are reported separately. Workflow gates are
 ## Telemetry validity
 
 A run is invalid, not failed, when the agent emitted no token usage, timed out,
-exited non-zero, or the workspace contained an authored change. Invalid runs are
+exited non-zero, called a tool outside the captured surface, called generic
+`execute`, or the workspace contained an authored change. Invalid runs are
 excluded from aggregates and counted in the report.
 
 ## Metrics
 
 Per run: tool calls with per-call output characters, summed output characters,
-input/output/reasoning/cache tokens, cost, wall time, and exit status.
+input/output/reasoning/cache tokens, cost, wall time, exit status, the captured
+tool surface, and observed routing including unknown tools.
 
-Per arm: success rate, index-usage rate, median output bytes, median tool calls,
-median tokens, and p95 wall time over valid runs.
-
-`indexCalls` counts direct `codeindex_*` tool calls and code-mode calls whose
-script references `codeindex.`.
+Per treatment: success rate, index-usage rate, median output bytes, median tool
+calls, median tokens, p95 wall time, invalid and retried runs, and counts of
+`execute` and unknown-tool runs.
 
 ## Q2 thresholds
 
-Taken verbatim from the publication policy:
+Taken verbatim from the publication policy and applied to candidate versus
+no-index:
 
-1. no case loses correctness against baseline;
-2. indexed success at least 90%;
-3. indexed false absence at most 2% and never above baseline;
-4. median output bytes at least 10% lower than baseline;
-5. median tool calls not higher than baseline;
-6. median tokens at most 1.05x baseline;
-7. p95 wall time at most 1.2x baseline.
+1. no case loses correctness against no-index;
+2. candidate success at least 90%;
+3. candidate false absence at most 2% and never above no-index;
+4. median output bytes at least 10% lower than no-index;
+5. median tool calls not higher than no-index;
+6. median tokens at most 1.05x no-index;
+7. p95 wall time at most 1.2x no-index.
 
-`report.json` records each threshold with its measured value and pass state.
+The report also requires candidate correctness non-inferiority against accepted,
+no generic `execute` call in any treatment, and no unknown tool in any
+treatment. `report.json` records each threshold with its measured value and pass
+state.
 
 ## Isolation and restoration
 
-Both arms are detached git worktrees of the subject repository at the pinned
-revision. Before every execution the harness restores the arm workspace
-(`git checkout -- .`, `git clean -fd`) and asserts no authored change remains.
+Every treatment is a detached git worktree of the subject repository at the
+pinned revision. Before every execution the harness restores the treatment
+workspace (`git checkout -- .`, `git clean -fd`), re-applies the generated
+treatment configuration, and asserts no authored change remains.
 `node_modules` is a symlink to the subject checkout's installed tree; `dist` is
-copied from the subject build so the indexed MCP entry runs the same artifact.
+copied from the subject build so the workspace can run repository commands.
 
 `PWD` is set to the workspace for the child process because OpenCode resolves
 project configuration from `PWD` rather than the spawn working directory.
@@ -186,15 +278,18 @@ were verified against the pinned revision with `find_symbol` and
 ## Model
 
 `deepseek/deepseek-flash`: paid endpoint of the same model family, reports exact
-token usage and cost, and calls tools. Both arms use the same model and
+token usage and cost, and calls tools. Every treatment uses the same model and
 revision, as the policy requires.
 
 The free `opencode/deepseek-v4.1-flash-free` variant was used for the first
 campaign and then hit a provider-side quota (`provider.free-limit`, retry after
 roughly 16 hours), so the suite moved to the paid endpoint.
 
-OpenCode exposes MCP tools only through its code-mode `execute` tool. That
-wrapper duplicates each result inside its envelope and the model often calls the
-`search` discovery helper, which alone returns 8-11 KiB. The harness measures
-that cost rather than correcting it, because it is what the agent actually
-consumes.
+## Native routing
+
+The CodeIndex server is configured with `codemode: false`, so its tools are
+presented directly as `codeindex_*` provider tools. Generic `execute` and
+`search` are disabled in every treatment. The harness verifies the artifact's
+native tool catalog before the first model call and records every observed tool
+name, so a regression to Code Mode routing is visible as a report failure rather
+than an unexplained payload increase.

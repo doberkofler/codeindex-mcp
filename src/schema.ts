@@ -1,10 +1,13 @@
-import {createHash} from 'node:crypto';
+import {hashOf} from './hash.ts';
+import {canonicalTreatmentsOf, treatmentOf, treatmentSetHashOf, validateTreatmentSet, type TreatmentDefinitionType} from './treatment.ts';
+
+export {canonicalJson, hashOf} from './hash.ts';
 
 /** Version of the case document schema understood by this harness. */
 export const CASE_SCHEMA_VERSION = 1 as const;
 
 /** Version of the suite document schema understood by this harness. */
-export const SUITE_SCHEMA_VERSION = 1 as const;
+export const SUITE_SCHEMA_VERSION = 2 as const;
 
 /** Test classes required by the Q2 acceptance thresholds. */
 export const CASE_CLASSES = ['locate', 'impact', 'implementation'] as const;
@@ -43,7 +46,8 @@ export type SuiteFieldsType = Readonly<{
 	revision: string;
 	model: string;
 	repetitions: number;
-	arms: readonly string[];
+	/** The accepted three-treatment definitions. */
+	treatments: readonly TreatmentDefinitionType[];
 	cases: readonly string[];
 	/** Case hashes pinned by a frozen suite, or null for an unpinned draft. */
 	caseHashes: Readonly<Record<string, string>> | null;
@@ -54,8 +58,6 @@ export type SuiteType = SuiteFieldsType &
 		/** Canonical hash over suite metadata plus the loaded case hashes. */
 		hash: string;
 	}>;
-
-export type ArmNameType = 'baseline' | 'indexed';
 
 const CASE_KEYS = new Set([
 	'schemaVersion',
@@ -82,7 +84,7 @@ const SUITE_KEYS = new Set([
 	'revision',
 	'model',
 	'repetitions',
-	'arms',
+	'treatments',
 	'cases',
 	'caseHashes',
 ]);
@@ -240,21 +242,19 @@ export const suiteFieldsOf = (value: unknown): SuiteFieldsType => {
 		throw new Error('suite field "status" must be "draft" or "frozen"');
 	}
 
-	const arms = requireStringArray(record['arms'], 'arms', 'suite');
-	const cases = requireStringArray(record['cases'], 'cases', 'suite');
+	const rawTreatments = record['treatments'];
 
-	if (arms.length === 0) {
-		throw new Error('suite field "arms" must not be empty');
+	if (!Array.isArray(rawTreatments) || rawTreatments.length === 0) {
+		throw new Error('suite field "treatments" must be a non-empty array');
 	}
+
+	const treatments = validateTreatmentSet(
+		canonicalTreatmentsOf(rawTreatments.map((value, index) => treatmentOf(value, `suite treatment[${index}]`))),
+	);
+	const cases = requireStringArray(record['cases'], 'cases', 'suite');
 
 	if (cases.length === 0) {
 		throw new Error('suite field "cases" must not be empty');
-	}
-
-	for (const arm of arms) {
-		if (arm !== 'baseline' && arm !== 'indexed') {
-			throw new Error(`suite arm "${arm}" is not supported`);
-		}
 	}
 
 	const rawHashes = record['caseHashes'];
@@ -287,70 +287,11 @@ export const suiteFieldsOf = (value: unknown): SuiteFieldsType => {
 		revision: requireString(record['revision'], 'revision', 'suite'),
 		model: requireString(record['model'], 'model', 'suite'),
 		repetitions: requirePositiveInteger(record['repetitions'], 'repetitions', 'suite'),
-		arms,
+		treatments,
 		cases,
 		caseHashes,
 	};
 };
-
-/**
- * Serializes a JSON value with recursively sorted object keys.
- *
- * Arrays keep their declared order. Only JSON values are accepted so two
- * semantically equal documents always produce the same bytes.
- *
- * @param value - JSON value.
- * @returns Canonical JSON text.
- */
-const encodePrimitive = (value: string | number | boolean): string => {
-	const encoded = JSON.stringify(value);
-
-	if (encoded === undefined) {
-		throw new Error(`canonical JSON does not support ${typeof value} values`);
-	}
-
-	return encoded;
-};
-
-export const canonicalJson = (value: unknown): string => {
-	if (value === null) {
-		return 'null';
-	}
-
-	if (typeof value === 'string' || typeof value === 'boolean') {
-		return encodePrimitive(value);
-	}
-
-	if (typeof value === 'number') {
-		if (!Number.isFinite(value)) {
-			throw new Error('canonical JSON does not support non-finite numbers');
-		}
-
-		return encodePrimitive(value);
-	}
-
-	if (Array.isArray(value)) {
-		return `[${value.map((item) => canonicalJson(item)).join(',')}]`;
-	}
-
-	if (isRecord(value)) {
-		const entries = Object.keys(value)
-			.sort()
-			.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`);
-
-		return `{${entries.join(',')}}`;
-	}
-
-	throw new Error(`canonical JSON does not support ${typeof value} values`);
-};
-
-/**
- * Hashes a JSON value deterministically for suite, case, and run identity.
- *
- * @param value - JSON-serializable value.
- * @returns Hex digest.
- */
-export const hashOf = (value: unknown): string => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
 /**
  * Hashes one normalized case document.
@@ -359,17 +300,6 @@ export const hashOf = (value: unknown): string => createHash('sha256').update(ca
  * @returns Hex digest of the case's semantic content.
  */
 export const caseHashOf = (testCase: CaseType): string => hashOf(testCase);
-
-/**
- * Hashes one treatment definition.
- *
- * Treatment definitions are data. Hashing the complete definition means a
- * changed artifact, tool list, or environment cannot retain the old identity.
- *
- * @param definition - JSON-serializable treatment definition.
- * @returns Hex digest of the definition.
- */
-export const treatmentHashOf = (definition: unknown): string => hashOf(definition);
 
 /**
  * Hashes suite metadata and the loaded case content.
@@ -390,6 +320,6 @@ export const suiteHashOf = (fields: SuiteFieldsType, cases: readonly CaseType[])
 		revision: fields.revision,
 		model: fields.model,
 		repetitions: fields.repetitions,
-		arms: fields.arms.map((id) => ({id, hash: treatmentHashOf({id})})),
+		treatments: treatmentSetHashOf(fields.treatments),
 		cases: cases.map((testCase) => ({id: testCase.id, hash: caseHashOf(testCase)})),
 	});

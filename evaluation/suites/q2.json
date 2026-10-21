@@ -1,14 +1,68 @@
 {
-	"schemaVersion": 1,
+	"schemaVersion": 2,
 	"id": "q2-real-task",
-	"version": 4,
+	"version": 5,
 	"status": "draft",
-	"revision": "fed1b6e",
+	"revision": "9643b53",
 	"model": "deepseek/deepseek-flash",
 	"repetitions": 5,
-	"arms": [
-		"baseline",
-		"indexed"
+	"treatments": [
+		{
+			"id": "no-index",
+			"kind": "no-index",
+			"ordinaryTools": [
+				"bash",
+				"glob",
+				"grep",
+				"list",
+				"read"
+			],
+			"codeMode": "absent",
+			"artifact": null,
+			"mcp": null
+		},
+		{
+			"id": "accepted",
+			"kind": "codeindex",
+			"ordinaryTools": [
+				"bash",
+				"glob",
+				"grep",
+				"list",
+				"read"
+			],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-accepted",
+				"root": "artifacts/accepted",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		},
+		{
+			"id": "candidate",
+			"kind": "codeindex",
+			"ordinaryTools": [
+				"bash",
+				"glob",
+				"grep",
+				"list",
+				"read"
+			],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-candidate",
+				"root": "artifacts/candidate",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		}
 	],
 	"cases": [
 		"locate-schema-version",

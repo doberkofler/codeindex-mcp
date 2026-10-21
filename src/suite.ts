@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {caseHashOf, caseOf, hashOf, suiteFieldsOf, suiteHashOf, type CaseType, type SuiteType} from './schema.ts';
+import {canonicalTreatmentsOf, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
 
 /** Answer contract appended to every case prompt, identical for both arms. */
 export const ANSWER_CONTRACT = [
@@ -13,10 +14,10 @@ export const ANSWER_CONTRACT = [
 	'answers the question; in that case "files" must be empty.',
 ].join('\n');
 
-/** One planned execution slot. */
-export type PlanEntryType<Arm extends string = string> = Readonly<{
+/** One planned execution slot. It resolves exactly one treatment. */
+export type PlanEntryType<Treatment extends string = string> = Readonly<{
 	caseId: string;
-	arm: Arm;
+	treatment: Treatment;
 	repetition: number;
 }>;
 
@@ -146,33 +147,79 @@ export const selectCases = (cases: readonly CaseType[], selection: SelectionType
  * Builds the ordered execution plan.
  *
  * @param cases - Selected cases in selection order.
- * @param arms - Selected arms in suite order.
- * @param repetitions - Repetitions per case and arm.
+ * @param treatments - Selected treatments in canonical suite order.
+ * @param repetitions - Repetitions per case and treatment.
  * @returns One entry per execution slot.
  */
-export const planOf = <Arm extends string>(
+export const planOf = <Treatment extends string>(
 	cases: readonly CaseType[],
-	arms: readonly Arm[],
+	treatments: readonly Treatment[],
 	repetitions: number,
-): readonly PlanEntryType<Arm>[] => {
+): readonly PlanEntryType<Treatment>[] => {
 	if (!Number.isInteger(repetitions) || repetitions <= 0) {
 		throw new Error('repetitions must be a positive integer');
 	}
 
-	if (arms.length === 0) {
-		throw new Error('plan selects no arms');
+	if (treatments.length === 0) {
+		throw new Error('plan selects no treatments');
 	}
 
-	return cases.flatMap((testCase) =>
-		arms.flatMap((arm) =>
+	if (new Set(treatments).size !== treatments.length) {
+		throw new Error('plan selects a treatment more than once');
+	}
+
+	const plan = cases.flatMap((testCase) =>
+		treatments.flatMap((treatment) =>
 			Array.from({length: repetitions}, (_, index) => ({
 				caseId: testCase.id,
-				arm,
+				treatment,
 				repetition: index + 1,
 			})),
 		),
 	);
+	const slots = new Set(plan.map((entry) => `${entry.caseId}/${entry.treatment}/${entry.repetition}`));
+
+	if (slots.size !== plan.length) {
+		throw new Error('plan contains a duplicate execution slot');
+	}
+
+	return plan;
 };
+
+/**
+ * Resolves the single treatment definition for one plan entry.
+ *
+ * @param entry - Planned execution slot.
+ * @param treatments - Suite treatment definitions.
+ * @returns The one matching definition.
+ */
+export const resolveTreatmentOf = (
+	entry: PlanEntryType,
+	treatments: readonly TreatmentDefinitionType[],
+): TreatmentDefinitionType => {
+	const matches = canonicalTreatmentsOf(treatments).filter((treatment) => treatment.id === entry.treatment);
+
+	if (matches.length !== 1) {
+		throw new Error(`plan entry ${entry.caseId}/${entry.treatment} resolves ${matches.length} treatments`);
+	}
+
+	const [match] = matches;
+
+	if (match === undefined) {
+		throw new Error(`plan entry ${entry.caseId}/${entry.treatment} resolves no treatment`);
+	}
+
+	return match;
+};
+
+/**
+ * Lists a suite's treatment ids in canonical order.
+ *
+ * @param treatments - Suite treatment definitions.
+ * @returns Treatment ids in plan order.
+ */
+export const treatmentIdsOf = (treatments: readonly TreatmentDefinitionType[]): readonly TreatmentIdType[] =>
+	canonicalTreatmentsOf(treatments).map((treatment) => treatment.id);
 
 /**
  * Hashes an ordered plan.

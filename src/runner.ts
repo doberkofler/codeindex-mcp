@@ -4,7 +4,8 @@ import path from 'node:path';
 import {isRateLimited, parseEvents, type RunEventsType} from './events.ts';
 import {gradeOf, type GradeType} from './grade.ts';
 import {promptOf} from './suite.ts';
-import {type ArmNameType, type CaseType} from './schema.ts';
+import {type CaseType} from './schema.ts';
+import {routingOf, type RoutingType, type ToolSurfaceType, type TreatmentDefinitionType} from './treatment.ts';
 
 /** Workflow assessment kept separate from correctness. */
 export type WorkflowResultType = Readonly<{compliant: boolean; violations: readonly string[]}>;
@@ -27,7 +28,8 @@ export type RunResultType = Readonly<{
 	identityHash: string;
 	caseId: string;
 	caseClass: string;
-	arm: ArmNameType;
+	treatment: string;
+	treatmentDefinitionHash: string;
 	repetition: number;
 	model: string;
 	revision: string;
@@ -39,6 +41,10 @@ export type RunResultType = Readonly<{
 	toolCalls: RunEventsType['toolCalls'];
 	outputBytes: number;
 	indexCalls: number;
+	/** Exact tool-name surface captured before this execution. */
+	surface: ToolSurfaceType;
+	/** Observed routing, including every unknown-tool outcome. */
+	routing: RoutingType;
 	errors: readonly string[];
 	grade: GradeType;
 	workflow: WorkflowResultType;
@@ -126,7 +132,8 @@ const attemptOnce = async (
 	input: Readonly<{
 		cwd: string;
 		testCase: CaseType;
-		arm: ArmNameType;
+		treatment: TreatmentDefinitionType;
+		surface: ToolSurfaceType;
 		repetition: number;
 		model: string;
 		revision: string;
@@ -178,13 +185,22 @@ const attemptOnce = async (
 	const events = parseEvents(stdout);
 	const grade = gradeOf(input.testCase, events.finalText);
 	const workflow = workflowOf(input.testCase, events);
+	const routing = routingOf(
+		input.surface,
+		events.toolCalls.map((call) => call.tool),
+	);
+	const unknownTools = routing.unknownTools;
 	const invalidReason = timedOut
 		? 'timed out'
 		: exitCode === null || exitCode !== 0
 			? `agent exited with ${exitCode ?? 'no status'}`
 			: !events.usage.available
 				? 'client emitted no token usage'
-				: null;
+				: unknownTools.length > 0
+					? `unknown tool(s) presented or called: ${unknownTools.join(', ')}`
+					: routing.executeCalls > 0
+						? 'generic execute was called although it is absent from every treatment'
+						: null;
 	const throttled = isRateLimited(stdout, stderr, events.errors.join('\n'));
 	const rawFile = input.rawBase === null ? null : `${input.rawBase}.attempt-${attempt}.jsonl`;
 
@@ -199,7 +215,8 @@ const attemptOnce = async (
 			identityHash: input.identityHash,
 			caseId: input.testCase.id,
 			caseClass: input.testCase.class,
-			arm: input.arm,
+			treatment: input.treatment.id,
+			treatmentDefinitionHash: input.treatment.definitionHash,
 			repetition: input.repetition,
 			model: input.model,
 			revision: input.revision,
@@ -210,7 +227,9 @@ const attemptOnce = async (
 			usage: events.usage,
 			toolCalls: events.toolCalls,
 			outputBytes: events.outputBytes,
-			indexCalls: events.toolCalls.filter((call) => call.tool.startsWith('codeindex') || /codeindex[._]/.test(call.inputText)).length,
+			indexCalls: routing.codeIndexCalls,
+			surface: input.surface,
+			routing,
 			errors: events.errors,
 			grade,
 			workflow,
@@ -236,7 +255,8 @@ export const runOnce = async (
 	input: Readonly<{
 		cwd: string;
 		testCase: CaseType;
-		arm: ArmNameType;
+		treatment: TreatmentDefinitionType;
+		surface: ToolSurfaceType;
 		repetition: number;
 		model: string;
 		revision: string;
