@@ -124,11 +124,72 @@ class ProcessQueueTest(unittest.TestCase):
         self._git("commit", "--quiet", "-m", "test: initialize fixture")
         return agent
 
-    def _run_queue(self, agent: Path) -> subprocess.CompletedProcess[str]:
+    def _run_queue(self, agent: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["OPENCODE_BIN"] = str(agent)
+        environment.pop("QUEUE_MODEL", None)
         runner = Path(__file__).with_name("process_queue.py")
         return subprocess.run(
+            [sys.executable, str(runner), *arguments, str(self.queue_path)],
+            cwd=self.repository,
+            env=environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    def _agent_argv(self) -> list[str]:
+        return json.loads((self.repository / "argv.json").read_text(encoding="utf-8"))
+
+    def _write_recording_agent(self) -> Path:
+        return self._write_agent(
+            """import json
+from pathlib import Path
+import subprocess
+import sys
+
+Path("argv.json").write_text(json.dumps(sys.argv[1:]), encoding="utf-8")
+Path("implementation.txt").write_text("implemented", encoding="utf-8")
+subprocess.run(["git", "add", "argv.json", "implementation.txt"], check=True)
+subprocess.run(
+    ["git", "commit", "--quiet", "-m", "feat: implement item"],
+    check=True,
+)
+"""
+        )
+
+    def test_runs_build_agent_and_commits_completion(self) -> None:
+        agent = self._write_recording_agent()
+
+        result = self._run_queue(agent)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv = self._agent_argv()
+        self.assertEqual(argv[:5], ["run", "--standalone", "--auto", "--agent", "build"])
+        self.assertNotIn("--model", argv)
+        self.assertTrue(argv[-1].startswith("Implement exactly this item"))
+        queue = json.loads(self.queue_path.read_text(encoding="utf-8"))
+        self.assertIs(queue["items"][0]["done"], True)
+        self.assertEqual(self._git("rev-list", "--count", "HEAD").stdout.strip(), "3")
+
+    def test_passes_explicit_model(self) -> None:
+        agent = self._write_recording_agent()
+
+        result = self._run_queue(agent, "--model", "openai/gpt-5.6-sol")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv = self._agent_argv()
+        self.assertEqual(argv[5:7], ["--model", "openai/gpt-5.6-sol"])
+
+    def test_reads_model_from_environment(self) -> None:
+        agent = self._write_recording_agent()
+        environment = os.environ.copy()
+        environment["OPENCODE_BIN"] = str(agent)
+        environment["QUEUE_MODEL"] = "ollama/qwen3.8:27b-mlx"
+        runner = Path(__file__).with_name("process_queue.py")
+
+        result = subprocess.run(
             [sys.executable, str(runner), str(self.queue_path)],
             cwd=self.repository,
             env=environment,
@@ -138,30 +199,10 @@ class ProcessQueueTest(unittest.TestCase):
             text=True,
         )
 
-    def test_runs_build_agent_and_commits_completion(self) -> None:
-        agent = self._write_agent(
-            """from pathlib import Path
-import subprocess
-import sys
-
-expected = ["run", "--standalone", "--auto", "--agent", "build"]
-if sys.argv[1:6] != expected:
-    raise SystemExit(2)
-Path("implementation.txt").write_text("implemented", encoding="utf-8")
-subprocess.run(["git", "add", "implementation.txt"], check=True)
-subprocess.run(
-    ["git", "commit", "--quiet", "-m", "feat: implement item"],
-    check=True,
-)
-"""
-        )
-
-        result = self._run_queue(agent)
-
         self.assertEqual(result.returncode, 0, result.stderr)
-        queue = json.loads(self.queue_path.read_text(encoding="utf-8"))
-        self.assertIs(queue["items"][0]["done"], True)
-        self.assertEqual(self._git("rev-list", "--count", "HEAD").stdout.strip(), "3")
+        self.assertEqual(
+            self._agent_argv()[5:7], ["--model", "ollama/qwen3.8:27b-mlx"]
+        )
 
     def test_rejects_agent_that_does_not_commit(self) -> None:
         agent = self._write_agent("raise SystemExit(0)\n")

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from dataclasses import dataclass
@@ -194,7 +195,22 @@ Rules:
 - Do not touch other queue items."""
 
 
-def process(queue_path: Path) -> None:
+def agent_command(model: str | None, prompt: str) -> list[str]:
+    command = [
+        os.environ.get("OPENCODE_BIN", "opencode"),
+        "run",
+        "--standalone",
+        "--auto",
+        "--agent",
+        "build",
+    ]
+    if model is not None:
+        command.extend(["--model", model])
+    command.append(prompt)
+    return command
+
+
+def process(queue_path: Path, model: str | None) -> None:
     while True:
         queue = load_queue(queue_path)
         item = queue.next_item()
@@ -203,19 +219,7 @@ def process(queue_path: Path) -> None:
 
         require_clean_tree(f"before: {item.description}")
         previous_head = run_git("rev-parse", "HEAD")
-        opencode = os.environ.get("OPENCODE_BIN", "opencode")
-        subprocess.run(
-            [
-                opencode,
-                "run",
-                "--standalone",
-                "--auto",
-                "--agent",
-                "build",
-                prompt_for(item),
-            ],
-            check=True,
-        )
+        subprocess.run(agent_command(model, prompt_for(item)), check=True)
         require_clean_tree(f"after: {item.description}")
         require_one_agent_commit(previous_head, queue_path)
 
@@ -225,9 +229,16 @@ def process(queue_path: Path) -> None:
 
 
 def main() -> int:
-    queue_path = Path(sys.argv[1] if len(sys.argv) > 1 else "TODO.md")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("queue", nargs="?", default="TODO.md", help="Markdown or JSON queue file")
+    parser.add_argument(
+        "--model",
+        help="provider/model[#variant]; defaults to QUEUE_MODEL, then OpenCode's own default",
+    )
+    arguments = parser.parse_args()
+    model = arguments.model or os.environ.get("QUEUE_MODEL") or None
     try:
-        process(queue_path)
+        process(Path(arguments.queue), model)
     except (OSError, QueueError, subprocess.CalledProcessError) as error:
         print(f"process-queue: {error}", file=sys.stderr)
         return 1
