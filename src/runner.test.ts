@@ -448,6 +448,78 @@ test('a restoration failure is persisted as an inspectable failed result', async
 	assert.deepEqual(stored, {...result, outcome: 'failed', valid: false});
 });
 
+test('missing token usage invalidates only the token metrics', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const command = scriptOf(
+		root,
+		'no-usage',
+		[
+			"cat <<'EVENTS'",
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			'EVENTS',
+		].join('\n'),
+	);
+
+	const result = await execute(root, command, testCaseOf());
+
+	assert.equal(result.outcome, 'completed');
+	assert.equal(result.valid, true);
+	assert.equal(result.invalidReason, null);
+	assert.equal(result.grade.success, true);
+	assert.equal(result.usage.available, false);
+	assert.equal(result.telemetry.inputTokens.state, 'unavailable');
+	assert.equal(result.telemetry.outputTokens.state, 'unavailable');
+	assert.equal(result.telemetry.reportedCost.state, 'unavailable');
+	assert.equal(result.telemetry.inputTokens.value, null);
+});
+
+test('nested tool calls and malformed lines are retained in the stored result', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const command = scriptOf(
+		root,
+		'nested',
+		[
+			"cat <<'EVENTS'",
+			String.raw`{"type":"tool_use","part":{"type":"tool","callID":"call-1","tool":"grep","state":{"status":"completed","input":{"pattern":"x"},"output":"abcd","time":{"start":10,"end":25}},"parts":[{"type":"tool","callID":"call-2","tool":"read","state":{"status":"error","input":{"filePath":"src/a.ts"},"error":"denied","time":{"start":30,"end":33}}}]}}`,
+			'not-json',
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5,"reasoning":1,"cache":{"read":2,"write":0}},"cost":0.001}}`,
+			'EVENTS',
+		].join('\n'),
+	);
+
+	const result = await execute(root, command, testCaseOf());
+
+	assert.equal(result.valid, true);
+	assert.deepEqual(
+		result.toolCalls.map((call) => [call.tool, call.status, call.parentIndex, call.durationMs, call.outputBytes]),
+		[
+			['grep', 'completed', null, 15, 4],
+			['read', 'error', 1, 3, 6],
+		],
+	);
+	assert.equal(result.outputBytes, 10);
+	assert.deepEqual(result.familyBytes, {
+		index: 0,
+		search: 4,
+		read: 6,
+		list: 0,
+		write: 0,
+		execute: 0,
+		task: 0,
+		other: 0,
+	});
+	assert.equal(result.rawEventCount, 4);
+	assert.equal(result.malformedEventCount, 1);
+	assert.equal(result.streamTruncated, false);
+	assert.deepEqual(result.telemetry.cacheReadTokens, {
+		value: 2,
+		state: 'exact',
+		unit: 'tokens',
+		source: 'step_finish.cache.read',
+	});
+});
+
 test('a successful restoration keeps the execution outcome', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const command = scriptOf(

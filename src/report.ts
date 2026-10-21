@@ -61,7 +61,30 @@ const percentile = (values: readonly number[], fraction: number): number => {
 	return sorted[Math.max(0, Math.min(sorted.length - 1, rank))] ?? 0;
 };
 
-const tokensOf = (run: RunResultType): number => run.usage.input + run.usage.output + run.usage.reasoning;
+/**
+ * Returns the claimable uncached token total, or null when any component is
+ * unavailable. Missing usage is never replaced with zero or a byte estimate.
+ *
+ * @param run - Stored result.
+ * @returns Exact input + output + reasoning tokens, or null.
+ */
+const tokensOf = (run: RunResultType): number | null => {
+	const telemetry = run.telemetry;
+
+	if (telemetry === undefined) {
+		return run.usage.available ? run.usage.input + run.usage.output + run.usage.reasoning : null;
+	}
+
+	const entries = [telemetry.inputTokens, telemetry.outputTokens, telemetry.reasoningTokens];
+
+	if (!entries.every((entry) => entry.state === 'exact' && entry.value !== null)) {
+		return null;
+	}
+
+	return entries.reduce((total, entry) => total + (entry.value ?? 0), 0);
+};
+
+const exactTokenRuns = (runs: readonly RunResultType[]): readonly RunResultType[] => runs.filter((run) => tokensOf(run) !== null);
 
 const successOf = (runs: readonly RunResultType[]): number => (runs.length === 0 ? 0 : runs.filter((run) => run.grade.success).length / runs.length);
 
@@ -78,6 +101,9 @@ export const summarizeTreatment = (runs: readonly RunResultType[]): TreatmentSum
 	const valid = runs.filter((run) => run.valid);
 	const successful = valid.filter((run) => run.grade.success);
 	const truthful = valid.filter((run) => run.grade.falseAbsence || run.grade.success);
+	const tokenValues = exactTokenRuns(successful)
+		.map((run) => tokensOf(run))
+		.filter((value): value is number => value !== null);
 
 	return {
 		runs: runs.length,
@@ -86,7 +112,7 @@ export const summarizeTreatment = (runs: readonly RunResultType[]): TreatmentSum
 		falseAbsenceRate: truthful.length === 0 ? 0 : valid.filter((run) => run.grade.falseAbsence).length / truthful.length,
 		medianOutputBytes: median(successful.map((run) => run.outputBytes)),
 		medianToolCalls: median(successful.map((run) => run.toolCalls.length)),
-		medianTokens: median(successful.map((run) => tokensOf(run))),
+		medianTokens: median(tokenValues),
 		p95WallMs: percentile(valid.map((run) => run.durationMs), 0.95),
 		indexUsageRate: valid.length === 0 ? 0 : valid.filter((run) => run.indexCalls > 0).length / valid.length,
 		executeRuns: valid.filter((run) => run.routing.executeCalls > 0).length,
@@ -135,6 +161,11 @@ export const compare = (runs: readonly RunResultType[]): ComparisonType => {
 	const tokenRatio = ratio(candidate.medianTokens, noIndex.medianTokens);
 	const timeRatio = ratio(candidate.p95WallMs, noIndex.p95WallMs);
 	const toolDelta = candidate.medianToolCalls - noIndex.medianToolCalls;
+	const tokenTelemetryComplete = [noIndexRuns, acceptedRuns, candidateRuns].every((group) => {
+		const successful = group.filter((run) => run.valid && run.grade.success);
+
+		return successful.length > 0 && successful.every((run) => tokensOf(run) !== null);
+	});
 
 	const thresholds = [
 		{
@@ -164,8 +195,10 @@ export const compare = (runs: readonly RunResultType[]): ComparisonType => {
 		},
 		{
 			name: 'median tokens at most 1.05x no-index',
-			passed: tokenRatio <= 1.05,
-			detail: `${(tokenRatio * 100).toFixed(1)}% of no-index`,
+			passed: tokenTelemetryComplete && tokenRatio <= 1.05,
+			detail: tokenTelemetryComplete
+				? `${(tokenRatio * 100).toFixed(1)}% of no-index`
+				: 'unavailable: a successful run has no exact token usage',
 		},
 		{
 			name: 'p95 wall time at most 1.2x no-index',

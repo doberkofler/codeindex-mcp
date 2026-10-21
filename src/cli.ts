@@ -32,7 +32,7 @@ import {
 } from './workspace.ts';
 
 /** Harness schema version recorded in every run identity. */
-const HARNESS_VERSION = 7;
+const HARNESS_VERSION = 8;
 
 /** Pause between executions to stay inside the provider's rolling window. */
 const PACE_MS = Number(process.env['EVAL_PACE_MS'] ?? 5_000);

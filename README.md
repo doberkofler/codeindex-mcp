@@ -212,18 +212,45 @@ the question.
 Correctness and workflow are reported separately. Workflow gates are
 `maxTotalCalls`, `maxOutputBytes`, and optional `requiredFirstTool`.
 
+## Event normalization
+
+Every attempt retains its raw line-delimited event stream. The harness derives
+one ordered event model from it:
+
+- text, step-start, step-finish, error, tool, and unrecognized events keep their
+  raw one-based line number;
+- tool calls are normalized from the flat `tool_use` envelope, the raw server
+  `message.part.updated` envelope, and `parts` nested inside a tool part;
+- every call records its exact tool name, family, status, validated input
+  object, UTF-8 output bytes, reported duration, error text, and parent call;
+- unknown and failed tools stay in the sequence and in observed routing;
+- malformed lines are retained with their line number, and a truncated final
+  line marks the stream as truncated without discarding earlier events.
+
+Tool families are `index`, `search`, `read`, `list`, `write`, `execute`, `task`,
+and `other`. CodeIndex names keep their native `codeindex_` prefix.
+
 ## Telemetry validity
 
-A run is invalid, not failed, when the agent emitted no token usage, timed out,
-exited non-zero, called a tool outside the captured surface, called generic
-`execute`, or the workspace contained an authored change. Invalid runs are
-excluded from aggregates and counted in the report.
+A run is invalid, not failed, when it timed out, exited non-zero, called a tool
+outside the captured surface, called generic `execute`, or the workspace
+contained an authored change. Invalid runs are excluded from aggregates and
+counted in the report.
+
+Missing token usage does not invalidate the execution. Each required metric is
+stored as `{value, state, unit, source}` with state `exact`, `unavailable`, or
+`not-applicable`. Input, output, reasoning, cache-read, cache-write tokens, and
+reported cost stay separately available. A missing component is `unavailable`
+with a null value; it is never replaced with zero, a byte estimate, or another
+run's value. The token gate fails when a successful run lacks exact usage, while
+correctness, calls, bytes, and latency remain valid evidence.
 
 ## Metrics
 
-Per run: tool calls with per-call output characters, summed output characters,
-input/output/reasoning/cache tokens, cost, wall time, exit status, the captured
-tool surface, and observed routing including unknown tools.
+Per run: normalized events and tool calls with per-call output bytes and
+duration, summed output bytes overall and per tool family, exact-or-unavailable
+input/output/reasoning/cache tokens and cost, wall time, exit status, the
+captured tool surface, and observed routing including unknown tools.
 
 Per treatment: success rate, index-usage rate, median output bytes, median tool
 calls, median tokens, p95 wall time, invalid and retried runs, and counts of

@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import {mkdirSync, renameSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {type ArtifactRefType} from './artifact.ts';
-import {isRateLimited, parseEvents, type RunEventsType} from './events.ts';
+import {isRateLimited, parseEvents, type RunEventsType, type TelemetryType} from './events.ts';
 import {gradeOf, type GradeType} from './grade.ts';
 import {type ClientStoreModeType, type ClientStoreType, type IsolationModeType} from './isolation.ts';
 import {promptOf} from './suite.ts';
@@ -71,8 +71,18 @@ export type RunResultType = Readonly<{
 	/** Artifact identities associated with this execution. */
 	artifacts: RunArtifactsType;
 	usage: RunEventsType['usage'];
+	/** Exact-or-unavailable token and cost metrics; never estimated from bytes. */
+	telemetry: TelemetryType;
+	/** Normalized calls in stream order, including nested, unknown, and failed calls. */
 	toolCalls: RunEventsType['toolCalls'];
 	outputBytes: number;
+	/** Summed output bytes per tool family. */
+	familyBytes: RunEventsType['familyBytes'];
+	/** Raw event lines examined and malformed lines retained for diagnosis. */
+	rawEventCount: number;
+	malformedEventCount: number;
+	/** True when the captured stream ended in a truncated or malformed line. */
+	streamTruncated: boolean;
 	indexCalls: number;
 	/** Exact tool-name surface captured before this execution. */
 	surface: ToolSurfaceType;
@@ -326,13 +336,11 @@ const attemptOnce = async (
 		? 'timed out'
 		: exitCode === null || exitCode !== 0
 			? `agent exited with ${exitCode ?? 'no status'}`
-			: !events.usage.available
-				? 'client emitted no token usage'
-				: unknownTools.length > 0
-					? `unknown tool(s) presented or called: ${unknownTools.join(', ')}`
-					: routing.executeCalls > 0
-						? 'generic execute was called although it is absent from every treatment'
-						: null;
+			: unknownTools.length > 0
+				? `unknown tool(s) presented or called: ${unknownTools.join(', ')}`
+				: routing.executeCalls > 0
+					? 'generic execute was called although it is absent from every treatment'
+					: null;
 	const outcome: OutcomeType = timedOut ? 'timed-out' : invalidReason === null ? 'completed' : 'failed';
 	const throttled = isRateLimited(stdout, stderr, events.errors.join('\n'));
 	const rawFile = input.rawBase === null ? null : `${input.rawBase}.attempt-${attempt}.jsonl`;
@@ -363,8 +371,13 @@ const attemptOnce = async (
 			isolation: {...input.isolation, restored: false},
 			artifacts: input.artifacts,
 			usage: events.usage,
+			telemetry: events.telemetry,
 			toolCalls: events.toolCalls,
 			outputBytes: events.outputBytes,
+			familyBytes: events.familyBytes,
+			rawEventCount: events.rawEventCount,
+			malformedEventCount: events.malformed.length,
+			streamTruncated: events.truncated,
 			indexCalls: routing.codeIndexCalls,
 			surface: input.surface,
 			routing,
