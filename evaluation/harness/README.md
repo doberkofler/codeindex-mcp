@@ -233,6 +233,32 @@ pnpm eval:typecheck
 From this directory, `node src/cli.ts` accepts the same flags with
 `--suite suites/q2.json`.
 
+### Model-free complete-route comparison
+
+`route` implements E1 without a model. It loads a declared route plan, validates
+that it covers exactly the suite cases, executes the `no-index`, `accepted`, and
+`candidate` routes through the same workspaces, and writes one report:
+
+```bash
+node src/cli.ts route --suite suites/release.json --plan routes/codeindex-release.json --dry-run
+node src/cli.ts route --suite suites/release.json --plan routes/codeindex-release.json
+```
+
+The ordinary route is a bounded search or read. The CodeIndex route uses the
+published artifact through the official MCP client, waits for `index_status` to
+report a published generation, follows every cursor page, and may mix a declared
+fallback search or source read when the index cannot answer. Every call is
+retained. Response bytes are the returned text bytes; elapsed time is the complete
+request; core query time is the artifact's reported handler duration from its
+stderr diagnostics, recorded as `unavailable` rather than estimated when absent.
+
+`G-E1a` requires exact answer equality for every selected treatment, `G-E1b`
+requires a complete call, byte, elapsed, and separated core-time record, and
+`G-E1c` runs pagination, truncation, stale-file, and failure probes against each
+artifact. The stale-file probe changes one declaration, observes `stale_file`,
+and restores the workspace. Reports are written under `results/route/`, which is
+never committed.
+
 `--treatment` accepts `all`, one treatment, or a comma-separated subset.
 `--list` and `--dry-run` validate schemas and print the plan without starting a
 model or MCP process. `--resume` reuses a stored result only when its complete

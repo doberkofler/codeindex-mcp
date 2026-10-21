@@ -1,0 +1,779 @@
+{
+	"schemaVersion": 1,
+	"id": "codeindex-release-model-free",
+	"suite": {
+		"id": "codeindex-release",
+		"version": 1
+	},
+	"routes": [
+		{
+			"caseId": "locate-schema-version",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-declaration",
+					"pattern": "\\bconst\\s+SCHEMA_VERSION\\b",
+					"path": "src",
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-declaration",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "SCHEMA_VERSION",
+						"match": "name",
+						"exposure": "any"
+					},
+					"collect": "exact-name-paths",
+					"exactName": "SCHEMA_VERSION"
+				}
+			]
+		},
+		{
+			"caseId": "locate-read-symbol-tool",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-registration",
+					"pattern": "name:\\s*'read_symbol'",
+					"path": "src",
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-tool-name",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "read_symbol",
+						"match": "name",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "search",
+					"id": "fallback-registration",
+					"pattern": "name:\\s*'read_symbol'",
+					"path": "src",
+					"collect": true
+				}
+			]
+		},
+		{
+			"caseId": "locate-stale-file-error",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-stale-error",
+					"pattern": "class\\s+StaleFileError\\b",
+					"path": "src",
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-stale-error",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "StaleFileError",
+						"match": "name",
+						"path": "src/core/errors/staleFileError.ts",
+						"exposure": "any"
+					},
+					"collect": "exact-name-paths",
+					"exactName": "StaleFileError"
+				}
+			]
+		},
+		{
+			"caseId": "locate-result-size-guard",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-size-guard",
+					"pattern": "export\\s+const\\s+boundedPagedResult\\b",
+					"path": "src",
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-size-guard",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "boundedPagedResult",
+						"match": "name",
+						"path": "src/core/query/querySupport.ts",
+						"exposure": "any"
+					},
+					"collect": "exact-name-paths",
+					"exactName": "boundedPagedResult"
+				}
+			]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-build-generation",
+					"pattern": "\\bbuildGeneration\\b",
+					"path": "src",
+					"excludePaths": ["src/core/generation/buildGeneration.ts"],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-build-generation",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "buildGeneration",
+						"match": "name",
+						"path": "src/core/generation/buildGeneration.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-build-generation",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-build-generation",
+						"path": "src/core/generation/buildGeneration.ts",
+						"name": "buildGeneration"
+					},
+					"collect": "reference-paths",
+					"followCursor": true
+				}
+			]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-hash-content",
+					"pattern": "\\bhashContent\\b",
+					"path": "src",
+					"excludePaths": ["src/core/generation/sourceFiles.ts"],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-hash-content",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "hashContent",
+						"match": "name",
+						"path": "src/core/generation/sourceFiles.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-hash-content",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-hash-content",
+						"path": "src/core/generation/sourceFiles.ts",
+						"name": "hashContent"
+					},
+					"collect": "reference-paths",
+					"followCursor": true
+				}
+			]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-bounded-result",
+					"pattern": "\\bboundedPagedResult\\b",
+					"path": "src",
+					"excludePaths": ["src/core/query/querySupport.ts"],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-bounded-result",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "boundedPagedResult",
+						"match": "name",
+						"path": "src/core/query/querySupport.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-bounded-result",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-bounded-result",
+						"path": "src/core/query/querySupport.ts",
+						"name": "boundedPagedResult"
+					},
+					"collect": "reference-paths",
+					"followCursor": true
+				}
+			]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-schema-version",
+					"pattern": "\\bSCHEMA_VERSION\\b",
+					"path": "src",
+					"excludePaths": ["src/core/storage/schema.ts"],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-schema-version",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "SCHEMA_VERSION",
+						"match": "name",
+						"path": "src/core/storage/schema.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-schema-version",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-schema-version",
+						"path": "src/core/storage/schema.ts",
+						"name": "SCHEMA_VERSION"
+					},
+					"collect": "reference-paths",
+					"followCursor": true
+				}
+			]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-load-config",
+					"pattern": "\\bloadConfig\\b",
+					"path": "src",
+					"excludePaths": ["src/core/config/config.ts"],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-load-config",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "loadConfig",
+						"match": "name",
+						"path": "src/core/config/config.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-load-config",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-load-config",
+						"path": "src/core/config/config.ts",
+						"name": "loadConfig"
+					},
+					"collect": "reference-paths",
+					"followCursor": true
+				}
+			]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-codeindex-error",
+					"pattern": "\\bCodeIndexError\\b",
+					"path": "src",
+					"excludePaths": ["src/core/errors/codeIndexError.ts"],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-codeindex-error",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "CodeIndexError",
+						"match": "name",
+						"path": "src/core/errors/codeIndexError.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-codeindex-error",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-codeindex-error",
+						"path": "src/core/errors/codeIndexError.ts",
+						"name": "CodeIndexError"
+					},
+					"collect": "reference-paths",
+					"followCursor": true
+				}
+			]
+		},
+		{
+			"caseId": "semantic-renamed-reexport",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-renamed-alias",
+					"pattern": "\\bcreateIdentity\\b",
+					"path": "evaluation/fixtures/controlled-typescript/src",
+					"excludePaths": ["evaluation/fixtures/controlled-typescript/src/renamed/source.ts", "evaluation/fixtures/controlled-typescript/src/renamed/index.ts"],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-renamed-source",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "createProfile",
+						"match": "name",
+						"path": "evaluation/fixtures/controlled-typescript/src/renamed/source.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-renamed-source",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-renamed-source",
+						"path": "evaluation/fixtures/controlled-typescript/src/renamed/source.ts",
+						"name": "createProfile"
+					},
+					"collect": "reference-paths",
+					"followCursor": true,
+					"excludePaths": ["evaluation/fixtures/controlled-typescript/src/renamed/index.ts"]
+				}
+			],
+			"projectFile": "evaluation/fixtures/controlled-typescript/tsconfig.json"
+		},
+		{
+			"caseId": "semantic-barrel-chain",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-barrel-alias",
+					"pattern": "\\bmaximumPipeline\\b",
+					"path": "evaluation/fixtures/controlled-typescript/src",
+					"excludePaths": [
+						"evaluation/fixtures/controlled-typescript/src/barrels/deep/value.ts",
+						"evaluation/fixtures/controlled-typescript/src/barrels/index.ts",
+						"evaluation/fixtures/controlled-typescript/src/barrels/levelOne.ts",
+						"evaluation/fixtures/controlled-typescript/src/barrels/levelTwo.ts"
+					],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-barrel-source",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "pipelineLimit",
+						"match": "name",
+						"path": "evaluation/fixtures/controlled-typescript/src/barrels/deep/value.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-barrel-source",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-barrel-source",
+						"path": "evaluation/fixtures/controlled-typescript/src/barrels/deep/value.ts",
+						"name": "pipelineLimit"
+					},
+					"collect": "reference-paths",
+					"followCursor": true,
+					"excludePaths": [
+						"evaluation/fixtures/controlled-typescript/src/barrels/index.ts",
+						"evaluation/fixtures/controlled-typescript/src/barrels/levelOne.ts",
+						"evaluation/fixtures/controlled-typescript/src/barrels/levelTwo.ts"
+					]
+				}
+			],
+			"projectFile": "evaluation/fixtures/controlled-typescript/tsconfig.json"
+		},
+		{
+			"caseId": "semantic-shadowed-name",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-shadowed-name",
+					"pattern": "\\bNode\\b",
+					"path": "evaluation/fixtures/controlled-typescript/src",
+					"excludePaths": [
+						"evaluation/fixtures/controlled-typescript/src/shadow/first.ts",
+						"evaluation/fixtures/controlled-typescript/src/shadow/second.ts",
+						"evaluation/fixtures/controlled-typescript/src/shadow/secondConsumer.ts"
+					],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-shadowed-source",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "Node",
+						"match": "name",
+						"path": "evaluation/fixtures/controlled-typescript/src/shadow/first.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-shadowed-source",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-shadowed-source",
+						"path": "evaluation/fixtures/controlled-typescript/src/shadow/first.ts",
+						"name": "Node"
+					},
+					"collect": "reference-paths",
+					"followCursor": true
+				}
+			],
+			"projectFile": "evaluation/fixtures/controlled-typescript/tsconfig.json"
+		},
+		{
+			"caseId": "semantic-interface-implementations",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-implements",
+					"pattern": "\\bimplements\\s+PaymentGateway\\b",
+					"path": "evaluation/fixtures/controlled-typescript/src",
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-contract",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "PaymentGateway",
+						"match": "name",
+						"path": "evaluation/fixtures/controlled-typescript/src/contracts/gateway.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-contract",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-contract",
+						"path": "evaluation/fixtures/controlled-typescript/src/contracts/gateway.ts",
+						"name": "PaymentGateway"
+					},
+					"collect": "reference-paths",
+					"followCursor": true,
+					"keepFilesMatching": "\\bimplements\\s+PaymentGateway\\b"
+				}
+			],
+			"projectFile": "evaluation/fixtures/controlled-typescript/tsconfig.json"
+		},
+		{
+			"caseId": "semantic-type-only-import",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-type-alias",
+					"pattern": "\\bDocumentId\\b",
+					"path": "evaluation/fixtures/controlled-typescript/src",
+					"excludePaths": ["evaluation/fixtures/controlled-typescript/src/types/model.ts", "evaluation/fixtures/controlled-typescript/src/types/reexport.ts"],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-invoice-id",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "InvoiceId",
+						"match": "name",
+						"path": "evaluation/fixtures/controlled-typescript/src/types/model.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-invoice-id",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-invoice-id",
+						"path": "evaluation/fixtures/controlled-typescript/src/types/model.ts",
+						"name": "InvoiceId"
+					},
+					"collect": "reference-paths",
+					"followCursor": true,
+					"excludePaths": ["evaluation/fixtures/controlled-typescript/src/types/reexport.ts"]
+				}
+			],
+			"projectFile": "evaluation/fixtures/controlled-typescript/tsconfig.json"
+		},
+		{
+			"caseId": "semantic-default-export",
+			"text": [
+				{
+					"kind": "search",
+					"id": "search-default-import",
+					"pattern": "from\\s+'[^']*clock(?:\\.js)?'",
+					"path": "evaluation/fixtures/controlled-typescript/src/defaults",
+					"excludePaths": ["evaluation/fixtures/controlled-typescript/src/defaults/clock.ts"],
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-default-source",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "default",
+						"match": "name",
+						"path": "evaluation/fixtures/controlled-typescript/src/defaults/clock.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "mcp",
+					"id": "references-default-source",
+					"tool": "find_references",
+					"arguments": {
+						"role": "reference",
+						"limit": 100
+					},
+					"symbolFrom": {
+						"fromStep": "find-default-source",
+						"path": "evaluation/fixtures/controlled-typescript/src/defaults/clock.ts",
+						"name": "default"
+					},
+					"collect": "reference-paths",
+					"followCursor": true
+				}
+			],
+			"projectFile": "evaluation/fixtures/controlled-typescript/tsconfig.json"
+		},
+		{
+			"caseId": "impl-default-result-bytes",
+			"text": [
+				{
+					"kind": "read",
+					"id": "read-config",
+					"path": "src/core/config/config.ts",
+					"collect": true
+				},
+				{
+					"kind": "read",
+					"id": "read-config-test",
+					"path": "test/config.test.ts",
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-config-entry",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "loadConfig",
+						"match": "name",
+						"path": "src/core/config/config.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "read",
+					"id": "read-config",
+					"path": "src/core/config/config.ts",
+					"collect": true
+				},
+				{
+					"kind": "read",
+					"id": "read-config-test",
+					"path": "test/config.test.ts",
+					"collect": true
+				}
+			]
+		},
+		{
+			"caseId": "impl-empty-relative-path",
+			"text": [
+				{
+					"kind": "read",
+					"id": "read-query-support",
+					"path": "src/core/query/querySupport.ts",
+					"collect": true
+				},
+				{
+					"kind": "read",
+					"id": "read-query-support-test",
+					"path": "test/querySupport.test.ts",
+					"collect": true
+				}
+			],
+			"codeindex": [
+				{
+					"kind": "mcp",
+					"id": "find-normalize-path",
+					"tool": "find_symbol",
+					"arguments": {
+						"query": "normalizeRelativePath",
+						"match": "name",
+						"path": "src/core/query/querySupport.ts",
+						"exposure": "any"
+					},
+					"collect": "none"
+				},
+				{
+					"kind": "read",
+					"id": "read-query-support",
+					"path": "src/core/query/querySupport.ts",
+					"collect": true
+				},
+				{
+					"kind": "read",
+					"id": "read-query-support-test",
+					"path": "test/querySupport.test.ts",
+					"collect": true
+				}
+			]
+		}
+	],
+	"contract": {
+		"pagination": {
+			"tool": "find_symbol",
+			"arguments": {
+				"query": "hash",
+				"match": "name",
+				"exposure": "any",
+				"limit": 1
+			},
+			"maxPages": 50
+		},
+		"truncation": {
+			"maxResultBytes": 600,
+			"tool": "find_symbol",
+			"arguments": {
+				"query": "hash",
+				"match": "name",
+				"exposure": "any",
+				"limit": 100
+			}
+		},
+		"staleFile": {
+			"query": "SCHEMA_VERSION",
+			"path": "src/core/storage/schema.ts"
+		},
+		"failure": {
+			"tool": "find_references",
+			"arguments": {
+				"symbolId": "route-probe-unknown-symbol"
+			},
+			"expectedErrorCode": "symbol_not_found"
+		}
+	}
+}

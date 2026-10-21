@@ -846,7 +846,7 @@ only; it neither defines nor reinterprets a gate.
 | Contract obligation | Harness mechanism |
 | --- | --- |
 | G-E0 case, suite, and planned-run validation | Case schema validation, `--list`, and `--dry-run` reject before any model process ([§4](#4-case-schema), [§6](#6-cli-shape)) |
-| G-E1 complete-route comparison | Outside the harness: a model-free script drives the published entry. The harness normalizes and retains the recorded call sequence ([§8.1](#81-workflow-policy)) |
+| G-E1 complete-route comparison | The `route` command drives the published entry through the official MCP client with a declared complete-route plan. It records every call, exact-answer equality, complete-route bytes and time, separated core query time, and contract probes ([§8.1](#81-workflow-policy)) |
 | Gate immutability | Frozen suites reference immutable case hashes; changing a frozen case requires a new suite version ([§3.2](#32-suite)) |
 | Run identity and mismatch invalidation | Run manifest identity; `--resume` matches the complete identity; mismatched revision, model, prompt, bundle, or configuration is rejected ([§6](#6-cli-shape), [§7.3](#73-run-identity-and-resume-equality), [§10](#10-verification)) |
 | Isolation and restoration | Dedicated checkout, ephemeral client state, atomic persistence, restoration after every execution ([§5](#5-isolation), [§5.1](#51-opencode-client-state)) |

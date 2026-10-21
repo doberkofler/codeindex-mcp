@@ -7,6 +7,11 @@ import {campaignStoreRecordOf, clientStoreOf, isolationRecordOf, prepareClientSt
 import {catalogOf} from './mcp.ts';
 import {compare, type ReportMetadataType} from './report.ts';
 import {effectiveValidityOf, readResult, resultPathOf, resumeStateOf, writeJsonAtomic, writeResult, type StoredResultType} from './result.ts';
+import {openMcpSession} from './routeClient.ts';
+import {runContractProbes} from './routeContract.ts';
+import {loadRoutePlan, routePlanHashOf, validateRoutePlan} from './routePlan.ts';
+import {routeReportOf, type RouteCaseReportType} from './routeReport.ts';
+import {ROUTE_TREATMENTS, runRoute, type RouteRunType, type RouteTreatmentType} from './route.ts';
 import {runOnce, withRestoration, type RunArtifactsType, type RunResultType} from './runner.ts';
 import {caseHashOf} from './schema.ts';
 import {loadSuite, planHashOf, planOf, resolveTreatmentOf, selectCases, treatmentIdsOf} from './suite.ts';
@@ -706,11 +711,251 @@ const checkCommand = (flags: Map<string, string[]>): void => {
 	process.stdout.write(`workspaces ready at the pinned subject\n`);
 };
 
+const routeTreatmentIdsOf = (value: string | undefined, treatments: readonly TreatmentDefinitionType[]): readonly RouteTreatmentType[] =>
+	treatmentsOf(value, treatments)
+		.map((treatment) => treatment.id)
+		.filter((id): id is RouteTreatmentType => (ROUTE_TREATMENTS as readonly string[]).includes(id));
+
+const stepSummaryOf = (step: ReturnType<typeof loadRoutePlan>['routes'][number]['codeindex'][number]): string =>
+	step.kind === 'mcp'
+		? `mcp ${step.tool} ${JSON.stringify(step.arguments)}`
+		: step.kind === 'search'
+			? `search ${step.pattern} in ${step.path}`
+			: `read ${step.path}`;
+
+const sessionKeyOf = (treatment: RouteTreatmentType, projectFile: string | undefined): string => `${treatment}::${projectFile ?? ''}`;
+
+const openRouteSession = async (
+	context: ReturnType<typeof workspaceContextOf>,
+	treatment: TreatmentDefinitionType,
+	projectFile: string | undefined,
+): Promise<Awaited<ReturnType<typeof openMcpSession>>> =>
+	openMcpSession({
+		entryPoint: context.artifactPath(treatment),
+		cwd: context.workspacePath(treatment.id),
+		...(projectFile === undefined ? {} : {env: {CODE_INDEX_PROJECT_FILE: projectFile}}),
+	});
+
+const routeOutputOf = (flags: Map<string, string[]>, suiteId: string, planHash: string): string => {
+	const explicit = flagOf(flags, 'output');
+
+	if (explicit !== undefined) {
+		return path.resolve(evaluationRoot, explicit);
+	}
+
+	const stamp = new Date().toISOString().replaceAll(/[:.]/gu, '-');
+
+	return path.join(evaluationRoot, 'results', 'route', `${suiteId}-${planHash.slice(0, 16)}-${stamp}`);
+};
+
+const routeCommand = async (flags: Map<string, string[]>): Promise<void> => {
+	const suitePath = flagOf(flags, 'suite');
+
+	if (suitePath === undefined) {
+		throw new Error('--suite is required');
+	}
+
+	const {suite, cases} = loadSuite(path.resolve(evaluationRoot, suitePath));
+	const planPath = path.resolve(evaluationRoot, flagOf(flags, 'plan') ?? path.join('routes', `${suite.id}.json`));
+	const plan = loadRoutePlan(planPath);
+
+	validateRoutePlan(plan, suite, cases);
+
+	const selected = selectCases(cases, {caseIds: allOf(flags, 'case'), tags: allOf(flags, 'tag')});
+	const routes = new Map(plan.routes.map((route) => [route.caseId, route]));
+	const treatmentIds = routeTreatmentIdsOf(flagOf(flags, 'treatment'), suite.treatments);
+	const planHash = routePlanHashOf(plan);
+
+	process.stdout.write(`route plan ${plan.id} ${planHash}\n`);
+	process.stdout.write(`suite ${suite.id} v${suite.version} (${suite.status}) revision ${suite.revision}\n`);
+	process.stdout.write(`treatments ${treatmentIds.join(', ')}\n`);
+
+	if (flags.has('dry-run')) {
+		for (const testCase of selected) {
+			const route = routes.get(testCase.id);
+
+			if (route === undefined) {
+				throw new Error(`no route declared for ${testCase.id}`);
+			}
+
+			process.stdout.write(`  ${testCase.id}\n`);
+			process.stdout.write(`    text: ${route.text.map((step) => stepSummaryOf(step)).join(' -> ')}\n`);
+			process.stdout.write(`    codeindex: ${route.codeindex.map((step) => stepSummaryOf(step)).join(' -> ')}\n`);
+		}
+
+		return;
+	}
+
+	const treatments = treatmentsOf(flagOf(flags, 'treatment'), suite.treatments);
+	const settings = settingsOf();
+	const subject = subjectIdentityOf(settings.subjectRepo, suite.revision);
+	const context = workspaceContextOf(evaluationRoot, {subjectRepo: settings.subjectRepo, subject});
+
+	ensureWorkspaces(context, treatments);
+
+	const artifacts = new Map<TreatmentIdType, ArtifactIdentityType | null>();
+
+	for (const treatment of treatments) {
+		artifacts.set(treatment.id, treatment.artifact === null ? null : artifactIdentityOf(context.artifactRoot(treatment), treatment));
+	}
+
+	const sessions = new Map<string, Awaited<ReturnType<typeof openMcpSession>>>();
+	const runs: RouteRunType[] = [];
+	const contract: Partial<Record<'accepted' | 'candidate', Awaited<ReturnType<typeof runContractProbes>>>> = {};
+
+	try {
+		for (const treatment of treatments) {
+			if (treatment.kind === 'no-index') {
+				continue;
+			}
+
+			const session = await openRouteSession(context, treatment, undefined);
+
+			process.stderr.write(`artifact ${treatment.id} ${session.serverName} ${session.serverVersion} startup ${session.startupMs.toFixed(0)} ms\n`);
+			sessions.set(sessionKeyOf(treatment.id as RouteTreatmentType, undefined), session);
+		}
+
+		for (const testCase of selected) {
+			const route = routes.get(testCase.id);
+
+			if (route === undefined) {
+				throw new Error(`no route declared for ${testCase.id}`);
+			}
+
+			for (const treatment of treatmentIds) {
+				const definition = treatments.find((item) => item.id === treatment);
+				const key = sessionKeyOf(treatment, route.projectFile);
+				let client = treatment === 'no-index' ? null : (sessions.get(key) ?? null);
+
+				if (treatment !== 'no-index' && client === null && definition !== undefined) {
+					client = await openRouteSession(context, definition, route.projectFile);
+					sessions.set(key, client);
+					process.stderr.write(
+						`${treatment} project ${route.projectFile ?? 'root'} ${client.serverName} ${client.serverVersion} startup ${client.startupMs.toFixed(0)} ms\n`,
+					);
+				}
+
+				const run = await runRoute({
+					caseId: testCase.id,
+					treatment,
+					steps: treatment === 'no-index' ? route.text : route.codeindex,
+					workspace: context.workspacePath(treatment),
+					expectedFiles: testCase.expectedFiles,
+					client,
+					awaitIndexReady: treatment !== 'no-index',
+				});
+
+				runs.push(run);
+				process.stderr.write(
+					`${testCase.id} ${treatment} ${run.valid && run.exact ? 'exact' : 'MISS'} calls ${run.metrics.callCount} bytes ${run.metrics.responseBytes} core ${run.metrics.coreMs.state}${run.defects.length === 0 ? '' : ` (${run.defects.join('; ')})`}\n`,
+				);
+			}
+		}
+
+		for (const treatment of treatments) {
+			if (treatment.kind === 'no-index' || !treatmentIds.includes(treatment.id as RouteTreatmentType)) {
+				continue;
+			}
+
+			const session = sessions.get(sessionKeyOf(treatment.id as RouteTreatmentType, undefined));
+
+			if (session === undefined) {
+				continue;
+			}
+
+			const treatmentId = treatment.id as 'accepted' | 'candidate';
+			const probes = await runContractProbes({
+				session,
+				openSession: (env) =>
+					openMcpSession({
+						entryPoint: context.artifactPath(treatment),
+						cwd: context.workspacePath(treatment.id),
+						env,
+					}),
+				workspace: context.workspacePath(treatment.id),
+				plan: plan.contract,
+				restore: () => {
+					const restored = restoreWorkspace(context, treatment);
+
+					if (!restored.restored) {
+						throw new Error(`failed to restore ${treatment.id} after the stale-file probe: ${restored.reason ?? 'unknown reason'}`);
+					}
+				},
+			});
+
+			contract[treatmentId] = probes;
+			process.stderr.write(`${treatment.id} contract ${probes.map((probe) => `${probe.kind}=${probe.result}`).join(' ')}\n`);
+		}
+	} finally {
+		for (const session of sessions.values()) {
+			await session.close();
+		}
+	}
+
+	const routeCases: RouteCaseReportType[] = selected.map((testCase) => {
+		const byTreatment: Partial<Record<RouteTreatmentType, RouteRunType>> = {};
+
+		for (const treatment of treatmentIds) {
+			const run = runs.find((item) => item.caseId === testCase.id && item.treatment === treatment);
+
+			if (run !== undefined) {
+				byTreatment[treatment] = run;
+			}
+		}
+
+		return {
+			caseId: testCase.id,
+			class: testCase.class,
+			expectedFiles: testCase.expectedFiles,
+			treatments: byTreatment,
+			answerEquality: treatmentIds.every((treatment) => byTreatment[treatment]?.valid === true && byTreatment[treatment]?.exact === true),
+		};
+	});
+	const report = routeReportOf({
+		generatedAt: new Date().toISOString(),
+		suite: {id: suite.id, version: suite.version, status: suite.status, hash: suite.hash, revision: suite.revision},
+		plan: {id: plan.id, hash: planHash},
+		subject: {mode: subject.mode, revision: subject.revision, contentManifestHash: subject.contentManifestHash},
+		artifacts: {
+			accepted: artifactRefOf(artifacts.get('accepted') ?? null),
+			candidate: artifactRefOf(artifacts.get('candidate') ?? null),
+		},
+		cases: routeCases,
+		runs,
+		contract,
+		treatments: treatmentIds,
+	});
+	const output = routeOutputOf(flags, suite.id, planHash);
+
+	writeJsonAtomic(path.join(output, 'report.json'), report);
+	process.stdout.write(`report ${path.join(output, 'report.json')}\n`);
+
+	for (const treatment of treatmentIds) {
+		const summary = report.summaries[treatment];
+
+		if (summary === undefined) {
+			continue;
+		}
+
+		process.stdout.write(
+			`${treatment.padEnd(9)} exact ${summary.exactCount}/${summary.caseCount}  calls ${summary.medianCallCount.toFixed(1)}  bytes ${summary.medianResponseBytes.toFixed(0)}  elapsed ${summary.medianElapsedMs.toFixed(0)} ms  core ${summary.coreMs.state}${summary.coreMs.value === null ? '' : ` ${summary.coreMs.value.toFixed(0)} ms`}\n`,
+		);
+	}
+
+	for (const gate of report.gates) {
+		process.stdout.write(`${gate.result.toUpperCase()} ${gate.id} (${gate.detail})\n`);
+	}
+
+	process.stdout.write(`E1 ${report.passed ? 'PASSED' : 'NOT PASSED'}\n`);
+};
+
 const {command, flags} = argsOf(process.argv.slice(2));
 
 try {
 	if (command === 'evaluate') {
 		await evaluateCommand(flags);
+	} else if (command === 'route') {
+		await routeCommand(flags);
 	} else if (command === 'report') {
 		reportCommand(flags);
 	} else if (command === 'check') {
@@ -719,7 +964,7 @@ try {
 		listCommand(flags);
 	} else {
 		process.stdout.write(
-			'usage: cli.ts <evaluate|report|check|list> --suite <path> [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path]\n',
+			'usage: cli.ts <evaluate|route|report|check|list> --suite <path> [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
 		);
 		process.exitCode = command === 'help' ? 0 : 2;
 	}

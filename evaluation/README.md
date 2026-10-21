@@ -11,6 +11,7 @@ The method is specified in
 | `fixtures/` | Reviewed disposable workspaces used by controlled cases |
 | `suites/` | Public suite manifests |
 | `corpora/` | Pinned corpus manifests, including the selected external repository |
+| `routes/` | Declared complete-route plans for model-free E1 comparison |
 | `audits/` | Recorded E0 case and truth review notes |
 | `reports/` | Reviewed aggregate reports safe for publication |
 
@@ -46,6 +47,21 @@ implementation cases. Every case is pinned by SHA-256 in
 [`suites/release.json`](suites/release.json). The freeze record, revision, corpus
 manifests, pattern coverage, and expected runtime are in
 [`audits/frozen-suite-e0.md`](audits/frozen-suite-e0.md).
+
+The model-free complete-route comparison for the frozen release suite is run
+with the published accepted and candidate artifacts staged:
+
+```bash
+node evaluation/harness/src/cli.ts route --suite suites/release.json --dry-run
+node evaluation/harness/src/cli.ts route --suite suites/release.json
+```
+
+The route plan in [`routes/codeindex-release.json`](routes/codeindex-release.json)
+declares the complete minimum no-index, accepted, and candidate route for every
+case. The command starts no model, compares exact answers, records complete-route
+calls, bytes, elapsed time, and server-reported core query time, and runs
+pagination, truncation, stale-file, and failure probes against each artifact.
+Its report is written under `results/route/`, which is never committed.
 
 The frozen six-case calibration subset is listed and validated with:
 
