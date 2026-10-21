@@ -1,0 +1,7 @@
+{
+	"name": "controlled-typescript-semantic-fixture",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Reviewed disposable fixture for controlled TypeScript semantic evaluation cases.",
+	"type": "module"
+}

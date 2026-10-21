@@ -1,0 +1,57 @@
+{
+	"schemaVersion": 2,
+	"id": "controlled-typescript-semantic",
+	"version": 1,
+	"status": "draft",
+	"revision": "HEAD",
+	"model": "deepseek/deepseek-flash",
+	"repetitions": 1,
+	"treatments": [
+		{
+			"id": "no-index",
+			"kind": "no-index",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": null,
+			"mcp": null
+		},
+		{
+			"id": "accepted",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-accepted",
+				"root": "artifacts/accepted",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		},
+		{
+			"id": "candidate",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-candidate",
+				"root": "artifacts/candidate",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		}
+	],
+	"cases": [
+		"semantic-renamed-reexport",
+		"semantic-barrel-chain",
+		"semantic-shadowed-name",
+		"semantic-interface-implementations",
+		"semantic-type-only-import",
+		"semantic-default-export"
+	]
+}

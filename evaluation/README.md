@@ -8,6 +8,7 @@ The method is specified in
 | --- | --- |
 | `harness/` | Runner, schemas, isolation, normalization, grading, and reporting code |
 | `cases/` | Public synthetic and repository cases with exact ground truth |
+| `fixtures/` | Reviewed disposable workspaces used by controlled cases |
 | `suites/` | Public suite manifests |
 | `audits/` | Recorded E0 case and truth review notes |
 | `reports/` | Reviewed aggregate reports safe for publication |
@@ -30,6 +31,13 @@ pnpm eval:check --dry-run
 pnpm eval:evaluate --case locate-schema-version --treatment candidate --repetitions 1
 pnpm eval:report
 pnpm eval:verify
+```
+
+The draft controlled semantic suite is listed with:
+
+```bash
+node evaluation/harness/src/cli.ts list --suite suites/semantic.json
+node evaluation/harness/src/cli.ts evaluate --suite suites/semantic.json --dry-run
 ```
 
 The subject defaults to this repository root. Override it with

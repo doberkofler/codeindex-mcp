@@ -1,0 +1,24 @@
+{
+	"schemaVersion": 1,
+	"id": "semantic-interface-implementations",
+	"title": "Contract implementations",
+	"class": "semantic",
+	"tags": ["semantic", "interface-implementations"],
+	"prompt": "In the controlled fixture under evaluation/fixtures/controlled-typescript, which files declare a class that implements the PaymentGateway contract declared in src/contracts/gateway.ts? Exclude the contract declaration file and files that only reference the contract type. List every implementing file under evaluation/fixtures/controlled-typescript/src/ and nothing else.",
+	"scope": ["evaluation/fixtures/controlled-typescript/src/**"],
+	"expectedFiles": [
+		"evaluation/fixtures/controlled-typescript/src/contracts/invoiceGateway.ts",
+		"evaluation/fixtures/controlled-typescript/src/contracts/stripeGateway.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": [
+		"evaluation/fixtures/controlled-typescript/src/contracts/gateway.ts",
+		"evaluation/fixtures/controlled-typescript/src/contracts/registry.ts"
+	],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

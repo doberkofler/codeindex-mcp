@@ -1,0 +1,21 @@
+{
+	"schemaVersion": 1,
+	"id": "semantic-default-export",
+	"title": "Default export consumers",
+	"class": "semantic",
+	"tags": ["semantic", "default-export"],
+	"prompt": "In the controlled fixture under evaluation/fixtures/controlled-typescript, which files use the class exported by default from src/defaults/clock.ts under any local import name? Exclude the declaration file. List every referencing file under evaluation/fixtures/controlled-typescript/src/ and nothing else.",
+	"scope": ["evaluation/fixtures/controlled-typescript/src/**"],
+	"expectedFiles": [
+		"evaluation/fixtures/controlled-typescript/src/defaults/firstConsumer.ts",
+		"evaluation/fixtures/controlled-typescript/src/defaults/secondConsumer.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": ["evaluation/fixtures/controlled-typescript/src/defaults/clock.ts"],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

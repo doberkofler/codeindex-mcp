@@ -1,0 +1,23 @@
+{
+	"schemaVersion": 1,
+	"id": "semantic-barrel-chain",
+	"title": "Multi-hop barrel chain consumer",
+	"class": "semantic",
+	"tags": ["semantic", "barrel-chain"],
+	"prompt": "In the controlled fixture under evaluation/fixtures/controlled-typescript, which file reads the value declared as pipelineLimit in src/barrels/deep/value.ts after it passes through the barrel chain that renames it to maximumPipeline? Exclude the declaration file and every barrel file. List every referencing file under evaluation/fixtures/controlled-typescript/src/ and nothing else.",
+	"scope": ["evaluation/fixtures/controlled-typescript/src/**"],
+	"expectedFiles": ["evaluation/fixtures/controlled-typescript/src/barrels/consumer.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [
+		"evaluation/fixtures/controlled-typescript/src/barrels/deep/value.ts",
+		"evaluation/fixtures/controlled-typescript/src/barrels/levelOne.ts",
+		"evaluation/fixtures/controlled-typescript/src/barrels/levelTwo.ts",
+		"evaluation/fixtures/controlled-typescript/src/barrels/index.ts"
+	],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

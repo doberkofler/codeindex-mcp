@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "semantic-type-only-import",
+	"title": "Type-only import through a renamed type",
+	"class": "semantic",
+	"tags": ["semantic", "type-only-import"],
+	"prompt": "In the controlled fixture under evaluation/fixtures/controlled-typescript, which file uses the invoice identifier type declared as InvoiceId in src/types/model.ts through the type-only re-export alias DocumentId in src/types/reexport.ts? Exclude the declaration and re-export files. List every referencing file under evaluation/fixtures/controlled-typescript/src/ and nothing else.",
+	"scope": ["evaluation/fixtures/controlled-typescript/src/**"],
+	"expectedFiles": ["evaluation/fixtures/controlled-typescript/src/types/consumer.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": ["evaluation/fixtures/controlled-typescript/src/types/model.ts", "evaluation/fixtures/controlled-typescript/src/types/reexport.ts"],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

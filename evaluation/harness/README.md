@@ -549,6 +549,17 @@ the per-case review is recorded in
 file-identification descriptors until bounded change cases with post-run checks
 replace them; the suite is not ready to freeze.
 
+The draft controlled semantic suite [`../suites/semantic.json`](../suites/semantic.json)
+adds six `semantic` cases over the reviewed disposable fixture at
+[`../fixtures/controlled-typescript`](../fixtures/controlled-typescript/README.md).
+They cover renamed re-exports, a multi-hop barrel chain, shadowed common names,
+contract implementations, a type-only import through a renamed type, and default
+export consumers. The suite declares revision `HEAD` while draft; the final suite
+freeze must replace it with an immutable commit. `src/semantic.test.ts` verifies
+each expected set against the TypeScript language service and measures literal
+search admission. The review is recorded in
+[`../audits/semantic-e0.md`](../audits/semantic-e0.md).
+
 ## Model
 
 `deepseek/deepseek-flash`: paid endpoint of the same model family, reports exact

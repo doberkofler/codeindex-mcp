@@ -1,0 +1,22 @@
+{
+	"schemaVersion": 1,
+	"id": "semantic-shadowed-name",
+	"title": "Shadowed common type name",
+	"class": "semantic",
+	"tags": ["semantic", "shadowed-name"],
+	"prompt": "In the controlled fixture under evaluation/fixtures/controlled-typescript, which file uses the Node type declared in src/shadow/first.ts without confusing it with the different Node type declared in src/shadow/second.ts? Exclude both declaration files. List every referencing file under evaluation/fixtures/controlled-typescript/src/ and nothing else.",
+	"scope": ["evaluation/fixtures/controlled-typescript/src/**"],
+	"expectedFiles": ["evaluation/fixtures/controlled-typescript/src/shadow/firstConsumer.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [
+		"evaluation/fixtures/controlled-typescript/src/shadow/first.ts",
+		"evaluation/fixtures/controlled-typescript/src/shadow/second.ts",
+		"evaluation/fixtures/controlled-typescript/src/shadow/secondConsumer.ts"
+	],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

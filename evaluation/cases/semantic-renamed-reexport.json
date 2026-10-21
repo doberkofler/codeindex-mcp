@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "semantic-renamed-reexport",
+	"title": "Renamed re-export consumer",
+	"class": "semantic",
+	"tags": ["semantic", "renamed-reexport"],
+	"prompt": "In the controlled fixture under evaluation/fixtures/controlled-typescript, which file calls the function declared as createProfile in src/renamed/source.ts through its renamed re-export createIdentity? Exclude the declaration file and the re-exporting file. List every referencing file under evaluation/fixtures/controlled-typescript/src/ and nothing else.",
+	"scope": ["evaluation/fixtures/controlled-typescript/src/**"],
+	"expectedFiles": ["evaluation/fixtures/controlled-typescript/src/renamed/consumer.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": ["evaluation/fixtures/controlled-typescript/src/renamed/source.ts", "evaluation/fixtures/controlled-typescript/src/renamed/index.ts"],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}
