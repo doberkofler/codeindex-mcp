@@ -90,16 +90,20 @@ two-call workflow existed in `v0.5.0`; the richer redesign payload amplified its
       items drop next; totals remain; cursor resumes without duplicates or gaps.
 - [ ] MCP protocol tests for schemas, discriminants, structured errors, and compact
       `index_status`.
-- [ ] Run only four executions: two impact cases, one repetition, both arms.
-- [ ] Proceed to Q2 v5 only when each indexed impact answer is correct, needs at most two
-      calls, is smaller than grep, and is no slower than baseline.
+- [ ] Run only four local-model executions: two impact cases, one repetition, accepted
+      and candidate CodeIndex treatments. Run complete model-free no-index, accepted, and
+      candidate routes before these calls.
+- [ ] Proceed to the full three-treatment campaign only when each candidate impact answer
+      is correct, improves the predeclared target workflow, and regresses no observed
+      metric.
 
 ## Track B: repair and strengthen the evaluation harness
 
-- [ ] Store the exact tool-name list presented to the model for each arm.
+- [ ] Store the exact tool-name list presented to the model for each treatment.
 - [ ] Store turn-one token accounting separately from later tool-result turns.
-- [ ] Invalidate a run when arms differ in any tool except the intended CodeIndex tools.
-- [ ] Remove generic `execute` from both arms, or keep it identical and report every
+- [ ] Invalidate a run when ordinary tools differ across treatments; accepted and
+      candidate differ only by the CodeIndex artifact, and no-index omits CodeIndex.
+- [ ] Remove generic `execute` from every treatment, or keep it identical and report every
       `Unknown tool` outcome. Native `codeindex_*` routing remains mandatory.
 - [ ] Grade the exact expected file set. Extra files fail unless listed as explicit
       `contextFiles`; define and bound that allowance before adding cases.
@@ -116,7 +120,8 @@ two-call workflow existed in `v0.5.0`; the richer redesign payload amplified its
       class-confounded.
 - [ ] Keep the gate token metric as uncached input + output + reasoning. Report cache-read
       tokens and cost separately.
-- [ ] Run Q2 v5 only after Track A's four-execution gate passes.
+- [ ] Run the full Q2 v5 three-treatment campaign only after Track A's model-free and
+      four-execution gates pass.
 
 ## Track C: establish the old-versus-new TypeScript baseline
 

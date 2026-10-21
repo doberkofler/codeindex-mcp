@@ -306,6 +306,8 @@ verify, benchmark, and qualification operations.
 - [Roadmap](./documentation/roadmap.md)
 - [Maintainer guide](./documentation/maintainer-guide.md)
 - [User guide](./documentation/user-guide.md)
+- [MCP evaluation strategy](./documentation/mcp-evaluation-strategy.md)
+- [Codebase testing strategy](./documentation/codebase-testing-strategy.md)
 - [Evaluation harness methodology](./documentation/evaluation-harness.md)
 
 ## Development

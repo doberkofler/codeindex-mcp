@@ -1,19 +1,47 @@
 # Controlled Evaluation Harness
 
 **Status:** proposed methodology
-**Scope:** repeatable comparisons of agent work with and without the code index
+**Scope:** repeatable comparisons of agent work without CodeIndex, with the accepted
+CodeIndex artifact, and with a candidate artifact
+
+This document owns harness mechanics. The
+[MCP evaluation strategy](./mcp-evaluation-strategy.md) owns product questions, test
+data, metrics, gates, local-model use, and evaluation cadence.
 
 This document describes an evaluation method, not a shipped component. The
 public package contains no corpus, grading data, model transcripts, or runner.
 A private harness may implement this method while launching the installed MCP
 executable.
 
+## Scope and claim boundary
+
+The [MCP evaluation strategy](./mcp-evaluation-strategy.md) owns product questions,
+test data, metrics, gates, local-model use, claim authority, and evaluation cadence.
+This section repeats the strategy's scope statement because it constrains every harness
+run.
+
+The following statement is repeated verbatim from the strategy and is normative here:
+
+> **Evaluation v1 scope.** Evaluation v1 covers only the TypeScript/JavaScript
+> adapter, using the TypeScript language service or a reviewed source manifest as
+> the ground-truth authority. Oracle, PL/SQL, ORDS, drift, cross-language impact,
+> and every other adapter are out of scope. TypeScript evidence must not be
+> pooled with, or generalized to, another adapter, language, or repository
+> population.
+
+Evaluation v1 harness runs use the TypeScript/JavaScript adapter only. External
+database systems ([§5.2](#52-external-systems)) and the non-TypeScript rows in
+[§8.2](#82-adapter-specific-case-classes) are deferred reference material; they are
+not v1 acceptance evidence. Harness results carry the claim class defined in
+[strategy §1.2](./mcp-evaluation-strategy.md#12-claim-authority): local runs are
+local-model-scoped, and only a hosted campaign can support a release claim.
+
 ## 1. Decision
 
 Use a case-oriented harness rather than ad-hoc prompts. Keep workspace
 isolation, event capture, exact token accounting, grading, restoration, resume
 support, and immutable result directories. Add declarative cases, individual
-selection, per-case gates, configurable arms, and a fast diagnosis loop.
+selection, per-case gates, configurable treatments, and a fast diagnosis loop.
 
 Do not build a second runner. The harness must invoke the production MCP entry,
 not import implementation internals.
@@ -26,15 +54,15 @@ The harness must:
 - validate and list cases before starting a model run;
 - run one case, a tagged subset, or a complete suite;
 - compare the same prompt, model, revision, permissions, and repetition
-  schedule across arms;
+  schedule across treatments;
 - capture exact model input/output tokens, wall time, tool calls, tool output
   bytes, errors, final answer, and correctness;
 - enforce workflow gates such as maximum calls, forbidden broad searches,
   required first tool, or maximum index bytes;
 - preserve raw events so every aggregate can be audited and recalculated;
-- restore the dedicated checkout after every arm and repetition;
+- restore the dedicated checkout after every treatment and repetition;
 - resume interrupted runs without mixing incompatible suite, model, revision,
-  arm, or harness versions;
+  treatment, or harness versions;
 - support one-case, one-repetition diagnosis before a full comparison.
 
 The harness does not infer token counts from bytes. A run requiring token metrics
@@ -42,7 +70,7 @@ is invalid when the client does not emit usage. It also does not use MCP analyti
 as a substitute for the full agent event stream, because MCP cannot observe
 fallback tools or model turns.
 
-## 3. Cases, suites, and arms
+## 3. Cases, suites, and treatments
 
 ### 3.1 Case
 
@@ -66,24 +94,26 @@ A suite is a versioned manifest containing:
 - optional VCS revision;
 - default model and repetitions;
 - ordered case-file references;
-- arm definitions;
+- treatment definitions;
 - harness and MCP artifact identities.
 
 Frozen suites reference immutable case hashes. Changing a frozen case requires a
 new suite version, not an in-place edit.
 
-### 3.3 Arm
+### 3.3 Treatment
 
-An arm defines one treatment. At minimum:
+A treatment defines one controlled execution environment. User-visible CodeIndex
+changes use three treatments:
 
-| Arm | Setup |
+| Treatment | Setup |
 | --- | --- |
-| baseline | Current tools and instructions, index tools denied |
-| indexed | Baseline plus index tools allowed |
+| no-index | Normal repository tools; index tools denied |
+| accepted | Normal tools plus the currently accepted CodeIndex artifact |
+| candidate | Normal tools plus the candidate CodeIndex artifact |
 
-Additional arms may add a lexical-search adapter, a CLI-only treatment, or a
-different instruction set. Arm definitions are data and must record every
-difference that could affect the result.
+Every treatment inspects the same pinned subject revision. Accepted and candidate differ
+only in the CodeIndex artifact and its resulting MCP interface. Treatment definitions are
+data and record every difference that could affect the result.
 
 Workflow compliance and answer correctness are separate results. A correct answer
 that exceeds a tool budget fails the workflow gate but keeps its correctness
@@ -117,7 +147,7 @@ Each execution uses a dedicated checkout:
 1. Resolve the suite revision.
 2. Verify the checkout is clean and at exactly that revision.
 3. Verify the MCP artifact and required dependencies.
-4. Write one isolated agent configuration for the selected arm.
+4. Write one isolated agent configuration for the selected treatment.
 5. Run the agent with the case prompt.
 6. Capture events, stderr, status, timeout, and wall time.
 7. Grade correctness and workflow.
@@ -127,12 +157,49 @@ Each execution uses a dedicated checkout:
 If no VCS is available, use a disposable copy and a content manifest instead of a
 revision. Record which isolation mode was used.
 
-### 5.1 External systems
+### 5.1 OpenCode client state
+
+Evaluation executions must never write to the operator's normal OpenCode session store.
+Start every agent process with a private server and an ephemeral database:
+
+```bash
+OPENCODE_DB=:memory: opencode run --standalone \
+	--model <pinned-model> --format json "<case prompt>"
+```
+
+- `--standalone` keeps the execution off the shared background service, so it cannot
+  observe or contend with an ordinary session.
+- `OPENCODE_DB=:memory:` keeps sessions, messages, and tool events out of
+  `~/.local/share/opencode/opencode.db`. Every execution starts with no prior session
+  and leaves no session for the operator to see or delete.
+- The treatment configuration from step 4 supplies the MCP server and tool policy, so
+  the isolated server needs no project-local `.opencode` edit.
+
+These settings apply to every treatment, case, and repetition. Evidence must be captured
+from the process stream before the standalone server exits, because an in-memory
+database cannot be inspected afterwards.
+
+When a suite requires a persistent execution store for resume or post-run inspection,
+use one campaign-local database outside the normal data directory, record its path in
+the run manifest, and delete it when the campaign completes. Never point `OPENCODE_DB` at
+the default location.
+
+Deleting sessions after a run is not a substitute for isolation: a full campaign would
+still expose every execution in the session list while it runs.
+
+Sessions recorded before this rule are removed with `opencode session delete <sessionID>`
+or `DELETE /api/session/{sessionID}` after filtering by the evaluation workspace
+directory. Never edit the session database directly.
+
+### 5.2 External systems
+
+**Deferred beyond v1.** This section defines future adapter requirements. Evaluation v1
+does not use databases, ORDS, PL/SQL, or cross-language cases.
 
 Cases requiring a database or routing service use disposable development fixtures
 or read-only snapshots. A suite records database/ORDS version, schema fixture
 identity, adapter privilege mode, configuration digest, and PL/Scope settings.
-Baseline and indexed arms must observe equivalent external state.
+All treatments must observe equivalent external state.
 
 Never point evaluation at production. Restoration must remove fixture mutations
 made by the task runner and verify object validity before the next run. The index
@@ -148,17 +215,17 @@ node dist/evaluation.mjs evaluate --suite evaluation/suites/example.json --list
 node dist/evaluation.mjs evaluate --suite evaluation/suites/example.json \
 	--case dependency-usage --dry-run
 
-# Fast diagnosis: one case, one arm, one repetition
+# Fast diagnosis: one case, one treatment, one repetition
 node dist/evaluation.mjs evaluate --suite evaluation/suites/example.json \
-	--case dependency-usage --arm indexed --repetitions 1
+	--case dependency-usage --treatment candidate --repetitions 1
 
 # Controlled comparison
 node dist/evaluation.mjs evaluate --suite evaluation/suites/example.json \
-	--case dependency-usage --arm both --repetitions 5
+	--case dependency-usage --treatment all --repetitions 5
 
 # Tagged subset
 node dist/evaluation.mjs evaluate --suite evaluation/suites/example.json \
-	--tag compact-output --arm both
+	--tag compact-output --treatment all
 ```
 
 Selection rules:
@@ -168,15 +235,16 @@ Selection rules:
 - case and tag filters combine by intersection;
 - an empty selection is an error;
 - `--list` and `--dry-run` start no model process;
-- `--resume` matches the complete run identity, not only case/arm/repetition.
+- `--resume` matches the complete run identity, not only
+  case/treatment/repetition.
 
 ## 7. Result contract
 
 Write one immutable JSON result per execution plus a run manifest.
 
 The manifest records suite and case hashes, optional revision, model, agent
-version, MCP artifact hash, Node/platform identity, selected arms, repetitions,
-and harness schema version.
+version, MCP artifact hashes, Node/platform identity, selected treatments,
+repetitions, and harness schema version.
 
 Each result records:
 
@@ -190,7 +258,7 @@ Each result records:
 - process exit, timeout, and post-run check result.
 
 Reports provide per-run values and, when repetitions permit, median, p95, range,
-and paired arm delta. Never report a percentile from one observation without the
+and paired treatment delta. Never report a percentile from one observation without the
 sample count.
 
 A case is promotable only when every correctness run passes and its configured
@@ -245,6 +313,10 @@ results.
 
 ### 8.2 Adapter-specific case classes
 
+**v1 admits only the TypeScript language-navigation and dependency usage/impact rows.**
+The remaining rows are deferred requirements for future adapters and must not be
+presented as v1 coverage or pooled with TypeScript results.
+
 The corpus should grow one independently runnable case at a time:
 
 | Class | Required ground truth |
@@ -274,7 +346,7 @@ Split responsibilities while retaining one public command:
 | --- | --- |
 | Suite loader | Load, validate, hash, and resolve suites and case references |
 | Case schema | Case selection and versioning |
-| Arms | Arm definitions and treatment-equivalence checks |
+| Treatments | Treatment definitions and equivalence checks |
 | Runner | Plan ordering, isolated execution, restoration, resume |
 | Events | Parse agent events and expose token availability |
 | Tool calls | Normalize top-level and nested calls |
@@ -301,14 +373,17 @@ Unit tests:
 
 Integration tests use temporary fixture workspaces:
 
-- one selected case invokes exactly the planned arm/repetition set;
+- one selected case invokes exactly the planned treatment/repetition set;
 - interruption followed by `--resume` neither repeats nor skips work;
 - edits from one run cannot reach the next run;
 - mismatched revision, model, prompt, bundle, or configuration is rejected;
 - timeout and malformed events create inspectable failed results;
-- `--list` and `--dry-run` start no MCP or agent process.
+- `--list` and `--dry-run` start no MCP or agent process;
+- a successful, failed, or timed-out execution leaves the normal OpenCode session
+  database unchanged;
+- an execution starts without a session inherited from a previous repetition;
 - mismatched database/ORDS fixture identity is rejected;
-- arms observing different external-system snapshots are rejected;
+- treatments observing different external-system snapshots are rejected;
 - cleanup detects invalid or unexpected database objects.
 
 Acceptance requires one real draft case run through the production MCP entry. Do
@@ -320,10 +395,10 @@ not freeze a case from mocked event streams alone.
    explicit gates.
 2. Add it to one draft suite at a pinned revision.
 3. Run `--list` and `--dry-run`; resolve every validation warning.
-4. Run the indexed arm once for diagnosis.
+4. Run the candidate treatment once for diagnosis.
 5. Fix the product, instructions, case, or checks according to the raw trace; do
    not weaken a gate to obtain green output.
-6. Run both arms with the suite's repetition count.
+6. Run all required treatments with the suite's repetition count.
 7. Inspect raw traces and the paired report.
 8. Freeze the case only when correctness and workflow results are stable and the
    baseline remains a fair comparison.
