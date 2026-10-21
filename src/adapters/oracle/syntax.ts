@@ -125,6 +125,12 @@ export type OracleReferenceSiteType = Readonly<{
 	statementCall?: boolean | undefined;
 	/** Syntactic usage bit before OUT-argument refinement. */
 	usage?: number | undefined;
+	/**
+	 * Present on a `BULK COLLECT INTO` marker: the number of selected items, or
+	 * `null` when every field of the target record is assigned. The marker is
+	 * not emitted itself; the resolver expands it into one write per field.
+	 */
+	bulkFields?: number | null | undefined;
 }>;
 
 export type OracleDependencySiteType = Readonly<{

@@ -1,6 +1,6 @@
 import {ORACLE_DIAGNOSTIC} from './diagnostics.ts';
 import {typeReferencesOf} from './referenceArguments.ts';
-import {namePartOf} from './name.ts';
+import {namePartOf, splitObjectName} from './name.ts';
 import {
 	addParameters,
 	parseCursorDeclaration,
@@ -16,7 +16,6 @@ import {
 	rangeOf,
 	recoverMember,
 	recoverTopLevel,
-	splitObjectName,
 	statementEnd,
 	warnAt,
 	type OracleParserStateType,
@@ -183,6 +182,14 @@ class OracleDeclarationParser {
 		this.#updateRange(declarationIndex, unitIndex, unitStart, statementEnd(end.nextIndex));
 
 		if (end.bodyStart !== undefined) {
+			parseNestedBlockDeclarations({
+				state: this.#state,
+				start: this.#state.cursor.next(end.bodyStart),
+				end: end.endIndex,
+				parent: declarationIndex,
+				unit: unitIndex,
+				parseMember: (memberCursor, memberParent, memberUnit, memberExported) => this.#parseMember(memberCursor, memberParent, memberUnit, memberExported),
+			});
 			collectReferences({state: this.#state, start: this.#state.cursor.next(end.bodyStart), end: end.endIndex, enclosing: declarationIndex, unit: unitIndex});
 		}
 

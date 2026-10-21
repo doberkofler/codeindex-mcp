@@ -1,3 +1,5 @@
+import {type OracleNameReadType} from './tokenCursor.ts';
+
 export type OracleNamePartType = Readonly<{
 	/** Authored spelling, including quotes for delimited identifiers. */
 	text: string;
@@ -63,3 +65,17 @@ export const oracleNameOf = (input: Readonly<{parts: readonly OracleNamePartType
  * @returns The canonical schema identifier.
  */
 export const defaultSchemaName = (schema: string): string => namePartOf(schema.trim()).canonical;
+
+/**
+ * Splits an authored object name into its schema and object parts.
+ *
+ * @param name - Authored qualified name.
+ * @param defaultSchema - Schema used when the name is unqualified.
+ * @returns Schema and object parts.
+ */
+export const splitObjectName = (name: OracleNameReadType, defaultSchema: string): Readonly<{schema: OracleNamePartType; object: OracleNamePartType}> => {
+	const object = name.parts.at(-1) ?? namePartOf('');
+	const schema = name.parts.length >= 2 ? (name.parts[0] ?? namePartOf(defaultSchema)) : namePartOf(defaultSchema);
+
+	return {schema, object};
+};

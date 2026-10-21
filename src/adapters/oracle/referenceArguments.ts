@@ -53,7 +53,10 @@ const literalTypeOf = (state: OracleParserStateType, index: number): string | un
  * @param start - Index of the first token of the argument value.
  * @returns The value name and whether it ends with an index expression.
  */
-const readArgumentChain = (state: OracleParserStateType, start: number): Readonly<{name: OracleNameType; indexed: boolean}> | undefined => {
+const readArgumentChain = (
+	state: OracleParserStateType,
+	start: number,
+): Readonly<{name: OracleNameType; startIndex: number; endIndex: number; nextIndex: number; indexed: boolean}> | undefined => {
 	if (literalTypeOf(state, start) !== undefined) {
 		return undefined;
 	}
@@ -66,28 +69,30 @@ const readArgumentChain = (state: OracleParserStateType, start: number): Readonl
 
 	const parts = [...first.parts];
 	let cursor = first.nextIndex;
+	let {endIndex, nextIndex} = first;
 	let indexed = false;
 
 	for (;;) {
 		if (state.cursor.text(cursor) !== '(') {
-			return {name: oracleNameOf({parts}), indexed};
+			return {name: oracleNameOf({parts}), startIndex: first.startIndex, endIndex, nextIndex, indexed};
 		}
 
 		const close = state.cursor.findBalancedClose(cursor, state.cursor.findDeclarationEnd(cursor));
 
 		if (close === null) {
-			return {name: oracleNameOf({parts}), indexed};
+			return {name: oracleNameOf({parts}), startIndex: first.startIndex, endIndex, nextIndex, indexed};
 		}
 
 		const dot = state.cursor.next(close);
 		const next = state.cursor.text(dot) === '.' ? state.cursor.readQualifiedName(state.cursor.next(dot)) : null;
 
 		if (next === null) {
-			return {name: oracleNameOf({parts}), indexed: true};
+			return {name: oracleNameOf({parts}), startIndex: first.startIndex, endIndex, nextIndex, indexed: true};
 		}
 
 		parts.push(...next.parts);
 		cursor = next.nextIndex;
+		({endIndex, nextIndex} = next);
 		indexed = false;
 	}
 };
@@ -307,4 +312,161 @@ export const typeReferencesOf = (state: OracleParserStateType, start: number, en
 					anchored: false,
 				},
 			];
+};
+
+const STARRED_ITEM = new Set(['*']);
+
+const selectIndexBefore = (state: OracleParserStateType, bulkIndex: number): number => {
+	let depth = 0;
+
+	for (let index = state.cursor.previous(bulkIndex); index >= 0; index = state.cursor.previous(index)) {
+		const text = state.cursor.text(index);
+
+		if (text === ')') {
+			depth += 1;
+		} else if (text === '(') {
+			if (depth === 0) {
+				return -1;
+			}
+
+			depth -= 1;
+		} else if (depth === 0 && state.cursor.word(index, 'SELECT')) {
+			return index;
+		} else if (depth === 0 && (text === ';' || state.cursor.word(index, 'BULK') || state.cursor.word(index, 'RETURNING'))) {
+			return -1;
+		}
+	}
+
+	return -1;
+};
+
+const selectItemsOf = (state: OracleParserStateType, bulkIndex: number): readonly (readonly number[])[] | null => {
+	const selectIndex = selectIndexBefore(state, bulkIndex);
+
+	if (selectIndex < 0) {
+		return null;
+	}
+
+	const items: number[][] = [];
+	let tokens: number[] = [];
+	let depth = 0;
+
+	for (let index = state.cursor.next(selectIndex); index < bulkIndex; index = state.cursor.next(index)) {
+		const text = state.cursor.text(index);
+
+		if (text === '(') {
+			depth += 1;
+		} else if (text === ')') {
+			depth = Math.max(0, depth - 1);
+		}
+
+		if (depth === 0 && text === ',') {
+			items.push(tokens);
+			tokens = [];
+			continue;
+		}
+
+		tokens.push(index);
+	}
+
+	items.push(tokens);
+
+	return items;
+};
+
+const itemCountOf = (state: OracleParserStateType, items: readonly (readonly number[])[]): number | null => {
+	for (const item of items) {
+		const texts = item.map((index) => (state.cursor.identifier(index) ? state.cursor.upper(index) : state.cursor.text(index)));
+
+		if (texts.length === 1 && STARRED_ITEM.has(texts[0] ?? '')) {
+			return null;
+		}
+
+		if (texts.length === 3 && state.cursor.text(item[1] ?? -1) === '.' && (texts[2] ?? '') === '*') {
+			return null;
+		}
+	}
+
+	return items.length;
+};
+
+const bulkTargetOf = (state: OracleParserStateType, start: number): Readonly<{parts: readonly OracleNamePartType[]; positionIndex: number}> | null => {
+	const first = state.cursor.readQualifiedName(start);
+
+	if (first === null) {
+		return null;
+	}
+
+	const parts = [...first.parts];
+	let cursor = first.nextIndex;
+	let lastEnd = first.endIndex;
+	let positionIndex = first.startIndex;
+
+	for (;;) {
+		if (state.cursor.text(cursor) !== '(') {
+			break;
+		}
+
+		const close = state.cursor.findBalancedClose(cursor, state.cursor.findDeclarationEnd(cursor));
+
+		if (close === null) {
+			break;
+		}
+
+		positionIndex = lastEnd;
+
+		const dot = state.cursor.next(close);
+		const next = state.cursor.text(dot) === '.' ? state.cursor.readQualifiedName(state.cursor.next(dot)) : null;
+
+		if (next === null) {
+			break;
+		}
+
+		parts.push(...next.parts);
+		lastEnd = next.endIndex;
+		cursor = next.nextIndex;
+	}
+
+	return {parts, positionIndex};
+};
+
+/**
+ * Adds the field-write marker PL/Scope records for a `BULK COLLECT INTO` target.
+ *
+ * Only the selected-item count is authoritative here; the target's element
+ * record is resolved later. A `FETCH` has no authored select list, so its row
+ * shape is unknown and no marker is added.
+ *
+ * @param state - Parser state.
+ * @param bulkIndex - Token index of the `BULK` keyword.
+ * @param unit - Unit declaration index.
+ * @param enclosing - Enclosing declaration index.
+ */
+export const addBulkCollectSite = (state: OracleParserStateType, bulkIndex: number, unit: number, enclosing: number): void => {
+	const intoIndex = state.cursor.next(state.cursor.next(bulkIndex));
+
+	if (!state.cursor.word(intoIndex, 'INTO')) {
+		return;
+	}
+
+	const target = bulkTargetOf(state, state.cursor.next(intoIndex));
+	const items = target === null ? null : selectItemsOf(state, bulkIndex);
+
+	if (target === null || items === null) {
+		return;
+	}
+
+	state.references.push({
+		name: oracleNameOf({parts: target.parts}),
+		range: state.cursor.rawRange(target.positionIndex, target.positionIndex),
+		nameRange: state.cursor.rawRange(target.positionIndex, target.positionIndex),
+		unit,
+		enclosing,
+		kind: 'reference',
+		argumentCount: null,
+		argumentNames: [],
+		rowType: false,
+		usage: 4,
+		bulkFields: itemCountOf(state, items),
+	});
 };

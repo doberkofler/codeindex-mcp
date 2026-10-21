@@ -11,8 +11,8 @@
 	},
 	"gB": {
 		"status": "passed",
-		"crossFileReferences": 131445,
-		"publishedTargets": 131445,
+		"crossFileReferences": 131565,
+		"publishedTargets": 131565,
 		"reachableTargets": 0,
 		"internalTargets": 0,
 		"exceptions": 0
@@ -21,15 +21,15 @@
 		"status": "passed",
 		"calls": {
 			"truth": 53318,
-			"matched": 53271,
+			"matched": 53316,
 			"usageMismatch": 0,
-			"missing": 47
+			"missing": 2
 		},
 		"assignments": {
 			"truth": 15924,
-			"matched": 15719,
+			"matched": 15849,
 			"usageMismatch": 0,
-			"missing": 205
+			"missing": 75
 		}
 	},
 	"gD": {
@@ -37,15 +37,15 @@
 		"truthReferences": 186877,
 		"rawTruthReferences": 188297,
 		"omittedAmbiguousReferences": 1420,
-		"actualReferences": 186565,
-		"matchedReferences": 186565,
-		"missingReferences": 312,
+		"actualReferences": 186742,
+		"matchedReferences": 186742,
+		"missingReferences": 135,
 		"extraReferences": 0,
-		"recall": 0.998330452651,
+		"recall": 0.999277599705,
 		"precision": 1,
 		"requiredRecall": 0.995,
 		"requiredPrecision": 1,
-		"note": "PL/Scope declaration initializers are excluded; value DEFINITION rows are references when the signature already has a declaration. Pragma, SQL column, savepoint, FOR-bound constant, type-size constant, and iterator-field contexts are not emitted as references. A CALL row whose site the adapter classifies as ambiguous-overload is a policy-omitted occurrence and is removed from the truth denominator; all 1,420 omitted rows are CALL rows and each maps to an emitted ambiguity diagnostic."
+		"note": "PL/Scope declaration initializers are excluded; value DEFINITION rows are references when the signature already has a declaration. A CALL row whose site the adapter classifies as ambiguous-overload is a policy-omitted occurrence and is removed from the truth denominator; all 1,420 omitted rows are CALL rows and each maps to an emitted ambiguity diagnostic. A `BULK COLLECT INTO` target assigns the element record fields by position, exactly as the compiler records them; a `FETCH ... BULK COLLECT` has no authored select list, so the fields it fills are decided by the cursor row type and are not expanded."
 	},
 	"gE": {
 		"status": "passed-frozen",
@@ -80,31 +80,31 @@
 		"structural": {
 			"parser": "structural@5",
 			"measuredAt": "2026-10-21",
-			"symbols": 29399,
-			"occurrences": 223362,
+			"symbols": 29400,
+			"occurrences": 223538,
 			"declarations": {
-				"matched": 36794,
-				"missing": 14,
+				"matched": 36795,
+				"missing": 13,
 				"extra": 1
 			},
 			"references": {
-				"matched": 186565,
-				"missing": 312,
+				"matched": 186742,
+				"missing": 135,
 				"extra": 0,
-				"recall": 0.998330452651,
+				"recall": 0.999277599705,
 				"precision": 1
 			},
 			"calls": {
-				"matched": 53271,
+				"matched": 53316,
 				"mismatch": 0,
-				"missing": 47
+				"missing": 2
 			},
 			"assignments": {
-				"matched": 15719,
+				"matched": 15849,
 				"mismatch": 0,
-				"missing": 205
+				"missing": 75
 			},
-			"crossFileReferences": 131445,
+			"crossFileReferences": 131565,
 			"internalTargets": 0
 		},
 		"antlr": {

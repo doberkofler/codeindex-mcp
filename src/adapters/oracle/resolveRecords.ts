@@ -152,3 +152,52 @@ export const resolveRecordChain = (
 
 	return {symbolId, outcome: 'resolved'};
 };
+
+const elementRecordOf = (
+	services: ResolutionServicesType,
+	state: ResolveStateType,
+	located: LocatedDeclarationType,
+	depth: number,
+): LocatedDeclarationType | null => {
+	if (depth > 6) {
+		return null;
+	}
+
+	if (located.declaration.kind === 'record_type') {
+		return located;
+	}
+
+	const typeSymbolId = typeSymbolOf(services, state, located);
+	const next = typeSymbolId === null ? null : declarationAt(state, typeSymbolId);
+
+	return next === null ? null : elementRecordOf(services, state, next, depth + 1);
+};
+
+/**
+ * Lists the record fields a `BULK COLLECT INTO` target assigns, in declaration order.
+ *
+ * The compiler fills the element record positionally, so the first `limit`
+ * fields receive the selected items regardless of the selected column names.
+ *
+ * @param services - Injected name resolution callbacks.
+ * @param state - Resolution state.
+ * @param symbolId - Target collection, variable, or field identifier.
+ * @param limit - Number of selected items, or null when every field is assigned.
+ * @returns Field symbol identifiers in declaration order.
+ */
+export const bulkFieldSymbolsOf = (services: ResolutionServicesType, state: ResolveStateType, symbolId: string, limit: number | null): readonly string[] => {
+	const located = declarationAt(state, symbolId);
+	const record = located === null ? null : elementRecordOf(services, state, located, 0);
+
+	if (record === null) {
+		return [];
+	}
+
+	const indices = record.file.graph.childrenByParent.get(record.index) ?? [];
+	const symbols = indices
+		.filter((index) => record.file.parse.declarations[index]?.kind === 'field')
+		.map((index) => record.file.bindings[index]?.symbolId ?? '')
+		.filter((id) => id !== '');
+
+	return limit === null ? symbols : symbols.slice(0, limit);
+};

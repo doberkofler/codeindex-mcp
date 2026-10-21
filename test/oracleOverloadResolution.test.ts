@@ -227,3 +227,103 @@ describe('Oracle write and call contexts', () => {
 		expect(usagesOf(occurrences, 'K_LIMIT')).toStrictEqual([2]);
 	});
 });
+
+describe('Oracle SQL call contexts', () => {
+	it('keeps INSERT VALUES arguments as reads and calls', () => {
+		const files = [
+			parsedFileOf(
+				'insert_values.pkb',
+				[
+					'create package body insert_values as',
+					'\tfunction f(x in number) return number is begin return x; end f;',
+					'\tprocedure run is',
+					'\t\ta number;',
+					'\tbegin',
+					'\t\tinsert into t (c) values (f(a));',
+					'\tend run;',
+					'end insert_values;',
+					'/',
+				].join('\n'),
+			),
+		];
+		const occurrences = resolveFiles(files);
+
+		expect(usagesOf(occurrences, 'F')).toStrictEqual([1]);
+		expect(usagesOf(occurrences, 'A')).toStrictEqual([2]);
+	});
+
+	it('treats a qualified parenthesis-less SQL call as a call', () => {
+		const files = [
+			parsedFileOf('maths.pks', ['create package maths as', '\tfunction answer return number;', 'end maths;', '/'].join('\n')),
+			parsedFileOf(
+				'maths.pkb',
+				[
+					'create package body maths as',
+					'\tfunction answer return number is begin return 42; end answer;',
+					'\tprocedure run is',
+					'\t\ta number;',
+					'\tbegin',
+					'\t\tselect x into a from t where y = maths.answer;',
+					'\tend run;',
+					'end maths;',
+					'/',
+				].join('\n'),
+			),
+		];
+		const occurrences = resolveFiles(files);
+
+		expect(usagesOf(occurrences, 'ANSWER').filter((usage) => usage === 1).length).toBeGreaterThan(0);
+	});
+});
+
+describe('Oracle BULK COLLECT and package initialization', () => {
+	it('assigns select items to the target record fields by position', () => {
+		const files = [
+			parsedFileOf(
+				'bulk_collect.pkb',
+				[
+					'create package body bulk_collect as',
+					'\ttype item_rec is record (id number, name varchar2(10));',
+					'\ttype item_rows is table of item_rec;',
+					'\tprocedure run is',
+					'\t\taRows item_rows;',
+					'\tbegin',
+					'\t\tselect JobID, IntNo bulk collect into aRows from jobs;',
+					'\tend run;',
+					'end bulk_collect;',
+					'/',
+				].join('\n'),
+			),
+		];
+		const occurrences = resolveFiles(files);
+
+		expect(usagesOf(occurrences, 'ID')).toStrictEqual([4]);
+		expect(usagesOf(occurrences, 'NAME')).toStrictEqual([4]);
+		// The collection is the write target; the element fields carry the writes PL/Scope records.
+		expect(usagesOf(occurrences, 'AROWS')).toStrictEqual([4]);
+	});
+
+	it('resolves declarations in a package-body initialization block', () => {
+		const files = [
+			parsedFileOf(
+				'init_block.pkb',
+				[
+					'create package body init_block as',
+					'\tprocedure run is begin null; end run;',
+					'begin',
+					'\tdeclare',
+					'\t\taCount number;',
+					'\tbegin',
+					'\t\tselect count(*) into aCount from t;',
+					'\t\tif aCount > 0 then null; end if;',
+					'\tend;',
+					'end init_block;',
+					'/',
+				].join('\n'),
+			),
+		];
+		const occurrences = resolveFiles(files);
+
+		expect(usagesOf(occurrences, 'ACOUNT')).toStrictEqual([4, 2]);
+	});
+});

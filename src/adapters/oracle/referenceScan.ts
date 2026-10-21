@@ -37,6 +37,16 @@ export const isSqlStart = (state: OracleParserStateType, index: number): boolean
 export const isSqlEnd = (state: OracleParserStateType, index: number): boolean => state.cursor.text(index) === ';' || state.cursor.word(index, 'LOOP');
 
 /**
+ * Returns whether a token closes an INTO target list.
+ *
+ * @param state - Parser state.
+ * @param index - Current token index.
+ * @returns Whether the target list ends before this token.
+ */
+const endsIntoTarget = (state: OracleParserStateType, index: number): boolean =>
+	state.cursor.word(index, 'FROM') || state.cursor.word(index, 'VALUES') || isSqlEnd(state, index);
+
+/**
  * Advances the SELECT-INTO target-list state.
  *
  * @param input - Parser state, current token, and whether an INTO list is open.
@@ -50,7 +60,7 @@ export const nextIntoState = (
 	}
 
 	return {
-		intoTarget: input.intoTarget && !input.state.cursor.word(input.index, 'FROM') && !isSqlEnd(input.state, input.index),
+		intoTarget: input.intoTarget && !endsIntoTarget(input.state, input.index),
 		consumed: false,
 	};
 };
@@ -126,8 +136,14 @@ export const isNamedAssociation = (state: OracleParserStateType, after: number):
  * @param target - Resolved declaration.
  * @returns Whether the site is a non-reference syntactic context.
  */
+const isRoutine = (target: OracleDeclarationType | undefined): boolean => target?.kind === 'procedure' || target?.kind === 'function';
+
+const isBareSqlIdentifier = (site: OracleReferenceSiteType): boolean => site.sql === true && site.kind === 'reference' && site.name.parts.length === 1;
+
 export const suppressNonRoutine = (site: OracleReferenceSiteType, target: OracleDeclarationType | undefined): boolean => {
-	if (site.sql === true && site.kind === 'reference' && (target?.kind === 'procedure' || target?.kind === 'function')) {
+	// A bare identifier in SQL is a column name even when a routine of the same
+	// name is in scope. A qualified name can only be a package routine call.
+	if (isBareSqlIdentifier(site) && isRoutine(target)) {
 		return true;
 	}
 

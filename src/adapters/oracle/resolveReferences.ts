@@ -3,6 +3,7 @@ import {isStoredOracleDeclaration} from './declarationStorage.ts';
 import {OracleDiagnosticCollector} from './diagnostics.ts';
 import {type OracleFileAnalysisType} from './extractSymbols.ts';
 import {occurrenceOf} from './referenceOccurrences.ts';
+import {bulkFieldSymbolsOf} from './resolveRecords.ts';
 import {resolvePackageMember, resolveSite, syntheticSite, resolveSimpleAt} from './resolveScope.ts';
 import {type ResolutionServicesType} from './resolveTypes.ts';
 import {suppressNonRoutine} from './referenceScan.ts';
@@ -168,6 +169,53 @@ const services: ResolutionServicesType = {
 	syntheticSite,
 };
 
+const siteOccurrencesOf = (
+	context: Readonly<{input: ResolveInputType; state: ResolveStateType; site: OracleReferenceSiteType}>,
+	resolved: Readonly<{symbolId: string; target: OracleDeclarationType | undefined; storedOnly: boolean}>,
+): readonly IndexedOccurrenceType[] => {
+	const {input, state, site} = context;
+	const {symbolId, target, storedOnly} = resolved;
+	const occurrenceSite = occurrenceSiteOf(site, target);
+	const enclosingId = storedOwnerOf(state.file, site.enclosing);
+	const occurrences: IndexedOccurrenceType[] = [occurrenceOf({context: input.context, path: state.file.path, site: occurrenceSite, symbolId, enclosingId})];
+
+	for (const fieldId of site.bulkFields === undefined ? [] : bulkFieldSymbolsOf(services, state, symbolId, site.bulkFields)) {
+		if (storedOnly && !isStoredTarget(fieldId, state.symbolDeclarations, input.files)) {
+			continue;
+		}
+
+		occurrences.push(occurrenceOf({context: input.context, path: state.file.path, site: {...site, usage: 4}, symbolId: fieldId, enclosingId}));
+	}
+
+	return occurrences;
+};
+
+const bulkMarkerOccurrences = (
+	input: ResolveInputType,
+	state: ResolveStateType,
+	site: OracleReferenceSiteType,
+	storedOnly: boolean,
+): readonly IndexedOccurrenceType[] => {
+	const marker = resolveSite(services, state, site);
+
+	if (marker.symbolId === null) {
+		return [];
+	}
+
+	const enclosingId = storedOwnerOf(state.file, site.enclosing);
+	const occurrences: IndexedOccurrenceType[] = [];
+
+	for (const fieldId of bulkFieldSymbolsOf(services, state, marker.symbolId, site.bulkFields ?? null)) {
+		if (storedOnly && !isStoredTarget(fieldId, state.symbolDeclarations, input.files)) {
+			continue;
+		}
+
+		occurrences.push(occurrenceOf({context: input.context, path: state.file.path, site, symbolId: fieldId, enclosingId}));
+	}
+
+	return occurrences;
+};
+
 const resolveFileReferences = (
 	input: ResolveInputType,
 	fileIndex: number,
@@ -186,6 +234,13 @@ const resolveFileReferences = (
 	const outArguments: OutArgumentRangeType[] = [];
 
 	for (const site of file.parse.references) {
+		// A bulk marker expands into stored element fields even when the target
+		// itself is an unindexed local or parameter.
+		if (site.bulkFields !== undefined) {
+			occurrences.push(...bulkMarkerOccurrences(input, state, site, storedOnly === true));
+			continue;
+		}
+
 		const resolution = resolveSite(services, state, site);
 
 		if (resolution.symbolId === null) {
@@ -210,9 +265,7 @@ const resolveFileReferences = (
 
 		input.trace?.({path: file.path, site, outcome: 'resolved'});
 
-		const occurrenceSite = occurrenceSiteOf(site, target);
-
-		occurrences.push(occurrenceOf({context: input.context, path: file.path, site: occurrenceSite, symbolId, enclosingId: storedOwnerOf(file, site.enclosing)}));
+		occurrences.push(...siteOccurrencesOf({input, state, site}, {symbolId, target, storedOnly: storedOnly === true}));
 
 		if (target !== undefined) {
 			outArguments.push(...outArgumentRangesOf(site, target, file.path));

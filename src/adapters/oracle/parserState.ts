@@ -1,5 +1,5 @@
 import {OracleDiagnosticCollector, type OracleDiagnosticCodeType} from './diagnostics.ts';
-import {namePartOf, oracleNameOf, type OracleNamePartType, type OracleNameType} from './name.ts';
+import {namePartOf, oracleNameOf, type OracleNameType} from './name.ts';
 import {addChainPrefixes, nameWithChain} from './referenceChains.ts';
 import {
 	addLoopIterator,
@@ -13,7 +13,7 @@ import {
 	nextIntoState,
 	pragmaArgumentEnd,
 } from './referenceScan.ts';
-import {argumentShapeOf, assignFollows, forRangeAt, statementStart} from './referenceArguments.ts';
+import {addBulkCollectSite, argumentShapeOf, assignFollows, forRangeAt, statementStart} from './referenceArguments.ts';
 import {type OracleNameReadType, type TokenCursor} from './tokenCursor.ts';
 import {
 	type OracleDeclarationType,
@@ -445,6 +445,10 @@ export const collectReferences = (input: Readonly<{state: OracleParserStateType;
 
 		flags = nextScanFlags({state, index, flags, iterators: iteratorNames});
 
+		if (state.cursor.word(index, 'BULK')) {
+			addBulkCollectSite(state, index, unit, enclosing);
+		}
+
 		if (flags.consumed || isIgnoredIdentifier(state, index)) {
 			index = state.cursor.next(index);
 			continue;
@@ -477,18 +481,4 @@ export const collectReferences = (input: Readonly<{state: OracleParserStateType;
 			}),
 		);
 	}
-};
-
-/**
- * Splits an authored object name into its schema and object parts.
- *
- * @param name - Authored qualified name.
- * @param defaultSchema - Schema used when the name is unqualified.
- * @returns Schema and object parts.
- */
-export const splitObjectName = (name: OracleNameReadType, defaultSchema: string): Readonly<{schema: OracleNamePartType; object: OracleNamePartType}> => {
-	const object = name.parts.at(-1) ?? namePartOf('');
-	const schema = name.parts.length >= 2 ? (name.parts[0] ?? namePartOf(defaultSchema)) : namePartOf(defaultSchema);
-
-	return {schema, object};
 };

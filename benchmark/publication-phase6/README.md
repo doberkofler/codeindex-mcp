@@ -86,7 +86,7 @@ conditional/indexed-access aliases.
 ## Oracle production corpus
 
 The frozen Oracle Phase 0 corpus was measured with `publication-report` in report mode:
-1,237 files, 29,399 symbols, 223,362 occurrences, and zero S3/O2/L1/F1 violations.
+1,237 files, 29,400 symbols, 223,538 occurrences, and zero S3/O2/L1/F1 violations.
 M7 measured 5,886 routine pairs, one spec-defined cursor, 197 overload groups, 905 body
 forwards, zero body-less specifications, and zero unclassified body-less specifications. This establishes G-F on
 the frozen corpus.
@@ -96,9 +96,9 @@ current production facts. Aggregate results are in `oracle-gates.json`.
 
 | Gate | Result | Evidence |
 |---|---|---|
-| G-B cross-file exposure | passed | 131,445 cross-file references; all 131,445 targets published; 0 internal-only; 0 exceptions |
-| G-C usage | passed | 0 CALL and 0 ASSIGNMENT usage mismatches; 53,271 / 53,318 CALLs and 15,719 / 15,924 assignments resolved |
-| G-D references | passed | 186,565 / 186,877 recall (99.83%); 186,565 / 186,565 precision (100%); 0 extras |
+| G-B cross-file exposure | passed | 131,565 cross-file references; all 131,565 targets published; 0 internal-only; 0 exceptions |
+| G-C usage | passed | 0 CALL and 0 ASSIGNMENT usage mismatches; 53,316 / 53,318 CALLs and 15,849 / 15,924 assignments resolved |
+| G-D references | passed | 186,742 / 186,877 recall (99.93%); 186,742 / 186,742 precision (100%); 0 extras |
 | G-E pairing | passed (frozen) | 5,886 routine pairs; 0 required body-less declarations; 0 heading mismatches; 0 cursor pairs; 1 cursor fully defined in its spec; REF CURSOR types excluded |
 | Q1 signatures | passed (live) | 5,886 / 5,886 packaged specification routines have a body definition with an identical PL/Scope signature; 0 mismatches; 0 missing bodies |
 
@@ -133,10 +133,18 @@ Resolution now covers:
 - CALL, assignment, `OUT`/`IN OUT`, `SELECT INTO`, indexed assignment, and
   parenthesis-less invocation usage.
 
-Remaining disagreements are 312 of 186,877 policy-visible references: 205 implicit
-`BULK COLLECT` field writes that PL/Scope attributes to the INTO target, 60 record-member
-chains whose element type is anchored to an external column, and 47 calls in SQL that the
-SQL suppression still treats as column names. They are recorded here rather than hidden.
+A `BULK COLLECT INTO` target assigns the element record fields by position: the compiler
+reports one write per selected item, positioned on the collection that receives the rows
+and named after the record field the column fills. The parser records the selected-item
+count, the resolver expands the target's element record, and a `FETCH` (which has no
+authored select list) is left unexpanded because its row shape is decided by the cursor.
+Declarations in a package-body initialization block are indexed with the body so their
+references resolve.
+
+Remaining disagreements are 135 of 186,877 policy-visible references: 75 `FETCH ... BULK
+COLLECT` element writes whose cursor row type is outside the indexed extent, 58 references
+to ordinary locals that the index intentionally does not store, and 2 ambiguous local
+calls. They are recorded here rather than hidden.
 
 ### Parser comparison
 
@@ -145,13 +153,13 @@ with both Oracle parsers. Structural remains the production parser.
 
 | Metric | Structural | ANTLR |
 |---|---:|---:|
-| Symbols / occurrences | 29,399 / 223,362 | 34,379 / 159,717 |
-| Declaration matched / missing / extra | 36,794 / 14 / 1 | 35,670 / 902 / 1,025 |
-| Reference matched / missing / extra | 186,565 / 312 / 0 | 119,156 / 67,088 / 3,866 |
-| Reference recall / precision | 99.83% / 100.00% | 63.98% / 96.86% |
-| CALL matched / mismatch / missing | 53,271 / 0 / 47 | 11,648 / 238 / 42,852 |
-| ASSIGNMENT matched / mismatch / missing | 15,719 / 0 / 205 | 0 / 14,462 / 829 |
-| Cross-file references / internal targets | 131,445 / 0 | 78,582 / 0 |
+| Symbols / occurrences | 29,400 / 223,538 | 34,379 / 159,717 |
+| Declaration matched / missing / extra | 36,795 / 13 / 1 | 35,670 / 902 / 1,025 |
+| Reference matched / missing / extra | 186,742 / 135 / 0 | 119,156 / 67,088 / 3,866 |
+| Reference recall / precision | 99.93% / 100.00% | 63.98% / 96.86% |
+| CALL matched / mismatch / missing | 53,316 / 0 / 2 | 11,648 / 238 / 42,852 |
+| ASSIGNMENT matched / mismatch / missing | 15,849 / 0 / 75 | 0 / 14,462 / 829 |
+| Cross-file references / internal targets | 131,565 / 0 | 78,582 / 0 |
 
 The ANTLR row is the 2026-10-20 measurement with the same truth policy. It does not
 strictly improve any required metric and regresses declarations, references, calls, and
