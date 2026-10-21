@@ -1,0 +1,19 @@
+- [ ] #14 [EVAL-006] Implement isolated OpenCode process runner
+- [ ] #16 [EVAL-008] Normalize agent events, tool calls, and token telemetry
+- [ ] #17 [EVAL-009] Implement correctness and workflow graders
+- [ ] #18 [EVAL-010] Implement atomic results and complete-identity resume
+- [ ] #19 [EVAL-011] Implement paired reports, statistics, and harness verification
+- [ ] #20 [EVAL-012] Audit existing Q2 cases and TypeScript ground truth
+- [ ] #21 [EVAL-013] Build controlled TypeScript semantic cases
+- [ ] #22 [EVAL-014] Build CodeIndex repository cases
+- [ ] #23 [EVAL-015] Pilot TypeScript, VS Code, and Material UI as external corpus
+- [ ] #24 [EVAL-016] Freeze the 18-case suite and six-case calibration subset
+- [ ] #25 [EVAL-017] Implement complete-route model-free comparison
+- [ ] #26 [EVAL-018] Implement one-call grouped `find_references` results
+- [ ] #27 [EVAL-019] Compact status responses and authoritative stop/fallback guidance
+- [ ] #28 [EVAL-020] Execute the model-free accepted-versus-candidate gate
+- [ ] #29 [EVAL-021] Establish reproducible local-model environment and smoke test
+- [ ] #30 [EVAL-022] Calibrate 27B and 35B models and select the local reference
+- [ ] #31 [EVAL-023] Automate targeted diagnostics and full local regression
+- [ ] #32 [EVAL-024] Select hosted reference and execute the release campaign
+- [ ] #33 [EVAL-025] Execute deterministic operational soak and recovery evaluation
