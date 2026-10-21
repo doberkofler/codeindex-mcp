@@ -671,6 +671,14 @@ Normalize nested and top-level tool calls into one ordered event sequence. Evalu
 policy against normalized tool identity, validated input, output bytes, duration,
 status, and position.
 
+Normalization admits the flat `{type: "tool_use", part}` envelope and the raw server
+`{type: "message.part.updated", properties: {part}}` envelope, including tool parts
+nested inside another tool part's `parts`. Every call retains its exact tool name,
+family, status, validated input object, UTF-8 output bytes, reported duration, error
+text, raw event line, and parent position. Unknown and failed calls stay in the
+sequence. Lines that are not valid JSON events retain their line number, and a
+truncated final line never discards the events that preceded it.
+
 Supported predicates should include:
 
 - required and forbidden tools;
