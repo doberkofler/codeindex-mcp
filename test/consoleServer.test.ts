@@ -177,7 +177,7 @@ describe('console HTTP server', () => {
 		const [badResponse] = await once(badRequest, 'response');
 
 		if (!(badResponse instanceof IncomingMessage)) {
-			throw new Error('Expected an HTTP response');
+			throw new TypeError('Expected an HTTP response');
 		}
 
 		badResponse.resume();
