@@ -1,6 +1,6 @@
 - [x] #14 [EVAL-006] Implement isolated OpenCode process runner
 - [x] #16 [EVAL-008] Normalize agent events, tool calls, and token telemetry
-- [ ] #17 [EVAL-009] Implement correctness and workflow graders
+- [x] #17 [EVAL-009] Implement correctness and workflow graders
 - [ ] #18 [EVAL-010] Implement atomic results and complete-identity resume
 - [ ] #19 [EVAL-011] Implement paired reports, statistics, and harness verification
 - [ ] #20 [EVAL-012] Audit existing Q2 cases and TypeScript ground truth

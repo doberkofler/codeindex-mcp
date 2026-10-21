@@ -149,6 +149,13 @@ A case file contains:
 | `check` | Optional post-run command |
 
 Validate case files with a schema before execution. Reject an empty selection.
+`expectedFiles` must be non-empty, and the expected, context, and forbidden sets must
+be disjoint. Grading is exact: every expected file is required, no forbidden file may
+appear, and a file outside the expected and bounded-context union fails the answer.
+Context files are allowed supporting evidence, never a second expected set. A
+post-run `check` is spawned without a shell in the workspace, with a hard timeout and
+an explicit expected exit code, and its result stays separate from correctness,
+workflow, and process outcome.
 
 ## 5. Isolation
 
@@ -694,6 +701,15 @@ Classify broad searches structurally from their path/include scope, not from a
 query-string heuristic. Version and test the classifier. Workflow compliance,
 answer correctness, process success, and telemetry validity remain separate
 results.
+
+Every check exposes a `pass`, `fail`, or `unevaluated` result with auditable
+assertions. A predicate whose measurement is unavailable is `unevaluated`, never a
+pass and never a zero. A first-retrieval predicate ignores non-retrieval calls before
+it. Duplicate reads compare one exact validated input, so distinct ranges are not
+duplicates. A fallback predicate counts retrieval calls after a successful
+authoritative index result with non-empty output. A broad search is one with no scope
+or an unbounded effective scope; a bounded path or include narrows the search, so it
+stays bounded even when the other scope is recursive.
 
 ### 8.2 Adapter-specific case classes
 
