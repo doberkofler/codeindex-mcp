@@ -1,4 +1,4 @@
-- [ ] #14 [EVAL-006] Implement isolated OpenCode process runner
+- [x] #14 [EVAL-006] Implement isolated OpenCode process runner
 - [ ] #16 [EVAL-008] Normalize agent events, tool calls, and token telemetry
 - [ ] #17 [EVAL-009] Implement correctness and workflow graders
 - [ ] #18 [EVAL-010] Implement atomic results and complete-identity resume
