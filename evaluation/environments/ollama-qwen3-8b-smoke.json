@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "ollama-qwen3-8b-smoke",
+	"purpose": "smoke",
+	"recordedAt": "2026-10-21T21:14:18.000Z",
+	"host": {
+		"referenceMachine": "apple-m5-max-64gb",
+		"nodeVersion": "v26.10.0",
+		"platform": "darwin",
+		"arch": "arm64",
+		"cpuModel": "Apple M5 Max",
+		"cpuCount": 18,
+		"memoryBytes": 68719476736,
+		"osVersion": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:06:40 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T6050"
+	},
+	"runtime": {
+		"ollama": "0.40.7",
+		"opencode": "2.1.2",
+		"ollamaEndpoint": "http://127.0.0.1:11434"
+	},
+	"model": {
+		"reference": "ollama/qwen3:8b",
+		"digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+		"architecture": "qwen3",
+		"parameters": "8.2B",
+		"quantization": "Q4_K_M",
+		"contextLength": 40960,
+		"embeddingLength": 4096,
+		"generation": {
+			"temperature": 0.6,
+			"topP": 0.95,
+			"topK": 20,
+			"repeatPenalty": 1,
+			"stop": ["<|im_start|>", "<|im_end|>"]
+		}
+	}
+}

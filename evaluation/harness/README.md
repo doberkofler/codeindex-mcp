@@ -270,6 +270,25 @@ campaign is fully ephemeral. The path is resolved against the run directory, is
 rejected inside OpenCode's normal data directory, and is recorded in the run
 manifest.
 
+### Local-model environment and smoke
+
+An environment manifest pins host facts, Node, OpenCode, Ollama, the provider
+model digest, quantization, context, and generation settings. `environment
+--capture` writes the measured facts; `environment --check` refuses a machine
+that no longer matches the pin. `smoke` verifies the environment and then runs
+the frozen calibration subset with the accepted treatment and one repetition:
+
+```bash
+node src/cli.ts environment --check --environment environments/ollama-qwen3-8b-smoke.json
+node src/cli.ts smoke --suite suites/calibration.json --environment environments/ollama-qwen3-8b-smoke.json
+```
+
+The environment digest participates in the campaign identity, and the run
+manifest records the resolved model identity and measured host facts. A changed
+model digest, quantization, runtime, context, generation setting, or host fact
+defines a new smoke baseline. `smoke` rejects any treatment other than
+`accepted` and any repetition count other than one.
+
 ### Result records and resume
 
 Each execution attempt is one immutable JSON document at

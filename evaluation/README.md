@@ -74,6 +74,24 @@ node evaluation/harness/src/cli.ts evaluate --suite suites/calibration.json --dr
 A local smoke run executes those six cases with `no-index` and `accepted`
 treatments at one repetition, for 12 executions.
 
+The reproducible local smoke pins the host, runtimes, model digest,
+quantization, context, and generation settings in
+[`environments/ollama-qwen3-8b-smoke.json`](environments/ollama-qwen3-8b-smoke.json).
+It runs the six calibration cases with the accepted treatment only:
+
+```bash
+node evaluation/harness/src/cli.ts environment --check \
+  --environment environments/ollama-qwen3-8b-smoke.json
+node evaluation/harness/src/cli.ts smoke \
+  --suite suites/calibration.json \
+  --environment environments/ollama-qwen3-8b-smoke.json
+```
+
+The command refuses a changed digest, quantization, runtime, context, generation
+setting, or host fact before the first model call. The 8B model is a harness
+smoke only and makes no quality claim. The recorded execution is in
+[`audits/local-model-smoke-e1.md`](audits/local-model-smoke-e1.md).
+
 The draft controlled semantic suite is listed with:
 
 ```bash

@@ -574,6 +574,13 @@ within 15 minutes on the evaluation machine. Pin model digest, quantization, Oll
 version, OpenCode version, agent instructions, tool list, context, generation settings,
 and hardware.
 
+The first pinned environment is
+[`evaluation/environments/ollama-qwen3-8b-smoke.json`](../evaluation/environments/ollama-qwen3-8b-smoke.json).
+The harness verifies it before the first smoke model call and refuses a changed
+host, runtime, model digest, quantization, context, or generation setting. The
+accepted-only smoke record is
+[`evaluation/audits/local-model-smoke-e1.md`](../evaluation/audits/local-model-smoke-e1.md).
+
 If exact token telemetry is unavailable, correctness, calls, bytes, and latency remain
 usable, but the token gate is invalid. Never estimate missing usage from bytes.
 

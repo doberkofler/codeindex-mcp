@@ -1,8 +1,27 @@
 import {existsSync, mkdirSync, readFileSync, readdirSync, statSync} from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {artifactIdentityOf, artifactRefOf, type ArtifactIdentityType, type ArtifactRefType} from './artifact.ts';
-import {EXECUTION_SCHEMA_VERSION, comparisonDigestOf, executionIdentityDigestOf, executionIdentityOf, identityDigestOf, identityOf} from './identity.ts';
+import {
+	assertEnvironmentMatches,
+	assertEnvironmentModel,
+	capturedEnvironmentOf,
+	environmentHashOf,
+	environmentProbeOf,
+	hostFactsOf,
+	loadEnvironmentManifest,
+	type EnvironmentManifestType,
+} from './environment.ts';
+import {
+	EXECUTION_SCHEMA_VERSION,
+	comparisonDigestOf,
+	executionIdentityDigestOf,
+	executionIdentityOf,
+	identityDigestOf,
+	identityOf,
+	modelIdentityOf,
+} from './identity.ts';
 import {campaignStoreRecordOf, clientStoreOf, isolationRecordOf, prepareClientStore, type ClientStoreType} from './isolation.ts';
 import {catalogOf} from './mcp.ts';
 import {compare, type ReportMetadataType} from './report.ts';
@@ -286,7 +305,129 @@ const listCommand = (flags: Map<string, string[]>): void => {
 	}
 };
 
-const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
+type EvaluationOptionsType = Readonly<{
+	/** Restrict the run to these treatments; flags cannot widen it. */
+	treatments?: readonly string[];
+	repetitions?: number;
+	environment?: EnvironmentManifestType | null;
+	requireFrozen?: boolean;
+}>;
+
+/**
+ * Resolves a manifest path against the evaluation root.
+ *
+ * @param flags - Parsed CLI flags.
+ * @param name - Flag holding the path.
+ * @returns Absolute manifest path.
+ */
+const manifestPathOf = (flags: Map<string, string[]>, name: string): string => {
+	const value = flagOf(flags, name);
+
+	if (value === undefined || value === 'true') {
+		throw new Error(`--${name} is required`);
+	}
+
+	return path.resolve(evaluationRoot, value);
+};
+
+/**
+ * Measures the live environment and refuses a mismatch.
+ *
+ * @param environment - Committed environment manifest.
+ */
+const verifiedEnvironmentOf = async (environment: EnvironmentManifestType): Promise<void> => {
+	const probe = await environmentProbeOf({model: environment.model.reference, endpoint: environment.runtime.ollamaEndpoint});
+
+	assertEnvironmentMatches(environment, probe);
+};
+
+const environmentCommand = async (flags: Map<string, string[]>): Promise<void> => {
+	if (flags.has('capture')) {
+		const environmentPath = manifestPathOf(flags, 'output');
+		const model = flagOf(flags, 'model');
+		const referenceMachine = flagOf(flags, 'reference-machine');
+		const id = flagOf(flags, 'id');
+
+		if (model === undefined || model === 'true') {
+			throw new Error('--model is required');
+		}
+
+		if (referenceMachine === undefined || referenceMachine === 'true') {
+			throw new Error('--reference-machine is required');
+		}
+
+		if (id === undefined || id === 'true') {
+			throw new Error('--id is required');
+		}
+
+		const purpose = flagOf(flags, 'purpose') ?? 'smoke';
+
+		if (purpose !== 'smoke') {
+			throw new Error('--purpose must be smoke');
+		}
+
+		const probe = await environmentProbeOf({model, endpoint: flagOf(flags, 'endpoint') ?? 'http://127.0.0.1:11434'});
+		const environment = capturedEnvironmentOf({
+			id,
+			purpose: 'smoke',
+			referenceMachine,
+			recordedAt: new Date().toISOString(),
+			probe,
+		});
+
+		writeJsonAtomic(environmentPath, environment, false);
+		process.stdout.write(`environment ${environment.id} written to ${environmentPath}\n`);
+		process.stdout.write(
+			`model ${environment.model.reference} ${environment.model.digest} ${environment.model.quantization} context ${environment.model.contextLength}\n`,
+		);
+
+		return;
+	}
+
+	const environment = loadEnvironmentManifest(manifestPathOf(flags, 'environment'));
+	const probe = await environmentProbeOf({model: environment.model.reference, endpoint: environment.runtime.ollamaEndpoint});
+
+	assertEnvironmentMatches(environment, probe);
+
+	process.stdout.write(`environment ${environment.id} matches the measured host and model\n`);
+	process.stdout.write(
+		`model ${environment.model.reference} ${environment.model.digest} ${environment.model.quantization} context ${environment.model.contextLength}\n`,
+	);
+};
+
+const smokeCommand = async (flags: Map<string, string[]>): Promise<void> => {
+	const requestedTreatment = flagOf(flags, 'treatment');
+	const requestedRepetitions = flagOf(flags, 'repetitions');
+
+	if (requestedTreatment !== undefined && requestedTreatment !== 'accepted') {
+		throw new Error('smoke runs the accepted treatment only');
+	}
+
+	if (requestedRepetitions !== undefined && requestedRepetitions !== '1') {
+		throw new Error('smoke runs one repetition only');
+	}
+
+	const suitePath = flagOf(flags, 'suite');
+
+	if (suitePath === undefined || suitePath === 'true') {
+		throw new Error('--suite is required');
+	}
+
+	const {suite} = loadSuite(path.resolve(evaluationRoot, suitePath));
+	const environment = loadEnvironmentManifest(manifestPathOf(flags, 'environment'));
+
+	assertEnvironmentModel(environment, suite.model);
+
+	if (!flags.has('dry-run')) {
+		process.stderr.write(`environment ${environment.id} verification\n`);
+		await verifiedEnvironmentOf(environment);
+	}
+
+	process.stderr.write(`smoke ${suite.id} ${environment.model.reference} accepted only, one repetition\n`);
+	await evaluateCommand(flags, {treatments: ['accepted'], repetitions: 1, environment, requireFrozen: true});
+};
+
+const evaluateCommand = async (flags: Map<string, string[]>, options: EvaluationOptionsType = {}): Promise<void> => {
 	const suitePath = flagOf(flags, 'suite');
 
 	if (suitePath === undefined) {
@@ -294,9 +435,18 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 	}
 
 	const {suite, cases} = loadSuite(path.resolve(evaluationRoot, suitePath));
+
+	if (options.requireFrozen === true && suite.status !== 'frozen') {
+		throw new Error(`suite ${suite.id} must be frozen for a smoke run`);
+	}
+
 	const selected = selectCases(cases, {caseIds: allOf(flags, 'case'), tags: allOf(flags, 'tag')});
-	const treatments = treatmentsOf(flagOf(flags, 'treatment'), suite.treatments);
-	const repetitions = Number(flagOf(flags, 'repetitions') ?? suite.repetitions);
+	const treatments =
+		options.treatments === undefined
+			? treatmentsOf(flagOf(flags, 'treatment'), suite.treatments)
+			: treatmentsOf(options.treatments.join(','), suite.treatments);
+	const repetitions = options.repetitions ?? Number(flagOf(flags, 'repetitions') ?? suite.repetitions);
+	const environment = options.environment ?? null;
 	const plan = planOf(selected, treatmentIdsOf(treatments), repetitions);
 	const planHash = planHashOf(plan);
 	const identity = identityOf({
@@ -306,6 +456,7 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 		repetitions,
 		planHash,
 		harnessVersion: HARNESS_VERSION,
+		environment,
 	});
 	const identityDigest = identityDigestOf(identity);
 	const comparisonDigest = comparisonDigestOf(identity);
@@ -328,6 +479,13 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 		`run ${runDir}\nplan ${plan.length} execution(s): ${selected.length} case(s) x ${treatments.length} treatment(s) x ${repetitions} repetition(s)\n`,
 	);
 	process.stderr.write(`plan-hash ${planHash}\nidentity ${identityDigest}\n`);
+
+	if (environment !== null) {
+		process.stderr.write(
+			`environment ${environment.id} ${environment.model.reference} digest ${environment.model.digest} runtime ollama ${environment.runtime.ollama} / opencode ${environment.runtime.opencode}\n`,
+		);
+	}
+
 	process.stderr.write(
 		`isolation ${subject.mode}, ${pinned}, standalone server, client store ${clientStore.mode}${clientStore.path === null ? '' : ` at ${clientStore.path}`}\n`,
 	);
@@ -388,6 +546,8 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 	});
 	const campaignId = `${suite.id}-${identityDigest.slice(0, 16)}`;
 	const randomizationSeed = identityDigest;
+	const modelIdentity = modelIdentityOf(suite.model, environment);
+	const environmentFacts = {...hostFactsOf(), referenceMachine: environment?.host.referenceMachine ?? os.hostname()};
 	const manifest = {
 		recordType: 'manifest',
 		schemaVersion: EXECUTION_SCHEMA_VERSION,
@@ -399,7 +559,13 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 		identity,
 		identityDigest,
 		comparisonDigest,
-		model: suite.model,
+		model: modelIdentity,
+		modelReference: suite.model,
+		environment: environmentFacts,
+		modelEnvironment:
+			environment === null
+				? null
+				: {id: environment.id, purpose: environment.purpose, hash: environmentHashOf(environment), reference: environment.model.reference},
 		revision: suite.revision,
 		repetitions,
 		randomizationSeed,
@@ -476,6 +642,7 @@ const evaluateCommand = async (flags: Map<string, string[]>): Promise<void> => {
 				repetitionIndex: entry.repetition,
 				randomizationSeed,
 				harnessVersion: HARNESS_VERSION,
+				environment,
 			});
 			const slotIdentityDigest = executionIdentityDigestOf(executionIdentity);
 			const slotDirectory = path.join(runDir, entry.caseId, entry.treatment, `rep-${entry.repetition}`);
@@ -954,6 +1121,10 @@ const {command, flags} = argsOf(process.argv.slice(2));
 try {
 	if (command === 'evaluate') {
 		await evaluateCommand(flags);
+	} else if (command === 'smoke') {
+		await smokeCommand(flags);
+	} else if (command === 'environment') {
+		await environmentCommand(flags);
 	} else if (command === 'route') {
 		await routeCommand(flags);
 	} else if (command === 'report') {
@@ -964,7 +1135,7 @@ try {
 		listCommand(flags);
 	} else {
 		process.stdout.write(
-			'usage: cli.ts <evaluate|route|report|check|list> --suite <path> [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
+			'usage: cli.ts <evaluate|smoke|environment|route|report|check|list> --suite <path> [--environment <path>] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
 		);
 		process.exitCode = command === 'help' ? 0 : 2;
 	}

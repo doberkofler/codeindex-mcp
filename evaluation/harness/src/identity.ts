@@ -1,4 +1,5 @@
 import {type ArtifactRefType} from './artifact.ts';
+import {type EnvironmentManifestType} from './environment.ts';
 import {hashOf} from './hash.ts';
 import {SUITE_SCHEMA_VERSION, caseHashOf, type CaseType, type SuiteType} from './schema.ts';
 import {canonicalTreatmentsOf, treatmentSetHashOf, type ToolSurfaceType, type TreatmentDefinitionType, type TreatmentKindType} from './treatment.ts';
@@ -14,6 +15,8 @@ export type IdentityType = Readonly<{
 	harness: Readonly<{version: number; schemaVersion: number}>;
 	suite: Readonly<{id: string; version: number; hash: string}>;
 	model: string;
+	/** Pinned local-model environment identity, or null for an unpinned model. */
+	environment: Readonly<{id: string; hash: string}> | null;
 	revision: string;
 	treatments: readonly Readonly<{id: string; definitionHash: string}>[];
 	treatmentSetHash: string;
@@ -30,6 +33,8 @@ export type IdentityInputType = Readonly<{
 	repetitions: number;
 	planHash: string;
 	harnessVersion: number;
+	/** Pinned local-model environment, or null when the suite declares none. */
+	environment?: EnvironmentManifestType | null;
 }>;
 
 /**
@@ -52,11 +57,11 @@ export const sharedConfigurationOf = (treatments: readonly TreatmentDefinitionTy
  * Builds the closed identity for one execution.
  *
  * Every field that can change an answer is included. Treatment-specific fields
- * are represented by the treatment-set hash; model, revision, prompt, timeout,
- * and the shared configuration stay outside it so a mismatch is a different
- * identity rather than a different treatment.
+ * are represented by the treatment-set hash; model, pinned environment,
+ * revision, prompt, timeout, and the shared configuration stay outside it so a
+ * mismatch is a different identity rather than a different treatment.
  *
- * @param input - Suite, selected cases, treatments, plan, and harness version.
+ * @param input - Suite, selected cases, treatments, plan, harness version, and pinned environment.
  * @returns The identity object.
  */
 export const identityOf = (input: IdentityInputType): IdentityType => {
@@ -67,6 +72,7 @@ export const identityOf = (input: IdentityInputType): IdentityType => {
 		harness: {version: input.harnessVersion, schemaVersion: SUITE_SCHEMA_VERSION},
 		suite: {id: input.suite.id, version: input.suite.version, hash: input.suite.hash},
 		model: input.suite.model,
+		environment: input.environment === undefined || input.environment === null ? null : {id: input.environment.id, hash: hashOf(input.environment)},
 		revision: input.suite.revision,
 		treatments: treatments.map((treatment) => ({id: treatment.id, definitionHash: treatment.definitionHash})),
 		treatmentSetHash: treatmentSetHashOf(treatments),
@@ -165,23 +171,39 @@ export type ExecutionIdentityInputType = Readonly<{
 	randomizationSeed: string;
 	harnessVersion: number;
 	agent?: ExecutionAgentIdentityType;
+	/** Pinned local-model environment, or null for a hosted or unpinned reference. */
+	environment?: EnvironmentManifestType | null;
 }>;
 
-const modelIdentityOf = (model: string): ExecutionModelIdentityType => {
+/**
+ * Builds the provider identity of the pinned model.
+ *
+ * A local environment supplies the immutable provider digest, quantization,
+ * runtime version, and generation settings. Without one the suite pins only a
+ * reference, so hashing the reference is the strongest available identity.
+ *
+ * @param model - Suite model reference.
+ * @param environment - Pinned local-model environment, when the run uses one.
+ * @returns Provider identity recorded in the result.
+ */
+export const modelIdentityOf = (model: string, environment: EnvironmentManifestType | null = null): ExecutionModelIdentityType => {
 	const separator = model.indexOf('/');
 	const provider = separator > 0 ? model.slice(0, separator) : 'unknown';
 	const modelId = separator > 0 ? model.slice(separator + 1) : model;
 
+	if (environment !== null && environment.model.reference !== model) {
+		throw new Error(`environment pins "${environment.model.reference}" but the suite declares "${model}"`);
+	}
+
 	return {
 		provider,
 		modelId,
-		// The suite pins a model reference, not a provider artifact digest. Hashing
-		// the reference still makes any change a different identity.
-		digest: hashOf({model}),
-		quantization: null,
-		runtime: null,
-		runtimeVersion: null,
-		generationSettingsDigest: hashOf({model}),
+		digest: environment?.model.digest ?? hashOf({model}),
+		quantization: environment?.model.quantization ?? null,
+		runtime: environment === null ? null : 'ollama',
+		runtimeVersion: environment?.runtime.ollama ?? null,
+		generationSettingsDigest:
+			environment === null ? hashOf({model}) : hashOf({generation: environment.model.generation, contextLength: environment.model.contextLength}),
 	};
 };
 
@@ -217,7 +239,7 @@ export const executionIdentityOf = (input: ExecutionIdentityInputType): Executio
 		promptHash: hashOf(input.testCase.prompt),
 		timeoutMs: input.testCase.timeoutMs,
 	},
-	model: modelIdentityOf(input.model),
+	model: modelIdentityOf(input.model, input.environment ?? null),
 	agent: agentIdentityOf(input),
 	treatment: {
 		id: input.treatment.id,
@@ -264,6 +286,7 @@ export const comparisonDigestOf = (identity: IdentityType): string =>
 		harness: identity.harness,
 		suite: identity.suite,
 		model: identity.model,
+		environment: identity.environment,
 		revision: identity.revision,
 		sharedConfigHash: identity.sharedConfigHash,
 		cases: identity.cases,

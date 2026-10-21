@@ -361,6 +361,15 @@ verdict. A manifest change that alters any identity field of
 [7.3](#73-run-identity-and-resume-equality) defines a different campaign; it never
 edits one.
 
+A local model run supplies `model.digest`, `model.quantization`,
+`model.runtime`, `model.runtimeVersion`, and `model.generationSettingsDigest`
+from a validated environment manifest
+([`evaluation/environments/`](../evaluation/environments/README.md)). The
+manifest also records the environment identity and the measured host facts, so a
+changed model artifact, quantization, runtime, context, generation setting, or
+reference machine is visible without reading raw results. The `smoke` command
+verifies the pin before the first model call and refuses a mismatch.
+
 ### 7.3 Run identity and resume equality
 
 Run identity is a closed set of fields. It is the only basis for reuse: a result
