@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Process unchecked items from TODO.md, one fresh opencode2 session each.
+# Process unchecked items from TODO.md, one fresh opencode session each.
 # Item format: "- [ ] #123 title" (md checklist).
-# ASSUMPTION: `opencode2 run "<prompt>"` starts a new session (v1 semantics, unverified for v2).
+# `opencode run` without --continue/--session starts a new session (v2).
 set -euo pipefail
 
 QUEUE="${1:-TODO.md}"
+OPENCODE_BIN="${OPENCODE_BIN:-opencode}"
 
 while true; do
 	# First unchecked line; stop when queue is empty.
@@ -18,7 +19,9 @@ while true; do
 	fi
 
 	# Fresh session: implement, verify, commit. No -c/-s flags.
-	opencode2 run "Implement exactly this item, nothing else: ${item#- [ ] }
+	# --standalone keeps the run off the shared background service.
+	# --auto is required because no operator is present to approve tools.
+	"$OPENCODE_BIN" run --standalone --auto "Implement exactly this item, nothing else: ${item#- [ ] }
 Rules:
 - Run tests/lint/typecheck; fix until green.
 - Make one commit (conventional commit message).
