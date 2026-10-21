@@ -177,8 +177,8 @@ The server exposes seven read-only tools:
 | Tool | Use |
 | --- | --- |
 | `index_status` | Readiness, indexed scope, freshness, counts, diagnostics, limitations |
-| `outline` | Declarations in one workspace-relative file, plus a bounded re-export list |
-| `find_symbol` | Exact or prefix name/qualified lookup with exposure, kind, container, path, and context filters |
+| `outline` | Declarations in one workspace-relative file, plus a bounded re-export list; compact detail by default |
+| `find_symbol` | Exact or prefix name/qualified lookup with exposure, kind, container, path, and context filters; compact detail by default |
 | `find_references` | Flat definitions and references for one symbol with usage and owner filters |
 | `find_dependencies` | Direct dependency usage or grouped dependency impact; optional project-context filter |
 | `read_symbol` | Bounded source, definition sites, bindings, binding sites, or binding contexts |

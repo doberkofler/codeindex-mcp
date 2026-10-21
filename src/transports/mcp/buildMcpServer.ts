@@ -6,6 +6,7 @@ import {type LoggerType} from '../../core/logging/logger.ts';
 import {type CodeIndex} from '../../core/generation/codeIndex.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {errorEnvelope, successDataBudget, successEnvelope, toCallToolResult, type ToolEnvelopeType} from './toolResponses.ts';
+import {compactOutlineOf, compactSymbolsOf} from './compactResults.ts';
 import {
 	FindDependenciesInputSchema,
 	FindReferencesInputSchema,
@@ -19,8 +20,9 @@ import {
 const debug = debugFor('mcp');
 
 const SERVER_INSTRUCTIONS = `For code navigation in this workspace, use the code index before broad grep or whole-file reads.
-Use find_symbol to locate a declaration by name, outline to inspect a known file, find_references to find consumers, find_dependencies to find dependency usage, and read_symbol to read the smallest useful source range. Use symbol_at to resolve a source position to its innermost stored declaration.
-For "where is dependency X used?" or "where do we use target X?", call find_dependencies once with transitive false and compact detail. Do not call index_status first. A current, untruncated direct result is the complete answer: report the returned paths and stop. Do not search manifests, grep source, read the listed files, or expand into downstream consumers unless the question asks for those facts.
+Use find_symbol to locate a declaration by name, outline to inspect a known file, find_references to find consumers, find_dependencies to find external dependency usage, and read_symbol to read the smallest useful source range. Use symbol_at to resolve a source position to its innermost stored declaration.
+outline and find_symbol return compact items by default; pass detail full only when qualified names, bindings, or definition sites are required.
+For "where is dependency X used?" call find_dependencies once with transitive false and compact detail, using a package target identifier such as lodash. Direct usage covers external dependencies only; to find importers of an authored file, resolve a symbol it exports with find_symbol and call find_references. A current, untruncated direct result is the complete answer: report the returned paths and stop. Do not search manifests, grep source, read the listed files, or expand into downstream consumers unless the question asks for those facts.
 Use detail evidence only when import statements, bindings, or locations are requested. Request transitive true only when the question asks about downstream dependency impact; those results prove authored-module reachability, not binding use. Filter with root to inspect one direct consumer.
 Package manifests and lint or build configuration are outside the indexed workspace; use at most one targeted repository search when those facts are required.
 Every result reports a generation, explicit freshness, and truncation. Treat current freshness as usable, updating as readable but possibly stale, and stale or unknown as a fallback trigger.
@@ -125,6 +127,38 @@ const register = (server: McpServer, registration: ToolRegistrationType, inputSc
 };
 
 /**
+ * Builds the outline tool handler, projecting compact items unless full detail is requested.
+ *
+ * @param index - Index facade.
+ * @param maxResultBytes - Response byte limit.
+ * @returns Handler that validates input, queries, and envelopes the result.
+ */
+const outlineHandlerOf =
+	(index: CodeIndex, maxResultBytes: number) =>
+	(rawArgs: unknown): ToolEnvelopeType => {
+		const {detail, ...query} = OutlineInputSchema.parse(rawArgs);
+		const result = index.getOutline(query, successDataBudget(maxResultBytes));
+
+		return successEnvelope(detail === 'full' ? result : compactOutlineOf(result));
+	};
+
+/**
+ * Builds the symbol-search handler, projecting compact items unless full detail is requested.
+ *
+ * @param index - Index facade.
+ * @param maxResultBytes - Response byte limit.
+ * @returns Handler that validates input, queries, and envelopes the result.
+ */
+const findSymbolsHandlerOf =
+	(index: CodeIndex, maxResultBytes: number) =>
+	(rawArgs: unknown): ToolEnvelopeType => {
+		const {detail, ...query} = FindSymbolInputSchema.parse(rawArgs);
+		const result = index.findSymbols(query, successDataBudget(maxResultBytes));
+
+		return successEnvelope(detail === 'full' ? result : compactSymbolsOf(result));
+	};
+
+/**
  * Builds the local stdio MCP server that exposes the seven read-only index tools.
  *
  * The adapter validates transport input, calls one `CodeIndex` method, and
@@ -142,12 +176,12 @@ export const buildMcpServer = (
 	}>,
 ): McpServer => {
 	const server = new McpServer({name: PROGRAM_NAME, version: PROGRAM_VERSION}, {instructions: SERVER_INSTRUCTIONS});
-	const {index, logger, maxResultBytes} = input;
-	const analytics = input.analytics ?? null;
+	const {index, logger, maxResultBytes, analytics = null} = input;
 	debug('mcp server built', {name: PROGRAM_NAME, version: PROGRAM_VERSION, maxResultBytes});
-
-	register(
-		server,
+	const tool = (registration: ToolRegistrationType, inputSchema: ZodType): void => {
+		register(server, registration, inputSchema);
+	};
+	tool(
 		{
 			name: 'index_status',
 			description: 'Report index readiness, scope, counts, freshness, diagnostics, and exclusions.',
@@ -159,34 +193,33 @@ export const buildMcpServer = (
 		IndexStatusInputSchema,
 	);
 
-	register(
-		server,
+	tool(
 		{
 			name: 'outline',
-			description: 'List declarations defined in one indexed file, in source order.',
+			description:
+				'List declarations defined in one indexed file, in source order. Compact detail (default) returns symbolId, name, kind, and line range; full detail adds qualified names, bindings, and definition sites.',
 			maxResultBytes,
 			logger,
 			analytics,
-			invoke: (rawArgs) => successEnvelope(index.getOutline(OutlineInputSchema.parse(rawArgs), successDataBudget(maxResultBytes))),
+			invoke: outlineHandlerOf(index, maxResultBytes),
 		},
 		OutlineInputSchema,
 	);
 
-	register(
-		server,
+	tool(
 		{
 			name: 'find_symbol',
-			description: 'Find a declaration by exact qualified name, exact simple name, or name prefix.',
+			description:
+				'Find a declaration by exact qualified name, exact simple name, or name prefix. Compact detail (default) returns symbolId, name, qualified name, kind, and line range; full detail adds bindings, names, and definition sites.',
 			maxResultBytes,
 			logger,
 			analytics,
-			invoke: (rawArgs) => successEnvelope(index.findSymbols(FindSymbolInputSchema.parse(rawArgs), successDataBudget(maxResultBytes))),
+			invoke: findSymbolsHandlerOf(index, maxResultBytes),
 		},
 		FindSymbolInputSchema,
 	);
 
-	register(
-		server,
+	tool(
 		{
 			name: 'find_references',
 			description: 'Find definitions and references for one indexed symbol identifier.',
@@ -198,12 +231,11 @@ export const buildMcpServer = (
 		FindReferencesInputSchema,
 	);
 
-	register(
-		server,
+	tool(
 		{
 			name: 'find_dependencies',
 			description:
-				'Find authored modules that consume a canonical dependency target. For direct usage, call once with transitive false and compact detail; a current untruncated result is the complete answer. Transitive mode returns dependency impact grouped by direct root. Pages may be shortened to the response byte limit; follow nextCursor.',
+				'Find authored modules that consume a canonical external dependency target, such as lodash or @mui/material. Direct usage is external-only; find importers of an authored file by resolving an exported symbol with find_symbol and calling find_references. For direct usage, call once with transitive false and compact detail; a current untruncated result is the complete answer. Transitive mode returns dependency impact grouped by direct root. Pages may be shortened to the response byte limit; follow nextCursor.',
 			maxResultBytes,
 			logger,
 			analytics,
@@ -212,8 +244,7 @@ export const buildMcpServer = (
 		FindDependenciesInputSchema,
 	);
 
-	register(
-		server,
+	tool(
 		{
 			name: 'read_symbol',
 			description:
@@ -226,8 +257,7 @@ export const buildMcpServer = (
 		ReadSymbolInputSchema,
 	);
 
-	register(
-		server,
+	tool(
 		{
 			name: 'symbol_at',
 			description: 'Find the innermost stored definition covering a source position or line.',

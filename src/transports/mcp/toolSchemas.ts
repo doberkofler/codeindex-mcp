@@ -18,6 +18,10 @@ export const OutlineInputSchema = z.object({
 		.max(MAX_SYMBOL_KIND_FILTERS)
 		.optional()
 		.describe('Optional adapter-defined symbol-kind filter'),
+	detail: z
+		.enum(['compact', 'full'])
+		.default('compact')
+		.describe('compact (default) returns symbolId, name, kind, and line range; full adds qualified names, bindings, and definition sites'),
 	limit: LimitSchema,
 	cursor: CursorSchema,
 });
@@ -35,6 +39,10 @@ export const FindSymbolInputSchema = z.object({
 		.enum(['published', 'reachable', 'visible', 'internal', 'any'])
 		.default('visible')
 		.describe('Binding exposure filter; visible means published or reachable (default)'),
+	detail: z
+		.enum(['compact', 'full'])
+		.default('compact')
+		.describe('compact (default) returns symbolId, name, qualified name, kind, and line range; full adds bindings, names, and definition sites'),
 	limit: LimitSchema,
 	cursor: CursorSchema,
 });

@@ -81,7 +81,7 @@ describe('MCP adapter', () => {
 		const description = tools.tools.find((tool) => tool.name === 'find_dependencies')?.description;
 
 		expect(instructions).toContain('call find_dependencies once with transitive false and compact detail');
-		expect(instructions).toContain('Do not call index_status first');
+		expect(instructions).toContain('Direct usage covers external dependencies only');
 		expect(instructions).toContain('A current, untruncated direct result is the complete answer');
 		expect(instructions).toContain('Do not search manifests, grep source, read the listed files, or expand into downstream consumers');
 		expect(instructions).toContain('Use detail evidence only when import statements, bindings, or locations are requested');
@@ -92,12 +92,12 @@ describe('MCP adapter', () => {
 		const client = await connect();
 		const found = await client.callTool({name: 'find_symbol', arguments: {query: 'formatUser', limit: 1}});
 		const envelope = JSON.parse(textOf(found)) as EnvelopeType & {
-			data: {items: readonly {id: string}[]; freshness: {state: string}};
+			data: {items: readonly {symbolId: string}[]; freshness: {state: string}};
 		};
 
 		expect(envelope.ok).toBe(true);
 		expect(envelope.data.freshness.state).toBe('current');
-		const symbolId = envelope.data.items[0]?.id;
+		const symbolId = envelope.data.items[0]?.symbolId;
 		expect(symbolId).toBeDefined();
 
 		const read = await client.callTool({name: 'read_symbol', arguments: {symbolId, contextLines: 0}});
@@ -111,8 +111,8 @@ describe('MCP adapter', () => {
 		const maxResultBytes = 2000;
 		const client = await connect('large-symbol', maxResultBytes);
 		const found = await client.callTool({name: 'find_symbol', arguments: {query: 'largeValue', limit: 1}});
-		const foundEnvelope = JSON.parse(textOf(found)) as EnvelopeType & {data: {items: readonly {id: string}[]}};
-		const symbolId = foundEnvelope.data.items[0]?.id;
+		const foundEnvelope = JSON.parse(textOf(found)) as EnvelopeType & {data: {items: readonly {symbolId: string}[]}};
+		const symbolId = foundEnvelope.data.items[0]?.symbolId;
 		const read = await client.callTool({name: 'read_symbol', arguments: {symbolId, contextLines: 0}});
 		const text = textOf(read);
 		const envelope = JSON.parse(text) as EnvelopeType & {data: {source: string; truncated: boolean; truncatedReason: string | null}};
@@ -142,7 +142,7 @@ describe('MCP adapter', () => {
 			{name: 'contracts', project: 'contracts/tsconfig.json'},
 			{name: 'server', project: 'server/tsconfig.json'},
 		]);
-		const result = await client.callTool({name: 'find_symbol', arguments: {query: 'ServiceRequest', context: 'server', limit: 1}});
+		const result = await client.callTool({name: 'find_symbol', arguments: {query: 'ServiceRequest', context: 'server', detail: 'full', limit: 1}});
 		const envelope = JSON.parse(textOf(result)) as EnvelopeType & {
 			data: {items: readonly {name: string; contexts: readonly string[]}[]};
 		};
@@ -159,6 +159,41 @@ describe('MCP adapter', () => {
 		expect(envelope.ok).toBe(true);
 		expect(envelope.data.ready).toBe(true);
 		expect(envelope.data.counts.files).toBe(4);
+	});
+});
+
+describe('MCP compact detail', () => {
+	let connection: ConnectionType | undefined;
+
+	afterEach(async () => {
+		await connection?.close();
+		connection = undefined;
+	});
+
+	const connect = async (): Promise<Client> => (connection = await openFixture('simple-project', 32_768)).client;
+
+	it('serves compact items by default and full detail on request', async () => {
+		const client = await connect();
+		const compactOutline = JSON.parse(textOf(await client.callTool({name: 'outline', arguments: {path: 'src/models.ts', limit: 5}}))) as EnvelopeType & {
+			data: {items: readonly Record<string, unknown>[]};
+		};
+		const fullOutline = JSON.parse(
+			textOf(await client.callTool({name: 'outline', arguments: {path: 'src/models.ts', detail: 'full', limit: 5}})),
+		) as EnvelopeType & {data: {items: readonly Record<string, unknown>[]}};
+		const compactSymbol = JSON.parse(textOf(await client.callTool({name: 'find_symbol', arguments: {query: 'formatUser', limit: 1}}))) as EnvelopeType & {
+			data: {items: readonly Record<string, unknown>[]};
+		};
+		const fullSymbol = JSON.parse(
+			textOf(await client.callTool({name: 'find_symbol', arguments: {query: 'formatUser', detail: 'full', limit: 1}})),
+		) as EnvelopeType & {data: {items: readonly Record<string, unknown>[]}};
+
+		expect(compactOutline.data.items[0]).toHaveProperty('symbolId');
+		expect(compactOutline.data.items[0]).not.toHaveProperty('qualifiedName');
+		expect(compactOutline.data.items[0]).not.toHaveProperty('site');
+		expect(fullOutline.data.items[0]).toHaveProperty('site');
+		expect(compactSymbol.data.items[0]).toHaveProperty('qualifiedName');
+		expect(compactSymbol.data.items[0]).not.toHaveProperty('matched');
+		expect(fullSymbol.data.items[0]).toHaveProperty('matched');
 	});
 });
 
@@ -404,13 +439,16 @@ describe('MCP Oracle adapter', () => {
 
 		try {
 			const status = await client.callTool({name: 'index_status', arguments: {}});
-			const outline = await client.callTool({name: 'outline', arguments: {path: 'database/hr_api.pks', kinds: ['package'], limit: 100}});
-			const symbols = await client.callTool({name: 'find_symbol', arguments: {query: 'owner["APP"]::HR_API.DELETE_EMPLOYEE', match: 'qualified'}});
-			const symbolData = JSON.parse(textOf(symbols)) as EnvelopeType & {data: {items: readonly {id: string; match: string}[]}};
+			const outline = await client.callTool({name: 'outline', arguments: {path: 'database/hr_api.pks', kinds: ['package'], detail: 'full', limit: 100}});
+			const symbols = await client.callTool({
+				name: 'find_symbol',
+				arguments: {query: 'owner["APP"]::HR_API.DELETE_EMPLOYEE', match: 'qualified', detail: 'full'},
+			});
+			const symbolData = JSON.parse(textOf(symbols)) as EnvelopeType & {data: {items: readonly {symbolId: string; match: string}[]}};
 			const exact = symbolData.data.items.find((item) => item.match === 'exact_qualified');
-			const references = await client.callTool({name: 'find_references', arguments: {symbolId: exact?.id ?? ''}});
+			const references = await client.callTool({name: 'find_references', arguments: {symbolId: exact?.symbolId ?? ''}});
 			const dependencies = await client.callTool({name: 'find_dependencies', arguments: {target: 'APP.HR_API'}});
-			const source = await client.callTool({name: 'read_symbol', arguments: {symbolId: exact?.id ?? ''}});
+			const source = await client.callTool({name: 'read_symbol', arguments: {symbolId: exact?.symbolId ?? ''}});
 
 			for (const result of [status, outline, symbols, references, dependencies, source]) {
 				expect(result.isError).not.toBe(true);

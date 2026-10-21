@@ -307,8 +307,8 @@ cursor, and a truncation flag.
 | Tool | Input | Notes |
 | --- | --- | --- |
 | `index_status` | none | Readiness, scope, counts, freshness, diagnostics, limitations |
-| `outline` | path, kinds, limit, cursor | Source order |
-| `find_symbol` | query, optional context, limit, cursor | Exact qualified, exact name, prefix qualified, prefix name |
+| `outline` | path, kinds, detail, limit, cursor | Source order; compact by default |
+| `find_symbol` | query, optional context, detail, limit, cursor | Exact qualified, exact name, prefix qualified, prefix name |
 | `find_references` | symbol id, role, optional context, limit, cursor | Definition/reference occurrences |
 | `find_dependencies` | target, optional context, direction, transitive, root, detail, limit, cursor | Direct target usage or dependency impact |
 | `read_symbol` | symbol id, context lines | Verifies current content hash |
@@ -316,6 +316,12 @@ cursor, and a truncation flag.
 Symbol exposure (`published`, `reachable`, `internal`) and its ranking effect are
 defined by the [publication policy](./codeindex-publication-policy-redesign.md);
 `find_symbol` defaults to the `visible` filter (published or reachable).
+
+`outline` and `find_symbol` default to `detail: compact`, which returns the
+symbol identifier, name, kind, path, and line range. `detail: full` adds
+qualified names, bindings, names, and definition sites. Compact is the default
+because full items are roughly an order of magnitude larger per declaration and
+routinely exhaust the response budget for a single file.
 
 Result rules:
 
@@ -342,7 +348,9 @@ A dependency edge records:
 - optional binding facts (default, named, namespace, all, import-equals).
 
 `find_dependencies` with `transitive: false` returns direct consumers of an
-external dependency. With `transitive: true` it traverses authored module edges,
+external dependency; authored-file importers are not a direct target, so use
+`find_symbol` and `find_references` for those. With `transitive: true` it
+traverses authored module edges,
 keeps the direct consumer that starts each shortest path, and groups results by
 that root. Traversal is cycle-safe and bounded by depth and page size.
 
