@@ -1,0 +1,65 @@
+{
+	"schemaVersion": 2,
+	"id": "codeindex-repository",
+	"version": 1,
+	"status": "draft",
+	"revision": "3184f55d300144d208d0adef3273af3e5a1cb9b7",
+	"model": "deepseek/deepseek-flash",
+	"repetitions": 1,
+	"treatments": [
+		{
+			"id": "no-index",
+			"kind": "no-index",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": null,
+			"mcp": null
+		},
+		{
+			"id": "accepted",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-accepted",
+				"root": "artifacts/accepted",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		},
+		{
+			"id": "candidate",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-candidate",
+				"root": "artifacts/candidate",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		}
+	],
+	"cases": [
+		"locate-schema-version",
+		"locate-read-symbol-tool",
+		"locate-stale-file-error",
+		"locate-result-size-guard",
+		"impact-build-generation-references",
+		"impact-hash-content-references",
+		"impact-bounded-paged-result-references",
+		"impact-schema-version-references",
+		"impact-config-load-references",
+		"impact-codeindex-error-references",
+		"impl-default-result-bytes",
+		"impl-empty-relative-path",
+		"semantic-repo-shadowed-projection-depth",
+		"semantic-repo-renamed-name-node"
+	]
+}

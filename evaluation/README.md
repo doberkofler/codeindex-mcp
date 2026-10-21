@@ -40,6 +40,14 @@ node evaluation/harness/src/cli.ts list --suite suites/semantic.json
 node evaluation/harness/src/cli.ts evaluate --suite suites/semantic.json --dry-run
 ```
 
+The draft CodeIndex repository suite, including the bounded implementation cases and
+their post-run checks, is listed with:
+
+```bash
+node evaluation/harness/src/cli.ts list --suite suites/repository.json
+node evaluation/harness/src/cli.ts evaluate --suite suites/repository.json --dry-run
+```
+
 The subject defaults to this repository root. Override it with
 `evaluation/harness/harness.json`:
 

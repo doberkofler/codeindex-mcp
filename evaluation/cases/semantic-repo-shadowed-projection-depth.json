@@ -1,0 +1,22 @@
+{
+	"schemaVersion": 1,
+	"id": "semantic-repo-shadowed-projection-depth",
+	"title": "Shadowed projection depth constant",
+	"class": "semantic",
+	"tags": ["semantic", "shadowed-name", "projection"],
+	"prompt": "In this CodeIndex repository, which files under src/ use the MAX_PROJECTION_DEPTH constant declared in src/core/qualification/publication/projectionModel.ts rather than the different constant with the same name declared in src/adapters/typescript/surfaceCore.ts? Exclude both declaration files. List every referencing file under src/ and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": ["src/core/qualification/publication/projectionPrototype.ts", "src/core/qualification/publication/projectionTraversal.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [
+		"src/core/qualification/publication/projectionModel.ts",
+		"src/adapters/typescript/surfaceCore.ts",
+		"src/adapters/typescript/surfaceProjection.ts"
+	],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

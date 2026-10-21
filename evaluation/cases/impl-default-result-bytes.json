@@ -1,0 +1,24 @@
+{
+	"schemaVersion": 1,
+	"id": "impl-default-result-bytes",
+	"title": "Raise the default result byte limit",
+	"class": "implementation",
+	"tags": ["implementation", "configuration", "bounded-change"],
+	"prompt": "In this CodeIndex repository, change the default maximum serialized result size from 32768 to 65536 bytes in src/core/config/config.ts and update the assertion in test/config.test.ts so it expects the new default. Do not modify any other file. List every file you changed under src/ or test/ and nothing else.",
+	"scope": ["src/core/config/config.ts", "test/config.test.ts"],
+	"expectedFiles": ["src/core/config/config.ts", "test/config.test.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 16,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"check": {
+		"command": "node",
+		"args": ["node_modules/vitest/vitest.mjs", "run", "test/config.test.ts", "--coverage.enabled=false", "--reporter=dot"],
+		"expectedExitCode": 0,
+		"timeoutMs": 120000
+	},
+	"timeoutMs": 180000
+}

@@ -545,9 +545,18 @@ The four impact cases ask for consumers of one symbol, because direct
 `find_dependencies` usage covers external package targets only. Expected files
 were verified against the pinned revision with the TypeScript language service;
 the per-case review is recorded in
-[`../audits/q2-v5-e0.md`](../audits/q2-v5-e0.md). Implementation cases remain
-file-identification descriptors until bounded change cases with post-run checks
-replace them; the suite is not ready to freeze.
+[`../audits/q2-v5-e0.md`](../audits/q2-v5-e0.md). The Q2 implementation cases
+remain file-identification descriptors and are not selected for the final suite.
+
+The draft repository suite [`../suites/repository.json`](../suites/repository.json)
+adds fourteen cases over the same subject at the pinned revision
+`3184f55d300144d208d0adef3273af3e5a1cb9b7`: four locate cases reused from Q2,
+two additional impact cases, two renamed and shadowed repository semantic cases,
+and two bounded implementation cases. Each implementation case declares an exact
+changed-file set and a deterministic post-run unit-test check; the reference
+edits were exercised in a disposable worktree. The per-case review is recorded in
+[`../audits/repository-e0.md`](../audits/repository-e0.md). Treat the locate and
+impact cases as the repository candidates when the final suite is assembled.
 
 The draft controlled semantic suite [`../suites/semantic.json`](../suites/semantic.json)
 adds six `semantic` cases over the reviewed disposable fixture at

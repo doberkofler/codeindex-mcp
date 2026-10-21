@@ -1,0 +1,23 @@
+{
+	"schemaVersion": 1,
+	"id": "semantic-repo-renamed-name-node",
+	"title": "Renamed name-node re-export",
+	"class": "semantic",
+	"tags": ["semantic", "renamed-reexport"],
+	"prompt": "In this CodeIndex repository, which files under src/ use the name-node helper through the renamed re-export candidateNameNode in src/adapters/typescript/extractSymbols.ts, whose original declaration is nameNodeOf in src/adapters/typescript/publicationAddress.ts? Exclude the re-exporting file and the original declaration file. List every referencing file under src/ and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": ["src/adapters/typescript/referenceLookup.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [
+		"src/adapters/typescript/extractSymbols.ts",
+		"src/adapters/typescript/publicationAddress.ts",
+		"src/adapters/typescript/extractionRoots.ts",
+		"src/adapters/typescript/publicationCandidates.ts"
+	],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

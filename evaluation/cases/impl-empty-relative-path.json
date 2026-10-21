@@ -1,0 +1,24 @@
+{
+	"schemaVersion": 1,
+	"id": "impl-empty-relative-path",
+	"title": "Reject an empty repository-relative path",
+	"class": "implementation",
+	"tags": ["implementation", "query", "bounded-change"],
+	"prompt": "In this CodeIndex repository, make normalizeRelativePath in src/core/query/querySupport.ts reject an empty path with a CodeIndexError whose code is invalid_argument, and add a test in test/querySupport.test.ts that asserts the empty path is rejected with that code. Do not modify any other file. List every file you changed under src/ or test/ and nothing else.",
+	"scope": ["src/core/query/querySupport.ts", "test/querySupport.test.ts"],
+	"expectedFiles": ["src/core/query/querySupport.ts", "test/querySupport.test.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 16,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"check": {
+		"command": "node",
+		"args": ["node_modules/vitest/vitest.mjs", "run", "test/querySupport.test.ts", "--coverage.enabled=false", "--reporter=dot"],
+		"expectedExitCode": 0,
+		"timeoutMs": 120000
+	},
+	"timeoutMs": 180000
+}

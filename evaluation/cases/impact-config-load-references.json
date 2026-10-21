@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"id": "impact-config-load-references",
+	"title": "loadConfig consumers",
+	"class": "impact",
+	"tags": ["impact", "references", "configuration"],
+	"prompt": "Which files under src/ reference the loadConfig function exported by the configuration module, excluding its own definition file? List every referencing file and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": [
+		"src/adapters/typescript/verifyReferences.ts",
+		"src/core/benchmark/runBenchmark.ts",
+		"src/core/qualification/oracle/runOracleQualification.ts",
+		"src/core/qualification/publication/publicationCommand.ts",
+		"src/entries/console.ts",
+		"src/transports/cli/analyticsCommand.ts",
+		"src/transports/cli/runCli.ts",
+		"src/transports/mcp/runServer.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": ["src/core/config/config.ts"],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}
