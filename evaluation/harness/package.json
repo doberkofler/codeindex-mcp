@@ -9,7 +9,7 @@
 		"list": "node src/cli.ts list --suite suites/q2.json",
 		"evaluate": "node src/cli.ts evaluate --suite suites/q2.json",
 		"report": "node src/cli.ts report",
-		"test": "node --test src/*.test.ts",
+		"test": "pnpm --dir ../.. run eval:test",
 		"typecheck": "tsc --noEmit"
 	},
 	"engines": {

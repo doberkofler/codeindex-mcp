@@ -54,11 +54,11 @@ const INDEX_READY_POLL_MS = 100;
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const itemsOf = (data: unknown): readonly Readonly<Record<string, unknown>>[] => {
-	if (!isRecord(data) || !Array.isArray(data.items)) {
+	if (!isRecord(data) || !Array.isArray(data['items'])) {
 		return [];
 	}
 
-	return data.items.filter(isRecord);
+	return data['items'].filter(isRecord);
 };
 
 const pageStateOf = (data: unknown): Readonly<{truncated: boolean; nextCursor: string | null}> => {
@@ -66,16 +66,16 @@ const pageStateOf = (data: unknown): Readonly<{truncated: boolean; nextCursor: s
 		return {truncated: false, nextCursor: null};
 	}
 
-	return {truncated: data.truncated === true, nextCursor: typeof data.nextCursor === 'string' ? data.nextCursor : null};
+	return {truncated: data['truncated'] === true, nextCursor: typeof data['nextCursor'] === 'string' ? data['nextCursor'] : null};
 };
 
-const pathOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item.path === 'string' ? item.path : null);
+const pathOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item['path'] === 'string' ? item['path'] : null);
 
-const roleOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item.role === 'string' ? item.role : null);
+const roleOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item['role'] === 'string' ? item['role'] : null);
 
-const matchOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item.match === 'string' ? item.match : null);
+const matchOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item['match'] === 'string' ? item['match'] : null);
 
-const nameOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item.name === 'string' ? item.name : null);
+const nameOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item['name'] === 'string' ? item['name'] : null);
 
 const selectedSymbolOf = (items: readonly Readonly<Record<string, unknown>>[], selection: SymbolSelectionType): Readonly<Record<string, unknown>> | null => {
 	const candidates = items.filter(
@@ -95,7 +95,7 @@ const argumentsWithSymbol = (
 	}
 
 	const symbol = selectedSymbolOf(itemsByStep.get(step.symbolFrom.fromStep) ?? [], step.symbolFrom);
-	const symbolId = symbol === null ? null : symbol.symbolId;
+	const symbolId = symbol === null ? null : symbol['symbolId'];
 
 	if (typeof symbolId !== 'string') {
 		throw new TypeError(`step "${step.id}" could not resolve a symbol from step "${step.symbolFrom.fromStep}"`);
@@ -253,7 +253,7 @@ const executeMcpPage = async (
 	return outcome;
 };
 
-const readyOf = (data: unknown): boolean => isRecord(data) && (data.ready === true || data.state === 'published');
+const readyOf = (data: unknown): boolean => isRecord(data) && (data['ready'] === true || data['state'] === 'published');
 
 const waitForIndexReady = async (state: ExecutionStateType, client: McpSessionType): Promise<void> => {
 	const deadline = performance.now() + INDEX_READY_TIMEOUT_MS;
@@ -320,7 +320,7 @@ const executeMcp = async (state: ExecutionStateType, client: McpSessionType, wor
 	const collected = collectedPathsOf(
 		step.collect,
 		state.itemsByStep.get(step.id) ?? [],
-		step.exactName ?? (typeof step.arguments.query === 'string' ? step.arguments.query : null),
+		step.exactName ?? (typeof step.arguments['query'] === 'string' ? step.arguments['query'] : null),
 	);
 	const excluded = new Set(step.excludePaths ?? NO_PATHS);
 	const paths = collected.filter((path) => !excluded.has(path));

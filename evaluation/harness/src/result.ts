@@ -58,7 +58,7 @@ const majorVersionOf = (value: unknown): number | null => {
 		return null;
 	}
 
-	const major = SCHEMA_VERSION.exec(value)?.groups?.major;
+	const major = SCHEMA_VERSION.exec(value)?.groups?.['major'];
 
 	return major === undefined ? null : Number(major);
 };
@@ -126,32 +126,32 @@ const writeJsonAtomicText = (file: string, serialized: string): void => {
 };
 
 const hasRequiredHeader = (record: Record<string, unknown>): boolean =>
-	record.recordType === RESULT_RECORD_TYPE &&
-	typeof record.campaignId === 'string' &&
-	record.campaignId.length > 0 &&
-	typeof record.identityDigest === 'string' &&
-	HEX_DIGEST.test(record.identityDigest) &&
-	typeof record.attempt === 'number' &&
-	Number.isInteger(record.attempt) &&
-	record.attempt >= 1 &&
-	typeof record.outcome === 'string' &&
-	['completed', 'failed', 'timed-out', 'aborted'].includes(record.outcome) &&
-	Array.isArray(record.defects) &&
-	record.defects.every((defect): defect is DefectType => typeof defect === 'string' && (DEFECTS as readonly string[]).includes(defect));
+	record['recordType'] === RESULT_RECORD_TYPE &&
+	typeof record['campaignId'] === 'string' &&
+	record['campaignId'].length > 0 &&
+	typeof record['identityDigest'] === 'string' &&
+	HEX_DIGEST.test(record['identityDigest']) &&
+	typeof record['attempt'] === 'number' &&
+	Number.isInteger(record['attempt']) &&
+	record['attempt'] >= 1 &&
+	typeof record['outcome'] === 'string' &&
+	['completed', 'failed', 'timed-out', 'aborted'].includes(record['outcome']) &&
+	Array.isArray(record['defects']) &&
+	record['defects'].every((defect): defect is DefectType => typeof defect === 'string' && (DEFECTS as readonly string[]).includes(defect));
 
 const hasValidIntegrity = (record: Record<string, unknown>): boolean => {
-	if (!isRecord(record.identity) || !isRecord(record.integrity)) {
+	if (!isRecord(record['identity']) || !isRecord(record['integrity'])) {
 		return false;
 	}
 
 	const {integrity} = record;
 
 	return (
-		typeof integrity.contentDigest === 'string' &&
-		HEX_DIGEST.test(integrity.contentDigest) &&
-		typeof integrity.sizeBytes === 'number' &&
-		Number.isInteger(integrity.sizeBytes) &&
-		integrity.sizeBytes >= 0
+		typeof integrity['contentDigest'] === 'string' &&
+		HEX_DIGEST.test(integrity['contentDigest']) &&
+		typeof integrity['sizeBytes'] === 'number' &&
+		Number.isInteger(integrity['sizeBytes']) &&
+		integrity['sizeBytes'] >= 0
 	);
 };
 
@@ -215,7 +215,7 @@ export const writeJsonAtomic = (file: string, value: unknown, overwrite = false)
 const integrityOf = (result: RunResultType): Readonly<{integrity: IntegrityType; serialized: string}> => {
 	const record: Record<string, unknown> = {...result};
 
-	delete record.integrity;
+	delete record['integrity'];
 
 	const contentDigest = hashOf(record);
 	let sizeBytes = 0;
@@ -294,29 +294,29 @@ export const readResult = (file: string): StoredResultType | null => {
 		return null;
 	}
 
-	if (majorVersionOf(parsed.schemaVersion) !== SUPPORTED_MAJOR) {
+	if (majorVersionOf(parsed['schemaVersion']) !== SUPPORTED_MAJOR) {
 		return null;
 	}
 
 	const {integrity} = parsed;
 
-	if (!isRecord(integrity) || typeof integrity.sizeBytes !== 'number' || typeof integrity.contentDigest !== 'string') {
+	if (!isRecord(integrity) || typeof integrity['sizeBytes'] !== 'number' || typeof integrity['contentDigest'] !== 'string') {
 		return null;
 	}
 
-	if (Buffer.byteLength(text, 'utf8') !== integrity.sizeBytes) {
+	if (Buffer.byteLength(text, 'utf8') !== integrity['sizeBytes']) {
 		return null;
 	}
 
 	const record: Record<string, unknown> = {...parsed};
 
-	delete record.integrity;
+	delete record['integrity'];
 
-	if (hashOf(record) !== integrity.contentDigest) {
+	if (hashOf(record) !== integrity['contentDigest']) {
 		return null;
 	}
 
-	if (hashOf(parsed.identity) !== parsed.identityDigest) {
+	if (hashOf(parsed['identity']) !== parsed['identityDigest']) {
 		return null;
 	}
 
@@ -366,7 +366,7 @@ export const attemptFilesOf = (slotDirectory: string): readonly Readonly<{attemp
 
 	return readdirSync(slotDirectory)
 		.map((name) => {
-			const attempt = ATTEMPT_FILE.exec(name)?.groups?.attempt;
+			const attempt = ATTEMPT_FILE.exec(name)?.groups?.['attempt'];
 
 			return attempt === undefined ? null : {attempt: Number(attempt), file: path.join(slotDirectory, name)};
 		})

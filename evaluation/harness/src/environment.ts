@@ -124,17 +124,17 @@ export const environmentManifestOf = (value: unknown): EnvironmentManifestType =
 	const record = requireObject(value, 'environment');
 	rejectUnknownKeys(record, ENVIRONMENT_KEYS, 'environment');
 
-	if (record.schemaVersion !== ENVIRONMENT_SCHEMA_VERSION) {
+	if (record['schemaVersion'] !== ENVIRONMENT_SCHEMA_VERSION) {
 		throw new Error(`environment field "schemaVersion" must be ${ENVIRONMENT_SCHEMA_VERSION}`);
 	}
 
-	const purpose = ENVIRONMENT_PURPOSES.find((item) => item === record.purpose);
+	const purpose = ENVIRONMENT_PURPOSES.find((item) => item === record['purpose']);
 
 	if (purpose === undefined) {
 		throw new Error(`environment field "purpose" must be one of ${ENVIRONMENT_PURPOSES.join(', ')}`);
 	}
 
-	const recordedAt = requireString(record.recordedAt, 'recordedAt', 'environment');
+	const recordedAt = requireString(record['recordedAt'], 'recordedAt', 'environment');
 
 	if (Number.isNaN(Date.parse(recordedAt))) {
 		throw new TypeError('environment field "recordedAt" must be an ISO 8601 timestamp');
@@ -142,12 +142,12 @@ export const environmentManifestOf = (value: unknown): EnvironmentManifestType =
 
 	return {
 		schemaVersion: ENVIRONMENT_SCHEMA_VERSION,
-		id: requireStableId(record.id, 'id', 'environment'),
+		id: requireStableId(record['id'], 'id', 'environment'),
 		purpose,
 		recordedAt,
-		host: hostOf(record.host),
-		runtime: runtimeOf(record.runtime),
-		model: modelOf(record.model),
+		host: hostOf(record['host']),
+		runtime: runtimeOf(record['runtime']),
+		model: modelOf(record['model']),
 	};
 };
 
@@ -227,7 +227,7 @@ const stopValuesOf = (parameters: string): readonly string[] => {
 	const stops: string[] = [];
 
 	for (const line of parameters.split('\n')) {
-		const value = /^stop[ \t]+(?<value>\S.*)$/u.exec(line.trim())?.groups?.value;
+		const value = /^stop[ \t]+(?<value>\S.*)$/u.exec(line.trim())?.groups?.['value'];
 
 		if (value !== undefined) {
 			stops.push(value.replace(/^"(?<inner>.*)"$/u, '$<inner>'));
@@ -242,8 +242,8 @@ const generationFromParameters = (parameters: string): GenerationSettingsType =>
 
 	for (const line of parameters.split('\n')) {
 		const groups = /^(?<key>[a-z_]+)[ \t]+(?<value>\S.*)$/u.exec(line.trim())?.groups;
-		const key = groups?.key;
-		const value = groups?.value;
+		const key = groups?.['key'];
+		const value = groups?.['value'];
 
 		if (key !== undefined && value !== undefined && !values.has(key)) {
 			values.set(key, value.trim());
@@ -283,19 +283,19 @@ const requireRecord = (value: unknown, context: string): Record<string, unknown>
 
 const modelProbeOf = (reference: string, tags: unknown, show: unknown): ModelEnvironmentType => {
 	const name = modelNameOf(reference);
-	const listed = requireRecord(tags, 'ollama /api/tags response').models;
+	const listed = requireRecord(tags, 'ollama /api/tags response')['models'];
 
 	if (!Array.isArray(listed)) {
 		throw new TypeError('ollama /api/tags response has no "models" array');
 	}
 
-	const entry = listed.map((item) => requireRecord(item, 'ollama model entry')).find((item) => item.name === name);
+	const entry = listed.map((item) => requireRecord(item, 'ollama model entry')).find((item) => item['name'] === name);
 
 	if (entry === undefined) {
 		throw new Error(`ollama does not serve model "${name}"`);
 	}
 
-	const details = requireRecord(requireRecord(show, 'ollama /api/show response').details, 'ollama model details');
+	const details = requireRecord(requireRecord(show, 'ollama /api/show response')['details'], 'ollama model details');
 	const info = requireRecord(requireRecord(show, 'ollama /api/show response')['model_info'], 'ollama model info');
 	const architecture = requireRecord(info, 'ollama model info')['general.architecture'];
 
@@ -311,7 +311,7 @@ const modelProbeOf = (reference: string, tags: unknown, show: unknown): ModelEnv
 
 	return {
 		reference,
-		digest: requireHexDigest(entry.digest, 'ollama model digest', 'environment'),
+		digest: requireHexDigest(entry['digest'], 'ollama model digest', 'environment'),
 		architecture,
 		parameters: requireString(details['parameter_size'], 'ollama model parameter_size', 'environment'),
 		quantization: requireString(details['quantization_level'], 'ollama model quantization_level', 'environment'),

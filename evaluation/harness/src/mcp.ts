@@ -19,11 +19,11 @@ const toolNamesOf = (value: unknown): readonly string[] => {
 	}
 
 	const names = value.map((item) => {
-		if (!isRecord(item) || typeof item.name !== 'string' || !TOOL_NAME.test(item.name)) {
+		if (!isRecord(item) || typeof item['name'] !== 'string' || !TOOL_NAME.test(item['name'])) {
 			throw new Error('MCP tools/list returned an invalid tool name');
 		}
 
-		return item.name;
+		return item['name'];
 	});
 
 	if (new Set(names).size !== names.length) {
@@ -116,12 +116,12 @@ export const catalogOf = async (entryPoint: string, cwd: string): Promise<Catalo
 			}
 
 			const {id} = message;
-			const result = isRecord(message.result) ? message.result : null;
+			const result = isRecord(message['result']) ? message['result'] : null;
 
 			if (id === 1 && result !== null) {
-				const info = isRecord(result.serverInfo) ? result.serverInfo : {};
-				serverName = typeof info.name === 'string' ? info.name : 'unknown';
-				serverVersion = typeof info.version === 'string' ? info.version : 'unknown';
+				const info = isRecord(result['serverInfo']) ? result['serverInfo'] : {};
+				serverName = typeof info['name'] === 'string' ? info['name'] : 'unknown';
+				serverVersion = typeof info['version'] === 'string' ? info['version'] : 'unknown';
 				send({jsonrpc: '2.0', method: 'notifications/initialized'});
 				send({jsonrpc: '2.0', id: 2, method: 'tools/list', params: {}});
 				continue;
@@ -129,7 +129,7 @@ export const catalogOf = async (entryPoint: string, cwd: string): Promise<Catalo
 
 			if (id === 2 && result !== null) {
 				try {
-					finish(null, {serverName, serverVersion, tools: toolNamesOf(result.tools)});
+					finish(null, {serverName, serverVersion, tools: toolNamesOf(result['tools'])});
 				} catch (error) {
 					finish(error instanceof Error ? error : new Error(String(error)));
 				}

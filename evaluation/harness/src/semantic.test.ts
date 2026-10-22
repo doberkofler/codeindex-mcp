@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync, readdirSync, statSync} from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import {describe, it} from 'vitest';
 import ts from 'typescript';
 import {caseOf, type CaseType} from './schema.ts';
 import {loadSuite} from './suite.ts';
@@ -266,29 +266,29 @@ const grepMeasurementOf = (identifier: string, expected: readonly string[]): Gre
 
 const language = languageServiceOf(FIXTURE_ROOT);
 
-void test('controlled TypeScript fixture compiles without diagnostics', () => {
-	const diagnostics = ts.getPreEmitDiagnostics(language.program);
+describe('semantic', () => {
+	it('controlled TypeScript fixture compiles without diagnostics', () => {
+		const diagnostics = ts.getPreEmitDiagnostics(language.program);
 
-	assert.deepEqual(
-		diagnostics.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
-		[],
-	);
-});
+		assert.deepEqual(
+			diagnostics.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
+			[],
+		);
+	});
 
-void test('controlled semantic suite loads six semantic cases', () => {
-	const {suite, cases} = loadSuite(path.join(EVALUATION_ROOT, 'suites', 'semantic.json'));
+	it('controlled semantic suite loads six semantic cases', () => {
+		const {suite, cases} = loadSuite(path.join(EVALUATION_ROOT, 'suites', 'semantic.json'));
 
-	assert.equal(suite.id, 'controlled-typescript-semantic');
-	assert.equal(suite.status, 'draft');
-	assert.equal(cases.length, 6);
-	assert.deepEqual(
-		cases.map((testCase) => testCase.class),
-		Array.from({length: 6}, () => 'semantic'),
-	);
-});
+		assert.equal(suite.id, 'controlled-typescript-semantic');
+		assert.equal(suite.status, 'draft');
+		assert.equal(cases.length, 6);
+		assert.deepEqual(
+			cases.map((testCase) => testCase.class),
+			Array.from({length: 6}, () => 'semantic'),
+		);
+	});
 
-for (const probe of PROBES) {
-	void test(`${probe.caseId} matches the language service and admits no exact identifier grep`, () => {
+	it.each(PROBES)('$caseId matches the language service and admits no exact identifier grep', (probe) => {
 		const testCase = caseOfId(probe.caseId);
 		const expected = [...testCase.expectedFiles].sort();
 		const truth = truthFilesOf(language, probe);
@@ -315,4 +315,4 @@ for (const probe of PROBES) {
 			`${probe.caseId} admits identifier grep "${best.identifier}" with precision ${best.precision.toFixed(2)} and no missing expected file`,
 		);
 	});
-}
+});

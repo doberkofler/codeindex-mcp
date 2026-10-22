@@ -19,31 +19,21 @@ const overrides: OverrideType[] = [
 		},
 	},
 	{
-		// The evaluation harness is a separate package that executes on
-		// `node --test`, not vitest. Its measurements require serialized
-		// executions: one model, one MCP session, one attempt at a time.
+		// The evaluation harness executes real model processes and measures them:
+		// one model, one MCP session, one attempt at a time. Sequential awaits are
+		// the measurement, not an oversight.
 		files: ['evaluation/harness/**/*.ts'],
 		rules: {
 			'eslint/no-await-in-loop': 'off',
-			'vitest/no-import-node-test': 'off',
-			'vitest/prefer-importing-vitest-globals': 'off',
-			'vitest/prefer-each': 'off',
 		},
 	},
 	{
-		// The harness is also compiled by the root test project, which enables
-		// `noPropertyAccessFromIndexSignature`. Bracket access is then mandatory for
-		// records, and `dot-notation` would report the same sites as needing dot
-		// access. The two rules cannot both hold in this file set.
-		files: [
-			'evaluation/harness/src/events.ts',
-			'evaluation/harness/src/eventsTools.ts',
-			'evaluation/harness/src/routePlan.ts',
-			'evaluation/harness/src/schema.ts',
-			'evaluation/harness/src/treatment.ts',
-		],
+		// A harness test file is one `describe` per module; its callback is a
+		// container for independent cases, not a function unit. File size stays
+		// bounded by `eslint/max-lines`.
+		files: ['evaluation/harness/src/**/*.test.ts'],
 		rules: {
-			'typescript/dot-notation': 'off',
+			'eslint/max-lines-per-function': 'off',
 		},
 	},
 	{

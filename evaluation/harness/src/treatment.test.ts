@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import test, {type TestContext} from 'node:test';
+import {describe, it, type TestContext} from 'vitest';
 import {identityDigestOf, identityOf, type IdentityType} from './identity.ts';
 import {catalogOf} from './mcp.ts';
 import {caseOf, suiteFieldsOf, type CaseType, type SuiteType} from './schema.ts';
@@ -66,158 +66,162 @@ const caseA = (): CaseType =>
 		timeoutMs: 1000,
 	});
 
-void test('treatment definitions are data with a stable hash', () => {
-	const first = treatments();
-	const second = treatments();
+describe('treatment', () => {
+	it('treatment definitions are data with a stable hash', () => {
+		const first = treatments();
+		const second = treatments();
 
-	assert.equal(first.length, 3);
-	assert.deepEqual(
-		first.map((treatment) => treatment.id),
-		['no-index', 'accepted', 'candidate'],
-	);
-	assert.deepEqual(
-		first.map((treatment) => treatment.definitionHash),
-		second.map((treatment) => treatment.definitionHash),
-	);
-	assert.match(first[1]?.definitionHash ?? '', /^[0-9a-f]{64}$/u);
-	assert.notEqual(first[1]?.definitionHash, first[2]?.definitionHash);
-});
-
-void test('treatment definitions reject invalid shapes and artifact paths', () => {
-	assert.throws(() => treatmentOf({...rawTreatments()[0], codeMode: 'available'}), /codeMode/u);
-	assert.throws(() => treatmentOf({...rawTreatments()[0], artifact: {id: 'x', root: 'x', entryPoint: 'x'}}), /neither artifact nor mcp/u);
-	assert.throws(() => treatmentOf({...rawTreatments()[1], artifact: null}), /both artifact and mcp/u);
-	assert.throws(() => treatmentOf({...rawTreatments()[1], artifact: {id: 'x', root: '/abs', entryPoint: 'mcp.mjs'}}), /relative POSIX path/u);
-	assert.throws(() => treatmentOf({...rawTreatments()[1], unexpected: true}), /unknown field/u);
-});
-
-void test('treatment equivalence rejects a tool-list mismatch', () => {
-	const changed = treatments().map((treatment, index) =>
-		index === 2 ? treatmentOf({...rawTreatments()[2], ordinaryTools: [...ORDINARY, 'webfetch']}) : treatment,
-	);
-
-	assert.match(treatmentDifferencesOf(changed).join('\n'), /ordinary tools differ/u);
-	assert.throws(() => validateTreatmentSet(changed), /not equivalent/u);
-});
-
-void test('treatment equivalence rejects configuration and MCP mismatches', () => {
-	const missing = treatments().slice(0, 2);
-	const mcp = treatments().map((treatment, index) => (index === 2 ? treatmentOf({...rawTreatments()[2], mcp: {server: 'other', codemode: false}}) : treatment));
-
-	assert.match(treatmentDifferencesOf(missing).join('\n'), /expected 3 treatments|missing treatment/u);
-	assert.match(treatmentDifferencesOf(mcp).join('\n'), /MCP server differs/u);
-});
-
-void test('surface capture prefixes native MCP tools and records routing', () => {
-	const [, accepted] = treatments();
-	assert.ok(accepted !== undefined);
-	const surface = toolSurfaceOf(accepted, ['find_symbol', 'read_symbol']);
-	const routing = routingOf(surface, ['grep', 'codeindex_find_symbol', 'execute', 'mystery']);
-
-	assert.deepEqual(surface.codeIndex, ['codeindex_find_symbol', 'codeindex_read_symbol']);
-	assert.deepEqual(surface.tools, ['bash', 'codeindex_find_symbol', 'codeindex_read_symbol', 'glob', 'grep', 'list', 'read']);
-	assert.equal(surface.native, true);
-	assert.deepEqual(routing.unknownTools, ['execute', 'mystery']);
-	assert.equal(routing.codeIndexCalls, 1);
-	assert.equal(routing.executeCalls, 1);
-	assert.equal(routing.native, false);
-
-	const [noIndexTreatment] = treatments();
-
-	assert.ok(noIndexTreatment !== undefined);
-
-	const noIndex = toolSurfaceOf(noIndexTreatment);
-	assert.deepEqual(noIndex.codeIndex, []);
-	assert.deepEqual(noIndex.tools, [...ORDINARY].sort());
-});
-
-void test('catalog query returns the native tool names and rejects mismatches', async (testContext: TestContext) => {
-	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-mcp-'));
-	const server = path.join(root, 'server.mjs');
-	writeFileSync(
-		server,
-		[
-			"import {createInterface} from 'node:readline';",
-			"if (process.env.CODE_INDEX_ROOT !== undefined) { throw new Error('inherited CodeIndex configuration'); }",
-			'const lines = createInterface({input: process.stdin});',
-			"lines.on('line', (line) => {",
-			'\tconst message = JSON.parse(line);',
-			"\tif (message.method === 'initialize') {",
-			"\t\tprocess.stdout.write(JSON.stringify({jsonrpc: '2.0', id: message.id, result: {protocolVersion: '2025-06-18', capabilities: {tools: {}}, serverInfo: {name: 'fake', version: '1'}}}) + '\\n');",
-			'\t}',
-			"\tif (message.method === 'tools/list') {",
-			"\t\tprocess.stdout.write(JSON.stringify({jsonrpc: '2.0', id: message.id, result: {tools: [{name: 'read_symbol'}, {name: 'find_symbol'}]}}) + '\\n');",
-			'\t}',
-			'});',
-			'',
-		].join('\n'),
-		'utf8',
-	);
-	testContext.after(() => {
-		rmSync(root, {recursive: true, force: true});
+		assert.equal(first.length, 3);
+		assert.deepEqual(
+			first.map((treatment) => treatment.id),
+			['no-index', 'accepted', 'candidate'],
+		);
+		assert.deepEqual(
+			first.map((treatment) => treatment.definitionHash),
+			second.map((treatment) => treatment.definitionHash),
+		);
+		assert.match(first[1]?.definitionHash ?? '', /^[0-9a-f]{64}$/u);
+		assert.notEqual(first[1]?.definitionHash, first[2]?.definitionHash);
 	});
 
-	const inheritedRoot = process.env['CODE_INDEX_ROOT'];
-	process.env['CODE_INDEX_ROOT'] = '/invalid/inherited/root';
-	let catalog: Awaited<ReturnType<typeof catalogOf>>;
+	it('treatment definitions reject invalid shapes and artifact paths', () => {
+		assert.throws(() => treatmentOf({...rawTreatments()[0], codeMode: 'available'}), /codeMode/u);
+		assert.throws(() => treatmentOf({...rawTreatments()[0], artifact: {id: 'x', root: 'x', entryPoint: 'x'}}), /neither artifact nor mcp/u);
+		assert.throws(() => treatmentOf({...rawTreatments()[1], artifact: null}), /both artifact and mcp/u);
+		assert.throws(() => treatmentOf({...rawTreatments()[1], artifact: {id: 'x', root: '/abs', entryPoint: 'mcp.mjs'}}), /relative POSIX path/u);
+		assert.throws(() => treatmentOf({...rawTreatments()[1], unexpected: true}), /unknown field/u);
+	});
 
-	try {
-		catalog = await catalogOf(server, root);
-	} finally {
-		if (inheritedRoot === undefined) {
-			delete process.env['CODE_INDEX_ROOT'];
-		} else {
-			process.env['CODE_INDEX_ROOT'] = inheritedRoot;
-		}
-	}
+	it('treatment equivalence rejects a tool-list mismatch', () => {
+		const changed = treatments().map((treatment, index) =>
+			index === 2 ? treatmentOf({...rawTreatments()[2], ordinaryTools: [...ORDINARY, 'webfetch']}) : treatment,
+		);
 
-	assert.equal(catalog.serverName, 'fake');
-	assert.deepEqual(catalog.tools, ['find_symbol', 'read_symbol']);
-});
+		assert.match(treatmentDifferencesOf(changed).join('\n'), /ordinary tools differ/u);
+		assert.throws(() => validateTreatmentSet(changed), /not equivalent/u);
+	});
 
-void test('run identity changes on model, prompt, revision, and configuration', () => {
-	const cases = [caseA()];
-	const planHash = 'b'.repeat(64);
-	const identity = (overrides: Record<string, unknown> = {}, caseOverrides: Record<string, unknown> = {}): IdentityType =>
-		identityOf({
-			suite: suite({...overrides}),
-			cases: [caseOf({...caseA(), ...caseOverrides})],
-			treatments: treatments(),
-			repetitions: 1,
-			planHash,
-			harnessVersion: 1,
+	it('treatment equivalence rejects configuration and MCP mismatches', () => {
+		const missing = treatments().slice(0, 2);
+		const mcp = treatments().map((treatment, index) =>
+			index === 2 ? treatmentOf({...rawTreatments()[2], mcp: {server: 'other', codemode: false}}) : treatment,
+		);
+
+		assert.match(treatmentDifferencesOf(missing).join('\n'), /expected 3 treatments|missing treatment/u);
+		assert.match(treatmentDifferencesOf(mcp).join('\n'), /MCP server differs/u);
+	});
+
+	it('surface capture prefixes native MCP tools and records routing', () => {
+		const [, accepted] = treatments();
+		assert.ok(accepted !== undefined);
+		const surface = toolSurfaceOf(accepted, ['find_symbol', 'read_symbol']);
+		const routing = routingOf(surface, ['grep', 'codeindex_find_symbol', 'execute', 'mystery']);
+
+		assert.deepEqual(surface.codeIndex, ['codeindex_find_symbol', 'codeindex_read_symbol']);
+		assert.deepEqual(surface.tools, ['bash', 'codeindex_find_symbol', 'codeindex_read_symbol', 'glob', 'grep', 'list', 'read']);
+		assert.equal(surface.native, true);
+		assert.deepEqual(routing.unknownTools, ['execute', 'mystery']);
+		assert.equal(routing.codeIndexCalls, 1);
+		assert.equal(routing.executeCalls, 1);
+		assert.equal(routing.native, false);
+
+		const [noIndexTreatment] = treatments();
+
+		assert.ok(noIndexTreatment !== undefined);
+
+		const noIndex = toolSurfaceOf(noIndexTreatment);
+		assert.deepEqual(noIndex.codeIndex, []);
+		assert.deepEqual(noIndex.tools, [...ORDINARY].sort());
+	});
+
+	it('catalog query returns the native tool names and rejects mismatches', async (testContext: TestContext) => {
+		const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-mcp-'));
+		const server = path.join(root, 'server.mjs');
+		writeFileSync(
+			server,
+			[
+				"import {createInterface} from 'node:readline';",
+				"if (process.env.CODE_INDEX_ROOT !== undefined) { throw new Error('inherited CodeIndex configuration'); }",
+				'const lines = createInterface({input: process.stdin});',
+				"lines.on('line', (line) => {",
+				'\tconst message = JSON.parse(line);',
+				"\tif (message.method === 'initialize') {",
+				"\t\tprocess.stdout.write(JSON.stringify({jsonrpc: '2.0', id: message.id, result: {protocolVersion: '2025-06-18', capabilities: {tools: {}}, serverInfo: {name: 'fake', version: '1'}}}) + '\\n');",
+				'\t}',
+				"\tif (message.method === 'tools/list') {",
+				"\t\tprocess.stdout.write(JSON.stringify({jsonrpc: '2.0', id: message.id, result: {tools: [{name: 'read_symbol'}, {name: 'find_symbol'}]}}) + '\\n');",
+				'\t}',
+				'});',
+				'',
+			].join('\n'),
+			'utf8',
+		);
+		testContext.onTestFinished(() => {
+			rmSync(root, {recursive: true, force: true});
 		});
-	const baseline = identityDigestOf(identity());
 
-	assert.equal(identityDigestOf(identity()), baseline);
-	assert.notEqual(identityDigestOf(identity({model: 'other/model'})), baseline);
-	assert.notEqual(identityDigestOf(identity({revision: 'def5678'})), baseline);
-	assert.notEqual(identityDigestOf(identity({}, {prompt: 'Different prompt'})), baseline);
-	const changedTools = rawTreatments().map((treatment) => ({...treatment, ordinaryTools: [...ORDINARY, 'webfetch']}));
-	assert.notEqual(
-		identityDigestOf(
+		const inheritedRoot = process.env['CODE_INDEX_ROOT'];
+		process.env['CODE_INDEX_ROOT'] = '/invalid/inherited/root';
+		let catalog: Awaited<ReturnType<typeof catalogOf>>;
+
+		try {
+			catalog = await catalogOf(server, root);
+		} finally {
+			if (inheritedRoot === undefined) {
+				delete process.env['CODE_INDEX_ROOT'];
+			} else {
+				process.env['CODE_INDEX_ROOT'] = inheritedRoot;
+			}
+		}
+
+		assert.equal(catalog.serverName, 'fake');
+		assert.deepEqual(catalog.tools, ['find_symbol', 'read_symbol']);
+	});
+
+	it('run identity changes on model, prompt, revision, and configuration', () => {
+		const cases = [caseA()];
+		const planHash = 'b'.repeat(64);
+		const identity = (overrides: Record<string, unknown> = {}, caseOverrides: Record<string, unknown> = {}): IdentityType =>
 			identityOf({
-				suite: suite(),
-				cases,
-				treatments: changedTools.map((value) => treatmentOf(value)),
+				suite: suite({...overrides}),
+				cases: [caseOf({...caseA(), ...caseOverrides})],
+				treatments: treatments(),
 				repetitions: 1,
 				planHash,
 				harnessVersion: 1,
-			}),
-		),
-		baseline,
-	);
-});
+			});
+		const baseline = identityDigestOf(identity());
 
-void test('each planned execution resolves exactly one treatment', () => {
-	const plan = planOf([caseA()], ['no-index', 'candidate'], 2);
+		assert.equal(identityDigestOf(identity()), baseline);
+		assert.notEqual(identityDigestOf(identity({model: 'other/model'})), baseline);
+		assert.notEqual(identityDigestOf(identity({revision: 'def5678'})), baseline);
+		assert.notEqual(identityDigestOf(identity({}, {prompt: 'Different prompt'})), baseline);
+		const changedTools = rawTreatments().map((treatment) => ({...treatment, ordinaryTools: [...ORDINARY, 'webfetch']}));
+		assert.notEqual(
+			identityDigestOf(
+				identityOf({
+					suite: suite(),
+					cases,
+					treatments: changedTools.map((value) => treatmentOf(value)),
+					repetitions: 1,
+					planHash,
+					harnessVersion: 1,
+				}),
+			),
+			baseline,
+		);
+	});
 
-	assert.equal(plan.length, 4);
-	assert.equal(new Set(plan.map((entry) => `${entry.caseId}/${entry.treatment}/${entry.repetition}`)).size, 4);
-	const [firstEntry, , thirdEntry] = plan;
+	it('each planned execution resolves exactly one treatment', () => {
+		const plan = planOf([caseA()], ['no-index', 'candidate'], 2);
 
-	assert.ok(firstEntry !== undefined && thirdEntry !== undefined);
-	assert.equal(resolveTreatmentOf(firstEntry, treatments()).id, 'no-index');
-	assert.equal(resolveTreatmentOf(thirdEntry, treatments()).id, 'candidate');
-	assert.throws(() => resolveTreatmentOf({caseId: 'case-a', treatment: 'missing', repetition: 1}, treatments()), /resolves 0/u);
+		assert.equal(plan.length, 4);
+		assert.equal(new Set(plan.map((entry) => `${entry.caseId}/${entry.treatment}/${entry.repetition}`)).size, 4);
+		const [firstEntry, , thirdEntry] = plan;
+
+		assert.ok(firstEntry !== undefined && thirdEntry !== undefined);
+		assert.equal(resolveTreatmentOf(firstEntry, treatments()).id, 'no-index');
+		assert.equal(resolveTreatmentOf(thirdEntry, treatments()).id, 'candidate');
+		assert.throws(() => resolveTreatmentOf({caseId: 'case-a', treatment: 'missing', repetition: 1}, treatments()), /resolves 0/u);
+	});
 });

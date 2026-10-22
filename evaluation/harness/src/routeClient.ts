@@ -50,11 +50,11 @@ export const takeDebugTimings = (buffer: {text: string}): readonly DebugCompleti
 	let lastIndex = 0;
 
 	for (const match of buffer.text.matchAll(COMPLETION_PATTERN)) {
-		const body = match.groups?.body ?? '';
+		const body = match.groups?.['body'] ?? '';
 		const tool = TOOL_PATTERN.exec(body);
 		const duration = DURATION_PATTERN.exec(body);
-		const toolName = tool?.groups?.tool;
-		const durationText = duration?.groups?.duration;
+		const toolName = tool?.groups?.['tool'];
+		const durationText = duration?.groups?.['duration'];
 
 		if (toolName === undefined || durationText === undefined) {
 			continue;
@@ -78,7 +78,7 @@ const textOf = (content: unknown): string => {
 		return '';
 	}
 
-	return content.flatMap((item) => (isRecord(item) && item.type === 'text' && typeof item.text === 'string' ? [item.text] : [])).join('');
+	return content.flatMap((item) => (isRecord(item) && item['type'] === 'text' && typeof item['text'] === 'string' ? [item['text']] : [])).join('');
 };
 
 const envelopeOf = (structured: unknown): Readonly<{ok: boolean; data: unknown; errorCode: string | null; errorMessage: string | null}> => {
@@ -86,13 +86,13 @@ const envelopeOf = (structured: unknown): Readonly<{ok: boolean; data: unknown; 
 		return {ok: true, data: null, errorCode: null, errorMessage: null};
 	}
 
-	const error = isRecord(structured.error) ? structured.error : null;
+	const error = isRecord(structured['error']) ? structured['error'] : null;
 
 	return {
-		ok: structured.ok !== false,
-		data: structured.data ?? null,
-		errorCode: typeof error?.code === 'string' ? error.code : null,
-		errorMessage: typeof error?.message === 'string' ? error.message : null,
+		ok: structured['ok'] !== false,
+		data: structured['data'] ?? null,
+		errorCode: typeof error?.['code'] === 'string' ? error['code'] : null,
+		errorMessage: typeof error?.['message'] === 'string' ? error['message'] : null,
 	};
 };
 
@@ -143,9 +143,9 @@ export const openMcpSession = async (input: Readonly<{entryPoint: string; cwd: s
 			const result: unknown = await client.callTool({name: tool, arguments: {...args}});
 			const elapsedMs = performance.now() - callStart;
 			const record = isRecord(result) ? result : {};
-			const text = textOf(record.content);
-			const envelope = envelopeOf(record.structuredContent);
-			const failed = record.isError === true || !envelope.ok;
+			const text = textOf(record['content']);
+			const envelope = envelopeOf(record['structuredContent']);
+			const failed = record['isError'] === true || !envelope.ok;
 
 			await immediate();
 
@@ -159,7 +159,7 @@ export const openMcpSession = async (input: Readonly<{entryPoint: string; cwd: s
 				responseBytes: Buffer.byteLength(text, 'utf8'),
 				text,
 				structured: envelope.data,
-				errorCode: envelope.errorCode ?? (record.isError === true ? 'tool_error' : null),
+				errorCode: envelope.errorCode ?? (record['isError'] === true ? 'tool_error' : null),
 				errorMessage: envelope.errorMessage,
 			};
 		} catch (error) {

@@ -110,7 +110,7 @@ export const isBroadSearch = (call: ToolCallType): boolean => {
 
 	const paths = inputScopesOf(call, SCOPE_PATH_KEYS);
 	const includes = inputScopesOf(call, SCOPE_INCLUDE_KEYS);
-	const pattern = call.tool === 'glob' ? scopeValuesOf(call.input.pattern) : [];
+	const pattern = call.tool === 'glob' ? scopeValuesOf(call.input['pattern']) : [];
 	const narrowedBy = [...includes, ...pattern];
 
 	if (paths.length === 0) {

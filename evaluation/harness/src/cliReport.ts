@@ -44,7 +44,7 @@ export const resultsIn = (directory: string, campaignId: string): readonly RunRe
 
 			const attemptMatch = /^attempt-(?<attempt>\d+)\.json$/u.exec(entry);
 
-			if (attemptMatch?.groups?.attempt === undefined) {
+			if (attemptMatch?.groups?.['attempt'] === undefined) {
 				continue;
 			}
 
@@ -66,7 +66,7 @@ export const resultsIn = (directory: string, campaignId: string): readonly RunRe
 
 			validByIdentity.set(record.identityDigest, validCount);
 
-			const attempt = Number(attemptMatch.groups.attempt);
+			const attempt = Number(attemptMatch.groups['attempt']);
 			const stored = bySlot.get(current);
 
 			if (stored === undefined || attempt > stored.attempt) {

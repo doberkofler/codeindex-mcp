@@ -42,7 +42,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
  * @returns Tool names in request order; empty for a request without tools.
  */
 export const requestToolNamesOf = (body: unknown): readonly string[] => {
-	const tools = isRecord(body) ? body.tools : undefined;
+	const tools = isRecord(body) ? body['tools'] : undefined;
 
 	if (tools === undefined) {
 		return [];
@@ -53,7 +53,7 @@ export const requestToolNamesOf = (body: unknown): readonly string[] => {
 	}
 
 	return tools.map((tool) => {
-		const name = isRecord(tool) && isRecord(tool.function) ? tool.function.name : undefined;
+		const name = isRecord(tool) && isRecord(tool['function']) ? tool['function']['name'] : undefined;
 
 		if (typeof name !== 'string' || name.length === 0) {
 			throw new Error('provider request contains a tool without a function name');

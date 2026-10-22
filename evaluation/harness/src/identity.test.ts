@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import {describe, it} from 'vitest';
 import {executionIdentityDigestOf, executionIdentityOf, type ExecutionIdentityInputType} from './identity.ts';
 import {caseOf, suiteFieldsOf, type CaseType, type SuiteType} from './schema.ts';
 import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
@@ -90,39 +90,41 @@ const input = (overrides: Partial<ExecutionIdentityInputType> = {}): ExecutionId
 	};
 };
 
-void test('complete execution identity is stable and every field participates', () => {
-	const base = executionIdentityDigestOf(executionIdentityOf(input()));
-	const changed = (overrides: Partial<ExecutionIdentityInputType>): string => executionIdentityDigestOf(executionIdentityOf(input(overrides)));
+describe('identity', () => {
+	it('complete execution identity is stable and every field participates', () => {
+		const base = executionIdentityDigestOf(executionIdentityOf(input()));
+		const changed = (overrides: Partial<ExecutionIdentityInputType>): string => executionIdentityDigestOf(executionIdentityOf(input(overrides)));
 
-	assert.equal(executionIdentityDigestOf(executionIdentityOf(input())), base);
-	assert.notEqual(changed({model: 'provider/other'}), base);
-	assert.notEqual(changed({model: 'other/provider'}), base);
-	assert.notEqual(changed({testCase: caseOf({...testCase(), prompt: 'Different prompt'})}), base);
-	assert.notEqual(changed({testCase: caseOf({...testCase(), timeoutMs: 6000})}), base);
-	assert.notEqual(changed({configDigest: 'f'.repeat(64)}), base);
-	assert.notEqual(changed({repetitionIndex: 2}), base);
-	assert.notEqual(changed({randomizationSeed: '0'.repeat(64)}), base);
-	assert.notEqual(changed({harnessVersion: 2}), base);
-	assert.notEqual(
-		changed({
-			subject: {mode: 'detached-worktree', revision: 'def5678', contentManifestHash: 'b'.repeat(64), lockFileHash: 'c'.repeat(64)},
-		}),
-		base,
-	);
-	assert.notEqual(
-		changed({
-			artifacts: {accepted: {id: 'accepted', digest: '1'.repeat(64)}, candidate: null},
-		}),
-		base,
-	);
+		assert.equal(executionIdentityDigestOf(executionIdentityOf(input())), base);
+		assert.notEqual(changed({model: 'provider/other'}), base);
+		assert.notEqual(changed({model: 'other/provider'}), base);
+		assert.notEqual(changed({testCase: caseOf({...testCase(), prompt: 'Different prompt'})}), base);
+		assert.notEqual(changed({testCase: caseOf({...testCase(), timeoutMs: 6000})}), base);
+		assert.notEqual(changed({configDigest: 'f'.repeat(64)}), base);
+		assert.notEqual(changed({repetitionIndex: 2}), base);
+		assert.notEqual(changed({randomizationSeed: '0'.repeat(64)}), base);
+		assert.notEqual(changed({harnessVersion: 2}), base);
+		assert.notEqual(
+			changed({
+				subject: {mode: 'detached-worktree', revision: 'def5678', contentManifestHash: 'b'.repeat(64), lockFileHash: 'c'.repeat(64)},
+			}),
+			base,
+		);
+		assert.notEqual(
+			changed({
+				artifacts: {accepted: {id: 'accepted', digest: '1'.repeat(64)}, candidate: null},
+			}),
+			base,
+		);
 
-	const indexed = treatmentOf({
-		id: 'candidate',
-		kind: 'codeindex',
-		ordinaryTools,
-		codeMode: 'absent',
-		artifact: {id: 'candidate', root: 'artifacts/candidate', entryPoint: 'mcp.mjs'},
-		mcp: {server: 'codeindex', codemode: false},
+		const indexed = treatmentOf({
+			id: 'candidate',
+			kind: 'codeindex',
+			ordinaryTools,
+			codeMode: 'absent',
+			artifact: {id: 'candidate', root: 'artifacts/candidate', entryPoint: 'mcp.mjs'},
+			mcp: {server: 'codeindex', codemode: false},
+		});
+		assert.notEqual(changed({treatment: indexed, surface: toolSurfaceOf(indexed, ['find_symbol'])}), base);
 	});
-	assert.notEqual(changed({treatment: indexed, surface: toolSurfaceOf(indexed, ['find_symbol'])}), base);
 });

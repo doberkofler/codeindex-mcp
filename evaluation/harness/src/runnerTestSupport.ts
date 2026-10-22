@@ -1,7 +1,7 @@
 import {chmodSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {type TestContext} from 'node:test';
+import {type TestContext} from 'vitest';
 import {executionIdentityDigestOf, type ExecutionIdentityType} from './identity.ts';
 import {clientStoreOf, type ClientStoreType} from './isolation.ts';
 import {runOnce} from './runner.ts';
@@ -13,7 +13,7 @@ export const NO_RETRY = {maxAttempts: 1, backoffMs: (): number => 0};
 
 export const temporaryRoot = (testContext: TestContext): string => {
 	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-runner-'));
-	testContext.after(() => {
+	testContext.onTestFinished(() => {
 		rmSync(root, {recursive: true, force: true});
 	});
 

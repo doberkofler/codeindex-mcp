@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import {describe, it} from 'vitest';
 import {diagnosticReportOf, diagnosticSummaryOf} from './diagnostics.ts';
 import {type ExecutionIdentityType} from './identity.ts';
 import {type AttemptLogType, type RunResultType} from './runTypes.ts';
@@ -146,118 +146,120 @@ const attemptOf = (): AttemptLogType => {
 	return attempt;
 };
 
-void test('clean diagnostic executions pass the contract', () => {
-	const report = diagnosticReportOf([runOf(), runOf({caseId: 'impl-a', treatment: 'accepted'})]);
+describe('diagnostics', () => {
+	it('clean diagnostic executions pass the contract', () => {
+		const report = diagnosticReportOf([runOf(), runOf({caseId: 'impl-a', treatment: 'accepted'})]);
 
-	assert.equal(report.executions, 2);
-	assert.equal(report.validExecutions, 2);
-	assert.equal(report.passed, true);
-	assert.deepEqual(report.blocking, []);
-	assert.equal(diagnosticSummaryOf(report), '2 diagnostic execution(s), no contract anomaly');
-});
+		assert.equal(report.executions, 2);
+		assert.equal(report.validExecutions, 2);
+		assert.equal(report.passed, true);
+		assert.deepEqual(report.blocking, []);
+		assert.equal(diagnosticSummaryOf(report), '2 diagnostic execution(s), no contract anomaly');
+	});
 
-void test('inherited edits, undeclared tools, and retries are harness anomalies', () => {
-	const report = diagnosticReportOf([
-		runOf({isolation: {mode: 'detached-worktree', clientStore: 'ephemeral', checkoutClean: false, revisionMatch: true, restored: true}}),
-		runOf({routing: {ordinaryCalls: 1, codeIndexCalls: 0, executeCalls: 0, unknownTools: ['write'], native: true}}),
-		runOf({attempts: [attemptOf(), attemptOf()]}),
-	]);
+	it('inherited edits, undeclared tools, and retries are harness anomalies', () => {
+		const report = diagnosticReportOf([
+			runOf({isolation: {mode: 'detached-worktree', clientStore: 'ephemeral', checkoutClean: false, revisionMatch: true, restored: true}}),
+			runOf({routing: {ordinaryCalls: 1, codeIndexCalls: 0, executeCalls: 0, unknownTools: ['write'], native: true}}),
+			runOf({attempts: [attemptOf(), attemptOf()]}),
+		]);
 
-	assert.equal(report.passed, false);
-	assert.deepEqual(
-		report.blocking.map((anomaly) => anomaly.kind),
-		['dirty-checkout', 'unknown-tool', 'retried'],
-	);
-	assert.deepEqual(new Set(report.blocking.map((anomaly) => anomaly.attribution)), new Set(['harness']));
-});
+		assert.equal(report.passed, false);
+		assert.deepEqual(
+			report.blocking.map((anomaly) => anomaly.kind),
+			['dirty-checkout', 'unknown-tool', 'retried'],
+		);
+		assert.deepEqual(new Set(report.blocking.map((anomaly) => anomaly.attribution)), new Set(['harness']));
+	});
 
-void test('missing structured answers and wrong answers belong to the model', () => {
-	const report = diagnosticReportOf([
-		runOf({grade: {...runOf().grade, parsed: false, success: false, reason: 'no JSON object'}}),
-		runOf({grade: {...runOf().grade, success: false, missing: ['src/a.ts'], reason: 'missing expected file'}}),
-	]);
+	it('missing structured answers and wrong answers belong to the model', () => {
+		const report = diagnosticReportOf([
+			runOf({grade: {...runOf().grade, parsed: false, success: false, reason: 'no JSON object'}}),
+			runOf({grade: {...runOf().grade, success: false, missing: ['src/a.ts'], reason: 'missing expected file'}}),
+		]);
 
-	assert.equal(report.passed, false);
-	assert.deepEqual(
-		report.blocking.map((anomaly) => anomaly.kind),
-		['unstructured-answer'],
-	);
-	assert.deepEqual(
-		report.anomalies.map((anomaly) => [anomaly.kind, anomaly.attribution]),
-		[
-			['unstructured-answer', 'model'],
-			['correctness-failed', 'model'],
-		],
-	);
-});
-
-void test('an invalid model tool argument is a model anomaly, not a CodeIndex defect', () => {
-	const report = diagnosticReportOf([
-		runOf({
-			toolCalls: [
-				{
-					index: 1,
-					rawIndex: 1,
-					parentIndex: null,
-					id: 'call-1',
-					tool: 'codeindex_find_symbol',
-					family: 'index',
-					status: 'error',
-					input: {query: 'SCHEMA_VERSION', context: 'codeindex'},
-					inputValid: true,
-					inputText: '{}',
-					outputBytes: 0,
-					authoritative: null,
-					durationMs: 1,
-					error: '{"ok":false,"error":{"code":"invalid_argument","message":"Unknown project context: codeindex"}}',
-				},
+		assert.equal(report.passed, false);
+		assert.deepEqual(
+			report.blocking.map((anomaly) => anomaly.kind),
+			['unstructured-answer'],
+		);
+		assert.deepEqual(
+			report.anomalies.map((anomaly) => [anomaly.kind, anomaly.attribution]),
+			[
+				['unstructured-answer', 'model'],
+				['correctness-failed', 'model'],
 			],
-		}),
-	]);
+		);
+	});
 
-	assert.equal(report.passed, true);
-	assert.deepEqual(
-		report.anomalies.map((anomaly) => [anomaly.kind, anomaly.attribution]),
-		[['invalid-tool-input', 'model']],
-	);
-});
+	it('an invalid model tool argument is a model anomaly, not a CodeIndex defect', () => {
+		const report = diagnosticReportOf([
+			runOf({
+				toolCalls: [
+					{
+						index: 1,
+						rawIndex: 1,
+						parentIndex: null,
+						id: 'call-1',
+						tool: 'codeindex_find_symbol',
+						family: 'index',
+						status: 'error',
+						input: {query: 'SCHEMA_VERSION', context: 'codeindex'},
+						inputValid: true,
+						inputText: '{}',
+						outputBytes: 0,
+						authoritative: null,
+						durationMs: 1,
+						error: '{"ok":false,"error":{"code":"invalid_argument","message":"Unknown project context: codeindex"}}',
+					},
+				],
+			}),
+		]);
 
-void test('process, index, and timeout failures keep separate owners', () => {
-	const report = diagnosticReportOf([
-		runOf({outcome: 'failed', valid: false, exitCode: 3, invalidReason: 'agent exited with 3'}),
-		runOf({
-			toolCalls: [
-				{
-					index: 1,
-					rawIndex: 1,
-					parentIndex: null,
-					id: 'call-1',
-					tool: 'codeindex_find_symbol',
-					family: 'index',
-					status: 'error',
-					input: {},
-					inputValid: true,
-					inputText: '{}',
-					outputBytes: 0,
-					authoritative: null,
-					durationMs: 1,
-					error: '{"ok":false,"error":{"code":"index_not_ready","message":"index not ready"}}',
-				},
+		assert.equal(report.passed, true);
+		assert.deepEqual(
+			report.anomalies.map((anomaly) => [anomaly.kind, anomaly.attribution]),
+			[['invalid-tool-input', 'model']],
+		);
+	});
+
+	it('process, index, and timeout failures keep separate owners', () => {
+		const report = diagnosticReportOf([
+			runOf({outcome: 'failed', valid: false, exitCode: 3, invalidReason: 'agent exited with 3'}),
+			runOf({
+				toolCalls: [
+					{
+						index: 1,
+						rawIndex: 1,
+						parentIndex: null,
+						id: 'call-1',
+						tool: 'codeindex_find_symbol',
+						family: 'index',
+						status: 'error',
+						input: {},
+						inputValid: true,
+						inputText: '{}',
+						outputBytes: 0,
+						authoritative: null,
+						durationMs: 1,
+						error: '{"ok":false,"error":{"code":"index_not_ready","message":"index not ready"}}',
+					},
+				],
+			}),
+			runOf({outcome: 'timed-out', valid: false, timedOut: true, exitCode: null, timeoutMs: 180_000}),
+		]);
+
+		assert.deepEqual(
+			report.anomalies.map((anomaly) => [anomaly.kind, anomaly.attribution]),
+			[
+				['process-failed', 'integration'],
+				['codeindex-error', 'codeindex'],
+				['timed-out', 'model'],
 			],
-		}),
-		runOf({outcome: 'timed-out', valid: false, timedOut: true, exitCode: null, timeoutMs: 180_000}),
-	]);
-
-	assert.deepEqual(
-		report.anomalies.map((anomaly) => [anomaly.kind, anomaly.attribution]),
-		[
-			['process-failed', 'integration'],
-			['codeindex-error', 'codeindex'],
-			['timed-out', 'model'],
-		],
-	);
-	assert.deepEqual(
-		report.blocking.map((anomaly) => anomaly.kind),
-		['process-failed', 'timed-out'],
-	);
+		);
+		assert.deepEqual(
+			report.blocking.map((anomaly) => anomaly.kind),
+			['process-failed', 'timed-out'],
+		);
+	});
 });

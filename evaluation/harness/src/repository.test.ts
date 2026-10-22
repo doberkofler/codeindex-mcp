@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {existsSync, readFileSync, readdirSync, statSync} from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import {describe, it} from 'vitest';
 import ts from 'typescript';
 import {caseOf, type CaseType} from './schema.ts';
 import {loadSuite} from './suite.ts';
@@ -341,67 +341,67 @@ const caseOfId = (caseId: string): CaseType => {
 const language = languageServiceOf(SUBJECT_ROOT);
 const repositorySuite = loadSuite(path.join(EVALUATION_ROOT, 'suites', 'repository.json'));
 
-void test('repository suite pins one CodeIndex revision and covers four task classes', () => {
-	assert.equal(repositorySuite.suite.id, 'codeindex-repository');
-	assert.equal(repositorySuite.suite.status, 'draft');
-	assert.match(repositorySuite.suite.revision, /^[0-9a-f]{40}$/u);
-	assert.equal(repositorySuite.cases.length, 14);
+describe('repository', () => {
+	it('repository suite pins one CodeIndex revision and covers four task classes', () => {
+		assert.equal(repositorySuite.suite.id, 'codeindex-repository');
+		assert.equal(repositorySuite.suite.status, 'draft');
+		assert.match(repositorySuite.suite.revision, /^[0-9a-f]{40}$/u);
+		assert.equal(repositorySuite.cases.length, 14);
 
-	const counts = new Map<string, number>();
+		const counts = new Map<string, number>();
 
-	for (const testCase of repositorySuite.cases) {
-		counts.set(testCase.class, (counts.get(testCase.class) ?? 0) + 1);
-	}
+		for (const testCase of repositorySuite.cases) {
+			counts.set(testCase.class, (counts.get(testCase.class) ?? 0) + 1);
+		}
 
-	assert.deepEqual(Object.fromEntries([...counts.entries()].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))), {
-		impact: 6,
-		implementation: 2,
-		locate: 4,
-		semantic: 2,
+		assert.deepEqual(Object.fromEntries([...counts.entries()].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))), {
+			impact: 6,
+			implementation: 2,
+			locate: 4,
+			semantic: 2,
+		});
 	});
-});
 
-void test('every declared repository path exists at the pinned source tree', () => {
-	for (const testCase of repositorySuite.cases) {
-		for (const file of [...testCase.expectedFiles, ...testCase.contextFiles, ...testCase.forbiddenFiles]) {
-			assert.ok(existsSync(path.join(SUBJECT_ROOT, file)), `${testCase.id} references missing path ${file}`);
+	it('every declared repository path exists at the pinned source tree', () => {
+		for (const testCase of repositorySuite.cases) {
+			for (const file of [...testCase.expectedFiles, ...testCase.contextFiles, ...testCase.forbiddenFiles]) {
+				assert.ok(existsSync(path.join(SUBJECT_ROOT, file)), `${testCase.id} references missing path ${file}`);
+			}
+
+			if (testCase.class !== 'implementation') {
+				assert.deepEqual(testCase.scope, ['src/**']);
+			}
 		}
+	});
 
-		if (testCase.class !== 'implementation') {
-			assert.deepEqual(testCase.scope, ['src/**']);
+	it('locate cases name the authoritative declaration or marker', () => {
+		for (const probe of LOCATE_PROBES) {
+			const testCase = caseOfId(probe.caseId);
+			const text = readFileSync(path.join(SUBJECT_ROOT, probe.file), 'utf8');
+
+			assert.equal(testCase.class, 'locate');
+			assert.deepEqual(testCase.expectedFiles, [probe.file]);
+
+			if (probe.name === null) {
+				assert.ok(text.includes(probe.text ?? ''), `${probe.caseId} marker is missing from ${probe.file}`);
+			} else {
+				assert.doesNotThrow(() => namedDeclarationOf(language.program, probe.file, probe.name ?? ''));
+			}
 		}
-	}
-});
+	});
 
-void test('locate cases name the authoritative declaration or marker', () => {
-	for (const probe of LOCATE_PROBES) {
-		const testCase = caseOfId(probe.caseId);
-		const text = readFileSync(path.join(SUBJECT_ROOT, probe.file), 'utf8');
+	it('impact and repository semantic cases match the language service', () => {
+		for (const probe of REFERENCE_PROBES) {
+			const testCase = caseOfId(probe.caseId);
+			const expected = [...testCase.expectedFiles].sort();
+			const truth = truthFilesOf(language, probe);
 
-		assert.equal(testCase.class, 'locate');
-		assert.deepEqual(testCase.expectedFiles, [probe.file]);
-
-		if (probe.name === null) {
-			assert.ok(text.includes(probe.text ?? ''), `${probe.caseId} marker is missing from ${probe.file}`);
-		} else {
-			assert.doesNotThrow(() => namedDeclarationOf(language.program, probe.file, probe.name ?? ''));
+			assert.equal(testCase.class, probe.caseId.startsWith('semantic-') ? 'semantic' : 'impact', probe.caseId);
+			assert.deepEqual(expected, truth, `${probe.caseId} expected file set differs from the language service`);
 		}
-	}
-});
+	});
 
-void test('impact and repository semantic cases match the language service', () => {
-	for (const probe of REFERENCE_PROBES) {
-		const testCase = caseOfId(probe.caseId);
-		const expected = [...testCase.expectedFiles].sort();
-		const truth = truthFilesOf(language, probe);
-
-		assert.equal(testCase.class, probe.caseId.startsWith('semantic-') ? 'semantic' : 'impact', probe.caseId);
-		assert.deepEqual(expected, truth, `${probe.caseId} expected file set differs from the language service`);
-	}
-});
-
-for (const probe of REFERENCE_PROBES.filter((item) => item.caseId.startsWith('semantic-'))) {
-	void test(`${probe.caseId} admits no exact identifier grep`, () => {
+	it.each(REFERENCE_PROBES.filter((item) => item.caseId.startsWith('semantic-')))('$caseId admits no exact identifier grep', (probe) => {
 		const testCase = caseOfId(probe.caseId);
 		const expected = [...testCase.expectedFiles].sort();
 		const measurements = probe.grepIdentifiers.map((identifier) => grepMeasurementOf(identifier, expected));
@@ -418,33 +418,33 @@ for (const probe of REFERENCE_PROBES.filter((item) => item.caseId.startsWith('se
 			`${probe.caseId} admits identifier grep "${best.identifier}" with precision ${best.precision.toFixed(2)} and no missing expected file`,
 		);
 	});
-}
 
-void test('implementation cases declare exact changed files and deterministic checks', () => {
-	for (const testCase of repositorySuite.cases.filter((item) => item.class === 'implementation')) {
-		assert.ok(testCase.check !== null, `${testCase.id} declares no post-run check`);
-		assert.ok(
-			testCase.check.args.some((argument) => argument.startsWith('test/')),
-			`${testCase.id} check does not run a test file`,
-		);
-		assert.ok(
-			testCase.check.args.some((argument) => argument === '--coverage.enabled=false'),
-			`${testCase.id} check must disable unrelated coverage thresholds`,
-		);
+	it('implementation cases declare exact changed files and deterministic checks', () => {
+		for (const testCase of repositorySuite.cases.filter((item) => item.class === 'implementation')) {
+			assert.ok(testCase.check !== null, `${testCase.id} declares no post-run check`);
+			assert.ok(
+				testCase.check.args.some((argument) => argument.startsWith('test/')),
+				`${testCase.id} check does not run a test file`,
+			);
+			assert.ok(
+				testCase.check.args.some((argument) => argument === '--coverage.enabled=false'),
+				`${testCase.id} check must disable unrelated coverage thresholds`,
+			);
 
-		const testFile = testCase.check.args.find((argument) => argument.startsWith('test/'));
+			const testFile = testCase.check.args.find((argument) => argument.startsWith('test/'));
 
-		assert.ok(testFile !== undefined);
-		assert.ok(testCase.expectedFiles.includes(testFile), `${testCase.id} check test is outside the allowed changed-file set`);
-		assert.ok(existsSync(path.join(SUBJECT_ROOT, testFile)), `${testCase.id} check test is missing`);
+			assert.ok(testFile !== undefined);
+			assert.ok(testCase.expectedFiles.includes(testFile), `${testCase.id} check test is outside the allowed changed-file set`);
+			assert.ok(existsSync(path.join(SUBJECT_ROOT, testFile)), `${testCase.id} check test is missing`);
 
-		const sourceFile = testCase.expectedFiles.find((file) => file.startsWith(SCOPE_PREFIX));
+			const sourceFile = testCase.expectedFiles.find((file) => file.startsWith(SCOPE_PREFIX));
 
-		assert.ok(sourceFile !== undefined, `${testCase.id} declares no source file`);
-		assert.ok(existsSync(path.join(SUBJECT_ROOT, sourceFile)), `${testCase.id} source file is missing`);
+			assert.ok(sourceFile !== undefined, `${testCase.id} declares no source file`);
+			assert.ok(existsSync(path.join(SUBJECT_ROOT, sourceFile)), `${testCase.id} source file is missing`);
 
-		for (const file of testCase.expectedFiles) {
-			assert.ok(testCase.prompt.includes(file), `${testCase.id} prompt does not name ${file}`);
+			for (const file of testCase.expectedFiles) {
+				assert.ok(testCase.prompt.includes(file), `${testCase.id} prompt does not name ${file}`);
+			}
 		}
-	}
+	});
 });

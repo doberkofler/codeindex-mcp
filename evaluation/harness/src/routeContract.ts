@@ -21,11 +21,11 @@ const ABSOLUTE_PATH_PATTERN = /(?:^|[\s"'(])(?:\/Users\/|\/home\/|[A-Za-z]:\\)/u
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const itemsOf = (data: unknown): readonly Readonly<Record<string, unknown>>[] => {
-	if (!isRecord(data) || !Array.isArray(data.items)) {
+	if (!isRecord(data) || !Array.isArray(data['items'])) {
 		return [];
 	}
 
-	return data.items.filter(isRecord);
+	return data['items'].filter(isRecord);
 };
 
 const pageStateOf = (data: unknown): Readonly<{truncated: boolean; nextCursor: string | null}> => {
@@ -33,25 +33,25 @@ const pageStateOf = (data: unknown): Readonly<{truncated: boolean; nextCursor: s
 		return {truncated: false, nextCursor: null};
 	}
 
-	return {truncated: data.truncated === true, nextCursor: typeof data.nextCursor === 'string' ? data.nextCursor : null};
+	return {truncated: data['truncated'] === true, nextCursor: typeof data['nextCursor'] === 'string' ? data['nextCursor'] : null};
 };
 
 const positionOf = (item: Readonly<Record<string, unknown>>): string => {
-	const position = item.startLine ?? item.startOffset;
+	const position = item['startLine'] ?? item['startOffset'];
 
 	return typeof position === 'number' ? String(position) : 'unknown';
 };
 
 const itemIdentityOf = (item: Readonly<Record<string, unknown>>): string => {
-	if (typeof item.symbolId === 'string') {
-		return item.symbolId;
+	if (typeof item['symbolId'] === 'string') {
+		return item['symbolId'];
 	}
 
-	if (typeof item.id === 'string') {
-		return item.id;
+	if (typeof item['id'] === 'string') {
+		return item['id'];
 	}
 
-	return `${typeof item.path === 'string' ? item.path : 'unknown'}:${positionOf(item)}`;
+	return `${typeof item['path'] === 'string' ? item['path'] : 'unknown'}:${positionOf(item)}`;
 };
 
 const withCursor = (args: Readonly<Record<string, unknown>>, cursor: string): Readonly<Record<string, unknown>> => ({...args, cursor});
@@ -164,7 +164,7 @@ export const truncationProbeOf = async (session: McpSessionType, plan: ContractP
 	const outcome = await callWhenReady(session, plan.tool, plan.arguments);
 	const bounded = outcome.responseBytes <= plan.maxResultBytes;
 	const oversized = outcome.status === 'error' && outcome.errorCode === 'response_too_large';
-	const shortened = outcome.status === 'ok' && isRecord(outcome.structured) && outcome.structured.truncated === true;
+	const shortened = outcome.status === 'ok' && isRecord(outcome.structured) && outcome.structured['truncated'] === true;
 	const passed = bounded && (oversized || shortened);
 
 	return {
@@ -179,8 +179,8 @@ export const truncationProbeOf = async (session: McpSessionType, plan: ContractP
 
 const staleAttemptOf = async (session: McpSessionType, workspace: string, plan: ContractPlanType['staleFile']): Promise<ContractProbeType> => {
 	const symbol = await callWhenReady(session, 'find_symbol', {query: plan.query, match: 'name', path: plan.path, exposure: 'any'});
-	const match = itemsOf(symbol.structured).find((item) => item.path === plan.path && item.name === plan.query) ?? itemsOf(symbol.structured)[0];
-	const symbolId = match?.symbolId;
+	const match = itemsOf(symbol.structured).find((item) => item['path'] === plan.path && item['name'] === plan.query) ?? itemsOf(symbol.structured)[0];
+	const symbolId = match?.['symbolId'];
 
 	if (symbol.status !== 'ok' || typeof symbolId !== 'string') {
 		return {

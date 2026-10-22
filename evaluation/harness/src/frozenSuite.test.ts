@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import test from 'node:test';
+import {describe, it} from 'vitest';
 import {caseHashOf} from './schema.ts';
 import {loadSuite, planOf, selectCases, suiteWithModelOf} from './suite.ts';
 
@@ -18,62 +18,64 @@ const classCountsOf = (classes: readonly string[]): Readonly<Record<string, numb
 	return counts;
 };
 
-void test('release suite is frozen at 18 cases and four task classes', () => {
-	const {suite, cases} = loadSuite(RELEASE_PATH);
-	const pinned = suite.caseHashes;
+describe('frozenSuite', () => {
+	it('release suite is frozen at 18 cases and four task classes', () => {
+		const {suite, cases} = loadSuite(RELEASE_PATH);
+		const pinned = suite.caseHashes;
 
-	assert.equal(suite.status, 'frozen');
-	assert.equal(suite.version, 1);
-	assert.equal(suite.repetitions, 5);
-	assert.match(suite.revision, /^[0-9a-f]{40}$/u);
-	assert.equal(suite.cases.length, 18);
-	assert.equal(new Set(suite.cases).size, 18);
-	assert.deepEqual(classCountsOf(cases.map((testCase) => testCase.class)), {
-		locate: 4,
-		impact: 6,
-		semantic: 6,
-		implementation: 2,
+		assert.equal(suite.status, 'frozen');
+		assert.equal(suite.version, 1);
+		assert.equal(suite.repetitions, 5);
+		assert.match(suite.revision, /^[0-9a-f]{40}$/u);
+		assert.equal(suite.cases.length, 18);
+		assert.equal(new Set(suite.cases).size, 18);
+		assert.deepEqual(classCountsOf(cases.map((testCase) => testCase.class)), {
+			locate: 4,
+			impact: 6,
+			semantic: 6,
+			implementation: 2,
+		});
+		assert.notEqual(pinned, null);
+
+		for (const testCase of cases) {
+			assert.equal(pinned?.[testCase.id], caseHashOf(testCase));
+		}
 	});
-	assert.notEqual(pinned, null);
 
-	for (const testCase of cases) {
-		assert.equal(pinned?.[testCase.id], caseHashOf(testCase));
-	}
-});
+	it('calibration suite v2 is a frozen six-case subset with an explicit editing surface', () => {
+		const {suite, cases} = loadSuite(CALIBRATION_PATH);
+		const release = loadSuite(RELEASE_PATH);
+		const pinned = suite.caseHashes;
 
-void test('calibration suite v2 is a frozen six-case subset with an explicit editing surface', () => {
-	const {suite, cases} = loadSuite(CALIBRATION_PATH);
-	const release = loadSuite(RELEASE_PATH);
-	const pinned = suite.caseHashes;
+		assert.equal(suite.status, 'frozen');
+		assert.equal(suite.version, 2);
+		assert.equal(suite.repetitions, 1);
+		assert.equal(suite.revision, release.suite.revision);
+		assert.equal(suite.cases.length, 6);
+		assert.deepEqual(suite.treatments[0]?.ordinaryTools, ['bash', 'edit', 'glob', 'grep', 'list', 'read']);
+		assert.deepEqual(classCountsOf(cases.map((testCase) => testCase.class)), {
+			locate: 1,
+			impact: 2,
+			semantic: 2,
+			implementation: 1,
+		});
+		assert.notEqual(pinned, null);
 
-	assert.equal(suite.status, 'frozen');
-	assert.equal(suite.version, 2);
-	assert.equal(suite.repetitions, 1);
-	assert.equal(suite.revision, release.suite.revision);
-	assert.equal(suite.cases.length, 6);
-	assert.deepEqual(suite.treatments[0]?.ordinaryTools, ['bash', 'edit', 'glob', 'grep', 'list', 'read']);
-	assert.deepEqual(classCountsOf(cases.map((testCase) => testCase.class)), {
-		locate: 1,
-		impact: 2,
-		semantic: 2,
-		implementation: 1,
+		for (const testCase of cases) {
+			assert.equal(pinned?.[testCase.id], caseHashOf(testCase));
+			assert.ok(release.suite.cases.includes(testCase.id));
+		}
+
+		assert.equal(planOf(selectCases(cases, {}), ['no-index', 'accepted'], 1).length, 12);
 	});
-	assert.notEqual(pinned, null);
 
-	for (const testCase of cases) {
-		assert.equal(pinned?.[testCase.id], caseHashOf(testCase));
-		assert.ok(release.suite.cases.includes(testCase.id));
-	}
+	it('a calibration rebinding changes the model and suite hash but not case hashes', () => {
+		const {suite, cases} = loadSuite(CALIBRATION_PATH);
+		const rebased = suiteWithModelOf(suite, cases, 'ollama/qwen3.8:27b-mlx');
 
-	assert.equal(planOf(selectCases(cases, {}), ['no-index', 'accepted'], 1).length, 12);
-});
-
-void test('a calibration rebinding changes the model and suite hash but not case hashes', () => {
-	const {suite, cases} = loadSuite(CALIBRATION_PATH);
-	const rebased = suiteWithModelOf(suite, cases, 'ollama/qwen3.8:27b-mlx');
-
-	assert.equal(rebased.model, 'ollama/qwen3.8:27b-mlx');
-	assert.notEqual(rebased.hash, suite.hash);
-	assert.deepEqual(rebased.caseHashes, suite.caseHashes);
-	assert.deepEqual(rebased.cases, suite.cases);
+		assert.equal(rebased.model, 'ollama/qwen3.8:27b-mlx');
+		assert.notEqual(rebased.hash, suite.hash);
+		assert.deepEqual(rebased.caseHashes, suite.caseHashes);
+		assert.deepEqual(rebased.cases, suite.cases);
+	});
 });

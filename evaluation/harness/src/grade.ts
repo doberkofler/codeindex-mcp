@@ -186,7 +186,7 @@ const envelopeOf = (finalText: string): AnswerEnvelopeType => {
 };
 
 const filesFieldOf = (record: Record<string, unknown>, assertions: AssertionType[]): FieldResultType<readonly string[]> => {
-	const rawFiles = record.files;
+	const rawFiles = record['files'];
 
 	if (!Array.isArray(rawFiles) || !rawFiles.every((item) => typeof item === 'string')) {
 		assertions.push(
@@ -216,7 +216,7 @@ const filesFieldOf = (record: Record<string, unknown>, assertions: AssertionType
 };
 
 const absentFieldOf = (record: Record<string, unknown>, assertions: AssertionType[]): FieldResultType<boolean> => {
-	const rawAbsent = record.absent;
+	const rawAbsent = record['absent'];
 
 	if (typeof rawAbsent !== 'boolean') {
 		assertions.push(

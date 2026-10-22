@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import test, {type TestContext} from 'node:test';
+import {describe, it, type TestContext} from 'vitest';
 import {executionIdentityDigestOf, type ExecutionIdentityType} from './identity.ts';
 import {effectiveValidityOf, readResult, resultPathOf, resumeStateOf, writeResult} from './result.ts';
 import {type RunResultType} from './runTypes.ts';
@@ -137,71 +137,73 @@ const resultOf = (overrides: Partial<RunResultType> = {}, promptHash?: string): 
 
 const temporaryRoot = (testContext: TestContext): string => {
 	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-result-'));
-	testContext.after(() => {
+	testContext.onTestFinished(() => {
 		rmSync(root, {recursive: true, force: true});
 	});
 
 	return root;
 };
 
-void test('a result is written atomically, verified, and never overwritten', (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const file = resultPathOf(root, 1);
-	const stored = writeResult(file, resultOf());
+describe('result', () => {
+	it('a result is written atomically, verified, and never overwritten', (testContext: TestContext) => {
+		const root = temporaryRoot(testContext);
+		const file = resultPathOf(root, 1);
+		const stored = writeResult(file, resultOf());
 
-	assert.deepEqual(readdirSync(root), ['attempt-1.json']);
-	assert.deepEqual(readResult(file), stored);
-	assert.match(stored.integrity.contentDigest, /^[0-9a-f]{64}$/u);
-	assert.equal(Number.isInteger(stored.integrity.sizeBytes), true);
-	assert.throws(() => writeResult(file, resultOf()), /refusing to overwrite/u);
-	assert.throws(() => writeResult(resultPathOf(root, 2), resultOf({identityDigest: '0'.repeat(64)})), /identity digest does not match/u);
-});
+		assert.deepEqual(readdirSync(root), ['attempt-1.json']);
+		assert.deepEqual(readResult(file), stored);
+		assert.match(stored.integrity.contentDigest, /^[0-9a-f]{64}$/u);
+		assert.equal(Number.isInteger(stored.integrity.sizeBytes), true);
+		assert.throws(() => writeResult(file, resultOf()), /refusing to overwrite/u);
+		assert.throws(() => writeResult(resultPathOf(root, 2), resultOf({identityDigest: '0'.repeat(64)})), /identity digest does not match/u);
+	});
 
-void test('partial, truncated, and tampered records are not results', (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const file = resultPathOf(root, 1);
-	const stored = writeResult(file, resultOf());
-	const text = readFileSync(file, 'utf8');
+	it('partial, truncated, and tampered records are not results', (testContext: TestContext) => {
+		const root = temporaryRoot(testContext);
+		const file = resultPathOf(root, 1);
+		const stored = writeResult(file, resultOf());
+		const text = readFileSync(file, 'utf8');
 
-	writeFileSync(file, text.slice(0, Math.floor(text.length / 2)), 'utf8');
-	assert.equal(readResult(file), null);
+		writeFileSync(file, text.slice(0, Math.floor(text.length / 2)), 'utf8');
+		assert.equal(readResult(file), null);
 
-	writeFileSync(file, text, 'utf8');
-	assert.notEqual(readResult(file), null);
+		writeFileSync(file, text, 'utf8');
+		assert.notEqual(readResult(file), null);
 
-	const tampered = {...stored, outcome: 'failed'};
-	writeFileSync(file, `${JSON.stringify(tampered, null, '\t')}\n`, 'utf8');
-	assert.equal(readResult(file), null);
-});
+		const tampered = {...stored, outcome: 'failed'};
+		writeFileSync(file, `${JSON.stringify(tampered, null, '\t')}\n`, 'utf8');
+		assert.equal(readResult(file), null);
+	});
 
-void test('resume reuses only a complete, effective result with the same identity', (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const identityDigest = executionIdentityDigestOf(identityOf());
+	it('resume reuses only a complete, effective result with the same identity', (testContext: TestContext) => {
+		const root = temporaryRoot(testContext);
+		const identityDigest = executionIdentityDigestOf(identityOf());
 
-	assert.deepEqual(resumeStateOf(root, identityDigest), {record: null, attempt: null, nextAttempt: 1});
+		assert.deepEqual(resumeStateOf(root, identityDigest), {record: null, attempt: null, nextAttempt: 1});
 
-	const first = writeResult(resultPathOf(root, 1), resultOf());
-	assert.deepEqual(resumeStateOf(root, identityDigest), {record: first, attempt: 1, nextAttempt: 2});
+		const first = writeResult(resultPathOf(root, 1), resultOf());
+		assert.deepEqual(resumeStateOf(root, identityDigest), {record: first, attempt: 1, nextAttempt: 2});
 
-	const different = writeResult(resultPathOf(root, 2), resultOf({}, '0'.repeat(64)));
-	assert.equal(different.identityDigest === identityDigest, false);
-	assert.deepEqual(resumeStateOf(root, identityDigest), {record: first, attempt: 1, nextAttempt: 3});
+		const different = writeResult(resultPathOf(root, 2), resultOf({}, '0'.repeat(64)));
+		assert.equal(different.identityDigest === identityDigest, false);
+		assert.deepEqual(resumeStateOf(root, identityDigest), {record: first, attempt: 1, nextAttempt: 3});
 
-	const aborted = writeResult(resultPathOf(root, 3), resultOf({attempt: 3, outcome: 'aborted'}));
-	assert.equal(effectiveValidityOf(aborted), 'aborted');
-	assert.deepEqual(resumeStateOf(root, identityDigest), {record: null, attempt: null, nextAttempt: 4});
-});
+		const aborted = writeResult(resultPathOf(root, 3), resultOf({attempt: 3, outcome: 'aborted'}));
+		assert.equal(effectiveValidityOf(aborted), 'aborted');
+		assert.deepEqual(resumeStateOf(root, identityDigest), {record: null, attempt: null, nextAttempt: 4});
+	});
 
-void test('a corrupt later attempt is ignored and a failed or timed-out attempt satisfies its slot', (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const identityDigest = executionIdentityDigestOf(identityOf());
-	const failed = writeResult(resultPathOf(root, 1), resultOf({outcome: 'failed', valid: false, exitCode: 1}));
+	it('a corrupt later attempt is ignored and a failed or timed-out attempt satisfies its slot', (testContext: TestContext) => {
+		const root = temporaryRoot(testContext);
+		const identityDigest = executionIdentityDigestOf(identityOf());
+		const failed = writeResult(resultPathOf(root, 1), resultOf({outcome: 'failed', valid: false, exitCode: 1}));
 
-	writeFileSync(resultPathOf(root, 2), '{"recordType":"result"', 'utf8');
+		writeFileSync(resultPathOf(root, 2), '{"recordType":"result"', 'utf8');
 
-	assert.deepEqual(resumeStateOf(root, identityDigest), {record: failed, attempt: 1, nextAttempt: 3});
-	assert.equal(effectiveValidityOf(failed), 'valid');
+		assert.deepEqual(resumeStateOf(root, identityDigest), {record: failed, attempt: 1, nextAttempt: 3});
+		assert.equal(effectiveValidityOf(failed), 'valid');
 
-	const timedOut = writeResult(resultPathOf(root, 3), resultOf({attempt: 3, outcome: 'timed-out', timedOut: true, exitCode: null, valid: false}));
-	assert.equal(effectiveValidityOf(timedOut), 'valid');
+		const timedOut = writeResult(resultPathOf(root, 3), resultOf({attempt: 3, outcome: 'timed-out', timedOut: true, exitCode: null, valid: false}));
+		assert.equal(effectiveValidityOf(timedOut), 'valid');
+	});
 });

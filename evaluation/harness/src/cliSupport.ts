@@ -58,11 +58,11 @@ export const settingsOf = (): Readonly<{subjectRepo: string}> => {
 
 	const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
 
-	if (!isRecord(parsed) || typeof parsed.subjectRepo !== 'string') {
+	if (!isRecord(parsed) || typeof parsed['subjectRepo'] !== 'string') {
 		throw new TypeError('harness.json must declare "subjectRepo"');
 	}
 
-	return {subjectRepo: path.resolve(harnessRoot, parsed.subjectRepo)};
+	return {subjectRepo: path.resolve(harnessRoot, parsed['subjectRepo'])};
 };
 
 export const throwManifestShape = (field: string): never => {
@@ -105,14 +105,14 @@ export const manifestMetadataOf = (directory: string): ReportMetadataType => {
 
 	const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
 	const record = isRecord(parsed) ? parsed : throwManifestShape('root');
-	const suite = isRecord(record.suite) ? record.suite : throwManifestShape('suite');
+	const suite = isRecord(record['suite']) ? record['suite'] : throwManifestShape('suite');
 	const {campaignId} = record;
 	const {schemaVersion} = record;
 	const {claimClass} = record;
-	const suiteId = suite.id;
-	const suiteVersion = suite.version;
-	const suiteHash = suite.hash;
-	const suiteStatus = suite.status;
+	const suiteId = suite['id'];
+	const suiteVersion = suite['version'];
+	const suiteHash = suite['hash'];
+	const suiteStatus = suite['status'];
 
 	if (typeof campaignId !== 'string' || typeof schemaVersion !== 'string' || typeof claimClass !== 'string') {
 		throw new TypeError('manifest field "campaignId, schemaVersion, or claimClass" has an invalid shape');
@@ -126,7 +126,7 @@ export const manifestMetadataOf = (directory: string): ReportMetadataType => {
 		campaignId,
 		schemaVersion,
 		suite: {id: suiteId, version: suiteVersion, hash: suiteHash, status: suiteStatus},
-		components: componentsOf(record.components),
+		components: componentsOf(record['components']),
 		claimClass,
 	};
 };
@@ -253,7 +253,7 @@ export const ensureManifestAt = (file: string, manifest: Readonly<{campaignId: s
 
 	const existing: unknown = JSON.parse(readFileSync(file, 'utf8'));
 
-	if (!isRecord(existing) || existing.campaignId !== manifest.campaignId || existing.identityDigest !== manifest.identityDigest) {
+	if (!isRecord(existing) || existing['campaignId'] !== manifest.campaignId || existing['identityDigest'] !== manifest.identityDigest) {
 		throw new Error(`campaign manifest at ${file} describes a different campaign; use a new campaign directory`);
 	}
 };

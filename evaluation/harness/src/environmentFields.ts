@@ -90,14 +90,14 @@ export const hostOf = (value: unknown): HostEnvironmentType => {
 	rejectUnknownKeys(record, HOST_KEYS, 'environment field "host"');
 
 	return {
-		referenceMachine: requireString(record.referenceMachine, 'host.referenceMachine', 'environment'),
-		nodeVersion: requireString(record.nodeVersion, 'host.nodeVersion', 'environment'),
-		platform: requireString(record.platform, 'host.platform', 'environment'),
-		arch: requireString(record.arch, 'host.arch', 'environment'),
-		cpuModel: requireString(record.cpuModel, 'host.cpuModel', 'environment'),
-		cpuCount: requirePositiveInteger(record.cpuCount, 'host.cpuCount', 'environment'),
-		memoryBytes: requirePositiveInteger(record.memoryBytes, 'host.memoryBytes', 'environment'),
-		osVersion: requireString(record.osVersion, 'host.osVersion', 'environment'),
+		referenceMachine: requireString(record['referenceMachine'], 'host.referenceMachine', 'environment'),
+		nodeVersion: requireString(record['nodeVersion'], 'host.nodeVersion', 'environment'),
+		platform: requireString(record['platform'], 'host.platform', 'environment'),
+		arch: requireString(record['arch'], 'host.arch', 'environment'),
+		cpuModel: requireString(record['cpuModel'], 'host.cpuModel', 'environment'),
+		cpuCount: requirePositiveInteger(record['cpuCount'], 'host.cpuCount', 'environment'),
+		memoryBytes: requirePositiveInteger(record['memoryBytes'], 'host.memoryBytes', 'environment'),
+		osVersion: requireString(record['osVersion'], 'host.osVersion', 'environment'),
 	};
 };
 
@@ -106,9 +106,9 @@ export const runtimeOf = (value: unknown): RuntimeEnvironmentType => {
 	rejectUnknownKeys(record, RUNTIME_KEYS, 'environment field "runtime"');
 
 	return {
-		ollama: requireString(record.ollama, 'runtime.ollama', 'environment'),
-		opencode: requireString(record.opencode, 'runtime.opencode', 'environment'),
-		ollamaEndpoint: requireString(record.ollamaEndpoint, 'runtime.ollamaEndpoint', 'environment'),
+		ollama: requireString(record['ollama'], 'runtime.ollama', 'environment'),
+		opencode: requireString(record['opencode'], 'runtime.opencode', 'environment'),
+		ollamaEndpoint: requireString(record['ollamaEndpoint'], 'runtime.ollamaEndpoint', 'environment'),
 	};
 };
 
@@ -117,11 +117,11 @@ export const generationOf = (value: unknown): GenerationSettingsType => {
 	rejectUnknownKeys(record, GENERATION_KEYS, 'environment field "model.generation"');
 
 	return {
-		temperature: optionalNonNegativeNumber(record.temperature, 'model.generation.temperature', 'environment'),
-		topP: optionalNonNegativeNumber(record.topP, 'model.generation.topP', 'environment'),
-		topK: optionalPositiveInteger(record.topK, 'model.generation.topK', 'environment'),
-		repeatPenalty: optionalNonNegativeNumber(record.repeatPenalty, 'model.generation.repeatPenalty', 'environment'),
-		stop: requireStringArray(record.stop, 'model.generation.stop', 'environment'),
+		temperature: optionalNonNegativeNumber(record['temperature'], 'model.generation.temperature', 'environment'),
+		topP: optionalNonNegativeNumber(record['topP'], 'model.generation.topP', 'environment'),
+		topK: optionalPositiveInteger(record['topK'], 'model.generation.topK', 'environment'),
+		repeatPenalty: optionalNonNegativeNumber(record['repeatPenalty'], 'model.generation.repeatPenalty', 'environment'),
+		stop: requireStringArray(record['stop'], 'model.generation.stop', 'environment'),
 	};
 };
 
@@ -130,13 +130,13 @@ export const modelOf = (value: unknown): ModelEnvironmentType => {
 	rejectUnknownKeys(record, MODEL_KEYS, 'environment field "model"');
 
 	return {
-		reference: requireString(record.reference, 'model.reference', 'environment'),
-		digest: requireHexDigest(record.digest, 'model.digest', 'environment'),
-		architecture: requireString(record.architecture, 'model.architecture', 'environment'),
-		parameters: requireString(record.parameters, 'model.parameters', 'environment'),
-		quantization: requireString(record.quantization, 'model.quantization', 'environment'),
-		contextLength: requirePositiveInteger(record.contextLength, 'model.contextLength', 'environment'),
-		embeddingLength: requirePositiveInteger(record.embeddingLength, 'model.embeddingLength', 'environment'),
-		generation: generationOf(record.generation),
+		reference: requireString(record['reference'], 'model.reference', 'environment'),
+		digest: requireHexDigest(record['digest'], 'model.digest', 'environment'),
+		architecture: requireString(record['architecture'], 'model.architecture', 'environment'),
+		parameters: requireString(record['parameters'], 'model.parameters', 'environment'),
+		quantization: requireString(record['quantization'], 'model.quantization', 'environment'),
+		contextLength: requirePositiveInteger(record['contextLength'], 'model.contextLength', 'environment'),
+		embeddingLength: requirePositiveInteger(record['embeddingLength'], 'model.embeddingLength', 'environment'),
+		generation: generationOf(record['generation']),
 	};
 };

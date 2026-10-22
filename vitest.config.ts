@@ -7,7 +7,7 @@ export default defineConfig({
 	},
 	test: {
 		environment: 'node',
-		include: ['test/**/*.test.ts'],
+		include: ['test/**/*.test.ts', 'evaluation/harness/src/**/*.test.ts'],
 		reporters: ['default'],
 		testTimeout: 60_000,
 		hookTimeout: 60_000,

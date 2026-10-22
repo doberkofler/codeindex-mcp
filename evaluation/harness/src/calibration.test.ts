@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import {describe, it} from 'vitest';
 import {
 	calibrationDecisionOf,
 	calibrationDisqualificationOf,
@@ -90,98 +90,100 @@ const decisionOf = (overrides: Partial<CalibrationDecisionType>): CalibrationDec
 	...overrides,
 });
 
-void test('twelve valid executions inside the budget qualify a model', () => {
-	const decision = calibrationOf();
+describe('calibration', () => {
+	it('twelve valid executions inside the budget qualify a model', () => {
+		const decision = calibrationOf();
 
-	assert.equal(decision.passed, true);
-	assert.equal(decision.validExecutions, 12);
-	assert.equal(decision.executedSlots, 12);
-	assert.equal(decision.noIndexExact, 6);
-	assert.equal(decision.acceptedExact, 6);
-	assert.equal(decision.telemetry.tokenState, 'exact');
-	assert.equal(decision.disqualification, null);
-});
+		assert.equal(decision.passed, true);
+		assert.equal(decision.validExecutions, 12);
+		assert.equal(decision.executedSlots, 12);
+		assert.equal(decision.noIndexExact, 6);
+		assert.equal(decision.acceptedExact, 6);
+		assert.equal(decision.telemetry.tokenState, 'exact');
+		assert.equal(decision.disqualification, null);
+	});
 
-void test('a case that loses accepted correctness disqualifies the model', () => {
-	const lossy = CASES.flatMap((caseId) => [runOf({caseId, treatment: 'no-index'}), runOf({caseId, treatment: 'accepted', success: caseId !== 'semantic-a'})]);
-	const decision = calibrationOf({results: lossy});
+	it('a case that loses accepted correctness disqualifies the model', () => {
+		const lossy = CASES.flatMap((caseId) => [runOf({caseId, treatment: 'no-index'}), runOf({caseId, treatment: 'accepted', success: caseId !== 'semantic-a'})]);
+		const decision = calibrationOf({results: lossy});
 
-	assert.equal(decision.passed, false);
-	assert.deepEqual(decision.correctnessLossCases, ['semantic-a']);
-	assert.match(decision.disqualification ?? '', /correctness loss on semantic-a/u);
-});
+		assert.equal(decision.passed, false);
+		assert.deepEqual(decision.correctnessLossCases, ['semantic-a']);
+		assert.match(decision.disqualification ?? '', /correctness loss on semantic-a/u);
+	});
 
-void test('a retry or timeout is an intervention, never a quiet pass', () => {
-	const retried = CASES.flatMap((caseId) => [runOf({caseId, treatment: 'no-index'}), runOf({caseId, treatment: 'accepted', attempts: [{}, {}]})]);
-	const timedOut = CASES.flatMap((caseId) => [
-		runOf({caseId, treatment: 'no-index'}),
-		runOf({caseId, treatment: 'accepted', timedOut: caseId === 'semantic-a'}),
-	]);
-
-	assert.equal(calibrationOf({results: retried}).passed, false);
-	assert.equal(calibrationOf({results: retried}).interventions.length > 0, true);
-	assert.equal(calibrationOf({results: timedOut}).passed, false);
-	assert.match(calibrationOf({results: timedOut}).disqualification ?? '', /interventions required/u);
-});
-
-void test('budget overrun and incomplete executions both disqualify', () => {
-	const overrun = calibrationOf({elapsedMs: BUDGET_MS + 1});
-	const incomplete = calibrationOf({results: [runOf({caseId: 'locate-a', treatment: 'accepted'})]});
-
-	assert.equal(overrun.passed, false);
-	assert.match(overrun.disqualification ?? '', /budget exceeded/u);
-	assert.equal(incomplete.passed, false);
-	assert.match(incomplete.disqualification ?? '', /incomplete: 1\/12/u);
-});
-
-void test('missing token usage limits the claim without invalidating correctness', () => {
-	const decision = calibrationOf({
-		results: CASES.flatMap((caseId) => [
+	it('a retry or timeout is an intervention, never a quiet pass', () => {
+		const retried = CASES.flatMap((caseId) => [runOf({caseId, treatment: 'no-index'}), runOf({caseId, treatment: 'accepted', attempts: [{}, {}]})]);
+		const timedOut = CASES.flatMap((caseId) => [
 			runOf({caseId, treatment: 'no-index'}),
-			runOf({caseId, treatment: 'accepted', tokens: caseId === 'impact-a' ? 'unavailable' : 'exact'}),
-		]),
+			runOf({caseId, treatment: 'accepted', timedOut: caseId === 'semantic-a'}),
+		]);
+
+		assert.equal(calibrationOf({results: retried}).passed, false);
+		assert.equal(calibrationOf({results: retried}).interventions.length > 0, true);
+		assert.equal(calibrationOf({results: timedOut}).passed, false);
+		assert.match(calibrationOf({results: timedOut}).disqualification ?? '', /interventions required/u);
 	});
 
-	assert.equal(decision.telemetry.tokenState, 'unavailable');
-	assert.match(decision.telemetry.limitation ?? '', /token metrics are invalid/u);
-	assert.equal(decision.passed, true);
-});
+	it('budget overrun and incomplete executions both disqualify', () => {
+		const overrun = calibrationOf({elapsedMs: BUDGET_MS + 1});
+		const incomplete = calibrationOf({results: [runOf({caseId: 'locate-a', treatment: 'accepted'})]});
 
-void test('selection prefers qualifiers, exactness, then latency and bytes', () => {
-	const slowExact = decisionOf({model: 'ollama/slow', acceptedExact: 6, acceptedMedianWallMs: 20_000});
-	const fastExact = decisionOf({model: 'ollama/fast', acceptedExact: 6, acceptedMedianWallMs: 10_000});
-	const lessExact = decisionOf({model: 'ollama/less', acceptedExact: 5, acceptedMedianWallMs: 1000});
-	const disqualified = decisionOf({model: 'ollama/bad', passed: false});
-
-	const selection = calibrationSelectionOf([slowExact, disqualified, lessExact, fastExact]);
-
-	assert.equal(selection.selected, 'ollama/fast');
-	assert.deepEqual(selection.qualified, ['ollama/fast', 'ollama/slow', 'ollama/less']);
-	assert.match(selection.reason, /lowest accepted median wall time/u);
-});
-
-void test('an unexecuted candidate is recorded instead of disappearing', () => {
-	const excluded = calibrationDisqualificationOf({
-		model: 'ollama/devstral-small-2:latest',
-		environmentId: 'ollama-devstral-small-2-calibration',
-		environmentHash: 'b'.repeat(64),
-		budgetMs: BUDGET_MS,
-		plannedSlots: 12,
-		reason: 'excluded before execution: model is too large for the reference machine',
+		assert.equal(overrun.passed, false);
+		assert.match(overrun.disqualification ?? '', /budget exceeded/u);
+		assert.equal(incomplete.passed, false);
+		assert.match(incomplete.disqualification ?? '', /incomplete: 1\/12/u);
 	});
 
-	assert.equal(excluded.passed, false);
-	assert.equal(excluded.executedSlots, 0);
-	assert.equal(excluded.validExecutions, 0);
-	assert.equal(excluded.plannedSlots, 12);
-	assert.match(excluded.disqualification ?? '', /excluded before execution/u);
-	assert.equal(calibrationSelectionOf([decisionOf({model: 'ollama/fast'}), excluded]).selected, 'ollama/fast');
-	assert.equal(calibrationSelectionOf([excluded]).selected, null);
-});
+	it('missing token usage limits the claim without invalidating correctness', () => {
+		const decision = calibrationOf({
+			results: CASES.flatMap((caseId) => [
+				runOf({caseId, treatment: 'no-index'}),
+				runOf({caseId, treatment: 'accepted', tokens: caseId === 'impact-a' ? 'unavailable' : 'exact'}),
+			]),
+		});
 
-void test('selection records that no model qualified', () => {
-	const selection = calibrationSelectionOf([decisionOf({passed: false})]);
+		assert.equal(decision.telemetry.tokenState, 'unavailable');
+		assert.match(decision.telemetry.limitation ?? '', /token metrics are invalid/u);
+		assert.equal(decision.passed, true);
+	});
 
-	assert.equal(selection.selected, null);
-	assert.deepEqual(selection.qualified, []);
+	it('selection prefers qualifiers, exactness, then latency and bytes', () => {
+		const slowExact = decisionOf({model: 'ollama/slow', acceptedExact: 6, acceptedMedianWallMs: 20_000});
+		const fastExact = decisionOf({model: 'ollama/fast', acceptedExact: 6, acceptedMedianWallMs: 10_000});
+		const lessExact = decisionOf({model: 'ollama/less', acceptedExact: 5, acceptedMedianWallMs: 1000});
+		const disqualified = decisionOf({model: 'ollama/bad', passed: false});
+
+		const selection = calibrationSelectionOf([slowExact, disqualified, lessExact, fastExact]);
+
+		assert.equal(selection.selected, 'ollama/fast');
+		assert.deepEqual(selection.qualified, ['ollama/fast', 'ollama/slow', 'ollama/less']);
+		assert.match(selection.reason, /lowest accepted median wall time/u);
+	});
+
+	it('an unexecuted candidate is recorded instead of disappearing', () => {
+		const excluded = calibrationDisqualificationOf({
+			model: 'ollama/devstral-small-2:latest',
+			environmentId: 'ollama-devstral-small-2-calibration',
+			environmentHash: 'b'.repeat(64),
+			budgetMs: BUDGET_MS,
+			plannedSlots: 12,
+			reason: 'excluded before execution: model is too large for the reference machine',
+		});
+
+		assert.equal(excluded.passed, false);
+		assert.equal(excluded.executedSlots, 0);
+		assert.equal(excluded.validExecutions, 0);
+		assert.equal(excluded.plannedSlots, 12);
+		assert.match(excluded.disqualification ?? '', /excluded before execution/u);
+		assert.equal(calibrationSelectionOf([decisionOf({model: 'ollama/fast'}), excluded]).selected, 'ollama/fast');
+		assert.equal(calibrationSelectionOf([excluded]).selected, null);
+	});
+
+	it('selection records that no model qualified', () => {
+		const selection = calibrationSelectionOf([decisionOf({passed: false})]);
+
+		assert.equal(selection.selected, null);
+		assert.deepEqual(selection.qualified, []);
+	});
 });

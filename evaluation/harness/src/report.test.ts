@@ -3,7 +3,7 @@ import {spawnSync} from 'node:child_process';
 import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import test, {type TestContext} from 'node:test';
+import {describe, it, type TestContext} from 'vitest';
 import {type AssertionType} from './assertions.ts';
 import {hashOf} from './hash.ts';
 import {type ExecutionIdentityType} from './identity.ts';
@@ -17,7 +17,7 @@ const CLI = path.join(import.meta.dirname, 'cli.ts');
 
 const temporaryRoot = (testContext: TestContext): string => {
 	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-report-'));
-	testContext.after(() => {
+	testContext.onTestFinished(() => {
 		rmSync(root, {recursive: true, force: true});
 	});
 
@@ -309,135 +309,137 @@ const simpleMedian = (values: readonly number[]): number => {
 	return sorted.length % 2 === 0 ? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2 : (sorted[middle] ?? 0);
 };
 
-void test('a report retains per-run values and recomputable summary statistics', () => {
-	const runs = campaignRuns({noIndex: [400, 500, 600], accepted: [200, 300, 400], candidate: [100, 200, 300]});
-	const report = compare(runs, metadata);
-	const candidateBytes = report.runs
-		.filter((run) => run.treatment === 'candidate' && run.evidence && run.correctness === 'pass')
-		.map((run) => run.retrievalBytes);
+describe('report', () => {
+	it('a report retains per-run values and recomputable summary statistics', () => {
+		const runs = campaignRuns({noIndex: [400, 500, 600], accepted: [200, 300, 400], candidate: [100, 200, 300]});
+		const report = compare(runs, metadata);
+		const candidateBytes = report.runs
+			.filter((run) => run.treatment === 'candidate' && run.evidence && run.correctness === 'pass')
+			.map((run) => run.retrievalBytes);
 
-	assert.equal(report.recordType, 'report');
-	assert.equal(report.campaign.campaignId, 'campaign-a');
-	assert.equal(report.sources.resultCount, 9);
-	assert.equal(report.sources.identityDigests.length, 9);
-	assert.deepEqual(report.sources.schemaVersions, ['1.0']);
-	assert.equal(report.runs.length, 9);
+		assert.equal(report.recordType, 'report');
+		assert.equal(report.campaign.campaignId, 'campaign-a');
+		assert.equal(report.sources.resultCount, 9);
+		assert.equal(report.sources.identityDigests.length, 9);
+		assert.deepEqual(report.sources.schemaVersions, ['1.0']);
+		assert.equal(report.runs.length, 9);
 
-	assert.equal(report.candidate.statistics.retrievalBytes.sampleCount, 3);
-	assert.equal(report.candidate.statistics.retrievalBytes.median, 200);
-	assert.equal(report.candidate.statistics.retrievalBytes.p95, 300);
-	assert.equal(report.candidate.statistics.retrievalBytes.min, 100);
-	assert.equal(report.candidate.statistics.retrievalBytes.max, 300);
-	assert.equal(report.candidate.statistics.toolCalls.median, 2);
-	assert.equal(report.candidate.statistics.wallTimeMs.sampleCount, 3);
-	assert.equal(report.candidate.statistics.tokens.sampleCount, 3);
-	assert.equal(report.candidate.statistics.tokens.complete, true);
-	assert.equal(simpleMedian(candidateBytes), report.candidate.statistics.retrievalBytes.median);
-});
-
-void test('a percentile from one observation still carries its sample count', () => {
-	const runs = campaignRuns({noIndex: [400], accepted: [200], candidate: [100]});
-	const report = compare(runs, metadata);
-	const paired = report.paired.candidateVsNoIndex.metrics.retrievalBytes;
-
-	assert.equal(report.noIndex.statistics.wallTimeMs.sampleCount, 1);
-	assert.equal(report.candidate.statistics.wallTimeMs.sampleCount, 1);
-	assert.equal(paired.pairCount, 1);
-	assert.equal(paired.deltaInterval95, null);
-	assert.equal(paired.ratioInterval95, null);
-	assert.equal(paired.medianRatio, 0.25);
-});
-
-void test('paired deltas use complete per-case pairs and deterministic bootstrap intervals', () => {
-	const runs = [
-		...campaignRuns({noIndex: [400, 500, 600], accepted: [350, 450, 550], candidate: [100, 200, 300]}, 'case-a', 'locate'),
-		...campaignRuns({noIndex: [200, 300, 400], accepted: [180, 280, 380], candidate: [80, 120, 160]}, 'case-b', 'impact'),
-		...campaignRuns({noIndex: [800, 900, 1000], accepted: [700, 800, 900], candidate: [400, 500, 600]}, 'case-c', 'implementation'),
-	];
-	const first = compare(runs, metadata);
-	const second = compare(runs, metadata);
-	const paired = first.paired.candidateVsNoIndex.metrics.retrievalBytes;
-
-	assert.equal(paired.pairCount, 3);
-	assert.equal(paired.baselineMedian, 500);
-	assert.equal(paired.treatmentMedian, 200);
-	assert.equal(paired.medianDelta, -300);
-	assert.equal(paired.medianRatio, 0.4);
-	assert.notEqual(paired.deltaInterval95, null);
-	assert.equal((paired.deltaInterval95?.sampleCount ?? 0) > 0, true);
-	assert.equal(paired.deltaInterval95?.confidence, 0.95);
-	assert.deepEqual(first.paired.candidateVsNoIndex, second.paired.candidateVsNoIndex);
-	assert.deepEqual(first.sources.comparisonDigest, second.sources.comparisonDigest);
-
-	const caseA = first.caseDeltas.find((delta) => delta.caseId === 'case-a');
-
-	assert.notEqual(caseA, undefined);
-	assert.equal(caseA?.candidateVersusNoIndex.retrievalBytes.delta, -300);
-	assert.equal(caseA.candidateVersusNoIndex.retrievalBytes.sampleCount, 3);
-});
-
-void test('locate, impact, implementation, and semantic classes are reported beside the overall verdict', () => {
-	const runs = REPORT_CLASSES.flatMap((caseClass) =>
-		campaignRuns({noIndex: [400, 500, 600], accepted: [300, 400, 500], candidate: [100, 200, 300]}, `case-${caseClass}`, caseClass),
-	);
-	const report = compare(runs, metadata);
-
-	assert.deepEqual(
-		report.classes.map((item) => item.class),
-		[...REPORT_CLASSES],
-	);
-
-	for (const item of report.classes) {
-		assert.equal(item.caseIds.length, 1);
-		assert.equal(item.candidate.statistics.retrievalBytes.median, 200);
-		assert.equal(item.paired.candidateVsNoIndex.pairCount, 1);
-	}
-});
-
-void test('a report rejects pooled, duplicate, and incompatible result sets', () => {
-	assert.throws(() => compare([], metadata), /at least one result/u);
-
-	const undeclared = runOf({treatment: 'used-index' as TreatmentIdType});
-	assert.throws(() => compare([undeclared], metadata), /undeclared treatment/u);
-
-	const first = runOf({caseId: 'case-a', treatment: 'no-index', repetition: 1});
-	const duplicate = runOf({caseId: 'case-a', treatment: 'no-index', repetition: 1});
-	assert.throws(() => compare([first, duplicate], metadata), /duplicate slot/u);
-
-	const otherModel = runOf({caseId: 'case-a', treatment: 'candidate', repetition: 1, model: 'other-model'});
-	assert.throws(() => compare([first, otherModel], metadata), /incompatible campaign identities/u);
-
-	const otherCaseIdentity = runOf({caseId: 'case-a', treatment: 'accepted', repetition: 1, identityDigestSeed: 'other-candidate'});
-	const incompatible = {...otherCaseIdentity, identity: {...otherCaseIdentity.identity, case: {...otherCaseIdentity.identity.case, timeoutMs: 9000}}};
-
-	assert.throws(() => compare([first, incompatible], metadata), /incompatible comparison identities/u);
-});
-
-void test('the report command reads the manifest and prints the class verdict', (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const campaignDir = path.join(root, 'results', 'campaign-a');
-	const runs = campaignRuns({noIndex: [400, 500, 600], accepted: [300, 400, 500], candidate: [100, 200, 300]});
-
-	for (const run of runs) {
-		writeResult(path.join(campaignDir, run.caseId, run.treatment, `rep-${run.repetition}`, 'attempt-1.json'), run);
-	}
-
-	writeJsonAtomic(path.join(campaignDir, 'manifest.json'), {
-		recordType: 'manifest',
-		schemaVersion: '1.0',
-		campaignId: 'campaign-a',
-		suite: {id: 'suite-a', version: 1, hash: 'a'.repeat(64), status: 'draft'},
-		components: {harnessVersion: 11},
-		claimClass: 'none',
+		assert.equal(report.candidate.statistics.retrievalBytes.sampleCount, 3);
+		assert.equal(report.candidate.statistics.retrievalBytes.median, 200);
+		assert.equal(report.candidate.statistics.retrievalBytes.p95, 300);
+		assert.equal(report.candidate.statistics.retrievalBytes.min, 100);
+		assert.equal(report.candidate.statistics.retrievalBytes.max, 300);
+		assert.equal(report.candidate.statistics.toolCalls.median, 2);
+		assert.equal(report.candidate.statistics.wallTimeMs.sampleCount, 3);
+		assert.equal(report.candidate.statistics.tokens.sampleCount, 3);
+		assert.equal(report.candidate.statistics.tokens.complete, true);
+		assert.equal(simpleMedian(candidateBytes), report.candidate.statistics.retrievalBytes.median);
 	});
 
-	const executed = spawnSync(process.execPath, [CLI, 'report', '--run', 'campaign-a'], {
-		encoding: 'utf8',
-		env: {...process.env, EVALUATION_ROOT: root},
+	it('a percentile from one observation still carries its sample count', () => {
+		const runs = campaignRuns({noIndex: [400], accepted: [200], candidate: [100]});
+		const report = compare(runs, metadata);
+		const paired = report.paired.candidateVsNoIndex.metrics.retrievalBytes;
+
+		assert.equal(report.noIndex.statistics.wallTimeMs.sampleCount, 1);
+		assert.equal(report.candidate.statistics.wallTimeMs.sampleCount, 1);
+		assert.equal(paired.pairCount, 1);
+		assert.equal(paired.deltaInterval95, null);
+		assert.equal(paired.ratioInterval95, null);
+		assert.equal(paired.medianRatio, 0.25);
 	});
 
-	assert.equal(executed.status, 0, executed.stderr);
-	assert.match(executed.stdout, /report campaign-a schema=1\.0/u);
-	assert.match(executed.stdout, /class locate\s+cases 1/u);
-	assert.match(executed.stdout, /Q2 (?<verdict>PASSED|NOT PASSED)/u);
+	it('paired deltas use complete per-case pairs and deterministic bootstrap intervals', () => {
+		const runs = [
+			...campaignRuns({noIndex: [400, 500, 600], accepted: [350, 450, 550], candidate: [100, 200, 300]}, 'case-a', 'locate'),
+			...campaignRuns({noIndex: [200, 300, 400], accepted: [180, 280, 380], candidate: [80, 120, 160]}, 'case-b', 'impact'),
+			...campaignRuns({noIndex: [800, 900, 1000], accepted: [700, 800, 900], candidate: [400, 500, 600]}, 'case-c', 'implementation'),
+		];
+		const first = compare(runs, metadata);
+		const second = compare(runs, metadata);
+		const paired = first.paired.candidateVsNoIndex.metrics.retrievalBytes;
+
+		assert.equal(paired.pairCount, 3);
+		assert.equal(paired.baselineMedian, 500);
+		assert.equal(paired.treatmentMedian, 200);
+		assert.equal(paired.medianDelta, -300);
+		assert.equal(paired.medianRatio, 0.4);
+		assert.notEqual(paired.deltaInterval95, null);
+		assert.equal((paired.deltaInterval95?.sampleCount ?? 0) > 0, true);
+		assert.equal(paired.deltaInterval95?.confidence, 0.95);
+		assert.deepEqual(first.paired.candidateVsNoIndex, second.paired.candidateVsNoIndex);
+		assert.deepEqual(first.sources.comparisonDigest, second.sources.comparisonDigest);
+
+		const caseA = first.caseDeltas.find((delta) => delta.caseId === 'case-a');
+
+		assert.notEqual(caseA, undefined);
+		assert.equal(caseA?.candidateVersusNoIndex.retrievalBytes.delta, -300);
+		assert.equal(caseA.candidateVersusNoIndex.retrievalBytes.sampleCount, 3);
+	});
+
+	it('locate, impact, implementation, and semantic classes are reported beside the overall verdict', () => {
+		const runs = REPORT_CLASSES.flatMap((caseClass) =>
+			campaignRuns({noIndex: [400, 500, 600], accepted: [300, 400, 500], candidate: [100, 200, 300]}, `case-${caseClass}`, caseClass),
+		);
+		const report = compare(runs, metadata);
+
+		assert.deepEqual(
+			report.classes.map((item) => item.class),
+			[...REPORT_CLASSES],
+		);
+
+		for (const item of report.classes) {
+			assert.equal(item.caseIds.length, 1);
+			assert.equal(item.candidate.statistics.retrievalBytes.median, 200);
+			assert.equal(item.paired.candidateVsNoIndex.pairCount, 1);
+		}
+	});
+
+	it('a report rejects pooled, duplicate, and incompatible result sets', () => {
+		assert.throws(() => compare([], metadata), /at least one result/u);
+
+		const undeclared = runOf({treatment: 'used-index' as TreatmentIdType});
+		assert.throws(() => compare([undeclared], metadata), /undeclared treatment/u);
+
+		const first = runOf({caseId: 'case-a', treatment: 'no-index', repetition: 1});
+		const duplicate = runOf({caseId: 'case-a', treatment: 'no-index', repetition: 1});
+		assert.throws(() => compare([first, duplicate], metadata), /duplicate slot/u);
+
+		const otherModel = runOf({caseId: 'case-a', treatment: 'candidate', repetition: 1, model: 'other-model'});
+		assert.throws(() => compare([first, otherModel], metadata), /incompatible campaign identities/u);
+
+		const otherCaseIdentity = runOf({caseId: 'case-a', treatment: 'accepted', repetition: 1, identityDigestSeed: 'other-candidate'});
+		const incompatible = {...otherCaseIdentity, identity: {...otherCaseIdentity.identity, case: {...otherCaseIdentity.identity.case, timeoutMs: 9000}}};
+
+		assert.throws(() => compare([first, incompatible], metadata), /incompatible comparison identities/u);
+	});
+
+	it('the report command reads the manifest and prints the class verdict', (testContext: TestContext) => {
+		const root = temporaryRoot(testContext);
+		const campaignDir = path.join(root, 'results', 'campaign-a');
+		const runs = campaignRuns({noIndex: [400, 500, 600], accepted: [300, 400, 500], candidate: [100, 200, 300]});
+
+		for (const run of runs) {
+			writeResult(path.join(campaignDir, run.caseId, run.treatment, `rep-${run.repetition}`, 'attempt-1.json'), run);
+		}
+
+		writeJsonAtomic(path.join(campaignDir, 'manifest.json'), {
+			recordType: 'manifest',
+			schemaVersion: '1.0',
+			campaignId: 'campaign-a',
+			suite: {id: 'suite-a', version: 1, hash: 'a'.repeat(64), status: 'draft'},
+			components: {harnessVersion: 11},
+			claimClass: 'none',
+		});
+
+		const executed = spawnSync(process.execPath, [CLI, 'report', '--run', 'campaign-a'], {
+			encoding: 'utf8',
+			env: {...process.env, EVALUATION_ROOT: root},
+		});
+
+		assert.equal(executed.status, 0, executed.stderr);
+		assert.match(executed.stdout, /report campaign-a schema=1\.0/u);
+		assert.match(executed.stdout, /class locate\s+cases 1/u);
+		assert.match(executed.stdout, /Q2 (?<verdict>PASSED|NOT PASSED)/u);
+	});
 });

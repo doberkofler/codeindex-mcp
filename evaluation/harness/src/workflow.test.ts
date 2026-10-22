@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import {describe, it} from 'vitest';
 import {type AssertionType} from './assertions.ts';
 import {TOOL_FAMILIES, type RunEventsType, type ToolCallType, type ToolFamilyType} from './events.ts';
 import {caseOf, type CaseType} from './schema.ts';
@@ -88,160 +88,162 @@ const call = (
 const assertion = (testCase: CaseType, calls: readonly ToolCallType[], id: string, durationMs = 100): AssertionType | undefined =>
 	workflowOf(testCase, eventsOf(calls), durationMs).assertions.find((item) => item.id === id);
 
-void test('total-call and output-byte budgets pass exactly at the boundary and fail one over', () => {
-	const calls = [call('read', 'read', {path: 'src/a.ts'}, {index: 1, outputBytes: 7}), call('read', 'read', {path: 'src/b.ts'}, {index: 2, outputBytes: 7})];
+describe('workflow', () => {
+	it('total-call and output-byte budgets pass exactly at the boundary and fail one over', () => {
+		const calls = [call('read', 'read', {path: 'src/a.ts'}, {index: 1, outputBytes: 7}), call('read', 'read', {path: 'src/b.ts'}, {index: 2, outputBytes: 7})];
 
-	assert.equal(assertion(caseOfWorkflow({maxTotalCalls: 2, maxOutputBytes: 14}), calls, 'budget.total-calls')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({maxTotalCalls: 2, maxOutputBytes: 14}), calls, 'budget.output-bytes')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({maxTotalCalls: 1, maxOutputBytes: 14}), calls, 'budget.total-calls')?.result, 'fail');
-	assert.equal(assertion(caseOfWorkflow({maxTotalCalls: 2, maxOutputBytes: 13}), calls, 'budget.output-bytes')?.result, 'fail');
-});
-
-void test('per-family call and output budgets apply independently', () => {
-	const calls = [
-		call('grep', 'search', {pattern: 'x', path: 'src'}, {index: 1, outputBytes: 5}),
-		call('grep', 'search', {pattern: 'y', path: 'src'}, {index: 2, outputBytes: 5}),
-		call('read', 'read', {path: 'src/a.ts'}, {index: 3, outputBytes: 9}),
-	];
-	const testCase = caseOfWorkflow({
-		maxCallsByFamily: {search: 2, read: 1},
-		maxOutputBytesByFamily: {search: 10, read: 8},
+		assert.equal(assertion(caseOfWorkflow({maxTotalCalls: 2, maxOutputBytes: 14}), calls, 'budget.total-calls')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({maxTotalCalls: 2, maxOutputBytes: 14}), calls, 'budget.output-bytes')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({maxTotalCalls: 1, maxOutputBytes: 14}), calls, 'budget.total-calls')?.result, 'fail');
+		assert.equal(assertion(caseOfWorkflow({maxTotalCalls: 2, maxOutputBytes: 13}), calls, 'budget.output-bytes')?.result, 'fail');
 	});
 
-	assert.equal(assertion(testCase, calls, 'budget.calls-by-family.search')?.result, 'pass');
-	assert.equal(assertion(testCase, calls, 'budget.calls-by-family.read')?.result, 'pass');
-	assert.equal(assertion(testCase, calls, 'budget.output-bytes-by-family.search')?.result, 'pass');
-	assert.equal(assertion(testCase, calls, 'budget.output-bytes-by-family.read')?.result, 'fail');
-});
+	it('per-family call and output budgets apply independently', () => {
+		const calls = [
+			call('grep', 'search', {pattern: 'x', path: 'src'}, {index: 1, outputBytes: 5}),
+			call('grep', 'search', {pattern: 'y', path: 'src'}, {index: 2, outputBytes: 5}),
+			call('read', 'read', {path: 'src/a.ts'}, {index: 3, outputBytes: 9}),
+		];
+		const testCase = caseOfWorkflow({
+			maxCallsByFamily: {search: 2, read: 1},
+			maxOutputBytesByFamily: {search: 10, read: 8},
+		});
 
-void test('required and forbidden tools are exact tool names', () => {
-	const calls = [call('grep', 'search', {path: 'src'})];
+		assert.equal(assertion(testCase, calls, 'budget.calls-by-family.search')?.result, 'pass');
+		assert.equal(assertion(testCase, calls, 'budget.calls-by-family.read')?.result, 'pass');
+		assert.equal(assertion(testCase, calls, 'budget.output-bytes-by-family.search')?.result, 'pass');
+		assert.equal(assertion(testCase, calls, 'budget.output-bytes-by-family.read')?.result, 'fail');
+	});
 
-	assert.equal(assertion(caseOfWorkflow({requiredTools: ['grep']}), calls, 'tools.required')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({requiredTools: ['read']}), calls, 'tools.required')?.result, 'fail');
-	assert.equal(assertion(caseOfWorkflow({forbiddenTools: ['read']}), calls, 'tools.forbidden')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({forbiddenTools: ['grep']}), calls, 'tools.forbidden')?.result, 'fail');
-});
+	it('required and forbidden tools are exact tool names', () => {
+		const calls = [call('grep', 'search', {path: 'src'})];
 
-void test('first retrieval tool ignores non-retrieval calls before it', () => {
-	const calls = [call('bash', 'execute', {command: 'pwd'}, {index: 1}), call('grep', 'search', {path: 'src'}, {index: 2})];
+		assert.equal(assertion(caseOfWorkflow({requiredTools: ['grep']}), calls, 'tools.required')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({requiredTools: ['read']}), calls, 'tools.required')?.result, 'fail');
+		assert.equal(assertion(caseOfWorkflow({forbiddenTools: ['read']}), calls, 'tools.forbidden')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({forbiddenTools: ['grep']}), calls, 'tools.forbidden')?.result, 'fail');
+	});
 
-	assert.equal(assertion(caseOfWorkflow({requiredFirstTool: 'grep'}), calls, 'tools.first-retrieval')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({requiredFirstTool: 'read'}), calls, 'tools.first-retrieval')?.result, 'fail');
-	assert.equal(assertion(caseOfWorkflow({requiredFirstTool: 'grep'}), [call('bash', 'execute', {command: 'pwd'})], 'tools.first-retrieval')?.result, 'fail');
-});
+	it('first retrieval tool ignores non-retrieval calls before it', () => {
+		const calls = [call('bash', 'execute', {command: 'pwd'}, {index: 1}), call('grep', 'search', {path: 'src'}, {index: 2})];
 
-void test('duplicate reads compare the exact validated read range', () => {
-	const duplicate = [
-		call('read', 'read', {filePath: 'src/a.ts', offset: 10, limit: 20}, {index: 1}),
-		call('read', 'read', {limit: 20, offset: 10, filePath: 'src/a.ts'}, {index: 2}),
-	];
-	const distinct = [
-		call('read', 'read', {filePath: 'src/a.ts', offset: 10, limit: 20}, {index: 1}),
-		call('read', 'read', {filePath: 'src/a.ts', offset: 30, limit: 20}, {index: 2}),
-	];
+		assert.equal(assertion(caseOfWorkflow({requiredFirstTool: 'grep'}), calls, 'tools.first-retrieval')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({requiredFirstTool: 'read'}), calls, 'tools.first-retrieval')?.result, 'fail');
+		assert.equal(assertion(caseOfWorkflow({requiredFirstTool: 'grep'}), [call('bash', 'execute', {command: 'pwd'})], 'tools.first-retrieval')?.result, 'fail');
+	});
 
-	assert.equal(assertion(caseOfWorkflow({maxDuplicateReads: 1}), duplicate, 'reads.duplicate')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({maxDuplicateReads: 0}), duplicate, 'reads.duplicate')?.result, 'fail');
-	assert.equal(assertion(caseOfWorkflow({maxDuplicateReads: 0}), distinct, 'reads.duplicate')?.result, 'pass');
-});
+	it('duplicate reads compare the exact validated read range', () => {
+		const duplicate = [
+			call('read', 'read', {filePath: 'src/a.ts', offset: 10, limit: 20}, {index: 1}),
+			call('read', 'read', {limit: 20, offset: 10, filePath: 'src/a.ts'}, {index: 2}),
+		];
+		const distinct = [
+			call('read', 'read', {filePath: 'src/a.ts', offset: 10, limit: 20}, {index: 1}),
+			call('read', 'read', {filePath: 'src/a.ts', offset: 30, limit: 20}, {index: 2}),
+		];
 
-void test('fallback after an authoritative index result is measured, not assumed', () => {
-	const afterSuccess = [
-		call('codeindex_find_symbol', 'index', {query: 'A'}, {index: 1, outputBytes: 20}),
-		call('read', 'read', {path: 'src/a.ts'}, {index: 2, outputBytes: 5}),
-	];
-	const beforeSuccess = [
-		call('read', 'read', {path: 'src/a.ts'}, {index: 1, outputBytes: 5}),
-		call('codeindex_find_symbol', 'index', {query: 'A'}, {index: 2, outputBytes: 20}),
-	];
-	const failedIndex = [
-		callOf({tool: 'codeindex_find_symbol', family: 'index', input: {query: 'A'}, status: 'error', index: 1, outputBytes: 0}),
-		call('read', 'read', {path: 'src/a.ts'}, {index: 2, outputBytes: 5}),
-	];
-	const truncatedIndex = [
-		callOf({tool: 'codeindex_find_symbol', family: 'index', input: {query: 'A'}, index: 1, outputBytes: 20, authoritative: false}),
-		call('read', 'read', {path: 'src/a.ts'}, {index: 2, outputBytes: 5}),
-	];
-	const statusOnly = [
-		callOf({tool: 'codeindex_index_status', family: 'index', input: {}, index: 1, outputBytes: 20}),
-		call('read', 'read', {path: 'src/a.ts'}, {index: 2, outputBytes: 5}),
-	];
+		assert.equal(assertion(caseOfWorkflow({maxDuplicateReads: 1}), duplicate, 'reads.duplicate')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({maxDuplicateReads: 0}), duplicate, 'reads.duplicate')?.result, 'fail');
+		assert.equal(assertion(caseOfWorkflow({maxDuplicateReads: 0}), distinct, 'reads.duplicate')?.result, 'pass');
+	});
 
-	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 1}), afterSuccess, 'routing.fallback-after-authoritative')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), afterSuccess, 'routing.fallback-after-authoritative')?.result, 'fail');
-	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), beforeSuccess, 'routing.fallback-after-authoritative')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), failedIndex, 'routing.fallback-after-authoritative')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), truncatedIndex, 'routing.fallback-after-authoritative')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), statusOnly, 'routing.fallback-after-authoritative')?.result, 'pass');
-});
+	it('fallback after an authoritative index result is measured, not assumed', () => {
+		const afterSuccess = [
+			call('codeindex_find_symbol', 'index', {query: 'A'}, {index: 1, outputBytes: 20}),
+			call('read', 'read', {path: 'src/a.ts'}, {index: 2, outputBytes: 5}),
+		];
+		const beforeSuccess = [
+			call('read', 'read', {path: 'src/a.ts'}, {index: 1, outputBytes: 5}),
+			call('codeindex_find_symbol', 'index', {query: 'A'}, {index: 2, outputBytes: 20}),
+		];
+		const failedIndex = [
+			callOf({tool: 'codeindex_find_symbol', family: 'index', input: {query: 'A'}, status: 'error', index: 1, outputBytes: 0}),
+			call('read', 'read', {path: 'src/a.ts'}, {index: 2, outputBytes: 5}),
+		];
+		const truncatedIndex = [
+			callOf({tool: 'codeindex_find_symbol', family: 'index', input: {query: 'A'}, index: 1, outputBytes: 20, authoritative: false}),
+			call('read', 'read', {path: 'src/a.ts'}, {index: 2, outputBytes: 5}),
+		];
+		const statusOnly = [
+			callOf({tool: 'codeindex_index_status', family: 'index', input: {}, index: 1, outputBytes: 20}),
+			call('read', 'read', {path: 'src/a.ts'}, {index: 2, outputBytes: 5}),
+		];
 
-void test('broad-search classification is structural and ignores query text', () => {
-	const broad = [
-		call('grep', 'search', {pattern: 'unique-literal'}),
-		call('grep', 'search', {pattern: 'unique-literal', path: '.'}),
-		call('grep', 'search', {pattern: 'unique-literal', path: '**'}),
-		call('glob', 'search', {pattern: '**/*.ts'}),
-	];
-	const bounded = [
-		call('grep', 'search', {pattern: 'x', path: 'src'}),
-		call('grep', 'search', {pattern: 'x', path: 'src/core/**'}),
-		call('grep', 'search', {pattern: 'x', path: 'src', include: '**/*.ts'}),
-		call('grep', 'search', {pattern: 'x', path: '.', include: 'src/**/*.ts'}),
-		call('glob', 'search', {pattern: 'src/**/*.ts'}),
-		call('read', 'read', {path: 'src/a.ts'}),
-	];
+		assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 1}), afterSuccess, 'routing.fallback-after-authoritative')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), afterSuccess, 'routing.fallback-after-authoritative')?.result, 'fail');
+		assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), beforeSuccess, 'routing.fallback-after-authoritative')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), failedIndex, 'routing.fallback-after-authoritative')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), truncatedIndex, 'routing.fallback-after-authoritative')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({maxFallbacksAfterAuthoritative: 0}), statusOnly, 'routing.fallback-after-authoritative')?.result, 'pass');
+	});
 
-	for (const item of broad) {
-		assert.equal(isBroadSearch(item), true, item.tool);
-	}
+	it('broad-search classification is structural and ignores query text', () => {
+		const broad = [
+			call('grep', 'search', {pattern: 'unique-literal'}),
+			call('grep', 'search', {pattern: 'unique-literal', path: '.'}),
+			call('grep', 'search', {pattern: 'unique-literal', path: '**'}),
+			call('glob', 'search', {pattern: '**/*.ts'}),
+		];
+		const bounded = [
+			call('grep', 'search', {pattern: 'x', path: 'src'}),
+			call('grep', 'search', {pattern: 'x', path: 'src/core/**'}),
+			call('grep', 'search', {pattern: 'x', path: 'src', include: '**/*.ts'}),
+			call('grep', 'search', {pattern: 'x', path: '.', include: 'src/**/*.ts'}),
+			call('glob', 'search', {pattern: 'src/**/*.ts'}),
+			call('read', 'read', {path: 'src/a.ts'}),
+		];
 
-	for (const item of bounded) {
-		assert.equal(isBroadSearch(item), false, `${item.tool} ${JSON.stringify(item.input)}`);
-	}
+		for (const item of broad) {
+			assert.equal(isBroadSearch(item), true, item.tool);
+		}
 
-	const calls = [
-		call('grep', 'search', {path: 'src'}, {index: 1}),
-		call('grep', 'search', {pattern: 'x'}, {index: 2}),
-		call('grep', 'search', {path: '.'}, {index: 3}),
-	];
+		for (const item of bounded) {
+			assert.equal(isBroadSearch(item), false, `${item.tool} ${JSON.stringify(item.input)}`);
+		}
 
-	assert.equal(assertion(caseOfWorkflow({maxBroadSearches: 2}), calls, 'search.broad')?.result, 'pass');
-	assert.equal(assertion(caseOfWorkflow({maxBroadSearches: 1}), calls, 'search.broad')?.result, 'fail');
-});
+		const calls = [
+			call('grep', 'search', {path: 'src'}, {index: 1}),
+			call('grep', 'search', {pattern: 'x'}, {index: 2}),
+			call('grep', 'search', {path: '.'}, {index: 3}),
+		];
 
-void test('wall-clock budgets and exact token budgets are separate from correctness', () => {
-	const calls = [call('read', 'read', {path: 'src/a.ts'})];
-	const durationCase = caseOfWorkflow({maxDurationMs: 100});
+		assert.equal(assertion(caseOfWorkflow({maxBroadSearches: 2}), calls, 'search.broad')?.result, 'pass');
+		assert.equal(assertion(caseOfWorkflow({maxBroadSearches: 1}), calls, 'search.broad')?.result, 'fail');
+	});
 
-	assert.equal(assertion(durationCase, calls, 'time.max-duration', 100)?.result, 'pass');
-	assert.equal(assertion(durationCase, calls, 'time.max-duration', 101)?.result, 'fail');
+	it('wall-clock budgets and exact token budgets are separate from correctness', () => {
+		const calls = [call('read', 'read', {path: 'src/a.ts'})];
+		const durationCase = caseOfWorkflow({maxDurationMs: 100});
 
-	const events = eventsOf(calls);
-	const exact = {
-		...events,
-		telemetry: {
-			...events.telemetry,
-			inputTokens: {value: 10, state: 'exact', unit: 'tokens', source: 'step_finish'},
-			outputTokens: {value: 5, state: 'exact', unit: 'tokens', source: 'step_finish'},
-			reasoningTokens: {value: 2, state: 'exact', unit: 'tokens', source: 'step_finish'},
-		},
-	} as const;
+		assert.equal(assertion(durationCase, calls, 'time.max-duration', 100)?.result, 'pass');
+		assert.equal(assertion(durationCase, calls, 'time.max-duration', 101)?.result, 'fail');
 
-	assert.equal(workflowOf(caseOfWorkflow({maxTokens: 17}), exact, 10).assertions.find((item) => item.id === 'tokens.uncached')?.result, 'pass');
-	assert.equal(workflowOf(caseOfWorkflow({maxTokens: 16}), exact, 10).assertions.find((item) => item.id === 'tokens.uncached')?.result, 'fail');
-	assert.equal(workflowOf(caseOfWorkflow({maxTokens: 0}), events, 10).result, 'unevaluated');
-	assert.equal(workflowOf(caseOfWorkflow({maxTokens: 0}), events, 10).compliant, false);
-});
+		const events = eventsOf(calls);
+		const exact = {
+			...events,
+			telemetry: {
+				...events.telemetry,
+				inputTokens: {value: 10, state: 'exact', unit: 'tokens', source: 'step_finish'},
+				outputTokens: {value: 5, state: 'exact', unit: 'tokens', source: 'step_finish'},
+				reasoningTokens: {value: 2, state: 'exact', unit: 'tokens', source: 'step_finish'},
+			},
+		} as const;
 
-void test('workflow results remain independent from correctness and keep every failed predicate', () => {
-	const testCase = caseOfWorkflow({maxTotalCalls: 1, requiredTools: ['grep'], forbiddenTools: ['read']});
-	const result = workflowOf(testCase, eventsOf([call('read', 'read', {path: 'src/a.ts'}), call('read', 'read', {path: 'src/b.ts'})]), 10);
+		assert.equal(workflowOf(caseOfWorkflow({maxTokens: 17}), exact, 10).assertions.find((item) => item.id === 'tokens.uncached')?.result, 'pass');
+		assert.equal(workflowOf(caseOfWorkflow({maxTokens: 16}), exact, 10).assertions.find((item) => item.id === 'tokens.uncached')?.result, 'fail');
+		assert.equal(workflowOf(caseOfWorkflow({maxTokens: 0}), events, 10).result, 'unevaluated');
+		assert.equal(workflowOf(caseOfWorkflow({maxTokens: 0}), events, 10).compliant, false);
+	});
 
-	assert.equal(result.result, 'fail');
-	assert.equal(result.compliant, false);
-	assert.ok(result.violations.length >= 3);
-	assert.equal(result.assertions.find((item) => item.id === 'budget.total-calls')?.result, 'fail');
-	assert.equal(result.assertions.find((item) => item.id === 'tools.required')?.result, 'fail');
-	assert.equal(result.assertions.find((item) => item.id === 'tools.forbidden')?.result, 'fail');
+	it('workflow results remain independent from correctness and keep every failed predicate', () => {
+		const testCase = caseOfWorkflow({maxTotalCalls: 1, requiredTools: ['grep'], forbiddenTools: ['read']});
+		const result = workflowOf(testCase, eventsOf([call('read', 'read', {path: 'src/a.ts'}), call('read', 'read', {path: 'src/b.ts'})]), 10);
+
+		assert.equal(result.result, 'fail');
+		assert.equal(result.compliant, false);
+		assert.ok(result.violations.length >= 3);
+		assert.equal(result.assertions.find((item) => item.id === 'budget.total-calls')?.result, 'fail');
+		assert.equal(result.assertions.find((item) => item.id === 'tools.required')?.result, 'fail');
+		assert.equal(result.assertions.find((item) => item.id === 'tools.forbidden')?.result, 'fail');
+	});
 });
