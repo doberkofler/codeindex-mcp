@@ -148,18 +148,38 @@ The workflows are implemented as package scripts. Class membership is declared i
 selects one class, except `test:fast`, which composes the fast classes and the fake-index
 MCP tests. `test:system` builds `dist` before it runs the deterministic system class.
 
+`pnpm verify:pr` is the single pull-request entry point. It builds `dist` once, runs the
+complete verification pass once, and then runs the fixture qualification against that same
+build. CI invokes only `pnpm verify:pr`; the former separate CI build and qualification
+steps are gone. Focused workflows are developer tools and are not invoked by the PR gate,
+so no test file runs twice in one pull request. `qualify:typescript:fixture` still builds for
+standalone use; `qualify:typescript:fixture:built` is the build-free entry point used after
+the PR gate has built `dist`.
+
+The pull-request path previously duplicated work in three places: qualification was defined
+twice (the CI command and the package script), the package qualification rebuilt `dist` after
+CI had built it, and the CI and package workflows each claimed the complete test pass. The
+collapsed path is one `pnpm build`, one `pnpm verify`, and one
+`qualify:typescript:fixture:built`.
+
+`scripts/run-test-workflow.mjs` enforces every budget and prints the measured wall-clock
+time. A budget breach fails the command. `vitest.config.ts` also rejects a fast-class test
+that is classified with the system or qualification tests, so heavy checks move class
+instead of stretching the fast path.
+
 | Workflow | Script | Contents | Budget | Measured |
 |---|---|---|---:|---:|
-| `test:fast` | `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP tests; no coverage | <=10 s | 6.7 s, exit 0 |
-| `test:typescript` | `pnpm test:typescript` | All TypeScript adapter and reference-corpus tests | <=15 s | 4.4 s, exit 0 |
-| `test:mcp` | `pnpm test:mcp` | MCP protocol contracts and one vertical smoke | <=15 s | 0.6 s, exit 0 |
-| `test:system` | `pnpm test:system` | Built-process deterministic system tests | <=60 s | 12.6 s, exit 0 |
+| `test:fast` | `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP tests; no coverage | <=10 s | 6.3 s, exit 0 |
+| `test:typescript` | `pnpm test:typescript` | All TypeScript adapter and reference-corpus tests | <=15 s | 2.8 s, exit 0 |
+| `test:mcp` | `pnpm test:mcp` | MCP protocol contracts and one vertical smoke | <=15 s | 0.7 s, exit 0 |
+| `test:system` | `pnpm test:system` | Built-process deterministic system tests | <=60 s | 11.8 s, exit 0 |
 | `qualify:typescript:fixture` | `pnpm qualify:typescript:fixture` | Self-contained compiler differential gate | <=60 s | 1.5 s, exit 0 |
-| `verify:pr` | `pnpm verify:pr` | Static checks, coverage, all deterministic tests, build, qualification | <=2 min | 32.5 s, exit 0 |
+| `verify:pr` | `pnpm verify:pr` | Static checks, coverage, all deterministic tests, build, qualification | <=2 min | 32.4 s, exit 0 |
 
 Measured on 2026-10-22 on the reference machine (Apple M5 Max, macOS 27.0.1,
 Node 26.10.0, pnpm 12.14.0). `qualify:typescript:fixture` also passes with
 `env -i PATH HOME` and exits 0 in 1.5 s. The 60 s system budget includes its build.
+The `verify:pr` measurement includes its single build and the fixture qualification.
 
 Nightly workflows run generated and pinned-public-corpus performance and compatibility
 checks. Stable-machine or release workflows run retained-reference comparisons, soak,
@@ -189,9 +209,9 @@ to prove wiring.
 5. [x] Split MCP protocol assertions from real-index vertical tests.
 6. [x] Add a controlled fake index for protocol tests.
 7. [x] Add one built-process deterministic system test.
-8. Remove duplicate qualification execution while retaining one PR gate.
+8. [x] Remove duplicate qualification execution while retaining one PR gate.
 9. Fill only contract-matrix gaps; do not increase test count without a named risk.
-10. Keep the fast workflow below its budget as the suite grows.
+10. [x] Keep the fast workflow below its budget as the suite grows.
 
 Changes to `package.json`, Vitest configuration, or other build/lint configuration require
 explicit approval under repository rules.

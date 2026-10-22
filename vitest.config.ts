@@ -147,6 +147,20 @@ const WORKFLOWS = {
 	system: DETERMINISTIC_SYSTEM_TESTS,
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
+// A fast-class test that needs the built process or the reference corpus has grown
+// into the system or qualification class. Reclassify it instead of stretching the
+// fast budget.
+const assertFastClassBoundary = (): void => {
+	const restrictedTests = new Set([...DETERMINISTIC_SYSTEM_TESTS, ...REFERENCE_CORPUS_TESTS]);
+	const violations = WORKFLOWS.fast.filter((testFile) => restrictedTests.has(testFile));
+
+	if (violations.length > 0) {
+		throw new Error(`Fast-class tests cannot also belong to the system or qualification class: ${violations.join(', ')}`);
+	}
+};
+
+assertFastClassBoundary();
+
 type WorkflowNameType = keyof typeof WORKFLOWS;
 
 const isWorkflowName = (value: string): value is WorkflowNameType => Object.hasOwn(WORKFLOWS, value);

@@ -347,7 +347,7 @@ client event export for that denominator.
 
 ## 9. Release discipline
 
-- run `pnpm verify:pr` and `pnpm build`;
+- run `pnpm verify:pr`; it builds `dist` once and gates the pull-request path;
 - keep stdout reserved for MCP framing;
 - inspect bundle contents for accidental evaluation/private code;
 - update architecture, adapter limitations, roadmap status, and changelog;

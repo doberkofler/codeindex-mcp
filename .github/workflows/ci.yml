@@ -43,15 +43,5 @@ jobs:
             pnpm commitlint --last --verbose
           fi
 
-      - name: Verify
-        run: pnpm verify
-
-      - name: Build
-        run: pnpm build
-
-      - name: Qualify TypeScript references
-        run: node dist/cli.mjs qualify --extractor typescript
-        env:
-          CODE_INDEX_ROOT: test/fixtures/reference-corpus
-          CODE_INDEX_PROJECT_FILE: test/fixtures/reference-corpus/tsconfig.json
-          CODE_INDEX_LOG_LEVEL: error
+      - name: Verify pull request
+        run: pnpm verify:pr

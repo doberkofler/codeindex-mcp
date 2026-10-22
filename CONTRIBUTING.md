@@ -17,20 +17,24 @@ pnpm verify:pr
 
 ## Checks
 
-| Command | Scope |
-| --- | --- |
-| `pnpm typecheck` | Source, tests, and console |
-| `pnpm lint` | Oxlint |
-| `pnpm knip` | Unused files, exports, and dependencies |
-| `pnpm format:check` | Oxfmt |
-| `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP classes |
-| `pnpm test:typescript` | TypeScript adapter and reference-corpus classes |
-| `pnpm test:mcp` | MCP protocol class |
-| `pnpm test:system` | Built-process deterministic system class |
-| `pnpm qualify:typescript:fixture` | Self-contained TypeScript language-service gate |
-| `pnpm test` | Complete Vitest suite with coverage |
-| `pnpm verify` | All of the above static checks and the complete Vitest suite |
-| `pnpm verify:pr` | `pnpm verify` plus the fixture qualification gate |
+| Command | Scope | Budget |
+| --- | --- | --- |
+| `pnpm typecheck` | Source, tests, and console | — |
+| `pnpm lint` | Oxlint | — |
+| `pnpm knip` | Unused files, exports, and dependencies | — |
+| `pnpm format:check` | Oxfmt | — |
+| `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP classes | 10 s |
+| `pnpm test:typescript` | TypeScript adapter and reference-corpus classes | 15 s |
+| `pnpm test:mcp` | MCP protocol class | 15 s |
+| `pnpm test:system` | Built-process deterministic system class | 60 s |
+| `pnpm qualify:typescript:fixture` | Self-contained TypeScript language-service gate | — |
+| `pnpm test` | Complete Vitest suite with coverage | — |
+| `pnpm verify` | All of the above static checks and the complete Vitest suite | — |
+| `pnpm verify:pr` | Single PR gate: one build, `pnpm verify`, then fixture qualification | 2 min |
+
+The budgeted commands fail when their measured wall-clock time exceeds the budget.
+`pnpm verify:pr` is the only pull-request gate; do not run its build, verification, or
+qualification steps separately in CI.
 
 Fix the underlying code when a check fails. Do not disable, exclude, or relax a
 rule. Configuration changes require explicit review and must not weaken a rule.

@@ -316,7 +316,7 @@ verify, benchmark, and qualification operations.
 ```bash
 pnpm install
 pnpm verify              # typecheck, Oxlint, Knip, Oxfmt, complete Vitest suite
-pnpm verify:pr           # verify plus the fixture qualification gate
+pnpm verify:pr           # single PR gate: one build, verify, fixture qualification
 pnpm test:fast           # module, adapter, core, and fake-index MCP classes
 pnpm test:typescript     # TypeScript adapter and reference-corpus classes
 pnpm test:mcp            # MCP protocol class
@@ -327,7 +327,8 @@ pnpm build
 ```
 
 Requires Node.js 26 or newer. Formatting is owned by Oxfmt; semantic analysis by
-Oxlint. Do not weaken a check to make it pass.
+Oxlint. Focused workflows and `verify:pr` fail when they exceed their budget. Do
+not weaken a check to make it pass.
 
 ## Current limitations
 
