@@ -3,3 +3,7 @@ packages:
 
 allowBuilds:
   oracledb: true
+
+# First-party package published by us; release latency must not block adoption.
+minimumReleaseAgeExclude:
+  - agent-task-queue
