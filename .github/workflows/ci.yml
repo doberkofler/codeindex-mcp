@@ -1,5 +1,9 @@
 name: CI
 
+# Pull-request gate only. Nightly and stable/release verification live in
+# nightly.yml and stable.yml; they are never invoked here.
+# Budget: 10 min including checkout, dependency install, commitlint, and verify:pr
+# (the measured verify:pr budget itself is 2 min).
 on:
   push:
     branches: [main]
@@ -12,6 +16,7 @@ jobs:
   verify:
     name: Verify
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

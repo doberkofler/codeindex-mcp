@@ -1,0 +1,210 @@
+name: Stable verification
+
+# Trigger: manual dispatch and release workflow call.
+# Runner profile: self-hosted Apple M5 Max reference machine
+# (labels: self-hosted, macOS, ARM64, codeindex-reference).
+# Budget: 360 min; the job timeout fails the workflow when the budget is exceeded.
+# Artifact retention: 90 days; curated reports only, no logs, credentials,
+# absolute paths, or source text.
+# Failure meaning: Performance gate for retained-reference comparisons;
+# Deterministic system for soak and built-process lifecycle. See
+# .github/workflows/README.md.
+
+run-name: Stable verification
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: stable-reference
+  cancel-in-progress: false
+
+jobs:
+  stable:
+    name: Retained reference, soak, and lifecycle
+    runs-on: [self-hosted, macOS, ARM64, codeindex-reference]
+    timeout-minutes: 360
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve previous stable evidence
+        id: previous
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "::warning::gh is unavailable; continuing without a previous stable reference"
+            exit 0
+          fi
+          run_id=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/stable.yml/runs?status=success&per_page=100" \
+            --jq '.workflow_runs[].id' | sed -n '1p')
+          if [ -n "$run_id" ]; then
+            echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download previous stable evidence
+        if: steps.previous.outputs.run-id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: stable-evidence-${{ steps.previous.outputs.run-id }}
+          path: ${{ runner.temp }}/codeindex-evidence/stable/reference
+          run-id: ${{ steps.previous.outputs.run-id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify and build release artifact
+        timeout-minutes: 30
+        run: pnpm verify:release
+
+      - name: Retained-reference comparison, first run
+        timeout-minutes: 120
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/stable"
+          evidence="$evidence_root/benchmark"
+          mkdir -p "$evidence"
+          previous="$evidence_root/reference/benchmark/run-02.json"
+          if [ ! -f "$previous" ]; then
+            previous="$evidence_root/reference/benchmark/run-01.json"
+          fi
+          reference_args=()
+          if [ -f "$previous" ]; then
+            reference_args=(--reference "$previous")
+          fi
+          node dist/cli.mjs benchmark \
+            --profile large \
+            --scenarios cold,warm,rebuild,edit,deep \
+            --iterations 20 \
+            --edit-rounds 5 \
+            --baseline benchmark/baseline.json \
+            "${reference_args[@]}" \
+            --evaluation "$evidence/run-01.evaluation.json" \
+            --summary "$evidence/run-01.md" \
+            --output "$evidence/run-01.json"
+
+      - name: Retained-reference comparison, second run
+        timeout-minutes: 120
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/codeindex-evidence/stable/benchmark"
+          node dist/cli.mjs benchmark \
+            --profile large \
+            --scenarios cold,warm,rebuild,edit,deep \
+            --iterations 20 \
+            --edit-rounds 5 \
+            --baseline benchmark/baseline.json \
+            --reference "$evidence/run-01.json" \
+            --evaluation "$evidence/run-02.evaluation.json" \
+            --summary "$evidence/run-02.md" \
+            --output "$evidence/run-02.json"
+
+      - name: Run operational soak
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/stable"
+          node dist/cli.mjs soak \
+            --profile small \
+            --rounds 8 \
+            --burst-edits 3 \
+            --failures 1 \
+            --restarts 1 \
+            --output "$evidence_root/soak/soak.json" \
+            --markdown "$evidence_root/soak/soak.md"
+          cat "$evidence_root/soak/soak.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run deterministic system and multi-process lifecycle class
+        id: system
+        timeout-minutes: 10
+        run: pnpm test:system
+
+      - name: Publish measurement summaries
+        if: always()
+        run: |
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/stable"
+          for summary in "$evidence_root/benchmark/run-01.md" "$evidence_root/benchmark/run-02.md"; do
+            if [ -f "$summary" ]; then
+              cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Stage bounded artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/stable"
+          stage="${{ runner.temp }}/publish/stable-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          for directory in benchmark soak; do
+            if [ -d "$evidence_root/$directory" ]; then
+              cp -R "$evidence_root/$directory" "$stage/$directory"
+            fi
+          done
+          cat > "$stage/context.json" <<EOF
+          {
+            "workflow": "stable",
+            "commit": "${GITHUB_SHA}",
+            "budgetMinutes": 360,
+            "artifactRetentionDays": 90,
+            "failureClass": "Performance gate or Deterministic system"
+          }
+          EOF
+          find "$stage" -type f \( -name '*.json' -o -name '*.md' \) -print0 |
+            xargs -0 perl -pi -e 's/\Q$ENV{GITHUB_WORKSPACE}\E/<workspace>/g; s/\Q$ENV{RUNNER_TEMP}\E/<runner-temp>/g; s/\Q$ENV{HOME}\E/<home>/g'
+
+      - name: Publish failure interpretation
+        if: failure()
+        run: |
+          if [ "${{ steps.system.outcome }}" = "failure" ]; then
+            class="**Deterministic system**"
+          else
+            class="**Performance gate**"
+          fi
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Stable failure interpretation
+
+          Failure class: ${class}
+
+          | Observation | Failure class |
+          | --- | --- |
+          | Retained-reference or absolute gate failed | **Performance gate** |
+          | Soak or built-process lifecycle failed | **Deterministic system** |
+          | Static verification, build, or qualification failed | **Static verification** |
+
+          Stable failures block a release. A reference mismatch is a warning only when
+          the reference platform or architecture differs; absolute gates and invalid
+          deep-cursor plans always fail.
+          EOF
+
+      - name: Upload bounded evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/publish/stable-evidence
+          retention-days: 90
+          if-no-files-found: error

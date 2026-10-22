@@ -185,6 +185,23 @@ Nightly workflows run generated and pinned-public-corpus performance and compati
 checks. Stable-machine or release workflows run retained-reference comparisons, soak,
 and multi-process lifecycle tests.
 
+### 6.1 Scheduled and release workflows
+
+`nightly.yml` runs on the declared reference runner every day and on manual dispatch. It
+runs the generated benchmark, the pinned public suite, and the TypeScript compiler
+differential. The generated job reuses the newest successful run of the same profile as
+its reference when one exists; the public suite uses its committed baseline and retained
+first run.
+
+`stable.yml` runs on manual dispatch or from `release.yml` before the release is published.
+It runs `pnpm verify:release`, two retained-reference benchmark runs, the operational soak,
+and the deterministic system class. `release.yml` publishes only after that job passes.
+
+Neither workflow is invoked by `pnpm verify:pr` or `ci.yml`. Their jobs declare budgets
+through `timeout-minutes`, upload only curated reports for a bounded retention period, and
+state the failing class from section 7. The operational contract and artifact-privacy
+rules are recorded in [Verification workflows](../.github/workflows/README.md).
+
 ## 7. Failure meaning
 
 | Failure | Primary interpretation |

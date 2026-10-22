@@ -328,7 +328,8 @@ pnpm build
 
 Requires Node.js 26 or newer. Formatting is owned by Oxfmt; semantic analysis by
 Oxlint. Focused workflows and `verify:pr` fail when they exceed their budget. Do
-not weaken a check to make it pass.
+not weaken a check to make it pass. Nightly and stable/release checks are recorded
+in [Verification workflows](.github/workflows/README.md).
 
 ## Current limitations
 

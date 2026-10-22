@@ -1,0 +1,299 @@
+name: Nightly
+
+# Trigger: daily at 03:17 UTC and manual dispatch.
+# Runner profile: self-hosted Apple M5 Max reference machine
+# (labels: self-hosted, macOS, ARM64, codeindex-reference).
+# Budget: 480 min total; generated job 120 min, pinned-public job 360 min.
+# A job timeout fails the workflow when its budget is exceeded.
+# Artifact retention: 30 days; curated reports only, no logs, credentials,
+# absolute paths, or source text.
+# Failure meaning: Performance gate for benchmark gates; Semantic qualification
+# for the compiler differential. See .github/workflows/README.md.
+
+run-name: Nightly (${{ inputs.profile || 'large' }})
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Generated corpus profile
+        required: true
+        default: large
+        type: choice
+        options: [small, medium, large, xl]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: nightly-reference
+  cancel-in-progress: false
+
+jobs:
+  generated:
+    name: Generated corpus performance
+    runs-on: [self-hosted, macOS, ARM64, codeindex-reference]
+    timeout-minutes: 120
+    env:
+      PROFILE: ${{ inputs.profile || 'large' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Resolve previous reference
+        id: reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "::warning::gh is unavailable; continuing without a previous nightly reference"
+            exit 0
+          fi
+          run_id=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/nightly.yml/runs?branch=main&status=success&per_page=100" \
+            --jq ".workflow_runs[] | select(.name == \"Nightly (${PROFILE})\") | .id" | sed -n '1p')
+          if [ -n "$run_id" ]; then
+            echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download previous reference
+        if: steps.reference.outputs.run-id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: nightly-generated-${{ steps.reference.outputs.run-id }}
+          path: ${{ runner.temp }}/codeindex-evidence/nightly/reference
+          run-id: ${{ steps.reference.outputs.run-id }}
+          github-token: ${{ github.token }}
+
+      - name: Measure generated corpus
+        id: measure
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
+          evidence="$evidence_root/generated"
+          mkdir -p "$evidence"
+          case "$PROFILE" in
+            large) baseline=benchmark/baseline.json ;;
+            *) baseline="benchmark/baseline-${PROFILE}.json" ;;
+          esac
+          reference_args=()
+          if [ -f "$evidence_root/reference/report.json" ]; then
+            reference_args=(--reference "$evidence_root/reference/report.json")
+          fi
+          node dist/cli.mjs benchmark \
+            --profile "$PROFILE" \
+            --scenarios cold,warm,rebuild,edit,deep \
+            --iterations 20 \
+            --edit-rounds 5 \
+            --baseline "$baseline" \
+            "${reference_args[@]}" \
+            --evaluation "$evidence/evaluation.json" \
+            --summary "$evidence/summary.md" \
+            --output "$evidence/report.json"
+
+      - name: Publish summary
+        if: always()
+        run: |
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
+          if [ -f "$evidence_root/generated/summary.md" ]; then
+            cat "$evidence_root/generated/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Stage bounded artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
+          stage="${{ runner.temp }}/publish/nightly-generated"
+          evidence="$evidence_root/generated"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          for file in report.json evaluation.json summary.md; do
+            if [ -f "$evidence/$file" ]; then
+              cp "$evidence/$file" "$stage/$file"
+            fi
+          done
+          cat > "$stage/context.json" <<EOF
+          {
+            "workflow": "nightly",
+            "job": "generated",
+            "profile": "${PROFILE}",
+            "commit": "${GITHUB_SHA}",
+            "budgetMinutes": 120,
+            "artifactRetentionDays": 30,
+            "failureClass": "Performance gate"
+          }
+          EOF
+          find "$stage" -type f \( -name '*.json' -o -name '*.md' \) -print0 |
+            xargs -0 perl -pi -e 's/\Q$ENV{GITHUB_WORKSPACE}\E/<workspace>/g; s/\Q$ENV{RUNNER_TEMP}\E/<runner-temp>/g; s/\Q$ENV{HOME}\E/<home>/g'
+
+      - name: Publish failure interpretation
+        if: failure()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## Nightly failure interpretation: generated corpus
+
+          | Observation | Failure class |
+          | --- | --- |
+          | Benchmark gate failed | **Performance gate** (generated corpus) |
+          | Checkout, install, or build failed | **Static verification** |
+
+          A failed performance gate means a runtime or resource regression on the declared
+          generated profile. Inspect the evaluation gates before changing a threshold.
+          EOF
+
+      - name: Upload bounded evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-generated-${{ github.run_id }}
+          path: ${{ runner.temp }}/publish/nightly-generated
+          retention-days: 30
+          if-no-files-found: error
+
+  public:
+    name: Pinned public corpus performance and compatibility
+    runs-on: [self-hosted, macOS, ARM64, codeindex-reference]
+    timeout-minutes: 360
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Prepare pinned public projects
+        timeout-minutes: 120
+        run: node dist/cli.mjs benchmark-prepare --suite benchmark/suites/typescript-public.json
+
+      - name: Measure pinned public corpus
+        id: measure
+        timeout-minutes: 180
+        run: |
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
+          node dist/cli.mjs benchmark-suite \
+            --suite benchmark/suites/typescript-public.json \
+            --fail-fast \
+            --output "$evidence_root/public"
+
+      - name: Qualify TypeScript references
+        id: qualify
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
+          mkdir -p "$evidence_root/qualification"
+          pnpm qualify:typescript:fixture:built | tee "$evidence_root/qualification/report.json"
+
+      - name: Publish summary
+        if: always()
+        run: |
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
+          if [ -f "$evidence_root/public/summary.md" ]; then
+            cat "$evidence_root/public/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Stage bounded artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
+          stage="${{ runner.temp }}/publish/nightly-public"
+          evidence="$evidence_root/public"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          for file in manifest.json summary.md; do
+            if [ -f "$evidence/$file" ]; then
+              cp "$evidence/$file" "$stage/$file"
+            fi
+          done
+          if [ -d "$evidence/public" ]; then
+            cp -R "$evidence/public" "$stage/public"
+          fi
+          if [ -f "$evidence_root/qualification/report.json" ]; then
+            cp "$evidence_root/qualification/report.json" "$stage/qualification.json"
+          fi
+          cat > "$stage/context.json" <<EOF
+          {
+            "workflow": "nightly",
+            "job": "public",
+            "suite": "typescript-public",
+            "commit": "${GITHUB_SHA}",
+            "budgetMinutes": 360,
+            "artifactRetentionDays": 30,
+            "failureClass": "Performance gate or Semantic qualification"
+          }
+          EOF
+          find "$stage" -type f \( -name '*.json' -o -name '*.md' \) -print0 |
+            xargs -0 perl -pi -e 's/\Q$ENV{GITHUB_WORKSPACE}\E/<workspace>/g; s/\Q$ENV{RUNNER_TEMP}\E/<runner-temp>/g; s/\Q$ENV{HOME}\E/<home>/g'
+
+      - name: Publish failure interpretation
+        if: failure()
+        run: |
+          if [ "${{ steps.qualify.outcome }}" = "failure" ]; then
+            class="**Semantic qualification**"
+          else
+            class="**Performance gate** (pinned public corpus)"
+          fi
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Nightly failure interpretation: pinned public corpus
+
+          Failure class: ${class}
+
+          | Observation | Failure class |
+          | --- | --- |
+          | Benchmark gate failed | **Performance gate** (pinned public corpus) |
+          | Compiler differential failed | **Semantic qualification** |
+          | Checkout, prepare, install, or build failed | **Static verification** |
+
+          A failed public gate means a compatibility or relative-regression problem on a
+          pinned project. Do not replace the pinned revision to make the gate pass.
+          EOF
+
+      - name: Upload bounded evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-public-${{ github.run_id }}
+          path: ${{ runner.temp }}/publish/nightly-public
+          retention-days: 30
+          if-no-files-found: error

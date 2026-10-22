@@ -34,7 +34,10 @@ pnpm verify:pr
 
 The budgeted commands fail when their measured wall-clock time exceeds the budget.
 `pnpm verify:pr` is the only pull-request gate; do not run its build, verification, or
-qualification steps separately in CI.
+qualification steps separately in CI. Nightly and stable/release checks are documented
+beside their workflows in
+[Verification workflows](.github/workflows/README.md); they never enter the pull-request
+gate.
 
 Fix the underlying code when a check fails. Do not disable, exclude, or relax a
 rule. Configuration changes require explicit review and must not weaken a rule.

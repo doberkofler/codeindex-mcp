@@ -221,14 +221,20 @@ Each run records the repository URL, exact revision, project file, dependency-lo
 hash, and Node identity. Checkouts and dependency setup happen outside the measured
 scenario. Do not commit checkouts, installed dependencies, or derived databases.
 
-The scheduled [benchmark workflow](../.github/workflows/benchmark.yml) runs the
-generated corpus nightly, selects the baseline for the dispatched profile, and
-downloads the newest successful run of the same profile as its reference, so a
-manual run of another profile never becomes the nightly reference. It enforces
-the committed gates, uploads the report and evaluation JSON, and publishes the
-Markdown summary. Relative build, RSS, CPU, storage, and query gates are therefore
-active on scheduled runs; reference-machine gates remain authoritative when a
+The scheduled [nightly workflow](../.github/workflows/nightly.yml) runs the generated corpus
+and the pinned public suite on the reference runner, selects the baseline for the dispatched
+generated profile, and downloads the newest successful run of the same profile as its
+reference, so a manual run of another profile never becomes the nightly reference. It also
+runs the compiler differential. It enforces the committed gates, uploads bounded reports,
+and publishes the Markdown summary. Relative build, RSS, CPU, storage, and query gates are
+therefore active on scheduled runs; reference-machine gates remain authoritative when a
 retained report is supplied explicitly.
+
+The [stable workflow](../.github/workflows/stable.yml) runs retained-reference comparisons,
+the operational soak, and the deterministic system class on the declared reference runner.
+`release.yml` calls it before publishing a tag. Triggers, budgets, artifact retention, and
+failure classes are recorded beside the workflows in
+[Verification workflows](../.github/workflows/README.md).
 
 ### 7.3 Benchmark suites and qualification
 
@@ -278,9 +284,10 @@ bundle, and machine identity are unchanged. `--allow-dirty` is required for an
 uncommitted checkout. Generated corpora and databases are removed after a
 successful run unless `--keep-workspace` is supplied.
 
-Hosted CI keeps its nightly generated-`large` regression job. Authoritative
-reference-machine evidence is produced by this suite on stable hardware and
-retained explicitly; hosted runner numbers remain directional.
+The nightly workflow keeps its generated-`large` regression job on the reference runner.
+Authoritative reference-machine evidence is produced by the suite on stable hardware and
+retained explicitly; hosted runner numbers remain directional. The stable and nightly
+workflows declare the reference runner profile and retain only sanitized, bounded evidence.
 
 Reference-machine targets:
 
@@ -348,6 +355,8 @@ client event export for that denominator.
 ## 9. Release discipline
 
 - run `pnpm verify:pr`; it builds `dist` once and gates the pull-request path;
+- let the release workflow call stable verification before publishing; a failed retained
+  reference, soak, or deterministic system check blocks the tag;
 - keep stdout reserved for MCP framing;
 - inspect bundle contents for accidental evaluation/private code;
 - update architecture, adapter limitations, roadmap status, and changelog;
