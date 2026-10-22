@@ -1,6 +1,7 @@
 import {type DiagnosticReportType, diagnosticReportOf, diagnosticSummaryOf} from './diagnostics.ts';
 import {type CaseClassType} from './schema.ts';
 import {
+	BLOCKING_METRICS,
 	LOCAL_CLAIM_CLASS,
 	medianOf,
 	metricDeltaOf,
@@ -58,7 +59,10 @@ export type TargetedDiagnosticReportType = Readonly<{
 	metrics: Readonly<Record<TrackedMetricType, MetricDeltaType>>;
 	caseMetrics: readonly CaseMetricValuesType[];
 	targetImproved: boolean;
+	/** Every observed regression, including token and wall-clock observations. */
 	regressions: readonly string[];
+	/** The subset of regressions that block continuation. */
+	blockingRegressions: readonly string[];
 	passed: boolean;
 	blocking: readonly string[];
 }>;
@@ -84,13 +88,17 @@ const correctnessOf = (results: readonly RunResultType[], caseCount: number, rep
 	};
 };
 
-const regressionsOf = (metrics: Readonly<Record<TrackedMetricType, MetricDeltaType>>, caseMetrics: readonly CaseMetricValuesType[]): readonly string[] => {
-	const regressions = TRACKED_METRICS.filter((metric) => metrics[metric].regressed).map(
-		(metric) => `overall ${metric} regressed from ${metrics[metric].accepted ?? 'unavailable'} to ${metrics[metric].candidate ?? 'unavailable'}`,
-	);
+const regressionsOf = (
+	metrics: Readonly<Record<TrackedMetricType, MetricDeltaType>>,
+	caseMetrics: readonly CaseMetricValuesType[],
+	tracked: readonly TrackedMetricType[] = TRACKED_METRICS,
+): readonly string[] => {
+	const regressions = tracked
+		.filter((metric) => metrics[metric].regressed)
+		.map((metric) => `overall ${metric} regressed from ${metrics[metric].accepted ?? 'unavailable'} to ${metrics[metric].candidate ?? 'unavailable'}`);
 
 	for (const caseMetric of caseMetrics) {
-		for (const metric of TRACKED_METRICS) {
+		for (const metric of tracked) {
 			const delta = caseMetric.metrics[metric];
 
 			if (delta.regressed) {
@@ -107,12 +115,13 @@ const regressionsOf = (metrics: Readonly<Record<TrackedMetricType, MetricDeltaTy
  *
  * Continuation requires a clean execution contract, a correct candidate answer
  * on every selected case, a strict improvement of the predeclared target
- * metric, and no observed metric or correctness regression. One repetition
- * supports no interval, so every comparison is a recorded observation that a
- * reviewer inspects rather than a statistical claim.
+ * metric, and no regression of a metric the artifact controls. Token and
+ * wall-clock differences are still recorded, but one repetition at the pinned
+ * generation settings cannot separate them from model sampling and local
+ * runtime variation, so they do not block continuation.
  *
  * @param input - Retained executions and their pinned identity.
- * @returns The diagnostic record, including every blocking reason.
+ * @returns The diagnostic record, including every observed and every blocking reason.
  */
 export const targetedDiagnosticReportOf = (input: TargetedDiagnosticInputType): TargetedDiagnosticReportType => {
 	const cases = input.caseIds ?? TARGETED_DIAGNOSTIC_CASE_IDS;
@@ -125,6 +134,7 @@ export const targetedDiagnosticReportOf = (input: TargetedDiagnosticInputType): 
 	const target = metrics[input.targetMetric];
 	const targetImproved = target.improved;
 	const regressions = regressionsOf(metrics, caseMetrics);
+	const blockingRegressions = regressionsOf(metrics, caseMetrics, BLOCKING_METRICS);
 	const blocking = [
 		...(contract.passed ? [] : [`execution contract: ${diagnosticSummaryOf(contract)}`]),
 		...(correctness.candidateCorrect
@@ -135,7 +145,7 @@ export const targetedDiagnosticReportOf = (input: TargetedDiagnosticInputType): 
 		...(targetImproved
 			? []
 			: [`target metric ${input.targetMetric} did not improve (accepted ${target.accepted ?? 'unavailable'}, candidate ${target.candidate ?? 'unavailable'})`]),
-		...regressions,
+		...blockingRegressions,
 	];
 
 	return {
@@ -158,6 +168,7 @@ export const targetedDiagnosticReportOf = (input: TargetedDiagnosticInputType): 
 		caseMetrics,
 		targetImproved,
 		regressions,
+		blockingRegressions,
 		passed: blocking.length === 0,
 		blocking,
 	};

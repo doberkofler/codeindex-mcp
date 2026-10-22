@@ -4,7 +4,7 @@ import {assertLocalClaimClass, LOCAL_CLAIM_CLASS, TARGETED_DIAGNOSTIC_TREATMENT_
 import {targetedDiagnosticReportOf} from './localDiagnostic.ts';
 import {localRegressionReportOf, localRegressionSummaryOf} from './localRegression.ts';
 import {compare} from './report.ts';
-import {callsOf, campaignRunsOf, diagnosticOf, diagnosticRunsOf, metadata} from './localTestSupport.ts';
+import {callsOf, campaignRunsOf, diagnosticOf, diagnosticRunsOf, metadata, tokenEntry} from './localTestSupport.ts';
 
 describe('local evaluation', () => {
 	it('the four-execution diagnostic requires correct candidate answers and a target improvement', () => {
@@ -28,7 +28,7 @@ describe('local evaluation', () => {
 		assert.match(report.blocking.join('; '), /candidate answer incorrect/u);
 	});
 
-	it('the four-execution diagnostic blocks an observed metric regression even when the target improves', () => {
+	it('the four-execution diagnostic blocks a candidate-controlled metric regression even when the target improves', () => {
 		const results = diagnosticRunsOf({accepted: [200, 220], candidate: [100, 110]}).map((run) =>
 			run.treatment === 'candidate' ? {...run, toolCalls: [...run.toolCalls, ...callsOf(1, 0)]} : run,
 		);
@@ -43,6 +43,32 @@ describe('local evaluation', () => {
 		assert.equal(report.targetImproved, true);
 		assert.equal(report.passed, false);
 		assert.match(report.regressions.join('; '), /toolCalls/u);
+		assert.match(report.blockingRegressions.join('; '), /toolCalls/u);
+	});
+
+	it('records token and wall-clock regressions as observations without blocking', () => {
+		const results = diagnosticRunsOf({accepted: [200, 220], candidate: [100, 110]}).map((run) =>
+			run.treatment === 'candidate'
+				? {
+						...run,
+						durationMs: 5000,
+						telemetry: {...run.telemetry, inputTokens: tokenEntry(100), outputTokens: tokenEntry(50), reasoningTokens: tokenEntry(1)},
+					}
+				: run,
+		);
+		const report = targetedDiagnosticReportOf({
+			results,
+			suite: {id: 'suite-a', version: 1, hash: 'a'.repeat(64)},
+			model: 'ollama/model',
+			environment: {id: 'environment-a', hash: '6'.repeat(64)},
+			targetMetric: 'retrievalBytes',
+		});
+
+		assert.equal(report.targetImproved, true);
+		assert.match(report.regressions.join('; '), /tokens regressed/u);
+		assert.match(report.regressions.join('; '), /wallTimeMs regressed/u);
+		assert.deepEqual(report.blockingRegressions, []);
+		assert.equal(report.passed, true);
 	});
 
 	it('a full local regression reports class trends under the local claim class only', () => {

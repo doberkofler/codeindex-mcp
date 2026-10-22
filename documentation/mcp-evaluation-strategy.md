@@ -514,7 +514,7 @@ evidence. The harness is a proposed method and no runner ships in this repositor
 | G-E1b | Complete-route call count, response bytes, and elapsed time, with core query time separated | executable | Model-free measurement; latency and resource comparison only on the reference machine (§7) |
 | G-E1c | Pagination, truncation, stale-file, and failure behaviour match the tool contract | executable | Model-free checks against the published MCP entry (§4 E1) |
 | G-E1d | Comparisons cover only cases where CodeIndex claims an advantage, with no forced unique-literal lookup | manual review | Case list reviewed before stage 1 (§4 E1) |
-| G-E2D | Two impact cases, one repetition, accepted versus candidate: every candidate answer correct, target workflow improved, no observed metric regressed | executable and manual review | Harness runs exactly four executions; a reviewer judges improvement and regression from raw traces, because one repetition supports no interval (§11) |
+| G-E2D | Two impact cases, one repetition, accepted versus candidate: every candidate answer correct, target workflow improved, retrieval bytes and tool calls not regressed | executable and manual review | Harness runs exactly four executions and blocks on those three conditions. Token and wall-clock changes are recorded as observations: one repetition supports no interval, so a reviewer inspects them from raw traces rather than gating on them (§11) |
 | G-E2L | Full suite, three treatments, three paired repetitions: no correctness loss, target metric improved, no statistically supported regression in any tracked metric, no gate moved backward | executable | Harness report with per-run values, medians, and paired-by-case bootstrap 95% intervals (harness §7) |
 | G-E2H | The retained Q2 gates plus the candidate-versus-accepted conditions, at five paired repetitions over 18 cases | executable and manual review | Harness campaign and report; a reviewer audits the predeclaration and confirms the named target metric before execution (§8, §11) |
 | G-E3 | Closed build-failure causes, time-to-fresh, restart and generation reuse, stale refusal, resource growth, unattended recovery | executable and manual review | Scripted edit run and soak outside the harness; harness generation metrics supply build time, memory, and database size (harness §8). A reviewer confirms no manual intervention and no unrecovered failure. No numeric E3 threshold is accepted, so E3 numbers are directional |
@@ -627,9 +627,12 @@ section describes the cheap stages that contract orders; it defines no additiona
 ### After an interface change
 
 Run only four local-model executions first: two impact cases, one repetition, accepted and
-candidate treatments. Continue only when every candidate answer is correct, the targeted
-workflow improves, and no observed metric regresses. Model-free comparison already
-establishes the no-index route before these calls.
+candidate treatments. Continue only when every candidate answer is correct, the predeclared
+target metric improves, and neither retrieval bytes nor tool calls regress. Token and
+wall-clock differences are recorded observations, not blocking verdicts: one execution per
+treatment at the pinned generation settings cannot separate them from model sampling and
+local runtime variation. Model-free comparison already establishes the no-index route
+before these calls.
 
 ### Local smoke
 
