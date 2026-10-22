@@ -56,7 +56,7 @@
 		"impact-bounded-paged-result-references",
 		"impact-schema-version-references",
 		"impact-config-load-references",
-		"impact-codeindex-error-references",
+		"impact-codeindex-error-references-v2",
 		"impl-default-result-bytes",
 		"impl-empty-relative-path",
 		"semantic-repo-shadowed-projection-depth",

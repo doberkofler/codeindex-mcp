@@ -71,7 +71,7 @@ const REFERENCE_PROBES: readonly ReferenceProbeType[] = [
 		grepIdentifiers: ['loadConfig'],
 	},
 	{
-		caseId: 'impact-codeindex-error-references',
+		caseId: 'impact-codeindex-error-references-v2',
 		file: 'src/core/errors/codeIndexError.ts',
 		name: 'CodeIndexError',
 		kind: 'declaration',

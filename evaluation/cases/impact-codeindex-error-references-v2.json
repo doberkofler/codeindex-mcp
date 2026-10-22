@@ -1,0 +1,33 @@
+{
+	"schemaVersion": 1,
+	"id": "impact-codeindex-error-references-v2",
+	"title": "CodeIndexError consumers",
+	"class": "impact",
+	"tags": ["impact", "references", "errors"],
+	"prompt": "Which files under src/ reference the CodeIndexError class declared in the core errors module, excluding its own definition file? List every referencing file and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": [
+		"src/core/errors/errors.ts",
+		"src/core/errors/indexNotReadyError.ts",
+		"src/core/errors/staleFileError.ts",
+		"src/core/generation/codeIndex.ts",
+		"src/core/query/dependencyQuery.ts",
+		"src/core/query/outlineQuery.ts",
+		"src/core/query/queryService.ts",
+		"src/core/query/querySupport.ts",
+		"src/core/query/readSymbolQuery.ts",
+		"src/core/query/referenceGrouping.ts",
+		"src/core/query/referenceQuery.ts",
+		"src/core/query/referenceResolution.ts",
+		"src/core/query/symbolAtQuery.ts",
+		"src/core/storage/database.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": ["src/core/errors/codeIndexError.ts"],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}
