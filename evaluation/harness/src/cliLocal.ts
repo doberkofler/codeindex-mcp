@@ -206,6 +206,12 @@ export const localDiagnosticCommand = async (flags: Map<string, string[]>): Prom
 		);
 	}
 
+	for (const finding of report.regressions) {
+		if (!report.blockingRegressions.includes(finding)) {
+			process.stdout.write(`observed ${finding}\n`);
+		}
+	}
+
 	for (const finding of report.blocking) {
 		process.stdout.write(`BLOCKED ${finding}\n`);
 	}

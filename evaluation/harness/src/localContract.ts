@@ -94,3 +94,14 @@ export const metricRecordOf = <Value>(valueOf: (metric: TrackedMetricType) => Va
 
 /** Every tracked metric in report order. */
 export const TRACKED_METRICS: readonly TrackedMetricType[] = PAIRED_METRICS;
+
+/**
+ * Metrics whose value the artifact controls, so an observed increase blocks the
+ * targeted diagnostic.
+ *
+ * Token counts and wall-clock time stay outside this set. A single execution per
+ * treatment cannot separate them from model sampling and local runtime variation,
+ * so the diagnostic records them for review instead of turning noise into a gate
+ * verdict.
+ */
+export const BLOCKING_METRICS: readonly TrackedMetricType[] = ['retrievalBytes', 'toolCalls'];
