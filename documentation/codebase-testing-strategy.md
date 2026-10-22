@@ -165,7 +165,10 @@ collapsed path is one `pnpm build`, one `pnpm verify`, and one
 `scripts/run-test-workflow.mjs` enforces every budget and prints the measured wall-clock
 time. A budget breach fails the command. `vitest.config.ts` also rejects a fast-class test
 that is classified with the system or qualification tests, so heavy checks move class
-instead of stretching the fast path.
+instead of stretching the fast path. The budgets are reference-machine measurements; a
+runner that is not the reference machine sets `CODE_INDEX_TEST_BUDGET_MS` to declare its
+own wall-clock budget. The hosted pull-request runner uses 5 min because the same suite
+takes 217 s there against 32.4 s on the reference machine.
 
 | Workflow | Script | Contents | Budget | Measured |
 |---|---|---|---:|---:|

@@ -2,8 +2,10 @@ name: CI
 
 # Pull-request gate only. Nightly and stable/release verification live in
 # nightly.yml and stable.yml; they are never invoked here.
-# Budget: 10 min including checkout, dependency install, commitlint, and verify:pr
-# (the measured verify:pr budget itself is 2 min).
+# Budget: 10 min including checkout, dependency install, commitlint, and verify:pr.
+# verify:pr keeps its 2 min reference-machine budget locally; this hosted runner is
+# slower and more variable, so it declares a 5 min wall-clock budget of its own
+# through CODE_INDEX_TEST_BUDGET_MS.
 on:
   push:
     branches: [main]
@@ -19,17 +21,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 12
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: pnpm
@@ -49,4 +51,6 @@ jobs:
           fi
 
       - name: Verify pull request
+        env:
+          CODE_INDEX_TEST_BUDGET_MS: 300000
         run: pnpm verify:pr

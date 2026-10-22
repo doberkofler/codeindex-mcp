@@ -4,6 +4,11 @@ import {performance} from 'node:perf_hooks';
 const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const vitestArguments = ['exec', 'vitest', 'run', '--coverage.enabled=false'];
 
+// Budgets below are reference-machine measurements. A hosted runner is slower and
+// more variable, so it declares its own wall-clock budget instead of inheriting a
+// measurement it was never calibrated on.
+const budgetOverrideVariable = 'CODE_INDEX_TEST_BUDGET_MS';
+
 /**
  * @typedef {object} WorkflowStep
  * @property {readonly string[]} arguments - Arguments passed to pnpm.
@@ -41,6 +46,27 @@ const workflows = {
 };
 
 /**
+ * Resolves the wall-clock budget for a workflow.
+ * @param {number} fallbackBudgetMs - Budget declared by the workflow for the reference machine.
+ * @returns {number} The environment override when set, otherwise the fallback.
+ */
+const budgetOf = (fallbackBudgetMs) => {
+	const raw = process.env[budgetOverrideVariable];
+
+	if (raw === undefined || raw === '') {
+		return fallbackBudgetMs;
+	}
+
+	const budgetMs = Number(raw);
+
+	if (!Number.isInteger(budgetMs) || budgetMs <= 0) {
+		throw new Error(`${budgetOverrideVariable} must be a positive integer number of milliseconds, got "${raw}".`);
+	}
+
+	return budgetMs;
+};
+
+/**
  * Runs one workflow step and returns its exit code.
  * @param {WorkflowStep} step - Command and environment for the step.
  * @returns {number} Exit code of the step.
@@ -75,6 +101,8 @@ const main = () => {
 		throw new Error(`Unknown test workflow: ${name ?? '(missing)'}`);
 	}
 
+	const budgetMs = budgetOf(workflow.budgetMs);
+	const budgetSeconds = (budgetMs / 1000).toFixed(0);
 	const startedAt = performance.now();
 	let exitCode = 0;
 
@@ -93,9 +121,8 @@ const main = () => {
 
 	const elapsedMs = performance.now() - startedAt;
 	const elapsedSeconds = (elapsedMs / 1000).toFixed(2);
-	const budgetSeconds = (workflow.budgetMs / 1000).toFixed(0);
 
-	if (elapsedMs > workflow.budgetMs) {
+	if (elapsedMs > budgetMs) {
 		process.stderr.write(`[budget] ${name} took ${elapsedSeconds} s; the budget is ${budgetSeconds} s.\n`);
 		process.stderr.write('[budget] Move slower checks to the system or qualification class, or restore the fast path.\n');
 		process.exitCode = 1;

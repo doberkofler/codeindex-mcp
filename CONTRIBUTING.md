@@ -33,9 +33,12 @@ pnpm verify:pr
 | `pnpm verify:pr` | Single PR gate: one build, `pnpm verify`, then fixture qualification | 2 min |
 
 The budgeted commands fail when their measured wall-clock time exceeds the budget.
-`pnpm verify:pr` is the only pull-request gate; do not run its build, verification, or
-qualification steps separately in CI. Nightly and stable/release checks are documented
-beside their workflows in
+Those budgets are reference-machine measurements. A runner that is not the reference
+machine declares its own wall-clock budget in `CODE_INDEX_TEST_BUDGET_MS`; the hosted
+pull-request runner does this and is documented in
+[Verification workflows](.github/workflows/README.md). `pnpm verify:pr` is the only
+pull-request gate; do not run its build, verification, or qualification steps separately
+in CI. Nightly and stable/release checks are documented beside their workflows in
 [Verification workflows](.github/workflows/README.md); they never enter the pull-request
 gate.
 

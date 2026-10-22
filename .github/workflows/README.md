@@ -2,9 +2,16 @@
 
 Pull-request verification is `CI` (`.github/workflows/ci.yml`), which invokes only
 `pnpm verify:pr`. It has a 10 min job budget including checkout, dependency install, and
-commitlint; `verify:pr` itself remains bounded at 2 min. Nightly and stable/release checks
-are deliberately outside that gate, so a scheduled-only failure can never block a pull
-request and no slow class runs twice in the pull-request path.
+commitlint. Nightly and stable/release checks are deliberately outside that gate, so a
+scheduled-only failure can never block a pull request and no slow class runs twice in the
+pull-request path.
+
+`verify:pr` keeps its 2 min reference-machine budget locally. The hosted pull-request
+runner is slower and more variable, so `ci.yml` declares a 5 min budget of its own through
+`CODE_INDEX_TEST_BUDGET_MS`. The measured hosted run of 2026-10-22 took 217 s with all
+743 tests passing, so the reference budget was the only failure. A hosted budget never
+weakens a local or reference-machine check; it records that the measurement does not
+transfer.
 
 The test classes and failure interpretation are owned by
 [Codebase testing strategy §6–§7](../documentation/codebase-testing-strategy.md#6-target-workflows)
