@@ -187,7 +187,7 @@ to prove wiring.
 4. Rename historical phase tests by enduring behavior.
 5. [x] Split MCP protocol assertions from real-index vertical tests.
 6. [x] Add a controlled fake index for protocol tests.
-7. Add one built-process deterministic system test.
+7. [x] Add one built-process deterministic system test.
 8. Remove duplicate qualification execution while retaining one PR gate.
 9. Fill only contract-matrix gaps; do not increase test count without a named risk.
 10. Keep the fast workflow below its budget as the suite grows.

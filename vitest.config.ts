@@ -132,7 +132,12 @@ const MCP_PROTOCOL_TESTS = [
 
 const MCP_FAKE_INDEX_TESTS = ['test/mcp.test.ts', 'test/mcpGuidance.test.ts', 'test/mcpServerAnalytics.test.ts', 'test/mcpStatus.test.ts'];
 
-const DETERMINISTIC_SYSTEM_TESTS = ['test/soak.test.ts', 'evaluation/harness/src/runner.test.ts', 'evaluation/harness/src/runnerRecovery.test.ts'];
+const DETERMINISTIC_SYSTEM_TESTS = [
+	'test/builtProcess.test.ts',
+	'test/soak.test.ts',
+	'evaluation/harness/src/runner.test.ts',
+	'evaluation/harness/src/runnerRecovery.test.ts',
+];
 
 const WORKFLOWS = {
 	all: ['test/**/*.test.ts', 'evaluation/harness/src/**/*.test.ts'],

@@ -11,10 +11,10 @@ selected tests and records the MCP protocol split.
 Scope is every Vitest test module selected by `vitest.config.ts`:
 
 ```text
-test/**/*.test.ts                     88 files
+test/**/*.test.ts                     89 files
 evaluation/harness/src/**/*.test.ts   26 files
                                      ---------
-                                     114 files
+                                     115 files
 ```
 
 Support files under `test/helpers/`, fixture trees under `test/fixtures/`, and non-test harness
@@ -53,10 +53,10 @@ class table.
 | Adapter contract | 15 | 0 | 15 |
 | Core integration | 10 | 0 | 10 |
 | MCP protocol contract | 5 | 0 | 5 |
-| Deterministic system test | 1 | 2 | 3 |
+| Deterministic system test | 2 | 2 | 4 |
 | Semantic qualification | 4 | 2 | 6 |
 | Performance test | 2 | 0 | 2 |
-| **Total** | **88** | **26** | **114** |
+| **Total** | **89** | **26** | **115** |
 
 `referenceGrouping.test.ts` is classed as core integration rather than MCP protocol because its
 claim is reference-grouping semantics; it calls `CodeIndex` directly.
@@ -80,6 +80,7 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/buildLeaseHeartbeat.test.ts` | Module test | `startBuildLeaseHeartbeat` | Inline values | Renewal failures stay inside the timer, are reported, and stop on request. |
 | `test/buildWorker.test.ts` | Module test | `isBuildWorkerData`, `runBuildWorker` | Handcrafted facts | Only a complete build payload is accepted and worker failures are reported without a parent port. |
 | `test/buildWorkerClient.test.ts` | Module test | `runBuildWorkerThread` | Micro fixture | Worker reports are validated, malformed fields rejected, and worker errors preserved over exit codes. |
+| `test/builtProcess.test.ts` | Deterministic system test | Built `dist/mcp.mjs` over stdio | Temporary workspace | Initial publication, every tool, stream isolation, edits, stale refusal, watcher rebuilds, add/delete/rename, failed-build isolation, restart reuse, and clean shutdown hold in the built process. |
 | `test/cleanup.test.ts` | Module test | `collectCleanupTargets`, `removeCleanupTargets`, `runCleanup` | Temporary workspace | Cleanup removes only known caches, honours keep, ownership, symlink, and root safety, and continues after failure. |
 | `test/cli.test.ts` | Core integration | `runCli` | Vertical fixture + temporary SQLite | Update, status, verify, reuse, and force-rebuild operate one real index and map failures to exit codes. |
 | `test/codeIndex.test.ts` | Core integration | `CodeIndex` queries | Vertical fixtures | Symbol search, outline, paging, references, dependencies, impact, and freshness obey the core query contract. |
@@ -248,26 +249,19 @@ Nearest coverage is listed so the later gap-filling item can add the smallest te
 | MCP protocol | A controlled fake index for protocol contracts | Resolved by `test/helpers/fakeIndex.ts`; all protocol contracts use it, and only `test/mcpSmoke.test.ts` rebuilds a real fixture index |
 | MCP protocol | Exact tool input schemas and invalid-argument rejection | `test/mcp.test.ts` asserts every tool schema, required field, enum, default, and invalid-argument rejection |
 | MCP protocol | Tool descriptions for every tool | `test/mcp.test.ts` asserts every tool description and the server instructions |
-| Deterministic system | Start built `dist/mcp.mjs` over stdio with a temporary workspace | None; `test/runServer.test.ts` uses mocks and `test/soak.test.ts` runs in process |
-| Deterministic system | Initial publication through the built process | `test/cli.test.ts` and `test/codeIndex.test.ts` cover the same behaviour in process |
-| Deterministic system | All seven tools through the built process | `test/mcpSmoke.test.ts` covers them through `InMemoryTransport` with a real TypeScript index |
-| Deterministic system | Stdout isolation of the built process | None; `test/logger.test.ts` and `test/runServer.test.ts` cover in-process logging and errors |
-| Deterministic system | Source edits and stale refusal through the built process | `test/codeIndex.test.ts` and `test/soak.test.ts` cover in-process stale refusal |
-| Deterministic system | Watcher rebuild through the built process | `test/refreshCoordinator.test.ts`, `test/workspaceWatcher.test.ts`, and `test/soak.test.ts` cover the mechanisms in process |
-| Deterministic system | Add, delete, and rename through the built process | `test/codeIndex.test.ts`, `test/scanWorkspace.test.ts`, and `test/workspaceWatcher.test.ts` cover in process |
-| Deterministic system | Failed-build isolation through the built process | `test/database.test.ts` and `test/soak.test.ts` cover in process |
-| Deterministic system | Restart reuse through the built process | `test/storage.test.ts`, `test/vcs.test.ts`, and `test/soak.test.ts` cover database reuse in process |
-| Deterministic system | Clean shutdown of the built process | `test/runServer.test.ts` covers shutdown with a mocked transport |
+The built-process deterministic system contracts previously listed here are covered by
+`test/builtProcess.test.ts`; the in-process mechanisms remain with their module and core
+integration tests.
 
 ## 6. Completeness check
 
 The inventory contains one row per test module selected by the Vitest include patterns.
 
 ```text
-test/**/*.test.ts                     88
+test/**/*.test.ts                     89
 evaluation/harness/src/**/*.test.ts   26
                                      ---
-inventory rows                       114
+inventory rows                       115
 ```
 
 Verification commands:
