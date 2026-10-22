@@ -273,7 +273,7 @@ find evaluation/harness/src -type f -name '*.test.ts' | wc -l
 
 Checks:
 
-- [x] Every one of the 114 test files has exactly one class and one primary claim.
+- [x] Every one of the 115 test files has exactly one class and one primary claim.
 - [x] No file is unclassified.
 - [x] No test file is listed in more than one inventory row.
 - [x] Every duplicate has a named owner; the remaining overlaps state their wiring reason.
