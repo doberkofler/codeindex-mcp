@@ -72,7 +72,7 @@ describe('route', () => {
 
 			const result = runSearchStep({
 				workspace,
-				step: {kind: 'search', id: 'search', pattern: '\\bhit\\b', path: 'src', extensions: ['.ts'], excludePaths: ['src/c.js'], collect: true},
+				step: {kind: 'search', id: 'search', pattern: String.raw`\bhit\b`, path: 'src', extensions: ['.ts'], excludePaths: ['src/c.js'], collect: true},
 			});
 
 			assert.deepEqual(result.paths, ['src/a.ts']);
@@ -193,7 +193,7 @@ describe('route', () => {
 						arguments: {role: 'reference'},
 						symbolFrom: {fromStep: 'find'},
 						collect: 'reference-paths',
-						keepFilesMatching: '\\bimplements\\s+Contract\\b',
+						keepFilesMatching: String.raw`\bimplements\s+Contract\b`,
 					},
 				],
 				workspace,
