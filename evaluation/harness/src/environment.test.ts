@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
-import {fileURLToPath} from 'node:url';
 import {
 	capturedEnvironmentOf,
 	environmentDifferencesOf,
@@ -15,7 +14,7 @@ import {
 import {modelIdentityOf} from './identity.ts';
 import {loadSuite} from './suite.ts';
 
-const EVALUATION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const EVALUATION_ROOT = path.resolve(import.meta.dirname, '..', '..');
 const ENVIRONMENT_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3-8b-smoke.json');
 const QWEN_27B_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3.8-27b-calibration.json');
 const QWEN_35B_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3.6-35b-calibration.json');
@@ -48,7 +47,7 @@ const manifest = (): EnvironmentManifestType =>
 			parameters: '8.2B',
 			quantization: 'Q4_K_M',
 			contextLength: 40_960,
-			embeddingLength: 4_096,
+			embeddingLength: 4096,
 			generation: {temperature: 0.6, topP: 0.95, topK: 20, repeatPenalty: 1, stop: ['<|im_start|>', '<|im_end|>']},
 		},
 	});
@@ -59,7 +58,7 @@ const probe = (): EnvironmentProbeType => ({
 	model: manifest().model,
 });
 
-test('committed smoke environment pins the calibration model and full identity', () => {
+void test('committed smoke environment pins the calibration model and full identity', () => {
 	const environment = loadEnvironmentManifest(ENVIRONMENT_PATH);
 	const {suite} = loadSuite(CALIBRATION_PATH);
 
@@ -70,7 +69,7 @@ test('committed smoke environment pins the calibration model and full identity',
 	assert.deepEqual(environmentDifferencesOf(environment, probe()), []);
 });
 
-test('committed calibration environment pins the candidate model and settings', () => {
+void test('committed calibration environment pins the candidate model and settings', () => {
 	const qwen27b = loadEnvironmentManifest(QWEN_27B_PATH);
 	const qwen35b = loadEnvironmentManifest(QWEN_35B_PATH);
 	const devstral = loadEnvironmentManifest(DEVSTRAL_PATH);
@@ -96,7 +95,7 @@ test('committed calibration environment pins the candidate model and settings', 
 	assert.equal(qwen35b.runtime.ollama, '0.40.7');
 });
 
-test('environment rejects missing facts instead of defaulting them', () => {
+void test('environment rejects missing facts instead of defaulting them', () => {
 	const valid = manifest();
 	const withoutGeneration = Object.fromEntries(Object.entries(valid.model).filter(([key]) => key !== 'generation'));
 
@@ -108,7 +107,7 @@ test('environment rejects missing facts instead of defaulting them', () => {
 	assert.throws(() => environmentManifestOf({...valid, unexpected: true}), /unknown field/u);
 });
 
-test('capture derives the manifest from measured facts', () => {
+void test('capture derives the manifest from measured facts', () => {
 	const captured = capturedEnvironmentOf({
 		id: 'ollama-qwen3-8b-smoke',
 		purpose: 'smoke',
@@ -120,42 +119,42 @@ test('capture derives the manifest from measured facts', () => {
 	assert.deepEqual(captured, manifest());
 });
 
-test('a model that declares only temperature pins the absent settings as null', async () => {
+void test('a model that declares only temperature pins the absent settings as null', async () => {
 	const tags = {models: [{name: 'devstral-small-2:latest', digest: 'b'.repeat(64)}]};
 	const show = {
 		parameters: 'temperature                    0.15',
 		details: {parameter_size: '24.0B', quantization_level: 'Q4_K_M'},
-		model_info: {'general.architecture': 'mistral3', 'mistral3.context_length': 393_216, 'mistral3.embedding_length': 5_120},
+		model_info: {'general.architecture': 'mistral3', 'mistral3.context_length': 393_216, 'mistral3.embedding_length': 5120},
 	};
 	const measured = await environmentProbeOf({
 		model: 'ollama/devstral-small-2:latest',
 		host,
 		command: (command) => (command === 'ollama' ? 'ollama version is 0.40.7' : '2.1.2'),
-		fetchJson: async (url) => Promise.resolve(url.endsWith('/api/tags') ? tags : show),
+		fetchJson: (url) => (url.endsWith('/api/tags') ? tags : show),
 	});
 
 	assert.deepEqual(measured.model.generation, {temperature: 0.15, topP: null, topK: null, repeatPenalty: null, stop: []});
 });
 
-test('probe reads runtime versions and model facts from the provider', async () => {
+void test('probe reads runtime versions and model facts from the provider', async () => {
 	const tags = {models: [{name: 'qwen3:8b', digest: DIGEST}]};
 	const show = {
 		parameters: 'repeat_penalty 1\nstop "<|im_start|>"\nstop "<|im_end|>"\ntemperature 0.6\ntop_k 20\ntop_p 0.95',
 		details: {parameter_size: '8.2B', quantization_level: 'Q4_K_M'},
-		model_info: {'general.architecture': 'qwen3', 'qwen3.context_length': 40_960, 'qwen3.embedding_length': 4_096},
+		model_info: {'general.architecture': 'qwen3', 'qwen3.context_length': 40_960, 'qwen3.embedding_length': 4096},
 	};
 	const measured = await environmentProbeOf({
 		model: 'ollama/qwen3:8b',
 		endpoint: 'http://127.0.0.1:11434',
 		host,
 		command: (command) => (command === 'ollama' ? 'ollama version is 0.40.7' : '2.1.2'),
-		fetchJson: async (url) => Promise.resolve(url.endsWith('/api/tags') ? tags : show),
+		fetchJson: (url) => (url.endsWith('/api/tags') ? tags : show),
 	});
 
 	assert.deepEqual(measured, probe());
 });
 
-test('environment differences name every changed fact', () => {
+void test('environment differences name every changed fact', () => {
 	const changed: EnvironmentProbeType = {
 		host: {...host, nodeVersion: 'v27.0.0'},
 		runtime: {...probe().runtime, opencode: '2.2.0'},
@@ -169,7 +168,7 @@ test('environment differences name every changed fact', () => {
 	);
 });
 
-test('model identity uses the pinned digest, quantization, runtime, and settings', () => {
+void test('model identity uses the pinned digest, quantization, runtime, and settings', () => {
 	const identity = modelIdentityOf('ollama/qwen3:8b', manifest());
 
 	assert.equal(identity.provider, 'ollama');

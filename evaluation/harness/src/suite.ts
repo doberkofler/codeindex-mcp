@@ -31,7 +31,7 @@ const readJson = (file: string): unknown => {
 	try {
 		return JSON.parse(readFileSync(file, 'utf8')) as unknown;
 	} catch (error) {
-		throw new Error(`unable to read JSON at ${file}: ${error instanceof Error ? error.message : String(error)}`);
+		throw new Error(`unable to read JSON at ${file}: ${error instanceof Error ? error.message : String(error)}`, {cause: error});
 	}
 };
 
@@ -245,10 +245,7 @@ export const resolveTreatmentOf = (entry: PlanEntryType, treatments: readonly Tr
  * @returns Treatment ids in plan order.
  */
 export const treatmentIdsOf = (treatments: readonly TreatmentDefinitionType[]): readonly TreatmentIdType[] =>
-	treatments
-		.slice()
-		.sort((left, right) => TREATMENT_IDS.indexOf(left.id) - TREATMENT_IDS.indexOf(right.id))
-		.map((treatment) => treatment.id);
+	[...treatments].sort((left, right) => TREATMENT_IDS.indexOf(left.id) - TREATMENT_IDS.indexOf(right.id)).map((treatment) => treatment.id);
 
 /**
  * Hashes an ordered plan.

@@ -23,7 +23,7 @@ const checkOf = (overrides: Partial<PostRunCheckType> = {}): PostRunCheckType =>
 	...overrides,
 });
 
-test('a matching post-run exit code passes and keeps its assertions', async (testContext: TestContext) => {
+void test('a matching post-run exit code passes and keeps its assertions', async (testContext: TestContext) => {
 	const result = await postRunOf(checkOf(), temporaryRoot(testContext));
 
 	assert.equal(result.result, 'pass');
@@ -33,7 +33,7 @@ test('a matching post-run exit code passes and keeps its assertions', async (tes
 	assert.equal(result.assertions.find((item) => item.id === 'post-run.exit-code')?.result, 'pass');
 });
 
-test('a non-matching exit code fails without touching correctness', async (testContext: TestContext) => {
+void test('a non-matching exit code fails without touching correctness', async (testContext: TestContext) => {
 	const result = await postRunOf(checkOf({args: ['-e', 'process.exit(3)']}), temporaryRoot(testContext));
 	const expected = await postRunOf(checkOf({args: ['-e', 'process.exit(3)'], expectedExitCode: 3}), temporaryRoot(testContext));
 
@@ -43,7 +43,7 @@ test('a non-matching exit code fails without touching correctness', async (testC
 	assert.equal(expected.result, 'pass');
 });
 
-test('a post-run timeout is terminal and inspectable', async (testContext: TestContext) => {
+void test('a post-run timeout is terminal and inspectable', async (testContext: TestContext) => {
 	const result = await postRunOf(checkOf({args: ['-e', 'setTimeout(() => {}, 30000)'], timeoutMs: 100}), temporaryRoot(testContext));
 
 	assert.equal(result.result, 'fail');
@@ -52,16 +52,16 @@ test('a post-run timeout is terminal and inspectable', async (testContext: TestC
 	assert.equal(result.assertions.find((item) => item.id === 'post-run.completed')?.result, 'fail');
 });
 
-test('a missing command fails with the spawn error', async (testContext: TestContext) => {
+void test('a missing command fails with the spawn error', async (testContext: TestContext) => {
 	const result = await postRunOf(checkOf({command: 'codeindex-evaluation-command-that-does-not-exist'}), temporaryRoot(testContext));
 
 	assert.equal(result.result, 'fail');
 	assert.equal(result.exitCode, null);
 	assert.notEqual(result.error, null);
-	assert.match(result.reason, /ENOENT|spawn/);
+	assert.match(result.reason, /ENOENT|spawn/u);
 });
 
-test('a skipped post-run check is unevaluated, never a pass', () => {
+void test('a skipped post-run check is unevaluated, never a pass', () => {
 	const result = skippedPostRunOf(checkOf(), 'the agent timed out');
 
 	assert.equal(result.result, 'unevaluated');

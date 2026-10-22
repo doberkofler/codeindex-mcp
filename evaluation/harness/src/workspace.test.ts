@@ -6,18 +6,8 @@ import path from 'node:path';
 import test, {type TestContext} from 'node:test';
 import {hashOf} from './hash.ts';
 import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
-import {
-	assertCheckout,
-	checkoutVerificationOf,
-	contentManifestHashOf,
-	ensureWorkspaces,
-	removeWorkspaces,
-	restoreWorkspace,
-	subjectIdentityOf,
-	treatmentConfigOf,
-	workspaceContextOf,
-	type WorkspaceContextType,
-} from './workspace.ts';
+import {contentManifestHashOf, subjectIdentityOf, treatmentConfigOf, workspaceContextOf, type WorkspaceContextType} from './workspace.ts';
+import {assertCheckout, checkoutVerificationOf, ensureWorkspaces, removeWorkspaces, restoreWorkspace} from './workspaceRestore.ts';
 
 const temporaryRoot = (testContext: TestContext): string => {
 	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-workspace-'));
@@ -60,7 +50,7 @@ const treatment: TreatmentDefinitionType = treatmentOf({
 const contextOf = (harnessRoot: string, subjectRepo: string, revision: string): WorkspaceContextType =>
 	workspaceContextOf(harnessRoot, {subjectRepo, subject: subjectIdentityOf(subjectRepo, revision)});
 
-test('generated treatment configuration declares exactly the ordinary and captured MCP actions', (testContext: TestContext) => {
+void test('generated treatment configuration declares exactly the ordinary and captured MCP actions', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const subjectRepo = path.join(root, 'subject');
 	const revision = repositoryOf(subjectRepo);
@@ -84,7 +74,7 @@ test('generated treatment configuration declares exactly the ordinary and captur
 	assert.equal('tools' in config, false);
 });
 
-test('a subject checkout is pinned to a clean, exact revision', (testContext: TestContext) => {
+void test('a subject checkout is pinned to a clean, exact revision', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const repo = path.join(root, 'subject');
 	const revision = repositoryOf(repo);
@@ -104,15 +94,15 @@ test('a subject checkout is pinned to a clean, exact revision', (testContext: Te
 	assert.notEqual(subject.lockFileHash, null);
 
 	writeFileSync(path.join(repo, 'untracked.ts'), 'export const b = 2;\n', 'utf8');
-	assert.throws(() => subjectIdentityOf(repo, revision), /uncommitted change/);
+	assert.throws(() => subjectIdentityOf(repo, revision), /uncommitted change/u);
 	rmSync(path.join(repo, 'untracked.ts'));
 
 	writeFileSync(path.join(repo, 'a.ts'), 'export const a = 2;\n', 'utf8');
 	commitOf(repo, 'second');
-	assert.throws(() => subjectIdentityOf(repo, revision), /subject repository is at .* expected/);
+	assert.throws(() => subjectIdentityOf(repo, revision), /subject repository is at .* expected/u);
 });
 
-test('a workspace is created, verified, restored, and rejects every authored change', (testContext: TestContext) => {
+void test('a workspace is created, verified, restored, and rejects every authored change', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const subjectRepo = path.join(root, 'subject');
 	const revision = repositoryOf(subjectRepo);
@@ -131,8 +121,8 @@ test('a workspace is created, verified, restored, and rejects every authored cha
 
 	assert.equal(dirty.checkoutClean, false);
 	assert.equal(dirty.revisionMatch, true);
-	assert.match(dirty.reason ?? '', /authored change/);
-	assert.throws(() => assertCheckout(context, treatment), /not a clean checkout/);
+	assert.match(dirty.reason ?? '', /authored change/u);
+	assert.throws(() => assertCheckout(context, treatment), /not a clean checkout/u);
 
 	const restoration = restoreWorkspace(context, treatment);
 
@@ -148,7 +138,7 @@ test('a workspace is created, verified, restored, and rejects every authored cha
 	assert.equal(existsSync(workspace), false);
 });
 
-test('an authored ignored file is rejected and removed before the next execution', (testContext: TestContext) => {
+void test('an authored ignored file is rejected and removed before the next execution', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const subjectRepo = path.join(root, 'subject');
 	const revision = repositoryOf(subjectRepo);
@@ -164,14 +154,14 @@ test('an authored ignored file is rejected and removed before the next execution
 
 	assert.equal(dirty.checkoutClean, false);
 	assert.match(dirty.reason ?? '', /authored change\(s\): !! coverage/u);
-	assert.throws(() => assertCheckout(context, treatment), /not a clean checkout/);
+	assert.throws(() => assertCheckout(context, treatment), /not a clean checkout/u);
 
 	assert.equal(restoreWorkspace(context, treatment).restored, true);
 	assert.equal(existsSync(path.join(workspace, 'coverage')), false);
 	assertCheckout(context, treatment);
 });
 
-test('a workspace at a different revision is rejected before execution', (testContext: TestContext) => {
+void test('a workspace at a different revision is rejected before execution', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const subjectRepo = path.join(root, 'subject');
 	const revision = repositoryOf(subjectRepo);
@@ -188,14 +178,14 @@ test('a workspace at a different revision is rejected before execution', (testCo
 
 	assert.equal(verification.revisionMatch, false);
 	assert.equal(verification.checkoutClean, true);
-	assert.match(verification.reason ?? '', /workspace is at .* expected/);
-	assert.throws(() => assertCheckout(context, treatment), /not a clean checkout/);
+	assert.match(verification.reason ?? '', /workspace is at .* expected/u);
+	assert.throws(() => assertCheckout(context, treatment), /not a clean checkout/u);
 
 	assert.equal(restoreWorkspace(context, treatment).restored, true);
 	assertCheckout(context, treatment);
 });
 
-test('a restoration failure is reported instead of thrown', (testContext: TestContext) => {
+void test('a restoration failure is reported instead of thrown', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const subjectRepo = path.join(root, 'subject');
 	const revision = repositoryOf(subjectRepo);
@@ -214,7 +204,7 @@ test('a restoration failure is reported instead of thrown', (testContext: TestCo
 	assert.equal(restoration.verification.checkoutClean, false);
 });
 
-test('without version control a disposable copy is pinned by its content manifest', (testContext: TestContext) => {
+void test('without version control a disposable copy is pinned by its content manifest', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const subjectRepo = path.join(root, 'subject');
 	const harnessRoot = path.join(root, 'harness');
@@ -244,7 +234,7 @@ test('without version control a disposable copy is pinned by its content manifes
 
 	assert.equal(dirty.revisionMatch, false);
 	assert.equal(dirty.checkoutClean, false);
-	assert.match(dirty.reason ?? '', /content manifest/);
+	assert.match(dirty.reason ?? '', /content manifest/u);
 
 	const restoration = restoreWorkspace(context, treatment);
 

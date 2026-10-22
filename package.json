@@ -65,7 +65,7 @@
 		"format:check": "oxfmt --check",
 		"test": "vitest run",
 		"index:verify": "node dist/cli.mjs verify",
-		"verify": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run format:check && pnpm run test",
+		"verify": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run format:check && pnpm run test && pnpm run eval:verify",
 		"verify:release": "pnpm run verify && pnpm run build && node scripts/check-release-version.mjs"
 	},
 	"dependencies": {

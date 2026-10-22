@@ -4,17 +4,16 @@ import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test, {type TestContext} from 'node:test';
-import {fileURLToPath} from 'node:url';
 import {type AssertionType} from './assertions.ts';
 import {hashOf} from './hash.ts';
 import {type ExecutionIdentityType} from './identity.ts';
 import {compare, type ReportMetadataType, REPORT_CLASSES} from './report.ts';
 import {writeJsonAtomic, writeResult} from './result.ts';
-import {type RunResultType} from './runner.ts';
+import {type RunResultType} from './runTypes.ts';
 import {type CaseClassType} from './schema.ts';
 import {type TreatmentIdType} from './treatment.ts';
 
-const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.ts');
+const CLI = path.join(import.meta.dirname, 'cli.ts');
 
 const temporaryRoot = (testContext: TestContext): string => {
 	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-report-'));
@@ -47,7 +46,7 @@ const assertion = (id: string): AssertionType => ({id, kind: 'test', expected: t
 const identityOfRun = (input: Required<Pick<RunOverridesType, 'caseId' | 'treatment' | 'repetition'>> & RunOverridesType): ExecutionIdentityType => ({
 	harness: {schemaVersion: '1.0', version: 11},
 	suite: {id: 'suite-a', version: 1, hash: 'a'.repeat(64)},
-	case: {id: input.caseId, hash: hashOf(input.caseId), promptHash: hashOf(`prompt-${input.caseId}`), timeoutMs: 5_000},
+	case: {id: input.caseId, hash: hashOf(input.caseId), promptHash: hashOf(`prompt-${input.caseId}`), timeoutMs: 5000},
 	model: {
 		provider: 'provider',
 		modelId: input.model ?? 'model',
@@ -88,21 +87,12 @@ const identityOfRun = (input: Required<Pick<RunOverridesType, 'caseId' | 'treatm
 	randomizationSeed: '2'.repeat(64),
 });
 
-const runOf = (overrides: RunOverridesType = {}): RunResultType => {
-	const caseId = overrides.caseId ?? 'case-a';
-	const caseClass = overrides.caseClass ?? 'locate';
-	const treatment = overrides.treatment ?? 'no-index';
-	const repetition = overrides.repetition ?? 1;
-	const success = overrides.success ?? true;
-	const valid = overrides.valid ?? true;
-	const retrievalBytes = overrides.retrievalBytes ?? 100;
-	const outputBytes = overrides.outputBytes ?? retrievalBytes;
-	const callCount = overrides.toolCalls ?? 2;
-	const durationMs = overrides.durationMs ?? 1_000;
-	const tokens = overrides.tokens ?? {input: 10, output: 5, reasoning: 1};
-	const identity = identityOfRun({...overrides, caseId, treatment, repetition});
-	const tokenEntry = (value: number) => ({value, state: 'exact' as const, unit: 'tokens' as const, source: 'test'});
-	const calls = Array.from({length: callCount}, (_, index) => ({
+type TokenEntryType = Readonly<{value: number; state: 'exact'; unit: 'tokens'; source: string}>;
+
+const tokenEntry = (value: number): TokenEntryType => ({value, state: 'exact', unit: 'tokens', source: 'test'});
+
+const callsOf = (callCount: number, retrievalBytes: number): RunResultType['toolCalls'] =>
+	Array.from({length: callCount}, (_, index) => ({
 		index: index + 1,
 		rawIndex: index + 1,
 		parentIndex: null,
@@ -118,7 +108,84 @@ const runOf = (overrides: RunOverridesType = {}): RunResultType => {
 		durationMs: 10,
 		error: null,
 	}));
-	const gradeResult = success ? 'pass' : 'fail';
+
+const surfaceOf = (treatment: TreatmentIdType): RunResultType['surface'] => {
+	const ordinary = ['bash', 'glob', 'grep', 'list', 'read'];
+	const codeIndex = treatment === 'no-index' ? [] : ['codeindex_find_symbol'];
+
+	return {
+		treatmentId: treatment,
+		ordinary,
+		codeIndex,
+		execute: 'absent',
+		tools: [...ordinary, ...codeIndex],
+		callable: [...ordinary, ...codeIndex],
+		native: true,
+		digest: hashOf({surface: treatment}),
+	};
+};
+
+const routingOf = (treatment: TreatmentIdType, callCount: number): RunResultType['routing'] => ({
+	ordinaryCalls: treatment === 'no-index' ? callCount : callCount - 1,
+	codeIndexCalls: treatment === 'no-index' ? 0 : 1,
+	executeCalls: 0,
+	unknownTools: [],
+	native: true,
+});
+
+const gradedAnswerOf = (caseId: string, success: boolean): RunResultType['grade'] => ({
+	parsed: true,
+	files: [caseId],
+	absent: false,
+	success,
+	missing: [],
+	forbidden: [],
+	extra: [],
+	falseAbsence: false,
+	reason: success ? 'ok' : 'failed',
+	result: success ? 'pass' : 'fail',
+	assertions: [assertion('answer.file-set')],
+});
+
+const attemptsOf = (valid: boolean, durationMs: number): RunResultType['attempts'] => [
+	{
+		attempt: 1,
+		startedAt: '2026-01-01T00:00:00.000Z',
+		durationMs,
+		exitCode: valid ? 0 : 1,
+		signal: null,
+		timedOut: false,
+		rateLimited: false,
+		invalidReason: valid ? null : 'agent exited with 1',
+		rawFile: null,
+	},
+];
+
+const outcomeValueOf = (declared: RunResultType['outcome'] | undefined, valid: boolean): RunResultType['outcome'] =>
+	declared ?? (valid ? 'completed' : 'failed');
+
+const loadedArtifactOf = (treatment: TreatmentIdType, identity: ExecutionIdentityType): ExecutionIdentityType['artifacts']['candidate'] =>
+	treatment === 'no-index' ? null : identity.artifacts.candidate;
+
+const indexCallCountOf = (treatment: TreatmentIdType): number => (treatment === 'no-index' ? 0 : 1);
+
+const runOf = (overrides: RunOverridesType = {}): RunResultType => {
+	const {
+		caseId = 'case-a',
+		caseClass = 'locate',
+		treatment = 'no-index',
+		repetition = 1,
+		success = true,
+		valid = true,
+		retrievalBytes = 100,
+		outputBytes = retrievalBytes,
+		toolCalls: callCount = 2,
+		durationMs = 1000,
+		tokens = {input: 10, output: 5, reasoning: 1},
+	} = overrides;
+	const identity = identityOfRun({...overrides, caseId, treatment, repetition});
+	const exitCode = valid ? 0 : 1;
+	const invalidReason = valid ? null : 'agent exited with 1';
 
 	return {
 		recordType: 'result',
@@ -137,17 +204,17 @@ const runOf = (overrides: RunOverridesType = {}): RunResultType => {
 		startedAt: '2026-01-01T00:00:00.000Z',
 		completedAt: '2026-01-01T00:00:01.000Z',
 		durationMs,
-		exitCode: valid ? 0 : 1,
+		exitCode,
 		signal: null,
 		timedOut: false,
-		timeoutMs: 5_000,
-		outcome: overrides.outcome ?? (valid ? 'completed' : 'failed'),
+		timeoutMs: 5000,
+		outcome: outcomeValueOf(overrides.outcome, valid),
 		defects: [],
 		isolation: {mode: 'detached-worktree', clientStore: 'ephemeral', checkoutClean: true, revisionMatch: true, restored: true},
 		artifacts: {
 			accepted: identity.artifacts.accepted,
 			candidate: identity.artifacts.candidate,
-			loaded: treatment === 'no-index' ? null : identity.artifacts.candidate,
+			loaded: loadedArtifactOf(treatment, identity),
 		},
 		usage: {
 			input: tokens.input,
@@ -166,44 +233,17 @@ const runOf = (overrides: RunOverridesType = {}): RunResultType => {
 			cacheWriteTokens: {value: 0, state: 'exact', unit: 'tokens', source: 'test'},
 			reportedCost: {value: 0.001, state: 'exact', unit: 'usd', source: 'test'},
 		},
-		toolCalls: calls,
+		toolCalls: callsOf(callCount, retrievalBytes),
 		outputBytes,
 		familyBytes: {index: 0, search: 0, read: retrievalBytes, list: 0, write: 0, execute: 0, task: 0, other: 0},
 		rawEventCount: 4,
 		malformedEventCount: 0,
 		streamTruncated: false,
-		indexCalls: treatment === 'no-index' ? 0 : 1,
-		surface: {
-			treatmentId: treatment,
-			ordinary: ['bash', 'glob', 'grep', 'list', 'read'],
-			codeIndex: treatment === 'no-index' ? [] : ['codeindex_find_symbol'],
-			execute: 'absent',
-			tools: treatment === 'no-index' ? ['bash', 'glob', 'grep', 'list', 'read'] : ['bash', 'glob', 'grep', 'list', 'read', 'codeindex_find_symbol'],
-			callable: treatment === 'no-index' ? ['bash', 'glob', 'grep', 'list', 'read'] : ['bash', 'glob', 'grep', 'list', 'read', 'codeindex_find_symbol'],
-			native: true,
-			digest: hashOf({surface: treatment}),
-		},
-		routing: {
-			ordinaryCalls: treatment === 'no-index' ? callCount : callCount - 1,
-			codeIndexCalls: treatment === 'no-index' ? 0 : 1,
-			executeCalls: 0,
-			unknownTools: [],
-			native: true,
-		},
+		indexCalls: indexCallCountOf(treatment),
+		surface: surfaceOf(treatment),
+		routing: routingOf(treatment, callCount),
 		errors: [],
-		grade: {
-			parsed: true,
-			files: [caseId],
-			absent: false,
-			success,
-			missing: [],
-			forbidden: [],
-			extra: [],
-			falseAbsence: false,
-			reason: success ? 'ok' : 'failed',
-			result: gradeResult,
-			assertions: [assertion('answer.file-set')],
-		},
+		grade: gradedAnswerOf(caseId, success),
 		workflow: {
 			result: 'pass',
 			compliant: true,
@@ -216,21 +256,9 @@ const runOf = (overrides: RunOverridesType = {}): RunResultType => {
 		},
 		postRun: null,
 		valid,
-		invalidReason: valid ? null : 'agent exited with 1',
+		invalidReason,
 		rateLimited: false,
-		attempts: [
-			{
-				attempt: 1,
-				startedAt: '2026-01-01T00:00:00.000Z',
-				durationMs,
-				exitCode: valid ? 0 : 1,
-				signal: null,
-				timedOut: false,
-				rateLimited: false,
-				invalidReason: valid ? null : 'agent exited with 1',
-				rawFile: null,
-			},
-		],
+		attempts: attemptsOf(valid, durationMs),
 		finalText: '{"files":["case-a"],"absent":false}',
 		stderrTail: '',
 	};
@@ -269,7 +297,7 @@ const campaignRuns = (
 				retrievalBytes,
 				outputBytes: retrievalBytes + 10,
 				toolCalls: index + 1,
-				durationMs: 1_000 + retrievalBytes,
+				durationMs: 1000 + retrievalBytes,
 			}),
 		),
 	);
@@ -281,7 +309,7 @@ const simpleMedian = (values: readonly number[]): number => {
 	return sorted.length % 2 === 0 ? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2 : (sorted[middle] ?? 0);
 };
 
-test('a report retains per-run values and recomputable summary statistics', () => {
+void test('a report retains per-run values and recomputable summary statistics', () => {
 	const runs = campaignRuns({noIndex: [400, 500, 600], accepted: [200, 300, 400], candidate: [100, 200, 300]});
 	const report = compare(runs, metadata);
 	const candidateBytes = report.runs
@@ -307,7 +335,7 @@ test('a report retains per-run values and recomputable summary statistics', () =
 	assert.equal(simpleMedian(candidateBytes), report.candidate.statistics.retrievalBytes.median);
 });
 
-test('a percentile from one observation still carries its sample count', () => {
+void test('a percentile from one observation still carries its sample count', () => {
 	const runs = campaignRuns({noIndex: [400], accepted: [200], candidate: [100]});
 	const report = compare(runs, metadata);
 	const paired = report.paired.candidateVsNoIndex.metrics.retrievalBytes;
@@ -320,11 +348,11 @@ test('a percentile from one observation still carries its sample count', () => {
 	assert.equal(paired.medianRatio, 0.25);
 });
 
-test('paired deltas use complete per-case pairs and deterministic bootstrap intervals', () => {
+void test('paired deltas use complete per-case pairs and deterministic bootstrap intervals', () => {
 	const runs = [
 		...campaignRuns({noIndex: [400, 500, 600], accepted: [350, 450, 550], candidate: [100, 200, 300]}, 'case-a', 'locate'),
 		...campaignRuns({noIndex: [200, 300, 400], accepted: [180, 280, 380], candidate: [80, 120, 160]}, 'case-b', 'impact'),
-		...campaignRuns({noIndex: [800, 900, 1_000], accepted: [700, 800, 900], candidate: [400, 500, 600]}, 'case-c', 'implementation'),
+		...campaignRuns({noIndex: [800, 900, 1000], accepted: [700, 800, 900], candidate: [400, 500, 600]}, 'case-c', 'implementation'),
 	];
 	const first = compare(runs, metadata);
 	const second = compare(runs, metadata);
@@ -343,11 +371,12 @@ test('paired deltas use complete per-case pairs and deterministic bootstrap inte
 
 	const caseA = first.caseDeltas.find((delta) => delta.caseId === 'case-a');
 
+	assert.notEqual(caseA, undefined);
 	assert.equal(caseA?.candidateVersusNoIndex.retrievalBytes.delta, -300);
-	assert.equal(caseA?.candidateVersusNoIndex.retrievalBytes.sampleCount, 3);
+	assert.equal(caseA.candidateVersusNoIndex.retrievalBytes.sampleCount, 3);
 });
 
-test('locate, impact, implementation, and semantic classes are reported beside the overall verdict', () => {
+void test('locate, impact, implementation, and semantic classes are reported beside the overall verdict', () => {
 	const runs = REPORT_CLASSES.flatMap((caseClass) =>
 		campaignRuns({noIndex: [400, 500, 600], accepted: [300, 400, 500], candidate: [100, 200, 300]}, `case-${caseClass}`, caseClass),
 	);
@@ -365,26 +394,26 @@ test('locate, impact, implementation, and semantic classes are reported beside t
 	}
 });
 
-test('a report rejects pooled, duplicate, and incompatible result sets', () => {
-	assert.throws(() => compare([], metadata), /at least one result/);
+void test('a report rejects pooled, duplicate, and incompatible result sets', () => {
+	assert.throws(() => compare([], metadata), /at least one result/u);
 
 	const undeclared = runOf({treatment: 'used-index' as TreatmentIdType});
-	assert.throws(() => compare([undeclared], metadata), /undeclared treatment/);
+	assert.throws(() => compare([undeclared], metadata), /undeclared treatment/u);
 
 	const first = runOf({caseId: 'case-a', treatment: 'no-index', repetition: 1});
 	const duplicate = runOf({caseId: 'case-a', treatment: 'no-index', repetition: 1});
-	assert.throws(() => compare([first, duplicate], metadata), /duplicate slot/);
+	assert.throws(() => compare([first, duplicate], metadata), /duplicate slot/u);
 
 	const otherModel = runOf({caseId: 'case-a', treatment: 'candidate', repetition: 1, model: 'other-model'});
-	assert.throws(() => compare([first, otherModel], metadata), /incompatible campaign identities/);
+	assert.throws(() => compare([first, otherModel], metadata), /incompatible campaign identities/u);
 
 	const otherCaseIdentity = runOf({caseId: 'case-a', treatment: 'accepted', repetition: 1, identityDigestSeed: 'other-candidate'});
-	const incompatible = {...otherCaseIdentity, identity: {...otherCaseIdentity.identity, case: {...otherCaseIdentity.identity.case, timeoutMs: 9_000}}};
+	const incompatible = {...otherCaseIdentity, identity: {...otherCaseIdentity.identity, case: {...otherCaseIdentity.identity.case, timeoutMs: 9000}}};
 
-	assert.throws(() => compare([first, incompatible], metadata), /incompatible comparison identities/);
+	assert.throws(() => compare([first, incompatible], metadata), /incompatible comparison identities/u);
 });
 
-test('the report command reads the manifest and prints the class verdict', (testContext: TestContext) => {
+void test('the report command reads the manifest and prints the class verdict', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const campaignDir = path.join(root, 'results', 'campaign-a');
 	const runs = campaignRuns({noIndex: [400, 500, 600], accepted: [300, 400, 500], candidate: [100, 200, 300]});
@@ -408,7 +437,7 @@ test('the report command reads the manifest and prints the class verdict', (test
 	});
 
 	assert.equal(executed.status, 0, executed.stderr);
-	assert.match(executed.stdout, /report campaign-a schema=1\.0/);
-	assert.match(executed.stdout, /class locate\s+cases 1/);
-	assert.match(executed.stdout, /Q2 (PASSED|NOT PASSED)/);
+	assert.match(executed.stdout, /report campaign-a schema=1\.0/u);
+	assert.match(executed.stdout, /class locate\s+cases 1/u);
+	assert.match(executed.stdout, /Q2 (?<verdict>PASSED|NOT PASSED)/u);
 });

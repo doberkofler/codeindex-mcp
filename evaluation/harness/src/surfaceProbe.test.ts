@@ -17,14 +17,14 @@ const treatment = treatmentOf({
 
 const surface = toolSurfaceOf(treatment, ['find_symbol']);
 
-test('a request without tools is a title request, not an empty surface', () => {
+void test('a request without tools is a title request, not an empty surface', () => {
 	assert.deepEqual(requestToolNamesOf({messages: []}), []);
 	assert.deepEqual(requestToolNamesOf({tools: [{function: {name: 'read'}}]}), ['read']);
 	assert.throws(() => requestToolNamesOf({tools: 'read'}), /must be an array/u);
 	assert.throws(() => requestToolNamesOf({tools: [{function: {}}]}), /without a function name/u);
 });
 
-test('captured surfaces union every tool-bearing request', () => {
+void test('captured surfaces union every tool-bearing request', () => {
 	const captured = capturedSurfaceOf([
 		{messages: []},
 		{tools: [{function: {name: 'read'}}, {function: {name: 'edit'}}]},
@@ -38,7 +38,7 @@ test('captured surfaces union every tool-bearing request', () => {
 	});
 });
 
-test('a private provider probe records the presented tools without a model', async (testContext: TestContext) => {
+void test('a private provider probe records the presented tools without a model', async (testContext: TestContext) => {
 	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-surface-probe-'));
 	testContext.after(() => {
 		rmSync(root, {recursive: true, force: true});
@@ -55,6 +55,7 @@ test('a private provider probe records the presented tools without a model', asy
 			"const config = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT ?? '{}');",
 			"const base = config.providers?.['surface-probe']?.settings?.baseURL;",
 			'const post = async (tools) => {',
+			// oxlint-disable-next-line eslint/no-template-curly-in-string -- The text is generated fixture source; the placeholder interpolates only when that script runs.
 			"	await fetch(`${base}/chat/completions`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({tools})});",
 			'};',
 			'await post([]);',
@@ -73,7 +74,7 @@ test('a private provider probe records the presented tools without a model', asy
 	assert.ok(captured.agentRequests >= 3);
 });
 
-test('a probe that never receives tools fails instead of accepting an empty surface', async (testContext: TestContext) => {
+void test('a probe that never receives tools fails instead of accepting an empty surface', async (testContext: TestContext) => {
 	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-surface-empty-'));
 	testContext.after(() => {
 		rmSync(root, {recursive: true, force: true});
@@ -89,6 +90,7 @@ test('a probe that never receives tools fails instead of accepting an empty surf
 			'#!/usr/bin/env node',
 			"const config = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT ?? '{}');",
 			"const base = config.providers?.['surface-probe']?.settings?.baseURL;",
+			// oxlint-disable-next-line eslint/no-template-curly-in-string -- The text is generated fixture source; the placeholder interpolates only when that script runs.
 			"await fetch(`${base}/chat/completions`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({tools: []})});",
 			'',
 		].join('\n'),

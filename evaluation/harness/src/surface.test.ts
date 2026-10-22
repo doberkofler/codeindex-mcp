@@ -16,7 +16,7 @@ const accepted = treatmentOf({
 
 const surface = toolSurfaceOf(accepted, ['find_symbol', 'read_symbol']);
 
-test('a declared surface denies every action it does not name', () => {
+void test('a declared surface denies every action it does not name', () => {
 	const rules = permissionRulesOf(surface);
 
 	assert.deepEqual(rules[0], {action: '*', resource: '*', effect: 'deny'});
@@ -32,7 +32,7 @@ test('a declared surface denies every action it does not name', () => {
 	assert.equal(effectivePermissionOf(rules, 'execute'), 'deny');
 });
 
-test('the last matching rule wins over the built-in base policy', () => {
+void test('the last matching rule wins over the built-in base policy', () => {
 	const rules = [{action: '*', resource: '*', effect: 'allow'}, {action: 'read', resource: '*.env', effect: 'ask'}, ...permissionRulesOf(surface)] as const;
 
 	assert.equal(effectivePermissionOf(rules, 'shell'), 'allow');
@@ -40,15 +40,15 @@ test('the last matching rule wins over the built-in base policy', () => {
 	assert.equal(effectivePermissionOf(rules, 'websearch'), 'deny');
 });
 
-test('callable names include every tool the edit and bash actions allow', () => {
+void test('callable names include every tool the edit and bash actions allow', () => {
 	assert.deepEqual(callableToolsOf(['bash', 'edit', 'read']), ['bash', 'edit', 'patch', 'read', 'shell', 'write']);
 });
 
-test('presented names drop retired tools and expand shared actions', () => {
+void test('presented names drop retired tools and expand shared actions', () => {
 	assert.deepEqual(presentedToolsOf(surface), ['codeindex_find_symbol', 'codeindex_read_symbol', 'edit', 'glob', 'grep', 'read', 'shell', 'write']);
 });
 
-test('surface differences name every missing declared and extra observed tool', () => {
+void test('surface differences name every missing declared and extra observed tool', () => {
 	const exact = presentedToolsOf(surface);
 
 	assert.deepEqual(surfaceDifferencesOf(surface, exact), []);
@@ -70,8 +70,8 @@ test('surface differences name every missing declared and extra observed tool', 
 	assert.match(surfaceDifferencesOf(surface, [...exact, 'execute']).join('\n'), /undeclared tool execute is presented/u);
 });
 
-test('an exact capture is accepted and returned sorted', () => {
-	const exact = presentedToolsOf(surface).slice().reverse();
+void test('an exact capture is accepted and returned sorted', () => {
+	const exact = [...presentedToolsOf(surface)].toReversed();
 
 	assert.deepEqual(assertPresentedSurface(surface, exact), presentedToolsOf(surface));
 	assert.throws(() => assertPresentedSurface(surface, exact.slice(1)), /does not present the declared accepted tool surface/u);

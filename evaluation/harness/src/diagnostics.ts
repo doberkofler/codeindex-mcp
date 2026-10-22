@@ -1,4 +1,4 @@
-import {type RunResultType} from './runner.ts';
+import {type RunResultType} from './runTypes.ts';
 
 /** Owner a diagnostic anomaly is attributed to. */
 export const DIAGNOSTIC_ATTRIBUTIONS = ['harness', 'model', 'codeindex', 'integration'] as const;
@@ -74,53 +74,71 @@ export const DIAGNOSTIC_REPETITIONS = 3;
  * @param run - One retained diagnostic execution.
  * @returns Every anomaly, in stable order.
  */
+/** One anomaly rule: a detail when it fires, null otherwise. */
+type AnomalyRuleType = Readonly<{
+	kind: DiagnosticAnomalyKindType;
+	attribution: DiagnosticAttributionType;
+	detail: (run: RunResultType) => string | null;
+}>;
+
+const ANOMALY_RULES: readonly AnomalyRuleType[] = [
+	{kind: 'retried', attribution: 'harness', detail: (run) => (run.attempts.length > 1 ? `${run.attempts.length - 1} retry attempt(s)` : null)},
+	{
+		kind: 'dirty-checkout',
+		attribution: 'harness',
+		detail: (run) => (run.isolation.checkoutClean ? null : 'execution did not start from the pinned clean checkout'),
+	},
+	{
+		kind: 'dirty-checkout',
+		attribution: 'harness',
+		detail: (run) => (run.isolation.revisionMatch ? null : 'execution did not start at the pinned revision'),
+	},
+	{
+		kind: 'restoration-failed',
+		attribution: 'harness',
+		detail: (run) => (run.isolation.restored ? null : (run.invalidReason ?? 'workspace was not restored')),
+	},
+	{
+		kind: 'unknown-tool',
+		attribution: 'harness',
+		detail: (run) => (run.routing.unknownTools.length > 0 ? `undeclared tool(s): ${run.routing.unknownTools.join(', ')}` : null),
+	},
+	{
+		kind: 'unknown-tool',
+		attribution: 'harness',
+		detail: (run) => (run.routing.executeCalls > 0 ? 'generic execute was called although it is absent from every treatment' : null),
+	},
+	{kind: 'timed-out', attribution: 'model', detail: (run) => (run.timedOut ? `execution exceeded ${run.timeoutMs} ms` : null)},
+	{
+		kind: 'process-failed',
+		attribution: 'integration',
+		detail: (run) => (!run.timedOut && run.outcome === 'failed' ? (run.invalidReason ?? 'execution failed') : null),
+	},
+	{
+		kind: 'unstructured-answer',
+		attribution: 'model',
+		detail: (run) => (!run.grade.parsed ? run.grade.reason : null),
+	},
+	{
+		kind: 'correctness-failed',
+		attribution: 'model',
+		detail: (run) => (run.grade.parsed && !run.grade.success ? run.grade.reason : null),
+	},
+	{
+		kind: 'workflow-failed',
+		attribution: 'model',
+		detail: (run) => (run.workflow.result === 'fail' ? run.workflow.violations.join(', ') : null),
+	},
+];
+
 const anomaliesOf = (run: RunResultType): readonly DiagnosticAnomalyType[] => {
-	const anomalies: DiagnosticAnomalyType[] = [];
-	const add = (kind: DiagnosticAnomalyKindType, detail: string, attribution: DiagnosticAttributionType): void => {
-		anomalies.push({caseId: run.caseId, treatment: run.treatment, repetition: run.repetition, kind, detail, attribution});
-	};
+	const anomalies = ANOMALY_RULES.flatMap((rule) => {
+		const detail = rule.detail(run);
 
-	if (run.attempts.length > 1) {
-		add('retried', `${run.attempts.length - 1} retry attempt(s)`, 'harness');
-	}
-
-	if (!run.isolation.checkoutClean) {
-		add('dirty-checkout', 'execution did not start from the pinned clean checkout', 'harness');
-	}
-
-	if (!run.isolation.revisionMatch) {
-		add('dirty-checkout', 'execution did not start at the pinned revision', 'harness');
-	}
-
-	if (!run.isolation.restored) {
-		add('restoration-failed', run.invalidReason ?? 'workspace was not restored', 'harness');
-	}
-
-	if (run.routing.unknownTools.length > 0) {
-		add('unknown-tool', `undeclared tool(s): ${run.routing.unknownTools.join(', ')}`, 'harness');
-	}
-
-	if (run.routing.executeCalls > 0) {
-		add('unknown-tool', 'generic execute was called although it is absent from every treatment', 'harness');
-	}
-
-	if (run.timedOut) {
-		add('timed-out', `execution exceeded ${run.timeoutMs} ms`, 'model');
-	}
-
-	if (!run.timedOut && run.outcome === 'failed') {
-		add('process-failed', run.invalidReason ?? 'execution failed', 'integration');
-	}
-
-	if (!run.grade.parsed) {
-		add('unstructured-answer', run.grade.reason, 'model');
-	} else if (!run.grade.success) {
-		add('correctness-failed', run.grade.reason, 'model');
-	}
-
-	if (run.workflow.result === 'fail') {
-		add('workflow-failed', run.workflow.violations.join(', '), 'model');
-	}
+		return detail === null
+			? []
+			: [{caseId: run.caseId, treatment: run.treatment, repetition: run.repetition, kind: rule.kind, detail, attribution: rule.attribution}];
+	});
 
 	for (const call of run.toolCalls) {
 		if (call.family !== 'index' || call.status !== 'error') {
@@ -129,13 +147,16 @@ const anomaliesOf = (run: RunResultType): readonly DiagnosticAnomalyType[] => {
 
 		// An invalid argument is a model tool-input mistake, not an index defect.
 		// The model may recover with a corrected call in the same execution.
-		if (call.error?.includes('"code":"invalid_argument"') === true) {
-			add('invalid-tool-input', `${call.tool}: ${call.error}`, 'model');
+		const invalidArgument = call.error?.includes('"code":"invalid_argument"') === true;
 
-			continue;
-		}
-
-		add('codeindex-error', `${call.tool}: ${call.error ?? 'index call failed'}`, 'codeindex');
+		anomalies.push({
+			caseId: run.caseId,
+			treatment: run.treatment,
+			repetition: run.repetition,
+			kind: invalidArgument ? 'invalid-tool-input' : 'codeindex-error',
+			detail: `${call.tool}: ${call.error ?? 'index call failed'}`,
+			attribution: invalidArgument ? 'model' : 'codeindex',
+		});
 	}
 
 	return anomalies;
@@ -158,7 +179,7 @@ export const diagnosticReportOf = (
 	cases: readonly string[] = DIAGNOSTIC_CASE_IDS,
 	repetitions: number = DIAGNOSTIC_REPETITIONS,
 ): DiagnosticReportType => {
-	const anomalies = results.flatMap(anomaliesOf);
+	const anomalies = results.flatMap((result) => anomaliesOf(result));
 	const blocking = anomalies.filter((anomaly) => CONTRACT_KINDS.has(anomaly.kind));
 
 	return {

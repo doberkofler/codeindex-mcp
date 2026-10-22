@@ -129,8 +129,8 @@ const CHECK_KEYS = new Set(['command', 'args', 'expectedExitCode', 'timeoutMs'])
 
 const SUITE_KEYS = new Set(['schemaVersion', 'id', 'version', 'status', 'revision', 'model', 'repetitions', 'treatments', 'cases', 'caseHashes']);
 
-const HEX_DIGEST = /^[0-9a-f]{64}$/;
-const STABLE_ID = /^[a-z0-9][a-z0-9._-]*$/;
+const HEX_DIGEST = /^[0-9a-f]{64}$/u;
+const STABLE_ID = /^[a-z0-9][a-z0-9._-]*$/u;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -232,11 +232,13 @@ const familyLimitsOf = (value: unknown, field: string, context: string): FamilyL
 	const limits: Partial<Record<ToolFamilyType, number>> = {};
 
 	for (const [family, limit] of Object.entries(record)) {
-		if (!(TOOL_FAMILIES as readonly string[]).includes(family)) {
+		const familyName = TOOL_FAMILIES.find((candidate) => candidate === family);
+
+		if (familyName === undefined) {
 			throw new Error(`${context} field "${field}" has unknown tool family "${family}"`);
 		}
 
-		limits[family as ToolFamilyType] = requireNonNegativeInteger(limit, `${field}.${family}`, context);
+		limits[familyName] = requireNonNegativeInteger(limit, `${field}.${family}`, context);
 	}
 
 	return limits;
@@ -388,7 +390,7 @@ export const suiteFieldsOf = (value: unknown): SuiteFieldsType => {
 		throw new Error('suite field "treatments" must be a non-empty array');
 	}
 
-	const treatments = validateTreatmentSet(canonicalTreatmentsOf(rawTreatments.map((value, index) => treatmentOf(value, `suite treatment[${index}]`))));
+	const treatments = validateTreatmentSet(canonicalTreatmentsOf(rawTreatments.map((entry, index) => treatmentOf(entry, `suite treatment[${index}]`))));
 	const cases = requireStringArray(record['cases'], 'cases', 'suite');
 
 	if (cases.length === 0) {

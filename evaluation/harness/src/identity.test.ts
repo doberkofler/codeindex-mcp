@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {executionIdentityDigestOf, executionIdentityOf, type ExecutionIdentityInputType} from './identity.ts';
-import {caseOf, suiteFieldsOf} from './schema.ts';
-import {toolSurfaceOf, treatmentOf} from './treatment.ts';
+import {caseOf, suiteFieldsOf, type CaseType, type SuiteType} from './schema.ts';
+import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
 
 const ordinaryTools = ['bash', 'glob', 'grep', 'list', 'read'];
 
-const suite = () => {
+const suite = (): SuiteType => {
 	const fields = suiteFieldsOf({
 		schemaVersion: 2,
 		id: 'suite-a',
@@ -40,7 +40,7 @@ const suite = () => {
 	return {...fields, hash: 'a'.repeat(64)};
 };
 
-const testCase = () =>
+const testCase = (): CaseType =>
 	caseOf({
 		schemaVersion: 1,
 		id: 'case-a',
@@ -52,11 +52,11 @@ const testCase = () =>
 		expectedFiles: ['src/a.ts'],
 		contextFiles: [],
 		forbiddenFiles: [],
-		workflow: {maxTotalCalls: 12, requiredFirstTool: null, maxOutputBytes: 1_000},
-		timeoutMs: 5_000,
+		workflow: {maxTotalCalls: 12, requiredFirstTool: null, maxOutputBytes: 1000},
+		timeoutMs: 5000,
 	});
 
-const treatment = () =>
+const treatment = (): TreatmentDefinitionType =>
 	treatmentOf({
 		id: 'no-index',
 		kind: 'no-index',
@@ -90,7 +90,7 @@ const input = (overrides: Partial<ExecutionIdentityInputType> = {}): ExecutionId
 	};
 };
 
-test('complete execution identity is stable and every field participates', () => {
+void test('complete execution identity is stable and every field participates', () => {
 	const base = executionIdentityDigestOf(executionIdentityOf(input()));
 	const changed = (overrides: Partial<ExecutionIdentityInputType>): string => executionIdentityDigestOf(executionIdentityOf(input(overrides)));
 
@@ -98,7 +98,7 @@ test('complete execution identity is stable and every field participates', () =>
 	assert.notEqual(changed({model: 'provider/other'}), base);
 	assert.notEqual(changed({model: 'other/provider'}), base);
 	assert.notEqual(changed({testCase: caseOf({...testCase(), prompt: 'Different prompt'})}), base);
-	assert.notEqual(changed({testCase: caseOf({...testCase(), timeoutMs: 6_000})}), base);
+	assert.notEqual(changed({testCase: caseOf({...testCase(), timeoutMs: 6000})}), base);
 	assert.notEqual(changed({configDigest: 'f'.repeat(64)}), base);
 	assert.notEqual(changed({repetitionIndex: 2}), base);
 	assert.notEqual(changed({randomizationSeed: '0'.repeat(64)}), base);

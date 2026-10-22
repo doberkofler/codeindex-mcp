@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {diagnosticReportOf, diagnosticSummaryOf} from './diagnostics.ts';
 import {type ExecutionIdentityType} from './identity.ts';
-import {type RunResultType} from './runner.ts';
+import {type AttemptLogType, type RunResultType} from './runTypes.ts';
 
 const identity: ExecutionIdentityType = {
 	harness: {schemaVersion: '1.0', version: 1},
 	suite: {id: 'suite', version: 2, hash: 'a'.repeat(64)},
-	case: {id: 'case-a', hash: 'b'.repeat(64), promptHash: 'c'.repeat(64), timeoutMs: 5_000},
+	case: {id: 'case-a', hash: 'b'.repeat(64), promptHash: 'c'.repeat(64), timeoutMs: 5000},
 	model: {
 		provider: 'provider',
 		modelId: 'model',
@@ -138,7 +138,15 @@ const runOf = (overrides: Partial<RunResultType> = {}): RunResultType => ({
 	...overrides,
 });
 
-test('clean diagnostic executions pass the contract', () => {
+const attemptOf = (): AttemptLogType => {
+	const [attempt] = runOf().attempts;
+
+	assert.ok(attempt !== undefined);
+
+	return attempt;
+};
+
+void test('clean diagnostic executions pass the contract', () => {
 	const report = diagnosticReportOf([runOf(), runOf({caseId: 'impl-a', treatment: 'accepted'})]);
 
 	assert.equal(report.executions, 2);
@@ -148,11 +156,11 @@ test('clean diagnostic executions pass the contract', () => {
 	assert.equal(diagnosticSummaryOf(report), '2 diagnostic execution(s), no contract anomaly');
 });
 
-test('inherited edits, undeclared tools, and retries are harness anomalies', () => {
+void test('inherited edits, undeclared tools, and retries are harness anomalies', () => {
 	const report = diagnosticReportOf([
 		runOf({isolation: {mode: 'detached-worktree', clientStore: 'ephemeral', checkoutClean: false, revisionMatch: true, restored: true}}),
 		runOf({routing: {ordinaryCalls: 1, codeIndexCalls: 0, executeCalls: 0, unknownTools: ['write'], native: true}}),
-		runOf({attempts: [runOf().attempts[0]!, runOf().attempts[0]!]}),
+		runOf({attempts: [attemptOf(), attemptOf()]}),
 	]);
 
 	assert.equal(report.passed, false);
@@ -163,7 +171,7 @@ test('inherited edits, undeclared tools, and retries are harness anomalies', () 
 	assert.deepEqual(new Set(report.blocking.map((anomaly) => anomaly.attribution)), new Set(['harness']));
 });
 
-test('missing structured answers and wrong answers belong to the model', () => {
+void test('missing structured answers and wrong answers belong to the model', () => {
 	const report = diagnosticReportOf([
 		runOf({grade: {...runOf().grade, parsed: false, success: false, reason: 'no JSON object'}}),
 		runOf({grade: {...runOf().grade, success: false, missing: ['src/a.ts'], reason: 'missing expected file'}}),
@@ -183,7 +191,7 @@ test('missing structured answers and wrong answers belong to the model', () => {
 	);
 });
 
-test('an invalid model tool argument is a model anomaly, not a CodeIndex defect', () => {
+void test('an invalid model tool argument is a model anomaly, not a CodeIndex defect', () => {
 	const report = diagnosticReportOf([
 		runOf({
 			toolCalls: [
@@ -214,7 +222,7 @@ test('an invalid model tool argument is a model anomaly, not a CodeIndex defect'
 	);
 });
 
-test('process, index, and timeout failures keep separate owners', () => {
+void test('process, index, and timeout failures keep separate owners', () => {
 	const report = diagnosticReportOf([
 		runOf({outcome: 'failed', valid: false, exitCode: 3, invalidReason: 'agent exited with 3'}),
 		runOf({

@@ -4,7 +4,7 @@ import {parseEvents, toolFamilyOf} from './events.ts';
 
 const lines = (...events: readonly unknown[]): string => `${events.map((event) => JSON.stringify(event)).join('\n')}\n`;
 
-test('exact token, cache, and cost telemetry stays exact', () => {
+void test('exact token, cache, and cost telemetry stays exact', () => {
 	const stdout = lines(
 		{type: 'step_start', timestamp: 1, part: {type: 'step-start'}},
 		{type: 'text', timestamp: 2, part: {type: 'text', text: 'answer'}},
@@ -36,8 +36,8 @@ test('exact token, cache, and cost telemetry stays exact', () => {
 	);
 });
 
-test('missing usage is unavailable and is never estimated from bytes', () => {
-	const stdout = lines({type: 'text', part: {type: 'text', text: 'a'.repeat(1_000)}});
+void test('missing usage is unavailable and is never estimated from bytes', () => {
+	const stdout = lines({type: 'text', part: {type: 'text', text: 'a'.repeat(1000)}});
 	const events = parseEvents(stdout);
 
 	assert.equal(events.usage.available, false);
@@ -56,7 +56,7 @@ test('missing usage is unavailable and is never estimated from bytes', () => {
 	}
 });
 
-test('a partially reported step marks only the absent components unavailable', () => {
+void test('a partially reported step marks only the absent components unavailable', () => {
 	const stdout = lines({
 		type: 'step_finish',
 		part: {type: 'step-finish', tokens: {input: 7, output: 3, reasoning: -1}, cost: 0.01},
@@ -72,7 +72,7 @@ test('a partially reported step marks only the absent components unavailable', (
 	assert.equal(events.usage.available, true);
 });
 
-test('model-free executions report token telemetry as not applicable', () => {
+void test('model-free executions report token telemetry as not applicable', () => {
 	const events = parseEvents('', {modelFree: true});
 
 	assert.equal(events.usage.available, false);
@@ -94,7 +94,7 @@ test('model-free executions report token telemetry as not applicable', () => {
 	assert.equal(withUsage.telemetry.inputTokens.state, 'not-applicable');
 });
 
-test('top-level, server-envelope, and nested tool calls normalize into one sequence', () => {
+void test('top-level, server-envelope, and nested tool calls normalize into one sequence', () => {
 	const stdout = lines(
 		{
 			type: 'tool_use',
@@ -159,12 +159,12 @@ test('top-level, server-envelope, and nested tool calls normalize into one seque
 		],
 	);
 	assert.equal(events.toolCalls[0]?.outputBytes, 2);
-	assert.equal(events.toolCalls[0]?.durationMs, 15);
+	assert.equal(events.toolCalls[0].durationMs, 15);
 	assert.equal(events.toolCalls[1]?.durationMs, 3);
-	assert.equal(events.toolCalls[1]?.error, 'symbol not found');
+	assert.equal(events.toolCalls[1].error, 'symbol not found');
 	assert.equal(events.toolCalls[2]?.durationMs, null);
-	assert.deepEqual(events.toolCalls[0]?.input, {pattern: 'SCHEMA_VERSION'});
-	assert.equal(events.toolCalls[0]?.inputValid, true);
+	assert.deepEqual(events.toolCalls[0].input, {pattern: 'SCHEMA_VERSION'});
+	assert.equal(events.toolCalls[0].inputValid, true);
 	assert.equal(events.toolCalls[3]?.outputBytes, 4);
 	assert.equal(events.outputBytes, 22);
 	assert.deepEqual(events.familyBytes, {
@@ -178,12 +178,12 @@ test('top-level, server-envelope, and nested tool calls normalize into one seque
 		other: 0,
 	});
 	assert.deepEqual(
-		events.events.filter((event) => event.type === 'tool').map((event) => event.type === 'tool' && event.callIndex),
+		events.events.flatMap((event) => (event.type === 'tool' ? [event.callIndex] : [])),
 		[1, 2, 3, 4],
 	);
 });
 
-test('the OpenCode shell event name normalizes to the declared bash tool', () => {
+void test('the OpenCode shell event name normalizes to the declared bash tool', () => {
 	const events = parseEvents(
 		lines({
 			type: 'tool_use',
@@ -197,24 +197,24 @@ test('the OpenCode shell event name normalizes to the declared bash tool', () =>
 	);
 
 	assert.equal(events.toolCalls[0]?.tool, 'bash');
-	assert.equal(events.toolCalls[0]?.family, 'execute');
+	assert.equal(events.toolCalls[0].family, 'execute');
 });
 
-test('explicit result guidance marks authority independently of output size', () => {
-	const part = (callID: string, action: string, fallbackRequired: boolean): unknown => ({
-		type: 'tool',
-		callID,
-		tool: 'codeindex_find_symbol',
-		state: {
-			status: 'completed',
-			input: {query: 'A'},
-			output: JSON.stringify({ok: true, data: {items: [{}]}, guidance: {action, fallbackRequired, message: 'guidance'}}),
-		},
-	});
+const partOf = (callID: string, action: string, fallbackRequired: boolean): unknown => ({
+	type: 'tool',
+	callID,
+	tool: 'codeindex_find_symbol',
+	state: {
+		status: 'completed',
+		input: {query: 'A'},
+		output: JSON.stringify({ok: true, data: {items: [{}]}, guidance: {action, fallbackRequired, message: 'guidance'}}),
+	},
+});
+void test('explicit result guidance marks authority independently of output size', () => {
 	const events = parseEvents(
 		lines(
-			{type: 'tool_use', part: part('stop', 'stop', false)},
-			{type: 'tool_use', part: part('cursor', 'follow_cursor', false)},
+			{type: 'tool_use', part: partOf('stop', 'stop', false)},
+			{type: 'tool_use', part: partOf('cursor', 'follow_cursor', false)},
 			{type: 'tool_use', part: {type: 'tool', callID: 'plain', tool: 'codeindex_find_symbol', state: {status: 'completed', input: {}, output: '{}'}}},
 		),
 	);
@@ -225,7 +225,7 @@ test('explicit result guidance marks authority independently of output size', ()
 	);
 });
 
-test('the same provider call is not counted twice across envelopes', () => {
+void test('the same provider call is not counted twice across envelopes', () => {
 	const part = {
 		type: 'tool',
 		callID: 'call-duplicate',
@@ -239,7 +239,7 @@ test('the same provider call is not counted twice across envelopes', () => {
 	assert.equal(events.outputBytes, 4);
 });
 
-test('unknown and failed tools stay visible with their observed shape', () => {
+void test('unknown and failed tools stay visible with their observed shape', () => {
 	const stdout = lines(
 		{
 			type: 'tool_use',
@@ -257,23 +257,23 @@ test('unknown and failed tools stay visible with their observed shape', () => {
 
 	assert.equal(events.toolCalls.length, 2);
 	assert.equal(events.toolCalls[0]?.tool, 'mystery_tool');
-	assert.equal(events.toolCalls[0]?.family, 'other');
-	assert.equal(events.toolCalls[0]?.status, 'unknown');
-	assert.equal(events.toolCalls[0]?.input, null);
-	assert.equal(events.toolCalls[0]?.inputValid, false);
+	assert.equal(events.toolCalls[0].family, 'other');
+	assert.equal(events.toolCalls[0].status, 'unknown');
+	assert.equal(events.toolCalls[0].input, null);
+	assert.equal(events.toolCalls[0].inputValid, false);
 	assert.equal(events.toolCalls[1]?.tool, 'unknown');
-	assert.equal(events.toolCalls[1]?.status, 'unknown');
+	assert.equal(events.toolCalls[1].status, 'unknown');
 });
 
-test('a tool event without a surviving part is retained as unknown', () => {
+void test('a tool event without a surviving part is retained as unknown', () => {
 	const events = parseEvents(lines({type: 'tool_use', part: {type: 'tool'}}));
 
 	assert.equal(events.toolCalls.length, 1);
 	assert.equal(events.toolCalls[0]?.tool, 'unknown');
-	assert.equal(events.toolCalls[0]?.status, 'unknown');
+	assert.equal(events.toolCalls[0].status, 'unknown');
 });
 
-test('malformed and truncated streams retain every preceding event', () => {
+void test('malformed and truncated streams retain every preceding event', () => {
 	const stdout = `${JSON.stringify({type: 'text', part: {type: 'text', text: 'kept'}})}\nnot-json\n{"type":"step_finish","part":{"tokens":`;
 	const events = parseEvents(stdout);
 
@@ -288,7 +288,7 @@ test('malformed and truncated streams retain every preceding event', () => {
 	assert.equal(events.telemetry.inputTokens.state, 'unavailable');
 });
 
-test('a malformed middle line does not mark a complete stream as truncated', () => {
+void test('a malformed middle line does not mark a complete stream as truncated', () => {
 	const stdout = `${JSON.stringify({type: 'text', part: {type: 'text', text: 'before'}})}\n{bad}\n${JSON.stringify({
 		type: 'text',
 		part: {type: 'text', text: 'after'},
@@ -300,7 +300,7 @@ test('a malformed middle line does not mark a complete stream as truncated', () 
 	assert.equal(events.finalText, 'before\nafter');
 });
 
-test('session errors and nested text events are parsed', () => {
+void test('session errors and nested text events are parsed', () => {
 	const stdout = lines(
 		{type: 'message.part.updated', properties: {part: {type: 'text', text: 'nested text'}}},
 		{type: 'session.error', properties: {error: {name: 'ProviderError', data: {message: 'quota exceeded'}}}},
@@ -311,12 +311,12 @@ test('session errors and nested text events are parsed', () => {
 	assert.equal(events.finalText, 'nested text');
 	assert.deepEqual(events.errors, ['quota exceeded', 'boom']);
 	assert.deepEqual(
-		events.events.filter((event) => event.type === 'error').map((event) => event.type === 'error' && event.message),
+		events.events.flatMap((event) => (event.type === 'error' ? [event.message] : [])),
 		['quota exceeded', 'boom'],
 	);
 });
 
-test('tool family classification is structural', () => {
+void test('tool family classification is structural', () => {
 	assert.equal(toolFamilyOf('codeindex_find_symbol'), 'index');
 	assert.equal(toolFamilyOf('grep'), 'search');
 	assert.equal(toolFamilyOf('glob'), 'search');

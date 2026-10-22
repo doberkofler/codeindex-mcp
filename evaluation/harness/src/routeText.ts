@@ -5,6 +5,9 @@ import {type TextStepType} from './routePlan.ts';
 /** Default extensions for an ordinary text search. */
 const DEFAULT_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'] as const;
 
+/** Shared empty exclusion list; a fresh empty array would only add noise. */
+const NO_PATHS: readonly string[] = [];
+
 /** Directories that never belong to a bounded route search. */
 const IGNORED_DIRECTORIES = new Set(['.git', 'coverage', 'dist', 'node_modules']);
 
@@ -75,7 +78,7 @@ const posixRelativeOf = (workspace: string, absolute: string): string => path.re
  */
 export const runSearchStep = (input: Readonly<{workspace: string; step: Extract<TextStepType, {kind: 'search'}>}>): TextStepResultType => {
 	const extensions = input.step.extensions ?? DEFAULT_EXTENSIONS;
-	const excluded = new Set(input.step.excludePaths ?? []);
+	const excluded = new Set(input.step.excludePaths ?? NO_PATHS);
 	const regex = new RegExp(input.step.pattern, 'u');
 	const matches: TextMatchType[] = [];
 	const paths = new Set<string>();

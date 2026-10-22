@@ -66,9 +66,9 @@ export const permissionActionOf = (tool: string): string => OPEN_CODE_TOOL_ACTIO
 const wildcardPatternOf = (pattern: string): RegExp =>
 	new RegExp(
 		`^${pattern
-			.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&')
-			.replaceAll('\\*', '.*')
-			.replaceAll('\\?', '.')}$`,
+			.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)
+			.replaceAll(String.raw`\*`, '.*')
+			.replaceAll(String.raw`\?`, '.')}$`,
 		'u',
 	);
 
@@ -106,7 +106,7 @@ export const effectivePermissionOf = (rules: readonly PermissionRuleType[], acti
 
 	for (const rule of rules) {
 		if (matchesRule(rule, action, resource)) {
-			effect = rule.effect;
+			({effect} = rule);
 		}
 	}
 

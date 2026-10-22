@@ -86,9 +86,8 @@ export const summarizeRouteTreatment = (runs: readonly RouteRunType[]): RouteTre
 };
 
 const equalityGateOf = (cases: readonly RouteCaseReportType[], treatments: readonly RouteTreatmentType[]): RouteGateType => {
-	const failed = cases.filter((item) =>
-		treatments.some((treatment) => item.treatments[treatment]?.valid !== true || item.treatments[treatment]?.exact !== true),
-	);
+	const passedOf = (run: RouteCaseReportType['treatments'][RouteTreatmentType]): boolean => run !== undefined && run.valid && run.exact;
+	const failed = cases.filter((item) => treatments.some((treatment) => !passedOf(item.treatments[treatment])));
 
 	if (failed.length === 0) {
 		return {id: 'G-E1a', result: 'pass', detail: `exact complete-route answers for ${cases.length} case(s)`};

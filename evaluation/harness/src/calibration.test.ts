@@ -73,7 +73,7 @@ const decisionOf = (overrides: Partial<CalibrationDecisionType>): CalibrationDec
 	model: 'ollama/model-a',
 	environment: {id: 'environment-a', hash: 'b'.repeat(64)},
 	budgetMs: BUDGET_MS,
-	elapsedMs: 1_000,
+	elapsedMs: 1000,
 	plannedSlots: 12,
 	executedSlots: 12,
 	validExecutions: 12,
@@ -90,7 +90,7 @@ const decisionOf = (overrides: Partial<CalibrationDecisionType>): CalibrationDec
 	...overrides,
 });
 
-test('twelve valid executions inside the budget qualify a model', () => {
+void test('twelve valid executions inside the budget qualify a model', () => {
 	const decision = calibrationOf();
 
 	assert.equal(decision.passed, true);
@@ -102,7 +102,7 @@ test('twelve valid executions inside the budget qualify a model', () => {
 	assert.equal(decision.disqualification, null);
 });
 
-test('a case that loses accepted correctness disqualifies the model', () => {
+void test('a case that loses accepted correctness disqualifies the model', () => {
 	const lossy = CASES.flatMap((caseId) => [runOf({caseId, treatment: 'no-index'}), runOf({caseId, treatment: 'accepted', success: caseId !== 'semantic-a'})]);
 	const decision = calibrationOf({results: lossy});
 
@@ -111,7 +111,7 @@ test('a case that loses accepted correctness disqualifies the model', () => {
 	assert.match(decision.disqualification ?? '', /correctness loss on semantic-a/u);
 });
 
-test('a retry or timeout is an intervention, never a quiet pass', () => {
+void test('a retry or timeout is an intervention, never a quiet pass', () => {
 	const retried = CASES.flatMap((caseId) => [runOf({caseId, treatment: 'no-index'}), runOf({caseId, treatment: 'accepted', attempts: [{}, {}]})]);
 	const timedOut = CASES.flatMap((caseId) => [
 		runOf({caseId, treatment: 'no-index'}),
@@ -124,7 +124,7 @@ test('a retry or timeout is an intervention, never a quiet pass', () => {
 	assert.match(calibrationOf({results: timedOut}).disqualification ?? '', /interventions required/u);
 });
 
-test('budget overrun and incomplete executions both disqualify', () => {
+void test('budget overrun and incomplete executions both disqualify', () => {
 	const overrun = calibrationOf({elapsedMs: BUDGET_MS + 1});
 	const incomplete = calibrationOf({results: [runOf({caseId: 'locate-a', treatment: 'accepted'})]});
 
@@ -134,7 +134,7 @@ test('budget overrun and incomplete executions both disqualify', () => {
 	assert.match(incomplete.disqualification ?? '', /incomplete: 1\/12/u);
 });
 
-test('missing token usage limits the claim without invalidating correctness', () => {
+void test('missing token usage limits the claim without invalidating correctness', () => {
 	const decision = calibrationOf({
 		results: CASES.flatMap((caseId) => [
 			runOf({caseId, treatment: 'no-index'}),
@@ -147,10 +147,10 @@ test('missing token usage limits the claim without invalidating correctness', ()
 	assert.equal(decision.passed, true);
 });
 
-test('selection prefers qualifiers, exactness, then latency and bytes', () => {
+void test('selection prefers qualifiers, exactness, then latency and bytes', () => {
 	const slowExact = decisionOf({model: 'ollama/slow', acceptedExact: 6, acceptedMedianWallMs: 20_000});
 	const fastExact = decisionOf({model: 'ollama/fast', acceptedExact: 6, acceptedMedianWallMs: 10_000});
-	const lessExact = decisionOf({model: 'ollama/less', acceptedExact: 5, acceptedMedianWallMs: 1_000});
+	const lessExact = decisionOf({model: 'ollama/less', acceptedExact: 5, acceptedMedianWallMs: 1000});
 	const disqualified = decisionOf({model: 'ollama/bad', passed: false});
 
 	const selection = calibrationSelectionOf([slowExact, disqualified, lessExact, fastExact]);
@@ -160,7 +160,7 @@ test('selection prefers qualifiers, exactness, then latency and bytes', () => {
 	assert.match(selection.reason, /lowest accepted median wall time/u);
 });
 
-test('an unexecuted candidate is recorded instead of disappearing', () => {
+void test('an unexecuted candidate is recorded instead of disappearing', () => {
 	const excluded = calibrationDisqualificationOf({
 		model: 'ollama/devstral-small-2:latest',
 		environmentId: 'ollama-devstral-small-2-calibration',
@@ -179,7 +179,7 @@ test('an unexecuted candidate is recorded instead of disappearing', () => {
 	assert.equal(calibrationSelectionOf([excluded]).selected, null);
 });
 
-test('selection records that no model qualified', () => {
+void test('selection records that no model qualified', () => {
 	const selection = calibrationSelectionOf([decisionOf({passed: false})]);
 
 	assert.equal(selection.selected, null);

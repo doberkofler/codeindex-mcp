@@ -1,6 +1,6 @@
 import {assertionOf, resultOf, violationsOf, type AssertionType, type CheckResultType} from './assertions.ts';
 import {canonicalJson} from './hash.ts';
-import {type RunEventsType, type ToolCallType, type ToolFamilyType} from './events.ts';
+import {TOOL_FAMILIES, type RunEventsType, type ToolCallType, type ToolFamilyType} from './events.ts';
 import {type CaseType, type FamilyLimitsType} from './schema.ts';
 
 /** Families that retrieve repository evidence rather than mutate or delegate. */
@@ -51,13 +51,13 @@ const normalizeScope = (value: string): string => {
  */
 const globRootOf = (value: string): string => {
 	const normalized = normalizeScope(value);
-	const firstMeta = normalized.search(/[*?[{]/);
+	const firstMeta = normalized.search(/[*?[{]/u);
 
 	if (firstMeta < 0) {
 		return normalized;
 	}
 
-	return normalized.slice(0, firstMeta).replace(/\/+$/, '');
+	return normalized.slice(0, firstMeta).replace(/\/+$/u, '');
 };
 
 const isRootScope = (value: string): boolean => {
@@ -110,7 +110,7 @@ export const isBroadSearch = (call: ToolCallType): boolean => {
 
 	const paths = inputScopesOf(call, SCOPE_PATH_KEYS);
 	const includes = inputScopesOf(call, SCOPE_INCLUDE_KEYS);
-	const pattern = call.tool === 'glob' ? scopeValuesOf(call.input['pattern']) : [];
+	const pattern = call.tool === 'glob' ? scopeValuesOf(call.input.pattern) : [];
 	const narrowedBy = [...includes, ...pattern];
 
 	if (paths.length === 0) {
@@ -166,7 +166,7 @@ const isAuthoritativeIndexCall = (call: ToolCallType): boolean =>
 	call.family === 'index' && call.status === 'completed' && (call.authoritative ?? (call.outputBytes > 0 && call.tool !== 'codeindex_index_status'));
 
 const fallbacksAfterAuthoritativeOf = (calls: readonly ToolCallType[]): number => {
-	const authoritative = calls.find(isAuthoritativeIndexCall);
+	const authoritative = calls.find((call) => isAuthoritativeIndexCall(call));
 
 	if (authoritative === undefined) {
 		return 0;
@@ -180,15 +180,21 @@ const firstRetrievalOf = (calls: readonly ToolCallType[]): string | null => call
 const familyCountOf = (calls: readonly ToolCallType[], family: ToolFamilyType): number => calls.filter((call) => call.family === family).length;
 
 const limitAssertionsOf = (kind: string, limits: FamilyLimitsType, observedOf: (family: ToolFamilyType) => number): readonly AssertionType[] =>
-	Object.entries(limits).map(([family, limit]) =>
-		assertionOf({
+	Object.entries(limits).map(([key, limit]) => {
+		const family = TOOL_FAMILIES.find((candidate) => candidate === key);
+
+		if (family === undefined) {
+			throw new Error(`${kind} declares an unknown tool family "${key}"`);
+		}
+
+		return assertionOf({
 			id: `${kind}.${family}`,
 			kind,
 			expected: {max: limit},
-			observed: observedOf(family as ToolFamilyType),
-			result: observedOf(family as ToolFamilyType) <= (limit ?? 0) ? 'pass' : 'fail',
-		}),
-	);
+			observed: observedOf(family),
+			result: observedOf(family) <= limit ? 'pass' : 'fail',
+		});
+	});
 
 const tokenTotalOf = (events: RunEventsType): number | null => {
 	const entries = [events.telemetry.inputTokens, events.telemetry.outputTokens, events.telemetry.reasoningTokens];
@@ -200,62 +206,31 @@ const tokenTotalOf = (events: RunEventsType): number | null => {
 	return entries.reduce((total, entry) => total + (entry.value ?? 0), 0);
 };
 
-/**
- * Assesses the declarative workflow gates for one run.
- *
- * The result is independent of answer correctness and process success.
- * Predicates without declared bounds are not graded; a predicate that needs an
- * unavailable measurement is `unevaluated`, never a pass and never a zero.
- *
- * @param testCase - Case policy.
- * @param events - Parsed events.
- * @param durationMs - Harness-measured wall time for the execution.
- * @returns Compliance, assertions, and structural observations.
- */
-export const workflowOf = (testCase: CaseType, events: RunEventsType, durationMs: number): WorkflowResultType => {
-	const calls = events.toolCalls;
-	const workflow = testCase.workflow;
-	const assertions: AssertionType[] = [];
-	const observedTools = [...new Set(calls.map((call) => call.tool))].sort();
-	const missingTools = workflow.requiredTools.filter((tool) => !observedTools.includes(tool));
-	const forbidden = workflow.forbiddenTools.filter((tool) => observedTools.includes(tool));
-	const firstRetrievalTool = firstRetrievalOf(calls);
-	const broadSearches = broadSearchesOf(calls);
-	const duplicateReads = duplicateReadsOf(calls);
-	const fallbacksAfterAuthoritative = fallbacksAfterAuthoritativeOf(calls);
+/** Structural observations shared by the optional workflow assertions. */
+type WorkflowObservationsType = Readonly<{
+	firstRetrievalTool: string | null;
+	broadSearches: readonly number[];
+	duplicateReads: number;
+	fallbacksAfterAuthoritative: number;
+}>;
 
-	assertions.push(
-		assertionOf({
-			id: 'budget.total-calls',
-			kind: 'budget',
-			expected: {max: workflow.maxTotalCalls},
-			observed: calls.length,
-			result: calls.length <= workflow.maxTotalCalls ? 'pass' : 'fail',
-		}),
-		assertionOf({
-			id: 'budget.output-bytes',
-			kind: 'budget',
-			expected: {max: workflow.maxOutputBytes},
-			observed: events.outputBytes,
-			result: events.outputBytes <= workflow.maxOutputBytes ? 'pass' : 'fail',
-		}),
-		...limitAssertionsOf('budget.calls-by-family', workflow.maxCallsByFamily, (family) => familyCountOf(calls, family)),
-		...limitAssertionsOf('budget.output-bytes-by-family', workflow.maxOutputBytesByFamily, (family) => events.familyBytes[family]),
-		assertionOf({
-			id: 'tools.required',
-			kind: 'tools',
-			expected: workflow.requiredTools,
-			observed: missingTools,
-			result: missingTools.length === 0 ? 'pass' : 'fail',
-		}),
-		assertionOf({
-			id: 'tools.forbidden',
-			kind: 'tools',
-			expected: [],
-			observed: forbidden,
-			result: forbidden.length === 0 ? 'pass' : 'fail',
-		}),
-	);
+/**
+ * Builds the assertions that only apply when the case declares their limit.
+ *
+ * @param workflow - Case workflow policy.
+ * @param observations - Counts observed for this execution.
+ * @param durationMs - Harness-measured wall time.
+ * @param events - Parsed events, used for the token budget.
+ * @returns Every optional assertion that the policy enables.
+ */
+const optionalAssertionsOf = (
+	workflow: CaseType['workflow'],
+	observations: WorkflowObservationsType,
+	durationMs: number,
+	events: RunEventsType,
+): readonly AssertionType[] => {
+	const {firstRetrievalTool, broadSearches, duplicateReads, fallbacksAfterAuthoritative} = observations;
+	const assertions: AssertionType[] = [];
 
 	if (workflow.requiredFirstTool !== null) {
 		assertions.push(
@@ -330,6 +305,67 @@ export const workflowOf = (testCase: CaseType, events: RunEventsType, durationMs
 			}),
 		);
 	}
+
+	return assertions;
+};
+
+/**
+ * Assesses the declarative workflow gates for one run.
+ *
+ * The result is independent of answer correctness and process success.
+ * Predicates without declared bounds are not graded; a predicate that needs an
+ * unavailable measurement is `unevaluated`, never a pass and never a zero.
+ *
+ * @param testCase - Case policy.
+ * @param events - Parsed events.
+ * @param durationMs - Harness-measured wall time for the execution.
+ * @returns Compliance, assertions, and structural observations.
+ */
+export const workflowOf = (testCase: CaseType, events: RunEventsType, durationMs: number): WorkflowResultType => {
+	const calls = events.toolCalls;
+	const {workflow} = testCase;
+	const observedTools = new Set([...new Set(calls.map((call) => call.tool))].sort());
+	const missingTools = workflow.requiredTools.filter((tool) => !observedTools.has(tool));
+	const forbidden = workflow.forbiddenTools.filter((tool) => observedTools.has(tool));
+	const firstRetrievalTool = firstRetrievalOf(calls);
+	const broadSearches = broadSearchesOf(calls);
+	const duplicateReads = duplicateReadsOf(calls);
+	const fallbacksAfterAuthoritative = fallbacksAfterAuthoritativeOf(calls);
+
+	const assertions: AssertionType[] = [
+		assertionOf({
+			id: 'budget.total-calls',
+			kind: 'budget',
+			expected: {max: workflow.maxTotalCalls},
+			observed: calls.length,
+			result: calls.length <= workflow.maxTotalCalls ? 'pass' : 'fail',
+		}),
+		assertionOf({
+			id: 'budget.output-bytes',
+			kind: 'budget',
+			expected: {max: workflow.maxOutputBytes},
+			observed: events.outputBytes,
+			result: events.outputBytes <= workflow.maxOutputBytes ? 'pass' : 'fail',
+		}),
+		...limitAssertionsOf('budget.calls-by-family', workflow.maxCallsByFamily, (family) => familyCountOf(calls, family)),
+		...limitAssertionsOf('budget.output-bytes-by-family', workflow.maxOutputBytesByFamily, (family) => events.familyBytes[family]),
+		assertionOf({
+			id: 'tools.required',
+			kind: 'tools',
+			expected: workflow.requiredTools,
+			observed: missingTools,
+			result: missingTools.length === 0 ? 'pass' : 'fail',
+		}),
+		assertionOf({
+			id: 'tools.forbidden',
+			kind: 'tools',
+			expected: [],
+			observed: forbidden,
+			result: forbidden.length === 0 ? 'pass' : 'fail',
+		}),
+	];
+
+	assertions.push(...optionalAssertionsOf(workflow, {firstRetrievalTool, broadSearches, duplicateReads, fallbacksAfterAuthoritative}, durationMs, events));
 
 	const result = resultOf(assertions);
 

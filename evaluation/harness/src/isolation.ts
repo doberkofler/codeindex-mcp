@@ -20,7 +20,7 @@ export type ClientStoreType = Readonly<{
 	/** Absolute SQLite path, or null for an in-memory store. */
 	path: string | null;
 	/** Value exported as `OPENCODE_DB` to every execution. */
-	opencodeDb: ':memory:' | string;
+	opencodeDb: string;
 }>;
 
 export type ClientStoreInputType = Readonly<{

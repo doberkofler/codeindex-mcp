@@ -1,6 +1,10 @@
+import {setTimeout as delay} from 'node:timers/promises';
 import {type McpCallOutcomeType, type McpSessionType} from './routeClient.ts';
 import {type McpStepType, type RouteCollectionType, type RouteStepType, type SymbolSelectionType, type TextStepType} from './routePlan.ts';
 import {readWorkspaceSource, runTextStep} from './routeText.ts';
+
+/** Shared empty exclusion list; a fresh empty array would only add noise. */
+const NO_PATHS: readonly string[] = [];
 
 /** Treatment identifiers available to a model-free comparison. */
 export const ROUTE_TREATMENTS = ['no-index', 'accepted', 'candidate'] as const;
@@ -50,11 +54,11 @@ const INDEX_READY_POLL_MS = 100;
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const itemsOf = (data: unknown): readonly Readonly<Record<string, unknown>>[] => {
-	if (!isRecord(data) || !Array.isArray(data['items'])) {
+	if (!isRecord(data) || !Array.isArray(data.items)) {
 		return [];
 	}
 
-	return data['items'].filter(isRecord);
+	return data.items.filter(isRecord);
 };
 
 const pageStateOf = (data: unknown): Readonly<{truncated: boolean; nextCursor: string | null}> => {
@@ -62,16 +66,16 @@ const pageStateOf = (data: unknown): Readonly<{truncated: boolean; nextCursor: s
 		return {truncated: false, nextCursor: null};
 	}
 
-	return {truncated: data['truncated'] === true, nextCursor: typeof data['nextCursor'] === 'string' ? data['nextCursor'] : null};
+	return {truncated: data.truncated === true, nextCursor: typeof data.nextCursor === 'string' ? data.nextCursor : null};
 };
 
-const pathOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item['path'] === 'string' ? item['path'] : null);
+const pathOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item.path === 'string' ? item.path : null);
 
-const roleOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item['role'] === 'string' ? item['role'] : null);
+const roleOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item.role === 'string' ? item.role : null);
 
-const matchOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item['match'] === 'string' ? item['match'] : null);
+const matchOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item.match === 'string' ? item.match : null);
 
-const nameOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item['name'] === 'string' ? item['name'] : null);
+const nameOf = (item: Readonly<Record<string, unknown>>): string | null => (typeof item.name === 'string' ? item.name : null);
 
 const selectedSymbolOf = (items: readonly Readonly<Record<string, unknown>>[], selection: SymbolSelectionType): Readonly<Record<string, unknown>> | null => {
 	const candidates = items.filter(
@@ -91,10 +95,10 @@ const argumentsWithSymbol = (
 	}
 
 	const symbol = selectedSymbolOf(itemsByStep.get(step.symbolFrom.fromStep) ?? [], step.symbolFrom);
-	const symbolId = symbol === null ? null : symbol['symbolId'];
+	const symbolId = symbol === null ? null : symbol.symbolId;
 
 	if (typeof symbolId !== 'string') {
-		throw new Error(`step "${step.id}" could not resolve a symbol from step "${step.symbolFrom.fromStep}"`);
+		throw new TypeError(`step "${step.id}" could not resolve a symbol from step "${step.symbolFrom.fromStep}"`);
 	}
 
 	return {...step.arguments, symbolId};
@@ -112,25 +116,25 @@ const collectedPathsOf = (
 	if (collection === 'exact-name-paths') {
 		return items
 			.filter((item) => (matchOf(item) ?? '').startsWith('exact') || (fallbackName !== null && nameOf(item) === fallbackName))
-			.map(pathOf)
+			.map((item) => pathOf(item))
 			.filter((path): path is string => path !== null);
 	}
 
 	if (collection === 'reference-paths') {
 		return items
 			.filter((item) => roleOf(item) === 'reference')
-			.map(pathOf)
+			.map((item) => pathOf(item))
 			.filter((path): path is string => path !== null);
 	}
 
 	if (collection === 'definition-paths') {
 		return items
 			.filter((item) => roleOf(item) === 'definition')
-			.map(pathOf)
+			.map((item) => pathOf(item))
 			.filter((path): path is string => path !== null);
 	}
 
-	return items.map(pathOf).filter((path): path is string => path !== null);
+	return items.map((item) => pathOf(item)).filter((path): path is string => path !== null);
 };
 
 const metricsOf = (calls: readonly RouteCallType[]): RouteMetricsType => {
@@ -215,12 +219,15 @@ const filterKeptFiles = (state: ExecutionStateType, workspace: string, step: Mcp
 };
 
 const executeMcpPage = async (
-	state: ExecutionStateType,
-	client: McpSessionType,
-	step: McpStepType,
-	args: Readonly<Record<string, unknown>>,
-	page: number,
+	input: Readonly<{
+		state: ExecutionStateType;
+		client: McpSessionType;
+		step: McpStepType;
+		args: Readonly<Record<string, unknown>>;
+		page: number;
+	}>,
 ): Promise<McpCallOutcomeType> => {
+	const {state, client, step, args, page} = input;
 	const outcome = await client.callTool(step.tool, args);
 	const data = outcome.structured;
 
@@ -246,7 +253,7 @@ const executeMcpPage = async (
 	return outcome;
 };
 
-const readyOf = (data: unknown): boolean => isRecord(data) && (data['ready'] === true || data['state'] === 'published');
+const readyOf = (data: unknown): boolean => isRecord(data) && (data.ready === true || data.state === 'published');
 
 const waitForIndexReady = async (state: ExecutionStateType, client: McpSessionType): Promise<void> => {
 	const deadline = performance.now() + INDEX_READY_TIMEOUT_MS;
@@ -255,16 +262,20 @@ const waitForIndexReady = async (state: ExecutionStateType, client: McpSessionTy
 	while (performance.now() < deadline) {
 		// Readiness is a prerequisite for every query route; each poll is retained
 		// in the complete-route call record.
-		const outcome = await executeMcpPage(state, client, {kind: 'mcp', id: 'index-ready', tool: 'index_status', arguments: {}, collect: 'none'}, {}, page);
+		const outcome = await executeMcpPage({
+			state,
+			client,
+			step: {kind: 'mcp', id: 'index-ready', tool: 'index_status', arguments: {}, collect: 'none'},
+			args: {},
+			page,
+		});
 
 		if (outcome.status !== 'ok' || readyOf(outcome.structured)) {
 			return;
 		}
 
 		page += 1;
-		await new Promise<void>((resolve) => {
-			setTimeout(resolve, INDEX_READY_POLL_MS);
-		});
+		await delay(INDEX_READY_POLL_MS);
 	}
 
 	state.defects.push(`index did not become ready within ${INDEX_READY_TIMEOUT_MS} ms`);
@@ -279,7 +290,7 @@ const executeMcp = async (state: ExecutionStateType, client: McpSessionType, wor
 	while (!complete) {
 		// Cursor pages are sequential by definition: each next page depends on the
 		// cursor returned by the previous call.
-		const outcome = await executeMcpPage(state, client, step, args, page);
+		const outcome = await executeMcpPage({state, client, step, args, page});
 
 		if (outcome.status !== 'ok') {
 			return;
@@ -309,9 +320,9 @@ const executeMcp = async (state: ExecutionStateType, client: McpSessionType, wor
 	const collected = collectedPathsOf(
 		step.collect,
 		state.itemsByStep.get(step.id) ?? [],
-		step.exactName ?? (typeof step.arguments['query'] === 'string' ? step.arguments['query'] : null),
+		step.exactName ?? (typeof step.arguments.query === 'string' ? step.arguments.query : null),
 	);
-	const excluded = new Set(step.excludePaths ?? []);
+	const excluded = new Set(step.excludePaths ?? NO_PATHS);
 	const paths = collected.filter((path) => !excluded.has(path));
 
 	for (const path of filterKeptFiles(state, workspace, step, paths)) {

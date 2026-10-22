@@ -1,8 +1,10 @@
 import {spawn, type ChildProcess} from 'node:child_process';
+import {once} from 'node:events';
 import {mkdtempSync, rmSync} from 'node:fs';
-import {createServer, type IncomingMessage, type Server} from 'node:http';
+import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
+import {setTimeout as delay} from 'node:timers/promises';
 import {isolatedProcessEnvironmentOf} from './processEnvironment.ts';
 import {type ToolSurfaceType} from './treatment.ts';
 
@@ -29,7 +31,7 @@ const MAX_AGENT_TURNS = 8;
 const PROBE_TIMEOUT_MS = 120_000;
 
 /** Grace before a probe child group is killed outright. */
-const TERMINATE_GRACE_MS = 5_000;
+const TERMINATE_GRACE_MS = 5000;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -40,18 +42,18 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
  * @returns Tool names in request order; empty for a request without tools.
  */
 export const requestToolNamesOf = (body: unknown): readonly string[] => {
-	const tools = isRecord(body) ? body['tools'] : undefined;
+	const tools = isRecord(body) ? body.tools : undefined;
 
 	if (tools === undefined) {
 		return [];
 	}
 
 	if (!Array.isArray(tools)) {
-		throw new Error('provider request field "tools" must be an array');
+		throw new TypeError('provider request field "tools" must be an array');
 	}
 
 	return tools.map((tool) => {
-		const name = isRecord(tool) && isRecord(tool['function']) ? tool['function']['name'] : undefined;
+		const name = isRecord(tool) && isRecord(tool.function) ? tool.function.name : undefined;
 
 		if (typeof name !== 'string' || name.length === 0) {
 			throw new Error('provider request contains a tool without a function name');
@@ -90,11 +92,11 @@ export const capturedSurfaceOf = (requests: readonly unknown[]): CapturedSurface
 	return {tools: [...tools].sort(), agentRequests, titleRequests};
 };
 
-const sse = (response: import('node:http').ServerResponse, payload: unknown): void => {
+const sse = (response: ServerResponse, payload: unknown): void => {
 	response.write(`data: ${JSON.stringify(payload)}\n\n`);
 };
 
-const textResponseOf = (response: import('node:http').ServerResponse, text: string): void => {
+const textResponseOf = (response: ServerResponse, text: string): void => {
 	const base = {id: 'chatcmpl-surface-probe', object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: PROBE_MODEL};
 	response.writeHead(200, {'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive'});
 	sse(response, {...base, choices: [{index: 0, delta: {role: 'assistant', content: text}, finish_reason: null}]});
@@ -102,7 +104,7 @@ const textResponseOf = (response: import('node:http').ServerResponse, text: stri
 	response.end('data: [DONE]\n\n');
 };
 
-const toolCallResponseOf = (response: import('node:http').ServerResponse, turn: number): void => {
+const toolCallResponseOf = (response: ServerResponse, turn: number): void => {
 	const base = {id: `chatcmpl-surface-probe-${turn}`, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: PROBE_MODEL};
 	const call = {
 		...base,
@@ -135,17 +137,183 @@ const signalGroup = (child: ChildProcess, signal: NodeJS.Signals): void => {
 	}
 };
 
-const readBodyOf = (request: IncomingMessage): Promise<string> =>
-	new Promise((resolve, reject) => {
-		let body = '';
+const readBodyOf = async (request: IncomingMessage): Promise<string> => {
+	request.setEncoding('utf8');
+	let body = '';
 
-		request.setEncoding('utf8');
-		request.on('data', (chunk: string) => {
-			body += chunk;
-		});
-		request.on('end', () => resolve(body));
-		request.on('error', reject);
+	for await (const chunk of request) {
+		body += String(chunk);
+	}
+
+	return body;
+};
+
+/** Counters and observations accumulated across probe turns. */
+type ProbeStateType = {
+	observedTools: Set<string>;
+	lastSignature: string | null;
+	stableTurns: number;
+	agentTurns: number;
+	titleTurns: number;
+};
+
+/** MCP tools arrive only after the server connects, which is asynchronous. */
+const MCP_SETTLE_MS = 3000;
+/** Delay between probe turns so a connecting MCP server can publish its catalog. */
+const TURN_DELAY_MS = 600;
+/** Turns after which the probe stops waiting for a stable tool list. */
+const MIN_AGENT_TURNS = 3;
+
+const stateOf = (): ProbeStateType => ({observedTools: new Set<string>(), lastSignature: null, stableTurns: 0, agentTurns: 0, titleTurns: 0});
+
+const recordRequestOf = (state: ProbeStateType, body: unknown): 'title' | 'agent' => {
+	const names = requestToolNamesOf(body);
+
+	if (names.length === 0) {
+		state.titleTurns += 1;
+
+		return 'title';
+	}
+
+	state.agentTurns += 1;
+
+	for (const name of names) {
+		state.observedTools.add(name);
+	}
+
+	const signature = [...names].sort().join('\n');
+
+	state.stableTurns = signature === state.lastSignature ? state.stableTurns + 1 : 0;
+	state.lastSignature = signature;
+
+	return 'agent';
+};
+
+const respondToProbeOf = async (
+	input: Readonly<{
+		request: IncomingMessage;
+		response: ServerResponse;
+		state: ProbeStateType;
+		settle: (error: Error | null) => void;
+		startedAt: number;
+	}>,
+): Promise<void> => {
+	try {
+		const body = await readBodyOf(input.request);
+
+		if (input.request.url?.endsWith('/chat/completions') !== true) {
+			input.response.writeHead(404, {'content-type': 'application/json'});
+			input.response.end('{}');
+
+			return;
+		}
+
+		const parsed: unknown = JSON.parse(body);
+		const kind = recordRequestOf(input.state, parsed);
+		// MCP tools appear only after the server connects, which can be later
+		// than the first agent turn. Require several turns, a stable list, and
+		// enough elapsed time for a connecting server to publish its catalog.
+		const settledTurns = input.state.agentTurns >= MIN_AGENT_TURNS && input.state.stableTurns >= 1 && Date.now() - input.startedAt >= MCP_SETTLE_MS;
+		const complete = kind === 'agent' && (settledTurns || input.state.agentTurns >= MAX_AGENT_TURNS);
+
+		if (complete) {
+			textResponseOf(input.response, '{"files":[],"absent":true}');
+			input.settle(null);
+
+			return;
+		}
+
+		if (kind === 'agent') {
+			await delay(TURN_DELAY_MS);
+			toolCallResponseOf(input.response, input.state.agentTurns);
+
+			return;
+		}
+
+		textResponseOf(input.response, '{}');
+	} catch (error) {
+		input.settle(error instanceof Error ? error : new Error(String(error)));
+		input.response.writeHead(500, {'content-type': 'application/json'});
+		input.response.end('{}');
+	}
+};
+
+const probeServerOf = async (
+	state: ProbeStateType,
+	settle: (error: Error | null) => void,
+	startedAt: number,
+): Promise<Readonly<{server: Server; port: number}>> => {
+	const server = createServer((request, response) => {
+		void respondToProbeOf({request, response, state, settle, startedAt});
 	});
+	const listening = Promise.withResolvers<number>();
+
+	server.once('error', (error: Error) => {
+		listening.reject(error);
+	});
+	server.listen(0, '127.0.0.1', () => {
+		const address = server.address();
+
+		if (address === null || typeof address === 'string') {
+			listening.reject(new Error('surface probe server did not bind a TCP port'));
+
+			return;
+		}
+
+		listening.resolve(address.port);
+	});
+
+	return {server, port: await listening.promise};
+};
+
+const probeConfigOf = (port: number): Readonly<{providers: Readonly<Record<string, unknown>>}> => ({
+	providers: {
+		[PROBE_PROVIDER]: {
+			name: 'Surface Probe',
+			package: 'aisdk:@ai-sdk/openai-compatible',
+			settings: {baseURL: `http://127.0.0.1:${port}/v1`},
+			models: {[PROBE_MODEL]: {}},
+		},
+	},
+});
+
+const awaitProbeOf = async (
+	input: Readonly<{settled: Promise<Error | null>; timeoutMs: number; state: ProbeStateType; stderrOf: () => string}>,
+): Promise<void> => {
+	const timeout = Promise.withResolvers<'timed-out'>();
+	const timer = setTimeout(() => {
+		timeout.resolve('timed-out');
+	}, input.timeoutMs);
+	const outcome = await Promise.race([input.settled.then((reason) => ({kind: 'settled' as const, failure: reason})), timeout.promise]);
+
+	clearTimeout(timer);
+
+	if (typeof outcome !== 'string' && outcome.failure !== null) {
+		throw outcome.failure;
+	}
+
+	if (outcome === 'timed-out') {
+		throw new Error(`surface probe timed out after ${input.timeoutMs} ms; stderr: ${input.stderrOf()}`);
+	}
+
+	if (input.state.agentTurns === 0) {
+		throw new Error(`surface probe observed no tool-bearing request; stderr: ${input.stderrOf()}`);
+	}
+};
+
+const terminateProbeOf = async (child: ChildProcess): Promise<void> => {
+	signalGroup(child, 'SIGTERM');
+
+	const deadline = Date.now() + TERMINATE_GRACE_MS;
+
+	while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) {
+		await delay(50);
+	}
+
+	if (child.exitCode === null && child.signalCode === null) {
+		signalGroup(child, 'SIGKILL');
+	}
+};
 
 /**
  * Captures the exact tool list OpenCode sends to a provider.
@@ -170,133 +338,25 @@ export const capturePresentedTools = async (
 ): Promise<CapturedSurfaceType> => {
 	const workspace = path.resolve(input.workspace);
 	const dataHome = mkdtempSync(path.join(tmpdir(), 'codeindex-surface-'));
-	let child: ChildProcess | null = null;
-	let server: Server | null = null;
-	let settle: () => void = () => undefined;
-
-	const settled = new Promise<void>((resolve) => {
-		settle = resolve;
-	});
-
-	const observedTools = new Set<string>();
-	let lastSignature: string | null = null;
-	let stableTurns = 0;
-	let agentTurns = 0;
-	let titleTurns = 0;
-	let failure: Error | null = null;
+	const state = stateOf();
 	const startedAt = Date.now();
-
-	/** MCP tools arrive only after the server connects, which is asynchronous. */
-	const MCP_SETTLE_MS = 3_000;
-	/** Delay between probe turns so a connecting MCP server can publish its catalog. */
-	const TURN_DELAY_MS = 600;
-
-	const record = (body: unknown): 'title' | 'agent' => {
-		const names = requestToolNamesOf(body);
-
-		if (names.length === 0) {
-			titleTurns += 1;
-
-			return 'title';
-		}
-
-		agentTurns += 1;
-
-		for (const name of names) {
-			observedTools.add(name);
-		}
-
-		const signature = [...names].sort().join('\n');
-		stableTurns = signature === lastSignature ? stableTurns + 1 : 0;
-		lastSignature = signature;
-
-		return 'agent';
-	};
-
-	server = createServer((request, response) => {
-		void (async () => {
-			try {
-				const body = await readBodyOf(request);
-
-				if (request.url?.endsWith('/chat/completions') !== true) {
-					response.writeHead(404, {'content-type': 'application/json'});
-					response.end('{}');
-
-					return;
-				}
-
-				const parsed: unknown = JSON.parse(body);
-				const kind = record(parsed);
-				// MCP tools appear only after the server connects, which can be later
-				// than the first agent turn. Require several turns, a stable list, and
-				// enough elapsed time for a connecting server to publish its catalog.
-				const complete =
-					kind === 'agent' && ((agentTurns >= 3 && stableTurns >= 1 && Date.now() - startedAt >= MCP_SETTLE_MS) || agentTurns >= MAX_AGENT_TURNS);
-
-				if (complete) {
-					textResponseOf(response, '{"files":[],"absent":true}');
-					settle();
-
-					return;
-				}
-
-				if (kind === 'agent') {
-					await new Promise<void>((resolve) => {
-						setTimeout(resolve, TURN_DELAY_MS);
-					});
-					toolCallResponseOf(response, agentTurns);
-
-					return;
-				}
-
-				textResponseOf(response, '{}');
-			} catch (error) {
-				failure = error instanceof Error ? error : new Error(String(error));
-				response.writeHead(500, {'content-type': 'application/json'});
-				response.end('{}');
-				settle();
-			}
-		})();
-	});
-
-	const listening = await new Promise<number>((resolve, reject) => {
-		server?.once('error', reject);
-		server?.listen(0, '127.0.0.1', () => {
-			const address = server?.address();
-
-			if (address === null || address === undefined || typeof address === 'string') {
-				reject(new Error('surface probe server did not bind a TCP port'));
-
-				return;
-			}
-
-			resolve(address.port);
-		});
-	});
-
-	const config = {
-		providers: {
-			[PROBE_PROVIDER]: {
-				name: 'Surface Probe',
-				package: 'aisdk:@ai-sdk/openai-compatible',
-				settings: {baseURL: `http://127.0.0.1:${listening}/v1`},
-				models: {[PROBE_MODEL]: {}},
-			},
-		},
-	};
-	const environment = isolatedProcessEnvironmentOf({
-		PWD: workspace,
-		OPENCODE_DB: ':memory:',
-		OPENCODE_DISABLE_TELEMETRY: '1',
-		XDG_DATA_HOME: dataHome,
-		OPENCODE_CONFIG_CONTENT: JSON.stringify(config),
-	});
-
-	delete environment['OPENCODE_SESSION_ID'];
-
-	let stderr = '';
+	const {promise: settled, resolve: settle} = Promise.withResolvers<Error | null>();
+	const {server, port} = await probeServerOf(state, settle, startedAt);
+	let child: ChildProcess | null = null;
 
 	try {
+		const environment = isolatedProcessEnvironmentOf({
+			PWD: workspace,
+			OPENCODE_DB: ':memory:',
+			OPENCODE_DISABLE_TELEMETRY: '1',
+			XDG_DATA_HOME: dataHome,
+			OPENCODE_CONFIG_CONTENT: JSON.stringify(probeConfigOf(port)),
+		});
+
+		delete environment['OPENCODE_SESSION_ID'];
+
+		let stderr = '';
+
 		child = spawn(
 			input.command ?? 'opencode',
 			['run', '--standalone', '--agent', 'evaluator', '--model', `${PROBE_PROVIDER}/${PROBE_MODEL}`, '--format', 'json', '--auto', PROBE_PROMPT],
@@ -307,56 +367,30 @@ export const capturePresentedTools = async (
 			stderr += chunk;
 		});
 		child.on('error', (error) => {
-			failure = error;
-			settle();
+			settle(error);
 		});
 		child.on('close', () => {
-			settle();
+			settle(null);
 		});
 
-		const timeoutMs = input.timeoutMs ?? PROBE_TIMEOUT_MS;
-		let timer: NodeJS.Timeout | undefined;
-		const timedOut = new Promise<'timed-out'>((resolve) => {
-			timer = setTimeout(() => resolve('timed-out'), timeoutMs);
+		await awaitProbeOf({
+			settled,
+			timeoutMs: input.timeoutMs ?? PROBE_TIMEOUT_MS,
+			state,
+			stderrOf: () => stderr.slice(-2000),
 		});
-		const outcome = await Promise.race([settled.then(() => 'settled' as const), timedOut]);
 
-		clearTimeout(timer);
-
-		if (failure !== null) {
-			throw failure;
-		}
-
-		if (outcome === 'timed-out') {
-			throw new Error(`surface probe timed out after ${timeoutMs} ms; stderr: ${stderr.slice(-2_000)}`);
-		}
-
-		if (agentTurns === 0) {
-			throw new Error(`surface probe observed no tool-bearing request; stderr: ${stderr.slice(-2_000)}`);
-		}
-
-		return {tools: [...observedTools].sort(), agentRequests: agentTurns, titleRequests: titleTurns};
+		return {tools: [...state.observedTools].sort(), agentRequests: state.agentTurns, titleRequests: state.titleTurns};
 	} finally {
 		if (child !== null) {
-			signalGroup(child, 'SIGTERM');
-
-			const deadline = Date.now() + TERMINATE_GRACE_MS;
-
-			while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) {
-				await new Promise<void>((resolve) => {
-					setTimeout(resolve, 50);
-				});
-			}
-
-			if (child.exitCode === null && child.signalCode === null) {
-				signalGroup(child, 'SIGKILL');
-			}
+			await terminateProbeOf(child);
 		}
 
 		server.closeAllConnections();
-		await new Promise<void>((resolve) => {
-			server?.close(() => resolve());
-		});
+		const closed = once(server, 'close');
+
+		server.close();
+		await closed;
 		rmSync(dataHome, {recursive: true, force: true});
 	}
 };

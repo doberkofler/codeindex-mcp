@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict';
-import {spawnSync} from 'node:child_process';
+import {spawnSync, type SpawnSyncReturns} from 'node:child_process';
 import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test, {type TestContext} from 'node:test';
-import {fileURLToPath} from 'node:url';
 import {CASE_SCHEMA_VERSION, SUITE_SCHEMA_VERSION, canonicalJson, caseHashOf, caseOf, hashOf, suiteFieldsOf} from './schema.ts';
 import {loadSuite, planHashOf, planOf, selectCases} from './suite.ts';
 import {treatmentHashOf} from './treatment.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = path.resolve(import.meta.dirname, '..');
 
 const baseCase = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
 	schemaVersion: CASE_SCHEMA_VERSION,
@@ -22,8 +21,8 @@ const baseCase = (overrides: Record<string, unknown> = {}): Record<string, unkno
 	expectedFiles: ['src/a.ts'],
 	contextFiles: [],
 	forbiddenFiles: [],
-	workflow: {maxTotalCalls: 12, requiredFirstTool: null, maxOutputBytes: 1_000},
-	timeoutMs: 1_000,
+	workflow: {maxTotalCalls: 12, requiredFirstTool: null, maxOutputBytes: 1000},
+	timeoutMs: 1000,
 	...overrides,
 });
 
@@ -85,7 +84,7 @@ const corpus = (
 	return {root, suitePath};
 };
 
-test('case schema accepts version 1 and applies empty defaults', () => {
+void test('case schema accepts version 1 and applies empty defaults', () => {
 	const parsed = caseOf(baseCase({contextFiles: undefined, forbiddenFiles: undefined}));
 
 	assert.equal(parsed.schemaVersion, CASE_SCHEMA_VERSION);
@@ -94,24 +93,24 @@ test('case schema accepts version 1 and applies empty defaults', () => {
 	assert.equal(parsed.workflow.requiredFirstTool, null);
 });
 
-test('case schema rejects missing, unknown, and unsupported fields', () => {
+void test('case schema rejects missing, unknown, and unsupported fields', () => {
 	const missingVersion = baseCase();
-	delete missingVersion['schemaVersion'];
-	assert.throws(() => caseOf(missingVersion), /schemaVersion.*required/);
-	assert.throws(() => caseOf(baseCase({schemaVersion: 2})), /schemaVersion/);
-	assert.throws(() => caseOf(baseCase({unexpected: true})), /unknown field.*unexpected/);
-	assert.throws(() => caseOf(baseCase({workflow: {maxTotalCalls: 1, requiredFirstTool: null, maxOutputBytes: 1, extra: true}})), /unknown field.*extra/);
-	assert.throws(() => caseOf(baseCase({tags: ['locate', 'locate']})), /duplicates/);
+	delete missingVersion.schemaVersion;
+	assert.throws(() => caseOf(missingVersion), /schemaVersion.*required/u);
+	assert.throws(() => caseOf(baseCase({schemaVersion: 2})), /schemaVersion/u);
+	assert.throws(() => caseOf(baseCase({unexpected: true})), /unknown field.*unexpected/u);
+	assert.throws(() => caseOf(baseCase({workflow: {maxTotalCalls: 1, requiredFirstTool: null, maxOutputBytes: 1, extra: true}})), /unknown field.*extra/u);
+	assert.throws(() => caseOf(baseCase({tags: ['locate', 'locate']})), /duplicates/u);
 });
 
-test('case schema accepts the semantic class used by class-stratified reports', () => {
+void test('case schema accepts the semantic class used by class-stratified reports', () => {
 	const parsed = caseOf(baseCase({class: 'semantic'}));
 
 	assert.equal(parsed.class, 'semantic');
-	assert.throws(() => caseOf(baseCase({class: 'bogus'})), /class.*must be one of/);
+	assert.throws(() => caseOf(baseCase({class: 'bogus'})), /class.*must be one of/u);
 });
 
-test('case schema defaults optional workflow and post-run fields', () => {
+void test('case schema defaults optional workflow and post-run fields', () => {
 	const parsed = caseOf(baseCase({check: {command: 'node', args: ['--test'], expectedExitCode: 0}}));
 
 	assert.deepEqual(parsed.workflow.requiredTools, []);
@@ -131,37 +130,37 @@ test('case schema defaults optional workflow and post-run fields', () => {
 	});
 });
 
-test('case schema rejects incomplete, overlapping, and subjective ground truth', () => {
-	assert.throws(() => caseOf(baseCase({expectedFiles: []})), /expectedFiles.*must not be empty/);
-	assert.throws(() => caseOf(baseCase({contextFiles: ['src/a.ts']})), /expectedFiles.*contextFiles.*overlap/);
-	assert.throws(() => caseOf(baseCase({forbiddenFiles: ['src/a.ts']})), /forbiddenFiles.*overlaps/);
+void test('case schema rejects incomplete, overlapping, and subjective ground truth', () => {
+	assert.throws(() => caseOf(baseCase({expectedFiles: []})), /expectedFiles.*must not be empty/u);
+	assert.throws(() => caseOf(baseCase({contextFiles: ['src/a.ts']})), /expectedFiles.*contextFiles.*overlap/u);
+	assert.throws(() => caseOf(baseCase({forbiddenFiles: ['src/a.ts']})), /forbiddenFiles.*overlaps/u);
 	assert.throws(
 		() => caseOf(baseCase({workflow: {maxTotalCalls: 1, maxOutputBytes: 1, requiredTools: ['read'], forbiddenTools: ['read']}})),
-		/requiredTools.*forbiddenTools.*overlap/,
+		/requiredTools.*forbiddenTools.*overlap/u,
 	);
 });
 
-test('case schema rejects malformed workflow and post-run predicates', () => {
-	assert.throws(() => caseOf(baseCase({workflow: {maxTotalCalls: 1, maxOutputBytes: 1, maxCallsByFamily: {bogus: 1}}})), /unknown tool family/);
-	assert.throws(() => caseOf(baseCase({workflow: {maxTotalCalls: 1, maxOutputBytes: 1, maxCallsByFamily: {search: -1}}})), /non-negative integer/);
-	assert.throws(() => caseOf(baseCase({check: {command: 'node', args: ['--test'], expectedExitCode: 300}})), /expectedExitCode/);
-	assert.throws(() => caseOf(baseCase({check: {command: '', args: []}})), /check.command/);
+void test('case schema rejects malformed workflow and post-run predicates', () => {
+	assert.throws(() => caseOf(baseCase({workflow: {maxTotalCalls: 1, maxOutputBytes: 1, maxCallsByFamily: {bogus: 1}}})), /unknown tool family/u);
+	assert.throws(() => caseOf(baseCase({workflow: {maxTotalCalls: 1, maxOutputBytes: 1, maxCallsByFamily: {search: -1}}})), /non-negative integer/u);
+	assert.throws(() => caseOf(baseCase({check: {command: 'node', args: ['--test'], expectedExitCode: 300}})), /expectedExitCode/u);
+	assert.throws(() => caseOf(baseCase({check: {command: '', args: []}})), /check.command/u);
 });
 
-test('suite schema accepts version 2 and rejects unknown or unsupported fields', () => {
+void test('suite schema accepts version 2 and rejects unknown or unsupported fields', () => {
 	const parsed = suiteFieldsOf(baseSuite());
 
 	assert.equal(parsed.schemaVersion, SUITE_SCHEMA_VERSION);
 	assert.equal(parsed.caseHashes, null);
-	assert.throws(() => suiteFieldsOf(baseSuite({schemaVersion: 3})), /schemaVersion/);
-	assert.throws(() => suiteFieldsOf(baseSuite({unexpected: true})), /unknown field.*unexpected/);
-	assert.throws(() => suiteFieldsOf(baseSuite({cases: []})), /must not be empty/);
-	assert.throws(() => suiteFieldsOf(baseSuite({schemaVersion: 1})), /schemaVersion/);
-	assert.throws(() => suiteFieldsOf(baseSuite({treatments: []})), /treatments.*non-empty/);
-	assert.throws(() => suiteFieldsOf(baseSuite({treatments: baseTreatments().slice(0, 2)})), /missing treatment/);
+	assert.throws(() => suiteFieldsOf(baseSuite({schemaVersion: 3})), /schemaVersion/u);
+	assert.throws(() => suiteFieldsOf(baseSuite({unexpected: true})), /unknown field.*unexpected/u);
+	assert.throws(() => suiteFieldsOf(baseSuite({cases: []})), /must not be empty/u);
+	assert.throws(() => suiteFieldsOf(baseSuite({schemaVersion: 1})), /schemaVersion/u);
+	assert.throws(() => suiteFieldsOf(baseSuite({treatments: []})), /treatments.*non-empty/u);
+	assert.throws(() => suiteFieldsOf(baseSuite({treatments: baseTreatments().slice(0, 2)})), /missing treatment/u);
 });
 
-test('frozen suite requires a hash for every case and rejects changed content', (testContext) => {
+void test('frozen suite requires a hash for every case and rejects changed content', (testContext) => {
 	const original = baseCase();
 	const pinned = caseHashOf(caseOf(original));
 	const suite = baseSuite({status: 'frozen', caseHashes: {'case-a': pinned}});
@@ -170,26 +169,26 @@ test('frozen suite requires a hash for every case and rejects changed content', 
 
 	assert.equal(loaded.suite.status, 'frozen');
 	assert.deepEqual(loaded.suite.caseHashes, {'case-a': pinned});
-	assert.match(loaded.suite.hash, /^[0-9a-f]{64}$/);
+	assert.match(loaded.suite.hash, /^[0-9a-f]{64}$/u);
 
 	const changed = baseCase({prompt: 'Changed prompt'});
 	writeFileSync(path.join(path.dirname(path.dirname(suitePath)), 'cases', 'case-a.json'), `${JSON.stringify(changed, null, '\t')}\n`, 'utf8');
-	assert.throws(() => loadSuite(suitePath), /new suite version/);
+	assert.throws(() => loadSuite(suitePath), /new suite version/u);
 });
 
-test('frozen suite rejects a missing case hash set', () => {
-	assert.throws(() => suiteFieldsOf(baseSuite({status: 'frozen'})), /caseHashes.*required/);
-	assert.throws(() => suiteFieldsOf(baseSuite({status: 'frozen', caseHashes: {}})), /exactly one entry per listed case/);
+void test('frozen suite rejects a missing case hash set', () => {
+	assert.throws(() => suiteFieldsOf(baseSuite({status: 'frozen'})), /caseHashes.*required/u);
+	assert.throws(() => suiteFieldsOf(baseSuite({status: 'frozen', caseHashes: {}})), /exactly one entry per listed case/u);
 });
 
-test('canonical hashing ignores object key order and remains stable', () => {
+void test('canonical hashing ignores object key order and remains stable', () => {
 	assert.equal(canonicalJson({b: 2, a: [1, {d: 4, c: 3}]}), '{"a":[1,{"c":3,"d":4}],"b":2}');
 	assert.equal(hashOf({b: 2, a: 1}), hashOf({a: 1, b: 2}));
 	assert.notEqual(hashOf({a: 1}), hashOf({a: 2}));
 	assert.equal(caseHashOf(caseOf(baseCase())), caseHashOf(caseOf(baseCase())));
 });
 
-test('suite and treatment hashes are stable and content-bound', (testContext) => {
+void test('suite and treatment hashes are stable and content-bound', (testContext) => {
 	const {suitePath} = corpus(testContext, {
 		suite: baseSuite(),
 		cases: {'case-a': baseCase()},
@@ -215,7 +214,7 @@ test('suite and treatment hashes are stable and content-bound', (testContext) =>
 	assert.notEqual(loadSuite(suitePath).suite.hash, first.suite.hash);
 });
 
-test('case selection is an ordered union and tags intersect', () => {
+void test('case selection is an ordered union and tags intersect', () => {
 	const cases = [
 		caseOf(baseCase({id: 'case-a', tags: ['locate', 'schema']})),
 		caseOf(baseCase({id: 'case-b', tags: ['locate']})),
@@ -234,12 +233,12 @@ test('case selection is an ordered union and tags intersect', () => {
 		selectCases(cases, {caseIds: ['case-b', 'case-c'], tags: ['locate']}).map((item) => item.id),
 		['case-b'],
 	);
-	assert.throws(() => selectCases(cases, {caseIds: ['missing']}), /unknown case/);
-	assert.throws(() => selectCases(cases, {tags: ['missing']}), /selection is empty/);
-	assert.throws(() => selectCases(cases, {caseIds: ['case-a'], tags: ['impact']}), /selection is empty/);
+	assert.throws(() => selectCases(cases, {caseIds: ['missing']}), /unknown case/u);
+	assert.throws(() => selectCases(cases, {tags: ['missing']}), /selection is empty/u);
+	assert.throws(() => selectCases(cases, {caseIds: ['case-a'], tags: ['impact']}), /selection is empty/u);
 });
 
-test('repeated selection produces the same ordered plan and hash', () => {
+void test('repeated selection produces the same ordered plan and hash', () => {
 	const cases = [caseOf(baseCase({id: 'case-a'})), caseOf(baseCase({id: 'case-b'}))];
 	const first = planOf(selectCases(cases, {caseIds: ['case-b', 'case-a']}), ['no-index', 'accepted'], 2);
 	const second = planOf(selectCases(cases, {caseIds: ['case-b', 'case-a']}), ['no-index', 'accepted'], 2);
@@ -282,6 +281,7 @@ const cliSandbox = (testContext: TestContext): Readonly<{root: string; env: Node
 			"const config = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT ?? '{}');",
 			"const base = config.providers?.['surface-probe']?.settings?.baseURL;",
 			'const post = async (tools) => {',
+			// oxlint-disable-next-line eslint/no-template-curly-in-string -- The text is generated fixture source; the placeholder interpolates only when that script runs.
 			"	await fetch(`${base}/chat/completions`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({tools})});",
 			'};',
 			'await post([]);',
@@ -339,13 +339,13 @@ const cliSandbox = (testContext: TestContext): Readonly<{root: string; env: Node
 
 	return {
 		root,
-		env: {...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}`, MARKER: marker, EVALUATION_ROOT: root, EVAL_PACE_MS: '0'},
+		env: {...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, MARKER: marker, EVALUATION_ROOT: root, EVAL_PACE_MS: '0'},
 		marker,
 		suitePath: 'evaluation/suites/suite.json',
 	};
 };
 
-test('--list and --dry-run start no model process', (testContext) => {
+void test('--list and --dry-run start no model process', (testContext) => {
 	const fixture = cliSandbox(testContext);
 	const list = spawnSync(process.execPath, ['src/cli.ts', 'list', '--suite', fixture.suitePath], {
 		cwd: fixture.root,
@@ -360,11 +360,11 @@ test('--list and --dry-run start no model process', (testContext) => {
 
 	assert.equal(list.status, 0, list.stderr);
 	assert.equal(dryRun.status, 0, dryRun.stderr);
-	assert.match(dryRun.stderr, /plan-hash [0-9a-f]{64}/);
+	assert.match(dryRun.stderr, /plan-hash [0-9a-f]{64}/u);
 	assert.equal(existsSync(fixture.marker), false);
 });
 
-test('an empty selection fails before any process starts', (testContext) => {
+void test('an empty selection fails before any process starts', (testContext) => {
 	const fixture = cliSandbox(testContext);
 	const result = spawnSync(process.execPath, ['src/cli.ts', 'evaluate', '--suite', fixture.suitePath, '--case', 'missing-case', '--dry-run'], {
 		cwd: fixture.root,
@@ -373,13 +373,13 @@ test('an empty selection fails before any process starts', (testContext) => {
 	});
 
 	assert.equal(result.status, 1);
-	assert.match(result.stderr, /unknown case "missing-case"/);
+	assert.match(result.stderr, /unknown case "missing-case"/u);
 	assert.equal(existsSync(fixture.marker), false);
 });
 
-test('resume reuses completed slots and reruns only missing or partial ones', (testContext) => {
+void test('resume reuses completed slots and reruns only missing or partial ones', (testContext) => {
 	const fixture = cliSandbox(testContext);
-	const evaluate = (flags: readonly string[]) =>
+	const evaluate = (flags: readonly string[]): SpawnSyncReturns<string> =>
 		spawnSync(
 			process.execPath,
 			['src/cli.ts', 'evaluate', '--suite', fixture.suitePath, '--case', 'case-a', '--treatment', 'no-index', '--repetitions', '2', ...flags],
@@ -390,7 +390,7 @@ test('resume reuses completed slots and reruns only missing or partial ones', (t
 
 		return existsSync(root)
 			? readdirSync(root, {recursive: true, encoding: 'utf8'})
-					.filter((entry) => /^attempt-\d+\.json$/.test(path.basename(entry)))
+					.filter((entry) => /^attempt-\d+\.json$/u.test(path.basename(entry)))
 					.map((entry) => path.join(root, entry))
 					.sort()
 			: [];
@@ -407,14 +407,14 @@ test('resume reuses completed slots and reruns only missing or partial ones', (t
 
 	assert.equal(resumed.status, 0, resumed.stderr);
 	assert.equal(invocations(), 2);
-	assert.match(resumed.stderr, /resumed attempt 1/);
+	assert.match(resumed.stderr, /resumed attempt 1/u);
 
 	const [truncated, removed] = resultFiles();
 
 	assert.notEqual(truncated, undefined);
-	assert.notEqual(removed, undefined);
-	writeFileSync(truncated!, '{"recordType":"result"', 'utf8');
-	rmSync(removed!);
+	assert.ok(truncated !== undefined && removed !== undefined);
+	writeFileSync(truncated, '{"recordType":"result"', 'utf8');
+	rmSync(removed);
 
 	const repaired = evaluate(['--resume']);
 

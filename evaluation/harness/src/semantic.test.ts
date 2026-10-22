@@ -2,12 +2,11 @@ import assert from 'node:assert/strict';
 import {readFileSync, readdirSync, statSync} from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import {fileURLToPath} from 'node:url';
 import ts from 'typescript';
 import {caseOf, type CaseType} from './schema.ts';
 import {loadSuite} from './suite.ts';
 
-const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const HARNESS_ROOT = path.resolve(import.meta.dirname, '..');
 const EVALUATION_ROOT = path.resolve(HARNESS_ROOT, '..');
 const FIXTURE_ROOT = path.join(EVALUATION_ROOT, 'fixtures', 'controlled-typescript');
 const FIXTURE_PREFIX = 'evaluation/fixtures/controlled-typescript';
@@ -76,7 +75,7 @@ type LanguageServiceType = Readonly<{service: ts.LanguageService; program: ts.Pr
 
 const languageServiceOf = (root: string): LanguageServiceType => {
 	const configPath = path.join(root, 'tsconfig.json');
-	const config = ts.readConfigFile(configPath, ts.sys.readFile);
+	const config = ts.readConfigFile(configPath, (fileName) => ts.sys.readFile(fileName));
 
 	if (config.error !== undefined) {
 		throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'));
@@ -95,11 +94,11 @@ const languageServiceOf = (root: string): LanguageServiceType => {
 		getCurrentDirectory: () => root,
 		getCompilationSettings: () => options,
 		getDefaultLibFileName: (compilerOptions) => ts.getDefaultLibFilePath(compilerOptions),
-		fileExists: ts.sys.fileExists,
-		readFile: ts.sys.readFile,
-		readDirectory: ts.sys.readDirectory,
-		directoryExists: ts.sys.directoryExists,
-		getDirectories: ts.sys.getDirectories,
+		fileExists: ts.sys.fileExists.bind(ts.sys),
+		readFile: ts.sys.readFile.bind(ts.sys),
+		readDirectory: ts.sys.readDirectory.bind(ts.sys),
+		directoryExists: ts.sys.directoryExists.bind(ts.sys),
+		getDirectories: ts.sys.getDirectories.bind(ts.sys),
 	};
 	const service = ts.createLanguageService(host, ts.createDocumentRegistry());
 	const program = service.getProgram();
@@ -196,7 +195,7 @@ const truthFilesOf = (language: LanguageServiceType, probe: ProbeType): readonly
 
 	for (const symbol of symbols) {
 		for (const reference of symbol.references) {
-			if (reference.isDefinition) {
+			if (reference.isDefinition === true) {
 				continue;
 			}
 
@@ -267,7 +266,7 @@ const grepMeasurementOf = (identifier: string, expected: readonly string[]): Gre
 
 const language = languageServiceOf(FIXTURE_ROOT);
 
-test('controlled TypeScript fixture compiles without diagnostics', () => {
+void test('controlled TypeScript fixture compiles without diagnostics', () => {
 	const diagnostics = ts.getPreEmitDiagnostics(language.program);
 
 	assert.deepEqual(
@@ -276,7 +275,7 @@ test('controlled TypeScript fixture compiles without diagnostics', () => {
 	);
 });
 
-test('controlled semantic suite loads six semantic cases', () => {
+void test('controlled semantic suite loads six semantic cases', () => {
 	const {suite, cases} = loadSuite(path.join(EVALUATION_ROOT, 'suites', 'semantic.json'));
 
 	assert.equal(suite.id, 'controlled-typescript-semantic');
@@ -289,7 +288,7 @@ test('controlled semantic suite loads six semantic cases', () => {
 });
 
 for (const probe of PROBES) {
-	test(`${probe.caseId} matches the language service and admits no exact identifier grep`, () => {
+	void test(`${probe.caseId} matches the language service and admits no exact identifier grep`, () => {
 		const testCase = caseOfId(probe.caseId);
 		const expected = [...testCase.expectedFiles].sort();
 		const truth = truthFilesOf(language, probe);

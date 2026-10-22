@@ -1,5 +1,6 @@
-import {spawn, type ChildProcess} from 'node:child_process';
+import {spawn} from 'node:child_process';
 import {assertionOf, resultOf, type AssertionType, type CheckResultType} from './assertions.ts';
+import {runChildOf} from './childProcess.ts';
 import {type PostRunCheckType} from './schema.ts';
 
 /** Deterministic post-run command result, independent of answer and workflow. */
@@ -19,33 +20,7 @@ export type PostRunResultType = Readonly<{
 	assertions: readonly AssertionType[];
 }>;
 
-const OUTPUT_TAIL = 4_000;
-const TERMINATE_GRACE_MS = 2_000;
-const HARD_CLOSE_GRACE_MS = 5_000;
-
-/**
- * Signals the post-run process group, falling back to the direct child.
- *
- * @param child - Spawned command.
- * @param signal - Signal to deliver.
- */
-const signalGroup = (child: ChildProcess, signal: NodeJS.Signals): void => {
-	if (child.pid === undefined) {
-		return;
-	}
-
-	if (process.platform === 'win32') {
-		child.kill(signal);
-
-		return;
-	}
-
-	try {
-		process.kill(-child.pid, signal);
-	} catch {
-		child.kill(signal);
-	}
-};
+const OUTPUT_TAIL = 4000;
 
 const assertionsOf = (check: PostRunCheckType, exitCode: number | null, timedOut: boolean, error: string | null): readonly AssertionType[] => [
 	assertionOf({
@@ -78,14 +53,12 @@ const resultWith = (
 ): PostRunResultType => {
 	const assertions = assertionsOf(check, input.exitCode, input.timedOut, input.error);
 	const result = resultOf(assertions);
-	const reason =
-		input.error !== null
-			? input.error
-			: input.timedOut
-				? `post-run command timed out after ${check.timeoutMs} ms`
-				: input.exitCode === check.expectedExitCode
-					? 'post-run command matched the expected exit code'
-					: `post-run command exited ${input.exitCode ?? 'without a status'}, expected ${check.expectedExitCode}`;
+	const exitReason = input.timedOut
+		? `post-run command timed out after ${check.timeoutMs} ms`
+		: input.exitCode === check.expectedExitCode
+			? 'post-run command matched the expected exit code'
+			: `post-run command exited ${input.exitCode ?? 'without a status'}, expected ${check.expectedExitCode}`;
+	const reason = input.error ?? exitReason;
 
 	return {
 		result,
@@ -158,64 +131,8 @@ export const postRunOf = async (check: PostRunCheckType, cwd: string): Promise<P
 		detached: process.platform !== 'win32',
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
-	let stdout = '';
-	let stderr = '';
-	let timedOut = false;
-	let spawnError: string | null = null;
-	let timeoutTimer: NodeJS.Timeout | undefined;
-	let escalationTimer: NodeJS.Timeout | undefined;
-	let hardCloseTimer: NodeJS.Timeout | undefined;
-
-	child.stdout.setEncoding('utf8');
-	child.stderr.setEncoding('utf8');
-	child.stdout.on('data', (chunk: string) => {
-		stdout += chunk;
-	});
-	child.stderr.on('data', (chunk: string) => {
-		stderr += chunk;
-	});
-
-	const exit = await new Promise<Readonly<{code: number | null; signal: NodeJS.Signals | null}>>((resolve) => {
-		let settled = false;
-
-		const finish = (code: number | null, signal: NodeJS.Signals | null): void => {
-			if (settled) {
-				return;
-			}
-
-			settled = true;
-			clearTimeout(timeoutTimer);
-			clearTimeout(escalationTimer);
-			clearTimeout(hardCloseTimer);
-			resolve({code, signal});
-		};
-
-		child.on('close', (code, signal) => {
-			finish(code, signal);
-		});
-		child.on('error', (error: Error) => {
-			spawnError = error.message;
-			finish(null, null);
-		});
-
-		timeoutTimer = setTimeout(() => {
-			timedOut = true;
-			signalGroup(child, 'SIGTERM');
-			escalationTimer = setTimeout(() => {
-				signalGroup(child, 'SIGKILL');
-			}, TERMINATE_GRACE_MS);
-		}, check.timeoutMs);
-
-		hardCloseTimer = setTimeout(
-			() => {
-				child.stdout?.destroy();
-				child.stderr?.destroy();
-				child.unref();
-				finish(null, 'SIGKILL');
-			},
-			check.timeoutMs + TERMINATE_GRACE_MS + HARD_CLOSE_GRACE_MS,
-		);
-	});
+	const run = await runChildOf({child, timeoutMs: check.timeoutMs});
+	const {stdout, stderr, timedOut, spawnError, exit} = run;
 
 	return resultWith(check, {
 		exitCode: exit.code,

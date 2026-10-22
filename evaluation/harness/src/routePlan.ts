@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {hashOf} from './hash.ts';
 import {type CaseType, type SuiteType} from './schema.ts';
+import {CONTRACT_KEYS, FAILURE_KEYS, PAGINATION_KEYS, STALE_FILE_KEYS, TRUNCATION_KEYS, type ContractPlanType} from './routeContractPlan.ts';
 
 /** Version of the model-free route plan schema understood by this harness. */
 export const ROUTE_PLAN_SCHEMA_VERSION = 1 as const;
@@ -80,34 +81,6 @@ export type RouteType = Readonly<{
 	projectFile?: string;
 }>;
 
-/** Generic interface-contract probes executed against one artifact. */
-export type ContractPlanType = Readonly<{
-	pagination: Readonly<{
-		tool: RouteMcpToolType;
-		arguments: Readonly<Record<string, unknown>>;
-		/** Hard bound that prevents a broken cursor from looping forever. */
-		maxPages: number;
-	}>;
-	truncation: Readonly<{
-		/** Artifact response budget used for this probe only. */
-		maxResultBytes: number;
-		tool: RouteMcpToolType;
-		arguments: Readonly<Record<string, unknown>>;
-	}>;
-	staleFile: Readonly<{
-		/** Exact symbol query that resolves one indexed declaration. */
-		query: string;
-		/** Expected definition path of that symbol. */
-		path: string;
-	}>;
-	failure: Readonly<{
-		tool: RouteMcpToolType;
-		arguments: Readonly<Record<string, unknown>>;
-		expectedErrorCode: string;
-	}>;
-}>;
-
-/** A model-free route plan pinned to one suite version. */
 export type RoutePlanType = Readonly<{
 	schemaVersion: typeof ROUTE_PLAN_SCHEMA_VERSION;
 	id: string;
@@ -123,13 +96,8 @@ const TEXT_SEARCH_KEYS = new Set(['kind', 'id', 'pattern', 'path', 'extensions',
 const TEXT_READ_KEYS = new Set(['kind', 'id', 'path', 'collect']);
 const MCP_KEYS = new Set(['kind', 'id', 'tool', 'arguments', 'collect', 'exactName', 'followCursor', 'symbolFrom', 'excludePaths', 'keepFilesMatching']);
 const SYMBOL_SELECTION_KEYS = new Set(['fromStep', 'path', 'name']);
-const CONTRACT_KEYS = new Set(['pagination', 'truncation', 'staleFile', 'failure']);
-const PAGINATION_KEYS = new Set(['tool', 'arguments', 'maxPages']);
-const TRUNCATION_KEYS = new Set(['maxResultBytes', 'tool', 'arguments']);
-const STALE_FILE_KEYS = new Set(['query', 'path']);
-const FAILURE_KEYS = new Set(['tool', 'arguments', 'expectedErrorCode']);
 
-const STABLE_ID = /^[a-z0-9][a-z0-9._-]*$/;
+const STABLE_ID = /^[a-z0-9][a-z0-9._-]*$/u;
 const WINDOWS_SEPARATOR = /\\/u;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -187,7 +155,7 @@ const requirePositiveInteger = (value: unknown, context: string): number => {
 
 const requireBoolean = (value: unknown, context: string): boolean => {
 	if (typeof value !== 'boolean') {
-		throw new Error(`${context} must be a boolean`);
+		throw new TypeError(`${context} must be a boolean`);
 	}
 
 	return value;
@@ -219,9 +187,9 @@ const requirePattern = (value: unknown, context: string): string => {
 	const pattern = requireString(value, context);
 
 	try {
-		new RegExp(pattern, 'u');
+		void new RegExp(pattern, 'u');
 	} catch (error) {
-		throw new Error(`${context} is not a valid Unicode regular expression: ${error instanceof Error ? error.message : String(error)}`);
+		throw new Error(`${context} is not a valid Unicode regular expression: ${error instanceof Error ? error.message : String(error)}`, {cause: error});
 	}
 
 	return pattern;
@@ -229,22 +197,24 @@ const requirePattern = (value: unknown, context: string): string => {
 
 const requireTool = (value: unknown, context: string): RouteMcpToolType => {
 	const tool = requireString(value, context);
+	const known = ROUTE_MCP_TOOLS.find((candidate) => candidate === tool);
 
-	if (!(ROUTE_MCP_TOOLS as readonly string[]).includes(tool)) {
+	if (known === undefined) {
 		throw new Error(`${context} must be one of ${ROUTE_MCP_TOOLS.join(', ')}`);
 	}
 
-	return tool as RouteMcpToolType;
+	return known;
 };
 
 const requireCollection = (value: unknown, context: string): RouteCollectionType => {
 	const collect = requireString(value, context);
+	const known = ROUTE_COLLECTIONS.find((candidate) => candidate === collect);
 
-	if (!(ROUTE_COLLECTIONS as readonly string[]).includes(collect)) {
+	if (known === undefined) {
 		throw new Error(`${context} must be one of ${ROUTE_COLLECTIONS.join(', ')}`);
 	}
 
-	return collect as RouteCollectionType;
+	return known;
 };
 
 const requireArguments = (value: unknown, context: string): Readonly<Record<string, unknown>> => {
@@ -285,7 +255,7 @@ const textStepOf = (value: unknown, context: string): TextStepType => {
 	const rawExtensions = record['extensions'];
 	const extensions = rawExtensions === undefined ? undefined : requireStringArray(rawExtensions, `${context}.extensions`);
 
-	if (extensions !== undefined && extensions.some((extension) => !extension.startsWith('.'))) {
+	if (extensions?.some((extension) => !extension.startsWith('.')) === true) {
 		throw new Error(`${context}.extensions entries must start with "."`);
 	}
 
@@ -364,7 +334,7 @@ const stepsOf = (value: unknown, context: string): readonly RouteStepType[] => {
 		}
 	}
 
-	if (!steps.some((step) => step.collect)) {
+	if (!steps.some((step) => (typeof step.collect === 'boolean' ? step.collect : step.collect.length > 0))) {
 		throw new Error(`${context} must contain at least one answer-collecting step`);
 	}
 
@@ -375,7 +345,7 @@ const routeOf = (value: unknown, context: string): RouteType => {
 	const record = requireObject(value, context);
 	rejectUnknownKeys(record, ROUTE_KEYS, context);
 
-	const text = record['text'];
+	const {text} = record;
 
 	if (!Array.isArray(text) || text.length === 0) {
 		throw new Error(`${context}.text must be a non-empty array`);
@@ -495,8 +465,8 @@ export const validateRoutePlan = (plan: RoutePlanType, suite: SuiteType, cases: 
 		throw new Error(`route plan pins ${plan.suite.id} v${plan.suite.version}, but the suite is ${suite.id} v${suite.version}`);
 	}
 
-	const planned = [...plan.routes.map((route) => route.caseId)].sort();
-	const expected = [...cases.map((testCase) => testCase.id)].sort();
+	const planned = plan.routes.map((route) => route.caseId).sort();
+	const expected = cases.map((testCase) => testCase.id).sort();
 
 	if (planned.length !== expected.length || planned.some((id, index) => id !== expected[index])) {
 		throw new Error(`route plan must cover exactly the ${expected.length} suite cases`);

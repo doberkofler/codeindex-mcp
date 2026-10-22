@@ -1,7 +1,7 @@
 import {closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, writeSync} from 'node:fs';
 import path from 'node:path';
 import {hashOf} from './hash.ts';
-import {type RunResultType} from './runner.ts';
+import {type RunResultType} from './runTypes.ts';
 
 /** Required top-level discriminator for one stored execution result. */
 export const RESULT_RECORD_TYPE = 'result' as const;
@@ -43,9 +43,9 @@ export type ResumeStateType = Readonly<{
 }>;
 
 const SUPPORTED_MAJOR = 1;
-const HEX_DIGEST = /^[0-9a-f]{64}$/;
-const ATTEMPT_FILE = /^attempt-(\d+)\.json$/;
-const SCHEMA_VERSION = /^(\d+)\.(\d+)$/;
+const HEX_DIGEST = /^[0-9a-f]{64}$/u;
+const ATTEMPT_FILE = /^attempt-(?<attempt>\d+)\.json$/u;
+const SCHEMA_VERSION = /^(?<major>\d+)\.\d+$/u;
 
 let temporaryCounter = 0;
 
@@ -58,9 +58,9 @@ const majorVersionOf = (value: unknown): number | null => {
 		return null;
 	}
 
-	const match = SCHEMA_VERSION.exec(value);
+	const major = SCHEMA_VERSION.exec(value)?.groups?.major;
 
-	return match === null ? null : Number(match[1]);
+	return major === undefined ? null : Number(major);
 };
 
 const flushDirectory = (directory: string): void => {
@@ -88,6 +88,74 @@ const temporaryPathOf = (file: string): string => {
 
 	return path.join(path.dirname(file), `.${path.basename(file)}.tmp-${process.pid}-${temporaryCounter}`);
 };
+
+/**
+ * Writes already-serialized JSON bytes atomically, refusing to overwrite.
+ *
+ * @param file - Destination path.
+ * @param serialized - Exact document text.
+ */
+const writeJsonAtomicText = (file: string, serialized: string): void => {
+	mkdirSync(path.dirname(file), {recursive: true});
+
+	if (existsSync(file)) {
+		throw new Error(`refusing to overwrite existing record: ${file}`);
+	}
+
+	const temporary = temporaryPathOf(file);
+	const descriptor = openSync(temporary, 'wx');
+
+	try {
+		writeSync(descriptor, serialized, null, 'utf8');
+		fsyncSync(descriptor);
+	} catch (error) {
+		closeSync(descriptor);
+		rmSync(temporary, {force: true});
+		throw error;
+	}
+
+	closeSync(descriptor);
+
+	try {
+		renameSync(temporary, file);
+		flushDirectory(path.dirname(file));
+	} catch (error) {
+		rmSync(temporary, {force: true});
+		throw error;
+	}
+};
+
+const hasRequiredHeader = (record: Record<string, unknown>): boolean =>
+	record.recordType === RESULT_RECORD_TYPE &&
+	typeof record.campaignId === 'string' &&
+	record.campaignId.length > 0 &&
+	typeof record.identityDigest === 'string' &&
+	HEX_DIGEST.test(record.identityDigest) &&
+	typeof record.attempt === 'number' &&
+	Number.isInteger(record.attempt) &&
+	record.attempt >= 1 &&
+	typeof record.outcome === 'string' &&
+	['completed', 'failed', 'timed-out', 'aborted'].includes(record.outcome) &&
+	Array.isArray(record.defects) &&
+	record.defects.every((defect): defect is DefectType => typeof defect === 'string' && (DEFECTS as readonly string[]).includes(defect));
+
+const hasValidIntegrity = (record: Record<string, unknown>): boolean => {
+	if (!isRecord(record.identity) || !isRecord(record.integrity)) {
+		return false;
+	}
+
+	const {integrity} = record;
+
+	return (
+		typeof integrity.contentDigest === 'string' &&
+		HEX_DIGEST.test(integrity.contentDigest) &&
+		typeof integrity.sizeBytes === 'number' &&
+		Number.isInteger(integrity.sizeBytes) &&
+		integrity.sizeBytes >= 0
+	);
+};
+
+const validRequiredFields = (record: Record<string, unknown>): boolean => hasRequiredHeader(record) && hasValidIntegrity(record);
 
 /**
  * Writes one JSON document atomically.
@@ -147,7 +215,7 @@ export const writeJsonAtomic = (file: string, value: unknown, overwrite = false)
 const integrityOf = (result: RunResultType): Readonly<{integrity: IntegrityType; serialized: string}> => {
 	const record: Record<string, unknown> = {...result};
 
-	delete record['integrity'];
+	delete record.integrity;
 
 	const contentDigest = hashOf(record);
 	let sizeBytes = 0;
@@ -196,63 +264,6 @@ export const writeResult = (file: string, result: RunResultType): StoredResultTy
 };
 
 /**
- * Writes already-serialized JSON bytes atomically, refusing to overwrite.
- *
- * @param file - Destination path.
- * @param serialized - Exact document text.
- */
-const writeJsonAtomicText = (file: string, serialized: string): void => {
-	mkdirSync(path.dirname(file), {recursive: true});
-
-	if (existsSync(file)) {
-		throw new Error(`refusing to overwrite existing record: ${file}`);
-	}
-
-	const temporary = temporaryPathOf(file);
-	const descriptor = openSync(temporary, 'wx');
-
-	try {
-		writeSync(descriptor, serialized, null, 'utf8');
-		fsyncSync(descriptor);
-	} catch (error) {
-		closeSync(descriptor);
-		rmSync(temporary, {force: true});
-		throw error;
-	}
-
-	closeSync(descriptor);
-
-	try {
-		renameSync(temporary, file);
-		flushDirectory(path.dirname(file));
-	} catch (error) {
-		rmSync(temporary, {force: true});
-		throw error;
-	}
-};
-
-const validRequiredFields = (record: Record<string, unknown>): boolean =>
-	record['recordType'] === RESULT_RECORD_TYPE &&
-	typeof record['campaignId'] === 'string' &&
-	record['campaignId'].length > 0 &&
-	typeof record['identityDigest'] === 'string' &&
-	HEX_DIGEST.test(record['identityDigest']) &&
-	typeof record['attempt'] === 'number' &&
-	Number.isInteger(record['attempt']) &&
-	record['attempt'] >= 1 &&
-	typeof record['outcome'] === 'string' &&
-	['completed', 'failed', 'timed-out', 'aborted'].includes(record['outcome']) &&
-	Array.isArray(record['defects']) &&
-	record['defects'].every((defect): defect is DefectType => typeof defect === 'string' && (DEFECTS as readonly string[]).includes(defect)) &&
-	isRecord(record['identity']) &&
-	isRecord(record['integrity']) &&
-	typeof record['integrity']['contentDigest'] === 'string' &&
-	HEX_DIGEST.test(record['integrity']['contentDigest']) &&
-	typeof record['integrity']['sizeBytes'] === 'number' &&
-	Number.isInteger(record['integrity']['sizeBytes']) &&
-	record['integrity']['sizeBytes'] >= 0;
-
-/**
  * Reads and verifies one stored result.
  *
  * A missing, partial, truncated, re-serialized, or identity-mismatched document
@@ -283,32 +294,35 @@ export const readResult = (file: string): StoredResultType | null => {
 		return null;
 	}
 
-	if (majorVersionOf(parsed['schemaVersion']) !== SUPPORTED_MAJOR) {
+	if (majorVersionOf(parsed.schemaVersion) !== SUPPORTED_MAJOR) {
 		return null;
 	}
 
-	const integrity = parsed['integrity'];
+	const {integrity} = parsed;
 
-	if (!isRecord(integrity) || typeof integrity['sizeBytes'] !== 'number' || typeof integrity['contentDigest'] !== 'string') {
+	if (!isRecord(integrity) || typeof integrity.sizeBytes !== 'number' || typeof integrity.contentDigest !== 'string') {
 		return null;
 	}
 
-	if (Buffer.byteLength(text, 'utf8') !== integrity['sizeBytes']) {
+	if (Buffer.byteLength(text, 'utf8') !== integrity.sizeBytes) {
 		return null;
 	}
 
 	const record: Record<string, unknown> = {...parsed};
 
-	delete record['integrity'];
+	delete record.integrity;
 
-	if (hashOf(record) !== integrity['contentDigest']) {
+	if (hashOf(record) !== integrity.contentDigest) {
 		return null;
 	}
 
-	if (hashOf(parsed['identity']) !== parsed['identityDigest']) {
+	if (hashOf(parsed.identity) !== parsed.identityDigest) {
 		return null;
 	}
 
+	// The stored record is written by this harness and validated above for
+	// record type, version, attempt, outcome, defects, identity, and integrity.
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The remaining fields are producer-controlled; a full structural validator would duplicate StoredResultType.
 	return parsed as StoredResultType;
 };
 
@@ -352,9 +366,9 @@ export const attemptFilesOf = (slotDirectory: string): readonly Readonly<{attemp
 
 	return readdirSync(slotDirectory)
 		.map((name) => {
-			const match = ATTEMPT_FILE.exec(name);
+			const attempt = ATTEMPT_FILE.exec(name)?.groups?.attempt;
 
-			return match === null ? null : {attempt: Number(match[1]), file: path.join(slotDirectory, name)};
+			return attempt === undefined ? null : {attempt: Number(attempt), file: path.join(slotDirectory, name)};
 		})
 		.filter((entry): entry is Readonly<{attempt: number; file: string}> => entry !== null)
 		.sort((left, right) => left.attempt - right.attempt);
@@ -376,7 +390,7 @@ export const resumeStateOf = (slotDirectory: string, identityDigest: string): Re
 	const nextAttempt = (files.at(-1)?.attempt ?? 0) + 1;
 	let reusable: Readonly<{record: StoredResultType; attempt: number}> | null = null;
 
-	for (const entry of files.slice().reverse()) {
+	for (const entry of [...files].toReversed()) {
 		const record = readResult(entry.file);
 
 		if (record === null || record.identityDigest !== identityDigest) {

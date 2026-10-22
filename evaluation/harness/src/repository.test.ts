@@ -2,12 +2,11 @@ import assert from 'node:assert/strict';
 import {existsSync, readFileSync, readdirSync, statSync} from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import {fileURLToPath} from 'node:url';
 import ts from 'typescript';
 import {caseOf, type CaseType} from './schema.ts';
 import {loadSuite} from './suite.ts';
 
-const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const HARNESS_ROOT = path.resolve(import.meta.dirname, '..');
 const EVALUATION_ROOT = path.resolve(HARNESS_ROOT, '..');
 const SUBJECT_ROOT = path.resolve(EVALUATION_ROOT, '..');
 const SOURCE_ROOT = path.join(SUBJECT_ROOT, 'src');
@@ -124,7 +123,7 @@ type LanguageServiceType = Readonly<{service: ts.LanguageService; program: ts.Pr
 
 const languageServiceOf = (root: string): LanguageServiceType => {
 	const configPath = path.join(root, 'tsconfig.json');
-	const config = ts.readConfigFile(configPath, ts.sys.readFile);
+	const config = ts.readConfigFile(configPath, (fileName) => ts.sys.readFile(fileName));
 
 	if (config.error !== undefined) {
 		throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'));
@@ -143,11 +142,11 @@ const languageServiceOf = (root: string): LanguageServiceType => {
 		getCurrentDirectory: () => root,
 		getCompilationSettings: () => options,
 		getDefaultLibFileName: (compilerOptions) => ts.getDefaultLibFilePath(compilerOptions),
-		fileExists: ts.sys.fileExists,
-		readFile: ts.sys.readFile,
-		readDirectory: ts.sys.readDirectory,
-		directoryExists: ts.sys.directoryExists,
-		getDirectories: ts.sys.getDirectories,
+		fileExists: ts.sys.fileExists.bind(ts.sys),
+		readFile: ts.sys.readFile.bind(ts.sys),
+		readDirectory: ts.sys.readDirectory.bind(ts.sys),
+		directoryExists: ts.sys.directoryExists.bind(ts.sys),
+		getDirectories: ts.sys.getDirectories.bind(ts.sys),
 	};
 	const service = ts.createLanguageService(host, ts.createDocumentRegistry());
 	const program = service.getProgram();
@@ -266,7 +265,7 @@ const truthFilesOf = (language: LanguageServiceType, probe: ReferenceProbeType):
 
 	for (const symbol of symbols) {
 		for (const reference of symbol.references) {
-			if (reference.isDefinition) {
+			if (reference.isDefinition === true) {
 				continue;
 			}
 
@@ -342,7 +341,7 @@ const caseOfId = (caseId: string): CaseType => {
 const language = languageServiceOf(SUBJECT_ROOT);
 const repositorySuite = loadSuite(path.join(EVALUATION_ROOT, 'suites', 'repository.json'));
 
-test('repository suite pins one CodeIndex revision and covers four task classes', () => {
+void test('repository suite pins one CodeIndex revision and covers four task classes', () => {
 	assert.equal(repositorySuite.suite.id, 'codeindex-repository');
 	assert.equal(repositorySuite.suite.status, 'draft');
 	assert.match(repositorySuite.suite.revision, /^[0-9a-f]{40}$/u);
@@ -354,7 +353,7 @@ test('repository suite pins one CodeIndex revision and covers four task classes'
 		counts.set(testCase.class, (counts.get(testCase.class) ?? 0) + 1);
 	}
 
-	assert.deepEqual(Object.fromEntries([...counts.entries()].sort()), {
+	assert.deepEqual(Object.fromEntries([...counts.entries()].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))), {
 		impact: 6,
 		implementation: 2,
 		locate: 4,
@@ -362,7 +361,7 @@ test('repository suite pins one CodeIndex revision and covers four task classes'
 	});
 });
 
-test('every declared repository path exists at the pinned source tree', () => {
+void test('every declared repository path exists at the pinned source tree', () => {
 	for (const testCase of repositorySuite.cases) {
 		for (const file of [...testCase.expectedFiles, ...testCase.contextFiles, ...testCase.forbiddenFiles]) {
 			assert.ok(existsSync(path.join(SUBJECT_ROOT, file)), `${testCase.id} references missing path ${file}`);
@@ -374,7 +373,7 @@ test('every declared repository path exists at the pinned source tree', () => {
 	}
 });
 
-test('locate cases name the authoritative declaration or marker', () => {
+void test('locate cases name the authoritative declaration or marker', () => {
 	for (const probe of LOCATE_PROBES) {
 		const testCase = caseOfId(probe.caseId);
 		const text = readFileSync(path.join(SUBJECT_ROOT, probe.file), 'utf8');
@@ -390,7 +389,7 @@ test('locate cases name the authoritative declaration or marker', () => {
 	}
 });
 
-test('impact and repository semantic cases match the language service', () => {
+void test('impact and repository semantic cases match the language service', () => {
 	for (const probe of REFERENCE_PROBES) {
 		const testCase = caseOfId(probe.caseId);
 		const expected = [...testCase.expectedFiles].sort();
@@ -402,7 +401,7 @@ test('impact and repository semantic cases match the language service', () => {
 });
 
 for (const probe of REFERENCE_PROBES.filter((item) => item.caseId.startsWith('semantic-'))) {
-	test(`${probe.caseId} admits no exact identifier grep`, () => {
+	void test(`${probe.caseId} admits no exact identifier grep`, () => {
 		const testCase = caseOfId(probe.caseId);
 		const expected = [...testCase.expectedFiles].sort();
 		const measurements = probe.grepIdentifiers.map((identifier) => grepMeasurementOf(identifier, expected));
@@ -421,7 +420,7 @@ for (const probe of REFERENCE_PROBES.filter((item) => item.caseId.startsWith('se
 	});
 }
 
-test('implementation cases declare exact changed files and deterministic checks', () => {
+void test('implementation cases declare exact changed files and deterministic checks', () => {
 	for (const testCase of repositorySuite.cases.filter((item) => item.class === 'implementation')) {
 		assert.ok(testCase.check !== null, `${testCase.id} declares no post-run check`);
 		assert.ok(

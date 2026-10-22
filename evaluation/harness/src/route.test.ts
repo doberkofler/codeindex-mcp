@@ -1,52 +1,21 @@
 import assert from 'node:assert/strict';
-import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {fileURLToPath} from 'node:url';
 import {loadRoutePlan, routePlanHashOf, routePlanOf, validateRoutePlan} from './routePlan.ts';
-import {openMcpSession, takeDebugTimings, type McpCallOutcomeType, type McpSessionType} from './routeClient.ts';
+import {openMcpSession, takeDebugTimings} from './routeClient.ts';
 import {runRoute} from './route.ts';
 import {runReadStep, runSearchStep} from './routeText.ts';
 import {routeReportOf, summarizeRouteTreatment, type RouteCaseReportType} from './routeReport.ts';
-import {failureProbeOf, paginationProbeOf, staleFileProbeOf, truncationProbeOf} from './routeContract.ts';
 import {loadSuite} from './suite.ts';
+import {baseRunOf, outcomeOf, runOf, sessionOf, tempWorkspace, writeFile} from './routeTestSupport.ts';
 
-const EVALUATION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const EVALUATION_ROOT = path.resolve(import.meta.dirname, '..', '..');
 const RELEASE_PLAN = path.join(EVALUATION_ROOT, 'routes', 'codeindex-release.json');
 const RELEASE_SUITE = path.join(EVALUATION_ROOT, 'suites', 'release.json');
 
-const tempWorkspace = (): string => mkdtempSync(path.join(os.tmpdir(), 'codeindex-route-'));
-
-const writeFile = (workspace: string, relative: string, text: string): void => {
-	const file = path.join(workspace, relative);
-
-	mkdirSync(path.dirname(file), {recursive: true});
-	writeFileSync(file, text, 'utf8');
-};
-
-const outcomeOf = (data: unknown, overrides: Partial<McpCallOutcomeType> = {}): McpCallOutcomeType => ({
-	tool: 'find_symbol',
-	status: 'ok',
-	elapsedMs: 1,
-	coreMs: 1,
-	responseBytes: 10,
-	text: '',
-	structured: data,
-	errorCode: null,
-	errorMessage: null,
-	...overrides,
-});
-
-const sessionOf = (call: McpSessionType['callTool']): McpSessionType => ({
-	serverName: 'fixture',
-	serverVersion: '1',
-	startupMs: 1,
-	callTool: call,
-	close: async (): Promise<void> => undefined,
-});
-
-test('release route plan validates against the frozen suite and hashes deterministically', () => {
+void test('release route plan validates against the frozen suite and hashes deterministically', () => {
 	const {suite, cases} = loadSuite(RELEASE_SUITE);
 	const plan = loadRoutePlan(RELEASE_PLAN);
 
@@ -56,7 +25,7 @@ test('release route plan validates against the frozen suite and hashes determini
 	assert.equal(new Set(plan.routes.map((route) => route.caseId)).size, 18);
 });
 
-test('route plan rejects unknown fields, duplicate steps, invalid patterns, and partial coverage', () => {
+void test('route plan rejects unknown fields, duplicate steps, invalid patterns, and partial coverage', () => {
 	const {suite, cases} = loadSuite(RELEASE_SUITE);
 	const plan = loadRoutePlan(RELEASE_PLAN);
 	const withField = {...plan, unexpected: true};
@@ -87,10 +56,12 @@ test('route plan rejects unknown fields, duplicate steps, invalid patterns, and 
 
 	assert.throws(() => routePlanOf(badPattern), /valid Unicode regular expression/u);
 
-	assert.throws(() => validateRoutePlan({...plan, routes: plan.routes.slice(1)}, suite, cases), /exactly the 18 suite cases/u);
+	assert.throws(() => {
+		validateRoutePlan({...plan, routes: plan.routes.slice(1)}, suite, cases);
+	}, /exactly the 18 suite cases/u);
 });
 
-test('ordinary search filters paths and retains matching lines', () => {
+void test('ordinary search filters paths and retains matching lines', () => {
 	const workspace = tempWorkspace();
 
 	try {
@@ -113,7 +84,7 @@ test('ordinary search filters paths and retains matching lines', () => {
 	}
 });
 
-test('ordinary read counts one call and refuses a path outside the workspace', () => {
+void test('ordinary read counts one call and refuses a path outside the workspace', () => {
 	const workspace = tempWorkspace();
 
 	try {
@@ -129,7 +100,7 @@ test('ordinary read counts one call and refuses a path outside the workspace', (
 	}
 });
 
-test('complete route resolves a symbol, follows cursor pages, and collects reference paths', async () => {
+void test('complete route resolves a symbol, follows cursor pages, and collects reference paths', async () => {
 	const workspace = tempWorkspace();
 	let referenceCalls = 0;
 
@@ -137,7 +108,7 @@ test('complete route resolves a symbol, follows cursor pages, and collects refer
 		writeFile(workspace, 'src/a.ts', 'export const value = 1;\n');
 		writeFile(workspace, 'src/b.ts', 'export const other = 1;\n');
 
-		const session = sessionOf(async (tool, args) => {
+		const session = sessionOf((tool, args) => {
 			if (tool === 'find_symbol') {
 				return outcomeOf({items: [{symbolId: 'symbol-1', path: 'src/a.ts', name: 'value', match: 'exact_name'}]});
 			}
@@ -145,7 +116,7 @@ test('complete route resolves a symbol, follows cursor pages, and collects refer
 			referenceCalls += 1;
 
 			if (referenceCalls === 1) {
-				assert.equal(args['symbolId'], 'symbol-1');
+				assert.equal(args.symbolId, 'symbol-1');
 				return outcomeOf({items: [{path: 'src/b.ts', role: 'reference'}], truncated: true, nextCursor: 'page-2'});
 			}
 
@@ -188,14 +159,14 @@ test('complete route resolves a symbol, follows cursor pages, and collects refer
 	}
 });
 
-test('complete route keeps only files whose source matches the declared pattern', async () => {
+void test('complete route keeps only files whose source matches the declared pattern', async () => {
 	const workspace = tempWorkspace();
 
 	try {
 		writeFile(workspace, 'src/implementer.ts', 'class Gateway implements Contract {}\n');
 		writeFile(workspace, 'src/consumer.ts', 'type Factory = (gateway: Contract) => void;\n');
 
-		const session = sessionOf(async (tool) => {
+		const session = sessionOf((tool) => {
 			if (tool === 'find_symbol') {
 				return outcomeOf({items: [{symbolId: 'contract', path: 'src/contract.ts', name: 'Contract', match: 'exact_name'}]});
 			}
@@ -237,11 +208,11 @@ test('complete route keeps only files whose source matches the declared pattern'
 	}
 });
 
-test('complete route reports an unresolved symbol as invalid evidence', async () => {
+void test('complete route reports an unresolved symbol as invalid evidence', async () => {
 	const workspace = tempWorkspace();
 
 	try {
-		const session = sessionOf(async () => outcomeOf({items: []}));
+		const session = sessionOf(() => outcomeOf({items: []}));
 		const run = await runRoute({
 			caseId: 'case',
 			treatment: 'accepted',
@@ -262,13 +233,13 @@ test('complete route reports an unresolved symbol as invalid evidence', async ()
 	}
 });
 
-test('complete route waits for a published index and counts every readiness poll', async () => {
+void test('complete route waits for a published index and counts every readiness poll', async () => {
 	const workspace = tempWorkspace();
 	let statusCalls = 0;
 
 	try {
 		writeFile(workspace, 'src/a.ts', 'export const value = 1;\n');
-		const session = sessionOf(async (tool) => {
+		const session = sessionOf((tool) => {
 			if (tool === 'index_status') {
 				statusCalls += 1;
 
@@ -299,59 +270,31 @@ test('complete route waits for a published index and counts every readiness poll
 		assert.equal(run.exact, true);
 		assert.equal(run.metrics.callCount, 3);
 		assert.equal(run.calls[0]?.stepId, 'index-ready');
-		assert.equal(run.calls[0]?.status, 'ok');
+		assert.equal(run.calls[0].status, 'ok');
 		assert.equal(run.calls[1]?.stepId, 'index-ready');
 	} finally {
 		rmSync(workspace, {recursive: true, force: true});
 	}
 });
 
-test('route summaries use medians and report unavailable core time', () => {
-	const base = (coreMs: number | null, callCount: number) => ({
-		valid: true,
-		exact: true,
-		metrics: {
-			callCount,
-			responseBytes: callCount * 10,
-			elapsedMs: callCount * 2,
-			coreMs: coreMs === null ? {value: null, state: 'unavailable' as const} : {value: coreMs, state: 'exact' as const},
-		},
-	});
+void test('route summaries use medians and report unavailable core time', () => {
 	const runs = [
-		{...base(1, 1), caseId: 'a', treatment: 'accepted' as const, answerFiles: [], expectedFiles: [], calls: [], defects: []},
-		{...base(3, 3), caseId: 'b', treatment: 'accepted' as const, answerFiles: [], expectedFiles: [], calls: [], defects: []},
+		{...baseRunOf(1, 1), caseId: 'a', treatment: 'accepted' as const, answerFiles: [], expectedFiles: [], calls: [], defects: []},
+		{...baseRunOf(3, 3), caseId: 'b', treatment: 'accepted' as const, answerFiles: [], expectedFiles: [], calls: [], defects: []},
 	];
 	const summary = summarizeRouteTreatment(runs);
+	const [first] = runs;
 
+	assert.ok(first !== undefined);
 	assert.equal(summary.caseCount, 2);
 	assert.equal(summary.medianCallCount, 2);
 	assert.equal(summary.medianResponseBytes, 20);
 	assert.equal(summary.medianElapsedMs, 4);
 	assert.equal(summary.coreMs.value, 2);
-	assert.equal(
-		summarizeRouteTreatment([{...runs[0]!, metrics: {...runs[0]!.metrics, coreMs: {value: null, state: 'unavailable'}}}]).coreMs.state,
-		'unavailable',
-	);
+	assert.equal(summarizeRouteTreatment([{...first, metrics: {...first.metrics, coreMs: {value: null, state: 'unavailable'}}}]).coreMs.state, 'unavailable');
 });
 
-const runOf = (caseId: string, treatment: 'accepted' | 'candidate' | 'no-index', exact: boolean, core: 'exact' | 'unavailable' = 'exact') => ({
-	caseId,
-	treatment,
-	answerFiles: exact ? ['src/a.ts'] : ['src/b.ts'],
-	expectedFiles: ['src/a.ts'],
-	exact,
-	valid: true,
-	calls: [],
-	metrics: {
-		callCount: 1,
-		responseBytes: 10,
-		elapsedMs: 2,
-		coreMs: core === 'exact' ? {value: 1, state: 'exact' as const} : {value: null, state: 'unavailable' as const},
-	},
-	defects: [],
-});
-
-test('route report passes only when equality, measurements, and contracts all pass', () => {
+void test('route report passes only when equality, measurements, and contracts all pass', () => {
 	const cases: readonly RouteCaseReportType[] = [
 		{
 			caseId: 'locate-schema-version',
@@ -380,9 +323,13 @@ test('route report passes only when equality, measurements, and contracts all pa
 		['pass', 'pass', 'pass'],
 	);
 
+	const [firstCase] = cases;
+
+	assert.ok(firstCase !== undefined);
+
 	const missed = routeReportOf({
 		...passed,
-		cases: [{...cases[0]!, treatments: {'no-index': runOf('locate-schema-version', 'no-index', false)}}],
+		cases: [{...firstCase, treatments: {'no-index': runOf('locate-schema-version', 'no-index', false)}}],
 		runs: [runOf('locate-schema-version', 'no-index', false)],
 		treatments: ['no-index'],
 	});
@@ -391,7 +338,7 @@ test('route report passes only when equality, measurements, and contracts all pa
 
 	const unavailable = routeReportOf({
 		...passed,
-		cases: [{...cases[0]!, treatments: {accepted: runOf('locate-schema-version', 'accepted', true, 'unavailable')}}],
+		cases: [{...firstCase, treatments: {accepted: runOf('locate-schema-version', 'accepted', true, 'unavailable')}}],
 		runs: [runOf('locate-schema-version', 'accepted', true, 'unavailable')],
 		treatments: ['accepted'],
 	});
@@ -407,7 +354,7 @@ test('route report passes only when equality, measurements, and contracts all pa
 	assert.equal(brokenContract.gates[2]?.result, 'fail');
 });
 
-test('debug timings survive multiline inspect output and retain an incomplete tail', () => {
+void test('debug timings survive multiline inspect output and retain an incomplete tail', () => {
 	const buffer = {
 		text: [
 			'2026-10-21T20:00:00.000Z codeindex:mcp tool call complete {',
@@ -429,107 +376,7 @@ test('debug timings survive multiline inspect output and retain an incomplete ta
 	assert.match(buffer.text, /read_symbol/u);
 });
 
-test('pagination probe follows every cursor page and rejects duplicates', async () => {
-	const pages = [
-		{items: [{symbolId: 'a'}], truncated: true, nextCursor: 'next-1'},
-		{items: [{symbolId: 'b'}], truncated: false, nextCursor: null},
-	];
-	let page = 0;
-	const passing = sessionOf(async () => {
-		const data = pages[page];
-		page += 1;
-
-		return outcomeOf(data);
-	});
-	const passed = await paginationProbeOf(passing, {tool: 'find_symbol', arguments: {}, maxPages: 10});
-
-	assert.equal(passed.result, 'pass');
-	assert.equal(passed.observations['pages'], 2);
-
-	const duplicate = sessionOf(async () => outcomeOf({items: [{symbolId: 'a'}], truncated: true, nextCursor: 'next'}));
-	const failed = await paginationProbeOf(duplicate, {tool: 'find_symbol', arguments: {}, maxPages: 3});
-
-	assert.equal(failed.result, 'fail');
-});
-
-test('truncation probe accepts a bounded error or a shortened page and rejects an oversized success', async () => {
-	const plan = {maxResultBytes: 600, tool: 'find_symbol' as const, arguments: {}};
-	const boundedError = await truncationProbeOf(
-		sessionOf(async () => outcomeOf(null, {status: 'error', errorCode: 'response_too_large', responseBytes: 120})),
-		plan,
-	);
-	const shortened = await truncationProbeOf(
-		sessionOf(async () => outcomeOf({items: [], truncated: true}, {responseBytes: 500})),
-		plan,
-	);
-	const oversized = await truncationProbeOf(
-		sessionOf(async () => outcomeOf({items: [], truncated: false}, {responseBytes: 1_000})),
-		plan,
-	);
-
-	assert.equal(boundedError.result, 'pass');
-	assert.equal(shortened.result, 'pass');
-	assert.equal(oversized.result, 'fail');
-});
-
-test('failure probe requires the declared stable code and no leaked diagnostics', async () => {
-	const plan = {tool: 'find_references' as const, arguments: {}, expectedErrorCode: 'symbol_not_found'};
-	const clean = await failureProbeOf(
-		sessionOf(async () => outcomeOf(null, {status: 'error', errorCode: 'symbol_not_found', text: 'Unknown symbol'})),
-		plan,
-	);
-	const leaked = await failureProbeOf(
-		sessionOf(async () =>
-			outcomeOf(null, {status: 'error', errorCode: 'symbol_not_found', text: `Unknown symbol\n    at handler (/Users/operator/index.ts:4:1)`}),
-		),
-		plan,
-	);
-
-	assert.equal(clean.result, 'pass');
-	assert.equal(leaked.result, 'fail');
-});
-
-test('stale-file probe observes refusal after a real file change and restores the workspace', async () => {
-	const workspace = tempWorkspace();
-	let restored = 0;
-
-	try {
-		writeFile(workspace, 'src/a.ts', 'export const value = 1;\n');
-		const session = sessionOf(async (tool) => {
-			if (tool === 'find_symbol') {
-				return outcomeOf({items: [{symbolId: 'symbol-1', path: 'src/a.ts', name: 'value'}]});
-			}
-
-			const changed = readFileSync(path.join(workspace, 'src/a.ts'), 'utf8').includes('route-contract-stale-probe');
-
-			return changed ? outcomeOf(null, {status: 'error', errorCode: 'stale_file', text: 'stale'}) : outcomeOf({items: []});
-		});
-		const passed = await staleFileProbeOf(session, workspace, {query: 'value', path: 'src/a.ts'}, () => {
-			restored += 1;
-		});
-
-		assert.equal(passed.result, 'pass');
-		assert.equal(restored, 1);
-
-		const neverStale = await staleFileProbeOf(
-			sessionOf(async (tool) =>
-				tool === 'find_symbol' ? outcomeOf({items: [{symbolId: 'symbol-1', path: 'src/a.ts', name: 'value'}]}) : outcomeOf({items: []}),
-			),
-			workspace,
-			{query: 'value', path: 'src/a.ts'},
-			() => {
-				restored += 1;
-			},
-		);
-
-		assert.equal(neverStale.result, 'fail');
-		assert.equal(restored, 2);
-	} finally {
-		rmSync(workspace, {recursive: true, force: true});
-	}
-});
-
-test('official client session reads structured data and server-reported core time from a stdio server', async () => {
+void test('official client session reads structured data and server-reported core time from a stdio server', async () => {
 	const directory = mkdtempSync(path.join(os.tmpdir(), 'codeindex-route-client-'));
 	const entry = path.join(directory, 'server.mjs');
 
@@ -548,9 +395,10 @@ test('official client session reads structured data and server-reported core tim
 				'  } else if (message.method === "tools/list") {',
 				'    result = {tools: [{name: "echo", description: "", inputSchema: {type: "object"}}]};',
 				'  } else if (message.method === "tools/call") {',
-				'    process.stderr.write("2026-10-21T20:00:00.000Z codeindex:mcp tool call complete {tool: \'echo\', durationMs: 4}\\n");',
+				String.raw`    process.stderr.write("2026-10-21T20:00:00.000Z codeindex:mcp tool call complete {tool: 'echo', durationMs: 4}\n");`,
 				'    result = {content: [{type: "text", text: "hello"}], structuredContent: {ok: true, data: {items: [{path: "src/a.ts"}]}}};',
 				'  }',
+				// oxlint-disable-next-line eslint/no-template-curly-in-string -- The text is generated fixture source; the placeholder interpolates only when that script runs.
 				'  process.stdout.write(`${JSON.stringify({jsonrpc: "2.0", id: message.id, result})}\\n`);',
 				'});',
 			].join('\n'),

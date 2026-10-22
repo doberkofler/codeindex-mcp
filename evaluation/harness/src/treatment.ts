@@ -86,8 +86,8 @@ export type RoutingType = Readonly<{
 const TREATMENT_KEYS = new Set(['id', 'kind', 'ordinaryTools', 'codeMode', 'artifact', 'mcp']);
 const ARTIFACT_KEYS = new Set(['id', 'root', 'entryPoint', 'digest']);
 const MCP_KEYS = new Set(['server', 'codemode']);
-const TOOL_NAME = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
-const HEX_DIGEST = /^[0-9a-f]{64}$/;
+const TOOL_NAME = /^\w[\w.:-]*$/iu;
+const HEX_DIGEST = /^[0-9a-f]{64}$/u;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -158,7 +158,7 @@ const requireHexDigest = (value: unknown, field: string, context: string): strin
 const artifactOf = (value: unknown, context: string): ArtifactType => {
 	const record = requireObject(value, `${context} field "artifact"`);
 	rejectUnknownKeys(record, ARTIFACT_KEYS, `${context} field "artifact"`);
-	const digest = record['digest'];
+	const {digest} = record;
 
 	return {
 		id: requireString(record['id'], 'artifact.id', context),
@@ -192,7 +192,32 @@ const mcpOf = (value: unknown, context: string): McpType => {
  * @param definition - Normalized definition without its hash.
  * @returns Hex digest.
  */
-export const treatmentHashOf = (definition: Omit<TreatmentDefinitionType, 'definitionHash'> | unknown): string => hashOf(definition);
+export const treatmentHashOf = (definition: unknown): string => hashOf(definition);
+
+/**
+ * Rejects a treatment whose kind, artifact, and MCP declaration disagree.
+ *
+ * The no-index arm must withhold CodeIndex entirely; both CodeIndex arms must
+ * declare the artifact and MCP server they load.
+ *
+ * @param id - Validated treatment id.
+ * @param kind - Declared treatment kind.
+ * @param artifact - Declared artifact, if any.
+ * @param mcp - Declared MCP configuration, if any.
+ */
+const assertTreatmentShapeOf = (id: TreatmentIdType, kind: string, artifact: unknown, mcp: unknown): void => {
+	if (id === 'no-index') {
+		if (kind !== 'no-index' || artifact !== null || mcp !== null) {
+			throw new Error('no-index treatment must use kind "no-index" and declare neither artifact nor mcp');
+		}
+
+		return;
+	}
+
+	if (kind !== 'codeindex' || artifact === null || mcp === null) {
+		throw new Error(`${id} treatment must use kind "codeindex" and declare both artifact and mcp`);
+	}
+};
 
 /**
  * Validates and hashes one treatment definition.
@@ -206,8 +231,9 @@ export const treatmentOf = (value: unknown, context = 'treatment'): TreatmentDef
 	rejectUnknownKeys(record, TREATMENT_KEYS, context);
 
 	const id = requireString(record['id'], 'id', context);
+	const treatmentId = TREATMENT_IDS.find((candidate) => candidate === id);
 
-	if (!(TREATMENT_IDS as readonly string[]).includes(id)) {
+	if (treatmentId === undefined) {
 		throw new Error(`${context} field "id" must be one of ${TREATMENT_IDS.join(', ')}`);
 	}
 
@@ -224,16 +250,10 @@ export const treatmentOf = (value: unknown, context = 'treatment'): TreatmentDef
 	const artifact = record['artifact'] === null || record['artifact'] === undefined ? null : artifactOf(record['artifact'], context);
 	const mcp = record['mcp'] === null || record['mcp'] === undefined ? null : mcpOf(record['mcp'], context);
 
-	if (id === 'no-index') {
-		if (kind !== 'no-index' || artifact !== null || mcp !== null) {
-			throw new Error('no-index treatment must use kind "no-index" and declare neither artifact nor mcp');
-		}
-	} else if (kind !== 'codeindex' || artifact === null || mcp === null) {
-		throw new Error(`${id} treatment must use kind "codeindex" and declare both artifact and mcp`);
-	}
+	assertTreatmentShapeOf(treatmentId, kind, artifact, mcp);
 
 	const normalized = {
-		id: id as TreatmentIdType,
+		id: treatmentId,
 		kind,
 		ordinaryTools: requireToolNames(record['ordinaryTools'], 'ordinaryTools', context),
 		codeMode: CODE_MODE_POLICY,
@@ -244,24 +264,13 @@ export const treatmentOf = (value: unknown, context = 'treatment'): TreatmentDef
 	return {...normalized, definitionHash: treatmentHashOf(normalized)};
 };
 
-/**
- * Describes every non-equivalent difference in a treatment set.
- *
- * Accepted and candidate may differ only by artifact and the resulting
- * CodeIndex interface. Ordinary tools, the generic `execute` policy, and the
- * MCP configuration must be identical across every treatment.
- *
- * @param treatments - Validated treatment definitions.
- * @returns Human-readable differences; empty when the set is equivalent.
- */
-export const treatmentDifferencesOf = (treatments: readonly TreatmentDefinitionType[]): readonly string[] => {
+const identityDifferencesOf = (ids: readonly TreatmentIdType[]): readonly string[] => {
 	const differences: string[] = [];
-	const ids = treatments.map((treatment) => treatment.id);
 	const missing = TREATMENT_IDS.filter((id) => !ids.includes(id));
 	const unexpected = ids.filter((id) => !(TREATMENT_IDS as readonly string[]).includes(id));
 
-	if (treatments.length !== TREATMENT_IDS.length) {
-		differences.push(`expected ${TREATMENT_IDS.length} treatments, found ${treatments.length}`);
+	if (ids.length !== TREATMENT_IDS.length) {
+		differences.push(`expected ${TREATMENT_IDS.length} treatments, found ${ids.length}`);
 	}
 
 	if (new Set(ids).size !== ids.length) {
@@ -276,6 +285,44 @@ export const treatmentDifferencesOf = (treatments: readonly TreatmentDefinitionT
 		differences.push(`unknown treatment(s): ${unexpected.join(', ')}`);
 	}
 
+	return differences;
+};
+
+const sharedMcpDifferencesOf = (indexed: readonly TreatmentDefinitionType[]): readonly string[] => {
+	const [accepted] = indexed;
+
+	if (accepted === undefined) {
+		return [];
+	}
+
+	const differences: string[] = [];
+
+	for (const treatment of indexed.slice(1)) {
+		if (treatment.mcp?.server !== accepted.mcp?.server) {
+			differences.push(`MCP server differs between ${accepted.id} and ${treatment.id}`);
+		}
+
+		if (treatment.mcp?.codemode !== accepted.mcp?.codemode) {
+			differences.push(`MCP codemode policy differs between ${accepted.id} and ${treatment.id}`);
+		}
+	}
+
+	return differences;
+};
+
+/**
+ * Describes every non-equivalent difference in a treatment set.
+ *
+ * Accepted and candidate may differ only by artifact and the resulting
+ * CodeIndex interface. Ordinary tools, the generic `execute` policy, and the
+ * MCP configuration must be identical across every treatment.
+ *
+ * @param treatments - Validated treatment definitions.
+ * @returns Human-readable differences; empty when the set is equivalent.
+ */
+export const treatmentDifferencesOf = (treatments: readonly TreatmentDefinitionType[]): readonly string[] => {
+	const ids = treatments.map((treatment) => treatment.id);
+	const differences = [...identityDifferencesOf(ids)];
 	const [first] = treatments;
 
 	if (first === undefined) {
@@ -286,26 +333,9 @@ export const treatmentDifferencesOf = (treatments: readonly TreatmentDefinitionT
 		if (treatment.ordinaryTools.join('\u0000') !== first.ordinaryTools.join('\u0000')) {
 			differences.push(`ordinary tools differ between ${first.id} and ${treatment.id}`);
 		}
-
-		if (treatment.codeMode !== first.codeMode) {
-			differences.push(`generic execute policy differs between ${first.id} and ${treatment.id}`);
-		}
 	}
 
-	const indexed = treatments.filter((treatment) => treatment.kind === 'codeindex');
-	const [accepted] = indexed;
-
-	if (accepted !== undefined) {
-		for (const treatment of indexed.slice(1)) {
-			if (treatment.mcp?.server !== accepted.mcp?.server) {
-				differences.push(`MCP server differs between ${accepted.id} and ${treatment.id}`);
-			}
-
-			if (treatment.mcp?.codemode !== accepted.mcp?.codemode) {
-				differences.push(`MCP codemode policy differs between ${accepted.id} and ${treatment.id}`);
-			}
-		}
-	}
+	differences.push(...sharedMcpDifferencesOf(treatments.filter((treatment) => treatment.kind === 'codeindex')));
 
 	return differences;
 };
@@ -333,9 +363,7 @@ export const validateTreatmentSet = (treatments: readonly TreatmentDefinitionTyp
  * @returns Definitions ordered by {@link TREATMENT_IDS}.
  */
 export const canonicalTreatmentsOf = (treatments: readonly TreatmentDefinitionType[]): readonly TreatmentDefinitionType[] =>
-	validateTreatmentSet(treatments)
-		.slice()
-		.sort((left, right) => TREATMENT_IDS.indexOf(left.id) - TREATMENT_IDS.indexOf(right.id));
+	[...validateTreatmentSet(treatments)].sort((left, right) => TREATMENT_IDS.indexOf(left.id) - TREATMENT_IDS.indexOf(right.id));
 
 /**
  * Hashes a treatment set for run identity.

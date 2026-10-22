@@ -16,7 +16,7 @@ const temporaryRoot = (testContext: TestContext): string => {
 
 const environmentOf = (root: string): NodeJS.ProcessEnv => ({XDG_DATA_HOME: path.join(root, 'data')});
 
-test('the default client store is in-memory and never the default database', () => {
+void test('the default client store is in-memory and never the default database', () => {
 	const store = clientStoreOf({campaignStore: null, campaignDir: '/tmp/campaign'});
 
 	assert.deepEqual(store, {mode: 'ephemeral', path: null, opencodeDb: ':memory:'});
@@ -29,7 +29,7 @@ test('the default client store is in-memory and never the default database', () 
 	});
 });
 
-test('a campaign store resolves outside the data directory and keeps its file', (testContext: TestContext) => {
+void test('a campaign store resolves outside the data directory and keeps its file', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const campaignDir = path.join(root, 'results', 'campaign-a');
 	const store = clientStoreOf({
@@ -46,11 +46,11 @@ test('a campaign store resolves outside the data directory and keeps its file', 
 
 	prepareClientStore(store);
 
-	assert.equal(existsSync(path.dirname(store.path ?? '')), true);
-	assert.equal(existsSync(store.path ?? ''), false);
+	assert.equal(existsSync(path.dirname(store.path)), true);
+	assert.equal(existsSync(store.path), false);
 });
 
-test('an absolute campaign store is accepted and recorded', (testContext: TestContext) => {
+void test('an absolute campaign store is accepted and recorded', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const storePath = path.join(root, 'campaign', 'client.db');
 	const store = clientStoreOf({
@@ -69,7 +69,7 @@ test('an absolute campaign store is accepted and recorded', (testContext: TestCo
 	});
 });
 
-test('a campaign store inside the OpenCode data directory is rejected', (testContext: TestContext) => {
+void test('a campaign store inside the OpenCode data directory is rejected', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const dataDirectory = defaultDataDirectoryOf(environmentOf(root), path.join(root, 'home'));
 	const campaignDir = path.join(root, 'results');
@@ -83,7 +83,7 @@ test('a campaign store inside the OpenCode data directory is rejected', (testCon
 				environment: environmentOf(root),
 				homeDirectory: path.join(root, 'home'),
 			}),
-		/outside the OpenCode data directory/,
+		/outside the OpenCode data directory/u,
 	);
 	assert.throws(
 		() =>
@@ -93,16 +93,18 @@ test('a campaign store inside the OpenCode data directory is rejected', (testCon
 				environment: environmentOf(root),
 				homeDirectory: path.join(root, 'home'),
 			}),
-		/outside the OpenCode data directory/,
+		/outside the OpenCode data directory/u,
 	);
-	assert.throws(() => assertOutsideDataDirectory(path.join(dataDirectory, 'opencode.db'), dataDirectory), /outside/);
+	assert.throws(() => {
+		assertOutsideDataDirectory(path.join(dataDirectory, 'opencode.db'), dataDirectory);
+	}, /outside/u);
 });
 
-test('an empty campaign store path fails before any process starts', () => {
-	assert.throws(() => clientStoreOf({campaignStore: '  ', campaignDir: '/tmp/campaign'}), /requires a path/);
+void test('an empty campaign store path fails before any process starts', () => {
+	assert.throws(() => clientStoreOf({campaignStore: '  ', campaignDir: '/tmp/campaign'}), /requires a path/u);
 });
 
-test('the data directory follows XDG_DATA_HOME and the home fallback', () => {
+void test('the data directory follows XDG_DATA_HOME and the home fallback', () => {
 	assert.equal(defaultDataDirectoryOf({XDG_DATA_HOME: '/xdg/data'}, '/home/operator'), '/xdg/data/opencode');
 	assert.equal(defaultDataDirectoryOf({}, '/home/operator'), '/home/operator/.local/share/opencode');
 });

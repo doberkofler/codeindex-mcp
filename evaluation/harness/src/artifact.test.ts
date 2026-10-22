@@ -39,7 +39,7 @@ const stagedArtifact = (root: string): void => {
 	writeFileSync(path.join(root, 'node_modules', 'dependency', 'index.js'), 'module.exports = 1;\n', 'utf8');
 };
 
-test('an artifact identity hashes its own files and ignores dependencies', (testContext: TestContext) => {
+void test('an artifact identity hashes its own files and ignores dependencies', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const artifactRoot = path.join(root, 'artifacts', 'candidate');
 
@@ -52,7 +52,7 @@ test('an artifact identity hashes its own files and ignores dependencies', (test
 	assert.equal(identity.declaredDigest, null);
 	assert.equal(identity.fileCount, 3);
 	assert.equal(identity.dependencies.length, 0);
-	assert.match(identity.digest, /^[0-9a-f]{64}$/);
+	assert.match(identity.digest, /^[0-9a-f]{64}$/u);
 	assert.deepEqual(artifactRefOf(identity), {id: 'codeindex-mcp-candidate', digest: identity.digest});
 
 	// The digest covers file content, not staging order or mtimes.
@@ -64,7 +64,7 @@ test('an artifact identity hashes its own files and ignores dependencies', (test
 	);
 });
 
-test('a declared digest is verified before any model starts', (testContext: TestContext) => {
+void test('a declared digest is verified before any model starts', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const artifactRoot = path.join(root, 'artifacts', 'candidate');
 
@@ -76,24 +76,24 @@ test('a declared digest is verified before any model starts', (testContext: Test
 	assert.equal(verified.digest, computed);
 	assert.equal(verified.declaredDigest, computed);
 
-	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf('0'.repeat(64))), /artifact codeindex-mcp-candidate digest mismatch/);
+	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf('0'.repeat(64))), /artifact codeindex-mcp-candidate digest mismatch/u);
 
 	writeFileSync(path.join(artifactRoot, 'chunks', 'server.mjs'), 'export const server = false;\n', 'utf8');
-	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf(computed)), /digest mismatch/);
+	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf(computed)), /digest mismatch/u);
 });
 
-test('a missing entry point or dependency is rejected', (testContext: TestContext) => {
+void test('a missing entry point or dependency is rejected', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const artifactRoot = path.join(root, 'artifacts', 'candidate');
 
 	stagedArtifact(artifactRoot);
 	rmSync(path.join(artifactRoot, 'mcp.mjs'));
-	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf()), /entry point is missing/);
+	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf()), /entry point is missing/u);
 
 	stagedArtifact(artifactRoot);
 	writeFileSync(path.join(artifactRoot, 'package.json'), '{"name":"artifact","type":"module","dependencies":{"missing-dependency":"1.0.0"}}\n', 'utf8');
-	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf()), /missing dependencies: missing-dependency/);
+	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf()), /missing dependencies: missing-dependency/u);
 
 	rmSync(path.join(artifactRoot, 'package.json'));
-	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf()), /artifact package is missing/);
+	assert.throws(() => artifactIdentityOf(artifactRoot, artifactOf()), /artifact package is missing/u);
 });

@@ -14,10 +14,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const encodePrimitive = (value: string | number | boolean): string => {
 	const encoded = JSON.stringify(value);
 
-	if (encoded === undefined) {
-		throw new Error(`canonical JSON does not support ${typeof value} values`);
-	}
-
 	return encoded;
 };
 
@@ -32,7 +28,7 @@ export const canonicalJson = (value: unknown): string => {
 
 	if (typeof value === 'number') {
 		if (!Number.isFinite(value)) {
-			throw new Error('canonical JSON does not support non-finite numbers');
+			throw new TypeError('canonical JSON does not support non-finite numbers');
 		}
 
 		return encodePrimitive(value);

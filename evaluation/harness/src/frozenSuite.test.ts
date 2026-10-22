@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
-import {fileURLToPath} from 'node:url';
 import {caseHashOf} from './schema.ts';
 import {loadSuite, planOf, selectCases, suiteWithModelOf} from './suite.ts';
 
-const EVALUATION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const EVALUATION_ROOT = path.resolve(import.meta.dirname, '..', '..');
 const RELEASE_PATH = path.join(EVALUATION_ROOT, 'suites', 'release.json');
 const CALIBRATION_PATH = path.join(EVALUATION_ROOT, 'suites', 'calibration.json');
 
@@ -19,7 +18,7 @@ const classCountsOf = (classes: readonly string[]): Readonly<Record<string, numb
 	return counts;
 };
 
-test('release suite is frozen at 18 cases and four task classes', () => {
+void test('release suite is frozen at 18 cases and four task classes', () => {
 	const {suite, cases} = loadSuite(RELEASE_PATH);
 	const pinned = suite.caseHashes;
 
@@ -42,7 +41,7 @@ test('release suite is frozen at 18 cases and four task classes', () => {
 	}
 });
 
-test('calibration suite v2 is a frozen six-case subset with an explicit editing surface', () => {
+void test('calibration suite v2 is a frozen six-case subset with an explicit editing surface', () => {
 	const {suite, cases} = loadSuite(CALIBRATION_PATH);
 	const release = loadSuite(RELEASE_PATH);
 	const pinned = suite.caseHashes;
@@ -69,7 +68,7 @@ test('calibration suite v2 is a frozen six-case subset with an explicit editing 
 	assert.equal(planOf(selectCases(cases, {}), ['no-index', 'accepted'], 1).length, 12);
 });
 
-test('a calibration rebinding changes the model and suite hash but not case hashes', () => {
+void test('a calibration rebinding changes the model and suite hash but not case hashes', () => {
 	const {suite, cases} = loadSuite(CALIBRATION_PATH);
 	const rebased = suiteWithModelOf(suite, cases, 'ollama/qwen3.8:27b-mlx');
 

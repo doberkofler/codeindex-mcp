@@ -18,6 +18,42 @@ const overrides: OverrideType[] = [
 			'unicorn/numeric-separators-style': 'off',
 		},
 	},
+	{
+		// The evaluation harness is a separate package that executes on
+		// `node --test`, not vitest. Its measurements require serialized
+		// executions: one model, one MCP session, one attempt at a time.
+		files: ['evaluation/harness/**/*.ts'],
+		rules: {
+			'eslint/no-await-in-loop': 'off',
+			'vitest/no-import-node-test': 'off',
+			'vitest/prefer-importing-vitest-globals': 'off',
+			'vitest/prefer-each': 'off',
+		},
+	},
+	{
+		// The harness is also compiled by the root test project, which enables
+		// `noPropertyAccessFromIndexSignature`. Bracket access is then mandatory for
+		// records, and `dot-notation` would report the same sites as needing dot
+		// access. The two rules cannot both hold in this file set.
+		files: [
+			'evaluation/harness/src/events.ts',
+			'evaluation/harness/src/eventsTools.ts',
+			'evaluation/harness/src/routePlan.ts',
+			'evaluation/harness/src/schema.ts',
+			'evaluation/harness/src/treatment.ts',
+		],
+		rules: {
+			'typescript/dot-notation': 'off',
+		},
+	},
+	{
+		// The bootstrap generator is a 32-bit mulberry32 xorshift. XOR and shifts
+		// are the algorithm; arithmetic cannot express them.
+		files: ['evaluation/harness/src/bootstrapRng.ts'],
+		rules: {
+			'eslint/no-bitwise': 'off',
+		},
+	},
 ];
 
 const config = {
@@ -38,11 +74,6 @@ const config = {
 		// Runtime-comparison harness: dynamic corpus metadata and native process
 		// output sit outside the authored TypeScript application.
 		'benchmark/oracle-antlr-runtime/**/*.mjs',
-		// Evaluation harness: a separate private workspace package with its own
-		// strict TypeScript check and node:test suite. It validates untrusted
-		// event streams at runtime, and its cohesion-oriented functions
-		// intentionally exceed the application complexity thresholds.
-		'evaluation/harness/**',
 	],
 };
 

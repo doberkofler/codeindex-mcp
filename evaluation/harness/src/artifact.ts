@@ -97,7 +97,7 @@ export const artifactDependenciesOf = (root: string): readonly string[] => {
 		throw new Error(`artifact package at ${file} is not a JSON object`);
 	}
 
-	const declared = (parsed as Record<string, unknown>)['dependencies'];
+	const declared = 'dependencies' in parsed ? parsed.dependencies : undefined;
 
 	if (declared === undefined) {
 		return [];
@@ -147,7 +147,7 @@ export const unresolvedDependenciesOf = (root: string, dependencies: readonly st
  * @returns The verified identity.
  */
 export const artifactIdentityOf = (artifactRoot: string, treatment: TreatmentDefinitionType): ArtifactIdentityType => {
-	const artifact = treatment.artifact;
+	const {artifact} = treatment;
 
 	if (artifact === null) {
 		throw new Error(`treatment ${treatment.id} declares no CodeIndex artifact`);

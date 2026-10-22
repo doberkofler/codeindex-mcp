@@ -3,9 +3,9 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test, {type TestContext} from 'node:test';
-import {identityDigestOf, identityOf} from './identity.ts';
+import {identityDigestOf, identityOf, type IdentityType} from './identity.ts';
 import {catalogOf} from './mcp.ts';
-import {caseOf, suiteFieldsOf, type SuiteType} from './schema.ts';
+import {caseOf, suiteFieldsOf, type CaseType, type SuiteType} from './schema.ts';
 import {planOf, resolveTreatmentOf} from './suite.ts';
 import {routingOf, toolSurfaceOf, treatmentDifferencesOf, treatmentOf, validateTreatmentSet, type TreatmentDefinitionType} from './treatment.ts';
 
@@ -50,7 +50,7 @@ const suite = (overrides: Record<string, unknown> = {}): SuiteType => {
 	return {...fields, hash: 'a'.repeat(64)};
 };
 
-const caseA = () =>
+const caseA = (): CaseType =>
 	caseOf({
 		schemaVersion: 1,
 		id: 'case-a',
@@ -62,11 +62,11 @@ const caseA = () =>
 		expectedFiles: ['src/a.ts'],
 		contextFiles: [],
 		forbiddenFiles: [],
-		workflow: {maxTotalCalls: 12, requiredFirstTool: null, maxOutputBytes: 1_000},
-		timeoutMs: 1_000,
+		workflow: {maxTotalCalls: 12, requiredFirstTool: null, maxOutputBytes: 1000},
+		timeoutMs: 1000,
 	});
 
-test('treatment definitions are data with a stable hash', () => {
+void test('treatment definitions are data with a stable hash', () => {
 	const first = treatments();
 	const second = treatments();
 
@@ -79,36 +79,36 @@ test('treatment definitions are data with a stable hash', () => {
 		first.map((treatment) => treatment.definitionHash),
 		second.map((treatment) => treatment.definitionHash),
 	);
-	assert.match(first[1]?.definitionHash ?? '', /^[0-9a-f]{64}$/);
+	assert.match(first[1]?.definitionHash ?? '', /^[0-9a-f]{64}$/u);
 	assert.notEqual(first[1]?.definitionHash, first[2]?.definitionHash);
 });
 
-test('treatment definitions reject invalid shapes and artifact paths', () => {
-	assert.throws(() => treatmentOf({...rawTreatments()[0], codeMode: 'available'}), /codeMode/);
-	assert.throws(() => treatmentOf({...rawTreatments()[0], artifact: {id: 'x', root: 'x', entryPoint: 'x'}}), /neither artifact nor mcp/);
-	assert.throws(() => treatmentOf({...rawTreatments()[1], artifact: null}), /both artifact and mcp/);
-	assert.throws(() => treatmentOf({...rawTreatments()[1], artifact: {id: 'x', root: '/abs', entryPoint: 'mcp.mjs'}}), /relative POSIX path/);
-	assert.throws(() => treatmentOf({...rawTreatments()[1], unexpected: true}), /unknown field/);
+void test('treatment definitions reject invalid shapes and artifact paths', () => {
+	assert.throws(() => treatmentOf({...rawTreatments()[0], codeMode: 'available'}), /codeMode/u);
+	assert.throws(() => treatmentOf({...rawTreatments()[0], artifact: {id: 'x', root: 'x', entryPoint: 'x'}}), /neither artifact nor mcp/u);
+	assert.throws(() => treatmentOf({...rawTreatments()[1], artifact: null}), /both artifact and mcp/u);
+	assert.throws(() => treatmentOf({...rawTreatments()[1], artifact: {id: 'x', root: '/abs', entryPoint: 'mcp.mjs'}}), /relative POSIX path/u);
+	assert.throws(() => treatmentOf({...rawTreatments()[1], unexpected: true}), /unknown field/u);
 });
 
-test('treatment equivalence rejects a tool-list mismatch', () => {
+void test('treatment equivalence rejects a tool-list mismatch', () => {
 	const changed = treatments().map((treatment, index) =>
 		index === 2 ? treatmentOf({...rawTreatments()[2], ordinaryTools: [...ORDINARY, 'webfetch']}) : treatment,
 	);
 
-	assert.match(treatmentDifferencesOf(changed).join('\n'), /ordinary tools differ/);
-	assert.throws(() => validateTreatmentSet(changed), /not equivalent/);
+	assert.match(treatmentDifferencesOf(changed).join('\n'), /ordinary tools differ/u);
+	assert.throws(() => validateTreatmentSet(changed), /not equivalent/u);
 });
 
-test('treatment equivalence rejects configuration and MCP mismatches', () => {
+void test('treatment equivalence rejects configuration and MCP mismatches', () => {
 	const missing = treatments().slice(0, 2);
 	const mcp = treatments().map((treatment, index) => (index === 2 ? treatmentOf({...rawTreatments()[2], mcp: {server: 'other', codemode: false}}) : treatment));
 
-	assert.match(treatmentDifferencesOf(missing).join('\n'), /expected 3 treatments|missing treatment/);
-	assert.match(treatmentDifferencesOf(mcp).join('\n'), /MCP server differs/);
+	assert.match(treatmentDifferencesOf(missing).join('\n'), /expected 3 treatments|missing treatment/u);
+	assert.match(treatmentDifferencesOf(mcp).join('\n'), /MCP server differs/u);
 });
 
-test('surface capture prefixes native MCP tools and records routing', () => {
+void test('surface capture prefixes native MCP tools and records routing', () => {
 	const [, accepted] = treatments();
 	assert.ok(accepted !== undefined);
 	const surface = toolSurfaceOf(accepted, ['find_symbol', 'read_symbol']);
@@ -122,12 +122,16 @@ test('surface capture prefixes native MCP tools and records routing', () => {
 	assert.equal(routing.executeCalls, 1);
 	assert.equal(routing.native, false);
 
-	const noIndex = toolSurfaceOf(treatments()[0] as TreatmentDefinitionType);
+	const [noIndexTreatment] = treatments();
+
+	assert.ok(noIndexTreatment !== undefined);
+
+	const noIndex = toolSurfaceOf(noIndexTreatment);
 	assert.deepEqual(noIndex.codeIndex, []);
 	assert.deepEqual(noIndex.tools, [...ORDINARY].sort());
 });
 
-test('catalog query returns the native tool names and rejects mismatches', async (testContext: TestContext) => {
+void test('catalog query returns the native tool names and rejects mismatches', async (testContext: TestContext) => {
 	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-mcp-'));
 	const server = path.join(root, 'server.mjs');
 	writeFileSync(
@@ -171,10 +175,10 @@ test('catalog query returns the native tool names and rejects mismatches', async
 	assert.deepEqual(catalog.tools, ['find_symbol', 'read_symbol']);
 });
 
-test('run identity changes on model, prompt, revision, and configuration', () => {
+void test('run identity changes on model, prompt, revision, and configuration', () => {
 	const cases = [caseA()];
 	const planHash = 'b'.repeat(64);
-	const identity = (overrides: Record<string, unknown> = {}, caseOverrides: Record<string, unknown> = {}) =>
+	const identity = (overrides: Record<string, unknown> = {}, caseOverrides: Record<string, unknown> = {}): IdentityType =>
 		identityOf({
 			suite: suite({...overrides}),
 			cases: [caseOf({...caseA(), ...caseOverrides})],
@@ -205,12 +209,15 @@ test('run identity changes on model, prompt, revision, and configuration', () =>
 	);
 });
 
-test('each planned execution resolves exactly one treatment', () => {
+void test('each planned execution resolves exactly one treatment', () => {
 	const plan = planOf([caseA()], ['no-index', 'candidate'], 2);
 
 	assert.equal(plan.length, 4);
 	assert.equal(new Set(plan.map((entry) => `${entry.caseId}/${entry.treatment}/${entry.repetition}`)).size, 4);
-	assert.equal(resolveTreatmentOf(plan[0]!, treatments()).id, 'no-index');
-	assert.equal(resolveTreatmentOf(plan[2]!, treatments()).id, 'candidate');
-	assert.throws(() => resolveTreatmentOf({caseId: 'case-a', treatment: 'missing', repetition: 1}, treatments()), /resolves 0/);
+	const [firstEntry, , thirdEntry] = plan;
+
+	assert.ok(firstEntry !== undefined && thirdEntry !== undefined);
+	assert.equal(resolveTreatmentOf(firstEntry, treatments()).id, 'no-index');
+	assert.equal(resolveTreatmentOf(thirdEntry, treatments()).id, 'candidate');
+	assert.throws(() => resolveTreatmentOf({caseId: 'case-a', treatment: 'missing', repetition: 1}, treatments()), /resolves 0/u);
 });

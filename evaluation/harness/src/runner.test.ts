@@ -1,139 +1,14 @@
 import assert from 'node:assert/strict';
-import {chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
-import {tmpdir} from 'node:os';
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import test, {type TestContext} from 'node:test';
-import {executionIdentityDigestOf, type ExecutionIdentityType} from './identity.ts';
-import {clientStoreOf, type ClientStoreType} from './isolation.ts';
+import {setTimeout as delay} from 'node:timers/promises';
+import {clientStoreOf} from './isolation.ts';
 import {readResult, writeResult} from './result.ts';
-import {runOnce, terminateActiveAttempts, withRestoration} from './runner.ts';
-import {caseOf, type CaseType} from './schema.ts';
-import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
+import {withRestoration} from './runner.ts';
+import {execute, quote, scriptOf, temporaryRoot, testCaseOf} from './runnerTestSupport.ts';
 
-const NO_RETRY = {maxAttempts: 1, backoffMs: () => 0};
-
-const temporaryRoot = (testContext: TestContext): string => {
-	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-runner-'));
-	testContext.after(() => {
-		rmSync(root, {recursive: true, force: true});
-	});
-
-	return root;
-};
-
-const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
-
-const scriptOf = (root: string, name: string, body: string): string => {
-	const file = path.join(root, `${name}.sh`);
-	writeFileSync(file, `#!/bin/sh\nset -eu\n${body}\n`, 'utf8');
-	chmodSync(file, 0o755);
-
-	return file;
-};
-
-const testCaseOf = (overrides: Record<string, unknown> = {}): CaseType =>
-	caseOf({
-		schemaVersion: 1,
-		id: 'case-a',
-		title: 'Case A',
-		class: 'locate',
-		tags: ['locate'],
-		prompt: 'Which file defines A?',
-		scope: ['src/**'],
-		expectedFiles: ['src/a.ts'],
-		contextFiles: [],
-		forbiddenFiles: [],
-		workflow: {maxTotalCalls: 12, requiredFirstTool: null, maxOutputBytes: 1_000},
-		timeoutMs: 5_000,
-		...overrides,
-	});
-
-const treatment: TreatmentDefinitionType = treatmentOf({
-	id: 'no-index',
-	kind: 'no-index',
-	ordinaryTools: ['bash', 'glob', 'grep', 'list', 'read'],
-	codeMode: 'absent',
-	artifact: null,
-	mcp: null,
-});
-
-const identity: ExecutionIdentityType = {
-	harness: {schemaVersion: '1.0', version: 1},
-	suite: {id: 'suite', version: 1, hash: 'a'.repeat(64)},
-	case: {id: 'case-a', hash: 'b'.repeat(64), promptHash: 'c'.repeat(64), timeoutMs: 5_000},
-	model: {
-		provider: 'provider',
-		modelId: 'model',
-		digest: 'd'.repeat(64),
-		quantization: null,
-		runtime: null,
-		runtimeVersion: null,
-		generationSettingsDigest: 'e'.repeat(64),
-	},
-	agent: {
-		id: 'evaluator',
-		version: '1',
-		instructionsHash: 'f'.repeat(64),
-		toolListHash: '1'.repeat(64),
-		permissionsHash: '2'.repeat(64),
-		contextBudgetTokens: 0,
-	},
-	treatment: {id: 'no-index', kind: 'no-index', definitionHash: '3'.repeat(64), mcpSurfaceHash: '4'.repeat(64)},
-	subject: {
-		revision: 'abc1234',
-		isolationMode: 'detached-worktree',
-		contentManifestHash: '5'.repeat(64),
-		projectFilesHash: '5'.repeat(64),
-		lockFileHash: null,
-		externalFixtureHash: null,
-	},
-	artifacts: {accepted: null, candidate: null},
-	codeIndex: {configDigest: '6'.repeat(64)},
-	repetitionIndex: 1,
-	randomizationSeed: '7'.repeat(64),
-};
-
-const clientStore = (root: string): ClientStoreType =>
-	clientStoreOf({
-		campaignStore: null,
-		campaignDir: path.join(root, 'campaign'),
-		environment: {XDG_DATA_HOME: path.join(root, 'data')},
-		homeDirectory: path.join(root, 'home'),
-	});
-
-const execute = (
-	root: string,
-	command: string,
-	testCase: CaseType,
-	store: ClientStoreType = clientStore(root),
-	options: Readonly<{retry?: {maxAttempts: number; backoffMs: () => number}; prepareRetry?: () => {restored: boolean; reason: string | null}}> = {},
-) =>
-	runOnce({
-		cwd: root,
-		testCase,
-		treatment,
-		surface: toolSurfaceOf(treatment),
-		repetition: 1,
-		model: 'provider/model',
-		revision: 'abc1234',
-		campaignId: 'campaign',
-		identity,
-		identityDigest: executionIdentityDigestOf(identity),
-		clientStore: store,
-		isolation: {
-			mode: 'detached-worktree',
-			clientStore: store.mode,
-			checkoutClean: true,
-			revisionMatch: true,
-		},
-		artifacts: {accepted: null, candidate: null, loaded: null},
-		rawBase: path.join(root, 'raw', 'case-a'),
-		command,
-		retry: options.retry ?? NO_RETRY,
-		...(options.prepareRetry === undefined ? {} : {prepareRetry: options.prepareRetry}),
-	});
-
-test('a successful execution uses a standalone private in-memory server', async (testContext: TestContext) => {
+void test('a successful execution uses a standalone private in-memory server', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const witness = path.join(root, 'witness');
 	mkdirSync(witness, {recursive: true});
@@ -173,7 +48,7 @@ test('a successful execution uses a standalone private in-memory server', async 
 	assert.equal(args.includes('--fork'), false);
 });
 
-test('every repetition starts with no inherited session and no default database write', async (testContext: TestContext) => {
+void test('every repetition starts with no inherited session and no default database write', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const witness = path.join(root, 'witness');
 	const dataDirectory = path.join(root, 'data', 'opencode');
@@ -228,7 +103,7 @@ test('every repetition starts with no inherited session and no default database 
 	}
 });
 
-test('successful, failed, and timed-out executions leave the normal database unchanged', async (testContext: TestContext) => {
+void test('successful, failed, and timed-out executions leave the normal database unchanged', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const dataDirectory = path.join(root, 'data', 'opencode');
 	mkdirSync(dataDirectory, {recursive: true});
@@ -254,11 +129,10 @@ test('successful, failed, and timed-out executions leave the normal database unc
 	process.env['XDG_DATA_HOME'] = path.join(root, 'data');
 
 	try {
-		const outcomes = [
-			(await execute(root, success, testCaseOf())).outcome,
-			(await execute(root, failure, testCaseOf())).outcome,
-			(await execute(root, timeout, testCaseOf({timeoutMs: 150}))).outcome,
-		];
+		const successRun = await execute(root, success, testCaseOf());
+		const failureRun = await execute(root, failure, testCaseOf());
+		const timeoutRun = await execute(root, timeout, testCaseOf({timeoutMs: 150}));
+		const outcomes = [successRun.outcome, failureRun.outcome, timeoutRun.outcome];
 
 		assert.deepEqual(outcomes, ['completed', 'failed', 'timed-out']);
 		assert.equal(readFileSync(defaultDatabase, 'utf8'), 'operator-session-store');
@@ -273,7 +147,7 @@ test('successful, failed, and timed-out executions leave the normal database unc
 	}
 });
 
-test('a campaign-local store never resumes a session from a prior repetition', async (testContext: TestContext) => {
+void test('a campaign-local store never resumes a session from a prior repetition', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const witness = path.join(root, 'witness');
 	const dataDirectory = path.join(root, 'data', 'opencode');
@@ -303,8 +177,8 @@ test('a campaign-local store never resumes a session from a prior repetition', a
 	process.env['XDG_DATA_HOME'] = path.join(root, 'data');
 
 	try {
-		const first = await execute(root, command, testCaseOf(), store);
-		const second = await execute(root, command, testCaseOf(), store);
+		const first = await execute(root, command, testCaseOf(), {store});
+		const second = await execute(root, command, testCaseOf(), {store});
 
 		assert.equal(first.valid, true);
 		assert.equal(second.valid, true);
@@ -326,7 +200,7 @@ test('a campaign-local store never resumes a session from a prior repetition', a
 	}
 });
 
-test('a campaign-local store path is passed instead of the default database', async (testContext: TestContext) => {
+void test('a campaign-local store path is passed instead of the default database', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const witness = path.join(root, 'witness');
 	mkdirSync(witness, {recursive: true});
@@ -348,14 +222,14 @@ test('a campaign-local store path is passed instead of the default database', as
 		].join('\n'),
 	);
 
-	const result = await execute(root, command, testCaseOf(), store);
+	const result = await execute(root, command, testCaseOf(), {store});
 
 	assert.equal(result.isolation.clientStore, 'campaign-local');
 	assert.equal(readFileSync(path.join(witness, 'db.txt'), 'utf8').trim(), store.path);
 	assert.notEqual(store.path, path.join(root, 'data', 'opencode', 'opencode.db'));
 });
 
-test('a failed execution is persisted as an inspectable failed result', async (testContext: TestContext) => {
+void test('a failed execution is persisted as an inspectable failed result', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const command = scriptOf(
 		root,
@@ -376,12 +250,12 @@ test('a failed execution is persisted as an inspectable failed result', async (t
 	assert.equal(result.invalidReason, 'agent exited with 3');
 	assert.notEqual(stored, null);
 	assert.equal(stored?.outcome, 'failed');
-	assert.equal(stored?.exitCode, 3);
-	assert.equal(stored?.valid, false);
-	assert.match(stored?.integrity.contentDigest ?? '', /^[0-9a-f]{64}$/);
+	assert.equal(stored.exitCode, 3);
+	assert.equal(stored.valid, false);
+	assert.match(stored.integrity.contentDigest, /^[0-9a-f]{64}$/u);
 });
 
-test('a hard timeout terminates the whole process group and stays inspectable', async (testContext: TestContext) => {
+void test('a hard timeout terminates the whole process group and stays inspectable', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const grandchild = path.join(root, 'grandchild.txt');
 	const command = scriptOf(
@@ -398,12 +272,10 @@ test('a hard timeout terminates the whole process group and stays inspectable', 
 	assert.equal(result.exitCode, null);
 	assert.equal(result.invalidReason, 'timed out');
 	assert.equal(result.signal === 'SIGTERM' || result.signal === 'SIGKILL', true);
-	assert.equal(result.durationMs < 4_000, true);
+	assert.equal(result.durationMs < 4000, true);
 	assert.equal(result.attempts.length, 1);
 
-	await new Promise<void>((resolve) => {
-		setTimeout(resolve, 800);
-	});
+	await delay(800);
 
 	assert.equal(existsSync(grandchild), false);
 
@@ -416,7 +288,7 @@ test('a hard timeout terminates the whole process group and stays inspectable', 
 	assert.equal(stored.timedOut, true);
 });
 
-test('a descendant that escapes the process group cannot hold the harness open', async (testContext: TestContext) => {
+void test('a descendant that escapes the process group cannot hold the harness open', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const pidFile = path.join(root, 'escaped.pid');
 	const command = scriptOf(
@@ -429,7 +301,7 @@ test('a descendant that escapes the process group cannot hold the harness open',
 	);
 
 	try {
-		const result = await execute(root, command, testCaseOf({timeoutMs: 1_000}));
+		const result = await execute(root, command, testCaseOf({timeoutMs: 1000}));
 
 		assert.equal(result.outcome, 'timed-out');
 		assert.equal(result.exitCode, null);
@@ -446,7 +318,7 @@ test('a descendant that escapes the process group cannot hold the harness open',
 	}
 });
 
-test('a restoration failure is persisted as an inspectable failed result', async (testContext: TestContext) => {
+void test('a restoration failure is persisted as an inspectable failed result', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const command = scriptOf(
 		root,
@@ -469,15 +341,15 @@ test('a restoration failure is persisted as an inspectable failed result', async
 	assert.equal(execution.isolation.restored, false);
 	assert.equal(result.outcome, 'failed');
 	assert.equal(result.valid, false);
-	assert.match(result.invalidReason ?? '', /restoration failed: workspace \.git is missing/);
+	assert.match(result.invalidReason ?? '', /restoration failed: workspace \.git is missing/u);
 	assert.equal(result.isolation.restored, false);
 	assert.equal(result.attempts.length, 1);
 	assert.equal(stored?.outcome, 'failed');
-	assert.equal(stored?.valid, false);
-	assert.deepEqual(stored?.defects, ['dirty-isolation']);
+	assert.equal(stored.valid, false);
+	assert.deepEqual(stored.defects, ['dirty-isolation']);
 });
 
-test('missing token usage invalidates only the token metrics', async (testContext: TestContext) => {
+void test('missing token usage invalidates only the token metrics', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const command = scriptOf(
 		root,
@@ -498,7 +370,7 @@ test('missing token usage invalidates only the token metrics', async (testContex
 	assert.equal(result.telemetry.inputTokens.value, null);
 });
 
-test('nested tool calls and malformed lines are retained in the stored result', async (testContext: TestContext) => {
+void test('nested tool calls and malformed lines are retained in the stored result', async (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const command = scriptOf(
 		root,
@@ -543,144 +415,4 @@ test('nested tool calls and malformed lines are retained in the stored result', 
 		unit: 'tokens',
 		source: 'step_finish.cache.read',
 	});
-});
-
-test('a successful restoration keeps the execution outcome', async (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const command = scriptOf(
-		root,
-		'success',
-		[
-			"cat <<'EVENTS'",
-			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
-			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
-			'EVENTS',
-		].join('\n'),
-	);
-	const result = withRestoration(await execute(root, command, testCaseOf()), {restored: true, reason: null});
-
-	assert.equal(result.outcome, 'completed');
-	assert.equal(result.valid, true);
-	assert.equal(result.isolation.restored, true);
-});
-
-test('a retry starts from a restored workspace, never from the previous attempt edits', async (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const witness = path.join(root, 'witness');
-	mkdirSync(witness, {recursive: true});
-	const command = scriptOf(
-		root,
-		'retry',
-		[
-			`count=$(cat ${quote(path.join(witness, 'count'))} 2>/dev/null || printf 0)`,
-			`count=$((count + 1))`,
-			`printf '%s' "$count" > ${quote(path.join(witness, 'count'))}`,
-			`if [ -e ${quote(path.join(root, 'dirty.txt'))} ]; then exit 9; fi`,
-			`if [ "$count" -eq 1 ]; then printf 'edited\\n' > ${quote(path.join(root, 'dirty.txt'))}; exit 3; fi`,
-			"cat <<'EVENTS'",
-			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
-			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
-			'EVENTS',
-		].join('\n'),
-	);
-	const result = await execute(root, command, testCaseOf(), clientStore(root), {
-		retry: {maxAttempts: 2, backoffMs: () => 0},
-		prepareRetry: () => {
-			rmSync(path.join(root, 'dirty.txt'), {force: true});
-
-			return {restored: true, reason: null};
-		},
-	});
-
-	assert.equal(readFileSync(path.join(witness, 'count'), 'utf8'), '2');
-	assert.equal(result.valid, true);
-	assert.equal(result.outcome, 'completed');
-	assert.equal(result.attempts.length, 2);
-	assert.equal(existsSync(path.join(root, 'dirty.txt')), false);
-});
-
-test('a failed restoration aborts the slot instead of retrying from edits', async (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const witness = path.join(root, 'witness');
-	mkdirSync(witness, {recursive: true});
-	const command = scriptOf(
-		root,
-		'retry-abort',
-		[
-			`count=$(cat ${quote(path.join(witness, 'count'))} 2>/dev/null || printf 0)`,
-			`count=$((count + 1))`,
-			`printf '%s' "$count" > ${quote(path.join(witness, 'count'))}`,
-			'exit 3',
-		].join('\n'),
-	);
-	const result = await execute(root, command, testCaseOf(), clientStore(root), {
-		retry: {maxAttempts: 3, backoffMs: () => 0},
-		prepareRetry: () => ({restored: false, reason: 'workspace .git is missing'}),
-	});
-
-	assert.equal(readFileSync(path.join(witness, 'count'), 'utf8'), '1');
-	assert.equal(result.attempts.length, 1);
-	assert.equal(result.valid, false);
-	assert.equal(result.outcome, 'failed');
-	assert.equal(result.defects.includes('dirty-isolation'), true);
-	assert.match(result.invalidReason ?? '', /restoration before retry failed: workspace \.git is missing/u);
-});
-
-test('a termination signal reaches the detached execution group', async (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const command = scriptOf(root, 'terminate', ['sleep 30', ''].join('\n'));
-	const started = Date.now();
-	const pending = execute(root, command, testCaseOf({timeoutMs: 60_000}));
-
-	setTimeout(() => terminateActiveAttempts('SIGTERM'), 250);
-	const result = await pending;
-
-	assert.ok(Date.now() - started < 15_000);
-	assert.equal(result.outcome, 'failed');
-	assert.equal(result.exitCode, null);
-	assert.equal(result.timedOut, false);
-});
-
-test('a declared post-run check is reported separately from correctness and process success', async (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const command = scriptOf(
-		root,
-		'success',
-		[
-			"cat <<'EVENTS'",
-			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
-			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
-			'EVENTS',
-		].join('\n'),
-	);
-	const passing = await execute(root, command, testCaseOf({check: {command: process.execPath, args: ['-e', 'process.exit(0)']}}));
-	const failing = await execute(root, command, testCaseOf({check: {command: process.execPath, args: ['-e', 'process.exit(4)']}}));
-
-	assert.equal(passing.postRun?.result, 'pass');
-	assert.equal(failing.postRun?.result, 'fail');
-	assert.equal(failing.postRun?.exitCode, 4);
-	assert.equal(failing.grade.success, true);
-	assert.equal(failing.valid, true);
-	assert.equal(failing.outcome, 'completed');
-});
-
-test('a workflow violation does not change answer correctness or process validity', async (testContext: TestContext) => {
-	const root = temporaryRoot(testContext);
-	const command = scriptOf(
-		root,
-		'one-call',
-		[
-			"cat <<'EVENTS'",
-			String.raw`{"type":"tool_use","part":{"type":"tool","callID":"call-1","tool":"read","state":{"status":"completed","input":{"path":"src/a.ts"},"output":"abcd"}}}`,
-			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
-			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
-			'EVENTS',
-		].join('\n'),
-	);
-	const result = await execute(root, command, testCaseOf({workflow: {maxTotalCalls: 1, requiredFirstTool: 'grep', maxOutputBytes: 1_000}}));
-
-	assert.equal(result.grade.success, true);
-	assert.equal(result.workflow.result, 'fail');
-	assert.equal(result.valid, true);
-	assert.equal(result.outcome, 'completed');
 });

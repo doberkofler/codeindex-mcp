@@ -134,7 +134,7 @@ const interventionsOf = (results: readonly CalibrationExecutionType[]): readonly
 	const reasons: string[] = [];
 
 	for (const run of results) {
-		if ((run.attempts?.length ?? 1) > 1) {
+		if (run.attempts.length > 1) {
 			reasons.push(`${runKeyOf(run)}: retried ${run.attempts.length - 1} time(s)`);
 		}
 
