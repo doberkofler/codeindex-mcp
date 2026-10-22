@@ -167,6 +167,39 @@ describe('RefreshCoordinator', () => {
 	});
 });
 
+describe('RefreshCoordinator failure recovery', () => {
+	it('runs one follow-up when a build fails with pending events', async () => {
+		const {clock, advance} = createClock();
+		const gate = new EventTarget();
+		let calls = 0;
+		const runRefresh = async (): Promise<void> => {
+			calls += 1;
+			await once(gate, 'release');
+
+			if (calls === 1) {
+				throw new Error('source changed during build');
+			}
+		};
+		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
+
+		coordinator.start();
+		await advance(500);
+		expect(calls).toBe(1);
+		coordinator.notify(['src/a.ts']);
+		expect(coordinator.getSnapshot().refreshAgain).toBe(true);
+		gate.dispatchEvent(new Event('release'));
+		await flush();
+		expect(coordinator.getSnapshot().state).toBe('dirty');
+
+		await advance(500);
+		expect(calls).toBe(2);
+		gate.dispatchEvent(new Event('release'));
+		await flush();
+		expect(coordinator.getSnapshot().state).toBe('current');
+		await coordinator.close();
+	});
+});
+
 describe('RefreshCoordinator publication timing', () => {
 	it('records event-to-publication from the first dirty event', async () => {
 		const {clock, advance} = createClock();

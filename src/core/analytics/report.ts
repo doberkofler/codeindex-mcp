@@ -1,5 +1,6 @@
 import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import path from 'node:path';
+import {type BuildFailureCauseType, isBuildFailureCause} from '../generation/buildFailureCause.ts';
 import {type AnalyticsEventType, parseAnalyticsEvent} from './events.ts';
 
 const {dirname, join} = path;
@@ -23,6 +24,7 @@ export type AnalyticsSummaryType = Readonly<{
 		readonly p95Ms: number | null;
 		readonly stages: Readonly<Record<string, number | null>>;
 		readonly failures: number;
+		readonly failureCauses: Readonly<Partial<Record<BuildFailureCauseType, number>>>;
 	}>;
 	readonly freshness: Readonly<Record<string, number>>;
 	readonly watcher: Readonly<{
@@ -66,6 +68,7 @@ type AggregateStateType = {
 	readonly stageValues: Map<string, number[]>;
 	readonly publicationDurations: number[];
 	buildFailures: number;
+	readonly buildFailureCauses: Partial<Record<BuildFailureCauseType, number>>;
 	watcherEvents: number;
 	watcherRefreshes: number;
 	watcherCoalesced: number;
@@ -220,6 +223,15 @@ const accumulateBuild = (state: AggregateStateType, event: AnalyticsEventType): 
 	}
 };
 
+const accumulateBuildFailure = (state: AggregateStateType, event: AnalyticsEventType): void => {
+	state.buildFailures += 1;
+	const cause = stringField(event, 'cause');
+
+	if (cause !== null && isBuildFailureCause(cause)) {
+		state.buildFailureCauses[cause] = (state.buildFailureCauses[cause] ?? 0) + 1;
+	}
+};
+
 const accumulateEvent = (state: AggregateStateType, event: AnalyticsEventType): void => {
 	state.counts[event.event] = (state.counts[event.event] ?? 0) + 1;
 
@@ -242,7 +254,7 @@ const accumulateEvent = (state: AggregateStateType, event: AnalyticsEventType): 
 	}
 
 	if (event.event === 'build_failed') {
-		state.buildFailures += 1;
+		accumulateBuildFailure(state, event);
 		return;
 	}
 
@@ -313,6 +325,7 @@ export const summarizeAnalytics = (analyticsPath: string, since?: string): Analy
 		stageValues: new Map(),
 		publicationDurations: [],
 		buildFailures: 0,
+		buildFailureCauses: {},
 		watcherEvents: 0,
 		watcherRefreshes: 0,
 		watcherCoalesced: 0,
@@ -341,6 +354,7 @@ export const summarizeAnalytics = (analyticsPath: string, since?: string): Analy
 			p95Ms: percentile(state.buildDurations, 0.95),
 			stages: stageSummaries(state.stageValues),
 			failures: state.buildFailures,
+			failureCauses: state.buildFailureCauses,
 		},
 		freshness: state.freshness,
 		watcher: {
@@ -377,6 +391,7 @@ export const formatAnalyticsText = (summary: AnalyticsSummaryType): readonly str
 	`find_symbol exact-name presence: ${JSON.stringify(summary.exactNamePresence)}`,
 	'',
 	`builds: ${summary.builds.count}, failures ${summary.builds.failures}, p50 ${formatValue(summary.builds.p50Ms)} ms, p95 ${formatValue(summary.builds.p95Ms)} ms`,
+	`  failure causes: ${JSON.stringify(summary.builds.failureCauses)}`,
 	...Object.entries(summary.builds.stages).map(([stage, value]) => `  ${stage}: ${formatValue(value)} ms`),
 	'',
 	`freshness: ${JSON.stringify(summary.freshness)}`,

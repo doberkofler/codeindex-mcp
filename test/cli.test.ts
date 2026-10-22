@@ -78,6 +78,7 @@ describe('operational CLI', () => {
 			['benchmark', '--help'],
 			['benchmark-suite', '--help'],
 			['benchmark-prepare', '--help'],
+			['soak', '--help'],
 			['verify-references', '--help'],
 		];
 

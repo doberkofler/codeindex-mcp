@@ -212,7 +212,7 @@ plan. Status meanings:
 | WP2 — continuous freshness | Implemented | Coordinator, recursive watcher, 500 ms debounce, 60 s reconciliation, one follow-up build, query freshness, dirty-source rejection, and shutdown ownership are implemented and tested. |
 | WP3 — persistence and writer coordination | Partial | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, and bounded generation cleanup exist. Process-level contention/termination evidence and explicit checkout move/copy/delete semantics remain incomplete. |
 | WP4 — compiler/reference alignment | Implemented | Declared compiler identity, drift, TypeScript API extraction, and the ≥200-symbol, ≥99.5%-recall, 100%-precision gate with construct stratification and a checked-in corpus exist. |
-| WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, worker builds, and a resumable per-run evidence suite exist. Retained reference-machine measurements, Code Mode comparison, contention evidence, and four-hour soak evidence remain incomplete. Incremental compiler state remains conditional. |
+| WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, worker builds, a resumable per-run evidence suite, and the deterministic model-free E3 operational soak exist. Retained reference-machine measurements, Code Mode comparison, contention evidence, and four-hour soak evidence remain incomplete. Incremental compiler state remains conditional. |
 | WP6 — build separation | Superseded/partial | MCP, CLI, console server, and browser bundles are separate. The evaluation harness and public cases live under `evaluation/` and are not bundled; private corpora and restricted results remain outside this repository. |
 | WP7 — OpenCode installation | Implemented | CLI install/uninstall, explicit MCP bundle/configuration paths, preservation of unrelated JSONC, external project configuration, and user documentation exist. |
 | WP8 — interactive pilot | Open | No retained public evidence proves the required representative-session count, adoption denominator, all latency/resource gates, or soak completion. |
@@ -326,7 +326,7 @@ artifacts.
 - verify deep cursor query plans at production cardinalities; **sampling and plan gates implemented; production-cardinality reference runs still need retention**
 - publish a Markdown summary while keeping JSON authoritative; **done**
 - compare direct MCP and Code Mode wrapping;
-- complete restart, two-process, lease takeover, and four-hour soak runs;
+- complete two-process, lease takeover, and four-hour soak runs; **deterministic restart, unattended recovery, and retention evidence implemented by `soak`**;
 - implement private controlled cases for direct dependency usage, grouped impact,
   binding-aware façades, and fallback behavior;
 - measure index-first adoption only from an approved complete client event stream.

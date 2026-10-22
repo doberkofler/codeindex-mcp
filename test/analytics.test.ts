@@ -56,6 +56,20 @@ describe('analytics', () => {
 		expect(summary.freshness).toStrictEqual({current: 1});
 	});
 
+	it('keeps build failures queryable by closed cause', () => {
+		const {analyticsPath, recorder} = recorderIn(true);
+
+		recorder.record('build_failed', {cause: 'source-read', durationMs: 10});
+		recorder.record('build_failed', {cause: 'lease', durationMs: 20});
+		recorder.record('build_failed', {cause: 'not-a-cause', durationMs: 30});
+		recorder.close();
+
+		const summary = summarizeAnalytics(analyticsPath);
+
+		expect(summary.builds.failures).toBe(3);
+		expect(summary.builds.failureCauses).toStrictEqual({'source-read': 1, lease: 1});
+	});
+
 	it('performs no filesystem access when disabled', () => {
 		const {analyticsPath, recorder} = recorderIn(false);
 

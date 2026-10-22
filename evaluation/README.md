@@ -171,6 +171,29 @@ class-stratified failure blocks the release verdict. The selected reference and
 the current gate status are recorded in
 [`audits/hosted-release-campaign-e2.md`](audits/hosted-release-campaign-e2.md).
 
+## Operational soak
+
+The E3 operational soak is model-free and runs outside the agent harness. It
+generates a deterministic TypeScript corpus, drives real files through the real
+watcher and builder, records edit-to-fresh latency and edits during active
+builds, injects a source-read failure, restarts the index, and checks the
+declared retention policy:
+
+```bash
+pnpm build
+node dist/cli.mjs soak --profile small --rounds 8 --burst-edits 3 \
+  --failures 1 --restarts 1 --output benchmark/results/soak.json
+```
+
+Every edit changes the file content, and the report carries a plan hash and an
+edit-script hash. Build failures use the closed cause set and are also written
+to the `build_failed` analytics event. The sanitized report and Markdown summary
+are written to the requested paths; generated workspaces and databases are
+removed unless `--keep-workspace` is supplied. The reference-machine run is
+recorded in [`audits/operational-soak-e3.md`](audits/operational-soak-e3.md).
+Operational results stay separate from agent-task latency and are never used as
+E1 or E2 evidence.
+
 The draft controlled semantic suite is listed with:
 
 ```bash

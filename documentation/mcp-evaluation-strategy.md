@@ -185,6 +185,13 @@ Use deterministic edit scripts and real watcher/build behavior without a model. 
 
 Report this separately from agent-task latency.
 
+The type-checked command for this layer is `codeindex-cli soak`: it generates a
+deterministic corpus, exercises the real watcher and builder through a fixed
+edit script, records closed build-failure causes, and proves unattended
+recovery, restart reuse, and retention bounds. Its report is operational
+evidence only; it is never pooled with agent-task latency and never substitutes
+for an E1 or E2 result.
+
 ## 5. Evaluation data
 
 Use five complementary data classes:

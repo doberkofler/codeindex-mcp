@@ -294,9 +294,8 @@ export class RefreshCoordinator {
 			this.#lastError = error instanceof Error ? error.message : String(error);
 			const completedAt = this.#clock.now();
 			const eventToPublicationMs = completedAt - (this.#firstEventAt ?? startedAt);
+			const hadPendingEvents = this.#refreshAgain;
 			this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
-			this.#state = 'failed';
-			this.#firstEventAt = null;
 			this.#record('refresh_failed', {
 				reason: this.#lastReason,
 				durationMs: Math.round(completedAt - startedAt),
@@ -304,6 +303,19 @@ export class RefreshCoordinator {
 				dirtyFileCount: this.#projectWideInvalidation ? null : this.#dirtyPaths.size,
 			});
 			this.#logger.error('refresh_failed', {message: this.#lastError});
+
+			// An event that arrived during the failed build is still pending. One
+			// debounced follow-up is the accepted retry; without it the index would
+			// stay stale until an unrelated edit arrived.
+			if (hadPendingEvents) {
+				this.#refreshAgain = false;
+				this.#state = 'dirty';
+				this.#schedule('change');
+				return;
+			}
+
+			this.#state = 'failed';
+			this.#firstEventAt = null;
 		}
 	}
 }

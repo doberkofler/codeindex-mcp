@@ -36,7 +36,7 @@ import {acquireLease, BUILD_LEASE_TTL_MS, readLease, releaseLease, renewLease, r
 import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
-import {asString} from './databaseRows.ts';
+import {asNumber, asString} from './databaseRows.ts';
 import {listProjectContextNames as listStoredProjectContextNames} from './databaseContextQueries.ts';
 import {
 	bindingBelongsToSymbol,
@@ -462,6 +462,17 @@ export class IndexDatabase {
 
 	public extractionArtifactCount(): number {
 		return countStoredExtractionArtifacts(this.#reader);
+	}
+
+	/**
+	 * Counts retained generation rows, including the published and one superseded generation.
+	 *
+	 * @returns Persisted generation row count.
+	 */
+	public generationCount(): number {
+		const row = this.#reader.prepare('select count(*) as total from generation').get();
+
+		return row === undefined ? 0 : asNumber(row, 'total');
 	}
 
 	public close(): void {

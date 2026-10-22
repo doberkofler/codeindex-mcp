@@ -301,6 +301,37 @@ Hardware-sensitive gates may be recalibrated only with the prior baseline,
 replacement value, machine identity, and reason recorded. CI may use broader
 regression bounds but must detect order-of-magnitude regressions.
 
+### 7.4 Operational soak and recovery
+
+`soak` is the model-free E3 evaluation. It generates a deterministic TypeScript
+corpus, drives the real watcher and build worker through a fixed edit script,
+and records edit-to-fresh latency, events during active builds, restart
+generation reuse, stale-source refusal, CPU, RSS, storage, and retention bounds.
+It then injects one source-read failure and one failure from an edit during a
+build, and requires both to recover without a manual command.
+
+```bash
+codeindex-cli soak --profile small --rounds 8 --burst-edits 3 \
+  --failures 1 --restarts 1 --output benchmark/results/soak.json
+```
+
+Every event appends deterministic source text and verifies that the file hash
+changed. The report records the plan hash and edit-script hash, so the same
+command reproduces the same content sequence. Build failures carry a closed
+`cause` (`source-read`, `source-changed`, `configuration`, `compiler`,
+`extraction`, `persistence`, `verification`, `publication`, `lease`, `worker`,
+or `unknown`); the same value is written to the `build_failed` analytics event
+and summarized by `analytics summary`.
+
+The declared retention policy is one published plus one superseded generation.
+Every observation must stay within two generations, twice the indexed file count
+for content versions, and two extraction artifacts per content version.
+Database bytes are reported but not gated by an arbitrary threshold; row counts
+prove the policy bound. A report that fails any gate exits non-zero. Generated
+workspaces and databases are removed after the report is written unless
+`--keep-workspace` is supplied. Operational results are never pooled with agent
+task latency.
+
 ## 8. Analytics and privacy
 
 Analytics are local, versioned, bounded, and optional. Record tool, duration,

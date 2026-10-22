@@ -3,6 +3,7 @@ import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
 import {addBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
 import {addBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
 import {addBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
+import {addSoakCommand} from '../../core/benchmark/soakCommand.ts';
 import {loadConfig} from '../../core/config/config.ts';
 import {isCodeIndexError} from '../../core/errors/errors.ts';
 import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
@@ -270,6 +271,10 @@ const buildProgram = (context: CliContextType): Command => {
 	addBenchmarkCommand(program, context.environment, context.io);
 	addBenchmarkSuiteCommand(program, context.environment, context.io, {cliPath: process.argv[1] ?? ''});
 	addBenchmarkPrepareCommand(program, context.io);
+	addSoakCommand(program, context.io, {
+		workerEntry: context.workerEntry,
+		configOf: () => loadConfig({...context.environment, CODE_INDEX_ANALYTICS: 'false'}),
+	});
 	addQualifyCommand(program, context.environment, context.io);
 	addPublicationReportCommand(program, context.environment, context.io);
 	addOracleLiveCommand(program, context.environment, context.io);

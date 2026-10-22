@@ -9,6 +9,7 @@ import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
 import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
+import {buildFailureCauseOf} from './buildFailureCause.ts';
 import {buildGeneration} from './buildGeneration.ts';
 import {type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
@@ -180,7 +181,6 @@ export class CodeIndex {
 		debug('refresh start', {reason, force});
 		const startedAt = performance.now();
 		const leaseAcquired = this.#database.tryAcquireBuildLease(this.#ownerId, process.pid, BUILD_LEASE_TTL_MS);
-
 		if (!leaseAcquired) {
 			debug('build lease held by another process');
 			return observeExternalBuild({
@@ -239,14 +239,15 @@ export class CodeIndex {
 				stages: report.stages,
 				...resources(),
 			});
-
 			return report;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			debug('refresh failed', {message});
-			this.#logger.error('index_refresh_failed', {message});
+			const cause = buildFailureCauseOf(error);
+			debug('refresh failed', {message, cause});
+			this.#logger.error('index_refresh_failed', {message, cause});
 			this.#analytics?.record('build_failed', {
 				reason,
+				cause,
 				durationMs: Math.round(performance.now() - startedAt),
 				...resources(),
 			});
