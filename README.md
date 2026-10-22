@@ -315,13 +315,14 @@ verify, benchmark, and qualification operations.
 
 ```bash
 pnpm install
-pnpm verify              # typecheck, Oxlint, Knip, Oxfmt, Vitest
+pnpm verify              # typecheck, Oxlint, Knip, Oxfmt, complete Vitest suite
+pnpm verify:pr           # verify plus the fixture qualification gate
+pnpm test:fast           # module, adapter, core, and fake-index MCP classes
+pnpm test:typescript     # TypeScript adapter and reference-corpus classes
+pnpm test:mcp            # MCP protocol class
+pnpm test:system         # built-process deterministic system class
 pnpm test:oracle         # Oracle adapter tests
-pnpm qualify:typescript  # TypeScript reference cross-check against the configured project
-# Qualification corpus:
-CODE_INDEX_ROOT=test/fixtures/reference-corpus \
-CODE_INDEX_PROJECT_FILE=test/fixtures/reference-corpus/tsconfig.json \
-pnpm qualify:typescript
+pnpm qualify:typescript:fixture  # self-contained TypeScript language-service gate
 pnpm build
 ```
 

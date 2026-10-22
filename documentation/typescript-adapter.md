@@ -186,9 +186,7 @@ intentional: the command qualifies the adapter, not the health of an arbitrary
 consumer index. Run it against the qualification corpus with:
 
 ```bash
-CODE_INDEX_ROOT=test/fixtures/reference-corpus \
-CODE_INDEX_PROJECT_FILE=test/fixtures/reference-corpus/tsconfig.json \
-pnpm qualify:typescript
+pnpm qualify:typescript:fixture
 ```
 
 Benchmark storage execution, core calls, MCP transport, client wrapping, and full

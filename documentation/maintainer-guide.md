@@ -242,8 +242,9 @@ of shell commands. Two TypeScript suites are committed:
 
 Semantic accuracy is a separate qualification operation, not a benchmark step:
 
-- `pnpm qualify:typescript` runs the TypeScript language-service gate against
-  `test/fixtures/reference-corpus/`.
+- `pnpm qualify:typescript:fixture` runs the TypeScript language-service gate against
+  `test/fixtures/reference-corpus/` with the project and corpus paths supplied by the
+  script.
 - `pnpm qualify:oracle` compares the indexed Oracle workspace with exported
   PL/Scope and dependency CSV files. It performs no Oracle connection and no DDL.
 
@@ -251,7 +252,7 @@ Semantic accuracy is a separate qualification operation, not a benchmark step:
 pnpm benchmark:typescript:generated -- --output ~/codeindex-evidence/typescript-generated
 pnpm benchmark:typescript:public:prepare
 pnpm benchmark:typescript:public -- --output ~/codeindex-evidence/typescript-public
-pnpm qualify:typescript
+pnpm qualify:typescript:fixture
 ```
 
 Each step runs the built CLI in a fresh process. Generated profiles use a fresh
@@ -346,7 +347,7 @@ client event export for that denominator.
 
 ## 9. Release discipline
 
-- run `pnpm verify`, `pnpm qualify:typescript`, and `pnpm build`;
+- run `pnpm verify:pr` and `pnpm build`;
 - keep stdout reserved for MCP framing;
 - inspect bundle contents for accidental evaluation/private code;
 - update architecture, adapter limitations, roadmap status, and changelog;

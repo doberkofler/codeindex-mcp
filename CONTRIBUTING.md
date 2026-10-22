@@ -9,11 +9,7 @@
 
 ```bash
 pnpm install
-pnpm verify
-# TypeScript reference qualification corpus
-CODE_INDEX_ROOT=test/fixtures/reference-corpus \
-CODE_INDEX_PROJECT_FILE=test/fixtures/reference-corpus/tsconfig.json \
-pnpm verify:references
+pnpm verify:pr
 ```
 
 `pnpm install` runs the build through the `prepare` script. Use
@@ -27,9 +23,14 @@ pnpm verify:references
 | `pnpm lint` | Oxlint |
 | `pnpm knip` | Unused files, exports, and dependencies |
 | `pnpm format:check` | Oxfmt |
-| `pnpm test` | Vitest |
-| `pnpm verify` | All of the above |
-| `pnpm verify:references` | TypeScript language-service reference cross-check against the configured project; use the qualification corpus command above |
+| `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP classes |
+| `pnpm test:typescript` | TypeScript adapter and reference-corpus classes |
+| `pnpm test:mcp` | MCP protocol class |
+| `pnpm test:system` | Built-process deterministic system class |
+| `pnpm qualify:typescript:fixture` | Self-contained TypeScript language-service gate |
+| `pnpm test` | Complete Vitest suite with coverage |
+| `pnpm verify` | All of the above static checks and the complete Vitest suite |
+| `pnpm verify:pr` | `pnpm verify` plus the fixture qualification gate |
 
 Fix the underlying code when a check fails. Do not disable, exclude, or relax a
 rule. Configuration changes require explicit review and must not weaken a rule.

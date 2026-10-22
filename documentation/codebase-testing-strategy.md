@@ -24,20 +24,19 @@ Codebase tests should answer:
 
 The repository currently has 113 test files: 87 under `test/` and 26 under
 `evaluation/harness/src/`. The file-level classification and ownership register is the
-[Test inventory](./test-inventory.md). The full Vitest suite takes about five seconds without
-coverage, so raw runtime is not the main problem. The problems are classification and ownership:
+[Test inventory](./test-inventory.md). The complete suite takes about eleven seconds without
+coverage and about fifteen seconds with coverage. Classification and ownership were the main
+problems:
 
 - module, adapter, storage, MCP, lifecycle, benchmark-harness, and Oracle tests share one
-  directory and default command;
+  directory, although the focused workflows in section 6 now select them by class;
 - historical names such as `publicationPhase4.test.ts` describe delivery phases rather
   than lasting contracts;
 - several MCP tests rebuild a TypeScript index while testing protocol-only behavior;
 - fixture purpose, authority, and expected facts are catalogued in the
   [Test fixture catalogue](./test-fixtures.md);
-- no dedicated `test:typescript`, `test:mcp`, or deterministic built-process workflow
-  exists;
-- `pnpm qualify:typescript` is not self-contained: CI supplies fixture environment
-  variables while the package script does not.
+- `qualify:typescript:fixture` supplies its own project and corpus paths, so the
+  compiler differential gate no longer depends on CI-only environment variables.
 
 ## 3. Test classes
 
@@ -128,16 +127,23 @@ possible regression fixture.
 
 ## 6. Target workflows
 
-These names describe the intended cleanup; they are not implemented yet.
+The workflows are implemented as package scripts. Class membership is declared in
+`vitest.config.ts`, and the complete gate remains `pnpm verify`. Each focused workflow
+selects one class, except `test:fast`, which composes the fast classes and the fake-index
+MCP test. `test:system` builds `dist` before it runs the deterministic system class.
 
-| Workflow | Contents | Target |
-|---|---|---:|
-| `test:fast` | Module, adapter micro-fixture, core, and fake-index MCP tests; no coverage | <=10 s |
-| `test:typescript` | All TypeScript adapter and reference-corpus tests | <=15 s |
-| `test:mcp` | MCP protocol contracts and one vertical smoke | <=15 s |
-| `test:system` | Built-process deterministic system tests | <=60 s |
-| `qualify:typescript:fixture` | Self-contained compiler differential gate | <=60 s |
-| `verify:pr` | Static checks, coverage, all deterministic tests, build, qualification | <=2 min |
+| Workflow | Script | Contents | Budget | Measured |
+|---|---|---|---:|---:|
+| `test:fast` | `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP tests; no coverage | <=10 s | 6.1 s, exit 0 |
+| `test:typescript` | `pnpm test:typescript` | All TypeScript adapter and reference-corpus tests | <=15 s | 2.8 s, exit 0 |
+| `test:mcp` | `pnpm test:mcp` | MCP protocol contracts and one vertical smoke | <=15 s | 1.9 s, exit 0 |
+| `test:system` | `pnpm test:system` | Built-process deterministic system tests | <=60 s | 12.6 s, exit 0 |
+| `qualify:typescript:fixture` | `pnpm qualify:typescript:fixture` | Self-contained compiler differential gate | <=60 s | 1.5 s, exit 0 |
+| `verify:pr` | `pnpm verify:pr` | Static checks, coverage, all deterministic tests, build, qualification | <=2 min | 32.5 s, exit 0 |
+
+Measured on 2026-10-22 on the reference machine (Apple M5 Max, macOS 27.0.1,
+Node 26.10.0, pnpm 12.14.0). `qualify:typescript:fixture` also passes with
+`env -i PATH HOME` and exits 0 in 1.5 s. The 60 s system budget includes its build.
 
 Nightly workflows run generated and pinned-public-corpus performance and compatibility
 checks. Stable-machine or release workflows run retained-reference comparisons, soak,
