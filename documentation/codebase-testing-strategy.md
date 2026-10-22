@@ -22,9 +22,10 @@ Codebase tests should answer:
 
 ## 2. Current state
 
-The repository currently has 79 test files, 527 tests, and 199 fixture files. The full
-Vitest suite takes about five seconds without coverage, so raw runtime is not the main
-problem. The problems are classification and ownership:
+The repository currently has 113 test files: 87 under `test/` and 26 under
+`evaluation/harness/src/`. The file-level classification and ownership register is the
+[Test inventory](./test-inventory.md). The full Vitest suite takes about five seconds without
+coverage, so raw runtime is not the main problem. The problems are classification and ownership:
 
 - module, adapter, storage, MCP, lifecycle, benchmark-harness, and Oracle tests share one
   directory and default command;
