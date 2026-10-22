@@ -148,21 +148,39 @@ const attemptOf = (): AttemptLogType => {
 
 describe('diagnostics', () => {
 	it('clean diagnostic executions pass the contract', () => {
-		const report = diagnosticReportOf([runOf(), runOf({caseId: 'impl-a', treatment: 'accepted'})]);
+		const report = diagnosticReportOf(
+			[runOf({caseId: 'impact-a', treatment: 'no-index'}), runOf({caseId: 'impact-a', treatment: 'accepted'})],
+			['impact-a'],
+			1,
+			['no-index', 'accepted'],
+		);
 
+		assert.equal(report.expectedExecutions, 2);
 		assert.equal(report.executions, 2);
 		assert.equal(report.validExecutions, 2);
+		assert.equal(report.complete, true);
 		assert.equal(report.passed, true);
 		assert.deepEqual(report.blocking, []);
 		assert.equal(diagnosticSummaryOf(report), '2 diagnostic execution(s), no contract anomaly');
 	});
 
 	it('inherited edits, undeclared tools, and retries are harness anomalies', () => {
-		const report = diagnosticReportOf([
-			runOf({isolation: {mode: 'detached-worktree', clientStore: 'ephemeral', checkoutClean: false, revisionMatch: true, restored: true}}),
-			runOf({routing: {ordinaryCalls: 1, codeIndexCalls: 0, executeCalls: 0, unknownTools: ['write'], native: true}}),
-			runOf({attempts: [attemptOf(), attemptOf()]}),
-		]);
+		const report = diagnosticReportOf(
+			[
+				runOf({
+					caseId: 'impact-a',
+					isolation: {mode: 'detached-worktree', clientStore: 'ephemeral', checkoutClean: false, revisionMatch: true, restored: true},
+				}),
+				runOf({
+					caseId: 'impact-b',
+					routing: {ordinaryCalls: 1, codeIndexCalls: 0, executeCalls: 0, unknownTools: ['write'], native: true},
+				}),
+				runOf({caseId: 'impact-c', attempts: [attemptOf(), attemptOf()]}),
+			],
+			['impact-a', 'impact-b', 'impact-c'],
+			1,
+			['no-index'],
+		);
 
 		assert.equal(report.passed, false);
 		assert.deepEqual(
@@ -173,10 +191,15 @@ describe('diagnostics', () => {
 	});
 
 	it('missing structured answers and wrong answers belong to the model', () => {
-		const report = diagnosticReportOf([
-			runOf({grade: {...runOf().grade, parsed: false, success: false, reason: 'no JSON object'}}),
-			runOf({grade: {...runOf().grade, success: false, missing: ['src/a.ts'], reason: 'missing expected file'}}),
-		]);
+		const report = diagnosticReportOf(
+			[
+				runOf({caseId: 'impact-a', grade: {...runOf().grade, parsed: false, success: false, reason: 'no JSON object'}}),
+				runOf({caseId: 'impact-b', grade: {...runOf().grade, success: false, missing: ['src/a.ts'], reason: 'missing expected file'}}),
+			],
+			['impact-a', 'impact-b'],
+			1,
+			['no-index'],
+		);
 
 		assert.equal(report.passed, false);
 		assert.deepEqual(
@@ -193,28 +216,34 @@ describe('diagnostics', () => {
 	});
 
 	it('an invalid model tool argument is a model anomaly, not a CodeIndex defect', () => {
-		const report = diagnosticReportOf([
-			runOf({
-				toolCalls: [
-					{
-						index: 1,
-						rawIndex: 1,
-						parentIndex: null,
-						id: 'call-1',
-						tool: 'codeindex_find_symbol',
-						family: 'index',
-						status: 'error',
-						input: {query: 'SCHEMA_VERSION', context: 'codeindex'},
-						inputValid: true,
-						inputText: '{}',
-						outputBytes: 0,
-						authoritative: null,
-						durationMs: 1,
-						error: '{"ok":false,"error":{"code":"invalid_argument","message":"Unknown project context: codeindex"}}',
-					},
-				],
-			}),
-		]);
+		const report = diagnosticReportOf(
+			[
+				runOf({
+					caseId: 'impact-a',
+					toolCalls: [
+						{
+							index: 1,
+							rawIndex: 1,
+							parentIndex: null,
+							id: 'call-1',
+							tool: 'codeindex_find_symbol',
+							family: 'index',
+							status: 'error',
+							input: {query: 'SCHEMA_VERSION', context: 'codeindex'},
+							inputValid: true,
+							inputText: '{}',
+							outputBytes: 0,
+							authoritative: null,
+							durationMs: 1,
+							error: '{"ok":false,"error":{"code":"invalid_argument","message":"Unknown project context: codeindex"}}',
+						},
+					],
+				}),
+			],
+			['impact-a'],
+			1,
+			['no-index'],
+		);
 
 		assert.equal(report.passed, true);
 		assert.deepEqual(
@@ -224,30 +253,36 @@ describe('diagnostics', () => {
 	});
 
 	it('process, index, and timeout failures keep separate owners', () => {
-		const report = diagnosticReportOf([
-			runOf({outcome: 'failed', valid: false, exitCode: 3, invalidReason: 'agent exited with 3'}),
-			runOf({
-				toolCalls: [
-					{
-						index: 1,
-						rawIndex: 1,
-						parentIndex: null,
-						id: 'call-1',
-						tool: 'codeindex_find_symbol',
-						family: 'index',
-						status: 'error',
-						input: {},
-						inputValid: true,
-						inputText: '{}',
-						outputBytes: 0,
-						authoritative: null,
-						durationMs: 1,
-						error: '{"ok":false,"error":{"code":"index_not_ready","message":"index not ready"}}',
-					},
-				],
-			}),
-			runOf({outcome: 'timed-out', valid: false, timedOut: true, exitCode: null, timeoutMs: 180_000}),
-		]);
+		const report = diagnosticReportOf(
+			[
+				runOf({caseId: 'impact-a', outcome: 'failed', valid: false, exitCode: 3, invalidReason: 'agent exited with 3'}),
+				runOf({
+					caseId: 'impact-b',
+					toolCalls: [
+						{
+							index: 1,
+							rawIndex: 1,
+							parentIndex: null,
+							id: 'call-1',
+							tool: 'codeindex_find_symbol',
+							family: 'index',
+							status: 'error',
+							input: {},
+							inputValid: true,
+							inputText: '{}',
+							outputBytes: 0,
+							authoritative: null,
+							durationMs: 1,
+							error: '{"ok":false,"error":{"code":"index_not_ready","message":"index not ready"}}',
+						},
+					],
+				}),
+				runOf({caseId: 'impact-c', outcome: 'timed-out', valid: false, timedOut: true, exitCode: null, timeoutMs: 180_000}),
+			],
+			['impact-a', 'impact-b', 'impact-c'],
+			1,
+			['no-index'],
+		);
 
 		assert.deepEqual(
 			report.anomalies.map((anomaly) => [anomaly.kind, anomaly.attribution]),
@@ -260,6 +295,41 @@ describe('diagnostics', () => {
 		assert.deepEqual(
 			report.blocking.map((anomaly) => anomaly.kind),
 			['process-failed', 'timed-out'],
+		);
+	});
+
+	it('missing and duplicate diagnostic executions block the contract', () => {
+		const missing = diagnosticReportOf([runOf({caseId: 'impact-a', treatment: 'no-index'})], ['impact-a', 'impact-b'], 1, ['no-index']);
+
+		assert.equal(missing.expectedExecutions, 2);
+		assert.equal(missing.executions, 1);
+		assert.equal(missing.complete, false);
+		assert.equal(missing.passed, false);
+		assert.deepEqual(
+			missing.blocking.map((anomaly) => [anomaly.kind, anomaly.attribution, anomaly.caseId]),
+			[['missing-execution', 'harness', 'impact-b']],
+		);
+		assert.match(diagnosticSummaryOf(missing), /missing-execution \(harness\) impact-b\/no-index\/rep-1/u);
+
+		const duplicate = diagnosticReportOf(
+			[
+				runOf({caseId: 'impact-a', treatment: 'no-index'}),
+				runOf({caseId: 'impact-a', treatment: 'no-index'}),
+				runOf({caseId: 'impact-c', treatment: 'no-index'}),
+			],
+			['impact-a'],
+			1,
+			['no-index'],
+		);
+
+		assert.equal(duplicate.complete, false);
+		assert.equal(duplicate.passed, false);
+		assert.deepEqual(
+			duplicate.blocking.map((anomaly) => [anomaly.kind, anomaly.attribution]),
+			[
+				['duplicate-execution', 'harness'],
+				['unexpected-execution', 'harness'],
+			],
 		);
 	});
 });

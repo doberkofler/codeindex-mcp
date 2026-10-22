@@ -306,10 +306,13 @@ of `impl-default-result-bytes` and `impact-schema-version-references` in the
 `no-index` and `accepted` treatments, which is 12 executions per model. The
 diagnostics record attributes every anomaly to the harness, model, CodeIndex, or
 integration; a harness, integration, or CodeIndex anomaly, or a missing
-structured answer, blocks qualification and records a disqualification. A clean
-diagnostic phase is followed by the frozen six-case subset with the `no-index`
-and `accepted` treatments at one repetition, which is 12 qualification
-executions per model.
+structured answer, blocks qualification and records a disqualification. The
+record must contain exactly one execution for every declared slot, so a missing,
+duplicated, or undeclared execution is a blocking harness anomaly rather than a
+clean phase.
+A clean diagnostic phase is followed by the frozen six-case subset with the
+`no-index` and `accepted` treatments at one repetition, which is 12
+qualification executions per model.
 
 ```bash
 node src/cli.ts calibrate --suite suites/calibration.json --budget-ms 900000 \

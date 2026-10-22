@@ -6,7 +6,7 @@ import {
 	type CalibrationDecisionType,
 	type CalibrationExclusionType,
 } from './calibration.ts';
-import {DIAGNOSTIC_CASE_IDS, DIAGNOSTIC_REPETITIONS, diagnosticReportOf, diagnosticSummaryOf} from './diagnostics.ts';
+import {DIAGNOSTIC_CASE_IDS, DIAGNOSTIC_REPETITIONS, DIAGNOSTIC_TREATMENT_IDS, diagnosticReportOf, diagnosticSummaryOf} from './diagnostics.ts';
 import {assertEnvironmentPurpose, environmentHashOf, loadEnvironmentManifest, type EnvironmentManifestType} from './environment.ts';
 import {hashOf} from './hash.ts';
 import {writeJsonAtomic} from './result.ts';
@@ -21,7 +21,7 @@ const CALIBRATION_BUDGET_MS = 15 * 60 * 1000;
 const CALIBRATION_CASE_COUNT = 6;
 
 /** Treatments compared by a local calibration. */
-const CALIBRATION_TREATMENTS = ['no-index', 'accepted'] as const;
+const CALIBRATION_TREATMENTS = DIAGNOSTIC_TREATMENT_IDS;
 
 export const calibrationBudgetOf = (flags: Map<string, string[]>): number => {
 	const raw = flagOf(flags, 'budget-ms');
@@ -183,7 +183,7 @@ const diagnosticsSlotOf = async (environment: EnvironmentManifestType, context: 
 		return true;
 	}
 
-	const diagnostics = diagnosticReportOf(diagnosticRun.results);
+	const diagnostics = diagnosticReportOf(diagnosticRun.results, DIAGNOSTIC_CASE_IDS, DIAGNOSTIC_REPETITIONS, CALIBRATION_TREATMENTS);
 	const diagnosticRecord = {...diagnostics, model, environment: {id: environment.id, hash: environmentHash}};
 
 	writeJsonAtomic(path.join(diagnosticRun.runDir, 'diagnostics.json'), diagnosticRecord, true);

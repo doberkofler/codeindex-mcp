@@ -390,7 +390,10 @@ diagnostic phase: three repetitions of `impl-default-result-bytes` and
 `impact-schema-version-references` in `no-index` and `accepted`. Each anomaly is
 attributed to the harness, model, CodeIndex, or integration; a harness,
 integration, or CodeIndex anomaly or a missing structured answer blocks the
-candidate and is recorded as a disqualification. A clean diagnostic phase is
+candidate and is recorded as a disqualification. Every declared slot must run
+exactly once: a missing, duplicated, or undeclared execution is a blocking
+harness anomaly, so a short diagnostic phase cannot pass as clean. A clean
+diagnostic phase is
 followed by six cases × `no-index` and `accepted` × one repetition. It caps every
 execution at the remaining wall-clock budget and writes one decision per model
 plus one selection record. `--exclude <environment-id>=<reason>` records an

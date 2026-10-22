@@ -18,6 +18,9 @@ export const DIAGNOSTIC_ANOMALY_KINDS = [
 	'workflow-failed',
 	'invalid-tool-input',
 	'codeindex-error',
+	'missing-execution',
+	'duplicate-execution',
+	'unexpected-execution',
 ] as const;
 
 export type DiagnosticAnomalyKindType = (typeof DIAGNOSTIC_ANOMALY_KINDS)[number];
@@ -31,6 +34,9 @@ export const DIAGNOSTIC_CONTRACT_KINDS: readonly DiagnosticAnomalyKindType[] = [
 	'timed-out',
 	'unknown-tool',
 	'unstructured-answer',
+	'missing-execution',
+	'duplicate-execution',
+	'unexpected-execution',
 ];
 
 const CONTRACT_KINDS = new Set<DiagnosticAnomalyKindType>(DIAGNOSTIC_CONTRACT_KINDS);
@@ -51,16 +57,21 @@ export type DiagnosticReportType = Readonly<{
 	schemaVersion: 1;
 	cases: readonly string[];
 	repetitions: number;
+	/** Cases × treatments × repetitions required by the diagnostic contract. */
+	expectedExecutions: number;
 	executions: number;
 	validExecutions: number;
 	anomalies: readonly DiagnosticAnomalyType[];
+	/** True when every expected slot ran exactly once. */
+	complete: boolean;
 	/** True when no execution violates the diagnostic execution contract. */
 	passed: boolean;
 	blocking: readonly DiagnosticAnomalyType[];
 }>;
 
-/** Maximum diagnostic cases and repetitions required by the calibration contract. */
+/** Maximum diagnostic cases, treatments, and repetitions required by the calibration contract. */
 export const DIAGNOSTIC_CASE_IDS = ['impl-default-result-bytes', 'impact-schema-version-references'] as const;
+export const DIAGNOSTIC_TREATMENT_IDS = ['no-index', 'accepted'] as const;
 export const DIAGNOSTIC_REPETITIONS = 3;
 
 /**
@@ -162,24 +173,90 @@ const anomaliesOf = (run: RunResultType): readonly DiagnosticAnomalyType[] => {
 	return anomalies;
 };
 
+// Stable key for one expected diagnostic slot.
+const slotKeyOf = (caseId: string, treatment: string, repetition: number): string => `${caseId}/${treatment}/rep-${repetition}`;
+
 /**
  * Builds the diagnostic attribution record for one model's diagnostic phase.
  *
  * Model answer failures are recorded but do not block qualification. The
  * execution contract fails on any harness, integration, or CodeIndex anomaly,
- * and on any missing structured final answer.
+ * on any missing structured final answer, and on every expected slot that did
+ * not execute exactly once. Missing executions are recorded explicitly so a
+ * short diagnostic phase cannot pass as a clean one.
  *
  * @param results - Retained diagnostic executions.
  * @param cases - Declared diagnostic case ids.
  * @param repetitions - Declared repetitions per case and treatment.
+ * @param treatments - Declared diagnostic treatments.
  * @returns The record, including every blocking anomaly.
  */
 export const diagnosticReportOf = (
 	results: readonly RunResultType[],
 	cases: readonly string[] = DIAGNOSTIC_CASE_IDS,
 	repetitions: number = DIAGNOSTIC_REPETITIONS,
+	treatments: readonly string[] = DIAGNOSTIC_TREATMENT_IDS,
 ): DiagnosticReportType => {
 	const anomalies = results.flatMap((result) => anomaliesOf(result));
+	const executionsBySlot = new Map<string, number>();
+
+	for (const result of results) {
+		const key = slotKeyOf(result.caseId, result.treatment, result.repetition);
+
+		executionsBySlot.set(key, (executionsBySlot.get(key) ?? 0) + 1);
+	}
+
+	const expectedKeys = new Set<string>();
+	let expectedExecutions = 0;
+
+	for (const caseId of cases) {
+		for (const treatment of treatments) {
+			for (let repetition = 1; repetition <= repetitions; repetition += 1) {
+				expectedExecutions += 1;
+
+				const key = slotKeyOf(caseId, treatment, repetition);
+				const executions = executionsBySlot.get(key) ?? 0;
+
+				expectedKeys.add(key);
+
+				if (executions === 0) {
+					anomalies.push({
+						caseId,
+						treatment,
+						repetition,
+						kind: 'missing-execution',
+						detail: `no execution for ${key}`,
+						attribution: 'harness',
+					});
+				} else if (executions > 1) {
+					anomalies.push({
+						caseId,
+						treatment,
+						repetition,
+						kind: 'duplicate-execution',
+						detail: `${executions} executions for ${key}`,
+						attribution: 'harness',
+					});
+				}
+			}
+		}
+	}
+
+	for (const result of results) {
+		const key = slotKeyOf(result.caseId, result.treatment, result.repetition);
+
+		if (!expectedKeys.has(key)) {
+			anomalies.push({
+				caseId: result.caseId,
+				treatment: result.treatment,
+				repetition: result.repetition,
+				kind: 'unexpected-execution',
+				detail: `execution outside the declared diagnostic plan: ${key}`,
+				attribution: 'harness',
+			});
+		}
+	}
+
 	const blocking = anomalies.filter((anomaly) => CONTRACT_KINDS.has(anomaly.kind));
 
 	return {
@@ -187,9 +264,13 @@ export const diagnosticReportOf = (
 		schemaVersion: 1,
 		cases,
 		repetitions,
+		expectedExecutions,
 		executions: results.length,
 		validExecutions: results.filter((run) => run.valid).length,
 		anomalies,
+		complete:
+			results.length === expectedExecutions &&
+			anomalies.every((anomaly) => anomaly.kind !== 'missing-execution' && anomaly.kind !== 'duplicate-execution' && anomaly.kind !== 'unexpected-execution'),
 		passed: blocking.length === 0,
 		blocking,
 	};
