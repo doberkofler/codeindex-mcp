@@ -512,6 +512,18 @@ events = [
     {{
         "type": "tool_use",
         "part": {{
+            "id": "call_0",
+            "tool": "shell",
+            "state": {{
+                "status": "completed",
+                "input": {{"command": "pnpm test"}},
+                "title": "shell",
+            }},
+        }},
+    }},
+    {{
+        "type": "tool_use",
+        "part": {{
             "id": "call_1",
             "tool": "read",
             "state": {{
@@ -549,11 +561,16 @@ raise SystemExit({exit_code})
         result = self._run_queue(agent)
 
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"[run] queue · {self.queue_path}", result.stdout)
+        self.assertIn("[run] model · deepseek/deepseek-flash", result.stdout)
+        self.assertIn("[run] verify · disabled", result.stdout)
+        self.assertIn("[run] timeouts · agent", result.stdout)
         self.assertIn("[agent] build · deepseek/deepseek-flash", result.stdout)
+        self.assertIn("✓ shell pnpm test", result.stdout)
         self.assertIn("✓ read README.md", result.stdout)
         self.assertIn("agent › Implemented", result.stdout)
         self.assertIn("the runner.", result.stdout)
-        self.assertIn("1 tool", result.stdout)
+        self.assertIn("2 tools", result.stdout)
         self.assertIn("120 tokens", result.stdout)
         self.assertIn("$0.0012", result.stdout)
         self.assertIn("[agent] finished", result.stdout)
@@ -563,11 +580,17 @@ raise SystemExit({exit_code})
 
         logs = sorted(self.log_directory.glob("*.jsonl"))
         self.assertEqual(len(logs), 1)
+        self.assertIn(f"[agent-log] {logs[0]}", result.stdout)
         agent_log = logs[0].read_text(encoding="utf-8")
         self.assertIn('"type": "tool_use"', agent_log)
         self.assertNotIn("agent diagnostic", agent_log)
         history_logs = sorted(self.log_directory.glob("*.log"))
         self.assertEqual(len(history_logs), 1)
+        self.assertIn(f"[log] {history_logs[0]}", result.stdout)
+        self.assertLess(
+            result.stdout.index(f"[log] {history_logs[0]}"),
+            result.stdout.index("✓ shell pnpm test"),
+        )
         self.assertIn("agent diagnostic", history_logs[0].read_text(encoding="utf-8"))
 
     def test_reports_agent_failure_with_log_path(self) -> None:
@@ -617,6 +640,10 @@ raise SystemExit({exit_code})
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(counter.read_text(encoding="utf-8"), "2")
+        self.assertIn(f"[run] queue · {self.queue_path}", result.stdout)
+        self.assertIn("[run] model · deepseek/deepseek-flash", result.stdout)
+        self.assertIn(f"[run] verify · {command}", result.stdout)
+        self.assertRegex(result.stdout, r"\[log\] .*?-preflight\.log")
         self.assertLess(
             result.stdout.index("[verify] preflight passed"),
             result.stdout.index("[queue] #14"),

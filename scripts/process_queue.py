@@ -515,6 +515,7 @@ def tool_detail(name: str, values: dict[str, Any]) -> str:
 
     keys = {
         "bash": ("command",),
+        "shell": ("command",),
         "read": ("filePath", "path"),
         "write": ("filePath", "path"),
         "edit": ("filePath", "path"),
@@ -522,7 +523,9 @@ def tool_detail(name: str, values: dict[str, Any]) -> str:
         "grep": ("pattern",),
         "list": ("path",),
         "webfetch": ("url",),
+        "websearch": ("query",),
         "task": ("description",),
+        "subagent": ("description",),
         "skill": ("name",),
     }.get(name, ())
     for key in keys:
@@ -636,9 +639,11 @@ class RunReporter:
     def _write(self, text: str) -> None:
         print(text, file=self.stream, flush=True)
 
-    def start(self, item: QueueItem) -> None:
+    def start(self, item: QueueItem, logs: RunLogs) -> None:
         self._write(f"[queue] {item.description}")
         self._write(f"[agent] {AGENT_NAME} · {self.model}")
+        self._write(f"[log] {display_path(logs.history)}")
+        self._write(f"[agent-log] {display_path(logs.agent)}")
         self.live.set_phase("agent")
 
     def _message(self, label: str, text: str) -> None:
@@ -755,7 +760,7 @@ class RunReporter:
         self.live.clear()
         self._write("[queue] interrupted; terminating OpenCode")
 
-    def finish(self, returncode: int, logs: RunLogs) -> None:
+    def finish(self, returncode: int) -> None:
         self.live.clear()
         elapsed = time.monotonic() - self.started
         status = "finished" if returncode == 0 else f"failed (exit {returncode})"
@@ -775,8 +780,6 @@ class RunReporter:
                 self._write(f"{prefix}{clip(line, MAX_PREVIEW_LINE_LENGTH)}")
             if len(lines) > MAX_PREVIEW_LINES:
                 self._write(f"          … {len(lines) - MAX_PREVIEW_LINES} more lines (see log)")
-        self._write(f"[log] {display_path(logs.history)}")
-        self._write(f"[agent-log] {display_path(logs.agent)}")
 
 
 def terminate(process: subprocess.Popen[str]) -> None:
@@ -857,11 +860,11 @@ def run_agent(
     logs = allocate_log_paths(log_directory(), item.issue)
     live = LiveDisplay(sys.stdout)
     reporter = RunReporter(model, verbose, sys.stdout, live)
-    reporter.start(item)
     tail: deque[str] = deque(maxlen=FAILURE_TAIL_LINES)
     timed_out = False
 
     with open_private(logs.agent) as agent_log, open_private(logs.history) as history_log:
+        reporter.start(item, logs)
         process = subprocess.Popen(
             agent_command(model, prompt_for(item, queue_path)),
             stdout=subprocess.PIPE,
@@ -911,7 +914,7 @@ def run_agent(
             for thread in threads:
                 thread.join(timeout=TERMINATE_TIMEOUT_SECONDS)
 
-    reporter.finish(returncode, logs)
+    reporter.finish(returncode)
     if timed_out:
         print_failure_tail(tail)
         raise QueueError(
@@ -933,15 +936,16 @@ def run_agent(
 
 def run_verification(command: str, timeout: float, logs: RunLogs, phase: str) -> None:
     live = LiveDisplay(sys.stdout)
-    live.set_phase(phase)
+    if not logs.history.exists():
+        with open_private(logs.history):
+            pass
     print(f"[verify] {phase} · {command}", flush=True)
+    print(f"[log] {display_path(logs.history)}", flush=True)
+    live.set_phase(phase)
     started = time.monotonic()
     tail: deque[str] = deque(maxlen=FAILURE_TAIL_LINES)
     timed_out = False
 
-    if not logs.history.exists():
-        with open_private(logs.history):
-            pass
     with logs.history.open("a", encoding="utf-8") as history_log:
         process = subprocess.Popen(
             ["/bin/sh", "-c", command],
@@ -1013,6 +1017,16 @@ def process(
     run_started = time.monotonic()
     completed = 0
     total_item_time = 0.0
+    queue_display = "stdin" if queue_path is None else str(queue_path)
+    verification_display = verify_command if verify_command is not None else "disabled"
+    print(f"[run] queue · {queue_display}", flush=True)
+    print(f"[run] model · {model}", flush=True)
+    print(f"[run] verify · {verification_display}", flush=True)
+    print(
+        f"[run] timeouts · agent {format_duration(agent_timeout)} · "
+        f"verify {format_duration(verify_timeout)}",
+        flush=True,
+    )
 
     load_queue(queue_path, queue_content)
     require_clean_tree("before verification preflight")
