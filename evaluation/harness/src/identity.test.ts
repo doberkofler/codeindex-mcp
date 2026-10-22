@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'vitest';
-import {executionIdentityDigestOf, executionIdentityOf, type ExecutionIdentityInputType} from './identity.ts';
+import {hostedReferenceOf, type HostedReferenceType} from './hostedReference.ts';
+import {comparisonDigestOf, executionIdentityDigestOf, executionIdentityOf, identityDigestOf, identityOf, type ExecutionIdentityInputType} from './identity.ts';
 import {caseOf, suiteFieldsOf, type CaseType, type SuiteType} from './schema.ts';
 import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
 
@@ -66,6 +67,19 @@ const treatment = (): TreatmentDefinitionType =>
 		mcp: null,
 	});
 
+const hostedReference = (releasedAt = '2026-08-13T00:00:00.000Z'): HostedReferenceType =>
+	hostedReferenceOf({
+		schemaVersion: 1,
+		id: 'hosted-a',
+		recordedAt: '2026-10-22T00:00:00.000Z',
+		provider: 'provider',
+		modelId: 'model',
+		reference: 'provider/model',
+		releasedAt,
+		runtime: {opencode: '2.1.2'},
+		generation: {temperature: null, topP: null, topK: null, repeatPenalty: null, stop: []},
+	});
+
 const input = (overrides: Partial<ExecutionIdentityInputType> = {}): ExecutionIdentityInputType => {
 	const currentTreatment = treatment();
 
@@ -126,5 +140,28 @@ describe('identity', () => {
 			mcp: {server: 'codeindex', codemode: false},
 		});
 		assert.notEqual(changed({treatment: indexed, surface: toolSurfaceOf(indexed, ['find_symbol'])}), base);
+	});
+
+	it('a changed hosted reference changes the execution and comparison identity', () => {
+		const common = {
+			suite: suite(),
+			cases: [testCase()],
+			treatments: suite().treatments,
+			repetitions: 1,
+			planHash: 'f'.repeat(64),
+			harnessVersion: 1,
+		};
+		const first = identityOf({...common, hostedReference: hostedReference()});
+		const changed = identityOf({...common, hostedReference: hostedReference('2026-09-01T00:00:00.000Z')});
+
+		assert.ok(first.hosted !== null && changed.hosted !== null);
+		assert.equal(first.hosted.id, 'hosted-a');
+		assert.notEqual(first.hosted.digest, changed.hosted.digest);
+		assert.notEqual(identityDigestOf(first), identityDigestOf(changed));
+		assert.notEqual(comparisonDigestOf(first), comparisonDigestOf(changed));
+		assert.notEqual(
+			executionIdentityDigestOf(executionIdentityOf(input({hostedReference: hostedReference()}))),
+			executionIdentityDigestOf(executionIdentityOf(input({hostedReference: hostedReference('2026-09-01T00:00:00.000Z')}))),
+		);
 	});
 });

@@ -404,6 +404,20 @@ non-improving target metric appears. A claim class other than the local class is
 rejected before the local record is written, so local evidence cannot be promoted
 to a release claim and a hosted result cannot replace it.
 
+A `release` campaign runs the deferred hosted-model gate after the model-free and
+local stages pass. It loads a pinned hosted reference that records the exact
+provider, model ID, provider release, client runtime, and generation settings; the
+reference hash participates in campaign identity, so a changed model starts a new
+paired baseline. The command requires a passing `route-report` and a passing
+`local-regression` record for the same frozen suite and staged artifacts, rejects
+a non-passing or artifact-mismatched precondition, and verifies the measured client
+runtime before the first call. The campaign executes 18 × 3 × 5 = 270 slots and
+writes `report.json` plus `release-campaign.json` carrying
+`claimClass: "hosted-model-scoped"` and `releaseAuthority: true`. Every slot is
+recorded as valid or invalid with a closed cause; the overall and class verdicts,
+the unchanged Q2 gates, the predeclared target metric, and the paired bootstrap
+intervals stay separate. Local evidence never fills a missing hosted execution.
+
 A `calibration` manifest serves the frozen two-treatment local qualification.
 `calibrate` verifies every eligible pinned environment, rebinds the frozen suite
 to each environment's model without changing case hashes, and first runs the
@@ -915,6 +929,7 @@ only; it neither defines nor reinterprets a gate.
 | Isolation and restoration | Dedicated checkout, ephemeral client state, atomic persistence, restoration after every execution ([§5](#5-isolation), [§5.1](#51-opencode-client-state)) |
 | Treatment equivalence | Treatment definitions record every difference; equivalence checks reject non-equivalent treatments ([§3.3](#33-treatment), [§9](#9-architecture)) |
 | Local diagnostic and regression stages | `local-diagnostic` fixes two impact cases, accepted and candidate, one repetition, and the predeclared target metric; it writes `targeted-diagnostic.json` and blocks continuation on an incorrect candidate answer, no target improvement, or an observed regression. `local-regression` runs it first, then the 18 × 3 × 3 plan, and writes class-stratified `local-regression.json` under the local claim class ([§7.2](#72-run-manifest)) |
+| Hosted release stage | `release` requires a passing model-free report and a passing local regression for the same suite and staged artifacts, verifies the pinned hosted reference and client runtime, runs the fixed 18 × 3 × 5 plan, and writes `release-campaign.json` with hosted release authority and one status per slot ([§7.2](#72-run-manifest)) |
 | Telemetry validity | Exact token extraction with availability status; missing usage invalidates the affected metric, never estimated from bytes ([§2](#2-goals), [§7.5](#75-telemetry-availability-states)) |
 | Failed-slot-only retry | One immutable result per execution identity; `--resume` neither repeats nor skips a completed slot; failed and invalid executions stay inspectable ([§6](#6-cli-shape), [§7.6](#76-execution-outcome-and-validity), [§7.7](#77-atomic-persistence-and-partial-writes)) |
 | Stop rules | The harness records pass, fail, or invalid per execution with raw evidence. Applying a stop rule is a reviewer decision, not a harness verdict |

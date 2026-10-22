@@ -3,7 +3,9 @@ import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {artifactRefOf, type ArtifactRefType} from './artifact.ts';
 import {campaignManifestOf, type CampaignManifestType} from './campaignManifest.ts';
+import {assertClaimEnvironmentOf, type CampaignClaimClassType} from './campaignClaim.ts';
 import {assertEnvironmentModel, type EnvironmentManifestType} from './environment.ts';
+import {assertHostedModel, type HostedReferenceType} from './hostedReference.ts';
 import {comparisonDigestOf, executionIdentityDigestOf, executionIdentityOf, identityDigestOf, identityOf} from './identity.ts';
 import {clientStoreOf, prepareClientStore, type ClientStoreType} from './isolation.ts';
 import {compare} from './report.ts';
@@ -38,6 +40,8 @@ export type EvaluationOptionsType = Readonly<{
 	/** Restrict the run to this ordered case subset. */
 	caseIds?: readonly string[];
 	environment?: EnvironmentManifestType | null;
+	/** Pinned hosted reference for a hosted-model campaign. */
+	hostedReference?: HostedReferenceType | null;
 	requireFrozen?: boolean;
 	/** Model override for a calibrated local candidate; case hashes stay pinned. */
 	model?: string;
@@ -46,7 +50,7 @@ export type EvaluationOptionsType = Readonly<{
 	/** Write the ordinary paired report; false for diagnostics and calibration. */
 	comparison?: boolean;
 	/** Evidence class this campaign may support. Never inferred from results. */
-	claimClass?: 'none' | 'local-model-scoped' | 'hosted-model-scoped';
+	claimClass?: CampaignClaimClassType;
 }>;
 
 export type EvaluationRunType = Readonly<{
@@ -65,6 +69,7 @@ export type EvaluationSetupType = Readonly<{
 	treatments: ReturnType<typeof treatmentsOf>;
 	repetitions: number;
 	environment: EnvironmentManifestType | null;
+	hostedReference: HostedReferenceType | null;
 	plan: ReturnType<typeof planOf>;
 	planHash: string;
 	identity: ReturnType<typeof identityOf>;
@@ -81,16 +86,6 @@ type SurfacesType = Readonly<{
 	surfaces: Awaited<ReturnType<typeof surfacesOf>>;
 	treatmentContexts: ReadonlyMap<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>;
 }>;
-
-const assertClaimEnvironmentOf = (claimClass: EvaluationOptionsType['claimClass'], environment: EnvironmentManifestType | null): void => {
-	if (claimClass === 'local-model-scoped' && environment === null) {
-		throw new Error('local-model-scoped evidence requires a pinned local environment');
-	}
-
-	if (claimClass === 'hosted-model-scoped' && environment !== null) {
-		throw new Error('hosted-model-scoped evidence must not use a pinned local environment');
-	}
-};
 
 const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOptionsType): EvaluationSetupType => {
 	const suitePath = flagOf(flags, 'suite');
@@ -114,16 +109,30 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 			: treatmentsOf(options.treatments.join(','), suite.treatments);
 	const repetitions = options.repetitions ?? Number(flagOf(flags, 'repetitions') ?? suite.repetitions);
 	const environment = options.environment ?? null;
+	const hostedReference = options.hostedReference ?? null;
 
 	if (environment !== null) {
 		assertEnvironmentModel(environment, suite.model);
 	}
 
-	assertClaimEnvironmentOf(options.claimClass, environment);
+	if (hostedReference !== null) {
+		assertHostedModel(hostedReference, suite.model);
+	}
+
+	assertClaimEnvironmentOf(options.claimClass, environment, hostedReference);
 
 	const plan = planOf(selected, treatmentIdsOf(treatments), repetitions);
 	const planHash = planHashOf(plan);
-	const identity = identityOf({suite, cases: selected, treatments: suite.treatments, repetitions, planHash, harnessVersion: HARNESS_VERSION, environment});
+	const identity = identityOf({
+		suite,
+		cases: selected,
+		treatments: suite.treatments,
+		repetitions,
+		planHash,
+		harnessVersion: HARNESS_VERSION,
+		environment,
+		hostedReference,
+	});
 	const identityDigest = identityDigestOf(identity);
 	const comparisonDigest = comparisonDigestOf(identity);
 	const runDir = path.join(evaluationRoot, 'results', `${suite.id}-${identityDigest.slice(0, 16)}`);
@@ -143,6 +152,7 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 		treatments,
 		repetitions,
 		environment,
+		hostedReference,
 		plan,
 		planHash,
 		identity,
@@ -156,7 +166,7 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 };
 
 const printEvaluationPlanOf = (setup: EvaluationSetupType): void => {
-	const {selected, treatments, repetitions, plan, planHash, identityDigest, runDir, environment, subject, clientStore} = setup;
+	const {selected, treatments, repetitions, plan, planHash, identityDigest, runDir, environment, hostedReference, subject, clientStore} = setup;
 	const pinned =
 		subject.revision === null
 			? `revision=${subject.declaredRevision} (copy) content=${subject.contentManifestHash.slice(0, 16)}`
@@ -170,6 +180,12 @@ const printEvaluationPlanOf = (setup: EvaluationSetupType): void => {
 	if (environment !== null) {
 		process.stderr.write(
 			`environment ${environment.id} ${environment.model.reference} digest ${environment.model.digest} runtime ollama ${environment.runtime.ollama} / opencode ${environment.runtime.opencode}\n`,
+		);
+	}
+
+	if (hostedReference !== null) {
+		process.stderr.write(
+			`hosted ${hostedReference.id} ${hostedReference.reference} released ${hostedReference.releasedAt} opencode ${hostedReference.runtime.opencode}\n`,
 		);
 	}
 
@@ -258,6 +274,7 @@ const slotResultOf = async (input: SlotInputType): Promise<RunResultType> => {
 		randomizationSeed: setup.identityDigest,
 		harnessVersion: HARNESS_VERSION,
 		environment: setup.environment,
+		hostedReference: setup.hostedReference,
 	});
 	const slotIdentityDigest = executionIdentityDigestOf(executionIdentity);
 	const slotDirectory = path.join(setup.runDir, entry.caseId, entry.treatment, `rep-${entry.repetition}`);

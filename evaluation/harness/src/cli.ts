@@ -2,6 +2,7 @@ import {calibrationCommand} from './cliCalibration.ts';
 import {environmentCommand, smokeCommand} from './cliEnvironment.ts';
 import {evaluateCommand} from './cliEvaluate.ts';
 import {localDiagnosticCommand, localRegressionCommand} from './cliLocal.ts';
+import {releaseCommand} from './cliRelease.ts';
 import {checkCommand, listCommand, reportCommand} from './cliReport.ts';
 import {routeCommand} from './cliRoute.ts';
 import {argsOf} from './cliSupport.ts';
@@ -19,6 +20,8 @@ try {
 		await localDiagnosticCommand(flags);
 	} else if (command === 'local-regression') {
 		await localRegressionCommand(flags);
+	} else if (command === 'release') {
+		await releaseCommand(flags);
 	} else if (command === 'environment') {
 		await environmentCommand(flags);
 	} else if (command === 'route') {
@@ -31,7 +34,7 @@ try {
 		listCommand(flags);
 	} else {
 		process.stdout.write(
-			'usage: cli.ts <evaluate|smoke|calibrate|local-diagnostic|local-regression|environment|route|report|check|list> --suite <path> [--environment <path>] [--target-metric retrievalBytes|toolCalls|tokens|wallTimeMs] [--exclude id=reason] [--budget-ms n] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
+			'usage: cli.ts <evaluate|smoke|calibrate|local-diagnostic|local-regression|release|environment|route|report|check|list> --suite <path> [--environment <path>] [--hosted-reference <path>] [--model-free <report>] [--local-regression <record>] [--target-metric retrievalBytes|toolCalls|tokens|wallTimeMs] [--exclude id=reason] [--budget-ms n] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
 		);
 		process.exitCode = command === 'help' ? 0 : 2;
 	}

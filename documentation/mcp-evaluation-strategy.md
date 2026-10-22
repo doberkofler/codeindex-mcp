@@ -594,9 +594,11 @@ tie-break. Record the decision beside the calibration decisions. A changed model
 quantization, runtime, context, generation setting, host fact, or budget starts a new
 calibration baseline; no earlier qualification carries over.
 
-The hosted reference model for the next suite remains open until local calibration is
-complete. Select one capable hosted model, record the decision, and pin its exact identity
-for that suite. Changing it requires a new complete paired baseline. Q2 v4's
+The hosted reference model for the next suite is pinned by
+[`evaluation/references/deepseek-v4-pro.json`](../evaluation/references/deepseek-v4-pro.json):
+`deepseek/deepseek-v4-pro`, provider release `2026-08-13`, OpenCode `2.1.2`, and
+provider-default generation settings. The reference hash participates in campaign
+identity, so changing the reference requires a new complete paired baseline. Q2 v4's
 `deepseek/deepseek-flash` result remains historical evidence, not an automatic selection.
 
 ## 11. Cheap workflow
@@ -641,6 +643,13 @@ Run the frozen suite with all three treatments, the pinned hosted reference mode
 five paired repetitions before merging a user-visible MCP change. Run it only after the
 model-free, targeted local, and full local checks pass. Pure refactors with unchanged MCP
 responses do not require this campaign.
+
+The `release` command implements this stage. It refuses to start a model unless a passing
+model-free route report and a passing local regression cover the same frozen suite and
+staged artifacts, and it refuses a runtime that differs from the pinned hosted reference.
+It runs exactly 270 slots and writes a hosted-model-scoped record that accounts for every
+slot as valid or invalid with a closed cause. A changed hosted reference changes the
+campaign identity and requires a new paired baseline.
 
 ## 12. Change interpretation
 

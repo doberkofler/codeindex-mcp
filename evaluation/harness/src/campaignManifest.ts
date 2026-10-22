@@ -1,6 +1,7 @@
 import os from 'node:os';
 import {artifactRefOf} from './artifact.ts';
 import {environmentHashOf, hostFactsOf} from './environment.ts';
+import {hostedReferenceHashOf} from './hostedReference.ts';
 import {EXECUTION_SCHEMA_VERSION, modelIdentityOf} from './identity.ts';
 import {campaignStoreRecordOf, isolationRecordOf} from './isolation.ts';
 import {caseHashOf} from './schema.ts';
@@ -30,30 +31,30 @@ const surfaceForOf = (surfaces: Awaited<ReturnType<typeof surfacesOf>>, treatmen
 	return surface;
 };
 
-/**
- * Builds the campaign manifest written before the first execution.
- *
- * @param setup - Resolved plan, identity, and pinned subject.
- * @param derived - Artifacts, captured surfaces, and configuration digests.
- * @param claimClass - Declared evidence class; never inferred from results.
- * @returns The manifest record.
- */
-export const campaignManifestOf = (
-	setup: EvaluationSetupType,
-	derived: Readonly<{
-		artifacts: ReturnType<typeof artifactsOf>;
-		surfaces: Awaited<ReturnType<typeof surfacesOf>>;
-		treatmentContexts: ReadonlyMap<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>;
-	}>,
-	claimClass = 'none',
-): CampaignManifestType => {
-	const {suite, selected, treatments, repetitions, environment, plan, planHash, identity, identityDigest, comparisonDigest, subject, clientStore} = setup;
-	const campaignId = `${suite.id}-${identityDigest.slice(0, 16)}`;
-	const randomizationSeed = identityDigest;
-	const modelIdentity = modelIdentityOf(suite.model, environment);
-	const environmentFacts = {...hostFactsOf(), referenceMachine: environment?.host.referenceMachine ?? os.hostname()};
-	const {artifacts, surfaces, treatmentContexts} = derived;
-	const manifestTreatments = treatments.map((treatment) => {
+type ManifestTreatmentType = Readonly<{
+	id: string;
+	kind: string;
+	definitionHash: string;
+	configDigest: string;
+	artifact: Readonly<{
+		id: string;
+		root: string;
+		entryPoint: string;
+		digest: string;
+		declaredDigest: string | null;
+		fileCount: number;
+	}> | null;
+	mcp: unknown;
+	toolSurface: ToolSurfaceType;
+}>;
+
+const manifestTreatmentsOf = (
+	treatments: EvaluationSetupType['treatments'],
+	artifacts: ReturnType<typeof artifactsOf>,
+	surfaces: Awaited<ReturnType<typeof surfacesOf>>,
+	treatmentContexts: ReadonlyMap<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>,
+): readonly ManifestTreatmentType[] =>
+	treatments.map((treatment) => {
 		const surface = surfaceForOf(surfaces, treatment);
 		const {configDigest} = treatmentContexts.get(treatment.id) ?? {configDigest: ''};
 		const artifact = artifacts.get(treatment.id) ?? null;
@@ -79,6 +80,45 @@ export const campaignManifestOf = (
 		};
 	});
 
+/**
+ * Builds the campaign manifest written before the first execution.
+ *
+ * @param setup - Resolved plan, identity, and pinned subject.
+ * @param derived - Artifacts, captured surfaces, and configuration digests.
+ * @param claimClass - Declared evidence class; never inferred from results.
+ * @returns The manifest record.
+ */
+export const campaignManifestOf = (
+	setup: EvaluationSetupType,
+	derived: Readonly<{
+		artifacts: ReturnType<typeof artifactsOf>;
+		surfaces: Awaited<ReturnType<typeof surfacesOf>>;
+		treatmentContexts: ReadonlyMap<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>;
+	}>,
+	claimClass = 'none',
+): CampaignManifestType => {
+	const {
+		suite,
+		selected,
+		treatments,
+		repetitions,
+		environment,
+		hostedReference,
+		plan,
+		planHash,
+		identity,
+		identityDigest,
+		comparisonDigest,
+		subject,
+		clientStore,
+	} = setup;
+	const campaignId = `${suite.id}-${identityDigest.slice(0, 16)}`;
+	const randomizationSeed = identityDigest;
+	const modelIdentity = modelIdentityOf(suite.model, environment, hostedReference);
+	const environmentFacts = {...hostFactsOf(), referenceMachine: environment?.host.referenceMachine ?? os.hostname()};
+	const {artifacts, surfaces, treatmentContexts} = derived;
+	const manifestTreatments = manifestTreatmentsOf(treatments, artifacts, surfaces, treatmentContexts);
+
 	return {
 		recordType: 'manifest',
 		schemaVersion: EXECUTION_SCHEMA_VERSION,
@@ -97,6 +137,17 @@ export const campaignManifestOf = (
 			environment === null
 				? null
 				: {id: environment.id, purpose: environment.purpose, hash: environmentHashOf(environment), reference: environment.model.reference},
+		hostedReference:
+			hostedReference === null
+				? null
+				: {
+						id: hostedReference.id,
+						hash: hostedReferenceHashOf(hostedReference),
+						provider: hostedReference.provider,
+						modelId: hostedReference.modelId,
+						reference: hostedReference.reference,
+						releasedAt: hostedReference.releasedAt,
+					},
 		revision: suite.revision,
 		repetitions,
 		randomizationSeed,

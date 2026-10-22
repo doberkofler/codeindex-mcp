@@ -12,6 +12,7 @@ The method is specified in
 | `suites/` | Public suite manifests |
 | `corpora/` | Pinned corpus manifests, including the selected external repository |
 | `routes/` | Declared complete-route plans for model-free E1 comparison |
+| `references/` | Pinned hosted-model identities for release campaigns |
 | `audits/` | Recorded E0 case and truth review notes |
 | `reports/` | Reviewed aggregate reports safe for publication |
 
@@ -145,6 +146,30 @@ records carry `claimClass: "local-model-scoped"`; the full record also carries
 `releaseAuthority: false`, so a hosted result cannot override local evidence or
 vice versa. The diagnostic result and the reason the full suite did not start
 are recorded in [`audits/local-regression-e2.md`](audits/local-regression-e2.md).
+
+The deferred hosted release campaign pins an exact hosted model in
+[`references/`](references/README.md) and runs only after a passing model-free
+route report and a passing local regression cover the same suite and staged
+artifacts. It executes the frozen 18-case suite with all three treatments and
+five paired repetitions, exactly 270 slots:
+
+```bash
+node evaluation/harness/src/cli.ts release \
+  --suite suites/release.json \
+  --hosted-reference references/deepseek-v4-pro.json \
+  --target-metric retrievalBytes \
+  --dry-run
+```
+
+The real run requires `--model-free <report.json>` and `--local-regression
+<local-regression.json>`, verifies the pinned OpenCode runtime, and writes
+`release-campaign.json` with `claimClass: "hosted-model-scoped"` and
+`releaseAuthority: true`. Every one of the 270 slots is recorded as valid or
+invalid with a closed cause; a missing or invalid slot, a failed Q2 gate, a
+non-improving target metric, a statistically supported regression, or any
+class-stratified failure blocks the release verdict. The selected reference and
+the current gate status are recorded in
+[`audits/hosted-release-campaign-e2.md`](audits/hosted-release-campaign-e2.md).
 
 The draft controlled semantic suite is listed with:
 

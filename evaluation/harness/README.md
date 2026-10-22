@@ -243,6 +243,9 @@ node evaluation/harness/src/cli.ts local-diagnostic --suite evaluation/suites/re
 node evaluation/harness/src/cli.ts local-regression --suite evaluation/suites/release.json \
   --environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
   --target-metric retrievalBytes
+node evaluation/harness/src/cli.ts release --suite suites/release.json \
+  --hosted-reference references/deepseek-v4-pro.json \
+  --target-metric retrievalBytes --dry-run
 pnpm eval:report --run <run-id>
 pnpm eval:test
 pnpm eval:typecheck
@@ -398,6 +401,41 @@ same claim class. Local evidence can reject an interface or detect a regression,
 but it can never satisfy a hosted release gate, and a hosted result can never
 replace or override a local regression. A non-matching claim class is rejected
 before the local record is written.
+
+### Hosted release campaign
+
+`release` is the deferred hosted gate. It loads a pinned hosted reference, which
+records the exact provider, model ID, provider release, OpenCode runtime, and
+generation settings. The reference hash participates in the campaign identity, so
+a changed hosted model starts a new campaign and can never resume or compare
+against an older paired baseline.
+
+Before the first hosted call the command requires a passing model-free route
+report and a passing local regression for the same frozen suite and the same
+staged accepted and candidate artifacts. A non-passing, incomplete, or
+artifact-mismatched precondition refuses the campaign instead of substituting
+lower-tier evidence. The measured `opencode --version` must also equal the pinned
+runtime.
+
+```bash
+node src/cli.ts release --suite suites/release.json \
+  --hosted-reference references/deepseek-v4-pro.json \
+  --target-metric retrievalBytes --dry-run
+node src/cli.ts release --suite suites/release.json \
+  --hosted-reference references/deepseek-v4-pro.json \
+  --model-free <route-report> \
+  --local-regression <local-regression.json> \
+  --target-metric retrievalBytes
+```
+
+The real command runs 18 cases × 3 treatments × 5 paired repetitions, exactly
+270 slots. It writes `release-campaign.json` beside `report.json`, carrying
+`claimClass: "hosted-model-scoped"` and `releaseAuthority: true`. Every declared
+slot is recorded as valid or invalid with a closed cause; missing executions,
+defects, a failed Q2 gate, a non-improving target metric, a statistically
+supported candidate regression, or a class-stratified failure blocks the verdict.
+The overall verdict, every class verdict, and the `candidateVsNoIndex` and
+`candidateVsAccepted` paired bootstrap intervals remain separate.
 
 ### Result records and resume
 

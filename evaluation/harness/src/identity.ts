@@ -1,6 +1,7 @@
 import {type ArtifactRefType} from './artifact.ts';
 import {type EnvironmentManifestType} from './environment.ts';
 import {hashOf} from './hash.ts';
+import {hostedReferenceHashOf, type HostedReferenceType} from './hostedReference.ts';
 import {SUITE_SCHEMA_VERSION, caseHashOf, type CaseType, type SuiteType} from './schema.ts';
 import {canonicalTreatmentsOf, treatmentSetHashOf, type ToolSurfaceType, type TreatmentDefinitionType, type TreatmentKindType} from './treatment.ts';
 
@@ -10,13 +11,21 @@ export type SharedConfigurationType = Readonly<{
 	codeMode: 'absent';
 }>;
 
+/** Pinned model identity, independent of whether the model is local or hosted. */
+export type ModelPinType = Readonly<{
+	id: string;
+	digest: string;
+}>;
+
 /** Closed identity for one planned execution. */
 export type IdentityType = Readonly<{
 	harness: Readonly<{version: number; schemaVersion: number}>;
 	suite: Readonly<{id: string; version: number; hash: string}>;
 	model: string;
-	/** Pinned local-model environment identity, or null for an unpinned model. */
+	/** Pinned local-model environment identity, or null for a hosted or unpinned model. */
 	environment: Readonly<{id: string; hash: string}> | null;
+	/** Pinned hosted reference identity, or null for a local or unpinned model. */
+	hosted: ModelPinType | null;
 	revision: string;
 	treatments: readonly Readonly<{id: string; definitionHash: string}>[];
 	treatmentSetHash: string;
@@ -35,6 +44,8 @@ export type IdentityInputType = Readonly<{
 	harnessVersion: number;
 	/** Pinned local-model environment, or null when the suite declares none. */
 	environment?: EnvironmentManifestType | null;
+	/** Pinned hosted reference, or null when the campaign is local or unpinned. */
+	hostedReference?: HostedReferenceType | null;
 }>;
 
 /**
@@ -73,6 +84,10 @@ export const identityOf = (input: IdentityInputType): IdentityType => {
 		suite: {id: input.suite.id, version: input.suite.version, hash: input.suite.hash},
 		model: input.suite.model,
 		environment: input.environment === undefined || input.environment === null ? null : {id: input.environment.id, hash: hashOf(input.environment)},
+		hosted:
+			input.hostedReference === undefined || input.hostedReference === null
+				? null
+				: {id: input.hostedReference.id, digest: hostedReferenceHashOf(input.hostedReference)},
 		revision: input.suite.revision,
 		treatments: treatments.map((treatment) => ({id: treatment.id, definitionHash: treatment.definitionHash})),
 		treatmentSetHash: treatmentSetHashOf(treatments),
@@ -173,37 +188,75 @@ export type ExecutionIdentityInputType = Readonly<{
 	agent?: ExecutionAgentIdentityType;
 	/** Pinned local-model environment, or null for a hosted or unpinned reference. */
 	environment?: EnvironmentManifestType | null;
+	/** Pinned hosted reference, or null for a local or unpinned model. */
+	hostedReference?: HostedReferenceType | null;
 }>;
 
 /**
  * Builds the provider identity of the pinned model.
  *
  * A local environment supplies the immutable provider digest, quantization,
- * runtime version, and generation settings. Without one the suite pins only a
- * reference, so hashing the reference is the strongest available identity.
+ * runtime version, and generation settings. A hosted reference supplies its
+ * exact provider release, client runtime, and generation settings. Without
+ * either, the suite pins only a reference, so hashing the reference is the
+ * strongest available identity.
  *
  * @param model - Suite model reference.
  * @param environment - Pinned local-model environment, when the run uses one.
+ * @param hosted - Pinned hosted reference, when the run uses one.
  * @returns Provider identity recorded in the result.
  */
-export const modelIdentityOf = (model: string, environment: EnvironmentManifestType | null = null): ExecutionModelIdentityType => {
+const modelDigestOf = (model: string, environment: EnvironmentManifestType | null, hosted: HostedReferenceType | null): string => {
+	if (environment !== null) {
+		return environment.model.digest;
+	}
+
+	return hosted === null ? hashOf({model}) : hostedReferenceHashOf(hosted);
+};
+
+const modelRuntimeOf = (
+	environment: EnvironmentManifestType | null,
+	hosted: HostedReferenceType | null,
+): Readonly<{runtime: string | null; version: string | null}> => {
+	if (environment !== null) {
+		return {runtime: 'ollama', version: environment.runtime.ollama};
+	}
+
+	return hosted === null ? {runtime: null, version: null} : {runtime: 'hosted', version: hosted.runtime.opencode};
+};
+
+const generationDigestOf = (model: string, environment: EnvironmentManifestType | null, hosted: HostedReferenceType | null): string => {
+	if (environment !== null) {
+		return hashOf({generation: environment.model.generation, contextLength: environment.model.contextLength});
+	}
+
+	return hosted === null ? hashOf({model}) : hashOf({generation: hosted.generation, releasedAt: hosted.releasedAt});
+};
+
+export const modelIdentityOf = (
+	model: string,
+	environment: EnvironmentManifestType | null = null,
+	hosted: HostedReferenceType | null = null,
+): ExecutionModelIdentityType => {
 	const separator = model.indexOf('/');
-	const provider = separator > 0 ? model.slice(0, separator) : 'unknown';
-	const modelId = separator > 0 ? model.slice(separator + 1) : model;
+	const {runtime, version} = modelRuntimeOf(environment, hosted);
 
 	if (environment !== null && environment.model.reference !== model) {
 		throw new Error(`environment pins "${environment.model.reference}" but the suite declares "${model}"`);
 	}
 
+	if (hosted !== null && hosted.reference !== model) {
+		throw new Error(`hosted reference pins "${hosted.reference}" but the suite declares "${model}"`);
+	}
+
 	return {
-		provider,
-		modelId,
-		digest: environment?.model.digest ?? hashOf({model}),
+		provider: separator > 0 ? model.slice(0, separator) : 'unknown',
+		modelId: separator > 0 ? model.slice(separator + 1) : model,
+		digest: modelDigestOf(model, environment, hosted),
 		quantization: environment?.model.quantization ?? null,
-		runtime: environment === null ? null : 'ollama',
-		runtimeVersion: environment?.runtime.ollama ?? null,
-		generationSettingsDigest:
-			environment === null ? hashOf({model}) : hashOf({generation: environment.model.generation, contextLength: environment.model.contextLength}),
+		runtime,
+		runtimeVersion: version,
+		generationSettingsDigest: generationDigestOf(model, environment, hosted),
 	};
 };
 
@@ -239,7 +292,7 @@ export const executionIdentityOf = (input: ExecutionIdentityInputType): Executio
 		promptHash: hashOf(input.testCase.prompt),
 		timeoutMs: input.testCase.timeoutMs,
 	},
-	model: modelIdentityOf(input.model, input.environment ?? null),
+	model: modelIdentityOf(input.model, input.environment ?? null, input.hostedReference ?? null),
 	agent: agentIdentityOf(input),
 	treatment: {
 		id: input.treatment.id,
@@ -287,6 +340,7 @@ export const comparisonDigestOf = (identity: IdentityType): string =>
 		suite: identity.suite,
 		model: identity.model,
 		environment: identity.environment,
+		hosted: identity.hosted,
 		revision: identity.revision,
 		sharedConfigHash: identity.sharedConfigHash,
 		cases: identity.cases,

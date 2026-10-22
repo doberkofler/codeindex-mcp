@@ -112,16 +112,16 @@ export const runtimeOf = (value: unknown): RuntimeEnvironmentType => {
 	};
 };
 
-export const generationOf = (value: unknown): GenerationSettingsType => {
-	const record = requireObject(value, 'environment field "model.generation"');
-	rejectUnknownKeys(record, GENERATION_KEYS, 'environment field "model.generation"');
+export const generationOf = (value: unknown, context = 'environment field "model.generation"'): GenerationSettingsType => {
+	const record = requireObject(value, context);
+	rejectUnknownKeys(record, GENERATION_KEYS, context);
 
 	return {
-		temperature: optionalNonNegativeNumber(record['temperature'], 'model.generation.temperature', 'environment'),
-		topP: optionalNonNegativeNumber(record['topP'], 'model.generation.topP', 'environment'),
-		topK: optionalPositiveInteger(record['topK'], 'model.generation.topK', 'environment'),
-		repeatPenalty: optionalNonNegativeNumber(record['repeatPenalty'], 'model.generation.repeatPenalty', 'environment'),
-		stop: requireStringArray(record['stop'], 'model.generation.stop', 'environment'),
+		temperature: optionalNonNegativeNumber(record['temperature'], 'model.generation.temperature', context),
+		topP: optionalNonNegativeNumber(record['topP'], 'model.generation.topP', context),
+		topK: optionalPositiveInteger(record['topK'], 'model.generation.topK', context),
+		repeatPenalty: optionalNonNegativeNumber(record['repeatPenalty'], 'model.generation.repeatPenalty', context),
+		stop: requireStringArray(record['stop'], 'model.generation.stop', context),
 	};
 };
 
