@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"id": "ollama-qwen3.8-27b-calibration",
 	"purpose": "calibration",
-	"recordedAt": "2026-10-21T21:34:52.441Z",
+	"recordedAt": "2026-10-22T06:42:05.938Z",
 	"host": {
 		"referenceMachine": "apple-m5-max-64gb",
 		"nodeVersion": "v26.10.0",
@@ -14,7 +14,7 @@
 		"osVersion": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:06:40 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T6050"
 	},
 	"runtime": {
-		"ollama": "0.40.7",
+		"ollama": "0.40.8",
 		"opencode": "2.1.2",
 		"ollamaEndpoint": "http://127.0.0.1:11434"
 	},

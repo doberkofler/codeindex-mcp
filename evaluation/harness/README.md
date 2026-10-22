@@ -52,17 +52,29 @@ to any comparable field yields a different identity.
 
 ## Tool surface capture
 
-Before the first model call, the harness captures the exact tool-name list
-presented for each treatment:
+The declared surface of a treatment is the ordinary tool list from the validated
+definition plus the native names from the artifact's `tools/list`, recorded under
+the server prefix OpenCode presents (`codeindex_*`). Presentation is not assumed:
 
-- ordinary names come from the validated treatment definition;
-- CodeIndex names come from the artifact's native `tools/list` response and are
-  recorded under the server prefix OpenCode presents (`codeindex_*`);
-- every name is sorted and hashed into the treatment's `toolSurface`.
+- before the first model call of every campaign, a model-free probe starts a
+  loopback OpenAI-compatible endpoint and points a private `surface-probe`
+  provider at it through `OPENCODE_CONFIG_CONTENT`;
+- the workspace configuration, agent, artifact, and MCP server are used
+  unchanged, and no model is contacted;
+- the probe answers the session-title request, then a few `read` turns, and
+  records every tool list OpenCode sends; MCP tools appear only after the server
+  connects, so the probe requires a stable list after a settle period;
+- the captured union must equal the declared surface. A missing declared tool or
+  an undeclared tool aborts the campaign before any model process starts.
+
+`edit` presents `edit` and `write` because both share the `edit` permission;
+`bash` is presented as `shell` and normalized back to `bash` in the event stream;
+`patch` is accepted when a model advertises it. `list` is retired in OpenCode 2,
+so suites may keep it declared while the expected surface omits it.
 
 The manifest and every result record the surface. Every observed tool call is
 classified as ordinary, native CodeIndex, generic `execute`, or unknown. Any
-tool outside the captured surface is recorded and makes the execution invalid.
+tool outside the callable surface is recorded and makes the execution invalid.
 Generic `execute` and `search` are disabled in every treatment; a call to either
 is recorded and fails the report.
 
@@ -289,16 +301,28 @@ model digest, quantization, runtime, context, generation setting, or host fact
 defines a new smoke baseline. `smoke` rejects any treatment other than
 `accepted` and any repetition count other than one.
 
-`calibrate` runs the same frozen six-case subset with the `no-index` and
-`accepted` treatments at one repetition, which is 12 executions per model. It
-requires a `calibration` environment, applies one wall-clock budget to every
-model, and writes a per-model `calibration.json` beside the retained results:
+`calibrate` first runs a diagnostic phase for each candidate: three repetitions
+of `impl-default-result-bytes` and `impact-schema-version-references` in the
+`no-index` and `accepted` treatments, which is 12 executions per model. The
+diagnostics record attributes every anomaly to the harness, model, CodeIndex, or
+integration; a harness, integration, or CodeIndex anomaly, or a missing
+structured answer, blocks qualification and records a disqualification. A clean
+diagnostic phase is followed by the frozen six-case subset with the `no-index`
+and `accepted` treatments at one repetition, which is 12 qualification
+executions per model.
 
 ```bash
 node src/cli.ts calibrate --suite suites/calibration.json --budget-ms 900000 \
   --environment environments/ollama-qwen3.8-27b-calibration.json \
-  --environment environments/ollama-qwen3.6-35b-calibration.json
+  --environment environments/ollama-devstral-small-2-calibration.json \
+  --exclude "ollama-devstral-small-2-calibration=<operator reason>"
 ```
+
+`--exclude <environment-id>=<reason>` records a candidate the operator rules out
+before execution, such as a model that does not fit the reference machine. The
+excluded candidate is written to `selection.json` as a disqualification with zero
+executions, so it never silently disappears. Excluding a candidate is an operator
+constraint, not a model-quality result.
 
 A model qualifies only when every execution is valid, no case loses accepted
 correctness against `no-index`, no retry, timeout, defect, or unrestored
@@ -530,18 +554,19 @@ Every treatment is isolated in `workspaces/<treatment>`:
   manifest hash instead of a revision.
 
 Before every execution the harness verifies that the workspace is a clean
-checkout at the pinned subject: matching HEAD and no tracked, staged, or
-untracked non-ignored change for a worktree, or a matching content manifest for a
+checkout at the pinned subject: matching HEAD and no tracked, staged, untracked,
+or authored ignored change for a worktree, or a matching content manifest for a
 copy. A dirty or mismatched workspace is rejected before the model starts; it is
 never silently repaired.
 
-After every execution the workspace is restored: `git reset --hard <revision>`
-and `git clean -fd` for a worktree, or a fresh copy from the subject for a
-disposable copy. Tracked edits, staged changes, and untracked non-ignored files
-are discarded, so edits from one run cannot reach the next run. Ignored build
-output, the generated `.opencode` configuration, and the shared `node_modules`
-link are rebuilt rather than removed permanently. The restoration result is
-recorded as `isolation.restored`.
+After every execution the workspace is restored: `git reset --hard <revision>`,
+`git clean -fd`, and removal of every ignored path the harness does not own for a
+worktree, or a fresh copy from the subject for a disposable copy. Tracked edits,
+staged changes, untracked non-ignored files, and authored ignored files are
+discarded, so edits from one run cannot reach the next run. The harness-owned
+`node_modules` link, `dist` tree, and generated `.opencode` configuration are
+rebuilt rather than discarded. The restoration result is recorded as
+`isolation.restored`.
 
 A restoration failure is never thrown away: the affected result is written with
 `outcome: "failed"`, `valid: false`, `isolation.restored: false`, and the
@@ -576,9 +601,12 @@ The agent runs as a process-group leader. The hard timeout is
 `SIGKILL` after two seconds, and stops waiting for stdio close after a bounded
 grace period. A descendant that escaped the process group cannot hold the harness
 open: the captured pipes are released and the child is detached before the result
-is written. A timed-out execution is terminal for its slot and is written as
-an inspectable result with `outcome: "timed-out"`, `timedOut: true`, a null exit
-code, and the captured partial stream. Every result records `outcome`,
+is written. The harness also forwards its own `SIGINT` and `SIGTERM` to every
+running attempt group and waits, bounded, before exiting, so an outer runner's
+timeout cannot leave a model or tool subprocess writing into a workspace after
+the campaign has stopped. A timed-out execution is terminal for its slot and is
+written as an inspectable result with `outcome: "timed-out"`, `timedOut: true`, a
+null exit code, and the captured partial stream. Every result records `outcome`,
 `isolation`, `artifacts`, `timeoutMs`, and the exit signal.
 
 `isolation` records `{mode, clientStore, checkoutClean, revisionMatch, restored}`:

@@ -19,6 +19,7 @@ const EVALUATION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 const ENVIRONMENT_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3-8b-smoke.json');
 const QWEN_27B_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3.8-27b-calibration.json');
 const QWEN_35B_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3.6-35b-calibration.json');
+const DEVSTRAL_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-devstral-small-2-calibration.json');
 const CALIBRATION_PATH = path.join(EVALUATION_ROOT, 'suites', 'calibration.json');
 const DIGEST = '500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41';
 
@@ -72,13 +73,21 @@ test('committed smoke environment pins the calibration model and full identity',
 test('committed calibration environment pins the candidate model and settings', () => {
 	const qwen27b = loadEnvironmentManifest(QWEN_27B_PATH);
 	const qwen35b = loadEnvironmentManifest(QWEN_35B_PATH);
+	const devstral = loadEnvironmentManifest(DEVSTRAL_PATH);
 
+	assert.equal(devstral.purpose, 'calibration');
+	assert.equal(devstral.model.reference, 'ollama/devstral-small-2:latest');
+	assert.equal(devstral.model.digest, '24277f07f62db8f9cb68e9dfc679ea1818a7fbac47a50eff0a701d3f645b63c8');
+	assert.equal(devstral.model.quantization, 'Q4_K_M');
+	assert.equal(devstral.model.contextLength, 393_216);
+	assert.deepEqual(devstral.model.generation, {temperature: 0.15, topP: null, topK: null, repeatPenalty: null, stop: []});
+	assert.equal(devstral.runtime.ollama, '0.40.8');
 	assert.equal(qwen27b.purpose, 'calibration');
 	assert.equal(qwen27b.model.reference, 'ollama/qwen3.8:27b-mlx');
 	assert.equal(qwen27b.model.digest, '5642e97495e1a088883805981563dcdc4a040c2f53388b7a41d1f24d3622cf7e');
 	assert.equal(qwen27b.model.quantization, 'nvfp4');
 	assert.equal(qwen27b.model.contextLength, 262_144);
-	assert.equal(qwen27b.runtime.ollama, '0.40.7');
+	assert.equal(qwen27b.runtime.ollama, '0.40.8');
 	assert.equal(qwen35b.purpose, 'calibration');
 	assert.equal(qwen35b.model.reference, 'ollama/qwen3.6:35b-mlx');
 	assert.equal(qwen35b.model.digest, 'e92a3e94bbca90a85491dc34e9257bfee2318cedaa16360828c4d8edf14295b9');
@@ -109,6 +118,23 @@ test('capture derives the manifest from measured facts', () => {
 	});
 
 	assert.deepEqual(captured, manifest());
+});
+
+test('a model that declares only temperature pins the absent settings as null', async () => {
+	const tags = {models: [{name: 'devstral-small-2:latest', digest: 'b'.repeat(64)}]};
+	const show = {
+		parameters: 'temperature                    0.15',
+		details: {parameter_size: '24.0B', quantization_level: 'Q4_K_M'},
+		model_info: {'general.architecture': 'mistral3', 'mistral3.context_length': 393_216, 'mistral3.embedding_length': 5_120},
+	};
+	const measured = await environmentProbeOf({
+		model: 'ollama/devstral-small-2:latest',
+		host,
+		command: (command) => (command === 'ollama' ? 'ollama version is 0.40.7' : '2.1.2'),
+		fetchJson: async (url) => Promise.resolve(url.endsWith('/api/tags') ? tags : show),
+	});
+
+	assert.deepEqual(measured.model.generation, {temperature: 0.15, topP: null, topK: null, repeatPenalty: null, stop: []});
 });
 
 test('probe reads runtime versions and model facts from the provider', async () => {

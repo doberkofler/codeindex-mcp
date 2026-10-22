@@ -1,4 +1,5 @@
 import {hashOf} from './hash.ts';
+import {callableToolsOf} from './surface.ts';
 
 /** The accepted three-treatment model. Order defines plan order. */
 export const TREATMENT_IDS = ['no-index', 'accepted', 'candidate'] as const;
@@ -52,11 +53,20 @@ export type TreatmentDefinitionType = Readonly<{
 /** The exact tool-name surface presented to the model for one treatment. */
 export type ToolSurfaceType = Readonly<{
 	treatmentId: TreatmentIdType;
+	/** Declared ordinary tool names, sorted. */
 	ordinary: readonly string[];
 	codeIndex: readonly string[];
 	execute: 'absent';
-	/** Ordinary and CodeIndex names in one sorted list. */
+	/** Declared ordinary and CodeIndex names in one sorted list. */
 	tools: readonly string[];
+	/**
+	 * Every name the model can call for the declared ordinary tools.
+	 *
+	 * `edit` also makes `write` and `patch` callable, and `bash` is emitted as
+	 * `shell`, so routing must accept those aliases even though the treatment
+	 * declares one permission each.
+	 */
+	callable: readonly string[];
 	/** True when every CodeIndex tool is a native `<server>_<tool>` name. */
 	native: boolean;
 	digest: string;
@@ -356,6 +366,7 @@ export const toolSurfaceOf = (treatment: TreatmentDefinitionType, catalog: reado
 		treatment.kind === 'codeindex' && treatment.mcp !== null ? [...new Set(catalog.map((name) => `${treatment.mcp?.server}_${name}`))].sort() : [];
 	const ordinary = [...treatment.ordinaryTools];
 	const tools = [...new Set([...ordinary, ...codeIndex])].sort();
+	const callable = [...new Set([...callableToolsOf(ordinary), ...codeIndex])].sort();
 	const native = treatment.kind === 'no-index' || codeIndex.every((name) => name.startsWith(`${treatment.mcp?.server}_`));
 
 	return {
@@ -364,6 +375,7 @@ export const toolSurfaceOf = (treatment: TreatmentDefinitionType, catalog: reado
 		codeIndex,
 		execute: CODE_MODE_POLICY,
 		tools,
+		callable,
 		native,
 		digest: hashOf({id: treatment.id, ordinary, codeIndex, execute: CODE_MODE_POLICY}),
 	};
@@ -377,9 +389,9 @@ export const toolSurfaceOf = (treatment: TreatmentDefinitionType, catalog: reado
  * @returns Counts and the sorted list of names outside the captured surface.
  */
 export const routingOf = (surface: ToolSurfaceType, calls: readonly string[]): RoutingType => {
-	const ordinary = new Set(surface.ordinary);
+	const ordinary = new Set(surface.callable);
 	const codeIndex = new Set(surface.codeIndex);
-	const known = new Set(surface.tools);
+	const known = new Set([...surface.callable, ...surface.codeIndex]);
 	const unknown = [...new Set(calls.filter((name) => !known.has(name)))].sort();
 
 	return {

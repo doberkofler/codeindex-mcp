@@ -63,10 +63,11 @@ describe('frozen evaluation suites', () => {
 		const pinned = suite.caseHashes;
 
 		expect(suite.status).toBe('frozen');
-		expect(suite.version).toBe(1);
+		expect(suite.version).toBe(2);
 		expect(suite.repetitions).toBe(1);
 		expect(suite.revision).toBe(release.suite.revision);
 		expect(suite.cases).toHaveLength(6);
+		expect(suite.treatments[0]?.ordinaryTools).toStrictEqual(['bash', 'edit', 'glob', 'grep', 'list', 'read']);
 		expect(classCountsOf(cases.map((testCase) => testCase.class))).toStrictEqual({
 			locate: 1,
 			impact: 2,

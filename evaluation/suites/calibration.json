@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 2,
 	"id": "codeindex-calibration",
-	"version": 1,
+	"version": 2,
 	"status": "frozen",
 	"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516",
 	"model": "ollama/qwen3:8b",
@@ -10,7 +10,7 @@
 		{
 			"id": "no-index",
 			"kind": "no-index",
-			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"ordinaryTools": ["bash", "edit", "glob", "grep", "list", "read"],
 			"codeMode": "absent",
 			"artifact": null,
 			"mcp": null
@@ -18,7 +18,7 @@
 		{
 			"id": "accepted",
 			"kind": "codeindex",
-			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"ordinaryTools": ["bash", "edit", "glob", "grep", "list", "read"],
 			"codeMode": "absent",
 			"artifact": {
 				"id": "codeindex-mcp-accepted",
@@ -33,7 +33,7 @@
 		{
 			"id": "candidate",
 			"kind": "codeindex",
-			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"ordinaryTools": ["bash", "edit", "glob", "grep", "list", "read"],
 			"codeMode": "absent",
 			"artifact": {
 				"id": "codeindex-mcp-candidate",

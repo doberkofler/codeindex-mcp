@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test, {type TestContext} from 'node:test';
 import {hashOf} from './hash.ts';
-import {treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
+import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
 import {
 	assertCheckout,
 	checkoutVerificationOf,
@@ -14,6 +14,7 @@ import {
 	removeWorkspaces,
 	restoreWorkspace,
 	subjectIdentityOf,
+	treatmentConfigOf,
 	workspaceContextOf,
 	type WorkspaceContextType,
 } from './workspace.ts';
@@ -42,6 +43,7 @@ const repositoryOf = (root: string): string => {
 	gitIn(root, ['init', '--quiet', '--initial-branch=main']);
 	writeFileSync(path.join(root, 'a.ts'), 'export const a = 1;\n', 'utf8');
 	writeFileSync(path.join(root, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n', 'utf8');
+	writeFileSync(path.join(root, '.gitignore'), 'coverage/\n', 'utf8');
 
 	return commitOf(root, 'initial');
 };
@@ -58,6 +60,30 @@ const treatment: TreatmentDefinitionType = treatmentOf({
 const contextOf = (harnessRoot: string, subjectRepo: string, revision: string): WorkspaceContextType =>
 	workspaceContextOf(harnessRoot, {subjectRepo, subject: subjectIdentityOf(subjectRepo, revision)});
 
+test('generated treatment configuration declares exactly the ordinary and captured MCP actions', (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const subjectRepo = path.join(root, 'subject');
+	const revision = repositoryOf(subjectRepo);
+	const context = contextOf(path.join(root, 'harness'), subjectRepo, revision);
+	const accepted = treatmentOf({
+		id: 'accepted',
+		kind: 'codeindex',
+		ordinaryTools: ['bash', 'edit', 'glob', 'grep', 'list', 'read'],
+		codeMode: 'absent',
+		artifact: {id: 'accepted', root: 'artifacts/accepted', entryPoint: 'mcp.mjs'},
+		mcp: {server: 'codeindex', codemode: false},
+	});
+	const surface = toolSurfaceOf(accepted, ['find_symbol', 'read_symbol']);
+	const {config} = treatmentConfigOf(context, accepted, surface);
+
+	assert.deepEqual(config.permissions[0], {action: '*', resource: '*', effect: 'deny'});
+	assert.deepEqual(
+		config.permissions.slice(1).map((rule) => rule.action),
+		['codeindex_find_symbol', 'codeindex_read_symbol', 'edit', 'glob', 'grep', 'list', 'read', 'shell'],
+	);
+	assert.equal('tools' in config, false);
+});
+
 test('a subject checkout is pinned to a clean, exact revision', (testContext: TestContext) => {
 	const root = temporaryRoot(testContext);
 	const repo = path.join(root, 'subject');
@@ -70,6 +96,7 @@ test('a subject checkout is pinned to a clean, exact revision', (testContext: Te
 	assert.equal(
 		subject.contentManifestHash,
 		hashOf([
+			{path: '.gitignore', digest: gitIn(repo, ['rev-parse', 'HEAD:.gitignore']).trim()},
 			{path: 'a.ts', digest: gitIn(repo, ['rev-parse', 'HEAD:a.ts']).trim()},
 			{path: 'pnpm-lock.yaml', digest: gitIn(repo, ['rev-parse', 'HEAD:pnpm-lock.yaml']).trim()},
 		]),
@@ -119,6 +146,29 @@ test('a workspace is created, verified, restored, and rejects every authored cha
 
 	removeWorkspaces(context, [treatment]);
 	assert.equal(existsSync(workspace), false);
+});
+
+test('an authored ignored file is rejected and removed before the next execution', (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const subjectRepo = path.join(root, 'subject');
+	const revision = repositoryOf(subjectRepo);
+	const context = contextOf(path.join(root, 'harness'), subjectRepo, revision);
+
+	ensureWorkspaces(context, [treatment]);
+
+	const workspace = context.workspacePath('no-index');
+	mkdirSync(path.join(workspace, 'coverage'), {recursive: true});
+	writeFileSync(path.join(workspace, 'coverage', 'report.html'), '<html></html>\n', 'utf8');
+
+	const dirty = checkoutVerificationOf(context, treatment);
+
+	assert.equal(dirty.checkoutClean, false);
+	assert.match(dirty.reason ?? '', /authored change\(s\): !! coverage/u);
+	assert.throws(() => assertCheckout(context, treatment), /not a clean checkout/);
+
+	assert.equal(restoreWorkspace(context, treatment).restored, true);
+	assert.equal(existsSync(path.join(workspace, 'coverage')), false);
+	assertCheckout(context, treatment);
 });
 
 test('a workspace at a different revision is rejected before execution', (testContext: TestContext) => {

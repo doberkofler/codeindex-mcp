@@ -6,7 +6,7 @@ import test, {type TestContext} from 'node:test';
 import {executionIdentityDigestOf, type ExecutionIdentityType} from './identity.ts';
 import {clientStoreOf, type ClientStoreType} from './isolation.ts';
 import {readResult, writeResult} from './result.ts';
-import {runOnce, withRestoration} from './runner.ts';
+import {runOnce, terminateActiveAttempts, withRestoration} from './runner.ts';
 import {caseOf, type CaseType} from './schema.ts';
 import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
 
@@ -101,7 +101,13 @@ const clientStore = (root: string): ClientStoreType =>
 		homeDirectory: path.join(root, 'home'),
 	});
 
-const execute = (root: string, command: string, testCase: CaseType, store: ClientStoreType = clientStore(root)) =>
+const execute = (
+	root: string,
+	command: string,
+	testCase: CaseType,
+	store: ClientStoreType = clientStore(root),
+	options: Readonly<{retry?: {maxAttempts: number; backoffMs: () => number}; prepareRetry?: () => {restored: boolean; reason: string | null}}> = {},
+) =>
 	runOnce({
 		cwd: root,
 		testCase,
@@ -123,7 +129,8 @@ const execute = (root: string, command: string, testCase: CaseType, store: Clien
 		artifacts: {accepted: null, candidate: null, loaded: null},
 		rawBase: path.join(root, 'raw', 'case-a'),
 		command,
-		retry: NO_RETRY,
+		retry: options.retry ?? NO_RETRY,
+		...(options.prepareRetry === undefined ? {} : {prepareRetry: options.prepareRetry}),
 	});
 
 test('a successful execution uses a standalone private in-memory server', async (testContext: TestContext) => {
@@ -555,6 +562,83 @@ test('a successful restoration keeps the execution outcome', async (testContext:
 	assert.equal(result.outcome, 'completed');
 	assert.equal(result.valid, true);
 	assert.equal(result.isolation.restored, true);
+});
+
+test('a retry starts from a restored workspace, never from the previous attempt edits', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const witness = path.join(root, 'witness');
+	mkdirSync(witness, {recursive: true});
+	const command = scriptOf(
+		root,
+		'retry',
+		[
+			`count=$(cat ${quote(path.join(witness, 'count'))} 2>/dev/null || printf 0)`,
+			`count=$((count + 1))`,
+			`printf '%s' "$count" > ${quote(path.join(witness, 'count'))}`,
+			`if [ -e ${quote(path.join(root, 'dirty.txt'))} ]; then exit 9; fi`,
+			`if [ "$count" -eq 1 ]; then printf 'edited\\n' > ${quote(path.join(root, 'dirty.txt'))}; exit 3; fi`,
+			"cat <<'EVENTS'",
+			String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+			String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
+			'EVENTS',
+		].join('\n'),
+	);
+	const result = await execute(root, command, testCaseOf(), clientStore(root), {
+		retry: {maxAttempts: 2, backoffMs: () => 0},
+		prepareRetry: () => {
+			rmSync(path.join(root, 'dirty.txt'), {force: true});
+
+			return {restored: true, reason: null};
+		},
+	});
+
+	assert.equal(readFileSync(path.join(witness, 'count'), 'utf8'), '2');
+	assert.equal(result.valid, true);
+	assert.equal(result.outcome, 'completed');
+	assert.equal(result.attempts.length, 2);
+	assert.equal(existsSync(path.join(root, 'dirty.txt')), false);
+});
+
+test('a failed restoration aborts the slot instead of retrying from edits', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const witness = path.join(root, 'witness');
+	mkdirSync(witness, {recursive: true});
+	const command = scriptOf(
+		root,
+		'retry-abort',
+		[
+			`count=$(cat ${quote(path.join(witness, 'count'))} 2>/dev/null || printf 0)`,
+			`count=$((count + 1))`,
+			`printf '%s' "$count" > ${quote(path.join(witness, 'count'))}`,
+			'exit 3',
+		].join('\n'),
+	);
+	const result = await execute(root, command, testCaseOf(), clientStore(root), {
+		retry: {maxAttempts: 3, backoffMs: () => 0},
+		prepareRetry: () => ({restored: false, reason: 'workspace .git is missing'}),
+	});
+
+	assert.equal(readFileSync(path.join(witness, 'count'), 'utf8'), '1');
+	assert.equal(result.attempts.length, 1);
+	assert.equal(result.valid, false);
+	assert.equal(result.outcome, 'failed');
+	assert.equal(result.defects.includes('dirty-isolation'), true);
+	assert.match(result.invalidReason ?? '', /restoration before retry failed: workspace \.git is missing/u);
+});
+
+test('a termination signal reaches the detached execution group', async (testContext: TestContext) => {
+	const root = temporaryRoot(testContext);
+	const command = scriptOf(root, 'terminate', ['sleep 30', ''].join('\n'));
+	const started = Date.now();
+	const pending = execute(root, command, testCaseOf({timeoutMs: 60_000}));
+
+	setTimeout(() => terminateActiveAttempts('SIGTERM'), 250);
+	const result = await pending;
+
+	assert.ok(Date.now() - started < 15_000);
+	assert.equal(result.outcome, 'failed');
+	assert.equal(result.exitCode, null);
+	assert.equal(result.timedOut, false);
 });
 
 test('a declared post-run check is reported separately from correctness and process success', async (testContext: TestContext) => {

@@ -4,11 +4,19 @@ import {appendFileSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, 
 import path from 'node:path';
 import {hashOf} from './hash.ts';
 import {type IsolationModeType} from './isolation.ts';
-import {type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
+import {permissionRulesOf, type PermissionRuleType} from './surface.ts';
+import {toolSurfaceOf, type ToolSurfaceType, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
 
 /** Treatment-specific configuration file written into every workspace. */
 const TREATMENT_CONFIG = '.opencode/opencode.jsonc';
 const EVALUATOR_AGENT = '.opencode/agents/evaluator.md';
+/**
+ * Ignored paths the harness owns and re-creates after restoration.
+ *
+ * An execution may use them, but their contents are not authored source and
+ * their survival is required for the next execution to run at all.
+ */
+const SUPPORT_PATHS: readonly string[] = ['node_modules', 'dist'];
 const AGENT_PREAMBLE = [
 	'---',
 	'description: Code location evaluator',
@@ -89,7 +97,8 @@ export type WorkspaceContextType = Readonly<{
 /** Generated OpenCode configuration for one treatment. */
 export type TreatmentConfigType = Readonly<{
 	$schema: string;
-	tools: Readonly<Record<string, boolean>>;
+	/** Exact ordered allowlist; every undeclared tool is denied. */
+	permissions: readonly PermissionRuleType[];
 	mcp: Readonly<{servers: Readonly<Record<string, Readonly<{type: 'local'; command: readonly string[]; codemode: false}>>>}>;
 }>;
 
@@ -273,18 +282,21 @@ export const workspaceContextOf = (root: string, settings: Readonly<{subjectRepo
  * Builds the exact configuration for one treatment.
  *
  * Accepted and candidate differ only in the artifact entry point. Every other
- * value, including the ordinary tool map and the generic `execute` removal, is
- * shared.
+ * value is shared. A leading deny-all permission rule removes every built-in
+ * tool that was not declared; the ordinary names and the captured native MCP
+ * names are the only permitted actions.
  *
  * @param context - Workspace paths.
  * @param treatment - Treatment definition.
+ * @param surface - Captured surface; defaults to the ordinary tools only.
  * @returns The generated configuration and its digest.
  */
 export const treatmentConfigOf = (
 	context: WorkspaceContextType,
 	treatment: TreatmentDefinitionType,
+	surface?: Pick<ToolSurfaceType, 'tools'>,
 ): Readonly<{config: TreatmentConfigType; digest: string}> => {
-	const tools = Object.fromEntries([...treatment.ordinaryTools.map((name) => [name, true] as const), ['execute', false] as const, ['search', false] as const]);
+	const declared = surface ?? toolSurfaceOf(treatment);
 	const servers =
 		treatment.mcp === null
 			? {}
@@ -297,7 +309,7 @@ export const treatmentConfigOf = (
 				};
 	const config: TreatmentConfigType = {
 		$schema: 'https://opencode.ai/config.json',
-		tools,
+		permissions: permissionRulesOf(declared),
 		mcp: {servers},
 	};
 
@@ -315,10 +327,11 @@ const writeAgent = (workspace: string): void => {
  *
  * @param context - Workspace paths.
  * @param treatment - Treatment definition.
+ * @param surface - Captured surface; defaults to the ordinary tools only.
  */
-export const applyTreatment = (context: WorkspaceContextType, treatment: TreatmentDefinitionType): void => {
+export const applyTreatment = (context: WorkspaceContextType, treatment: TreatmentDefinitionType, surface?: Pick<ToolSurfaceType, 'tools'>): void => {
 	const workspace = context.workspacePath(treatment.id);
-	const {config} = treatmentConfigOf(context, treatment);
+	const {config} = treatmentConfigOf(context, treatment, surface);
 	const configPath = path.join(workspace, TREATMENT_CONFIG);
 
 	mkdirSync(path.dirname(configPath), {recursive: true});
@@ -396,12 +409,31 @@ const createWorkspace = (context: WorkspaceContextType, treatment: TreatmentDefi
 };
 
 /**
+ * Lists ignored paths an execution created that the harness does not own.
+ *
+ * `git status` omits ignored files by default, so an execution could leave
+ * build output or a local database behind and still look clean. Support paths
+ * are excluded because restoration re-creates them.
+ *
+ * @param workspace - Treatment workspace.
+ * @returns Workspace-relative ignored paths, sorted.
+ */
+const authoredIgnoredPathsOf = (workspace: string): readonly string[] =>
+	git(workspace, ['status', '--porcelain', '--ignored=matching', '--untracked-files=all'])
+		.split('\n')
+		.map((line) => line.trimEnd())
+		.filter((line) => line.startsWith('!! '))
+		.map((line) => line.slice(3).replace(/\/$/u, ''))
+		.filter((entry) => entry.length > 0 && !SUPPORT_PATHS.includes(entry.split('/')[0] ?? ''))
+		.sort();
+
+/**
  * Verifies that one workspace is a clean checkout at the pinned subject.
  *
  * The check runs before every execution. A dirty workspace, a staged change, an
- * untracked non-ignored file, a different revision, or (without VCS) a content
- * manifest that differs from the pinned subject is a rejection, never a silent
- * repair.
+ * untracked non-ignored file, an authored ignored file, a different revision, or
+ * (without VCS) a content manifest that differs from the pinned subject is a
+ * rejection, never a silent repair.
  *
  * @param context - Workspace paths.
  * @param treatment - Treatment under test.
@@ -433,11 +465,14 @@ export const checkoutVerificationOf = (context: WorkspaceContextType, treatment:
 
 	const head = git(workspace, ['rev-parse', 'HEAD']).trim();
 	const revisionMatch = head === context.subject.revision;
-	const changes = git(workspace, ['status', '--porcelain', '--untracked-files=all'])
-		.split('\n')
-		.map((line) => line.trimEnd())
-		.filter((line) => line.length > 0)
-		.filter((line) => !line.endsWith(TREATMENT_CONFIG) && !line.endsWith(EVALUATOR_AGENT));
+	const changes = [
+		...git(workspace, ['status', '--porcelain', '--untracked-files=all'])
+			.split('\n')
+			.map((line) => line.trimEnd())
+			.filter((line) => line.length > 0)
+			.filter((line) => !line.endsWith(TREATMENT_CONFIG) && !line.endsWith(EVALUATOR_AGENT)),
+		...authoredIgnoredPathsOf(workspace).map((entry) => `!! ${entry}`),
+	];
 	const reasons: string[] = [];
 
 	if (!revisionMatch) {
@@ -502,10 +537,10 @@ export const ensureWorkspaces = (context: WorkspaceContextType, treatments: read
 /**
  * Restores one workspace to the pinned subject after an execution.
  *
- * Tracked edits are discarded, staged changes are reset, and every untracked
- * non-ignored file is removed. Ignored build output and the shared
- * `node_modules` link survive, so the next execution starts from the pinned
- * content without re-installing dependencies.
+ * Tracked edits are discarded, staged changes are reset, every untracked
+ * non-ignored file is removed, and every authored ignored file is removed while
+ * the harness-owned support paths survive. The next execution therefore starts
+ * from the pinned content without re-installing dependencies.
  *
  * A disposable copy is recreated from the subject and verified against the
  * pinned content manifest.
@@ -515,9 +550,14 @@ export const ensureWorkspaces = (context: WorkspaceContextType, treatments: read
  *
  * @param context - Workspace paths.
  * @param treatment - Treatment under test.
+ * @param surface - Captured surface to regenerate after restoration.
  * @returns Whether the workspace is back at the pinned subject and why not.
  */
-export const restoreWorkspace = (context: WorkspaceContextType, treatment: TreatmentDefinitionType): RestorationType => {
+export const restoreWorkspace = (
+	context: WorkspaceContextType,
+	treatment: TreatmentDefinitionType,
+	surface?: Pick<ToolSurfaceType, 'tools'>,
+): RestorationType => {
 	const workspace = context.workspacePath(treatment.id);
 
 	try {
@@ -530,13 +570,19 @@ export const restoreWorkspace = (context: WorkspaceContextType, treatment: Treat
 
 			git(workspace, ['reset', '--hard', context.subject.revision]);
 			git(workspace, ['clean', '-fd']);
+
+			// `git clean -fd` keeps ignored files. An execution may have written
+			// them, so remove everything ignored that the harness does not own.
+			for (const entry of authoredIgnoredPathsOf(workspace)) {
+				rmSync(path.join(workspace, entry), {recursive: true, force: true});
+			}
 		} else {
 			rmSync(workspace, {recursive: true, force: true});
 			createWorkspace(context, treatment);
 		}
 
 		linkSupportFiles(context, workspace);
-		applyTreatment(context, treatment);
+		applyTreatment(context, treatment, surface);
 
 		const verification = checkoutVerificationOf(context, treatment);
 

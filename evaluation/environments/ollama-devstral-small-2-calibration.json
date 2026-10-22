@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "ollama-devstral-small-2-calibration",
+	"purpose": "calibration",
+	"recordedAt": "2026-10-22T06:42:06.093Z",
+	"host": {
+		"referenceMachine": "apple-m5-max-64gb",
+		"nodeVersion": "v26.10.0",
+		"platform": "darwin",
+		"arch": "arm64",
+		"cpuModel": "Apple M5 Max",
+		"cpuCount": 18,
+		"memoryBytes": 68719476736,
+		"osVersion": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:06:40 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T6050"
+	},
+	"runtime": {
+		"ollama": "0.40.8",
+		"opencode": "2.1.2",
+		"ollamaEndpoint": "http://127.0.0.1:11434"
+	},
+	"model": {
+		"reference": "ollama/devstral-small-2:latest",
+		"digest": "24277f07f62db8f9cb68e9dfc679ea1818a7fbac47a50eff0a701d3f645b63c8",
+		"architecture": "mistral3",
+		"parameters": "24.0B",
+		"quantization": "Q4_K_M",
+		"contextLength": 393216,
+		"embeddingLength": 5120,
+		"generation": {
+			"temperature": 0.15,
+			"topP": null,
+			"topK": null,
+			"repeatPenalty": null,
+			"stop": []
+		}
+	}
+}

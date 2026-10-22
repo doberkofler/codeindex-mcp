@@ -277,9 +277,29 @@ const cliSandbox = (testContext: TestContext): Readonly<{root: string; env: Node
 	const marker = path.join(root, 'opencode-invoked');
 	mkdirSync(bin, {recursive: true});
 	writeFileSync(
+		path.join(bin, 'probe.mjs'),
+		[
+			"const config = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT ?? '{}');",
+			"const base = config.providers?.['surface-probe']?.settings?.baseURL;",
+			'const post = async (tools) => {',
+			"	await fetch(`${base}/chat/completions`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({tools})});",
+			'};',
+			'await post([]);',
+			"await post([{function: {name: 'glob'}}, {function: {name: 'grep'}}, {function: {name: 'read'}}, {function: {name: 'shell'}}]);",
+			"await post([{function: {name: 'glob'}}, {function: {name: 'grep'}}, {function: {name: 'read'}}, {function: {name: 'shell'}}]);",
+			'',
+		].join('\n'),
+		{encoding: 'utf8', mode: 0o644},
+	);
+	writeFileSync(
 		path.join(bin, 'opencode'),
 		[
 			'#!/bin/sh',
+			'for arg in "$@"; do',
+			'  if [ "$arg" = "surface-probe/probe" ]; then',
+			`    exec node "${path.join(bin, 'probe.mjs')}"`,
+			'  fi',
+			'done',
 			'count=$(cat "$MARKER" 2>/dev/null || printf 0)',
 			'count=$((count + 1))',
 			'printf "%s" "$count" > "$MARKER"',

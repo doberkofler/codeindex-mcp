@@ -179,6 +179,7 @@ const runOf = (overrides: RunOverridesType = {}): RunResultType => {
 			codeIndex: treatment === 'no-index' ? [] : ['codeindex_find_symbol'],
 			execute: 'absent',
 			tools: treatment === 'no-index' ? ['bash', 'glob', 'grep', 'list', 'read'] : ['bash', 'glob', 'grep', 'list', 'read', 'codeindex_find_symbol'],
+			callable: treatment === 'no-index' ? ['bash', 'glob', 'grep', 'list', 'read'] : ['bash', 'glob', 'grep', 'list', 'read', 'codeindex_find_symbol'],
 			native: true,
 			digest: hashOf({surface: treatment}),
 		},

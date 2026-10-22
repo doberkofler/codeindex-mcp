@@ -11,12 +11,18 @@ export const ENVIRONMENT_PURPOSES = ['smoke', 'calibration'] as const;
 
 export type EnvironmentPurposeType = (typeof ENVIRONMENT_PURPOSES)[number];
 
-/** Generation settings the provider applies when the harness overrides none. */
+/**
+ * Generation settings the provider applies when the harness overrides none.
+ *
+ * A null value is the pinned absence of an explicit model setting: the provider
+ * applies its own default at the pinned runtime version. The absence is part of
+ * the environment digest, so a later model or runtime change is visible.
+ */
 export type GenerationSettingsType = Readonly<{
-	temperature: number;
-	topP: number;
-	topK: number;
-	repeatPenalty: number;
+	temperature: number | null;
+	topP: number | null;
+	topK: number | null;
+	repeatPenalty: number | null;
 	stop: readonly string[];
 }>;
 
@@ -160,6 +166,12 @@ const requireNonNegativeNumber = (value: unknown, field: string, context: string
 	return value;
 };
 
+const optionalNonNegativeNumber = (value: unknown, field: string, context: string): number | null =>
+	value === null ? null : requireNonNegativeNumber(value, field, context);
+
+const optionalPositiveInteger = (value: unknown, field: string, context: string): number | null =>
+	value === null ? null : requirePositiveInteger(value, field, context);
+
 const requireStringArray = (value: unknown, field: string, context: string): readonly string[] => {
 	if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string' && item.length > 0)) {
 		throw new Error(`${context} field "${field}" must be an array of non-empty strings`);
@@ -200,10 +212,10 @@ const generationOf = (value: unknown): GenerationSettingsType => {
 	rejectUnknownKeys(record, GENERATION_KEYS, 'environment field "model.generation"');
 
 	return {
-		temperature: requireNonNegativeNumber(record['temperature'], 'model.generation.temperature', 'environment'),
-		topP: requireNonNegativeNumber(record['topP'], 'model.generation.topP', 'environment'),
-		topK: requirePositiveInteger(record['topK'], 'model.generation.topK', 'environment'),
-		repeatPenalty: requireNonNegativeNumber(record['repeatPenalty'], 'model.generation.repeatPenalty', 'environment'),
+		temperature: optionalNonNegativeNumber(record['temperature'], 'model.generation.temperature', 'environment'),
+		topP: optionalNonNegativeNumber(record['topP'], 'model.generation.topP', 'environment'),
+		topK: optionalPositiveInteger(record['topK'], 'model.generation.topK', 'environment'),
+		repeatPenalty: optionalNonNegativeNumber(record['repeatPenalty'], 'model.generation.repeatPenalty', 'environment'),
 		stop: requireStringArray(record['stop'], 'model.generation.stop', 'environment'),
 	};
 };
@@ -361,11 +373,15 @@ const generationFromParameters = (parameters: string): GenerationSettingsType =>
 		}
 	}
 
-	const number = (key: string): number => {
+	const number = (key: string): number | null => {
 		const text = values.get(key);
 
-		if (text === undefined || Number.isNaN(Number(text))) {
-			throw new Error(`ollama model does not declare generation setting "${key}"`);
+		if (text === undefined) {
+			return null;
+		}
+
+		if (Number.isNaN(Number(text))) {
+			throw new Error(`ollama model generation setting "${key}" is not a number`);
 		}
 
 		return Number(text);

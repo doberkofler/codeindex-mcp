@@ -93,20 +93,28 @@ smoke only and makes no quality claim. The recorded execution is in
 [`audits/local-model-smoke-e1.md`](audits/local-model-smoke-e1.md).
 
 Local candidates are calibrated with the same frozen six cases, `no-index` and
-`accepted`, and one repetition, for 12 executions per model:
+`accepted`, and one repetition, for 12 executions per model. Each candidate first
+runs the three-repetition diagnostic phase on `impl-default-result-bytes` and
+`impact-schema-version-references`; an anomaly attributed to the harness,
+CodeIndex, or integration blocks qualification:
 
 ```bash
 node evaluation/harness/src/cli.ts calibrate \
   --suite suites/calibration.json \
   --budget-ms 900000 \
   --environment environments/ollama-qwen3.8-27b-calibration.json \
-  --environment environments/ollama-qwen3.6-35b-calibration.json
+  --environment environments/ollama-devstral-small-2-calibration.json \
+  --exclude "ollama-devstral-small-2-calibration=<operator reason>"
 ```
 
-The command verifies each pinned environment, enforces the budget per model, and
-records a qualification decision and one selection. The selection is local-model
-scoped; it is not evidence for a different model or a model-independent claim.
-The calibration report and selection record are in
+`--exclude` records a candidate ruled out before execution as a disqualification
+with zero executions. It is an operator constraint, not a model-quality result.
+The command verifies each eligible pinned environment, enforces the budget per
+model, and records a qualification decision and one selection. The selection is
+local-model scoped; it is not evidence for a different model or a
+model-independent claim. Execution records are in
+[`audits/local-model-calibration-e2.md`](audits/local-model-calibration-e2.md);
+the earlier v1 campaign is
 [`audits/local-model-calibration-e1.md`](audits/local-model-calibration-e1.md).
 
 The draft controlled semantic suite is listed with:

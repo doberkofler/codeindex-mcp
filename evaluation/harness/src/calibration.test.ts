@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	calibrationDecisionOf,
+	calibrationDisqualificationOf,
 	calibrationSelectionOf,
 	type CalibrationDecisionType,
 	type CalibrationExecutionType,
@@ -157,6 +158,25 @@ test('selection prefers qualifiers, exactness, then latency and bytes', () => {
 	assert.equal(selection.selected, 'ollama/fast');
 	assert.deepEqual(selection.qualified, ['ollama/fast', 'ollama/slow', 'ollama/less']);
 	assert.match(selection.reason, /lowest accepted median wall time/u);
+});
+
+test('an unexecuted candidate is recorded instead of disappearing', () => {
+	const excluded = calibrationDisqualificationOf({
+		model: 'ollama/devstral-small-2:latest',
+		environmentId: 'ollama-devstral-small-2-calibration',
+		environmentHash: 'b'.repeat(64),
+		budgetMs: BUDGET_MS,
+		plannedSlots: 12,
+		reason: 'excluded before execution: model is too large for the reference machine',
+	});
+
+	assert.equal(excluded.passed, false);
+	assert.equal(excluded.executedSlots, 0);
+	assert.equal(excluded.validExecutions, 0);
+	assert.equal(excluded.plannedSlots, 12);
+	assert.match(excluded.disqualification ?? '', /excluded before execution/u);
+	assert.equal(calibrationSelectionOf([decisionOf({model: 'ollama/fast'}), excluded]).selected, 'ollama/fast');
+	assert.equal(calibrationSelectionOf([excluded]).selected, null);
 });
 
 test('selection records that no model qualified', () => {

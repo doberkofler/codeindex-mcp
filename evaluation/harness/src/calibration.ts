@@ -63,6 +63,24 @@ export type CalibrationSelectionType = Readonly<{
 	reason: string;
 }>;
 
+/** A candidate the operator ruled out before any execution. */
+export type CalibrationExclusionType = Readonly<{
+	model: string;
+	environment: Readonly<{id: string; hash: string}>;
+	budgetMs: number;
+	reason: string;
+}>;
+
+/** Inputs needed to record a candidate that was not executed. */
+export type CalibrationDisqualificationInputType = Readonly<{
+	model: string;
+	environmentId: string;
+	environmentHash: string;
+	budgetMs: number;
+	plannedSlots: number;
+	reason: string;
+}>;
+
 /** Inputs needed to decide one model from its retained executions. */
 export type CalibrationDecisionInputType = Readonly<{
 	model: string;
@@ -237,6 +255,35 @@ export const calibrationDecisionOf = (input: CalibrationDecisionInputType): Cali
 		disqualification: reasons.length === 0 ? null : reasons.join('; '),
 	};
 };
+
+/**
+ * Records a candidate that received no qualification execution.
+ *
+ * An excluded or diagnostically blocked candidate must stay visible in the
+ * selection record; dropping it would silently narrow the candidate set.
+ *
+ * @param input - Model, environment, budget, planned slots, and the reason.
+ * @returns A non-qualifying decision with zero executions.
+ */
+export const calibrationDisqualificationOf = (input: CalibrationDisqualificationInputType): CalibrationDecisionType => ({
+	model: input.model,
+	environment: {id: input.environmentId, hash: input.environmentHash},
+	budgetMs: input.budgetMs,
+	elapsedMs: 0,
+	plannedSlots: input.plannedSlots,
+	executedSlots: 0,
+	validExecutions: 0,
+	noIndexExact: 0,
+	acceptedExact: 0,
+	correctnessLossCases: [],
+	interventions: [],
+	telemetry: {tokenState: 'not-applicable', limitation: 'no execution was attempted'},
+	acceptedMedianWallMs: 0,
+	acceptedMedianRetrievalBytes: 0,
+	acceptedMedianToolCalls: 0,
+	passed: false,
+	disqualification: input.reason,
+});
 
 /**
  * Selects one local reference from the calibration decisions.

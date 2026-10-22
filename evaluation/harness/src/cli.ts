@@ -3,7 +3,14 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {artifactIdentityOf, artifactRefOf, type ArtifactIdentityType, type ArtifactRefType} from './artifact.ts';
-import {calibrationDecisionOf, calibrationSelectionOf, type CalibrationDecisionType} from './calibration.ts';
+import {
+	calibrationDecisionOf,
+	calibrationDisqualificationOf,
+	calibrationSelectionOf,
+	type CalibrationDecisionType,
+	type CalibrationExclusionType,
+} from './calibration.ts';
+import {DIAGNOSTIC_CASE_IDS, DIAGNOSTIC_REPETITIONS, diagnosticReportOf, diagnosticSummaryOf} from './diagnostics.ts';
 import {
 	assertEnvironmentMatches,
 	assertEnvironmentModel,
@@ -46,10 +53,12 @@ import {
 	type TreatmentDefinitionType,
 	type TreatmentIdType,
 } from './treatment.ts';
-import {assertCheckout, ensureWorkspaces, restoreWorkspace, subjectIdentityOf, treatmentConfigOf, workspaceContextOf} from './workspace.ts';
+import {assertPresentedSurface} from './surface.ts';
+import {capturePresentedTools} from './surfaceProbe.ts';
+import {applyTreatment, assertCheckout, ensureWorkspaces, restoreWorkspace, subjectIdentityOf, treatmentConfigOf, workspaceContextOf} from './workspace.ts';
 
 /** Harness schema version recorded in every run identity. */
-const HARNESS_VERSION = 10;
+const HARNESS_VERSION = 11;
 
 /** Declared wall-clock budget for one local-model calibration. */
 const CALIBRATION_BUDGET_MS = 15 * 60 * 1_000;
@@ -322,12 +331,16 @@ type EvaluationOptionsType = Readonly<{
 	/** Restrict the run to these treatments; flags cannot widen it. */
 	treatments?: readonly string[];
 	repetitions?: number;
+	/** Restrict the run to this ordered case subset. */
+	caseIds?: readonly string[];
 	environment?: EnvironmentManifestType | null;
 	requireFrozen?: boolean;
 	/** Model override for a calibrated local candidate; case hashes stay pinned. */
 	model?: string;
 	/** Total wall-clock budget for all planned executions. */
 	budgetMs?: number;
+	/** Write the ordinary paired report; false for diagnostics and calibration. */
+	comparison?: boolean;
 }>;
 
 type EvaluationRunType = Readonly<{
@@ -466,6 +479,42 @@ const calibrationBudgetOf = (flags: Map<string, string[]>): number => {
 };
 
 /**
+ * Parses `--exclude <environment-id>=<reason>` declarations.
+ *
+ * An excluded candidate is recorded as disqualified before any execution, so an
+ * operator limit such as an unavailable model stays visible in the selection.
+ *
+ * @param flags - Parsed CLI flags.
+ * @param environments - Declared calibration environments.
+ * @returns Reason by environment id.
+ */
+const exclusionsOf = (flags: Map<string, string[]>, environments: readonly EnvironmentManifestType[]): ReadonlyMap<string, string> => {
+	const exclusions = new Map<string, string>();
+
+	for (const value of allOf(flags, 'exclude')) {
+		const separator = value.indexOf('=');
+		const id = separator < 0 ? '' : value.slice(0, separator).trim();
+		const reason = separator < 0 ? '' : value.slice(separator + 1).trim();
+
+		if (id.length === 0 || reason.length === 0) {
+			throw new Error('--exclude requires <environment-id>=<reason>');
+		}
+
+		if (!environments.some((environment) => environment.id === id)) {
+			throw new Error(`--exclude names unknown environment ${id}`);
+		}
+
+		if (exclusions.has(id)) {
+			throw new Error(`--exclude names ${id} more than once`);
+		}
+
+		exclusions.set(id, reason);
+	}
+
+	return exclusions;
+};
+
+/**
  * Runs the frozen two-treatment calibration for one or more local models.
  *
  * The suite's case hashes stay frozen; only its model reference is rebound to
@@ -516,8 +565,17 @@ const calibrationCommand = async (flags: Map<string, string[]>): Promise<void> =
 		throw new Error('calibrate received the same model reference more than once');
 	}
 
+	const exclusions = exclusionsOf(flags, environments);
+	const plannedSlots = cases.length * CALIBRATION_TREATMENTS.length;
+	const decisions: CalibrationDecisionType[] = [];
+	const excluded: CalibrationExclusionType[] = [];
+
 	if (!flags.has('dry-run')) {
 		for (const environment of environments) {
+			if (exclusions.has(environment.id)) {
+				continue;
+			}
+
 			process.stderr.write(`calibration environment ${environment.id} verification\n`);
 			await verifiedEnvironmentOf(environment);
 		}
@@ -527,16 +585,82 @@ const calibrationCommand = async (flags: Map<string, string[]>): Promise<void> =
 		`calibration ${suite.id} v${suite.version}, ${cases.length} case(s) x ${CALIBRATION_TREATMENTS.length} treatment(s) x 1 repetition, budget ${budgetMs} ms per model\n`,
 	);
 
-	const decisions: CalibrationDecisionType[] = [];
-
 	for (const environment of environments) {
+		const model = environment.model.reference;
+		const environmentHash = environmentHashOf(environment);
+		const exclusion = exclusions.get(environment.id);
+
+		if (exclusion !== undefined) {
+			excluded.push({model, environment: {id: environment.id, hash: environmentHash}, budgetMs, reason: exclusion});
+			decisions.push(
+				calibrationDisqualificationOf({
+					model,
+					environmentId: environment.id,
+					environmentHash,
+					budgetMs,
+					plannedSlots,
+					reason: `excluded before execution: ${exclusion}`,
+				}),
+			);
+			process.stdout.write(`EXCLUDED ${model} ${exclusion}\n`);
+
+			continue;
+		}
+
+		process.stderr.write(
+			`calibration diagnostics ${model}: ${DIAGNOSTIC_CASE_IDS.length} case(s) x ${CALIBRATION_TREATMENTS.length} treatment(s) x ${DIAGNOSTIC_REPETITIONS} repetition(s)\n`,
+		);
+
+		const diagnosticRun = await evaluateCommand(flags, {
+			treatments: [...CALIBRATION_TREATMENTS],
+			repetitions: DIAGNOSTIC_REPETITIONS,
+			caseIds: [...DIAGNOSTIC_CASE_IDS],
+			environment,
+			requireFrozen: true,
+			model,
+			comparison: false,
+		});
+
+		if (diagnosticRun === null) {
+			continue;
+		}
+
+		const diagnostics = diagnosticReportOf(diagnosticRun.results);
+		const diagnosticRecord = {
+			...diagnostics,
+			model,
+			environment: {id: environment.id, hash: environmentHash},
+		};
+
+		writeJsonAtomic(path.join(diagnosticRun.runDir, 'diagnostics.json'), diagnosticRecord, true);
+		process.stdout.write(`DIAGNOSTICS ${model} ${diagnostics.passed ? 'CLEAN' : 'BLOCKED'} ${diagnosticSummaryOf(diagnostics)}\n`);
+
+		if (!diagnostics.passed) {
+			// A blocked diagnostic contract disqualifies the candidate. Dropping it
+			// would hide a failed candidate from the selection record.
+			decisions.push(
+				calibrationDisqualificationOf({
+					model,
+					environmentId: environment.id,
+					environmentHash,
+					budgetMs,
+					plannedSlots,
+					reason: `diagnostics blocked: ${diagnosticSummaryOf(diagnostics)}`,
+				}),
+			);
+			process.stdout.write(`diagnostics ${path.join(diagnosticRun.runDir, 'diagnostics.json')}\n`);
+
+			continue;
+		}
+
 		const run = await evaluateCommand(flags, {
 			treatments: [...CALIBRATION_TREATMENTS],
 			repetitions: 1,
 			environment,
 			requireFrozen: true,
-			model: environment.model.reference,
+			model,
 			budgetMs,
+			comparison: false,
 		});
 
 		if (run === null) {
@@ -544,12 +668,12 @@ const calibrationCommand = async (flags: Map<string, string[]>): Promise<void> =
 		}
 
 		const decision = calibrationDecisionOf({
-			model: environment.model.reference,
+			model,
 			environmentId: environment.id,
-			environmentHash: environmentHashOf(environment),
+			environmentHash,
 			budgetMs,
 			elapsedMs: run.budget?.elapsedMs ?? 0,
-			plannedSlots: cases.length * CALIBRATION_TREATMENTS.length,
+			plannedSlots,
 			results: run.results,
 		});
 
@@ -573,7 +697,7 @@ const calibrationCommand = async (flags: Map<string, string[]>): Promise<void> =
 	}
 
 	const selection = calibrationSelectionOf(decisions);
-	const selectionDigest = hashOf({suite: suite.hash, budgetMs, decisions});
+	const selectionDigest = hashOf({suite: suite.hash, budgetMs, decisions, excluded});
 	const selectionDir = path.join(evaluationRoot, 'results', `${suite.id}-selection-${selectionDigest.slice(0, 16)}`);
 
 	writeJsonAtomic(
@@ -585,6 +709,7 @@ const calibrationCommand = async (flags: Map<string, string[]>): Promise<void> =
 			budgetMs,
 			selection,
 			decisions,
+			excluded,
 		},
 		true,
 	);
@@ -607,7 +732,7 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 		throw new Error(`suite ${suite.id} must be frozen`);
 	}
 
-	const selected = selectCases(cases, {caseIds: allOf(flags, 'case'), tags: allOf(flags, 'tag')});
+	const selected = selectCases(cases, {caseIds: options.caseIds ?? allOf(flags, 'case'), tags: allOf(flags, 'tag')});
 	const treatments =
 		options.treatments === undefined
 			? treatmentsOf(flagOf(flags, 'treatment'), suite.treatments)
@@ -683,6 +808,24 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 
 	const surfaces = await surfacesOf(context, treatments);
 
+	// The final configuration names the ordinary tools and the captured native
+	// MCP tools exactly. A model-free probe records the tool list OpenCode sends
+	// to a provider and must match that declaration before any model process
+	// starts; an extra or missing tool aborts the campaign.
+	for (const treatment of treatments) {
+		const surface = surfaces.get(treatment.id);
+
+		if (surface === undefined) {
+			throw new Error(`treatment ${treatment.id} has no captured tool surface`);
+		}
+
+		applyTreatment(context, treatment, surface);
+		const captured = await capturePresentedTools({workspace: context.workspacePath(treatment.id), surface});
+		const observed = assertPresentedSurface(surface, captured.tools);
+
+		process.stderr.write(`surface ${treatment.id} ${observed.length} tool(s): ${observed.join(', ')}\n`);
+	}
+
 	const treatmentContexts = new Map<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>();
 	const manifestTreatments = treatments.map((treatment) => {
 		const surface = surfaces.get(treatment.id);
@@ -691,7 +834,7 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 			throw new Error(`treatment ${treatment.id} has no captured tool surface`);
 		}
 
-		const {digest: configDigest} = treatmentConfigOf(context, treatment);
+		const {digest: configDigest} = treatmentConfigOf(context, treatment, surface);
 		const artifact = artifacts.get(treatment.id) ?? null;
 
 		treatmentContexts.set(treatment.id, {surface, configDigest});
@@ -835,6 +978,10 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 				continue;
 			}
 
+			// RestoreWorkspace writes the ordinary-only configuration, so the exact
+			// captured surface is rewritten before every slot and before every retry.
+			applyTreatment(context, treatment, treatmentContext.surface);
+
 			// Reject, never silently repair: a dirty or mismatched workspace would
 			// mean the execution observes content the suite did not pin.
 			const verification = assertCheckout(context, treatment);
@@ -863,12 +1010,13 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 				artifacts: runArtifactsOf(artifacts, treatment),
 				rawBase: path.join(slotDirectory, 'raw'),
 				firstAttempt: resume.nextAttempt,
+				prepareRetry: () => restoreWorkspace(context, treatment, treatmentContext.surface),
 				...(budgetDeadline === null ? {} : {timeoutMs: Math.max(1, budgetDeadline - Date.now())}),
 				onAttempt: (attemptResult) => {
 					attemptResults.push(attemptResult);
 				},
 			});
-			const result = withRestoration(execution, restoreWorkspace(context, treatment));
+			const result = withRestoration(execution, restoreWorkspace(context, treatment, treatmentContext.surface));
 
 			if (result.attempts.length > 1) {
 				process.stderr.write(`  retried ${result.attempts.length - 1} time(s); last reason ${result.invalidReason ?? 'accepted'}\n`);
@@ -882,7 +1030,7 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 
 			results.push(result);
 
-			if (!result.isolation.restored) {
+			if (!result.isolation.restored || result.defects.includes('dirty-isolation')) {
 				throw new Error(
 					`restoration failed for ${treatment.id} after ${entry.caseId} rep-${entry.repetition}: ${result.invalidReason ?? 'unknown'}; the campaign stopped so no later execution observes edited content`,
 				);
@@ -919,7 +1067,7 @@ const evaluateCommand = async (flags: Map<string, string[]>, options: Evaluation
 	// Calibration writes its own qualification decision. The ordinary paired
 	// report requires treatment-identical agent surfaces, which calibration
 	// intentionally does not have because accepted adds native MCP tools.
-	const comparison = options.budgetMs !== undefined || results.length === 0 ? null : compare(results, manifest);
+	const comparison = options.comparison === false || options.budgetMs !== undefined || results.length === 0 ? null : compare(results, manifest);
 
 	if (comparison !== null) {
 		writeJsonAtomic(path.join(runDir, 'report.json'), comparison, true);
@@ -1341,7 +1489,7 @@ try {
 		listCommand(flags);
 	} else {
 		process.stdout.write(
-			'usage: cli.ts <evaluate|smoke|calibrate|environment|route|report|check|list> --suite <path> [--environment <path>] [--budget-ms n] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
+			'usage: cli.ts <evaluate|smoke|calibrate|environment|route|report|check|list> --suite <path> [--environment <path>] [--exclude id=reason] [--budget-ms n] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
 		);
 		process.exitCode = command === 'help' ? 0 : 2;
 	}

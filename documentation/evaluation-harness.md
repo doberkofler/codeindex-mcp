@@ -170,7 +170,9 @@ Each execution uses a dedicated checkout:
 6. Capture events, stderr, status, timeout, and wall time.
 7. Grade correctness and workflow.
 8. Persist the raw result atomically ([§7.7](#77-atomic-persistence-and-partial-writes)).
-9. Restore tracked edits and remove non-ignored unversioned files.
+9. Restore tracked edits, remove non-ignored unversioned files, and remove
+   authored files that the repository ignores while keeping harness-owned support
+   paths.
 
 If no VCS is available, use a disposable copy and a content manifest instead of a
 revision. Record which isolation mode was used.
@@ -196,6 +198,17 @@ OPENCODE_DB=:memory: opencode run --standalone \
 These settings apply to every treatment, case, and repetition. Evidence must be captured
 from the process stream before the standalone server exits, because an in-memory
 database cannot be inspected afterwards.
+
+Before the first model call, a model-free surface probe records the exact tool list
+OpenCode sends to a provider. The probe starts a loopback OpenAI-compatible endpoint,
+points a private `surface-probe` provider at it through `OPENCODE_CONFIG_CONTENT`, and
+uses the treatment's unchanged configuration, agent, artifact, and MCP server. It
+answers the session-title request, then a few `read` turns so an asynchronously
+connecting MCP server can publish its catalog, and unions every observed tool list.
+The result must equal the declared surface exactly: `edit` presents `edit` and `write`,
+`bash` is presented as `shell`, and the retired `list` tool is omitted. A missing or
+undeclared tool aborts the campaign before any model process starts. The probe is not a
+model execution and contributes no result record.
 
 When a suite requires a persistent execution store for resume or post-run inspection,
 use one campaign-local database outside the normal data directory, record its path in
@@ -371,11 +384,18 @@ reference machine is visible without reading raw results. The `smoke` command
 verifies the pin before the first model call and refuses a mismatch.
 
 A `calibration` manifest serves the frozen two-treatment local qualification.
-`calibrate` verifies every pinned environment, rebinds the frozen suite to each
-environment's model without changing case hashes, and runs six cases ×
-`no-index` and `accepted` × one repetition. It caps every execution at the
-remaining wall-clock budget and writes one decision per model plus one selection
-record. A model qualifies only when all 12 executions are valid, accepted
+`calibrate` verifies every eligible pinned environment, rebinds the frozen suite
+to each environment's model without changing case hashes, and first runs the
+diagnostic phase: three repetitions of `impl-default-result-bytes` and
+`impact-schema-version-references` in `no-index` and `accepted`. Each anomaly is
+attributed to the harness, model, CodeIndex, or integration; a harness,
+integration, or CodeIndex anomaly or a missing structured answer blocks the
+candidate and is recorded as a disqualification. A clean diagnostic phase is
+followed by six cases × `no-index` and `accepted` × one repetition. It caps every
+execution at the remaining wall-clock budget and writes one decision per model
+plus one selection record. `--exclude <environment-id>=<reason>` records an
+operator-ruled-out candidate as a disqualification with zero executions instead
+of dropping it. A model qualifies only when all 12 executions are valid, accepted
 correctness is never below `no-index`, no execution needs an intervention, and
 the elapsed time is inside the budget. The budget is a qualification criterion,
 not a target to meet by dropping cases or repetitions.

@@ -553,7 +553,8 @@ OpenCode currently discovers these local Ollama models on the evaluation machine
 - `ollama/qwen3:8b`;
 - `ollama/qwen3.8:27b-mlx`;
 - `ollama/qwen3.6:35b-mlx`;
-- `ollama/gemma4:31b-mlx`.
+- `ollama/gemma4:31b-mlx`;
+- `ollama/devstral-small-2:latest` (a 24B model, pinned by digest).
 
 They may run the complete harness, but their results describe those models only. They do
 not replace acceptance evidence for a different target model.
@@ -567,12 +568,14 @@ Use local models for:
 - identifying gross interface regressions before paid runs.
 
 Calibrate the 27B and 35B models first. Use the 8B model only for harness smoke until it
-proves adequate; evaluating every discovered model is unnecessary. A local model
-qualifies for prechecks only when a frozen six-case, two-treatment calibration produces
-12 valid executions, has no correctness loss, needs no intervention, and completes
-within 15 minutes on the evaluation machine. Pin model digest, quantization, Ollama
-version, OpenCode version, agent instructions, tool list, context, generation settings,
-and hardware.
+proves adequate; evaluating every discovered model is unnecessary. EVAL-026 replaced the
+35B candidate with `ollama/devstral-small-2:latest` and records an operator exclusion when
+a candidate cannot run unattended on the reference machine. An exclusion is a resource
+constraint, never a model-quality conclusion. A local model qualifies for prechecks only
+when a frozen six-case, two-treatment calibration produces 12 valid executions, has no
+correctness loss, needs no intervention, and completes within 15 minutes on the evaluation
+machine. Pin model digest, quantization, Ollama version, OpenCode version, agent
+instructions, tool list, context, generation settings, and hardware.
 
 The first pinned environment is
 [`evaluation/environments/ollama-qwen3-8b-smoke.json`](../evaluation/environments/ollama-qwen3-8b-smoke.json).

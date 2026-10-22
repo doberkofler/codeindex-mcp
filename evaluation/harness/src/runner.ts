@@ -138,6 +138,21 @@ export type RetryPolicyType = Readonly<{
 	backoffMs: (attempt: number, rateLimited: boolean) => number;
 }>;
 
+/** Restoration performed before another attempt may start. */
+export type RetryPreparationType = Readonly<{
+	restored: boolean;
+	reason: string | null;
+}>;
+
+const withDirtyIsolation = <Result extends Omit<RunResultType, 'attempts' | 'rateLimited'>>(result: Result, reason: string): Result => ({
+	...result,
+	outcome: 'failed',
+	defects: result.defects.includes('dirty-isolation') ? result.defects : [...result.defects, 'dirty-isolation'],
+	valid: false,
+	invalidReason: result.invalidReason === null ? reason : `${result.invalidReason}; ${reason}`,
+	isolation: {...result.isolation, restored: false},
+});
+
 const sleep = async (milliseconds: number): Promise<void> => {
 	await new Promise<void>((resolve) => {
 		setTimeout(resolve, milliseconds);
@@ -186,6 +201,53 @@ const signalGroup = (child: ChildProcess, signal: NodeJS.Signals): void => {
 		process.kill(-child.pid, signal);
 	} catch {
 		child.kill(signal);
+	}
+};
+
+/** Attempts whose detached model process group is still running. */
+const activeAttempts = new Set<ChildProcess>();
+
+let terminationHandlersInstalled = false;
+
+/**
+ * Terminates every running attempt's process group.
+ *
+ * Evaluation children are detached so one timeout reaches the model, its
+ * server, and its tool subprocesses. That also means an outer runner's group
+ * signal misses them, so the harness forwards its own termination.
+ *
+ * @param signal - Signal to forward.
+ */
+export const terminateActiveAttempts = (signal: NodeJS.Signals): void => {
+	for (const child of activeAttempts) {
+		signalGroup(child, signal);
+	}
+};
+
+const installTerminationHandlers = (): void => {
+	if (terminationHandlersInstalled) {
+		return;
+	}
+
+	terminationHandlersInstalled = true;
+
+	for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+		process.on(signal, () => {
+			terminateActiveAttempts(signal);
+			const deadline = Date.now() + TERMINATE_GRACE_MS * 2;
+			const finish = (): void => {
+				if (activeAttempts.size === 0 || Date.now() >= deadline) {
+					for (const child of activeAttempts) {
+						signalGroup(child, 'SIGKILL');
+					}
+
+					process.exit(signal === 'SIGINT' ? 130 : 143);
+				}
+
+				setTimeout(finish, 25);
+			};
+			setTimeout(finish, 25);
+		});
 	}
 };
 
@@ -261,6 +323,9 @@ const attemptOnce = async (
 	let escalationTimer: NodeJS.Timeout | undefined;
 	let hardCloseTimer: NodeJS.Timeout | undefined;
 
+	installTerminationHandlers();
+	activeAttempts.add(child);
+
 	child.stdout.setEncoding('utf8');
 	child.stderr.setEncoding('utf8');
 	child.stdout.on('data', (chunk: string) => {
@@ -313,6 +378,8 @@ const attemptOnce = async (
 			timeoutMs + TERMINATE_GRACE_MS + HARD_CLOSE_GRACE_MS,
 		);
 	});
+
+	activeAttempts.delete(child);
 
 	const durationMs = Date.now() - started;
 	const completedAt = new Date().toISOString();
@@ -439,6 +506,11 @@ export const runOnce = async (
 		firstAttempt?: number;
 		/** Called once for every attempt before the next attempt starts. */
 		onAttempt?: (result: RunResultType) => void;
+		/**
+		 * Restores the workspace to the pinned revision before another attempt.
+		 * A failed restoration aborts the slot instead of retrying from edits.
+		 */
+		prepareRetry?: () => RetryPreparationType;
 	}>,
 ): Promise<RunResultType> => {
 	const attempts: AttemptLogType[] = [];
@@ -458,6 +530,23 @@ export const runOnce = async (
 		}
 
 		if (index < retry.maxAttempts - 1) {
+			const preparation = input.prepareRetry?.();
+
+			if (preparation !== undefined && !preparation.restored) {
+				const reason = `restoration before retry failed: ${preparation.reason ?? 'unknown'}`;
+				const result = withDirtyIsolation(last.result, reason);
+
+				last = {
+					result,
+					log: {
+						...last.log,
+						invalidReason: result.invalidReason,
+					},
+				};
+				attempts[attempts.length - 1] = last.log;
+				break;
+			}
+
 			await sleep(retry.backoffMs(attempt, last.log.rateLimited));
 		}
 	}

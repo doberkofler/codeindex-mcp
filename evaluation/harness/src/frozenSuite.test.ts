@@ -42,16 +42,17 @@ test('release suite is frozen at 18 cases and four task classes', () => {
 	}
 });
 
-test('calibration suite is a frozen six-case subset with twelve smoke executions', () => {
+test('calibration suite v2 is a frozen six-case subset with an explicit editing surface', () => {
 	const {suite, cases} = loadSuite(CALIBRATION_PATH);
 	const release = loadSuite(RELEASE_PATH);
 	const pinned = suite.caseHashes;
 
 	assert.equal(suite.status, 'frozen');
-	assert.equal(suite.version, 1);
+	assert.equal(suite.version, 2);
 	assert.equal(suite.repetitions, 1);
 	assert.equal(suite.revision, release.suite.revision);
 	assert.equal(suite.cases.length, 6);
+	assert.deepEqual(suite.treatments[0]?.ordinaryTools, ['bash', 'edit', 'glob', 'grep', 'list', 'read']);
 	assert.deepEqual(classCountsOf(cases.map((testCase) => testCase.class)), {
 		locate: 1,
 		impact: 2,
