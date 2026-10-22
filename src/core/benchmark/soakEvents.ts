@@ -4,6 +4,7 @@ import {type LoggerType} from '../logging/logger.ts';
 import {isCodeIndexError} from '../errors/errors.ts';
 import {buildFailureCauseOf} from '../generation/buildFailureCause.ts';
 import {createCodeIndex} from '../generation/codeIndex.ts';
+import {type IndexStatusType} from '../model.ts';
 import {IndexDatabase} from '../storage/database.ts';
 import {startResourceSampler} from './resources.ts';
 import {
@@ -26,7 +27,11 @@ import {
 } from './soakSupport.ts';
 import {type SoakEventType, type SoakFailureType, type SoakRestartType, type SoakStaleRefusalType} from './soakTypes.ts';
 
-const FAILURE_BACKUP = '.soak-failure-backup.ts';
+// No source extension: the backup must not look like an indexed file.
+const FAILURE_BACKUP = '.soak-failure-backup';
+
+// Outside the event plan's numbering: the trigger is not a recorded soak event.
+const FAILURE_TRIGGER_SEQUENCE = 0;
 
 const runSingleEvent = async (state: SoakStateType, sequence: number): Promise<SoakEventType> => {
 	const previousGeneration = state.index.getStatus().generationId;
@@ -119,6 +124,45 @@ const staleProbeOf = async (state: SoakStateType, sequence: number): Promise<Rea
 	};
 };
 
+const restoreInjectedTarget = (target: string, backup: string): void => {
+	rmSync(target, {recursive: true, force: true});
+	renameSync(backup, target);
+};
+
+/**
+ * Waits for the injected failure and always restores the authored file.
+ *
+ * The restore runs even when the wait throws, so a failed observation never
+ * leaves a malformed workspace behind.
+ *
+ * @param state - Soak state owning the index and failure journal.
+ * @param target - Authored file replaced by a directory.
+ * @param backup - Location holding the authored file until it is restored.
+ * @returns The failed status, whether queries were served, and the status
+ * observed after the failure.
+ */
+const observeInjectedFailure = async (
+	state: SoakStateType,
+	target: string,
+	backup: string,
+): Promise<Readonly<{failed: IndexStatusType; servedWhileFailed: boolean; afterFailure: IndexStatusType}>> => {
+	try {
+		const failed = await waitFor({
+			attempt: () => {
+				const current = state.index.getStatus();
+				noteStatus(state, current);
+				return current.refresh === 'failed' ? current : null;
+			},
+			timeoutMs: state.plan.timeoutMs,
+			label: 'injected source-read failure',
+		});
+
+		return {failed, servedWhileFailed: queriesServedWhileFailed(state.index), afterFailure: state.index.getStatus()};
+	} finally {
+		restoreInjectedTarget(target, backup);
+	}
+};
+
 const injectFailureOf = async (state: SoakStateType): Promise<SoakFailureType> => {
 	const target = path.resolve(state.config.rootDir, FAILURE_TARGET);
 	const backup = path.resolve(state.config.rootDir, FAILURE_BACKUP);
@@ -127,21 +171,13 @@ const injectFailureOf = async (state: SoakStateType): Promise<SoakFailureType> =
 
 	renameSync(target, backup);
 	mkdirSync(target);
-	const failed = await waitFor({
-		attempt: () => {
-			const current = state.index.getStatus();
-			noteStatus(state, current);
-			return current.refresh === 'failed' ? current : null;
-		},
-		timeoutMs: state.plan.timeoutMs,
-		label: 'injected source-read failure',
-	});
-	const servedWhileFailed = queriesServedWhileFailed(state.index);
-	const afterFailure = state.index.getStatus();
+	// Chokidar does not report a path that changes kind between file and
+	// directory, so one ordinary edit supplies the deterministic refresh that
+	// makes the build read the unreadable source.
+	appendEdit(state.config.rootDir, EDIT_TARGETS[0], FAILURE_TRIGGER_SEQUENCE, 1);
+	const {failed, servedWhileFailed, afterFailure} = await observeInjectedFailure(state, target, backup);
 	const cause = buildFailureCauseOf(failed.lastError ?? 'unknown build failure');
 
-	rmSync(target, {recursive: true, force: true});
-	renameSync(backup, target);
 	const recovered = await waitForRecovery(state, state.plan.timeoutMs);
 	const failure: SoakFailureType = {
 		cause,

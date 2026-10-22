@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import {rmSync} from 'node:fs';
+import {realpathSync, rmSync} from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
 import {type ConfigType} from '../config/config.ts';
 import {type LoggerType} from '../logging/logger.ts';
@@ -162,16 +162,24 @@ const initialWorkspaceOf = (options: SoakRunOptionsType): Readonly<{rootDir: str
 	return {rootDir, temporary: prepared.temporaryWorkspace !== null};
 };
 
-const baseConfigOf = (options: SoakRunOptionsType, rootDir: string, databaseDirectory: string): ConfigType => ({
-	...options.config,
-	projectName: `soak-${options.profile}`,
-	rootDir,
-	projectFilePath: path.join(rootDir, 'tsconfig.json'),
-	projects: [{name: 'root', projectFilePath: path.join(rootDir, 'tsconfig.json')}],
-	databasePath: path.join(databaseDirectory, 'index.sqlite'),
-	analyticsEnabled: false,
-	analyticsPath: path.join(databaseDirectory, 'analytics.jsonl'),
-});
+const baseConfigOf = (options: SoakRunOptionsType, workspaceRoot: string, databaseDirectory: string): ConfigType => {
+	// resolveConfig canonicalizes the root; the soak must do the same. Otherwise
+	// scanned source paths keep the temporary-directory spelling (`/var/...`)
+	// while config files resolve to their real path (`/private/var/...`), and the
+	// watcher silently drops every event that arrives with the other spelling.
+	const rootDir = realpathSync(workspaceRoot);
+
+	return {
+		...options.config,
+		projectName: `soak-${options.profile}`,
+		rootDir,
+		projectFilePath: path.join(rootDir, 'tsconfig.json'),
+		projects: [{name: 'root', projectFilePath: path.join(rootDir, 'tsconfig.json')}],
+		databasePath: path.join(databaseDirectory, 'index.sqlite'),
+		analyticsEnabled: false,
+		analyticsPath: path.join(databaseDirectory, 'analytics.jsonl'),
+	};
+};
 
 /**
  * Executes one deterministic operational soak with real files, the real
