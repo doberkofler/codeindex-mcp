@@ -1,5 +1,7 @@
+import {type Client} from '@modelcontextprotocol/client';
 import {afterEach, describe, expect, it} from 'vitest';
-import {openFixture, textOf, type ConnectionType, type EnvelopeType} from './helpers/mcpClient.ts';
+import {createFakeIndex} from './helpers/fakeIndex.ts';
+import {openServer, textOf, type ConnectionType, type EnvelopeType} from './helpers/mcpConnection.ts';
 
 describe('MCP status detail', () => {
 	let connection: ConnectionType | undefined;
@@ -9,10 +11,13 @@ describe('MCP status detail', () => {
 		connection = undefined;
 	});
 
-	const connect = async (): Promise<Awaited<ReturnType<typeof openFixture>>> => (connection = await openFixture('simple-project', 32_768));
+	const connect = async (): Promise<Client> => {
+		connection = await openServer({index: createFakeIndex(), maxResultBytes: 32_768});
+		return connection.client;
+	};
 
 	it('reports the bounded status summary through the protocol', async () => {
-		const {client} = await connect();
+		const client = await connect();
 		const result = await client.callTool({name: 'index_status', arguments: {}});
 		const text = textOf(result);
 		const envelope = JSON.parse(text) as EnvelopeType & {
@@ -41,7 +46,7 @@ describe('MCP status detail', () => {
 	});
 
 	it('serves the complete status only when full detail is requested', async () => {
-		const {client} = await connect();
+		const client = await connect();
 		const result = await client.callTool({name: 'index_status', arguments: {detail: 'full'}});
 		const envelope = JSON.parse(textOf(result)) as EnvelopeType & {
 			data: {ready: boolean; hashes: unknown; buildStats: unknown; build: unknown; lease: unknown; exclusions: unknown};

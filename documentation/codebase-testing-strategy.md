@@ -32,7 +32,8 @@ problems:
   directory, although the focused workflows in section 6 now select them by class;
 - historical names such as `publicationPhase4.test.ts` describe delivery phases rather
   than lasting contracts;
-- several MCP tests rebuild a TypeScript index while testing protocol-only behavior;
+- protocol-only MCP tests use a controlled fake index, and one vertical smoke keeps the real
+  TypeScript wiring visible;
 - fixture purpose, authority, and expected facts are catalogued in the
   [Test fixture catalogue](./test-fixtures.md);
 - `qualify:typescript:fixture` supplies its own project and corpus paths, so the
@@ -98,6 +99,20 @@ fake index. They cover:
 Retain one vertical protocol smoke test with a real TypeScript index. Do not repeat every
 adapter and query assertion through MCP.
 
+The protocol contracts live in `test/mcp.test.ts`, `test/mcpGuidance.test.ts`,
+`test/mcpStatus.test.ts`, and `test/mcpServerAnalytics.test.ts`; all use
+`test/helpers/fakeIndex.ts`, which returns fixed generation, symbol, reference, dependency,
+status, and source facts. Because the fake returns those facts directly, these files own only
+transport-facing behavior: tool inventory and input schemas, argument rejection, success and
+error envelopes, stable error codes, compact and detailed projection, paging and byte bounds,
+server instructions and descriptions, guidance attachment, and analytics recording.
+
+`test/mcpSmoke.test.ts` is the single real-index MCP test. It calls all seven tools over one
+temporary TypeScript fixture to prove adapter, query, transport, and byte-bound wiring without
+re-asserting extractor or query semantics. Those semantics stay with the adapter, core
+integration, and semantic-qualification classes. `test/referenceGrouping.test.ts` calls
+`CodeIndex` directly for the same reason.
+
 ### Deterministic system seam
 
 Start the built `dist/mcp.mjs` over stdio with the official client and a temporary
@@ -130,13 +145,13 @@ possible regression fixture.
 The workflows are implemented as package scripts. Class membership is declared in
 `vitest.config.ts`, and the complete gate remains `pnpm verify`. Each focused workflow
 selects one class, except `test:fast`, which composes the fast classes and the fake-index
-MCP test. `test:system` builds `dist` before it runs the deterministic system class.
+MCP tests. `test:system` builds `dist` before it runs the deterministic system class.
 
 | Workflow | Script | Contents | Budget | Measured |
 |---|---|---|---:|---:|
-| `test:fast` | `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP tests; no coverage | <=10 s | 6.1 s, exit 0 |
-| `test:typescript` | `pnpm test:typescript` | All TypeScript adapter and reference-corpus tests | <=15 s | 2.8 s, exit 0 |
-| `test:mcp` | `pnpm test:mcp` | MCP protocol contracts and one vertical smoke | <=15 s | 1.9 s, exit 0 |
+| `test:fast` | `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP tests; no coverage | <=10 s | 6.7 s, exit 0 |
+| `test:typescript` | `pnpm test:typescript` | All TypeScript adapter and reference-corpus tests | <=15 s | 4.4 s, exit 0 |
+| `test:mcp` | `pnpm test:mcp` | MCP protocol contracts and one vertical smoke | <=15 s | 0.6 s, exit 0 |
 | `test:system` | `pnpm test:system` | Built-process deterministic system tests | <=60 s | 12.6 s, exit 0 |
 | `qualify:typescript:fixture` | `pnpm qualify:typescript:fixture` | Self-contained compiler differential gate | <=60 s | 1.5 s, exit 0 |
 | `verify:pr` | `pnpm verify:pr` | Static checks, coverage, all deterministic tests, build, qualification | <=2 min | 32.5 s, exit 0 |
@@ -170,8 +185,8 @@ to prove wiring.
 2. Catalogue the existing TypeScript fixtures before adding more.
 3. Add self-contained focused commands.
 4. Rename historical phase tests by enduring behavior.
-5. Split MCP protocol assertions from real-index vertical tests.
-6. Add a controlled fake index for protocol tests.
+5. [x] Split MCP protocol assertions from real-index vertical tests.
+6. [x] Add a controlled fake index for protocol tests.
 7. Add one built-process deterministic system test.
 8. Remove duplicate qualification execution while retaining one PR gate.
 9. Fill only contract-matrix gaps; do not increase test count without a named risk.

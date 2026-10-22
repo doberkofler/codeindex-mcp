@@ -1,50 +1,12 @@
-import {Client} from '@modelcontextprotocol/client';
-import {InMemoryTransport} from '@modelcontextprotocol/server';
-import {afterEach, describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {CodeIndexError} from '../src/core/errors/codeIndexError.ts';
-import {buildMcpServer} from '../src/transports/mcp/buildMcpServer.ts';
-import {createFixtureIndex, silentLogger, type FixtureProjectType} from './helpers/fixture.ts';
-
-type EnvelopeType = Readonly<{ok: boolean; data?: unknown; error?: Readonly<{code: string; message: string}>}>;
-
-type ConnectionType = Readonly<{client: Client; close: () => Promise<void>}>;
-
-const textOf = (result: Readonly<{content: readonly {type: string; text?: string}[]}>): string => {
-	const content = result.content.at(0);
-
-	if (content?.type !== 'text' || content.text === undefined) {
-		throw new Error('Expected text content');
-	}
-
-	return content.text;
-};
+import {createFixtureIndex, type FixtureProjectType} from './helpers/fixture.ts';
 
 const PROJECTS: readonly FixtureProjectType[] = [
 	{name: 'browser', project: 'tsconfig.json'},
 	{name: 'contracts', project: 'contracts/tsconfig.json'},
 	{name: 'server', project: 'server/tsconfig.json'},
 ];
-
-const openFixture = async (fixtureName: string, projects?: readonly FixtureProjectType[]): Promise<ConnectionType> => {
-	const fixture = createFixtureIndex(fixtureName, projects);
-	const server = buildMcpServer({index: fixture.index, logger: silentLogger, maxResultBytes: 32_768});
-	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-
-	await server.connect(serverTransport);
-
-	const client = new Client({name: 'reference-grouping-test', version: '0.1.0'});
-
-	await client.connect(clientTransport);
-
-	return {
-		client,
-		close: async (): Promise<void> => {
-			await client.close();
-			await server.close();
-			fixture.cleanup();
-		},
-	};
-};
 
 describe('find_references selectors and grouping', () => {
 	it('accepts exactly one selector and names both fields when neither or both are provided', () => {
@@ -315,66 +277,5 @@ describe('find_references bounds and cursors', () => {
 		} finally {
 			fixture.cleanup();
 		}
-	});
-});
-
-describe('find_references MCP contract', () => {
-	let connection: ConnectionType | undefined;
-
-	afterEach(async () => {
-		await connection?.close();
-		connection = undefined;
-	});
-
-	const connect = async (): Promise<Client> => (connection = await openFixture('reference-grouping')).client;
-
-	it('serves one-call file groups, ambiguity, and no-match discriminants', async () => {
-		const client = await connect();
-		const files = JSON.parse(textOf(await client.callTool({name: 'find_references', arguments: {query: 'duplicate'}}))) as EnvelopeType & {
-			data: {kind: string; group: string; selector: string; items: readonly {path: string}[]};
-		};
-		const ambiguous = JSON.parse(textOf(await client.callTool({name: 'find_references', arguments: {query: 'repeated'}}))) as EnvelopeType & {
-			data: {kind: string; candidates: readonly {name: string}[]; candidatesTotal: number};
-		};
-		const none = JSON.parse(textOf(await client.callTool({name: 'find_references', arguments: {query: 'noSuchStoredName'}}))) as EnvelopeType & {
-			data: {kind: string; fallback: string};
-		};
-
-		expect(files.ok).toBe(true);
-		expect(files.data).toMatchObject({kind: 'files', group: 'file', selector: 'query'});
-		expect(files.data.items.map((item) => item.path)).toStrictEqual(['src/first.ts', 'src/second.ts', 'src/shared.ts']);
-		expect(ambiguous.data).toMatchObject({kind: 'ambiguous', candidatesTotal: 2});
-		expect(ambiguous.data.candidates.every((candidate) => candidate.name === 'repeated')).toBe(true);
-		expect(none.data).toMatchObject({kind: 'none', fallback: 'text_search'});
-	});
-
-	it('returns structured selector errors and advertises both selectors', async () => {
-		const client = await connect();
-		const tools = await client.listTools();
-		const schema = tools.tools.find((tool) => tool.name === 'find_references')?.inputSchema;
-		const both = await client.callTool({name: 'find_references', arguments: {symbolId: 'symbol', query: 'duplicate'}});
-		const neither = await client.callTool({name: 'find_references', arguments: {}});
-		const bothEnvelope = JSON.parse(textOf(both)) as EnvelopeType;
-
-		expect(schema?.properties).toHaveProperty('symbolId');
-		expect(schema?.properties).toHaveProperty('query');
-		expect(schema?.properties).toHaveProperty('group');
-		expect(both.isError).toBe(true);
-		expect(bothEnvelope.error?.code).toBe('invalid_argument');
-		expect(bothEnvelope.error?.message).toContain('symbolId');
-		expect(bothEnvelope.error?.message).toContain('query');
-		expect(neither.isError).toBe(true);
-		expect((JSON.parse(textOf(neither)) as EnvelopeType).error?.code).toBe('invalid_argument');
-	});
-
-	it('explains that symbol identifiers are opaque', async () => {
-		const client = await connect();
-		const result = await client.callTool({name: 'find_references', arguments: {symbolId: 'not-a-real-id'}});
-		const envelope = JSON.parse(textOf(result)) as EnvelopeType;
-
-		expect(result.isError).toBe(true);
-		expect(envelope.error?.code).toBe('symbol_not_found');
-		expect(envelope.error?.message).toContain('opaque');
-		expect(envelope.error?.message).toContain('find_symbol or outline');
 	});
 });

@@ -1,116 +1,81 @@
-import {Client} from '@modelcontextprotocol/client';
-import {InMemoryTransport} from '@modelcontextprotocol/server';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {type AnalyticsRecorderType} from '../src/core/analytics/recorder.ts';
-import {type CodeIndex} from '../src/core/generation/codeIndex.ts';
-import {buildMcpServer} from '../src/transports/mcp/buildMcpServer.ts';
-import {silentLogger} from './helpers/fixture.ts';
+import {CodeIndexError} from '../src/core/errors/errors.ts';
+import {createFakeIndex} from './helpers/fakeIndex.ts';
+import {openServer, type ConnectionType} from './helpers/mcpConnection.ts';
 
-type ConnectionType = Readonly<{client: Client; analytics: AnalyticsRecorderType; close: () => Promise<void>}>;
+type RecordedFieldsType = Readonly<Record<string, unknown>> | undefined;
 
-const page = (freshness: unknown): Readonly<{generationId: string; freshness: unknown; items: readonly unknown[]; nextCursor: null; truncated: boolean}> => ({
-	generationId: 'generation-1',
-	freshness,
-	items: [],
-	nextCursor: null,
-	truncated: false,
-});
+const fieldOf = (fields: RecordedFieldsType, key: string): unknown => fields?.[key];
 
-const open = async (): Promise<ConnectionType> => {
-	const index = {
-		getStatus: () => ({
-			ready: true,
-			state: 'published',
-			refresh: 'current',
-			generationId: 'generation-1',
-			building: false,
-			scope: {projectName: 'root', projects: [], extractor: {id: 'typescript', version: '1', compilerVersion: '5.0.0'}},
-			counts: {files: 0, symbols: 0, occurrences: 0, dependencyEdges: 0, dependencyBindings: 0, diagnostics: 0},
-			freshness: {state: 'current', checkedAt: '2026-01-01T00:00:00.000Z', dirtyFileCount: null, staleFiles: 0, sourceChanged: false},
-			lastError: null,
-		}),
-		getOutline: () => page({state: 'current'}),
-		findSymbols: () => page('current'),
-		findReferences: () => page(42),
-		findDependencies: () => page(null),
-		readSymbol: () => ({source: '', truncated: false}),
-	} as unknown as CodeIndex;
+type AnalyticsConnectionType = Readonly<{client: ConnectionType['client']; analytics: AnalyticsRecorderType; close: () => Promise<void>}>;
+
+const open = async (failure?: Error): Promise<AnalyticsConnectionType> => {
 	const analytics: AnalyticsRecorderType = {
 		enabled: true,
 		path: '/tmp/events.jsonl',
 		record: vi.fn<AnalyticsRecorderType['record']>(),
 		close: vi.fn<() => void>(),
 	};
-	const server = buildMcpServer({index, logger: silentLogger, analytics, maxResultBytes: 32_768});
-	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+	const {client, close} = await openServer({index: createFakeIndex(failure === undefined ? {} : {failure}), analytics, maxResultBytes: 32_768});
 
-	await server.connect(serverTransport);
-
-	const client = new Client({name: 'analytics-test', version: '0.1.0'});
-
-	await client.connect(clientTransport);
-
-	return {
-		client,
-		analytics,
-		close: async (): Promise<void> => {
-			await client.close();
-			await server.close();
-		},
-	};
+	return {client, analytics, close};
 };
 
 describe('MCP server analytics', () => {
-	let connection: ConnectionType | undefined;
+	let connection: AnalyticsConnectionType | undefined;
 
 	afterEach(async () => {
 		await connection?.close();
 		connection = undefined;
 	});
 
-	it('records freshness only when the envelope exposes a supported shape', async () => {
+	it('records every tool completion with its freshness and truncation state', async () => {
 		connection = await open();
 		const {analytics, client} = connection;
 
 		await client.callTool({name: 'index_status', arguments: {}});
-		await client.callTool({name: 'outline', arguments: {path: 'src/index.ts', limit: 1}});
-		await client.callTool({name: 'find_symbol', arguments: {query: 'formatUser', limit: 1}});
-		await client.callTool({name: 'find_references', arguments: {symbolId: 'symbol-1', limit: 1}});
+		await client.callTool({name: 'outline', arguments: {path: 'src/fake.ts', limit: 1}});
+		await client.callTool({name: 'find_symbol', arguments: {query: 'fake', limit: 1}});
+		await client.callTool({name: 'find_references', arguments: {symbolId: 'symbol-0', limit: 2}});
 		await client.callTool({name: 'find_dependencies', arguments: {target: 'lodash'}});
 
-		const freshness = vi.mocked(analytics.record).mock.calls.map(([, fields]) => (fields as {freshness?: unknown} | undefined)?.freshness);
+		const {calls} = vi.mocked(analytics.record).mock;
 
-		expect(freshness).toStrictEqual(['current', 'current', 'current', null, null]);
-		expect(vi.mocked(analytics.record).mock.calls.map(([event]) => event)).toStrictEqual(Array.from({length: 5}, () => 'mcp_tool_call'));
+		expect(calls.map(([event]) => event)).toStrictEqual(Array.from({length: 5}, () => 'mcp_tool_call'));
+		expect(calls.map(([, fields]) => fieldOf(fields, 'tool'))).toStrictEqual([
+			'index_status',
+			'outline',
+			'find_symbol',
+			'find_references',
+			'find_dependencies',
+		]);
+		expect(calls.map(([, fields]) => fieldOf(fields, 'freshness'))).toStrictEqual(['current', 'current', 'current', 'current', 'current']);
+		expect(calls.map(([, fields]) => fieldOf(fields, 'truncated'))).toStrictEqual([false, true, true, false, false]);
+		expect(calls.every(([, fields]) => typeof fieldOf(fields, 'bytes') === 'number')).toBe(true);
+	});
+
+	it('records failed calls with the stable error code and no freshness', async () => {
+		connection = await open(new CodeIndexError('symbol_not_found', 'Unknown symbol'));
+		const {analytics, client} = connection;
+
+		const result = await client.callTool({name: 'find_symbol', arguments: {query: 'fake'}});
+		const call = vi.mocked(analytics.record).mock.calls.at(0);
+		const fields = call?.[1];
+
+		expect(result.isError).toBe(true);
+		expect(fields).toMatchObject({tool: 'find_symbol', ok: false, errorCode: 'symbol_not_found', freshness: null});
 	});
 
 	it('keeps analytics optional', async () => {
-		const index = {
-			getStatus: () => ({
-				ready: true,
-				state: 'published',
-				refresh: 'current',
-				generationId: 'generation-1',
-				building: false,
-				scope: {projectName: 'root', projects: [], extractor: {id: 'typescript', version: '1', compilerVersion: '5.0.0'}},
-				counts: {files: 0, symbols: 0, occurrences: 0, dependencyEdges: 0, dependencyBindings: 0, diagnostics: 0},
-				freshness: {state: 'current', checkedAt: '2026-01-01T00:00:00.000Z', dirtyFileCount: null, staleFiles: 0, sourceChanged: false},
-				lastError: null,
-			}),
-		} as unknown as CodeIndex;
-		const server = buildMcpServer({index, logger: silentLogger, maxResultBytes: 1024});
-		const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+		const {client, close} = await openServer({index: createFakeIndex(), maxResultBytes: 1024});
 
-		await server.connect(serverTransport);
+		try {
+			const result = await client.callTool({name: 'index_status', arguments: {}});
 
-		const client = new Client({name: 'analytics-test', version: '0.1.0'});
-
-		await client.connect(clientTransport);
-
-		const result = await client.callTool({name: 'index_status', arguments: {}});
-
-		expect(result.isError).not.toBe(true);
-		await client.close();
-		await server.close();
+			expect(result.isError).not.toBe(true);
+		} finally {
+			await close();
+		}
 	});
 });

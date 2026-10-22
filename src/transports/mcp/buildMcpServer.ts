@@ -2,9 +2,23 @@ import {McpServer, type ServerContext} from '@modelcontextprotocol/server';
 import {type ZodType} from 'zod';
 import {type AnalyticsRecorderType} from '../../core/analytics/recorder.ts';
 import {summaryStatusOf} from '../../core/freshness/indexStatus.ts';
-import {type CodeIndex} from '../../core/generation/codeIndex.ts';
 import {debugFor} from '../../core/logging/debug.ts';
 import {type LoggerType} from '../../core/logging/logger.ts';
+import {
+	type FindDependenciesInputType,
+	type FindDependenciesResultType,
+	type FindReferencesInputType,
+	type FindReferencesResultType,
+	type FindSymbolInputType,
+	type FindSymbolResultType,
+	type IndexStatusType,
+	type OutlineInputType,
+	type OutlineResultType,
+	type ReadSymbolInputType,
+	type ReadSymbolResultType,
+	type SymbolAtInputType,
+	type SymbolAtResultType,
+} from '../../core/model.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {errorEnvelope, successDataBudget, successEnvelope, toCallToolResult, type ToolEnvelopeType} from './toolResponses.ts';
 import {compactOutlineOf, compactSymbolsOf} from './compactResults.ts';
@@ -152,7 +166,7 @@ const register = (server: McpServer, registration: ToolRegistrationType, inputSc
  * @returns Handler that validates input, queries, and envelopes the result.
  */
 const outlineHandlerOf =
-	(index: CodeIndex, maxResultBytes: number) =>
+	(index: McpIndexType, maxResultBytes: number) =>
 	(rawArgs: unknown): ToolEnvelopeType => {
 		const {detail, ...query} = OutlineInputSchema.parse(rawArgs);
 		const result = index.getOutline(query, successDataBudget(maxResultBytes));
@@ -168,7 +182,7 @@ const outlineHandlerOf =
  * @returns Handler that validates input, queries, and envelopes the result.
  */
 const findSymbolsHandlerOf =
-	(index: CodeIndex, maxResultBytes: number) =>
+	(index: McpIndexType, maxResultBytes: number) =>
 	(rawArgs: unknown): ToolEnvelopeType => {
 		const {detail, ...query} = FindSymbolInputSchema.parse(rawArgs);
 		const result = index.findSymbols(query, successDataBudget(maxResultBytes));
@@ -176,8 +190,24 @@ const findSymbolsHandlerOf =
 		return successEnvelope(detail === 'full' ? result : compactSymbolsOf(result));
 	};
 
+/**
+ * The query surface the MCP adapter consumes.
+ *
+ * Kept structural so protocol tests can supply a controlled fake index without
+ * constructing a compiler-backed `CodeIndex`.
+ */
+export type McpIndexType = Readonly<{
+	getStatus: () => IndexStatusType;
+	getOutline: (input: OutlineInputType, maxResultBytes?: number) => OutlineResultType;
+	findSymbols: (input: FindSymbolInputType, maxResultBytes?: number) => FindSymbolResultType;
+	findReferences: (input: FindReferencesInputType, maxResultBytes?: number) => FindReferencesResultType;
+	findDependencies: (input: FindDependenciesInputType, maxResultBytes?: number) => FindDependenciesResultType;
+	readSymbol: (input: ReadSymbolInputType, maxResultBytes?: number) => ReadSymbolResultType;
+	symbolAt: (input: SymbolAtInputType, maxResultBytes?: number) => SymbolAtResultType;
+}>;
+
 type ServerInputType = Readonly<{
-	index: CodeIndex;
+	index: McpIndexType;
 	logger: LoggerType;
 	analytics?: AnalyticsRecorderType;
 	maxResultBytes: number;

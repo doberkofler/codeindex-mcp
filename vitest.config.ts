@@ -122,9 +122,15 @@ const CORE_INTEGRATION_TESTS = [
 	'test/storage.test.ts',
 ];
 
-const MCP_PROTOCOL_TESTS = ['test/mcp.test.ts', 'test/mcpGuidance.test.ts', 'test/mcpServerAnalytics.test.ts', 'test/mcpStatus.test.ts'];
+const MCP_PROTOCOL_TESTS = [
+	'test/mcp.test.ts',
+	'test/mcpGuidance.test.ts',
+	'test/mcpServerAnalytics.test.ts',
+	'test/mcpSmoke.test.ts',
+	'test/mcpStatus.test.ts',
+];
 
-const MCP_FAKE_INDEX_TESTS = ['test/mcpServerAnalytics.test.ts'];
+const MCP_FAKE_INDEX_TESTS = ['test/mcp.test.ts', 'test/mcpGuidance.test.ts', 'test/mcpServerAnalytics.test.ts', 'test/mcpStatus.test.ts'];
 
 const DETERMINISTIC_SYSTEM_TESTS = ['test/soak.test.ts', 'evaluation/harness/src/runner.test.ts', 'evaluation/harness/src/runnerRecovery.test.ts'];
 

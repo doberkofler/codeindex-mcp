@@ -1,9 +1,61 @@
 import {type Client} from '@modelcontextprotocol/client';
 import {afterEach, describe, expect, it} from 'vitest';
-import {type FixtureProjectType} from './helpers/fixture.ts';
-import {openFixture, textOf, type ConnectionType, type EnvelopeType} from './helpers/mcpClient.ts';
+import {CodeIndexError, IndexNotReadyError, StaleFileError, type ErrorCodeType} from '../src/core/errors/errors.ts';
+import {createFakeIndex, FAKE_SOURCE, FAKE_SYMBOL_COUNT, type FakeIndexOptionsType} from './helpers/fakeIndex.ts';
+import {openServer, textOf, type ConnectionType, type EnvelopeType} from './helpers/mcpConnection.ts';
 
-describe('MCP adapter', () => {
+const TOOL_NAMES = ['find_dependencies', 'find_references', 'find_symbol', 'index_status', 'outline', 'read_symbol', 'symbol_at'] as const;
+
+type SchemaPropertyType = Readonly<Record<string, unknown>>;
+
+type ToolSchemaType = Readonly<{
+	name: string;
+	description?: string | undefined;
+	inputSchema: Readonly<{
+		type?: string | undefined;
+		properties?: Readonly<Record<string, SchemaPropertyType>> | undefined;
+		required?: readonly string[] | undefined;
+	}>;
+	annotations?: Readonly<Record<string, unknown>> | undefined;
+}>;
+
+const asEnvelope = (result: Readonly<{content: readonly {type: string; text?: string}[]}>): EnvelopeType => JSON.parse(textOf(result)) as EnvelopeType;
+
+const bytesOf = (text: string): number => new TextEncoder().encode(text).length;
+
+const schemaOf = (tools: readonly ToolSchemaType[], name: string): ToolSchemaType => {
+	const tool = tools.find((candidate) => candidate.name === name);
+
+	if (tool === undefined) {
+		throw new Error(`Missing tool ${name}`);
+	}
+
+	return tool;
+};
+
+const propertyOf = (tool: ToolSchemaType, name: string): SchemaPropertyType => {
+	const property = tool.inputSchema.properties?.[name];
+
+	if (property === undefined) {
+		throw new Error(`Missing property ${name} on ${tool.name}`);
+	}
+
+	return property;
+};
+
+const failureOf = (code: ErrorCodeType): Error => {
+	if (code === 'index_not_ready') {
+		return new IndexNotReadyError();
+	}
+
+	if (code === 'stale_file') {
+		return new StaleFileError('src/fake.ts');
+	}
+
+	return code === 'internal_error' ? new Error('secret stack trace') : new CodeIndexError(code, `Failure ${code}`);
+};
+
+describe('MCP tool surface', () => {
 	let connection: ConnectionType | undefined;
 
 	afterEach(async () => {
@@ -11,109 +63,85 @@ describe('MCP adapter', () => {
 		connection = undefined;
 	});
 
-	const connect = async (
-		fixtureName = 'simple-project',
-		maxResultBytes = 32_768,
-		projects?: readonly FixtureProjectType[],
-		extractorId = 'typescript',
-	): Promise<Client> => (connection = await openFixture(fixtureName, maxResultBytes, projects, extractorId)).client;
+	const connect = async (maxResultBytes = 32_768, options?: FakeIndexOptionsType): Promise<Client> => {
+		connection = await openServer({index: createFakeIndex(options), maxResultBytes});
+		return connection.client;
+	};
 
-	it('registers exactly seven read-only tools', async () => {
+	it('registers exactly seven read-only tools with exact input schemas', async () => {
 		const client = await connect();
-		const tools = await client.listTools();
+		const listed = await client.listTools();
+		const tools = listed.tools as readonly ToolSchemaType[];
 
-		expect(tools.tools.map((tool) => tool.name).sort()).toStrictEqual([
-			'find_dependencies',
-			'find_references',
-			'find_symbol',
-			'index_status',
-			'outline',
-			'read_symbol',
-			'symbol_at',
-		]);
+		expect(tools.map((tool) => tool.name).sort()).toStrictEqual([...TOOL_NAMES]);
+
+		for (const tool of tools) {
+			expect(tool.inputSchema.type).toBe('object');
+			expect(tool.annotations).toMatchObject({readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false});
+		}
+
+		const findSymbol = schemaOf(tools, 'find_symbol');
+		const findDependencies = schemaOf(tools, 'find_dependencies');
+		const findReferences = schemaOf(tools, 'find_references');
+		const readSymbol = schemaOf(tools, 'read_symbol');
+
+		expect(findSymbol.inputSchema.required).toStrictEqual(['query']);
+		expect(propertyOf(findSymbol, 'detail')).toMatchObject({enum: ['compact', 'full'], default: 'compact'});
+		expect(propertyOf(findSymbol, 'limit')).toMatchObject({type: 'integer', minimum: 1, maximum: 100, default: 50});
+		expect(propertyOf(findDependencies, 'target')).toMatchObject({type: 'string', minLength: 1});
+		expect(propertyOf(findDependencies, 'transitive')).toMatchObject({type: 'boolean', default: false});
+		expect(propertyOf(findDependencies, 'detail')).toMatchObject({enum: ['compact', 'evidence'], default: 'compact'});
+		expect(propertyOf(findReferences, 'group')).toMatchObject({enum: ['file', 'owner', 'occurrence']});
+		expect(propertyOf(readSymbol, 'mode')).toMatchObject({enum: ['text', 'sites', 'names', 'binding_sites', 'binding_contexts'], default: 'text'});
+		expect(propertyOf(readSymbol, 'contextLines')).toMatchObject({type: 'integer', minimum: 0, maximum: 20, default: 2});
 	});
 
-	it('stops agents after a complete direct package-usage result', async () => {
+	it('publishes instructions and one distinct description per tool', async () => {
 		const client = await connect();
-		const tools = await client.listTools();
+		const listed = await client.listTools();
+		const tools = listed.tools as readonly ToolSchemaType[];
 		const instructions = client.getInstructions();
-		const description = tools.tools.find((tool) => tool.name === 'find_dependencies')?.description;
+		const descriptionOf = (name: string): string => {
+			const {description} = schemaOf(tools, name);
+
+			if (description === undefined) {
+				throw new Error(`Missing description for ${name}`);
+			}
+
+			return description;
+		};
 
 		expect(instructions).toContain('call find_dependencies once with transitive false and compact detail');
-		expect(instructions).toContain('Direct usage covers external dependencies only');
 		expect(instructions).toContain('A current, untruncated direct result is the complete answer');
-		expect(instructions).toContain('Do not search manifests, grep source, read the listed files, or expand into downstream consumers');
-		expect(instructions).toContain('Use detail evidence only when import statements, bindings, or locations are requested');
 		expect(instructions).toContain('When guidance.action is stop and guidance.fallbackRequired is false');
-		expect(instructions).toContain('report it and do not run a fallback search');
-		expect(description).toContain('a current untruncated result is the complete answer');
+		expect(instructions).toContain('index_status defaults to a bounded summary');
+		expect(descriptionOf('index_status')).toContain('bounded summary');
+		expect(descriptionOf('outline')).toContain('in source order');
+		expect(descriptionOf('find_symbol')).toContain('exact qualified name');
+		expect(descriptionOf('find_references')).toContain('exactly one selector');
+		expect(descriptionOf('find_dependencies')).toContain('canonical external dependency target');
+		expect(descriptionOf('read_symbol')).toContain('refuses stale files');
+		expect(descriptionOf('symbol_at')).toContain('innermost stored definition');
 	});
 
-	it('serves find_symbol and read_symbol through the protocol', async () => {
+	it('rejects invalid arguments before dispatching to the index', async () => {
 		const client = await connect();
-		const found = await client.callTool({name: 'find_symbol', arguments: {query: 'formatUser', limit: 1}});
-		const envelope = JSON.parse(textOf(found)) as EnvelopeType & {
-			data: {items: readonly {symbolId: string}[]; freshness: {state: string}};
-		};
+		const calls = [
+			{name: 'outline', arguments: {}},
+			{name: 'find_symbol', arguments: {query: 'fake', limit: 0}},
+			{name: 'find_dependencies', arguments: {target: 'lodash', transitive: 'yes'}},
+			{name: 'read_symbol', arguments: {symbolId: 'symbol-0', contextLines: 21}},
+		] as const;
+		const results = await Promise.all(calls.map(async (call) => ({call, result: await client.callTool({name: call.name, arguments: call.arguments})})));
 
-		expect(envelope.ok).toBe(true);
-		expect(envelope.data.freshness.state).toBe('current');
-		const symbolId = envelope.data.items[0]?.symbolId;
-		expect(symbolId).toBeDefined();
-
-		const read = await client.callTool({name: 'read_symbol', arguments: {symbolId, contextLines: 0}});
-		const readEnvelope = JSON.parse(textOf(read)) as EnvelopeType & {data: {source: string}};
-
-		expect(readEnvelope.ok).toBe(true);
-		expect(readEnvelope.data.source).toContain('export const formatUser');
-	});
-
-	it('bounds read_symbol source inside the response envelope', async () => {
-		const maxResultBytes = 2000;
-		const client = await connect('large-symbol', maxResultBytes);
-		const found = await client.callTool({name: 'find_symbol', arguments: {query: 'largeValue', limit: 1}});
-		const foundEnvelope = JSON.parse(textOf(found)) as EnvelopeType & {data: {items: readonly {symbolId: string}[]}};
-		const symbolId = foundEnvelope.data.items[0]?.symbolId;
-		const read = await client.callTool({name: 'read_symbol', arguments: {symbolId, contextLines: 0}});
-		const text = textOf(read);
-		const envelope = JSON.parse(text) as EnvelopeType & {data: {source: string; truncated: boolean; truncatedReason: string | null}};
-
-		expect(read.isError).not.toBe(true);
-		expect(new TextEncoder().encode(text).length).toBeLessThanOrEqual(maxResultBytes);
-		expect(envelope.ok).toBe(true);
-		expect(envelope.data.source.length).toBeGreaterThan(0);
-		expect(envelope.data.source).not.toContain('\uFFFD');
-		expect(envelope.data.truncated).toBe(true);
-		expect(envelope.data.truncatedReason).toBe('bytes');
-	});
-
-	it('returns stable error envelopes without throwing', async () => {
-		const client = await connect();
-		const result = await client.callTool({name: 'read_symbol', arguments: {symbolId: 'missing', contextLines: 0}});
-		const envelope = JSON.parse(textOf(result)) as EnvelopeType;
-
-		expect(result.isError).toBe(true);
-		expect(envelope.ok).toBe(false);
-		expect(envelope.error?.code).toBe('symbol_not_found');
-	});
-
-	it('filters symbols by project context through the protocol', async () => {
-		const client = await connect('multi-project', 32_768, [
-			{name: 'browser', project: 'tsconfig.json'},
-			{name: 'contracts', project: 'contracts/tsconfig.json'},
-			{name: 'server', project: 'server/tsconfig.json'},
-		]);
-		const result = await client.callTool({name: 'find_symbol', arguments: {query: 'ServiceRequest', context: 'server', detail: 'full', limit: 1}});
-		const envelope = JSON.parse(textOf(result)) as EnvelopeType & {
-			data: {items: readonly {name: string; contexts: readonly string[]}[]};
-		};
-
-		expect(envelope.ok).toBe(true);
-		expect(envelope.data.items[0]).toMatchObject({name: 'ServiceRequest', contexts: ['browser', 'contracts', 'server']});
+		for (const {call, result} of results) {
+			expect(result.isError).toBe(true);
+			expect(textOf(result)).toContain(`Invalid arguments for tool ${call.name}`);
+		}
 	});
 });
 
-describe('MCP compact detail', () => {
+describe('MCP projections', () => {
 	let connection: ConnectionType | undefined;
 
 	afterEach(async () => {
@@ -121,201 +149,99 @@ describe('MCP compact detail', () => {
 		connection = undefined;
 	});
 
-	const connect = async (): Promise<Client> => (connection = await openFixture('simple-project', 32_768)).client;
+	const connect = async (): Promise<Client> => {
+		connection = await openServer({index: createFakeIndex(), maxResultBytes: 32_768});
+		return connection.client;
+	};
 
-	it('serves compact items by default and full detail on request', async () => {
+	it('projects the bounded status summary and full status', async () => {
 		const client = await connect();
-		const compactOutline = JSON.parse(textOf(await client.callTool({name: 'outline', arguments: {path: 'src/models.ts', limit: 5}}))) as EnvelopeType & {
-			data: {items: readonly Record<string, unknown>[]};
+		const summary = await client.callTool({name: 'index_status', arguments: {}});
+		const summaryText = textOf(summary);
+		const summaryEnvelope = JSON.parse(summaryText) as EnvelopeType & {
+			data: {ready: boolean; counts: {files: number}; freshness: {state: string}; scope: {contexts: readonly string[]}; lastError: string | null};
 		};
-		const fullOutline = JSON.parse(
-			textOf(await client.callTool({name: 'outline', arguments: {path: 'src/models.ts', detail: 'full', limit: 5}})),
-		) as EnvelopeType & {data: {items: readonly Record<string, unknown>[]}};
-		const compactSymbol = JSON.parse(textOf(await client.callTool({name: 'find_symbol', arguments: {query: 'formatUser', limit: 1}}))) as EnvelopeType & {
-			data: {items: readonly Record<string, unknown>[]};
+		const full = await client.callTool({name: 'index_status', arguments: {detail: 'full'}});
+		const fullEnvelope = JSON.parse(textOf(full)) as EnvelopeType & {
+			data: {ready: boolean; hashes: unknown; buildStats: unknown; build: unknown; lease: unknown; exclusions: unknown};
 		};
-		const fullSymbol = JSON.parse(
-			textOf(await client.callTool({name: 'find_symbol', arguments: {query: 'formatUser', detail: 'full', limit: 1}})),
-		) as EnvelopeType & {data: {items: readonly Record<string, unknown>[]}};
 
-		expect(compactOutline.data.items[0]).toHaveProperty('symbolId');
-		expect(compactOutline.data.items[0]).not.toHaveProperty('qualifiedName');
+		expect(summaryEnvelope.ok).toBe(true);
+		expect(bytesOf(summaryText)).toBeLessThanOrEqual(600);
+		expect(summaryEnvelope.data).toMatchObject({ready: true, counts: {files: 4}, freshness: {state: 'current'}, lastError: null});
+		expect(summaryEnvelope.data.scope.contexts).toStrictEqual(['root']);
+		expect(summaryEnvelope.data).not.toHaveProperty('hashes');
+		expect(summaryEnvelope.data).not.toHaveProperty('buildStats');
+		expect(summaryEnvelope).not.toHaveProperty('guidance');
+		expect(fullEnvelope.ok).toBe(true);
+		expect(fullEnvelope.data.ready).toBe(true);
+		expect(fullEnvelope.data.hashes).toBeDefined();
+		expect(fullEnvelope.data.buildStats).toBeDefined();
+		expect(fullEnvelope.data.build).toBeDefined();
+		expect(fullEnvelope.data.lease).toBeDefined();
+		expect(fullEnvelope.data.exclusions).toBeDefined();
+	});
+
+	it('projects compact and full outline and symbol detail', async () => {
+		const client = await connect();
+		const compactOutline = asEnvelope(await client.callTool({name: 'outline', arguments: {path: 'src/fake.ts', limit: 1}})) as EnvelopeType & {
+			data: {items: readonly Record<string, unknown>[]};
+		};
+		const fullOutline = asEnvelope(await client.callTool({name: 'outline', arguments: {path: 'src/fake.ts', detail: 'full', limit: 1}})) as EnvelopeType & {
+			data: {items: readonly Record<string, unknown>[]};
+		};
+		const compactSymbol = asEnvelope(await client.callTool({name: 'find_symbol', arguments: {query: 'fake', limit: 1}})) as EnvelopeType & {
+			data: {items: readonly Record<string, unknown>[]};
+		};
+		const fullSymbol = asEnvelope(await client.callTool({name: 'find_symbol', arguments: {query: 'fake', detail: 'full', limit: 1}})) as EnvelopeType & {
+			data: {items: readonly Record<string, unknown>[]};
+		};
+
+		expect(compactOutline.data.items[0]).toMatchObject({symbolId: 'symbol-0', name: 'fakeSymbol0', kind: 'const', path: 'src/fake.ts'});
 		expect(compactOutline.data.items[0]).not.toHaveProperty('site');
 		expect(fullOutline.data.items[0]).toHaveProperty('site');
-		expect(compactSymbol.data.items[0]).toHaveProperty('qualifiedName');
+		expect(compactSymbol.data.items[0]).toMatchObject({symbolId: 'symbol-0', qualifiedName: 'fakeSymbol0'});
 		expect(compactSymbol.data.items[0]).not.toHaveProperty('matched');
 		expect(fullSymbol.data.items[0]).toHaveProperty('matched');
 	});
-});
 
-describe('MCP direct dependency usage', () => {
-	let connection: ConnectionType | undefined;
-
-	afterEach(async () => {
-		await connection?.close();
-		connection = undefined;
-	});
-
-	const connect = async (fixtureName: string): Promise<Client> => {
-		connection = await openFixture(fixtureName, 32_768);
-		return connection.client;
-	};
-
-	it('serves compact direct package usage by default', async () => {
-		const client = await connect('dependency-graph');
-		const result = await client.callTool({name: 'find_dependencies', arguments: {target: 'lodash'}});
-		const text = textOf(result);
-		const envelope = JSON.parse(text) as EnvelopeType & {
-			data: {
-				queryMeaning: string;
-				items: readonly {path: string; depth: number; directRoot: string; evidence?: unknown}[];
-				freshness: {state: string};
-				summary: unknown;
-			};
-		};
-
-		expect(envelope.ok).toBe(true);
-		expect(new TextEncoder().encode(text).length).toBeLessThan(8192);
-		expect(envelope.data.queryMeaning).toBe('direct_usage');
-		expect(envelope.data.freshness.state).toBe('current');
-		expect(envelope.data.summary).toStrictEqual({
-			totalConsumers: 3,
-			directConsumers: 3,
-			transitiveConsumers: 0,
-			roots: [],
-		});
-		expect(envelope.data.items).toStrictEqual([
-			{path: 'src/adapters/escape.ts', depth: 1, directRoot: 'src/adapters/escape.ts'},
-			{path: 'src/adapters/lodash_api.ts', depth: 1, directRoot: 'src/adapters/lodash_api.ts'},
-			{path: 'src/cycle/a.ts', depth: 1, directRoot: 'src/cycle/a.ts'},
+	it('serves reference, dependency, source, and position envelopes', async () => {
+		const client = await connect();
+		const [references, dependencies, evidenceDependencies, source, position] = await Promise.all([
+			client.callTool({name: 'find_references', arguments: {query: 'fakeSymbol0'}}),
+			client.callTool({name: 'find_dependencies', arguments: {target: 'lodash'}}),
+			client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', detail: 'evidence'}}),
+			client.callTool({name: 'read_symbol', arguments: {symbolId: 'symbol-0', contextLines: 0}}),
+			client.callTool({name: 'symbol_at', arguments: {path: 'src/fake.ts', line: 1}}),
 		]);
-		expect(envelope.data.items[0]).not.toHaveProperty('evidence');
-	});
-
-	it('returns evidence only when explicitly requested', async () => {
-		const client = await connect('dependency-graph');
-		const result = await client.callTool({
-			name: 'find_dependencies',
-			arguments: {target: 'lodash', transitive: true, detail: 'evidence', limit: 100},
-		});
-		const envelope = JSON.parse(textOf(result)) as EnvelopeType & {
-			data: {
-				items: readonly {
-					path: string;
-					depth: number;
-					directRoot: string;
-					relationship: string;
-					evidenceCount: number;
-					evidence: {kind: string; rawTarget: string; bindings: readonly {localName: string | null}[]};
-				}[];
-			};
+		const referencesEnvelope = asEnvelope(references) as EnvelopeType & {data: {kind: string; items: readonly {path: string}[]}};
+		const dependenciesEnvelope = asEnvelope(dependencies) as EnvelopeType & {
+			data: {queryMeaning: string; items: readonly Record<string, unknown>[]; summary: unknown};
 		};
+		const evidenceEnvelope = asEnvelope(evidenceDependencies) as EnvelopeType & {data: {items: readonly Record<string, unknown>[]}};
+		const sourceEnvelope = asEnvelope(source) as EnvelopeType & {data: {source: string; truncated: boolean; truncatedReason: string | null}};
+		const positionEnvelope = asEnvelope(position) as EnvelopeType & {data: {path: string; line: number; candidates: readonly {symbol: {name: string}}[]}};
 
-		expect(envelope.ok).toBe(true);
-		expect(envelope.data.items.find((item) => item.path === 'src/adapters/lodash_api.ts')).toMatchObject({
-			directRoot: 'src/adapters/lodash_api.ts',
-			relationship: 'direct',
-			evidenceCount: 1,
-			evidence: {kind: 'import', rawTarget: 'lodash'},
-		});
-		expect(envelope.data.items.find((item) => item.path === 'src/consumers/dynamic.ts')?.evidence.kind).toBe('dynamic-import');
-		expect(envelope.data.items.find((item) => item.path === 'src/adapters/lodash_api.ts')?.evidence.bindings.map((binding) => binding.localName)).toContain(
-			'externalDebounce',
-		);
-	});
-});
-
-describe('MCP dependency impact', () => {
-	let connection: ConnectionType | undefined;
-
-	afterEach(async () => {
-		await connection?.close();
-		connection = undefined;
-	});
-
-	const connect = async (fixtureName: string): Promise<Client> => {
-		connection = await openFixture(fixtureName, 32_768);
-		return connection.client;
-	};
-
-	it('serves grouped module impact with per-root counts', async () => {
-		const client = await connect('dependency-impact');
-		const result = await client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', transitive: true, limit: 100}});
-		const text = textOf(result);
-		const envelope = JSON.parse(text) as EnvelopeType & {
-			data: {
-				queryMeaning: string;
-				items: readonly {path: string; directRoot: string}[];
-				summary: unknown;
-			};
-		};
-
-		expect(envelope.ok).toBe(true);
-		expect(new TextEncoder().encode(text).length).toBeLessThan(8192);
-		expect(envelope.data.queryMeaning).toBe('dependency_impact');
-		expect(envelope.data.summary).toStrictEqual({
-			totalConsumers: 53,
-			directConsumers: 2,
-			transitiveConsumers: 51,
-			roots: [
-				{path: 'src/boundary/barrel.ts', consumerCount: 42},
-				{path: 'src/boundary/narrow.ts', consumerCount: 42},
-			],
-		});
-		expect(envelope.data.items).toHaveLength(84);
-		expect(
-			envelope.data.items
-				.filter((item) => item.path === 'src/shared/shared.ts')
-				.map((item) => item.directRoot)
-				.sort(),
-		).toStrictEqual(['src/boundary/barrel.ts', 'src/boundary/narrow.ts']);
-	});
-
-	it('keeps the default impact page within the compact byte target', async () => {
-		const client = await connect('dependency-impact');
-		const result = await client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', transitive: true}});
-		const text = textOf(result);
-		const envelope = JSON.parse(text) as EnvelopeType & {data: {items: readonly unknown[]}};
-
-		expect(envelope.ok).toBe(true);
-		expect(new TextEncoder().encode(text).length).toBeLessThan(4096);
-		expect(envelope.data.items).toHaveLength(25);
-	});
-
-	it('filters module impact to one direct root and rejects invalid roots', async () => {
-		const client = await connect('dependency-impact');
-		const filtered = await client.callTool({
-			name: 'find_dependencies',
-			arguments: {target: 'lodash', transitive: true, root: 'src/boundary/narrow.ts', limit: 100},
-		});
-		const envelope = JSON.parse(textOf(filtered)) as EnvelopeType & {
-			data: {items: readonly {directRoot: string}[]; summary: unknown};
-		};
-
-		expect(envelope.ok).toBe(true);
-		expect(envelope.data.items.every((item) => item.directRoot === 'src/boundary/narrow.ts')).toBe(true);
-		expect(envelope.data.summary).toStrictEqual({
-			totalConsumers: 42,
+		expect(referencesEnvelope.ok).toBe(true);
+		expect(referencesEnvelope.data.kind).toBe('files');
+		expect(referencesEnvelope.data.items.map((item) => item.path)).toStrictEqual(['src/consumer-a.ts', 'src/consumer-b.ts']);
+		expect(dependenciesEnvelope.ok).toBe(true);
+		expect(dependenciesEnvelope.data.queryMeaning).toBe('direct_usage');
+		expect(dependenciesEnvelope.data.summary).toStrictEqual({
+			totalConsumers: 2,
 			directConsumers: 1,
-			transitiveConsumers: 41,
-			roots: [{path: 'src/boundary/narrow.ts', consumerCount: 42}],
+			transitiveConsumers: 1,
+			roots: [{path: 'src/root.ts', consumerCount: 2}],
 		});
-
-		const invalidResults = await Promise.all([
-			client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', transitive: true, root: 'src/shared/shared.ts'}}),
-			client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', transitive: false, root: 'src/boundary/narrow.ts'}}),
-		]);
-
-		for (const invalid of invalidResults) {
-			const invalidEnvelope = JSON.parse(textOf(invalid)) as EnvelopeType;
-
-			expect(invalid.isError).toBe(true);
-			expect(invalidEnvelope.error?.code).toBe('invalid_argument');
-		}
+		expect(dependenciesEnvelope.data.items[0]).not.toHaveProperty('evidence');
+		expect(evidenceEnvelope.data.items[0]).toHaveProperty('evidence');
+		expect(sourceEnvelope.data).toMatchObject({source: FAKE_SOURCE, truncated: false, truncatedReason: null});
+		expect(positionEnvelope.data).toMatchObject({path: 'src/fake.ts', line: 1});
+		expect(positionEnvelope.data.candidates[0]?.symbol.name).toBe('fakeSymbol0');
 	});
 });
 
-describe('MCP paginated response bounds', () => {
+describe('MCP bounds and errors', () => {
 	let connection: ConnectionType | undefined;
 
 	afterEach(async () => {
@@ -323,93 +249,86 @@ describe('MCP paginated response bounds', () => {
 		connection = undefined;
 	});
 
-	const connect = async (
-		fixtureName: string,
-		maxResultBytes: number,
-		projects?: readonly FixtureProjectType[],
-		extractorId = 'typescript',
-	): Promise<Client> => {
-		connection = await openFixture(fixtureName, maxResultBytes, projects, extractorId);
+	const connect = async (maxResultBytes = 32_768, options?: FakeIndexOptionsType): Promise<Client> => {
+		connection = await openServer({index: createFakeIndex(options), maxResultBytes});
 		return connection.client;
 	};
 
-	it('shortens compact impact pages without losing or duplicating grouped entries', async () => {
-		const maxResultBytes = 2000;
-		const client = await connect('dependency-impact', maxResultBytes);
+	it('shortens symbol pages by the configured byte bound and keeps cursor continuity', async () => {
+		const maxResultBytes = 4096;
+		const client = await connect(maxResultBytes);
+		type SymbolItemType = Readonly<{symbolId: string}>;
 
-		type CompactItemType = Readonly<{path: string; depth: number; directRoot: string}>;
-
-		const collectEntries = async (cursor?: string, collected: readonly CompactItemType[] = []): Promise<readonly CompactItemType[]> => {
-			const result = await client.callTool({
-				name: 'find_dependencies',
-				arguments: {target: 'lodash', transitive: true, limit: 100, cursor},
-			});
+		const collect = async (cursor?: string, collected: readonly SymbolItemType[] = []): Promise<readonly SymbolItemType[]> => {
+			const result = await client.callTool({name: 'find_symbol', arguments: {query: 'fake', limit: 2, cursor}});
 			const text = textOf(result);
-			const envelope = JSON.parse(text) as EnvelopeType & {
-				data: {items: readonly CompactItemType[]; nextCursor: string | null; summary: {totalConsumers: number}};
-			};
+			const envelope = JSON.parse(text) as EnvelopeType & {data: {items: readonly SymbolItemType[]; nextCursor: string | null; truncated: boolean}};
 
 			expect(result.isError).not.toBe(true);
-			expect(new TextEncoder().encode(text).length).toBeLessThanOrEqual(maxResultBytes);
+			expect(bytesOf(text)).toBeLessThanOrEqual(maxResultBytes);
 			expect(envelope.ok).toBe(true);
 			expect(envelope.data.items.length).toBeGreaterThan(0);
-			expect(envelope.data.summary.totalConsumers).toBe(53);
+			expect(envelope.data.truncated).toBe(envelope.data.nextCursor !== null);
 			const entries = [...collected, ...envelope.data.items];
 
-			return envelope.data.nextCursor === null ? entries : collectEntries(envelope.data.nextCursor, entries);
+			return envelope.data.nextCursor === null ? entries : collect(envelope.data.nextCursor, entries);
 		};
 
-		const entries = await collectEntries();
-		const keys = entries.map((item) => `${item.directRoot}\u0000${item.path}`);
+		const entries = await collect();
+		const ids = entries.map((item) => item.symbolId);
 
-		expect(entries).toHaveLength(84);
-		expect(new Set(keys).size).toBe(84);
-		expect(entries.filter((item) => item.directRoot === 'src/boundary/barrel.ts')).toHaveLength(42);
-		expect(entries.filter((item) => item.directRoot === 'src/boundary/narrow.ts')).toHaveLength(42);
+		expect(entries).toHaveLength(FAKE_SYMBOL_COUNT);
+		expect(new Set(ids).size).toBe(FAKE_SYMBOL_COUNT);
+		expect(ids[0]).toBe('symbol-0');
+		expect(ids.at(-1)).toBe(`symbol-${FAKE_SYMBOL_COUNT - 1}`);
 	});
 
-	it('applies the byte bound to symbol pages', async () => {
-		const maxResultBytes = 2048;
-		const client = await connect('dependency-graph', maxResultBytes);
-		const result = await client.callTool({name: 'find_symbol', arguments: {query: 'alpha', limit: 100}});
-		const text = textOf(result);
-		const envelope = JSON.parse(text) as EnvelopeType & {data: {items: readonly unknown[]; nextCursor: string | null}};
+	it('maps every stable failure code to a bounded error envelope', async () => {
+		const codes = [
+			'index_not_ready',
+			'index_build_failed',
+			'file_not_indexed',
+			'symbol_not_found',
+			'stale_file',
+			'invalid_cursor',
+			'invalid_argument',
+			'internal_error',
+		] as const;
+		const outcomes = await Promise.all(
+			codes.map(async (code) => {
+				const probe = await openServer({index: createFakeIndex({failure: failureOf(code)}), maxResultBytes: 32_768});
 
-		expect(result.isError).not.toBe(true);
-		expect(new TextEncoder().encode(text).length).toBeLessThanOrEqual(maxResultBytes);
-		expect(envelope.ok).toBe(true);
-		expect(envelope.data.items.length).toBeGreaterThan(0);
-		expect(envelope.data.nextCursor).not.toBeNull();
-	});
-});
+				try {
+					const result = await probe.client.callTool({name: 'find_symbol', arguments: {query: 'fake'}});
+					return {code, isError: result.isError, envelope: asEnvelope(result)};
+				} finally {
+					await probe.close();
+				}
+			}),
+		);
 
-describe('MCP Oracle adapter', () => {
-	it('serves all seven tools for an Oracle manifest', async () => {
-		const connection = await openFixture('oracle-project', 32_768, [{name: 'app', project: 'oracle-index.json'}], 'oracle');
-		const {client} = connection;
-
-		try {
-			const status = await client.callTool({name: 'index_status', arguments: {}});
-			const outline = await client.callTool({name: 'outline', arguments: {path: 'database/hr_api.pks', kinds: ['package'], detail: 'full', limit: 100}});
-			const symbols = await client.callTool({
-				name: 'find_symbol',
-				arguments: {query: 'owner["APP"]::HR_API.DELETE_EMPLOYEE', match: 'qualified', detail: 'full'},
-			});
-			const symbolData = JSON.parse(textOf(symbols)) as EnvelopeType & {data: {items: readonly {symbolId: string; match: string}[]}};
-			const exact = symbolData.data.items.find((item) => item.match === 'exact_qualified');
-			const references = await client.callTool({name: 'find_references', arguments: {symbolId: exact?.symbolId ?? ''}});
-			const dependencies = await client.callTool({name: 'find_dependencies', arguments: {target: 'APP.HR_API'}});
-			const source = await client.callTool({name: 'read_symbol', arguments: {symbolId: exact?.symbolId ?? ''}});
-
-			for (const result of [status, outline, symbols, references, dependencies, source]) {
-				expect(result.isError).not.toBe(true);
-			}
-
-			expect(textOf(outline)).toContain(String.raw`owner[\"APP\"]::HR_API`);
-			expect(textOf(references)).toContain('database/hr_api.pkb');
-			expect(textOf(dependencies)).toContain('database/maintenance_run.prc');
-		} finally {
-			await connection.close();
+		for (const {code, isError, envelope} of outcomes) {
+			expect(isError).toBe(true);
+			expect(envelope.ok).toBe(false);
+			expect(envelope.error?.code).toBe(code);
+			expect(envelope.error?.message.length).toBeGreaterThan(0);
+			expect(envelope.error?.message).not.toContain('stack trace');
 		}
+
+		expect(outcomes.at(-1)?.envelope.error?.message).toBe('Internal index failure');
+	});
+
+	it('bounds an oversized success result as response_too_large', async () => {
+		const maxResultBytes = 512;
+		const client = await connect(maxResultBytes);
+		const result = await client.callTool({name: 'find_symbol', arguments: {query: 'fake', limit: 100}});
+		const text = textOf(result);
+		const envelope = JSON.parse(text) as EnvelopeType;
+
+		expect(result.isError).toBe(true);
+		expect(bytesOf(text)).toBeLessThanOrEqual(maxResultBytes);
+		expect(envelope.ok).toBe(false);
+		expect(envelope.error).toMatchObject({code: 'response_too_large'});
+		expect(text).not.toContain('at ');
 	});
 });

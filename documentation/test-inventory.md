@@ -3,18 +3,18 @@
 Date: 2026-10-22
 
 Status: accepted inventory for the cleanup sequence in
-[Codebase testing strategy](./codebase-testing-strategy.md). This document classifies existing
-tests only. No test was moved, renamed, merged, or deleted, and no configuration changed.
+[Codebase testing strategy](./codebase-testing-strategy.md). This document classifies the
+selected tests and records the MCP protocol split.
 
 ## 1. Scope and method
 
 Scope is every Vitest test module selected by `vitest.config.ts`:
 
 ```text
-test/**/*.test.ts                     87 files
+test/**/*.test.ts                     88 files
 evaluation/harness/src/**/*.test.ts   26 files
                                      ---------
-                                     113 files
+                                     114 files
 ```
 
 Support files under `test/helpers/`, fixture trees under `test/fixtures/`, and non-test harness
@@ -52,15 +52,14 @@ class table.
 | Module test | 51 | 22 | 73 |
 | Adapter contract | 15 | 0 | 15 |
 | Core integration | 10 | 0 | 10 |
-| MCP protocol contract | 4 | 0 | 4 |
+| MCP protocol contract | 5 | 0 | 5 |
 | Deterministic system test | 1 | 2 | 3 |
 | Semantic qualification | 4 | 2 | 6 |
 | Performance test | 2 | 0 | 2 |
-| **Total** | **87** | **26** | **113** |
+| **Total** | **88** | **26** | **114** |
 
 `referenceGrouping.test.ts` is classed as core integration rather than MCP protocol because its
-claim is reference-grouping semantics; `InMemoryTransport` is only the harness that exposes the
-group modes.
+claim is reference-grouping semantics; it calls `CodeIndex` directly.
 
 ## 3. Inventory
 
@@ -99,11 +98,12 @@ group modes.
 | `test/indexStatus.test.ts` | Module test | `collectStatus`, `summaryStatusOf` | Stub boundary + temporary SQLite | Coordinator states map to freshness and bounded summaries preserve counts and the retained error. |
 | `test/loadProject.test.ts` | Adapter contract | `loadTypeScriptProject` | Temporary workspace | Missing and unreadable projects are rejected, outside-workspace diagnostics map to null, and semantic diagnostics are opt-in. |
 | `test/logger.test.ts` | Module test | `createLogger`, `debugFor`, `enableDebug` | Inline values | Levels write to stderr at the threshold, default to info, and namespaced debug channels toggle. |
-| `test/mcp.test.ts` | MCP protocol contract | MCP tool surface through `buildMcpServer` | Vertical fixtures | Exactly seven tools expose instructions, descriptions, envelopes, projections, filters, and byte bounds. |
+| `test/mcp.test.ts` | MCP protocol contract | MCP tool surface through `buildMcpServer` | Controlled fake index | Exactly seven tools expose schemas, instructions, descriptions, argument rejection, envelopes, projections, stable error codes, and byte bounds. |
 | `test/mcpCommand.test.ts` | Module test | `runMcpCommand` | Temporary workspace | The codeindex server entry is created and removed idempotently, surrounding config is preserved, and bundle and config paths are validated. |
-| `test/mcpGuidance.test.ts` | MCP protocol contract | `find_symbol` and `read_symbol` envelopes | Vertical fixture | Guidance marks current results authoritative, requires the next page, and requires text search only without a stored match. |
-| `test/mcpServerAnalytics.test.ts` | MCP protocol contract | `buildMcpServer` analytics | Controlled fake index | Analytics records only supported freshness shapes and remains optional. |
-| `test/mcpStatus.test.ts` | MCP protocol contract | `index_status` tool | Vertical fixture | The protocol returns a bounded status summary and complete status only on request. |
+| `test/mcpGuidance.test.ts` | MCP protocol contract | Result guidance through `buildMcpServer` | Controlled fake index | Guidance marks current results authoritative, requires the next page, and requires text search only without a stored match. |
+| `test/mcpServerAnalytics.test.ts` | MCP protocol contract | `buildMcpServer` analytics | Controlled fake index | Every tool completion records tool, bytes, freshness, truncation, and error code; analytics remains optional. |
+| `test/mcpSmoke.test.ts` | MCP protocol contract | MCP tool surface through `buildMcpServer` | Vertical fixture | One real TypeScript index proves all seven tools and the source byte bound are wired end to end. |
+| `test/mcpStatus.test.ts` | MCP protocol contract | `index_status` tool | Controlled fake index | The protocol returns a bounded status summary and complete status only on request. |
 | `test/multiProject.test.ts` | Adapter contract | `buildGeneration`, `CodeIndex` | Vertical fixture | All configured contexts index into one generation with context-tagged declarations, references, and dependency filters. |
 | `test/multiProjectConfig.test.ts` | Module test | `loadConfig` | Temporary workspace | Multiple contexts load from one configuration and duplicate or ambiguous settings are rejected. |
 | `test/oracle.test.ts` | Adapter contract | Structural Oracle lexer, parser, manifest, scan | Micro fixture | Structural parsing extracts units, declarations, and references and indexes a manifest with freshness. |
@@ -140,7 +140,7 @@ group modes.
 | `test/querySupport.test.ts` | Module test | `boundedPagedResult`, `decodeCursor` | Inline values | Cursor identity and binding are enforced and pages truncate by serialized byte size. |
 | `test/readSymbolResult.test.ts` | Module test | `readSymbolResult` | Handcrafted facts | Source is included within the result budget or dropped when metadata alone exceeds it. |
 | `test/readSymbolSource.test.ts` | Module test | `readSymbolSource` | Inline values | Truncation respects UTF-8 code points, serialized escape overhead, and whole lines. |
-| `test/referenceGrouping.test.ts` | Core integration | Reference grouping through the `find_references` tool | Vertical fixture | Selectors, grouping order, filters, bounds, and cursors follow the one-call reference contract. |
+| `test/referenceGrouping.test.ts` | Core integration | `CodeIndex.findReferences` | Vertical fixture | Selectors, grouping order, filters, bounds, and cursors follow the one-call reference contract. |
 | `test/referenceVerification.test.ts` | Semantic qualification | `verifyTypeScriptReferences`, reference sampling | Reference corpus | Location matching, sampling quotas, precision and recall, and constructed reference edges meet the compiler gate. |
 | `test/refreshCoordinator.test.ts` | Module test | `RefreshCoordinator` | Inline values | Event bursts coalesce, one follow-up runs after a build, failures stay stale and retryable, and timing is recorded. |
 | `test/routePlan.test.ts` | Module test | `loadRoutePlan`, `routePlanOf`, plan hash | Pinned corpus | Every frozen release case has a deterministic route and an omitted case invalidates comparison. |
@@ -195,9 +195,9 @@ owner and left in place for the later cleanup sequence.
 
 | Behaviour | Owning class | Owning file | Overlap | Resolution |
 |---|---|---|---|---|
-| Core symbol, outline, reference, dependency, impact, and freshness queries | Core integration | `test/codeIndex.test.ts` | `test/mcp.test.ts`, `test/referenceGrouping.test.ts`, `test/publicationPhase4.test.ts`, `test/publicationPhase5.test.ts`, `test/publicationPhase6.test.ts` | Intentional overlap: MCP proves the envelope, and publication phases prove adapter-to-query wiring. |
+| Core symbol, outline, reference, dependency, impact, and freshness queries | Core integration | `test/codeIndex.test.ts` | `test/mcpSmoke.test.ts`, `test/referenceGrouping.test.ts`, `test/publicationPhase4.test.ts`, `test/publicationPhase5.test.ts`, `test/publicationPhase6.test.ts` | Intentional overlap: the MCP smoke proves wiring, and publication phases prove adapter-to-query wiring. |
 | Controlled dependency edge matrix | Core integration | `test/dependencyCases.test.ts` | `test/codeIndex.test.ts` | Intentional overlap: the controlled fixture isolates edge forms; `codeIndex` owns generic shape and paging. |
-| Reference selectors, grouping, filters, and cursor continuity | Core integration | `test/referenceGrouping.test.ts` | `test/mcp.test.ts`, `test/codeIndex.test.ts` | Intentional overlap: group modes are exposed through one MCP call; `mcp` checks only tool wiring. |
+| Reference selectors, grouping, filters, and cursor continuity | Core integration | `test/referenceGrouping.test.ts` | `test/codeIndex.test.ts` | Intentional overlap: `referenceGrouping` owns grouping semantics; `codeIndex` owns generic query shape and paging. |
 | Canonical finalization of bindings, addresses, and invariants | Core integration | `test/publicationFacts.test.ts` | `test/publicationPhase4.test.ts`, `test/publicationPhase5.test.ts` | Intentional overlap: the adapter vertical slices must prove the finalization seam end to end. |
 | TypeScript publication surface | Adapter contract | `test/publicationPhase4.test.ts` | `test/publicationPhase6.test.ts`, `test/publicationReport.test.ts` | No duplicate: phase 6 owns enforcement defaults and the report owns independent truth. |
 | Oracle publication surface | Adapter contract | `test/publicationPhase5.test.ts` | `test/publicationReport.test.ts` | No duplicate: the report uses an independent prototype. |
@@ -209,7 +209,7 @@ owner and left in place for the later cleanup sequence.
 | Generation publication lifecycle | Core integration | `test/database.test.ts` | `test/databaseFacts.test.ts` | Intentional overlap: `databaseFacts` owns row-level integrity and failure isolation. |
 | Page, source, and envelope byte bounds | Module test | `test/querySupport.test.ts` (pages), `test/readSymbolSource.test.ts` (source), `test/readSymbolResult.test.ts` (result) | `test/mcp.test.ts` | No duplicate: each file owns a distinct bound stage; MCP owns only the outer envelope bound. |
 | Answer guidance rules | Module test | `test/toolGuidance.test.ts` | `test/mcpGuidance.test.ts` | Intentional overlap: MCP proves the guidance survives the envelope. |
-| Error codes and envelopes | Module test | `test/toolResponses.test.ts` | `test/mcp.test.ts`, `test/errors.test.ts` | Intentional overlap: MCP checks one vertical error path; `errors` owns the not-ready code. |
+| Error codes and envelopes | Module test | `test/toolResponses.test.ts` | `test/mcp.test.ts`, `test/errors.test.ts` | Intentional overlap: MCP checks every stable code through the fake index; `errors` owns the not-ready code. |
 | Freshness status projection | Module test | `test/indexStatus.test.ts` | `test/mcpStatus.test.ts` | Intentional overlap: `mcpStatus` owns only the protocol projection and full-detail switch. |
 | Analytics event schema and retention | Module test | `test/analytics.test.ts` | `test/mcpServerAnalytics.test.ts` | Intentional overlap: the MCP file owns only boundary recording and optionality. |
 | Analytics aggregation | Module test | `test/analyticsSummary.test.ts` | `test/analytics.test.ts` | Intentional overlap: `analytics` keeps one recorder-to-summary wiring assertion; the summary owns aggregation. |
@@ -245,12 +245,12 @@ Nearest coverage is listed so the later gap-filling item can add the smallest te
 | TypeScript adapter | `tsconfig` `exclude` (and `files`-based selection) | `test/scanWorkspace.test.ts` excludes generated and declaration files by scanner policy, not configured `exclude` |
 | TypeScript adapter | CommonJS `require()` dependency edges | `test/dependencyCases.test.ts` covers static import and export; `test/codeIndex.test.ts` covers dynamic import; `test/publicationReport.test.ts` covers `module.exports` publication |
 | TypeScript adapter | Unsupported-construct diagnostics and extraction failure behaviour | `test/loadProject.test.ts` covers project diagnostics; `test/publicationFacts.test.ts` covers finalization failures |
-| MCP protocol | A controlled fake index for protocol contracts | Only `test/mcpServerAnalytics.test.ts` uses one; `test/mcp.test.ts`, `test/mcpGuidance.test.ts`, `test/mcpStatus.test.ts`, and `test/referenceGrouping.test.ts` rebuild real fixture indexes |
-| MCP protocol | Exact tool input schemas and invalid-argument rejection | `test/mcp.test.ts` asserts tool names and one description; selector validation is partial in `test/referenceGrouping.test.ts` |
-| MCP protocol | Tool descriptions for every tool | `test/mcp.test.ts` asserts the `find_dependencies` description and server instructions only |
+| MCP protocol | A controlled fake index for protocol contracts | Resolved by `test/helpers/fakeIndex.ts`; all protocol contracts use it, and only `test/mcpSmoke.test.ts` rebuilds a real fixture index |
+| MCP protocol | Exact tool input schemas and invalid-argument rejection | `test/mcp.test.ts` asserts every tool schema, required field, enum, default, and invalid-argument rejection |
+| MCP protocol | Tool descriptions for every tool | `test/mcp.test.ts` asserts every tool description and the server instructions |
 | Deterministic system | Start built `dist/mcp.mjs` over stdio with a temporary workspace | None; `test/runServer.test.ts` uses mocks and `test/soak.test.ts` runs in process |
 | Deterministic system | Initial publication through the built process | `test/cli.test.ts` and `test/codeIndex.test.ts` cover the same behaviour in process |
-| Deterministic system | All seven tools through the built process | `test/mcp.test.ts` covers them through `InMemoryTransport` |
+| Deterministic system | All seven tools through the built process | `test/mcpSmoke.test.ts` covers them through `InMemoryTransport` with a real TypeScript index |
 | Deterministic system | Stdout isolation of the built process | None; `test/logger.test.ts` and `test/runServer.test.ts` cover in-process logging and errors |
 | Deterministic system | Source edits and stale refusal through the built process | `test/codeIndex.test.ts` and `test/soak.test.ts` cover in-process stale refusal |
 | Deterministic system | Watcher rebuild through the built process | `test/refreshCoordinator.test.ts`, `test/workspaceWatcher.test.ts`, and `test/soak.test.ts` cover the mechanisms in process |
@@ -264,10 +264,10 @@ Nearest coverage is listed so the later gap-filling item can add the smallest te
 The inventory contains one row per test module selected by the Vitest include patterns.
 
 ```text
-test/**/*.test.ts                     87
+test/**/*.test.ts                     88
 evaluation/harness/src/**/*.test.ts   26
                                      ---
-inventory rows                       113
+inventory rows                       114
 ```
 
 Verification commands:
@@ -279,10 +279,10 @@ find evaluation/harness/src -type f -name '*.test.ts' | wc -l
 
 Checks:
 
-- [x] Every one of the 113 test files has exactly one class and one primary claim.
+- [x] Every one of the 114 test files has exactly one class and one primary claim.
 - [x] No file is unclassified.
 - [x] No test file is listed in more than one inventory row.
 - [x] Every duplicate has a named owner; the remaining overlaps state their wiring reason.
 - [x] One duplicate is not intentional and is assigned to `test/suitePrepare.test.ts` for the
       later cleanup sequence.
-- [x] This document changes no test, fixture, or configuration.
+- [x] The MCP protocol split is recorded here without changing production response shapes.

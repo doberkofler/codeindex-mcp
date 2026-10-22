@@ -4,19 +4,10 @@ import path from 'node:path';
 import {type ConfigType} from '../../src/core/config/config.ts';
 import {createCodeIndex, type CodeIndex} from '../../src/core/generation/codeIndex.ts';
 import {buildGeneration} from '../../src/core/generation/buildGeneration.ts';
-import {type LoggerType} from '../../src/core/logging/logger.ts';
 import {IndexDatabase} from '../../src/core/storage/database.ts';
+import {silentLogger} from './silentLogger.ts';
 
-const silence = (): void => {
-	void 0;
-};
-
-export const silentLogger: LoggerType = {
-	debug: silence,
-	info: silence,
-	warn: silence,
-	error: silence,
-};
+export {silentLogger} from './silentLogger.ts';
 
 export type FixtureContextType = Readonly<{
 	config: ConfigType;

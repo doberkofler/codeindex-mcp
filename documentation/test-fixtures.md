@@ -4,7 +4,8 @@ Date: 2026-10-22
 
 Status: accepted catalogue for the fixture cleanup sequence in
 [Codebase testing strategy](./codebase-testing-strategy.md#5-test-data). This document
-describes existing fixtures only. No fixture content, test, or configuration changed.
+describes existing fixtures; the consuming-test lists follow the current MCP seam split.
+No fixture content or configuration changed.
 
 ## 1. Scope and method
 
@@ -48,9 +49,9 @@ indexer, parser, or publication pipeline as its expected result.
 
 | Entry | Fixture directory | Primary claim | Consuming tests |
 |---|---|---|---|
-| F01 | `test/fixtures/simple-project/` | Baseline TypeScript workspace for scan, query, paging, reads, and configuration | `test/indexStatus.test.ts`, `test/benchmarkEvaluation.test.ts`, `test/cli.test.ts`, `test/buildWorkerClient.test.ts`, `test/mcpGuidance.test.ts`, `test/scanWorkspace.test.ts`, `test/config.test.ts`, `test/publicationReport.test.ts`, `test/publishedFiles.test.ts`, `test/benchmarkResources.test.ts`, `test/codeIndex.test.ts`, `test/mcpStatus.test.ts`, `test/benchmark.test.ts`, `test/buildWorker.test.ts`, `test/referenceGrouping.test.ts`, `test/soak.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts`, `test/mcp.test.ts` |
-| F02 | `test/fixtures/dependency-graph/` | Direct and transitive package dependency edges, evidence, bindings, and cycles | `test/codeIndex.test.ts`, `test/mcp.test.ts` |
-| F03 | `test/fixtures/dependency-impact/` | Non-additive impact roots over a wide fan-out | `test/codeIndex.test.ts`, `test/mcp.test.ts` |
+| F01 | `test/fixtures/simple-project/` | Baseline TypeScript workspace for scan, query, paging, reads, and configuration | `test/indexStatus.test.ts`, `test/benchmarkEvaluation.test.ts`, `test/cli.test.ts`, `test/buildWorkerClient.test.ts`, `test/scanWorkspace.test.ts`, `test/config.test.ts`, `test/publicationReport.test.ts`, `test/publishedFiles.test.ts`, `test/benchmarkResources.test.ts`, `test/codeIndex.test.ts`, `test/benchmark.test.ts`, `test/buildWorker.test.ts`, `test/referenceGrouping.test.ts`, `test/soak.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts` |
+| F02 | `test/fixtures/dependency-graph/` | Direct and transitive package dependency edges, evidence, bindings, and cycles | `test/codeIndex.test.ts` |
+| F03 | `test/fixtures/dependency-impact/` | Non-additive impact roots over a wide fan-out | `test/codeIndex.test.ts` |
 | F04 | `test/fixtures/dependency-cases/` | Reviewed dependency edge matrix with a checked-in ground-truth README | `test/dependencyCases.test.ts` |
 | F05 | `test/fixtures/reference-grouping/` | Reference selectors, grouping, ordering, and ambiguity | `test/referenceGrouping.test.ts` |
 | F06 | `test/fixtures/reference-edges/` | Language-service differential for hard reference edges | `test/referenceVerification.test.ts` |
@@ -59,9 +60,9 @@ indexer, parser, or publication pipeline as its expected result.
 | F09 | `test/fixtures/commonjs-project/` | CommonJS `export =` and `module.exports` classification | `test/publicationReport.test.ts` |
 | F10 | `test/fixtures/external-reexport/` | Authored façade re-export of an external package | `test/codeIndex.test.ts`, `test/publicationReport.test.ts` |
 | F11 | `test/fixtures/javascript-project/` | ESM JavaScript indexing under `allowJs` | `test/extractors.test.ts`, `test/publicationPhase4.test.ts` |
-| F12 | `test/fixtures/large-symbol/` | UTF-8-safe byte-bounded source reads | `test/mcp.test.ts` |
-| F13 | `test/fixtures/multi-project/` | Three project contexts in one generation | `test/multiProject.test.ts`, `test/multiProjectConfig.test.ts`, `test/mcp.test.ts`, `test/referenceGrouping.test.ts` |
-| F14 | `test/fixtures/oracle-project/` | Oracle parsing, references, dependencies, freshness, and live-plan inputs | `test/oracle.test.ts`, `test/oracleAntlr.test.ts`, `test/oracleAntlrDeclarations.test.ts`, `test/oracleAntlrDependencies.test.ts`, `test/oracleAntlrReferences.test.ts`, `test/oracleParserBinding.test.ts`, `test/oracleLiveSource.test.ts`, `test/oracleLivePlan.test.ts`, `test/oracleLiveApply.test.ts`, `test/oracleLiveCommand.test.ts`, `test/oracleRecompile.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts`, `test/mcp.test.ts` |
+| F12 | `test/fixtures/large-symbol/` | UTF-8-safe byte-bounded source reads | `test/mcpSmoke.test.ts` |
+| F13 | `test/fixtures/multi-project/` | Three project contexts in one generation | `test/multiProject.test.ts`, `test/multiProjectConfig.test.ts`, `test/referenceGrouping.test.ts` |
+| F14 | `test/fixtures/oracle-project/` | Oracle parsing, references, dependencies, freshness, and live-plan inputs | `test/oracle.test.ts`, `test/oracleAntlr.test.ts`, `test/oracleAntlrDeclarations.test.ts`, `test/oracleAntlrDependencies.test.ts`, `test/oracleAntlrReferences.test.ts`, `test/oracleParserBinding.test.ts`, `test/oracleLiveSource.test.ts`, `test/oracleLivePlan.test.ts`, `test/oracleLiveApply.test.ts`, `test/oracleLiveCommand.test.ts`, `test/oracleRecompile.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts` |
 | F15 | `test/fixtures/oracle-publication-project/` | Oracle publication forms, pairing, diagnostics, and usage bits | `test/publicationPhase5.test.ts`, `test/publicationReport.test.ts` |
 | F16 | `test/fixtures/oracle-qualification-v2/` | Golden facts for constructs PL/Scope cannot confirm | `test/oracleGoldenFacts.test.ts` |
 | F17 | `test/fixtures/oracle-grammar-gaps/` | Known grammar gaps report a diagnostic instead of succeeding silently | `test/oracleGrammarGaps.test.ts` |
@@ -77,10 +78,10 @@ indexer, parser, or publication pipeline as its expected result.
 | Failure classes | Alias resolution, declaration kind or qualified-name drift, reference direction, outline order, malformed cursor acceptance, source-read overrun, declaration/generated file exclusion, configuration path escape. |
 | Authority | Reviewed source manifest. The scanner file list and the hand-written symbol, reference, and exclusion expectations come from reading the four authored sources. |
 | Expected result | Scan yields exactly `src/index.ts`, `src/models.ts`, `src/summary.ts` with two excluded files. `formatUser` is one `variable` in `src/models.ts`; `UserService.find` is a `method` with the qualified name `module["src/models.ts"]::UserService.find`; the class-kind outline is `['UserService']`; `formatUser` has five occurrences with one definition and references in `src/index.ts` and `src/models.ts`; two-item pages continue with distinct ids and reject `not-a-cursor`. |
-| Consuming tests | `test/indexStatus.test.ts`, `test/benchmarkEvaluation.test.ts`, `test/cli.test.ts`, `test/buildWorkerClient.test.ts`, `test/mcpGuidance.test.ts`, `test/scanWorkspace.test.ts`, `test/config.test.ts`, `test/publicationReport.test.ts`, `test/publishedFiles.test.ts`, `test/benchmarkResources.test.ts`, `test/codeIndex.test.ts`, `test/mcpStatus.test.ts`, `test/benchmark.test.ts`, `test/buildWorker.test.ts`, `test/referenceGrouping.test.ts`, `test/soak.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts`, `test/mcp.test.ts`. |
+| Consuming tests | `test/indexStatus.test.ts`, `test/benchmarkEvaluation.test.ts`, `test/cli.test.ts`, `test/buildWorkerClient.test.ts`, `test/scanWorkspace.test.ts`, `test/config.test.ts`, `test/publicationReport.test.ts`, `test/publishedFiles.test.ts`, `test/benchmarkResources.test.ts`, `test/codeIndex.test.ts`, `test/benchmark.test.ts`, `test/buildWorker.test.ts`, `test/referenceGrouping.test.ts`, `test/soak.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts`. |
 | Mutation policy | Ground truth; no fixture change for a test-only reason. Keep the authored file set at four files, because `fileCount: 4`, the exclusion count of two, and the reference totals are pinned. A semantic change requires updating this entry and every consuming expectation in the same commit. |
 | Known limitations | Single project and single package name. It does not exercise `extends`, configured `exclude`, CommonJS, JSX, or multi-project resolution; those live in other fixtures. The generated and declaration files are asserted only through the exclusion count. |
-| Update procedure | Edit the source, derive the new expectations by hand, update this entry, then run `pnpm vitest run test/scanWorkspace.test.ts test/codeIndex.test.ts test/referenceGrouping.test.ts test/mcp.test.ts` and `pnpm verify`. Never regenerate expected facts from the index. |
+| Update procedure | Edit the source, derive the new expectations by hand, update this entry, then run `pnpm vitest run test/scanWorkspace.test.ts test/codeIndex.test.ts test/referenceGrouping.test.ts` and `pnpm verify`. Never regenerate expected facts from the index. |
 | Files (7) | See the manifest below. |
 
 ```text
@@ -102,10 +103,10 @@ test/fixtures/simple-project/tsconfig.json
 | Failure classes | Wrong edge kind, package-identifier normalization, subpath collapsing, compile-time-only binding loss, path-alias false positive, cycle duplication, transitive depth error, byte-bound overflow. |
 | Authority | Reviewed source manifest. The expected consumer lists, binding records, depths, and summaries are hand-derived from the import statements and declarations in `external.d.ts`. |
 | Expected result | Direct `lodash` consumers are exactly `src/adapters/escape.ts`, `src/adapters/lodash_api.ts`, and `src/cycle/a.ts`; the impact view has eight entries with `four.ts` at depth three, `dynamic.ts` marked `dynamic-import`, and the cycle entry appearing once. Scoped usage returns only `src/adapters/scoped.ts` with a default `measure` binding and a compile-time-only `Shape` binding. `@app/adapters` returns no package consumers. |
-| Consuming tests | `test/codeIndex.test.ts`, `test/mcp.test.ts`. |
-| Mutation policy | Ground truth; the exact consumer lists and summaries are pinned. Adding a package import to any file changes expected results, so any edit must update this entry, `test/codeIndex.test.ts`, and the protocol projections in `test/mcp.test.ts` in one commit. |
+| Consuming tests | `test/codeIndex.test.ts`. |
+| Mutation policy | Ground truth; the exact consumer lists and summaries are pinned. Adding a package import to any file changes expected results, so any edit must update this entry and `test/codeIndex.test.ts` in one commit. |
 | Known limitations | External packages are declared in a local `external.d.ts`, so there is no real `node_modules` resolution. Only `lodash` and one scoped package are represented. |
-| Update procedure | Edit the graph, re-derive each consumer list and depth by hand from the imports, update this entry and both tests, then run `pnpm vitest run test/codeIndex.test.ts test/mcp.test.ts` and `pnpm verify`. |
+| Update procedure | Edit the graph, re-derive each consumer list and depth by hand from the imports, update this entry and the test, then run `pnpm vitest run test/codeIndex.test.ts` and `pnpm verify`. |
 | Files (13) | See the manifest below. |
 
 ```text
@@ -133,10 +134,10 @@ test/fixtures/dependency-graph/tsconfig.json
 | Failure classes | Distinct-consumer undercount, duplicate item keys across roots, depth drift, root-filter acceptance for a non-root, cursor reuse across group semantics, impact pagination. |
 | Authority | Reviewed source manifest. Expected counts are hand-derived: 2 direct roots; 10 narrow consumers, 10 barrel consumers, 30 shared consumers, and 1 shared module; 42 rows per root; 84 grouped rows; 53 distinct consumers. |
 | Expected result | Unfiltered impact reports `totalConsumers: 53`, `directConsumers: 2`, `transitiveConsumers: 51`, roots with 42 each, and 84 items. The shared module appears under both roots. Root filtering to `src/boundary/narrow.ts` reports 42 items and one root. A non-root filter and a filter in non-transitive mode both throw. |
-| Consuming tests | `test/codeIndex.test.ts`, `test/mcp.test.ts`. |
-| Mutation policy | Ground truth; the arithmetic above is the contract. Any file addition or removal requires recomputing all four counts and the per-root totals by hand, then updating this entry and both tests. |
+| Consuming tests | `test/codeIndex.test.ts`. |
+| Mutation policy | Ground truth; the arithmetic above is the contract. Any file addition or removal requires recomputing all four counts and the per-root totals by hand, then updating this entry and the test. |
 | Known limitations | Proves authored-module reachability, not binding use: all thirty shared consumers are impacted even when they use an unrelated binding. The fan-out is larger than a human would review per file, so the counts are the primary expectation. |
-| Update procedure | Change the graph, recompute the counts from the source manifest, update this entry and the two tests, then run `pnpm vitest run test/codeIndex.test.ts test/mcp.test.ts` and `pnpm verify`. |
+| Update procedure | Change the graph, recompute the counts from the source manifest, update this entry and the test, then run `pnpm vitest run test/codeIndex.test.ts` and `pnpm verify`. |
 | Files (55) | See the manifest below. |
 
 ```text
@@ -442,10 +443,10 @@ test/fixtures/javascript-project/tsconfig.json
 | Failure classes | Byte-versus-character truncation, split code point, replacement character, envelope overflow, wrong truncation reason. |
 | Authority | Reviewed source manifest plus the envelope contract. The literal source defines the byte content; the contract defines the bound. No expected snapshot is recorded. |
 | Expected result | The serialized response is at most 2000 bytes; the source is non-empty; it contains no U+FFFD; `truncated` is true and `truncatedReason` is `bytes`. |
-| Consuming tests | `test/mcp.test.ts`. |
+| Consuming tests | `test/mcpSmoke.test.ts`. |
 | Mutation policy | Ground truth; preserve the emoji/CJK mix. Replacing it with ASCII removes the code-point claim. The content must stay large enough to truncate at the pinned bound. |
 | Known limitations | A single symbol and a single bound. Line-based truncation and context-line behaviour are covered by module tests with inline values. |
-| Update procedure | Edit only to strengthen the character mix, then run `pnpm vitest run test/mcp.test.ts` and `pnpm verify`. Re-derive the bound from the contract, never from the current output length. |
+| Update procedure | Edit only to strengthen the character mix, then run `pnpm vitest run test/mcpSmoke.test.ts` and `pnpm verify`. Re-derive the bound from the contract, never from the current output length. |
 | Files (2) | See the manifest below. |
 
 ```text
@@ -462,10 +463,10 @@ test/fixtures/large-symbol/tsconfig.json
 | Failure classes | Context attribution, duplicate declaration handling, union file count, context filter validation, dependency filter leakage, failed-rebuild publication, duplicate or ambiguous project configuration. |
 | Authority | Compiler output for the project graph and module resolution, plus a reviewed source manifest for the three-file union and the pinned contexts. |
 | Expected result | Three files indexed across contexts `browser`, `contracts`, and `server`; `ServiceRequest` is one type in `contracts/src/service.ts` with all three contexts; client references are tagged `browser`, server references `server`; `shared-package` consumers are `server/src/routes.ts` and `src/client.ts`, and the contracts filter returns none; a malformed server `tsconfig.json` throws while the published generation id is unchanged; duplicate context names and duplicate project files are rejected. |
-| Consuming tests | `test/multiProject.test.ts`, `test/multiProjectConfig.test.ts`, `test/mcp.test.ts`, `test/referenceGrouping.test.ts`. |
-| Mutation policy | Ground truth; keep exactly three contexts and three authored files. Changing the project set requires updating both multi-project tests, the protocol projection, and this entry. |
+| Consuming tests | `test/multiProject.test.ts`, `test/multiProjectConfig.test.ts`, `test/referenceGrouping.test.ts`. |
+| Mutation policy | Ground truth; keep exactly three contexts and three authored files. Changing the project set requires updating both multi-project tests and this entry. |
 | Known limitations | Projects do not use composite references or `extends`; the shared file is reached by relative import and alias, not by package boundary. |
-| Update procedure | Edit the projects, confirm the compiler still loads all three, update this entry and the four tests, then run `pnpm vitest run test/multiProject.test.ts test/multiProjectConfig.test.ts test/mcp.test.ts test/referenceGrouping.test.ts` and `pnpm verify`. |
+| Update procedure | Edit the projects, confirm the compiler still loads all three, update this entry and the three tests, then run `pnpm vitest run test/multiProject.test.ts test/multiProjectConfig.test.ts test/referenceGrouping.test.ts` and `pnpm verify`. |
 | Files (6) | See the manifest below. |
 
 ```text
@@ -486,10 +487,10 @@ test/fixtures/multi-project/tsconfig.json
 | Failure classes | Grammar gap, scope or member resolution, spec/body pairing, overload identity, forward-definition anchoring, conditional-compilation leakage, manifest freshness, source drift, live-plan ordering. |
 | Authority | Reviewed source manifest. Every expected unit, declaration, parameter, reference, dependency target, hash transition, and plan ordering is hand-derived from the SQL and documented Oracle 19c semantics. ANTLR versus structural parity is corroborating evidence, not the authority. |
 | Expected result | `hr_api.pks` yields one `APP.HR_API` unit with record, fields, collection, subtype, constant, variable, exception, function, two `FIND_EMPLOYEE` procedures, and parameter modes `IN OUT`, `IN`, `IN` with a default; `hr_api.pkb` yields a package body with private constant, private helper, nested routine, two forward declarations, and `HR_API.DELETE_EMPLOYEE` references; `qualification.pkb` recovers all five routines after nested `CASE`, emits no references at declaration sites, and skips literal-disabled branches while keeping unknown-condition branches; dependency sites resolve `HR_API` to `hr_api.pks` and leave `EXTERNAL_API` unresolved; scanning changes the source hash on add/edit/delete and the config hash on manifest change; the live plan snapshots more than five files and orders specification compilation before body compilation. |
-| Consuming tests | `test/oracle.test.ts`, `test/oracleAntlr.test.ts`, `test/oracleAntlrDeclarations.test.ts`, `test/oracleAntlrDependencies.test.ts`, `test/oracleAntlrReferences.test.ts`, `test/oracleParserBinding.test.ts`, `test/oracleLiveSource.test.ts`, `test/oracleLivePlan.test.ts`, `test/oracleLiveApply.test.ts`, `test/oracleLiveCommand.test.ts`, `test/oracleRecompile.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts`, `test/mcp.test.ts`. |
+| Consuming tests | `test/oracle.test.ts`, `test/oracleAntlr.test.ts`, `test/oracleAntlrDeclarations.test.ts`, `test/oracleAntlrDependencies.test.ts`, `test/oracleAntlrReferences.test.ts`, `test/oracleParserBinding.test.ts`, `test/oracleLiveSource.test.ts`, `test/oracleLivePlan.test.ts`, `test/oracleLiveApply.test.ts`, `test/oracleLiveCommand.test.ts`, `test/oracleRecompile.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts`. |
 | Mutation policy | Ground truth; the six database files are the shared parser, scanner, and live-plan input. Any edit must be reviewed against every consumer, and expectations must be re-derived from the SQL, never from parser output. Live tests stub the database and never reach a real Oracle instance. |
 | Known limitations | No live Oracle execution; PL/Scope truth exports are empty or stubbed. The structural parser is retained, so parity tests compare two implementations and can hide a shared misunderstanding; the reviewed source manifest remains authoritative. |
-| Update procedure | Edit SQL, re-derive declarations and references by hand, update this entry and the affected Oracle tests, then run `pnpm vitest run test/oracle.test.ts test/oracleAntlr.test.ts test/oracleAntlrDeclarations.test.ts test/oracleAntlrDependencies.test.ts test/oracleAntlrReferences.test.ts test/oracleParserBinding.test.ts test/oracleLivePlan.test.ts test/publicationFacts.test.ts test/mcp.test.ts` and `pnpm verify`. |
+| Update procedure | Edit SQL, re-derive declarations and references by hand, update this entry and the affected Oracle tests, then run `pnpm vitest run test/oracle.test.ts test/oracleAntlr.test.ts test/oracleAntlrDeclarations.test.ts test/oracleAntlrDependencies.test.ts test/oracleAntlrReferences.test.ts test/oracleParserBinding.test.ts test/oracleLivePlan.test.ts test/publicationFacts.test.ts` and `pnpm verify`. |
 | Files (7) | See the manifest below. |
 
 ```text
