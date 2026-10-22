@@ -137,7 +137,8 @@ node evaluation/harness/src/cli.ts local-regression \
 ```
 
 `local-diagnostic` stops when a candidate answer is wrong, the target workflow
-does not improve, or any observed metric regresses. `local-regression` runs it
+does not improve, or retrieval bytes or tool calls regress. Token and wall-clock
+changes are recorded as observations. `local-regression` runs it
 before the full suite, writes `report.json` and `local-regression.json`, reports
 class-stratified trends, and sets `diagnosisRequired` when targeted diagnosis is
 needed. Both commands require frozen case hashes and staged artifacts, accept
