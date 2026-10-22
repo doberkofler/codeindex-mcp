@@ -85,7 +85,7 @@ const TYPESCRIPT_ADAPTER_TESTS = [
 	'test/extractors.test.ts',
 	'test/loadProject.test.ts',
 	'test/multiProject.test.ts',
-	'test/publicationPhase4.test.ts',
+	'test/typescriptPublicationSurface.test.ts',
 	'test/scanWorkspace.test.ts',
 ];
 
@@ -98,7 +98,7 @@ const ORACLE_ADAPTER_TESTS = [
 	'test/oracleGrammarGaps.test.ts',
 	'test/oracleOverloadResolution.test.ts',
 	'test/oracleParserBinding.test.ts',
-	'test/publicationPhase5.test.ts',
+	'test/oraclePublicationSurface.test.ts',
 ];
 
 const REFERENCE_CORPUS_TESTS = [
@@ -117,7 +117,7 @@ const CORE_INTEGRATION_TESTS = [
 	'test/dependencyCases.test.ts',
 	'test/oracleCodeFacts.test.ts',
 	'test/publicationFacts.test.ts',
-	'test/publicationPhase6.test.ts',
+	'test/publicationDefaultsAndEnforcement.test.ts',
 	'test/referenceGrouping.test.ts',
 	'test/storage.test.ts',
 ];

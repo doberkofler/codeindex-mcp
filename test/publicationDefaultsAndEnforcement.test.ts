@@ -40,7 +40,7 @@ const eventLine = (id: string, presence: string): string =>
 		presence,
 	});
 
-describe('Phase 6 defaults', () => {
+describe('Publication defaults', () => {
 	it('defaults find_symbol to visible exposure', () => {
 		expect(FindSymbolInputSchema.parse({query: 'api'}).exposure).toBe('visible');
 
@@ -91,7 +91,7 @@ describe('Phase 6 defaults', () => {
 	});
 
 	it('aggregates exact-name presence counters in analytics summaries', () => {
-		const directory = mkdtempSync(path.join(tmpdir(), 'code-index-phase6-'));
+		const directory = mkdtempSync(path.join(tmpdir(), 'code-index-publication-'));
 
 		try {
 			const analyticsPath = path.join(directory, 'events.jsonl');
@@ -107,7 +107,7 @@ describe('Phase 6 defaults', () => {
 	});
 });
 
-describe('Phase 6 enforced invariants', () => {
+describe('Enforced publication invariants', () => {
 	it('measures resolved invariants during finalization when an extractor is present', () => {
 		const {extracted, cleanup} = buildExtracted();
 

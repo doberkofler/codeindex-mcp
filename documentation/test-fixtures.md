@@ -56,14 +56,14 @@ indexer, parser, or publication pipeline as its expected result.
 | F05 | `test/fixtures/reference-grouping/` | Reference selectors, grouping, ordering, and ambiguity | `test/referenceGrouping.test.ts` |
 | F06 | `test/fixtures/reference-edges/` | Language-service differential for hard reference edges | `test/referenceVerification.test.ts` |
 | F07 | `test/fixtures/reference-corpus/` | Production reference gate with full construct-tag coverage | `test/referenceVerification.test.ts` |
-| F08 | `test/fixtures/publication-project/` | TypeScript publication surface and exposure projection | `test/publicationPhase4.test.ts`, `test/publicationPhase6.test.ts`, `test/publicationReport.test.ts` |
+| F08 | `test/fixtures/publication-project/` | TypeScript publication surface and exposure projection | `test/typescriptPublicationSurface.test.ts`, `test/publicationDefaultsAndEnforcement.test.ts`, `test/publicationReport.test.ts` |
 | F09 | `test/fixtures/commonjs-project/` | CommonJS `export =` and `module.exports` classification | `test/publicationReport.test.ts` |
 | F10 | `test/fixtures/external-reexport/` | Authored façade re-export of an external package | `test/codeIndex.test.ts`, `test/publicationReport.test.ts` |
-| F11 | `test/fixtures/javascript-project/` | ESM JavaScript indexing under `allowJs` | `test/extractors.test.ts`, `test/publicationPhase4.test.ts` |
+| F11 | `test/fixtures/javascript-project/` | ESM JavaScript indexing under `allowJs` | `test/extractors.test.ts`, `test/typescriptPublicationSurface.test.ts` |
 | F12 | `test/fixtures/large-symbol/` | UTF-8-safe byte-bounded source reads | `test/mcpSmoke.test.ts` |
 | F13 | `test/fixtures/multi-project/` | Three project contexts in one generation | `test/multiProject.test.ts`, `test/multiProjectConfig.test.ts`, `test/referenceGrouping.test.ts` |
 | F14 | `test/fixtures/oracle-project/` | Oracle parsing, references, dependencies, freshness, and live-plan inputs | `test/oracle.test.ts`, `test/oracleAntlr.test.ts`, `test/oracleAntlrDeclarations.test.ts`, `test/oracleAntlrDependencies.test.ts`, `test/oracleAntlrReferences.test.ts`, `test/oracleParserBinding.test.ts`, `test/oracleLiveSource.test.ts`, `test/oracleLivePlan.test.ts`, `test/oracleLiveApply.test.ts`, `test/oracleLiveCommand.test.ts`, `test/oracleRecompile.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts` |
-| F15 | `test/fixtures/oracle-publication-project/` | Oracle publication forms, pairing, diagnostics, and usage bits | `test/publicationPhase5.test.ts`, `test/publicationReport.test.ts` |
+| F15 | `test/fixtures/oracle-publication-project/` | Oracle publication forms, pairing, diagnostics, and usage bits | `test/oraclePublicationSurface.test.ts`, `test/publicationReport.test.ts` |
 | F16 | `test/fixtures/oracle-qualification-v2/` | Golden facts for constructs PL/Scope cannot confirm | `test/oracleGoldenFacts.test.ts` |
 | F17 | `test/fixtures/oracle-grammar-gaps/` | Known grammar gaps report a diagnostic instead of succeeding silently | `test/oracleGrammarGaps.test.ts` |
 
@@ -349,10 +349,10 @@ test/fixtures/reference-corpus/typeValue/usage.ts
 | Failure classes | Surface projection errors, exposure misclassification, alias or external-target loss, binding identity collisions, invariant violations, usage-bit misclassification, default-exposure filtering. |
 | Authority | Compiler output. The TypeScript export table and the language-service-based independent prototypes in `test/publicationReport.test.ts` are the truth; the expected binding list is reviewed against the sources. |
 | Expected result | Fourteen named bindings are published including `api.run`, `api.nested.deep`, `hidden.m`, `load::return::awaited.ready`, `list::return::element.k`, `default::return.go`, `exposed`, `renamed`, `starValue`, `starFn`, `Derived.baseOnly`, `readValue.run`, `callValue::awaited.ready`, and `typed.x`; public `value` is published and private `hidden` is absent; namespace `helpers` and `helpers.starValue` are published; `externalAlias` carries `externalTarget: 'external-package'`; usage bits include call 1, type 8, write 4, read 2; `find_symbol` defaults to visible, `Supporting` is reachable, `internalOnly` is hidden unless `exposure: any`; the independent report passes G-A and G-A2 with zero missing or extra root exports and zero missing aliases. |
-| Consuming tests | `test/publicationPhase4.test.ts`, `test/publicationPhase6.test.ts`, `test/publicationReport.test.ts`. |
+| Consuming tests | `test/typescriptPublicationSurface.test.ts`, `test/publicationDefaultsAndEnforcement.test.ts`, `test/publicationReport.test.ts`. |
 | Mutation policy | Ground truth. Any source edit must update `EXPECTED_BINDINGS`, the exposure assertions, and the independent report expectations in the same commit. Do not add files that only increase counts without a named construct claim. |
 | Known limitations | `property-names.ts` is exercised only through the whole-fixture invariant that finalization reports no issues; it has no dedicated assertion. External packages are ambient `.d.ts` declarations, not installed packages. |
-| Update procedure | Edit the source, re-derive exposures and usage bits from the compiler export table, update this entry and the three tests, then run `pnpm vitest run test/publicationPhase4.test.ts test/publicationPhase6.test.ts test/publicationReport.test.ts` and `pnpm verify`. |
+| Update procedure | Edit the source, re-derive exposures and usage bits from the compiler export table, update this entry and the three tests, then run `pnpm vitest run test/typescriptPublicationSurface.test.ts test/publicationDefaultsAndEnforcement.test.ts test/publicationReport.test.ts` and `pnpm verify`. |
 | Files (11) | See the manifest below. |
 
 ```text
@@ -421,10 +421,10 @@ test/fixtures/external-reexport/tsconfig.json
 | Failure classes | JavaScript exclusion, module-format misclassification, unpublished export, cross-file reference loss, source-read failure. |
 | Authority | Compiler output. The compiler determines the two project files and the `allowJs` semantics; declarations and the cross-file reference follow from the sources. |
 | Expected result | Two files indexed; `greet` is in `src/greet.js` with `symbolExposure: 'published'`; a reference exists in `src/index.js`; reading the symbol returns source containing `export const greet`. |
-| Consuming tests | `test/extractors.test.ts`, `test/publicationPhase4.test.ts`. |
+| Consuming tests | `test/extractors.test.ts`, `test/typescriptPublicationSurface.test.ts`. |
 | Mutation policy | Ground truth; keep the package ESM and the project JavaScript-only. Adding TypeScript changes the claim. |
 | Known limitations | No CommonJS JavaScript (F09) and no JSX in `.js` files. JSDoc types are not asserted. |
-| Update procedure | Edit the JavaScript, update this entry and both tests, then run `pnpm vitest run test/extractors.test.ts test/publicationPhase4.test.ts` and `pnpm verify`. |
+| Update procedure | Edit the JavaScript, update this entry and both tests, then run `pnpm vitest run test/extractors.test.ts test/typescriptPublicationSurface.test.ts` and `pnpm verify`. |
 | Files (4) | See the manifest below. |
 
 ```text
@@ -512,10 +512,10 @@ test/fixtures/oracle-project/oracle-index.json
 | Failure classes | Pairing mismatch, forward-definition primary drift, declaration-form counting, diagnostic code drift (9111 missing/mismatch, 9110 duplicate), usage aggregation, exposure. |
 | Authority | Reviewed source manifest. Expected forms, pair counts, primary paths, diagnostic codes, and usage counts are hand-derived from the PL/SQL sources and Oracle semantics. The independent report measures the adapter but the asserted facts are source-derived. |
 | Expected result | Specification, full-definition, body-forward, call-spec (1), polymorphic-table-function (1), cursor pair (1), routine pairs (>0), call specs (1), and polymorphic table functions (1) are counted. `WRITE_ITEM` is published, defined in both `feature_api.pks` and `feature_api.pkb`, with the body as primary path. `FORWARD_HELPER` and `HELPER` each have a forward and a full definition, with the full definition primary. A parameter-mode mismatch reports 9111, a missing body reports 9111, a duplicate public routine reports 9110, and private overloads report nothing. Usage bits in `feature_usage.prc` include `WRITE_ITEM` call 1, `EXTERNAL_PROC` call 1, `G_ITEM` 6, `G_NOTE` 4 and 2, and `ID` 8, 4, and 2. The report measures routine pairs, cursor pairs, call specs, polymorphic table functions, body forwards, and body-less specifications above zero, while independent prototypes are disabled. |
-| Consuming tests | `test/publicationPhase5.test.ts`, `test/publicationReport.test.ts`. |
+| Consuming tests | `test/oraclePublicationSurface.test.ts`, `test/publicationReport.test.ts`. |
 | Mutation policy | Ground truth. Diagnostic fixtures are edited in temporary copies only; the checked-in source must stay syntactically valid. Any source change requires updating this entry and both tests. |
 | Known limitations | No real Oracle compile; the report measures the adapter and explicitly disables the independent prototypes for Oracle. Overload identity is asserted only for the private case and the specification pair. |
-| Update procedure | Edit the source, re-derive forms, pairs, diagnostics, and usages by hand, update this entry and both tests, then run `pnpm vitest run test/publicationPhase5.test.ts test/publicationReport.test.ts` and `pnpm verify`. |
+| Update procedure | Edit the source, re-derive forms, pairs, diagnostics, and usages by hand, update this entry and both tests, then run `pnpm vitest run test/oraclePublicationSurface.test.ts test/publicationReport.test.ts` and `pnpm verify`. |
 | Files (10) | See the manifest below. |
 
 ```text
@@ -589,7 +589,7 @@ assertion. Both are bound to a named test:
 
 | File | Consuming test and binding |
 |---|---|
-| `property-names.ts` in F08 | `test/publicationPhase4.test.ts` asserts that finalization reports no issues and that the expected binding set is published; a regression in computed property names, hyphenated keys, or the anonymous class expression would surface there. |
+| `property-names.ts` in F08 | `test/typescriptPublicationSurface.test.ts` asserts that finalization reports no issues and that the expected binding set is published; a regression in computed property names, hyphenated keys, or the anonymous class expression would surface there. |
 | `qualification.pkb` in F15 | `test/publicationReport.test.ts` requires body-less specifications and the other pairing measurements to remain above zero, which depends on this body-only package. |
 
 The ignored macOS metadata file that previously sat at the fixture root was removed;

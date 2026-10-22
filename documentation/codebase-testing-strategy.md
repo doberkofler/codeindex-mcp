@@ -30,8 +30,9 @@ problems:
 
 - module, adapter, storage, MCP, lifecycle, benchmark-harness, and Oracle tests share one
   directory, although the focused workflows in section 6 now select them by class;
-- historical names such as `publicationPhase4.test.ts` describe delivery phases rather
-  than lasting contracts;
+- test names state the contract they protect; the former delivery-phase names are now
+  `typescriptPublicationSurface.test.ts`, `oraclePublicationSurface.test.ts`, and
+  `publicationDefaultsAndEnforcement.test.ts`;
 - protocol-only MCP tests use a controlled fake index, and one vertical smoke keeps the real
   TypeScript wiring visible;
 - fixture purpose, authority, and expected facts are catalogued in the
@@ -184,7 +185,7 @@ to prove wiring.
 1. Inventory every existing test by class, interface, data, and expected claim.
 2. Catalogue the existing TypeScript fixtures before adding more.
 3. Add self-contained focused commands.
-4. Rename historical phase tests by enduring behavior.
+4. [x] Rename historical phase tests by enduring behavior.
 5. [x] Split MCP protocol assertions from real-index vertical tests.
 6. [x] Add a controlled fake index for protocol tests.
 7. [x] Add one built-process deterministic system test.
