@@ -383,6 +383,27 @@ changed model artifact, quantization, runtime, context, generation setting, or
 reference machine is visible without reading raw results. The `smoke` command
 verifies the pin before the first model call and refuses a mismatch.
 
+A `local-diagnostic` campaign serves the four-execution accepted-versus-candidate
+stage. It selects exactly two predeclared impact cases, one repetition, and the
+`accepted` and `candidate` treatments, and it writes `targeted-diagnostic.json`
+beside the executions. The manifest, record, and claim class are
+`local-model-scoped`. Continuation requires a clean execution contract, a correct
+candidate answer on both cases, a strict improvement of the predeclared target
+metric, and no observed metric or correctness regression. Those are the
+accepted-versus-candidate conditions of strategy §11; one repetition supports no
+interval, so the record retains observations rather than a statistical verdict.
+
+A `local-regression` campaign runs that diagnostic before the full suite and does
+not start the 162 executions unless it passes. It then runs the frozen 18-case
+suite with all three treatments and three paired repetitions, and writes both
+`report.json` and `local-regression.json`. The local record carries
+`claimClass: "local-model-scoped"` and `releaseAuthority: false`, reports the
+overall and class-stratified target ratios, and sets `diagnosisRequired` when a
+statistically supported regression, a failed gate, a correctness loss, or a
+non-improving target metric appears. A claim class other than the local class is
+rejected before the local record is written, so local evidence cannot be promoted
+to a release claim and a hosted result cannot replace it.
+
 A `calibration` manifest serves the frozen two-treatment local qualification.
 `calibrate` verifies every eligible pinned environment, rebinds the frozen suite
 to each environment's model without changing case hashes, and first runs the
@@ -893,6 +914,7 @@ only; it neither defines nor reinterprets a gate.
 | Run identity and mismatch invalidation | Run manifest identity; `--resume` matches the complete identity; mismatched revision, model, prompt, bundle, or configuration is rejected ([§6](#6-cli-shape), [§7.3](#73-run-identity-and-resume-equality), [§10](#10-verification)) |
 | Isolation and restoration | Dedicated checkout, ephemeral client state, atomic persistence, restoration after every execution ([§5](#5-isolation), [§5.1](#51-opencode-client-state)) |
 | Treatment equivalence | Treatment definitions record every difference; equivalence checks reject non-equivalent treatments ([§3.3](#33-treatment), [§9](#9-architecture)) |
+| Local diagnostic and regression stages | `local-diagnostic` fixes two impact cases, accepted and candidate, one repetition, and the predeclared target metric; it writes `targeted-diagnostic.json` and blocks continuation on an incorrect candidate answer, no target improvement, or an observed regression. `local-regression` runs it first, then the 18 × 3 × 3 plan, and writes class-stratified `local-regression.json` under the local claim class ([§7.2](#72-run-manifest)) |
 | Telemetry validity | Exact token extraction with availability status; missing usage invalidates the affected metric, never estimated from bytes ([§2](#2-goals), [§7.5](#75-telemetry-availability-states)) |
 | Failed-slot-only retry | One immutable result per execution identity; `--resume` neither repeats nor skips a completed slot; failed and invalid executions stay inspectable ([§6](#6-cli-shape), [§7.6](#76-execution-outcome-and-validity), [§7.7](#77-atomic-persistence-and-partial-writes)) |
 | Stop rules | The harness records pass, fail, or invalid per execution with raw evidence. Applying a stop rule is a reviewer decision, not a harness verdict |

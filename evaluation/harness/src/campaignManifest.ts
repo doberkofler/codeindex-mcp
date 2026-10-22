@@ -35,6 +35,7 @@ const surfaceForOf = (surfaces: Awaited<ReturnType<typeof surfacesOf>>, treatmen
  *
  * @param setup - Resolved plan, identity, and pinned subject.
  * @param derived - Artifacts, captured surfaces, and configuration digests.
+ * @param claimClass - Declared evidence class; never inferred from results.
  * @returns The manifest record.
  */
 export const campaignManifestOf = (
@@ -44,6 +45,7 @@ export const campaignManifestOf = (
 		surfaces: Awaited<ReturnType<typeof surfacesOf>>;
 		treatmentContexts: ReadonlyMap<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>;
 	}>,
+	claimClass = 'none',
 ): CampaignManifestType => {
 	const {suite, selected, treatments, repetitions, environment, plan, planHash, identity, identityDigest, comparisonDigest, subject, clientStore} = setup;
 	const campaignId = `${suite.id}-${identityDigest.slice(0, 16)}`;
@@ -81,7 +83,7 @@ export const campaignManifestOf = (
 		recordType: 'manifest',
 		schemaVersion: EXECUTION_SCHEMA_VERSION,
 		campaignId,
-		claimClass: 'none',
+		claimClass,
 		suite: {id: suite.id, version: suite.version, status: suite.status, hash: suite.hash},
 		cases: selected.map((testCase) => ({id: testCase.id, hash: caseHashOf(testCase)})),
 		harness: HARNESS_VERSION,

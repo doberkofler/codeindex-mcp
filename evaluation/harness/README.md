@@ -237,6 +237,12 @@ pnpm eval:evaluate --dry-run
 pnpm eval:evaluate --case locate-schema-version --treatment candidate --repetitions 1
 pnpm eval:evaluate --treatment all
 pnpm eval:evaluate --campaign-store /tmp/codeindex-campaign/client.db
+node evaluation/harness/src/cli.ts local-diagnostic --suite evaluation/suites/release.json \
+  --environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
+  --target-metric retrievalBytes
+node evaluation/harness/src/cli.ts local-regression --suite evaluation/suites/release.json \
+  --environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
+  --target-metric retrievalBytes
 pnpm eval:report --run <run-id>
 pnpm eval:test
 pnpm eval:typecheck
@@ -337,6 +343,61 @@ accepted median retrieval bytes. Missing token telemetry is recorded as a
 limitation and invalidates only the token metrics. A changed model digest,
 quantization, runtime, context, generation setting, host fact, or budget defines
 a new baseline.
+
+### Targeted diagnostic and full local regression
+
+`local-diagnostic` is the normal development loop for one MCP interface change:
+two predeclared impact cases, the `accepted` and `candidate` treatments, one
+repetition, and four executions in total. The target metric is predeclared on the
+command line and never inferred from the results:
+
+```bash
+node src/cli.ts local-diagnostic --suite suites/release.json \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --target-metric retrievalBytes
+```
+
+Continuation requires a clean execution contract, a correct candidate answer on
+both cases, a strict improvement of the target metric, and no observed metric or
+correctness regression on either case. One repetition supports no interval, so
+every comparison is retained as an observation for review. The command writes
+`targeted-diagnostic.json` beside the executions and exits non-zero when the
+diagnostic is blocked.
+
+`local-regression` runs that diagnostic first and starts the full suite only
+after it passes. It then runs the frozen 18-case suite with all three treatments
+and three paired repetitions, which is exactly 162 executions:
+
+```bash
+node src/cli.ts local-regression --suite suites/release.json \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --target-metric retrievalBytes
+```
+
+Both commands reject `--case`, `--tag`, `--treatment`, and `--repetitions`,
+because the local plan is fixed. `--environment` is required exactly once and
+must declare purpose `calibration`. `--target-metric` is one of
+`retrievalBytes`, `toolCalls`, `tokens`, or `wallTimeMs`. `--dry-run` validates
+the suite, subject, and planned slots without starting a model; for
+`local-regression` it prints the four diagnostic slots and all 162 regression
+slots. `--resume` reuses only a stored result with the complete matching
+execution identity.
+
+The full stage writes the ordinary `report.json` plus `local-regression.json`.
+The local record retains the overall and per-class target ratios, correctness,
+paired metric deltas, and every threshold outcome. A statistically supported
+candidate regression, a failed gate, a correctness loss, or a non-improving
+target metric sets `diagnosisRequired` and names the affected class or case, so
+the operator returns to `local-diagnostic` for targeted diagnosis. Point-only
+increases in a class with one case pair are retained as observations and never
+treated as statistical support.
+
+Both records carry `claimClass: "local-model-scoped"`; the regression record also
+carries `releaseAuthority: false`. The campaign manifest and report state the
+same claim class. Local evidence can reject an interface or detect a regression,
+but it can never satisfy a hosted release gate, and a hosted result can never
+replace or override a local regression. A non-matching claim class is rejected
+before the local record is written.
 
 ### Result records and resume
 

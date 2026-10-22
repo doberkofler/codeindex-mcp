@@ -45,6 +45,8 @@ export type EvaluationOptionsType = Readonly<{
 	budgetMs?: number;
 	/** Write the ordinary paired report; false for diagnostics and calibration. */
 	comparison?: boolean;
+	/** Evidence class this campaign may support. Never inferred from results. */
+	claimClass?: 'none' | 'local-model-scoped' | 'hosted-model-scoped';
 }>;
 
 export type EvaluationRunType = Readonly<{
@@ -80,6 +82,16 @@ type SurfacesType = Readonly<{
 	treatmentContexts: ReadonlyMap<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>;
 }>;
 
+const assertClaimEnvironmentOf = (claimClass: EvaluationOptionsType['claimClass'], environment: EnvironmentManifestType | null): void => {
+	if (claimClass === 'local-model-scoped' && environment === null) {
+		throw new Error('local-model-scoped evidence requires a pinned local environment');
+	}
+
+	if (claimClass === 'hosted-model-scoped' && environment !== null) {
+		throw new Error('hosted-model-scoped evidence must not use a pinned local environment');
+	}
+};
+
 const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOptionsType): EvaluationSetupType => {
 	const suitePath = flagOf(flags, 'suite');
 
@@ -106,6 +118,8 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 	if (environment !== null) {
 		assertEnvironmentModel(environment, suite.model);
 	}
+
+	assertClaimEnvironmentOf(options.claimClass, environment);
 
 	const plan = planOf(selected, treatmentIdsOf(treatments), repetitions);
 	const planHash = planHashOf(plan);
@@ -369,7 +383,7 @@ const budgetOf = (
 // report requires treatment-identical agent surfaces, which calibration
 // intentionally does not have because accepted adds native MCP tools.
 const comparisonOf = (results: readonly RunResultType[], manifest: CampaignManifestType, options: EvaluationOptionsType): ReturnType<typeof compare> | null =>
-	options.comparison === false || options.budgetMs !== undefined || results.length === 0 ? null : compare(results, manifest);
+	options.comparison === false || results.length === 0 ? null : compare(results, manifest);
 
 const writeCampaignOutcomeOf = (
 	setup: EvaluationSetupType,
@@ -443,7 +457,7 @@ export const evaluateCommand = async (flags: Map<string, string[]>, options: Eva
 
 	const {surfaces, treatmentContexts} = await prepareSurfacesOf(setup);
 	const campaignId = `${suite.id}-${identityDigest.slice(0, 16)}`;
-	const manifest = campaignManifestOf(setup, {artifacts, surfaces, treatmentContexts});
+	const manifest = campaignManifestOf(setup, {artifacts, surfaces, treatmentContexts}, options.claimClass ?? 'none');
 
 	ensureManifestAt(path.join(runDir, 'manifest.json'), manifest);
 	writeJsonAtomic(path.join(runDir, 'run.json'), {...manifest, status: 'running'}, true);

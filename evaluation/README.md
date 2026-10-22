@@ -117,6 +117,35 @@ model-independent claim. Execution records are in
 the earlier v1 campaign is
 [`audits/local-model-calibration-e1.md`](audits/local-model-calibration-e1.md).
 
+The selected regression sentinel is `ollama/qwen3.8:27b-mlx`. The normal
+development loop and the full local regression use the frozen release suite, the
+selected environment, a predeclared target metric, and the local claim class:
+
+```bash
+# Four executions: two impact cases x accepted/candidate x one repetition.
+node evaluation/harness/src/cli.ts local-diagnostic \
+  --suite suites/release.json \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --target-metric retrievalBytes
+
+# Diagnostic first, then 18 cases x 3 treatments x 3 paired repetitions = 162.
+node evaluation/harness/src/cli.ts local-regression \
+  --suite suites/release.json \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --target-metric retrievalBytes
+```
+
+`local-diagnostic` stops when a candidate answer is wrong, the target workflow
+does not improve, or any observed metric regresses. `local-regression` runs it
+before the full suite, writes `report.json` and `local-regression.json`, reports
+class-stratified trends, and sets `diagnosisRequired` when targeted diagnosis is
+needed. Both commands require frozen case hashes and staged artifacts, accept
+`--dry-run` without starting a model, and reject a plan-changing flag. Their
+records carry `claimClass: "local-model-scoped"`; the full record also carries
+`releaseAuthority: false`, so a hosted result cannot override local evidence or
+vice versa. The diagnostic result and the reason the full suite did not start
+are recorded in [`audits/local-regression-e2.md`](audits/local-regression-e2.md).
+
 The draft controlled semantic suite is listed with:
 
 ```bash
