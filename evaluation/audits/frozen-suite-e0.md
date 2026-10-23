@@ -122,7 +122,8 @@ pacing between executions, rounded to 20 s per execution:
 | Campaign | Executions | Expected runtime | Hard bound |
 | --- | ---: | ---: | ---: |
 | Calibration smoke (`no-index`, `accepted`) | 12 | about 4 minutes | 36 minutes |
-| Local regression (3 treatments × 3 repetitions) | 162 | about 55 minutes | 8.1 hours |
+| Local-model qualification (`no-index`, canonical artifact, 3 repetitions) | 108 | about 36 minutes | 5.4 hours |
+| Historical local regression (3 treatments × 3 repetitions) | 162 | about 55 minutes | 8.1 hours |
 | Hosted release (3 treatments × 5 repetitions) | 270 | about 90 minutes | 13.5 hours |
 
 The calibration budget is 15 minutes per local model. The expected 4-minute run

@@ -38,8 +38,10 @@ Evaluation v1 harness runs use the TypeScript/JavaScript adapter only. External
 database systems ([§5.2](#52-external-systems)) and the non-TypeScript rows in
 [§8.2](#82-adapter-specific-case-classes) are deferred reference material; they are
 not v1 acceptance evidence. Harness results carry the claim class defined in
-[strategy §1.2](./mcp-evaluation-strategy.md#12-claim-authority): local runs are
-local-model-scoped, and only a hosted campaign can support a release claim.
+[strategy §1.2](./mcp-evaluation-strategy.md#12-claim-authority): local qualification is
+local-model-scoped, and only a hosted campaign can support a release claim. Per
+[strategy §1.3](./mcp-evaluation-strategy.md#13-gate-responsibilities), local qualification
+is independent of the hosted architecture sequence.
 
 ## 1. Decision
 
@@ -113,8 +115,8 @@ version and the case hashes are the suite's contribution to run identity.
 
 ### 3.3 Treatment
 
-A treatment defines one controlled execution environment. User-visible CodeIndex
-changes use three treatments:
+A treatment defines one controlled execution environment. Frontier evaluation of a
+user-visible CodeIndex change uses three treatments:
 
 | Treatment | Setup |
 | --- | --- |
@@ -125,6 +127,11 @@ changes use three treatments:
 Every treatment inspects the same pinned subject revision. Accepted and candidate differ
 only in the CodeIndex artifact and its resulting MCP interface. Treatment definitions are
 data and record every difference that could affect the result.
+
+Local-model qualification instead uses exactly two treatments: `no-index` and one fixed
+canonical CodeIndex artifact. The canonical artifact has its own pinned identity and is
+not rebound to a moving `accepted` or `candidate`. Across comparable qualification
+campaigns, only the pinned model environment changes.
 
 Workflow compliance and answer correctness are separate results. A correct answer
 that exceeds a tool budget fails the workflow gate but keeps its correctness
@@ -408,21 +415,35 @@ non-improving target metric appears. A claim class other than the local class is
 rejected before the local record is written, so local evidence cannot be promoted
 to a release claim and a hosted result cannot replace it.
 
-A `release` campaign runs the deferred hosted-model gate after the model-free and
-local stages pass. It loads a pinned hosted reference that records the exact
+This is the historical candidate-evaluation command, not the approved future
+local-model qualification gate. The completed v1 record keeps its original `NOT PASSED`
+verdict. EVAL-029 (#56) will add the independent 108-slot qualification campaign: frozen
+18-case suite, `no-index`, one pinned canonical CodeIndex artifact, three paired
+repetitions, and a local-model-scoped result. Until that implementation exists, the
+six-case calibration can screen environments but no command can issue the new full-suite
+qualification verdict.
+
+A `release` campaign runs the hosted architecture/release gate after the model-free
+stage passes. It loads a pinned hosted reference that records the exact
 provider, model ID, provider release, client runtime, and generation settings; the
 reference hash participates in campaign identity, so a changed model starts a new
-paired baseline. The command requires a passing `route-report` and a passing
-`local-regression` record for the same frozen suite and staged artifacts, rejects
-a non-passing or artifact-mismatched precondition, and verifies the measured client
-runtime before the first call. The campaign executes 18 × 3 × 5 = 270 slots and
+paired baseline. The policy requires a passing `route-report` for the same frozen suite
+and staged artifacts, rejects a non-passing or artifact-mismatched precondition, and
+verifies the measured client runtime before the first call. The campaign executes
+18 × 3 × 5 = 270 fresh slots and
 writes `report.json` plus `release-campaign.json` carrying
 `claimClass: "hosted-model-scoped"` and `releaseAuthority: true`. Every slot is
 recorded as valid or invalid with a closed cause; the overall and class verdicts,
 the unchanged Q2 gates, the predeclared target metric, and the paired bootstrap
 intervals stay separate. Local evidence never fills a missing hosted execution.
 
-A `calibration` manifest serves the frozen two-treatment local qualification.
+Implementation status: the current `release` command still requires a passing
+`local-regression` record. That contradicts the approved split and currently prevents a
+valid #36 invocation. EVAL-030 (#57) removes only this obsolete precondition; the
+model-free precondition, hosted reference, 270-slot plan, Q2 gates, and identity checks
+remain unchanged.
+
+A `calibration` manifest serves the historical six-case environment screen.
 `calibrate` verifies every eligible pinned environment, rebinds the frozen suite
 to each environment's model without changing case hashes, and first runs the
 diagnostic phase: three repetitions of `impl-default-result-bytes` and
@@ -437,10 +458,12 @@ followed by six cases × `no-index` and `accepted` × one repetition. It caps ev
 execution at the remaining wall-clock budget and writes one decision per model
 plus one selection record. `--exclude <environment-id>=<reason>` records an
 operator-ruled-out candidate as a disqualification with zero executions instead
-of dropping it. A model qualifies only when all 12 executions are valid, accepted
-correctness is never below `no-index`, no execution needs an intervention, and
-the elapsed time is inside the budget. The budget is a qualification criterion,
-not a target to meet by dropping cases or repetitions.
+of dropping it. Its existing record calls a model `qualified` only when all 12
+executions are valid, accepted correctness is never below `no-index`, no execution
+needs an intervention, and the elapsed time is inside the budget. Under the
+2026-10-23 policy this means the model passed the calibration screen; it does not
+satisfy G-E2Q. The budget is a screening criterion, not a target to meet by
+dropping cases or repetitions.
 
 ### 7.3 Run identity and resume equality
 
@@ -868,6 +891,8 @@ Unit tests:
 Integration tests use temporary fixture workspaces:
 
 - one selected case invokes exactly the planned treatment/repetition set;
+- local qualification fixes `no-index`, one canonical artifact, three paired repetitions,
+  and rejects a model comparison when any non-model identity changes;
 - interruption followed by `--resume` neither repeats nor skips work;
 - edits from one run cannot reach the next run;
 - mismatched revision, model, prompt, bundle, or configuration is rejected;
@@ -937,8 +962,9 @@ only; it neither defines nor reinterprets a gate.
 | Run identity and mismatch invalidation | Run manifest identity; `--resume` matches the complete identity; mismatched revision, model, prompt, bundle, or configuration is rejected ([§6](#6-cli-shape), [§7.3](#73-run-identity-and-resume-equality), [§10](#10-verification)) |
 | Isolation and restoration | Dedicated checkout, ephemeral client state, atomic persistence, restoration after every execution ([§5](#5-isolation), [§5.1](#51-opencode-client-state)) |
 | Treatment equivalence | Treatment definitions record every difference; equivalence checks reject non-equivalent treatments ([§3.3](#33-treatment), [§9](#9-architecture)) |
-| Local diagnostic and regression stages | `local-diagnostic` fixes two impact cases, accepted and candidate, one repetition, and the predeclared target metric; it writes `targeted-diagnostic.json` and blocks continuation on an incorrect candidate answer, no target improvement, or a regression of retrieval bytes or tool calls. Token and wall-clock changes are recorded as observations. `local-regression` runs it first, then the 18 × 3 × 3 plan, and writes class-stratified `local-regression.json` under the local claim class ([§7.2](#72-run-manifest)) |
-| Hosted release stage | `release` requires a passing model-free report and a passing local regression for the same suite and staged artifacts, verifies the pinned hosted reference and client runtime, runs the fixed 18 × 3 × 5 plan, and writes `release-campaign.json` with hosted release authority and one status per slot ([§7.2](#72-run-manifest)) |
+| Historical local diagnostic and regression | `local-diagnostic` and `local-regression` retain the old candidate-comparison mechanics and historical verdicts. They are not the future model-qualification gate ([§7.2](#72-run-manifest)) |
+| Local-model qualification | EVAL-029 (#56) must implement the fixed 18 × 2 × 3 plan with `no-index` and one canonical artifact, changing only the model environment across comparable campaigns ([§7.2](#72-run-manifest)) |
+| Hosted release stage | Policy requires a passing same-artifact model-free report, the pinned hosted reference and runtime, the fixed 18 × 3 × 5 plan, and `release-campaign.json` with hosted authority. The current extra local-regression precondition is an implementation defect tracked by EVAL-030 (#57) ([§7.2](#72-run-manifest)) |
 | Telemetry validity | Exact token extraction with availability status; missing usage invalidates the affected metric, never estimated from bytes ([§2](#2-goals), [§7.5](#75-telemetry-availability-states)) |
 | Failed-slot-only retry | One immutable result per execution identity; `--resume` neither repeats nor skips a completed slot; failed and invalid executions stay inspectable ([§6](#6-cli-shape), [§7.6](#76-execution-outcome-and-validity), [§7.7](#77-atomic-persistence-and-partial-writes)) |
 | Stop rules | The harness records pass, fail, or invalid per execution with raw evidence. Applying a stop rule is a reviewer decision, not a harness verdict |

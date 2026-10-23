@@ -90,12 +90,11 @@ two-call workflow existed in `v0.5.0`; the richer redesign payload amplified its
       items drop next; totals remain; cursor resumes without duplicates or gaps.
 - [ ] MCP protocol tests for schemas, discriminants, structured errors, and compact
       `index_status`.
-- [ ] Run only four local-model executions: two impact cases, one repetition, accepted
-      and candidate CodeIndex treatments. Run complete model-free no-index, accepted, and
-      candidate routes before these calls.
-- [ ] Proceed to the full three-treatment campaign only when each candidate impact answer
-      is correct, improves the predeclared target workflow, and regresses no observed
-      metric.
+- [ ] Run complete model-free no-index, accepted, and candidate routes and reject the
+      architecture campaign if any route misses its exact answer or contract.
+- [ ] Run the full three-treatment architecture campaign from scratch with the pinned
+      frontier model after the model-free route passes. Local-model qualification is a
+      separate fixed-artifact model test, not a candidate precondition.
 
 ## Track B: repair and strengthen the evaluation harness
 
@@ -120,8 +119,8 @@ two-call workflow existed in `v0.5.0`; the richer redesign payload amplified its
       class-confounded.
 - [ ] Keep the gate token metric as uncached input + output + reasoning. Report cache-read
       tokens and cost separately.
-- [ ] Run the full Q2 v5 three-treatment campaign only after Track A's model-free and
-      four-execution gates pass.
+- [ ] Run the full Q2 v5 three-treatment campaign only after Track A's model-free gate
+      passes.
 
 ## Track C: establish the old-versus-new TypeScript baseline
 

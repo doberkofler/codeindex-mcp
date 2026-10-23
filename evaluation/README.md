@@ -26,6 +26,18 @@ Private corpora, proprietary source, hidden cases, and restricted traces stay in
 a separate private data repository. Only reviewed aggregate evidence from this
 directory may be cited publicly.
 
+## Gate responsibilities
+
+| Gate | Variable under test | Authority |
+| --- | --- | --- |
+| Model-free route | Candidate artifact | Mandatory mechanical architecture precondition |
+| Local-model qualification | Pinned local model only, against one fixed canonical artifact | Local model capability only; independent of release |
+| Hosted release | Candidate artifact under the pinned frontier model | Authoritative architecture/release verdict |
+
+The historical 162-slot local regression compared a moving candidate and remains
+`NOT PASSED`. It is retained as evidence but is not the future local-model
+qualification design and is not a hosted precondition.
+
 ## Commands
 
 ```bash
@@ -118,9 +130,13 @@ model-independent claim. Execution records are in
 the earlier v1 campaign is
 [`audits/local-model-calibration-e1.md`](audits/local-model-calibration-e1.md).
 
-The selected regression sentinel is `ollama/qwen3.8:27b-mlx`. The normal
-development loop and the full local regression use the frozen release suite, the
-selected environment, a predeclared target metric, and the local claim class:
+Under the 2026-10-23 policy, this six-case result is a calibration screen despite
+the historical `qualification` field name. It does not satisfy the independent
+108-slot local-model qualification gate.
+
+The selected historical regression sentinel is `ollama/qwen3.8:27b-mlx`. The
+following commands implement the previous candidate-comparison policy and remain
+available for reproduction and diagnosis:
 
 ```bash
 # Four executions: two impact cases x accepted/candidate x one repetition.
@@ -145,25 +161,35 @@ needed. Both commands require frozen case hashes and staged artifacts, accept
 `--dry-run` without starting a model, and reject a plan-changing flag. Their
 records carry `claimClass: "local-model-scoped"`; the full record also carries
 `releaseAuthority: false`, so a hosted result cannot override local evidence or
-vice versa. The diagnostic result and the reason the full suite did not start
-are recorded in [`audits/local-regression-e2.md`](audits/local-regression-e2.md).
+vice versa. The diagnostic history is recorded in
+[`audits/local-regression-e2.md`](audits/local-regression-e2.md) and
+[`audits/local-regression-e3.md`](audits/local-regression-e3.md). The completed
+162-slot verdict is recorded in
+[`audits/local-regression-e4.md`](audits/local-regression-e4.md) as historical
+`NOT PASSED` evidence; its valid wrong answer is not rerun for luck.
 
-The deferred hosted release campaign pins an exact hosted model in
-[`references/`](references/README.md) and runs only after a passing model-free
-route report and a passing local regression cover the same suite and staged
-artifacts. It executes the frozen 18-case suite with all three treatments and
-five paired repetitions, exactly 270 slots:
+The approved future local-model qualification instead runs 18 cases ×
+`no-index` and one fixed canonical CodeIndex artifact × 3 paired repetitions =
+108 executions. Only the pinned model/environment changes between comparable
+campaigns. EVAL-029 (#56) tracks the canonical artifact, command, result, and
+predeclared qualification criteria; no such full-suite command exists yet.
+
+The hosted release campaign pins an exact frontier model in
+[`references/`](references/README.md) and runs from scratch after a passing
+model-free route report covers the same suite and staged artifacts. Local-model
+qualification is independent. The campaign executes the frozen 18-case suite
+with all three treatments and five paired repetitions, exactly 270 slots:
 
 ```bash
 node evaluation/harness/src/cli.ts release \
   --suite suites/release.json \
-  --hosted-reference references/deepseek-v4-pro.json \
+  --hosted-reference references/deepseek-flash.json \
   --target-metric retrievalBytes \
   --dry-run
 ```
 
-The real run requires `--model-free <report.json>` and `--local-regression
-<local-regression.json>`, verifies the pinned OpenCode runtime, and writes
+The intended real run requires `--model-free <report.json>`, verifies the pinned
+OpenCode runtime, and writes
 `release-campaign.json` with `claimClass: "hosted-model-scoped"` and
 `releaseAuthority: true`. Every one of the 270 slots is recorded as valid or
 invalid with a closed cause; a missing or invalid slot, a failed Q2 gate, a
@@ -171,6 +197,11 @@ non-improving target metric, a statistically supported regression, or any
 class-stratified failure blocks the release verdict. The selected reference and
 the current gate status are recorded in
 [`audits/hosted-release-campaign-e2.md`](audits/hosted-release-campaign-e2.md).
+
+Current implementation gap: `release` still requires
+`--local-regression <local-regression.json>`. EVAL-030 (#57) removes that obsolete
+precondition. Until it lands, no real frontier command is valid under the
+approved policy; `--dry-run` remains plan validation only.
 
 ## Operational soak
 

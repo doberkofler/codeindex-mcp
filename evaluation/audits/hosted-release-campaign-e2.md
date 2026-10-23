@@ -1,5 +1,9 @@
 # Hosted release campaign: E2 record
 
+> Historical precondition record. On 2026-10-23, the accepted gate split removed
+> local regression as a hosted prerequisite and selected `deepseek/deepseek-flash`
+> for the new campaign. The original 0-of-270 facts below are unchanged.
+
 Record for the deferred hosted-model gate required by
 [strategy §8.1](../../documentation/mcp-evaluation-strategy.md#81-execution-contract-tiers-order-invalidation-retry-and-stop-rules),
 [strategy §10](../../documentation/mcp-evaluation-strategy.md#10-local-model-strategy), and
@@ -11,7 +15,7 @@ Record for the deferred hosted-model gate required by
 - Hosted-bound suite hash for `deepseek/deepseek-v4-pro`:
   `e256ea3e387dba077025942110b07e3b80c1f46dba76c5fd1f58a9e5cf859877`.
 - Subject revision: `3b6b791d148ef6e96bcddd7850e1bc3c43cc4516`.
-- Hosted reference: [`references/deepseek-v4-pro.json`](../evaluation/references/deepseek-v4-pro.json),
+- Hosted reference: [`references/deepseek-v4-pro.json`](../references/deepseek-v4-pro.json),
   hash `12ff2e9cab0cc116765bacb0a7ce46531c46eb170b35e9c539af5a55161b079f`.
 - Target metric predeclared before any execution: `retrievalBytes`.
 - Release plan: 18 cases × 3 treatments × 5 paired repetitions = 270 slots.
@@ -98,3 +102,25 @@ the campaign automation is complete, but the current model-free evidence is stal
 for the staged candidate and the local gate is blocked. The hosted campaign may
 start only after both stages pass for the same suite version, revision, and
 artifacts. This page is a gate record, not release evidence.
+
+## 2026-10-23 supersession
+
+The architecture/release campaign is now the authoritative frontier-model test and
+must run from scratch with `deepseek/deepseek-flash`. Its new reference hash is
+`e3d86f8914fe9b9d77e9048216acd1535a44cf98b7e69a35edb3a1cf19dae07e`.
+The replacement dry run validated 270 slots with plan hash
+`436f43278fa9c72c57dabc049e05ad36f5a2950a17e41206f22cfa0f924fb9b8` and
+campaign identity
+`dddc689346e6cf2c91c158e400f1f7db14b8db022ce23ae3844ae7e749d3c1ea`.
+The old Pro reference, hosted-bound suite hash, and campaign identity above are
+historical and cannot be reused. The plan hash is unchanged because the slot shape is
+unchanged; it carries no execution evidence.
+
+The current policy precondition is one passing model-free route report for the same
+suite, revision, and staged artifacts. Independent local-model qualification neither
+authorizes nor blocks the frontier campaign.
+
+The current `release` implementation still enforces the historical local-regression
+precondition described above. EVAL-030 (#57) removes that executable mismatch. After
+#57, re-run the model-free route for the staged artifacts and execute EVAL-028 (#36)
+from scratch.

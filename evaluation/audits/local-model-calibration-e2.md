@@ -1,5 +1,9 @@
 # Local-model calibration and reference selection: E2 execution
 
+> Historical calibration-screen evidence. Its `qualified` and `regression sentinel`
+> terms describe the pre-2026-10-23 policy. Full local-model qualification now requires
+> the independent fixed-artifact 108-slot campaign tracked by EVAL-029 (#56).
+
 Calibration record for the regression sentinel required by
 [strategy §10](../../documentation/mcp-evaluation-strategy.md#10-local-model-strategy)
 and [EVAL-026](https://github.com/doberkofler/codeindex-mcp/issues/34).

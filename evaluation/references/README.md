@@ -13,22 +13,26 @@ historical result may never be reused as the comparison for a changed reference.
 
 ## Selected reference
 
-`deepseek-v4-pro.json` pins `deepseek/deepseek-v4-pro`:
+`deepseek-flash.json` pins `deepseek/deepseek-flash`:
 
 | Fact | Value |
 | --- | --- |
 | Provider | `deepseek` |
-| Model ID | `deepseek-v4-pro` |
-| Provider release | `2026-08-13T00:00:00.000Z` |
+| Model ID | `deepseek-flash` |
+| Provider release | `2026-10-17T00:00:00.000Z` |
 | Client runtime | OpenCode `2.1.2` |
 | Generation settings | Provider defaults at the pinned runtime |
-| Reference hash | `12ff2e9cab0cc116765bacb0a7ce46531c46eb170b35e9c539af5a55161b079f` |
+| Reference hash | `e3d86f8914fe9b9d77e9048216acd1535a44cf98b7e69a35edb3a1cf19dae07e` |
 
 The reference was selected from the hosted models available to the evaluation
-machine on 2026-10-22. `deepseek/deepseek-flash` remains the recorded Q2 v4
-configuration and is historical evidence only, not an automatic selection. The
-Pro reference is selected for additional capability; its higher price is paid
-only by a release campaign, which the local prechecks gate.
+machine on 2026-10-23. Earlier Q2 v4 evidence used the same model ID under an
+older campaign identity and remains historical only. The new frontier campaign
+runs every treatment from scratch; it does not reuse those executions.
+Deterministic model-free evidence gates the hosted spend; independent local-model
+qualification does not.
+
+`deepseek-v4-pro.json` is retained only to identify the unexecuted historical E2
+dry-run record. It is not the selected reference for #36.
 
 ## Commands
 
@@ -38,25 +42,28 @@ model:
 ```bash
 node evaluation/harness/src/cli.ts release \
   --suite suites/release.json \
-  --hosted-reference references/deepseek-v4-pro.json \
+  --hosted-reference references/deepseek-flash.json \
   --target-metric retrievalBytes \
   --dry-run
 ```
 
-Run the campaign only after a passing model-free route report and a passing local
-regression exist for the same suite and staged artifacts:
+After EVAL-030 (#57) lands, run the campaign from scratch after a passing
+model-free route report exists for the same suite and staged artifacts:
 
 ```bash
 node evaluation/harness/src/cli.ts release \
   --suite suites/release.json \
-  --hosted-reference references/deepseek-v4-pro.json \
+  --hosted-reference references/deepseek-flash.json \
   --model-free results/route/<run>/report.json \
-  --local-regression results/<local-run>/local-regression.json \
   --target-metric retrievalBytes
 ```
 
+The current implementation still requires `--local-regression`; that obsolete
+precondition means the real command above is not yet valid. The dry run remains
+available for plan inspection. EVAL-030 removes only the local requirement.
+
 The command verifies `opencode --version` against the pinned runtime before the
 first model call. It refuses a non-passing, incomplete, or artifact-mismatched
-precondition. The resulting `release-campaign.json` carries
+model-free precondition. The resulting `release-campaign.json` carries
 `claimClass: "hosted-model-scoped"` and `releaseAuthority: true`; local evidence
 is never promoted to that class.

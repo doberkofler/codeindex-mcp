@@ -1,8 +1,12 @@
 # Targeted diagnostic: E3 record
 
+> Historical evidence. The 2026-10-23 gate split replaces moving-candidate local
+> regression with independent fixed-artifact model qualification. This diagnostic
+> result is unchanged; see [`local-regression-e4.md`](local-regression-e4.md).
+
 Record for the correction required by
 [EVAL-027](https://github.com/doberkofler/codeindex-mcp/issues/35) and
-[strategy §11](../../documentation/mcp-evaluation-strategy.md#11-cheap-workflow).
+[strategy §11](../../documentation/mcp-evaluation-strategy.md#11-evaluation-workflow).
 
 - Date: 2026-10-22.
 - Suite: `codeindex-release` version 1, status `frozen`, hash

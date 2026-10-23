@@ -1,7 +1,11 @@
 # Targeted diagnostic and local regression: E2 record
 
+> Historical evidence. The 2026-10-23 gate split replaces moving-candidate local
+> regression with independent fixed-artifact model qualification. This record and
+> its blocked verdict are unchanged; see [`local-regression-e4.md`](local-regression-e4.md).
+
 Record for the local development loop required by
-[strategy §11](../../documentation/mcp-evaluation-strategy.md#11-cheap-workflow) and
+[strategy §11](../../documentation/mcp-evaluation-strategy.md#11-evaluation-workflow) and
 [EVAL-023](https://github.com/doberkofler/codeindex-mcp/issues/31).
 
 - Date: 2026-10-22.

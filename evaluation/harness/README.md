@@ -12,7 +12,7 @@ This package declares `private: true`, so it is never published to a registry.
 
 ## Treatments
 
-Every campaign declares exactly three treatments:
+Every frontier architecture campaign declares exactly three treatments:
 
 | Treatment | Tools and artifact |
 | --- | --- |
@@ -24,6 +24,12 @@ The treatment definitions are data in the suite. They declare the exact
 ordinary tool names, the generic `execute` policy, the artifact identity, and
 the MCP server configuration. A treatment definition is hashed, and the
 canonical treatment set participates in run identity.
+
+Local-model qualification uses two treatments instead: `no-index` and one fixed
+canonical CodeIndex artifact. Across comparable qualification campaigns, only the
+pinned model environment changes. EVAL-029 (#56) tracks this 18 × 2 × 3 plan; the
+current suite and commands still implement the historical three-treatment local
+regression.
 
 All treatments run in isolated workspaces of the same pinned subject: detached
 worktrees when the subject is a version-control checkout, and disposable content-
@@ -244,7 +250,7 @@ node evaluation/harness/src/cli.ts local-regression --suite evaluation/suites/re
   --environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
   --target-metric retrievalBytes
 node evaluation/harness/src/cli.ts release --suite suites/release.json \
-  --hosted-reference references/deepseek-v4-pro.json \
+  --hosted-reference references/deepseek-flash.json \
   --target-metric retrievalBytes --dry-run
 pnpm eval:report --run <run-id>
 pnpm eval:test
@@ -336,9 +342,11 @@ excluded candidate is written to `selection.json` as a disqualification with zer
 executions, so it never silently disappears. Excluding a candidate is an operator
 constraint, not a model-quality result.
 
-A model qualifies only when every execution is valid, no case loses accepted
-correctness against `no-index`, no retry, timeout, defect, or unrestored
-workspace occurs, and the elapsed time is inside the budget. `--budget-ms`
+A model passes this historical calibration screen only when every execution is
+valid, no case loses accepted correctness against `no-index`, no retry, timeout,
+defect, or unrestored workspace occurs, and the elapsed time is inside the budget. The
+existing record calls that state `qualified`; under the 2026-10-23 policy it does
+not satisfy the independent 108-slot qualification gate. `--budget-ms`
 defaults to 900000. The command writes one `selection.json` under `results/`
 whose `selection` object applies the predeclared order: qualifiers only, then
 more exact accepted answers, then lower accepted median wall time, then lower
@@ -347,9 +355,9 @@ limitation and invalidates only the token metrics. A changed model digest,
 quantization, runtime, context, generation setting, host fact, or budget defines
 a new baseline.
 
-### Targeted diagnostic and full local regression
+### Historical targeted diagnostic and local regression
 
-`local-diagnostic` is the normal development loop for one MCP interface change:
+`local-diagnostic` is the previous development loop for one MCP interface change:
 two predeclared impact cases, the `accepted` and `candidate` treatments, one
 repetition, and four executions in total. The target metric is predeclared on the
 command line and never inferred from the results:
@@ -402,31 +410,46 @@ but it can never satisfy a hosted release gate, and a hosted result can never
 replace or override a local regression. A non-matching claim class is rejected
 before the local record is written.
 
+The completed v1 162-slot campaign remains historical `NOT PASSED` evidence. It
+must not be rerun to replace a valid wrong answer. It does not qualify a future
+local model because its moving candidate artifact confounds model and product
+changes.
+
+The approved qualification replacement runs the frozen 18-case suite with
+`no-index` and one pinned canonical CodeIndex artifact at three paired repetitions,
+exactly 108 slots. It predeclares correctness, timeout, tool-use, and efficiency
+criteria and changes only the model environment across comparable campaigns.
+EVAL-029 (#56) tracks implementation; no command in this README currently emits
+that verdict.
+
 ### Hosted release campaign
 
-`release` is the deferred hosted gate. It loads a pinned hosted reference, which
+`release` is the frontier architecture/release gate. It loads a pinned hosted reference, which
 records the exact provider, model ID, provider release, OpenCode runtime, and
 generation settings. The reference hash participates in the campaign identity, so
 a changed hosted model starts a new campaign and can never resume or compare
 against an older paired baseline.
 
-Before the first hosted call the command requires a passing model-free route
-report and a passing local regression for the same frozen suite and the same
-staged accepted and candidate artifacts. A non-passing, incomplete, or
-artifact-mismatched precondition refuses the campaign instead of substituting
-lower-tier evidence. The measured `opencode --version` must also equal the pinned
-runtime.
+Policy requires a passing model-free route report for the same frozen suite and
+the same staged accepted and candidate artifacts. A non-passing, incomplete, or
+artifact-mismatched route precondition refuses the campaign. Independent local
+qualification neither authorizes nor blocks it. The measured `opencode --version`
+must also equal the pinned runtime.
 
 ```bash
 node src/cli.ts release --suite suites/release.json \
-  --hosted-reference references/deepseek-v4-pro.json \
+  --hosted-reference references/deepseek-flash.json \
   --target-metric retrievalBytes --dry-run
 node src/cli.ts release --suite suites/release.json \
-  --hosted-reference references/deepseek-v4-pro.json \
+  --hosted-reference references/deepseek-flash.json \
   --model-free <route-report> \
-  --local-regression <local-regression.json> \
   --target-metric retrievalBytes
 ```
+
+Implementation status: the current command still requires `--local-regression`.
+That obsolete requirement is tracked by EVAL-030 (#57), which blocks #36. The real
+command above is not executable until #57 lands; the dry run starts no model and
+remains valid for plan inspection.
 
 The real command runs 18 cases × 3 treatments × 5 paired repetitions, exactly
 270 slots. It writes `release-campaign.json` beside `report.json`, carrying
@@ -614,7 +637,7 @@ which is deliberate: routing is class-confounded.
 ## Q2 thresholds
 
 Taken verbatim from the publication policy and applied to candidate versus
-no-index:
+no-index in the frontier campaign:
 
 1. no case loses correctness against no-index;
 2. candidate success at least 90%;

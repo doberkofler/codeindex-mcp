@@ -1,8 +1,9 @@
 # MCP Usefulness and Performance Evaluation Strategy
 
-Date: 2026-10-21
+Date: 2026-10-23
 
-Status: accepted evaluation plan. Existing accepted gates in
+Status: accepted evaluation plan, including the 2026-10-23 gate-responsibility split.
+Existing accepted gates in
 [the publication-policy redesign](./codeindex-publication-policy-redesign.md) remain
 normative. This document defines how to produce the evidence needed to judge the MCP
 server as a product.
@@ -43,7 +44,7 @@ the weakest claim class among its evidence.
 
 | Claim class | Required evidence | v1 status |
 |---|---|---|
-| Local-model-scoped | Frozen suite; pinned local model digest, quantization, runtime, artifact, harness, hardware, and settings; the declared statistic; no pooling across models or configurations | Produced by calibration, targeted diagnostics, and local regression. Describes only the pinned local configuration. |
+| Local-model-scoped | Frozen suite; pinned local model digest, quantization, runtime, one fixed canonical CodeIndex artifact, harness, hardware, and settings; the declared statistic; no pooling across models or configurations | Independent model qualification. Describes only the pinned local configuration and does not judge a moving product candidate. |
 | Hosted-model-scoped | Frozen 18-case suite; pinned hosted model identity; all three treatments; five paired repetitions; every accepted Q2 gate; paired-by-case 95% intervals | Deferred release authority. Describes only the pinned hosted configuration and the evaluated artifact. |
 | Model-independent | Hosted-model-scoped evidence replicated on at least two independently selected model families, each with a pinned identity and its own paired baseline, with the same gates passing | Not produced by v1. No v1 document may assert it. |
 
@@ -66,6 +67,26 @@ Claim rules:
   requires identical run identity; a paired comparison requires the comparison
   identity defined there.
 - The Q2 v4 result remains evidence only for its recorded configuration.
+
+### 1.3 Gate responsibilities
+
+Evaluation uses three independent responsibilities:
+
+| Gate | Variable under test | Establishes | Release dependency |
+|---|---|---|---|
+| Deterministic/model-free | Candidate artifact | Mechanical correctness of the interface, exact routes, bounds, pagination, stale-file behavior, and response cost | Mandatory before hosted execution |
+| Local-model qualification | Local model/environment only | Whether that model can use one fixed canonical CodeIndex artifact reliably and efficiently | Independent; neither authorizes nor blocks hosted execution |
+| Frontier architecture/release | Candidate artifact | Whether the candidate improves production-model behavior against no index and the accepted artifact | Authoritative hosted-model-scoped release gate |
+
+The local qualification and frontier architecture campaigns answer different
+questions and must not share a verdict. Future local-model campaigns use the frozen
+18-case suite, `no-index`, and one canonical CodeIndex artifact at three paired
+repetitions (108 executions). Once the canonical artifact is pinned, only the model
+environment changes between comparable qualification campaigns. The moving
+`accepted`/`candidate` comparison belongs only to the frontier campaign.
+
+The completed three-treatment local regression remains historical evidence under its
+original policy and verdict. It is not regraded under this split.
 
 ## 2. Non-goals
 
@@ -138,6 +159,10 @@ right tool.
 
 ### E2: controlled agent evaluation
 
+E2 has two independent forms. Local-model qualification compares `no-index` with one
+fixed canonical CodeIndex artifact to evaluate the model. Frontier architecture
+evaluation uses the three treatments below to evaluate a product candidate.
+
 For a user-visible MCP change, run three treatments:
 
 | Treatment | Tools and artifact |
@@ -146,7 +171,7 @@ For a user-visible MCP change, run three treatments:
 | Accepted | Identical normal tools plus the currently accepted CodeIndex artifact |
 | Candidate | Identical normal tools plus the candidate CodeIndex artifact |
 
-The no-index versus candidate comparison establishes product value. The accepted versus
+For the frontier campaign, the no-index versus candidate comparison establishes product value. The accepted versus
 candidate comparison isolates the effect of the change. Agents may choose the cheapest
 available tool; MCP use is not required on tasks where ordinary search is better.
 
@@ -314,6 +339,10 @@ confounded by task class and difficulty.
 
 ## 8. Acceptance gates
 
+These accepted Q2 gates apply to the frontier architecture/release campaign. They do
+not define local-model qualification; that campaign predeclares its own correctness,
+timeout, tool-use, and efficiency criteria against the fixed canonical artifact.
+
 The accepted Q2 gates remain unchanged:
 
 - at least 12 independently runnable locate, impact, and implementation cases;
@@ -345,11 +374,10 @@ class-stratified verdicts. Add paired-by-case bootstrap 95% intervals for every 
 ### 8.1 Execution contract: tiers, order, invalidation, retry, and stop rules
 
 This subsection is the authoritative execution contract. It binds the evidence layers of
-[§4](#4-evidence-layers), the cheap workflow of [§11](#11-cheap-workflow), and the
-accepted Q2 gates above. It adds no metric, threshold, adapter, or gate; the identifiers
-below name obligations already defined in §4, §8, §10, and §11. Where §4 states what a
-tier measures, this subsection states what the tier authorizes, in which order it runs,
-when its evidence is invalid, and what a failure blocks.
+[§4](#4-evidence-layers), the workflow of [§11](#11-evaluation-workflow), and the accepted
+Q2 gates above. The 2026-10-23 policy separates local-model qualification from the
+frontier architecture sequence. Where §4 states what a tier measures, this subsection
+states what it authorizes, when its evidence is invalid, and what a failure blocks.
 
 Normative sources, in precedence order:
 
@@ -370,38 +398,39 @@ among its evidence per §1.2.
 |---|---|---|---|---|
 | E0 | Prove that cases, exact truth, graders, and the pinned revision are admissible before any model call | No model calls; local CPU only | None. E0 authorizes execution only and supports no product claim | §4 E0 |
 | E1 | Prove that the interface can produce the exact expected answer and measure the complete minimum route | No model calls; local CPU. Latency and resource gates only on the stable reference machine | None. Measurements explain server cost and do not predict agent choice | §4 E1, §7 |
-| E2 | Measure the effect of the artifact on correctness, workflow, payload, tokens, and latency with three treatments | Stage 2: four local executions. Stage 3: suite × 3 treatments × 3 repetitions, 162 executions for the 18-case suite. Stage 4: 270 hosted executions | Stages 2–3: local-model-scoped only. Stage 4: hosted-model-scoped release authority. Never model-independent | §1.2, §8, §11 |
+| E2 | Qualify a local model against one canonical artifact, or measure a moving artifact with the pinned frontier model | Local qualification: 18 × 2 × 3 = 108 executions per model. Frontier architecture: 18 × 3 × 5 = 270 executions | Qualification: local-model-scoped only. Frontier: hosted-model-scoped release authority. Never model-independent | §1.2, §1.3, §8, §11 |
 | E3 | Measure operational reliability without a model: watcher and build, freshness, restart, generation reuse, stale refusal, resource growth, recovery | No model calls; dedicated reference machine | None alone; supplies the reliability facts a hosted claim must not contradict | §4 E3 |
 
 | Tier | Mandatory exit gate | Failure blocks |
 |---|---|---|
 | E0 | G-E0 (§8.1.8) | Every model tier and every corpus change; a failed E0 rejects the campaign |
 | E1 | G-E1 (§8.1.8) | Stage 2 and every later stage for the affected routes; an interface miss triggers S1 |
-| E2 | G-E2D, then G-E2L, then G-E2H (§8.1.8) | Each stage blocks the next; stage 4 blocks the release claim and any statement that the change improves agent work |
-| E3 | G-E3 (§8.1.8) | Stage 4 when the change touches build, watcher, publication, storage, or isolation; and any reliability claim about the artifact |
+| E2 local qualification | G-E2Q (§8.1.8) | Qualification of that local model only; never the frontier campaign |
+| E2 frontier architecture | G-E2H (§8.1.8) | The release claim and any statement that the candidate improves production-model agent work |
+| E3 | G-E3 (§8.1.8) | The hosted stage when the change touches build, watcher, publication, storage, or isolation; and any reliability claim about the artifact |
 
-#### 8.1.2 Mandatory stage order
+#### 8.1.2 Mandatory architecture order
 
-Stages run in this order once per suite version, case-hash set, artifact pair, model
-identity, revision, and configuration. None may be reordered, merged, or run
-speculatively.
+Architecture stages run in this order once per suite version, case-hash set, artifact
+pair, hosted-model identity, revision, and configuration. Local-model qualification is
+an independent campaign and is not inserted into this sequence.
 
 | Stage | Tier | Scope | Exit gate |
 |---|---|---|---|
 | 0 | E0 | Case and truth validation (§4 E0) | G-E0 |
 | 1 | E1, plus E3 when the change touches build, watcher, publication, storage, or isolation | Complete-route comparison for every claimed question (§4 E1) | G-E1, G-E3 |
-| 2 | E2 | Two predeclared impact cases, one repetition, accepted and candidate treatments | G-E2D |
-| 3 | E2 | Full suite, one fixed local model, three treatments, three paired repetitions | G-E2L |
-| 4 | E2 | Frozen 18-case suite, pinned hosted model, three treatments, five paired repetitions (deferred release authority, §1.2) | G-E2H |
+| 2 | E2 | Frozen 18-case suite, pinned hosted model, three treatments, five paired repetitions; run from scratch | G-E2H |
 
 Rules:
 
-- A cheaper failure blocks every more expensive stage. No aggregate, anecdote, or partial
-  success at stage 3 or 4 overturns a failed stage 0, 1, or 2 (§2, §11 Before any model
-  call, step 5).
+- A deterministic failure blocks the hosted stage. No aggregate, anecdote, local-model
+  result, or partial hosted result overturns a failed stage 0 or 1 (§2, §11 Before any
+  model call, step 5).
 - Stage 0 and stage 1 are never skipped. A change that alters no MCP response is exempt
-  from stages 2–4 under §11 Release evaluation, and only after stage 1 shows the affected
-  responses are unchanged. Any user-visible MCP change always requires stages 2–4.
+  from hosted evaluation under §11 Release evaluation, and only after stage 1 shows the
+  affected responses are unchanged. Any user-visible MCP change requires the hosted gate.
+- G-E2Q may run before, after, or independently of this sequence. Its result changes only
+  the qualification status of the tested local model.
 - Changing the suite, a case hash, an artifact, the model identity, the revision, or the
   configuration creates a new comparison. Earlier stage results do not carry over
   (§1.2, §8.1.4).
@@ -414,7 +443,7 @@ Every gate returns exactly one of three results:
 
 | Result | Meaning | Authorizes |
 |---|---|---|
-| pass | Evidence is complete and the predeclared criterion is met | The next stage only |
+| pass | Evidence is complete and the predeclared criterion is met | Only the action named by that gate |
 | fail | Evidence is valid and the predeclared criterion is not met | Nothing; it triggers the matching stop rule (§8.1.7) |
 | invalid | Evidence is unusable for a cause recorded under §8.1.4 | A failed-slot retry (§8.1.5) and nothing else |
 
@@ -482,6 +511,8 @@ and stop rules are fixed and recorded before the first execution of a stage.
 - The accepted Q2 gates are retained verbatim in §8 and are not restated with any
   tolerance; §8.1.8 copies them only to map each item to its check. Changing any of them
   requires the new-policy path in this subsection.
+- The 2026-10-23 gate split is such a new policy. It governs future campaigns only. The
+  completed 162-slot local campaign keeps its original `NOT PASSED` verdict.
 
 #### 8.1.7 Stop rules
 
@@ -493,9 +524,9 @@ advancing to a more expensive stage.
 | S1 interface miss | A stage 1 complete route for a claimed case fails exact answer equality, requires an undeclared setup call, or violates the pagination, truncation, stale-file, or error contract | Stop before any model call. Fix the interface. Re-run stage 1 for the affected routes only | §4 E1, §11, §12 |
 | S2 correctness loss | Any execution loses correctness against its baseline, any case misses its exact expected file set, or an indexed run claims absence after an authoritative non-empty index result | Stop the stage. Fix the product, or return to E0 for a truth defect. Re-run from the cheapest failed stage | §8, §11 |
 | S3 telemetry invalidity | A required metric lacks exact token usage, tool-name list, normalized call sequence, wall time, or exit status | Invalidate only the affected metric and slots, limit the claim to the valid metrics, re-run those slots after the harness fix. Never estimate a missing value | §1.2, §10, harness §2 |
-| S4 budget overrun | A local calibration or diagnostic exceeds its declared wall-clock budget, or a stage exceeds its declared execution or spend budget | Abandon that configuration for prechecks, record no result, and select another candidate local model or abandon prechecks for this change. Do not reduce cases or repetitions to fit the budget | §10, §11 |
+| S4 budget overrun | A local qualification exceeds its declared wall-clock budget, or the hosted stage exceeds its declared execution or spend budget | Disqualify that local configuration, or stop the hosted campaign as applicable. Do not reduce cases or repetitions to fit the budget | §10, §11 |
 | S5 isolation or artifact failure | Dirty checkout, inherited or persisted session state, incomplete restoration, artifact or harness version mismatch, or non-equivalent treatments | Invalidate every affected slot, or the stage when equivalence was broken. Repair isolation and re-run the stage | §4 E2, §8.1.4, harness §5 |
-| S6 statistically supported regression | A paired-by-case 95% interval for a candidate effect excludes parity in the harmful direction, or any accepted Q2 gate fails | Fail the stage. Fix or abandon the change. Do not drop the regressed metric, class, or case | §8, §11 Local regression |
+| S6 statistically supported regression | In the frontier campaign, a paired-by-case 95% interval for a candidate effect excludes parity in the harmful direction, or any accepted Q2 gate fails | Fail the hosted stage. Fix or abandon the change. Do not drop the regressed metric, class, or case | §8, §11 Release evaluation |
 
 #### 8.1.8 Gate-to-check map
 
@@ -514,8 +545,7 @@ evidence. The harness is a proposed method and no runner ships in this repositor
 | G-E1b | Complete-route call count, response bytes, and elapsed time, with core query time separated | executable | Model-free measurement; latency and resource comparison only on the reference machine (§7) |
 | G-E1c | Pagination, truncation, stale-file, and failure behaviour match the tool contract | executable | Model-free checks against the published MCP entry (§4 E1) |
 | G-E1d | Comparisons cover only cases where CodeIndex claims an advantage, with no forced unique-literal lookup | manual review | Case list reviewed before stage 1 (§4 E1) |
-| G-E2D | Two impact cases, one repetition, accepted versus candidate: every candidate answer correct, target workflow improved, retrieval bytes and tool calls not regressed | executable and manual review | Harness runs exactly four executions and blocks on those three conditions. Token and wall-clock changes are recorded as observations: one repetition supports no interval, so a reviewer inspects them from raw traces rather than gating on them (§11) |
-| G-E2L | Full suite, three treatments, three paired repetitions: no correctness loss, target metric improved, no statistically supported regression in any tracked metric, no gate moved backward | executable | Harness report with per-run values, medians, and paired-by-case bootstrap 95% intervals (harness §7) |
+| G-E2Q | Frozen 18-case suite, `no-index` and one pinned canonical CodeIndex artifact, three paired repetitions: all 108 slots accounted for and the predeclared correctness, timeout, tool-use, and efficiency criteria decide whether the local model qualifies | executable and manual review | Independent local-qualification report. Model/environment is the only variable across comparable campaigns; a canonical-artifact change starts a new baseline (§1.3, §10) |
 | G-E2H | The retained Q2 gates plus the candidate-versus-accepted conditions, at five paired repetitions over 18 cases | executable and manual review | Harness campaign and report; a reviewer audits the predeclaration and confirms the named target metric before execution (§8, §11) |
 | G-E3 | Closed build-failure causes, time-to-fresh, restart and generation reuse, stale refusal, resource growth, unattended recovery | executable and manual review | Scripted edit run and soak outside the harness; harness generation metrics supply build time, memory, and database size (harness §8). A reviewer confirms no manual intervention and no unrecovered failure. No numeric E3 threshold is accepted, so E3 numbers are directional |
 
@@ -523,7 +553,7 @@ In the retained Q2 wording, `arm` means `treatment`. The accepted Q2 thresholds 
 enumerated as Q2-1 to Q2-9 for mapping only. The bullet wording and values in §8 remain
 authoritative; this table adds no tolerance and no reinterpretation.
 
-| Item | Retained threshold | Stage 4 check |
+| Item | Retained threshold | Hosted-stage check |
 |---|---|---|
 | Q2-1 | at least 12 independently runnable cases | Suite manifest and case count |
 | Q2-2 | 5 paired repetitions per arm | Repetition count and slot completeness |
@@ -570,19 +600,23 @@ Use local models for:
 
 - harness and case smoke tests;
 - prompt and grading diagnosis;
-- cheap one-repetition change diagnostics;
-- frequent regression sentinels;
-- identifying gross interface regressions before paid runs.
+- model qualification against a fixed CodeIndex reference;
+- harness, prompt, and grading diagnostics that make no candidate claim.
 
-Calibrate the 27B and 35B models first. Use the 8B model only for harness smoke until it
-proves adequate; evaluating every discovered model is unnecessary. EVAL-026 replaced the
-35B candidate with `ollama/devstral-small-2:latest` and records an operator exclusion when
-a candidate cannot run unattended on the reference machine. An exclusion is a resource
-constraint, never a model-quality conclusion. A local model qualifies for prechecks only
-when a frozen six-case, two-treatment calibration produces 12 valid executions, has no
-correctness loss, needs no intervention, and completes within 15 minutes on the evaluation
-machine. Pin model digest, quantization, Ollama version, OpenCode version, agent
-instructions, tool list, context, generation settings, and hardware.
+The six-case calibration remains a cheap environment screen. Final local-model
+qualification uses the frozen 18-case suite, `no-index`, and one fixed canonical CodeIndex
+artifact for three paired repetitions. Pin model digest, quantization, Ollama version,
+OpenCode version, agent instructions, tool list, context, generation settings, hardware,
+subject revision, and canonical artifact. Across comparable qualification campaigns, only
+the model environment changes. A changed canonical artifact starts a new qualification
+baseline.
+
+EVAL-026 replaced the 35B candidate with `ollama/devstral-small-2:latest` and records an
+operator exclusion when a candidate cannot run unattended on the reference machine. An
+exclusion is a resource constraint, never a model-quality conclusion. The exact full-suite
+qualification criteria are frozen before the first 108-slot campaign; they cover
+correctness, timeout, tool use, and efficiency. They do not reuse the frontier Q2 verdict
+or compare a moving candidate.
 
 The first pinned environment is
 [`evaluation/environments/ollama-qwen3-8b-smoke.json`](../evaluation/environments/ollama-qwen3-8b-smoke.json).
@@ -594,25 +628,26 @@ accepted-only smoke record is
 If exact token telemetry is unavailable, correctness, calls, bytes, and latency remain
 usable, but the token gate is invalid. Never estimate missing usage from bytes.
 
-When more than one model qualifies, select the regression sentinel in this fixed order:
-qualifiers only, then more exact accepted answers, then lower accepted median wall time,
-then lower accepted median retrieval bytes, then the model reference for a stable
-tie-break. Record the decision beside the calibration decisions. A changed model artifact,
-quantization, runtime, context, generation setting, host fact, or budget starts a new
-calibration baseline; no earlier qualification carries over.
+When more than one model qualifies against the same canonical artifact, select among
+qualifiers by the predeclared model-ranking policy. Record the decision beside the
+qualification results. A changed model artifact, quantization, runtime, context, generation
+setting, host fact, or budget starts a new model campaign; a changed canonical artifact
+starts a new baseline for every model. No earlier qualification carries over.
 
 The hosted reference model for the next suite is pinned by
-[`evaluation/references/deepseek-v4-pro.json`](../evaluation/references/deepseek-v4-pro.json):
-`deepseek/deepseek-v4-pro`, provider release `2026-08-13`, OpenCode `2.1.2`, and
+[`evaluation/references/deepseek-flash.json`](../evaluation/references/deepseek-flash.json):
+`deepseek/deepseek-flash`, provider release `2026-10-17`, OpenCode `2.1.2`, and
 provider-default generation settings. The reference hash participates in campaign
 identity, so changing the reference requires a new complete paired baseline. Q2 v4's
-`deepseek/deepseek-flash` result remains historical evidence, not an automatic selection.
+earlier `deepseek/deepseek-flash` result remains historical evidence under its own
+identity and is not reused by the new campaign.
 
-## 11. Cheap workflow
+## 11. Evaluation workflow
 
 [§8.1](#81-execution-contract-tiers-order-invalidation-retry-and-stop-rules) is the
 authoritative contract for tier order, gates, invalidation, retry, and stop rules. This
-section describes the cheap stages that contract orders; it defines no additional gate.
+section describes the independent local qualification and ordered architecture stages; it
+defines no additional gate.
 
 ### Before any model call
 
@@ -624,42 +659,43 @@ section describes the cheap stages that contract orders; it defines no additiona
 4. Confirm answer equality, complete-route size, call count, and latency.
 5. Reject the campaign if the interface itself misses the expected result.
 
-### After an interface change
-
-Run only four local-model executions first: two impact cases, one repetition, accepted and
-candidate treatments. Continue only when every candidate answer is correct, the predeclared
-target metric improves, and neither retrieval bytes nor tool calls regress. Token and
-wall-clock differences are recorded observations, not blocking verdicts: one execution per
-treatment at the pinned generation settings cannot separate them from model sampling and
-local runtime variation. Model-free comparison already establishes the no-index route
-before these calls.
-
 ### Local smoke
 
 Run the frozen six-case calibration with no-index and accepted treatments, one repetition,
-before adopting a local model. For candidate smoke, use accepted and candidate treatments.
-Use these runs for rapid regression detection, not statistical acceptance.
+before spending on a full local qualification. Use these runs for harness and environment
+screening, not final qualification.
 
-### Local regression
+### Local-model qualification
 
-Run the full suite with a fixed local model, all three treatments, and three paired
-repetitions. Track trends by class. A changed model artifact starts a new baseline. A
-local regression triggers targeted diagnosis; the hosted reference remains the release
-authority.
+Run the frozen 18-case suite with `no-index` and one fixed canonical CodeIndex artifact at
+three paired repetitions. This is 108 executions per model. Change only the pinned model
+environment when comparing future models. Apply the predeclared qualification criteria and
+report model capability by class.
+
+Do not include a moving candidate, and do not use this result as an architecture or release
+precondition. The earlier four-execution diagnostic and 162-execution three-treatment local
+regression are historical candidate-evaluation methods. Their retained records and verdicts
+remain valid under the policy that produced them, but they are not the future qualification
+gate.
 
 ### Release evaluation
 
 Run the frozen suite with all three treatments, the pinned hosted reference model, and
-five paired repetitions before merging a user-visible MCP change. Run it only after the
-model-free, targeted local, and full local checks pass. Pure refactors with unchanged MCP
-responses do not require this campaign.
+five paired repetitions before merging a user-visible MCP change. Run it from scratch after
+the same-suite, same-revision, same-artifact model-free route passes. Local qualification is
+independent and is not a release precondition. Pure refactors with unchanged MCP responses
+do not require this campaign.
 
-The `release` command implements this stage. It refuses to start a model unless a passing
-model-free route report and a passing local regression cover the same frozen suite and
-staged artifacts, and it refuses a runtime that differs from the pinned hosted reference.
-It runs exactly 270 slots and writes a hosted-model-scoped record that accounts for every
-slot as valid or invalid with a closed cause. A changed hosted reference changes the
-campaign identity and requires a new paired baseline.
+The intended `release` command refuses to start a model unless a passing model-free route
+report covers the same frozen suite and staged artifacts, and it refuses a runtime that
+differs from the pinned hosted reference. It runs exactly 270 fresh slots and writes a
+hosted-model-scoped record that accounts for every slot as valid or invalid with a closed
+cause. A changed hosted reference changes the campaign identity and requires a new paired
+baseline.
+
+Implementation status: the current command still requires a passing `local-regression`
+record. That obsolete precondition must be removed before the hosted campaign can run; see
+EVAL-030 (#57). No frontier execution command is valid until that change lands.
 
 ## 12. Change interpretation
 
@@ -669,9 +705,9 @@ For each MCP interface change:
 2. name the cases and metrics expected to move;
 3. pin one subject-repository revision for every treatment;
 4. compare complete model-free no-index, accepted, and candidate routes;
-5. run the four-execution accepted-versus-candidate diagnostic;
-6. inspect raw traces before aggregating;
-7. run the full three-treatment campaign only when the diagnostic passes;
+5. inspect the model-free evidence before paying for model calls;
+6. run the frontier three-treatment campaign from scratch;
+7. inspect raw traces before aggregating;
 8. accept the change only when correctness remains non-inferior and the targeted cost
    decreases without moving another gate backward.
 
@@ -680,13 +716,11 @@ evaluation win. A smaller interface that loses semantic correctness is also not 
 
 ## 13. Immediate priorities
 
-1. Inventory and validate the current private Q2 cases and exact ground truth.
-2. Build the three-source, 18-case suite with at least 6 mechanically admitted semantic
-   cases.
-3. Pilot TypeScript, VS Code, and Material UI and select one external corpus.
-4. Freeze the six-case local-model calibration suite.
-5. Calibrate the local 27B and 35B models under the 15-minute budget.
-6. Select and pin the hosted reference model.
-7. Implement and model-free-test one-call grouped reference results.
-8. Run the four-execution accepted-versus-candidate impact diagnostic.
-9. Run the full three-treatment campaign only after every cheaper stage passes.
+1. Implement EVAL-030 (#57) so `release` requires current model-free evidence but no local
+   regression record.
+2. Re-run the model-free route for the staged release artifacts.
+3. Run EVAL-028 (#36) from scratch: 270 executions with the pinned frontier reference.
+4. Implement EVAL-029 (#56): pin the canonical CodeIndex artifact and add the independent
+   108-slot local-model qualification.
+5. Preserve the completed v1 local regression as historical `NOT PASSED` evidence; never
+   rerun its valid failures for a luckier sample.
