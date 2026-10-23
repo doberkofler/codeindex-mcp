@@ -1,0 +1,341 @@
+{
+	"recordType": "validity-calibration-report",
+	"schemaVersion": 1,
+	"claimClass": "validity-only",
+	"efficacyClaim": false,
+	"releaseAuthority": false,
+	"generatedAt": "2026-10-23T12:34:31.263Z",
+	"suite": {
+		"id": "codeindex-calibration",
+		"version": 2,
+		"hash": "14d11804cd15ba6348549bdfb1600804c2e85167cb083aaa9edb746331a145b6"
+	},
+	"model": {
+		"reference": "deepseek/deepseek-flash",
+		"hostedReference": "deepseek-flash-validity-2026-10-23",
+		"reportedRuntime": "2.1.3",
+		"observedRuntime": "2.1.3",
+		"contractRuntime": "opencode 2.1.2"
+	},
+	"contract": {
+		"id": "evaluation-validity-v2",
+		"version": 2,
+		"digest": "179bb5df1bc96ee86c54da20f26034a59fe50671dfc9912d805ed4588204a22f",
+		"frozenAt": "2026-10-23T00:00:00.000Z"
+	},
+	"deterministic": {
+		"recordType": "deterministic-validity",
+		"schemaVersion": 1,
+		"contractDigest": "179bb5df1bc96ee86c54da20f26034a59fe50671dfc9912d805ed4588204a22f",
+		"gates": [
+			{
+				"id": "contract",
+				"passed": true,
+				"evidence": "evaluation-validity-v2",
+				"reason": null
+			},
+			{
+				"id": "metering",
+				"passed": true,
+				"evidence": "1 request(s), settled-exactly-once=true, claim=exact",
+				"reason": null
+			},
+			{
+				"id": "request-1-surface",
+				"passed": true,
+				"evidence": "no-index:20:pass accepted:20:pass",
+				"reason": null
+			},
+			{
+				"id": "corpus",
+				"passed": true,
+				"evidence": "1 indexed treatment(s)",
+				"reason": null
+			},
+			{
+				"id": "path-isolation",
+				"passed": true,
+				"evidence": "state root outside primary checkout",
+				"reason": null
+			}
+		],
+		"passed": true
+	},
+	"smoke": {
+		"recordType": "validity-smoke",
+		"schemaVersion": 1,
+		"claimClass": "validity-only",
+		"efficacyClaim": false,
+		"releaseAuthority": false,
+		"caseIds": ["semantic-renamed-reexport"],
+		"executions": 1,
+		"meteringComplete": true,
+		"requestOneSurfacePassed": true,
+		"semanticFixturesIndexed": true,
+		"pathsClean": true,
+		"requestKinds": {
+			"agent": 5,
+			"other": 1
+		},
+		"passed": true,
+		"reason": null
+	},
+	"aa": {
+		"caseIds": [
+			"locate-schema-version",
+			"impact-build-generation-references",
+			"impact-schema-version-references",
+			"semantic-renamed-reexport",
+			"semantic-interface-implementations",
+			"impl-default-result-bytes"
+		],
+		"repetitionsPerCase": 4,
+		"plannedSlots": 48,
+		"storedSlots": 48,
+		"pairCount": 24,
+		"validPairs": 24,
+		"failures": [],
+		"failureRate": {
+			"planned": 48,
+			"stored": 48,
+			"valid": 48,
+			"invalid": 0,
+			"missing": 0,
+			"byCause": {},
+			"attempts": 65,
+			"retriedExecutions": 13,
+			"invalidAttemptsByCause": {
+				"incomplete-metering": 17
+			}
+		},
+		"variance": {
+			"withinCaseVariance": 0.34191643377948705,
+			"betweenCaseVariance": 0.12216588343305959,
+			"betweenCaseVarianceCorrected": 0.03668677498818783,
+			"effectLogRatio": 0.07166166404081108,
+			"intraclassCorrelation": 0.2632418407295368,
+			"designEffect": 1.7897255221886104,
+			"observations": 24
+		},
+		"labelEffect": {
+			"equivalence": {
+				"method": "predeclared-point-ratio-equivalence",
+				"confidence": 0.95,
+				"economicEffect": 0.1,
+				"lowerBound": 0.9090909090909091,
+				"upperBound": 1.1,
+				"pointRatio": {
+					"state": "finite",
+					"value": 1.0317482735344516
+				},
+				"interval95": {
+					"low": 0.6891013821591413,
+					"high": 1.3424100872095959
+				},
+				"intervalWithin": false,
+				"passed": true,
+				"reason": null
+			},
+			"cost": {
+				"state": "exact",
+				"metric": "total-user-visible-task-cost-usd",
+				"population": "fixed-suite",
+				"baseline": "no-index",
+				"treatment": "candidate",
+				"caseCount": 6,
+				"executionCount": 48,
+				"incorrectExecutionCount": 0,
+				"baselineMeanUsd": 0.0009771110294117648,
+				"treatmentMeanUsd": 0.001008132617647059,
+				"ratio": {
+					"state": "finite",
+					"value": 1.0317482735344516
+				},
+				"targetRatio": 0.9,
+				"oneSidedUpper95": 1.242269397382151,
+				"oneSidedUpperState": "bounded",
+				"twoSidedInterval95": {
+					"low": 0.6891013821591413,
+					"high": 1.3424100872095959,
+					"confidence": 0.95
+				},
+				"caseGeneralization": {
+					"meanRatio": {
+						"state": "finite",
+						"value": 0.9901575584148938
+					},
+					"oneSidedUpper95": 1.309242498227567,
+					"oneSidedUpperState": "bounded",
+					"method": "paired-case-uniform-bootstrap"
+				},
+				"gate": {
+					"passed": false,
+					"detail": "1.032 candidate/no-index; one-sided upper 1.242 (target <= 0.90, upper < 1.00)"
+				},
+				"pairs": [
+					{
+						"caseId": "locate-schema-version",
+						"baseline": 0.0005878215,
+						"treatment": 0.0006980805
+					},
+					{
+						"caseId": "impact-build-generation-references",
+						"baseline": 0.00036730949999999997,
+						"treatment": 0.0007707344999999999
+					},
+					{
+						"caseId": "impact-schema-version-references",
+						"baseline": 0.0012337560000000001,
+						"treatment": 0.000462156
+					},
+					{
+						"caseId": "semantic-renamed-reexport",
+						"baseline": 0.00043256699999999997,
+						"treatment": 0.000492096
+					},
+					{
+						"caseId": "semantic-interface-implementations",
+						"baseline": 0.0006318014999999999,
+						"treatment": 0.000654465
+					},
+					{
+						"caseId": "impl-default-result-bytes",
+						"baseline": 0.0015860925,
+						"treatment": 0.001714185
+					}
+				]
+			},
+			"correctness": {
+				"state": "exact",
+				"pairedDifference": 0,
+				"oneSidedUpper95": 0,
+				"margin": 0.02,
+				"falseAbsenceCount": 0,
+				"candidateSuccessRate": 1,
+				"baselineSuccessRate": 1,
+				"gate": {
+					"passed": true,
+					"detail": "paired difference 0.0000; one-sided upper 0.0000; margin 0.02; false absence 0"
+				},
+				"reason": null
+			},
+			"correctnessDifference": 0
+		},
+		"diagnostics": {
+			"a": {
+				"arm": "a",
+				"executions": 24,
+				"meteredExecutions": 24,
+				"totalCostUsd": 0.017986667999999994,
+				"agentOnlyCostUsd": 0.01720362,
+				"titleRequests": 0,
+				"titleCostUsd": 0,
+				"titleCostShare": 0,
+				"agentRequests": 65,
+				"compactionRequests": 0,
+				"cacheReadTokens": 896256,
+				"nonCachedInputTokens": 71914,
+				"cacheWriteTokens": 0,
+				"cacheHitRate": 0.9257217224247808
+			},
+			"b": {
+				"arm": "b",
+				"executions": 24,
+				"meteredExecutions": 24,
+				"totalCostUsd": 0.020537592,
+				"agentOnlyCostUsd": 0.019762343999999998,
+				"titleRequests": 0,
+				"titleCostUsd": 0,
+				"titleCostShare": 0,
+				"agentRequests": 67,
+				"compactionRequests": 0,
+				"cacheReadTokens": 945664,
+				"nonCachedInputTokens": 86336,
+				"cacheWriteTokens": 0,
+				"cacheHitRate": 0.9163410852713179
+			}
+		},
+		"treatmentLabelInvariance": {
+			"definitionHashes": ["bcee888cc9b229c7cf47b60cedee80730d76727b2227601ddacee9c8b7320754"],
+			"surfaceDigests": ["5fc577de0754eb5bb2fd50064de9d85cd2a8cad4092cd19e88be7e414d149cfe"],
+			"identical": true
+		},
+		"sampleSize": {
+			"designEffectRatio": 0.85,
+			"assumedEffectLogRatio": -0.16251892949777494,
+			"finalCaseCount": 18,
+			"contractMaxRepetitions": 20,
+			"simulationMaxRepetitions": 100,
+			"cost": {
+				"method": "paired-log-ratio-simulation",
+				"pilotCampaignIds": ["4333f569a95ac106c6c3657c7fb72a438c464cf59f13dde3c1b461bdc90fb4d2"],
+				"finalCampaignId": "4333f569a95ac106c6c3657c7fb72a438c464cf59f13dde3c1b461bdc90fb4d2:final",
+				"pilotCaseCount": 18,
+				"pilotRepetitions": 4,
+				"betweenCaseVariance": 0.03668677498818783,
+				"withinCaseVariance": 0.34191643377948705,
+				"effectLogRatio": 0.07166166404081108,
+				"desiredPower": 0.8,
+				"oneSidedAlpha": 0.05,
+				"simulations": 2000,
+				"repetitions": 7,
+				"power": 0.8255,
+				"reason": null
+			},
+			"correctness": {
+				"margin": 0.02,
+				"standardDeviation": 0,
+				"pairsRequired": 1,
+				"repetitions": 1,
+				"reason": null
+			},
+			"chosenRepetitions": 7,
+			"executions": 378,
+			"withinFrozenExecutionBudget": false,
+			"clustering": {
+				"cases": 18,
+				"repetitionsPerCase": 4,
+				"intraclassCorrelation": 0.2632418407295368,
+				"designEffect": 1.7897255221886104
+			},
+			"reason": null
+		},
+		"passed": true
+	},
+	"passed": true,
+	"reason": null,
+	"limitations": [
+		"Validity executions used OpenCode 2.1.3 while the final-certification contract still pins 2.1.2; repin the client runtime before #64/#65.",
+		"The A/A point-equivalence interval is descriptive and wider than the 10% margin; final sample size 7 repetitions is sized for the predeclared 0.85 design alternative and exceeds the frozen 270-execution budget (378 executions)."
+	],
+	"claimBoundary": "Hosted validity evidence only. No candidate efficacy, release authority, or invoice-time cost claim.",
+	"cases": [
+		{
+			"id": "locate-schema-version",
+			"hash": "c76264bf0e9a6d18f65be9592e22a6cafc850b6d420c7367cce99cc1eb0a5c7c"
+		},
+		{
+			"id": "impact-build-generation-references",
+			"hash": "d64bff67a6371e942796dbec670385bade280248a4a1f6ffcbdbf08d2776053c"
+		},
+		{
+			"id": "impact-schema-version-references",
+			"hash": "e298f45bb6b51d554d15c84e550c1adf6e3e2c356d8b7a9c774e8f1da9a52505"
+		},
+		{
+			"id": "semantic-renamed-reexport",
+			"hash": "b500a59ec735fd6a97d763726cf5a482cdc019233eb81ccbd91d749f1139caf8"
+		},
+		{
+			"id": "semantic-interface-implementations",
+			"hash": "4d01ffd36a2f2751071bc2e3b787793a7c133aa5c3832a95cf4248542b2b80fe"
+		},
+		{
+			"id": "impl-default-result-bytes",
+			"hash": "1aead68f05c4fa31be51a6198a589162168d98bcb341ba5aeb2928cca49be5f0"
+		}
+	],
+	"harnessVersion": 11,
+	"comparisonDigest": "2d3390d34200bac42f9e43bb6e8a084c643caef5d24fe0c9b7d00bec6e665836",
+	"campaignId": "codeindex-calibration-f4f9cb5cd7781f67"
+}

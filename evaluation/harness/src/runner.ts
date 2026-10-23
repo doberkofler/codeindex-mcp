@@ -1,33 +1,20 @@
 import {type ChildProcess} from 'node:child_process';
-import {mkdirSync, writeFileSync} from 'node:fs';
-import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {agentEnvironmentOf, agentProcessOf} from './agentProcess.ts';
 import {runChildOf, signalGroup, TERMINATE_GRACE_MS} from './childProcess.ts';
-import {isRateLimited, parseEvents} from './events.ts';
-import {gradeOf} from './grade.ts';
-import {EXECUTION_SCHEMA_VERSION, type ExecutionIdentityType} from './identity.ts';
+import {type ExecutionIdentityType} from './identity.ts';
 import {type ClientStoreType} from './isolation.ts';
-import {externalPathAttemptCountOf, externalPathAttemptsOf} from './externalPath.ts';
+import {attemptResultOf, type AttemptResultType} from './attemptResult.ts';
+import {attemptContextOf} from './attemptContext.ts';
+import {startExecutionMeterOf, type ExecutionProviderMeterType} from './executionMeter.ts';
 import {openReadyServerOf, type OpenCodeServerType} from './opencodeServer.ts';
-import {type PostRunResultType, postRunOf, skippedPostRunOf} from './postRun.ts';
-import {
-	type AttemptContextType,
-	type AttemptLogType,
-	type ExecutionIsolationType,
-	type OutcomeType,
-	type RunArtifactsType,
-	type RunResultType,
-} from './runTypes.ts';
+import {type ProviderMeterReconciliationType} from './providerMeterLedger.ts';
+import {type TaskCostVectorType} from './taskCost.ts';
+import {type AttemptLogType, type ExecutionIsolationType, type RunArtifactsType, type RunResultType} from './runTypes.ts';
 import {promptOf} from './suite.ts';
 import {type CaseType} from './schema.ts';
-import {routingOf, type RoutingType, type ToolSurfaceType, type TreatmentDefinitionType} from './treatment.ts';
-import {workflowOf} from './workflow.ts';
+import {type ToolSurfaceType, type TreatmentDefinitionType} from './treatment.ts';
 
-const FINAL_TEXT_TAIL = 4000;
-const STDERR_TAIL = 4000;
-const RAW_STDOUT_LIMIT = 1_000_000;
-const RAW_STDERR_LIMIT = 64_000;
 /** Retry policy: bounded attempts with exponential, jittered backoff. */
 const MAX_ATTEMPTS = 6;
 const RATE_LIMIT_BACKOFF_MS = [30_000, 60_000, 120_000, 240_000, 300_000] as const;
@@ -112,140 +99,6 @@ const installTerminationHandlers = (): void => {
 		});
 	}
 };
-type AttemptResultType = Readonly<{
-	result: Omit<RunResultType, 'attempts' | 'rateLimited'>;
-	log: AttemptLogType;
-}>;
-
-const postRunCheckOf = async (testCase: CaseType, cwd: string, timedOut: boolean): Promise<PostRunResultType | null> => {
-	if (testCase.check === null) {
-		return null;
-	}
-
-	if (timedOut) {
-		return skippedPostRunOf(testCase.check, 'the agent timed out before the post-run command could execute');
-	}
-
-	const result = await postRunOf(testCase.check, cwd);
-
-	return result;
-};
-
-const invalidReasonOf = (timedOut: boolean, exitCode: number | null, routing: RoutingType, externalPathAttemptCount: number): string | null => {
-	if (timedOut) {
-		return 'timed out';
-	}
-
-	if (externalPathAttemptCount > 0) {
-		return `denied external-directory access ${externalPathAttemptCount} time(s)`;
-	}
-
-	if (exitCode === null || exitCode !== 0) {
-		return `agent exited with ${exitCode ?? 'no status'}`;
-	}
-
-	if (routing.unknownTools.length > 0) {
-		return `unknown tool(s) presented or called: ${routing.unknownTools.join(', ')}`;
-	}
-
-	if (routing.executeCalls > 0) {
-		return 'generic execute was called although it is absent from every treatment';
-	}
-
-	return null;
-};
-
-const rawStreamsOf = (rawBase: string | null, attempt: number, stdout: string, stderr: string): string | null => {
-	if (rawBase === null) {
-		return null;
-	}
-
-	const rawFile = `${rawBase}.attempt-${attempt}.jsonl`;
-
-	mkdirSync(path.dirname(rawFile), {recursive: true});
-	writeFileSync(rawFile, stdout.slice(0, RAW_STDOUT_LIMIT), 'utf8');
-	writeFileSync(`${rawBase}.attempt-${attempt}.stderr.txt`, stderr.slice(0, RAW_STDERR_LIMIT), 'utf8');
-
-	return rawFile;
-};
-
-const attemptResultOf = (
-	input: Readonly<{
-		campaignId: string;
-		cwd: string;
-		testCase: CaseType;
-		treatment: TreatmentDefinitionType;
-		surface: ToolSurfaceType;
-		repetition: number;
-		model: string;
-		revision: string;
-		identity: ExecutionIdentityType;
-		identityDigest: string;
-		isolation: Omit<ExecutionIsolationType, 'restored'>;
-		artifacts: RunArtifactsType;
-	}>,
-	context: AttemptContextType,
-): AttemptResultType => ({
-	result: {
-		recordType: 'result',
-		schemaVersion: EXECUTION_SCHEMA_VERSION,
-		campaignId: input.campaignId,
-		identity: input.identity,
-		identityDigest: input.identityDigest,
-		attempt: context.attempt,
-		caseId: input.testCase.id,
-		caseClass: input.testCase.class,
-		treatment: input.treatment.id,
-		treatmentDefinitionHash: input.treatment.definitionHash,
-		repetition: input.repetition,
-		model: input.model,
-		revision: input.revision,
-		startedAt: context.startedAt,
-		completedAt: context.completedAt,
-		durationMs: context.durationMs,
-		exitCode: context.exitCode,
-		signal: context.signal,
-		timedOut: context.timedOut,
-		timeoutMs: context.timeoutMs,
-		outcome: context.outcome,
-		defects: context.externalPathAttempts.length === 0 ? [] : ['external-path-attempt'],
-		externalPathAttempts: context.externalPathAttempts,
-		externalPathAttemptCount: externalPathAttemptCountOf(context.externalPathAttempts),
-		isolation: {...input.isolation, restored: false},
-		artifacts: input.artifacts,
-		usage: context.events.usage,
-		telemetry: context.events.telemetry,
-		toolCalls: context.events.toolCalls,
-		outputBytes: context.events.outputBytes,
-		familyBytes: context.events.familyBytes,
-		rawEventCount: context.events.rawEventCount,
-		malformedEventCount: context.events.malformed.length,
-		streamTruncated: context.events.truncated,
-		indexCalls: context.routing.codeIndexCalls,
-		surface: input.surface,
-		routing: context.routing,
-		errors: context.events.errors,
-		grade: context.grade,
-		workflow: context.workflow,
-		postRun: context.postRun,
-		valid: context.invalidReason === null,
-		invalidReason: context.invalidReason,
-		finalText: context.events.finalText.slice(0, FINAL_TEXT_TAIL),
-		stderrTail: context.stderr.slice(-STDERR_TAIL),
-	},
-	log: {
-		attempt: context.attempt,
-		startedAt: context.startedAt,
-		durationMs: context.durationMs,
-		exitCode: context.exitCode,
-		signal: context.signal,
-		timedOut: context.timedOut,
-		rateLimited: context.throttled,
-		invalidReason: context.invalidReason,
-		rawFile: context.rawFile,
-	},
-});
-
 /**
  * Executes one attempt and derives its graded result.
  *
@@ -281,89 +134,84 @@ const attemptOnce = async (
 		command?: string;
 		/** Configured MCP servers that must connect before the prompt is admitted. */
 		mcpServers?: readonly string[];
+		/** Loopback provider meter; when absent, no virtual provider is injected. */
+		providerMeter?: ExecutionProviderMeterType | null;
 	}>,
 	attempt: number,
 ): Promise<AttemptResultType> => {
 	const startedAt = new Date().toISOString();
-	const started = Date.now();
-	const prompt = promptOf(input.testCase);
+	const startedMs = Date.now();
 	const timeoutMs = input.timeoutMs ?? input.testCase.timeoutMs;
+	const meter = await startExecutionMeterOf(input.providerMeter ?? null);
 	let openCode: OpenCodeServerType | null = null;
 
-	if (input.command === undefined) {
-		// A fresh private server is made ready before the prompt exists. The
-		// `run` process connects to it, so request 1 cannot be composed while an
-		// expected MCP server is still registering.
-		const ready = await openReadyServerOf({
-			cwd: input.cwd,
-			env: agentEnvironmentOf(input),
-			expectedServers: input.mcpServers ?? [],
-		});
+	try {
+		if (input.command === undefined) {
+			// A fresh private server is made ready before the prompt exists. The
+			// `run` process connects to it, so request 1 cannot be composed while an
+			// expected MCP server is still registering.
+			const ready = await openReadyServerOf({
+				cwd: input.cwd,
+				env: {...agentEnvironmentOf(input), ...meter.environment},
+				expectedServers: input.mcpServers ?? [],
+			});
 
-		openCode = ready.server;
+			openCode = ready.server;
+		}
+	} catch (error) {
+		await meter.finish();
+		throw error;
 	}
 
 	let child: ChildProcess;
+	let executed: Awaited<ReturnType<typeof runChildOf>>;
+	let providerCost: TaskCostVectorType | null;
+	let providerMeter: ProviderMeterReconciliationType | null;
 
 	try {
-		child = agentProcessOf(input, prompt, openCode);
+		child = agentProcessOf({...input, environmentOverrides: meter.environment}, promptOf(input.testCase), openCode);
 	} catch (error) {
 		await openCode?.close();
+		await meter.finish();
 		throw error;
 	}
 
 	installTerminationHandlers();
 	activeAttempts.add(child);
 
-	let executed: Awaited<ReturnType<typeof runChildOf>>;
-
 	try {
 		executed = await runChildOf({child, timeoutMs});
 	} finally {
 		activeAttempts.delete(child);
+		// The private server may still be settling an asynchronous title request,
+		// so it closes before the meter reconciles.
 		await openCode?.close();
+
+		const measured = await meter.finish();
+
+		providerCost = measured.cost;
+		providerMeter = measured.reconciliation;
 	}
 
-	const {stdout, stderr, timedOut, exit} = executed;
-
-	const durationMs = Date.now() - started;
-	const completedAt = new Date().toISOString();
-	const exitCode = exit.code;
-	const events = parseEvents(stdout);
-	const grade = gradeOf(input.testCase, events.finalText);
-	const workflow = workflowOf(input.testCase, events, durationMs);
-	const postRun = await postRunCheckOf(input.testCase, input.cwd, timedOut);
-	const routing = routingOf(
-		input.surface,
-		events.toolCalls.map((call) => call.tool),
-	);
-	const externalPathAttempts = externalPathAttemptsOf(stdout, stderr);
-	const invalidReason = invalidReasonOf(timedOut, exitCode, routing, externalPathAttemptCountOf(externalPathAttempts));
-	const outcome: OutcomeType = timedOut ? 'timed-out' : invalidReason === null ? 'completed' : 'failed';
-	const throttled = isRateLimited(stdout, stderr, events.errors.join('\n'));
-	const rawFile = rawStreamsOf(input.rawBase, attempt, stdout, stderr);
-
-	return attemptResultOf(input, {
+	const context = await attemptContextOf({
 		attempt,
 		startedAt,
-		completedAt,
-		durationMs,
+		startedMs,
 		timeoutMs,
-		exitCode,
-		signal: exit.signal,
-		timedOut,
-		outcome,
-		invalidReason,
-		events,
-		routing,
-		grade,
-		workflow,
-		postRun,
-		throttled,
-		rawFile,
-		stderr,
-		externalPathAttempts,
+		testCase: input.testCase,
+		cwd: input.cwd,
+		surface: input.surface,
+		stdout: executed.stdout,
+		stderr: executed.stderr,
+		timedOut: executed.timedOut,
+		exitCode: executed.exit.code,
+		signal: executed.exit.signal,
+		rawBase: input.rawBase,
+		providerCost,
+		providerMeter,
 	});
+
+	return attemptResultOf(input, context);
 };
 
 /**
@@ -401,6 +249,8 @@ export const runOnce = async (
 		command?: string;
 		/** Configured MCP servers that must connect before each prompt is admitted. */
 		mcpServers?: readonly string[];
+		/** Loopback provider meter for this slot. */
+		providerMeter?: ExecutionProviderMeterType | null;
 		/** Retry policy override for focused tests. */
 		retry?: RetryPolicyType;
 		/** First attempt ordinal, used to continue a slot's stored sequence. */

@@ -34,11 +34,18 @@ export const agentEnvironmentOf = (input: Readonly<{cwd: string; clientStore: Cl
  * @returns The spawned agent process.
  */
 export const agentProcessOf = (
-	input: Readonly<{cwd: string; model: string; clientStore: ClientStoreType; command?: string}>,
+	input: Readonly<{
+		cwd: string;
+		model: string;
+		clientStore: ClientStoreType;
+		command?: string;
+		/** Provider-meter configuration injected for this execution. */
+		environmentOverrides?: NodeJS.ProcessEnv;
+	}>,
 	prompt: string,
 	server: OpenCodeServerType | null,
 ): ChildProcess => {
-	const environment = agentEnvironmentOf(input);
+	const environment = {...agentEnvironmentOf(input), ...input.environmentOverrides};
 	const connection = server === null ? ['--standalone'] : ['--server', server.url];
 
 	if (server !== null) {

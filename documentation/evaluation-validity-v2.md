@@ -108,6 +108,15 @@ token count for the primary claim.
 
 Track [#63](https://github.com/doberkofler/codeindex-mcp/issues/63).
 
+Status: **calibrated** on 2026-10-23. All zero-spend gates passed, the hosted
+smoke was metered and path-clean, and the A/A point label ratio was `1.032`,
+inside the predeclared `[1/1.10, 1.10]` criterion. The observed variance implies
+seven paired repetitions (378 executions), above the frozen 270-execution
+budget; the client runtime also needs to be repinned from 2.1.2 to the observed
+2.1.3 before V6. Evidence is in
+[`../evaluation/audits/validity-aa-eval-035.md`](../evaluation/audits/validity-aa-eval-035.md).
+The A/A interval remains descriptive and is not an efficacy result.
+
 1. Pass V1-V4 without hosted-model spend where possible.
 2. Run a small hosted smoke only to prove complete metering, request-1 surface,
    semantic fixture hits, and clean workspace behavior.

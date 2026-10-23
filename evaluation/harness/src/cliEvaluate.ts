@@ -3,10 +3,10 @@ import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {artifactRefOf, type ArtifactRefType} from './artifact.ts';
 import {campaignManifestOf, type CampaignManifestType} from './campaignManifest.ts';
-import {assertClaimEnvironmentOf, type CampaignClaimClassType} from './campaignClaim.ts';
+import {type CampaignClaimClassType} from './campaignClaim.ts';
 import {assertCorpusPreflight, corpusPreflightOf} from './corpusPreflight.ts';
-import {assertEnvironmentModel, type EnvironmentManifestType} from './environment.ts';
-import {assertHostedModel, type HostedReferenceType} from './hostedReference.ts';
+import {type EnvironmentManifestType} from './environment.ts';
+import {type HostedReferenceType} from './hostedReference.ts';
 import {comparisonDigestOf, executionIdentityDigestOf, executionIdentityOf, identityDigestOf, identityOf} from './identity.ts';
 import {clientStoreOf, prepareClientStore, type ClientStoreType} from './isolation.ts';
 import {budgetOf, printEvaluationPlanOf} from './cliPlan.ts';
@@ -14,15 +14,16 @@ import {compare} from './report.ts';
 import {resumeDecisionOf, resumeStateOf, storeAttemptsOf, writeJsonAtomic} from './result.ts';
 import {printSummary} from './cliSummary.ts';
 import {runOnce, withRestoration} from './runner.ts';
+import {type ExecutionProviderMeterType} from './executionMeter.ts';
 import {type RunResultType} from './runTypes.ts';
-import {loadSuite, planHashOf, planOf, resolveTreatmentOf, selectCases, suiteWithModelOf, treatmentIdsOf} from './suite.ts';
+import {loadSuite, planHashOf, type planOf, resolveTreatmentOf, type selectCases, suiteWithModelOf} from './suite.ts';
+import {campaignSelectionOf} from './evaluationPlanning.ts';
 import {prepareTreatmentProofOf} from './surfaceProof.ts';
 import {type ToolSurfaceType, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
 import {applyTreatment, subjectIdentityOf, treatmentConfigOf, workspaceContextOf} from './workspace.ts';
 import {assertCheckout, ensureWorkspaces, restoreWorkspace} from './workspaceRestore.ts';
 import {
 	HARNESS_VERSION,
-	allOf,
 	artifactsOf,
 	ensureManifestAt,
 	evaluationRoot,
@@ -32,15 +33,9 @@ import {
 	runArtifactsOf,
 	settingsOf,
 	surfacesOf,
-	treatmentsOf,
+	type treatmentsOf,
 	PACE_MS,
 } from './cliSupport.ts';
-
-/**
- * Consecutive model-free cold starts every treatment must survive before the
- * first hosted-model request. Validity v2 fixes this at twenty.
- */
-const COLD_START_RUNS = 20;
 
 export type EvaluationOptionsType = Readonly<{
 	/** Restrict the run to these treatments; flags cannot widen it. */
@@ -62,6 +57,10 @@ export type EvaluationOptionsType = Readonly<{
 	comparison?: boolean;
 	/** Evidence class this campaign may support. Never inferred from results. */
 	claimClass?: CampaignClaimClassType;
+	/** Loopback provider meter configuration for hosted executions. */
+	providerMeter?: ExecutionProviderMeterType | null;
+	/** Explicit randomized plan; when absent the ordinary suite plan is used. */
+	plan?: ReturnType<typeof planOf>;
 }>;
 
 export type EvaluationRunType = Readonly<{
@@ -89,6 +88,7 @@ export type EvaluationSetupType = Readonly<{
 	comparisonDigest: string;
 	runDir: string;
 	clientStore: ClientStoreType;
+	providerMeter: ExecutionProviderMeterType | null;
 	subject: ReturnType<typeof subjectIdentityOf>;
 	context: ReturnType<typeof workspaceContextOf>;
 }>;
@@ -99,20 +99,7 @@ type SurfacesType = Readonly<{
 	treatmentContexts: ReadonlyMap<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>;
 }>;
 
-const coldStartsOfOptions = (options: EvaluationOptionsType): number => {
-	// A hosted claim always runs the fixed twenty. Local diagnostics and the
-	// deterministic CLI tests may lower the count explicitly; they never widen it.
-	const declared = options.claimClass === 'hosted-model-scoped' ? COLD_START_RUNS : Number(process.env['EVAL_COLD_STARTS'] ?? COLD_START_RUNS);
-	const coldStarts = options.coldStarts ?? declared;
-
-	if (!Number.isInteger(coldStarts) || coldStarts < 1) {
-		throw new Error('cold-start proof count must be a positive integer');
-	}
-
-	return coldStarts;
-};
-
-const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOptionsType): EvaluationSetupType => {
+export const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOptionsType): EvaluationSetupType => {
 	const suitePath = flagOf(flags, 'suite');
 
 	if (suitePath === undefined) {
@@ -127,23 +114,7 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 		throw new Error(`suite ${suite.id} must be frozen`);
 	}
 
-	const selected = selectCases(cases, {caseIds: options.caseIds ?? allOf(flags, 'case'), tags: allOf(flags, 'tag')});
-	const treatments =
-		options.treatments === undefined
-			? treatmentsOf(flagOf(flags, 'treatment'), suite.treatments)
-			: treatmentsOf(options.treatments.join(','), suite.treatments);
-	const repetitions = options.repetitions ?? Number(flagOf(flags, 'repetitions') ?? suite.repetitions);
-	const coldStarts = coldStartsOfOptions(options);
-	const environment = options.environment ?? null;
-	const hostedReference = options.hostedReference ?? null;
-	if (environment !== null) {
-		assertEnvironmentModel(environment, suite.model);
-	}
-	if (hostedReference !== null) {
-		assertHostedModel(hostedReference, suite.model);
-	}
-	assertClaimEnvironmentOf(options.claimClass, environment, hostedReference);
-	const plan = planOf(selected, treatmentIdsOf(treatments), repetitions);
+	const {selected, treatments, repetitions, coldStarts, environment, hostedReference, plan} = campaignSelectionOf(flags, options, suite, cases);
 	const planHash = planHashOf(plan);
 	const identity = identityOf({
 		suite,
@@ -183,6 +154,7 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 		comparisonDigest,
 		runDir,
 		clientStore,
+		providerMeter: options.providerMeter ?? null,
 		subject,
 		context,
 	};
@@ -198,7 +170,7 @@ const surfaceForOf = (surfaces: Awaited<ReturnType<typeof surfacesOf>>, treatmen
 	return surface;
 };
 
-const prepareSurfacesOf = async (setup: EvaluationSetupType): Promise<SurfacesType> => {
+export const prepareSurfacesOf = async (setup: EvaluationSetupType): Promise<SurfacesType> => {
 	const surfaces = await surfacesOf(setup.context, setup.treatments);
 
 	// The final configuration names the ordinary tools and the captured native
@@ -321,6 +293,7 @@ const slotResultOf = async (input: SlotInputType): Promise<Readonly<{result: Run
 		},
 		artifacts: runArtifactsOf(input.artifacts, treatment),
 		mcpServers: treatment.mcp === null ? [] : [treatment.mcp.server],
+		...(setup.providerMeter === null ? {} : {providerMeter: setup.providerMeter}),
 		rawBase: path.join(slotDirectory, 'raw'),
 		firstAttempt: resume.nextAttempt,
 		prepareRetry: () => restoreWorkspace(setup.context, treatment, treatmentContext.surface),

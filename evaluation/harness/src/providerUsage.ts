@@ -4,12 +4,12 @@ export const PROVIDER_REQUEST_KINDS = ['agent', 'title', 'compaction', 'other'] 
 export type ProviderRequestKindType = (typeof PROVIDER_REQUEST_KINDS)[number];
 
 /** Token components that must be provider-reported for an economic claim. */
-export const REQUIRED_USAGE_FIELDS = ['nonCachedInputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'visibleOutputTokens'] as const;
+export const REQUIRED_USAGE_FIELDS = ['nonCachedInputTokens', 'cacheReadTokens', 'visibleOutputTokens'] as const;
 
 export type RequiredUsageFieldType = (typeof REQUIRED_USAGE_FIELDS)[number];
 
 /** Every token component retained for one provider request. */
-export type ProviderUsageFieldType = RequiredUsageFieldType | 'reasoningTokens';
+export type ProviderUsageFieldType = RequiredUsageFieldType | 'cacheWriteTokens' | 'reasoningTokens';
 
 /**
  * Provider-reported token accounting for one request.
@@ -303,9 +303,11 @@ export const providerUsageFromRecordsOf = (records: readonly Readonly<Record<str
 	const fields = usageFieldsOf(merged);
 	const nonCached = fieldStateOf(fields.nonCachedInput, true);
 	const cacheRead = fieldStateOf(fields.cacheRead, true);
+	// A provider that exposes no cache-write tier reports no cache-write field.
+	// Absence is an empty tier map for that provider, never an inferred value.
 	const cacheWrite = {
-		value: fields.cacheWrite.value,
-		missing: !fields.cacheWrite.reported,
+		value: fields.cacheWrite.value ?? {},
+		missing: false,
 		invalid: fields.cacheWrite.reported && !fields.cacheWrite.valid,
 	};
 	const visible = fieldStateOf(fields.visibleOutput, true);
@@ -319,7 +321,9 @@ export const providerUsageFromRecordsOf = (records: readonly Readonly<Record<str
 	];
 	const missingFields = states.filter(([, state]) => state.missing).map(([name]) => name);
 	const invalidFields = states.filter(([, state]) => state.invalid).map(([name]) => name);
-	const requiredComplete = states.slice(0, 4).every(([, state]) => !state.missing && !state.invalid && state.value !== null);
+	const requiredComplete = states
+		.filter(([name]) => name === 'nonCachedInputTokens' || name === 'cacheReadTokens' || name === 'visibleOutputTokens')
+		.every(([, state]) => !state.missing && !state.invalid && state.value !== null);
 
 	return {
 		nonCachedInputTokens: nonCached.value,
@@ -397,12 +401,11 @@ export const providerUsageTotalsOf = (usages: readonly ProviderTokenUsageType[])
 		}
 	}
 
-	const writeTotal = cacheWriteTotalOf(tiersKnown ? writeTiers : null);
 	const reportedCost = usages.every((usage) => usage.reportedCostUsd !== null)
 		? usages.reduce((total, usage) => total + (usage.reportedCostUsd ?? 0), 0)
 		: null;
 
-	if (!complete || writeTotal === null) {
+	if (!complete) {
 		return {
 			state: 'unavailable',
 			nonCachedInputTokens: null,
@@ -425,7 +428,7 @@ export const providerUsageTotalsOf = (usages: readonly ProviderTokenUsageType[])
 		state: 'exact',
 		nonCachedInputTokens: nonCached,
 		cacheReadTokens: cacheRead,
-		cacheWriteTokens: writeTiers,
+		cacheWriteTokens: tiersKnown ? writeTiers : null,
 		visibleOutputTokens: visible,
 		reasoningTokens: reasoning,
 		totalTokens,

@@ -311,6 +311,13 @@ node evaluation/harness/src/cli.ts qualification \
 	--suite evaluation/suites/qualification.json \
 	--environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
 	--canonical evaluation/canonical-artifact.json --dry-run
+
+# Zero-spend validity gates, hosted smoke, and randomized A/A calibration
+EVALUATION_STATE_ROOT=<external-root> DEEPSEEK_API_KEY=<key> \
+node evaluation/harness/src/cli.ts validity \
+	--suite evaluation/suites/calibration.json \
+	--hosted-reference evaluation/references/deepseek-flash-validity-2026-10-23.json \
+	--provider-auth-env DEEPSEEK_API_KEY --aa-repetitions 4
 ```
 
 Selection rules:

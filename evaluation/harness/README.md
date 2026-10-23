@@ -322,6 +322,31 @@ The same probe runs automatically inside `evaluate` after the model-free
 readiness proof and before the first execution. A failing preflight writes its
 report and stops the campaign.
 
+### Validity and A/A calibration
+
+`validity` runs the zero-spend contract, metering, request-1 surface, corpus, and
+path-isolation gates before any hosted request. It then runs one hosted smoke and
+two identical `no-index` arms in randomized paired order. Every pair
+independently assigns its two repetitions to labels A and B, so a label effect
+cannot come from a fixed label or position. Missing, invalid, contaminated, and
+incompletely metered executions stay in the record with closed causes.
+
+```bash
+EVALUATION_STATE_ROOT=<external-root> DEEPSEEK_API_KEY=<key> \
+  node src/cli.ts validity --suite suites/calibration.json \
+  --hosted-reference references/deepseek-flash-validity-2026-10-23.json \
+  --provider-auth-env DEEPSEEK_API_KEY --aa-repetitions 4
+```
+
+The A/A gate requires the point label ratio `B/A` within `[1/1.10, 1.10]`. The
+paired interval is descriptive. The sample-size simulation uses the observed
+within-case variance, a noise-corrected between-case variance, the frozen 18-case
+suite, 80% power, and a predeclared `0.85` design alternative; the recorded
+calibration selected 7 repetitions (378 executions), above the frozen
+270-execution budget. The smoke and A/A records carry
+`claimClass: "validity-only"`, `efficacyClaim: false`, and
+`releaseAuthority: false`.
+
 ### Model-free complete-route comparison
 
 `route` implements E1 without a model. It loads a declared route plan, validates

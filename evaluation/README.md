@@ -7,12 +7,15 @@ The method is specified in
 > **Hosted evaluation paused.** E3 remains historical `NOT PASSED`, but its
 > total-token and cost interpretation is invalid. Request metering, the direct
 > request-1 surface proof, external-state workspace isolation, corpus preflight,
-> and the frozen economic/statistical contract are implemented; the hosted
-> validity pilot remains open. Read the
+> the frozen economic/statistical contract, and the deterministic-plus-A/A
+> validity calibration are implemented. The calibration passed its point-label
+> equivalence criterion; the observed variance implies 7 paired repetitions
+> (378 executions), above the frozen 270-execution budget. Repin the client
+> runtime and revise the budget before a campaign. Read the
 > [E3 erratum](audits/hosted-release-e3-erratum.md),
-> [evaluation validity v2](../documentation/evaluation-validity-v2.md), and the
-> [frozen contract evidence](audits/economic-contract-eval-034.md). Do not run
-> another hosted release campaign until the v2 validity milestone passes.
+> [evaluation validity v2](../documentation/evaluation-validity-v2.md), the
+> [frozen contract evidence](audits/economic-contract-eval-034.md), and the
+> [validity/A/A evidence](audits/validity-aa-eval-035.md).
 
 | Directory | Contents |
 | --- | --- |
@@ -102,6 +105,23 @@ node evaluation/harness/src/cli.ts evaluate --suite suites/calibration.json --dr
 
 A local smoke run executes those six cases with `no-index` and `accepted`
 treatments at one repetition, for 12 executions.
+
+The hosted validity calibration runs every zero-spend gate, one hosted smoke,
+and two identical no-index A/A arms in randomized paired order. The record is
+validity evidence only:
+
+```bash
+EVALUATION_STATE_ROOT=<external-root> DEEPSEEK_API_KEY=<key> \
+  node evaluation/harness/src/cli.ts validity \
+  --suite suites/calibration.json \
+  --hosted-reference references/deepseek-flash-validity-2026-10-23.json \
+  --provider-auth-env DEEPSEEK_API_KEY \
+  --aa-repetitions 4
+```
+
+The recorded result is in
+[`audits/validity-aa-eval-035.md`](audits/validity-aa-eval-035.md) and
+[`reports/validity-aa-eval-035.json`](reports/validity-aa-eval-035.json).
 
 The reproducible local smoke pins the host, runtimes, model digest,
 quantization, context, and generation settings in

@@ -31,6 +31,13 @@ runs every treatment from scratch; it does not reuse those executions.
 Deterministic model-free evidence gates the hosted spend; independent local-model
 qualification does not.
 
+`deepseek-flash-validity-2026-10-23.json` pins the same model for the
+validity-only A/A calibration under the observed OpenCode 2.1.3 client. Its
+reference hash is
+`72ca34da2424381d404f52465a6c387e613a59f3dfa2b92b4192887e9ffda780`. It is not a
+final-certification reference; the selected reference above still pins the
+frozen 2.1.2 runtime until that pin is revised.
+
 `deepseek-v4-pro.json` is retained only to identify the unexecuted historical E2
 dry-run record. It is not the selected reference for #36.
 

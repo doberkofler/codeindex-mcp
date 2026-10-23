@@ -34,9 +34,9 @@ export const primaryCheckout = path.basename(evaluationRoot) === 'evaluation' ? 
 /** Disposable root for workspaces, staged artifacts, databases, and results. */
 export const evaluationStateRoot =
 	process.env['EVALUATION_STATE_ROOT'] !== undefined
-		? evaluationStateRootOf({evaluationRoot, primaryCheckout})
+		? evaluationStateRootOf({evaluationRoot, primaryCheckout, environment: process.env})
 		: path.basename(evaluationRoot) === 'evaluation'
-			? evaluationStateRootOf({evaluationRoot, primaryCheckout})
+			? evaluationStateRootOf({evaluationRoot, primaryCheckout, environment: process.env})
 			: evaluationRoot;
 
 export const argsOf = (argv: readonly string[]): Readonly<{command: string; flags: Map<string, string[]>}> => {

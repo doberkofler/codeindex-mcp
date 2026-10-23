@@ -14,6 +14,7 @@ export const DEFECTS = [
 	'revision-case-mismatch',
 	'configuration-mismatch',
 	'treatment-mismatch',
+	'metering-incomplete',
 	'missing-telemetry',
 	'dirty-isolation',
 	'external-path-attempt',

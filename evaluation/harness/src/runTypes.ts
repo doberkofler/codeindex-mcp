@@ -6,6 +6,7 @@ import {type GradeType} from './grade.ts';
 import {type ExecutionIdentityType} from './identity.ts';
 import {type ClientStoreModeType, type IsolationModeType} from './isolation.ts';
 import {type PostRunResultType} from './postRun.ts';
+import {type ProviderMeterReconciliationType} from './providerMeterLedger.ts';
 import {type DefectType} from './result.ts';
 import {type CaseClassType} from './schema.ts';
 import {type RoutingType, type ToolSurfaceType} from './treatment.ts';
@@ -86,6 +87,8 @@ export type RunResultType = Readonly<{
 	telemetry: TelemetryType;
 	/** Complete provider-request cost vector, or null when the task was not metered. */
 	providerCost?: TaskCostVectorType | null;
+	/** Sanitized reconciliation of every provider request made by the task. */
+	providerMeter?: ProviderMeterReconciliationType | null;
 	/** Normalized calls in stream order, including nested, unknown, and failed calls. */
 	toolCalls: RunEventsType['toolCalls'];
 	outputBytes: number;
@@ -135,6 +138,10 @@ export type AttemptContextType = Readonly<{
 	postRun: PostRunResultType | null;
 	throttled: boolean;
 	rawFile: string | null;
+	/** Exact-or-unavailable total task cost from the loopback meter. */
+	providerCost: TaskCostVectorType | null;
+	/** Sanitized provider-request reconciliation for this attempt. */
+	providerMeter: ProviderMeterReconciliationType | null;
 	stderr: string;
 	externalPathAttempts: readonly ExternalPathAttemptType[];
 }>;

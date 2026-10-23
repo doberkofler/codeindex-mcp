@@ -216,9 +216,9 @@ describe('provider usage', () => {
 
 		assert.equal(missing.nonCachedInputTokens, 10);
 		assert.equal(missing.cacheReadTokens, null);
-		assert.equal(missing.cacheWriteTokens, null);
+		assert.deepEqual(missing.cacheWriteTokens, {});
 		assert.equal(missing.complete, false);
-		assert.deepEqual(missing.missingFields, ['cacheReadTokens', 'cacheWriteTokens']);
+		assert.deepEqual(missing.missingFields, ['cacheReadTokens']);
 
 		assert.equal(invalid.nonCachedInputTokens, null);
 		assert.equal(invalid.complete, false);
