@@ -722,7 +722,9 @@ evaluation win. A smaller interface that loses semantic correctness is also not 
 2. Run EVAL-028 (#36) from scratch: 270 executions with the pinned frontier reference.
    The `release` command requires current model-free evidence and no longer reads a
    local-regression argument.
-3. Implement EVAL-029 (#56): pin the canonical CodeIndex artifact and add the independent
-   108-slot local-model qualification.
+3. Run the independent 108-slot local-model qualification. The canonical artifact is
+   pinned in `evaluation/canonical-artifact.json`, the frozen plan is in
+   `evaluation/suites/qualification.json`, and `evaluation/harness/src/cli.ts qualification`
+   emits the local-model-scoped record.
 4. Preserve the completed v1 local regression as historical `NOT PASSED` evidence; never
    rerun its valid failures for a luckier sample.

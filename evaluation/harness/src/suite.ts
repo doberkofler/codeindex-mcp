@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {caseHashOf, caseOf, hashOf, suiteFieldsOf, suiteHashOf, type CaseType, type SuiteFieldsType, type SuiteType} from './schema.ts';
-import {TREATMENT_IDS, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
+import {ALL_TREATMENT_IDS, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
 
 /** Answer contract appended to every case prompt, identical for both arms. */
 export const ANSWER_CONTRACT = [
@@ -245,7 +245,7 @@ export const resolveTreatmentOf = (entry: PlanEntryType, treatments: readonly Tr
  * @returns Treatment ids in plan order.
  */
 export const treatmentIdsOf = (treatments: readonly TreatmentDefinitionType[]): readonly TreatmentIdType[] =>
-	[...treatments].sort((left, right) => TREATMENT_IDS.indexOf(left.id) - TREATMENT_IDS.indexOf(right.id)).map((treatment) => treatment.id);
+	[...treatments].sort((left, right) => ALL_TREATMENT_IDS.indexOf(left.id) - ALL_TREATMENT_IDS.indexOf(right.id)).map((treatment) => treatment.id);
 
 /**
  * Hashes an ordered plan.

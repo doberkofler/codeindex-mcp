@@ -178,6 +178,9 @@ export const campaignManifestOf = (
 		artifacts: {
 			accepted: artifactRefOf(artifacts.get('accepted') ?? null),
 			candidate: artifactRefOf(artifacts.get('candidate') ?? null),
+			// A qualification campaign has no accepted or candidate arm; its one
+			// artifact is the fixed canonical reference.
+			canonical: artifactRefOf(artifacts.get('canonical') ?? null),
 		},
 		isolation: isolationRecordOf(clientStore, subject.mode),
 		campaignStore: campaignStoreRecordOf(clientStore),

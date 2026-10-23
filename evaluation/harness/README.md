@@ -27,9 +27,9 @@ canonical treatment set participates in run identity.
 
 Local-model qualification uses two treatments instead: `no-index` and one fixed
 canonical CodeIndex artifact. Across comparable qualification campaigns, only the
-pinned model environment changes. EVAL-029 (#56) tracks this 18 × 2 × 3 plan; the
-current suite and commands still implement the historical three-treatment local
-regression.
+pinned model environment changes. The `qualification` command implements this
+18 × 2 × 3 plan; `local-diagnostic` and `local-regression` remain the historical
+candidate-comparison commands and keep their original records.
 
 All treatments run in isolated workspaces of the same pinned subject: detached
 worktrees when the subject is a version-control checkout, and disposable content-
@@ -90,9 +90,11 @@ is recorded and fails the report.
 src/                              harness (Node 26 native TypeScript, no dependencies)
 harness.json                      optional subject override, ignored by Git
 ../suites/q2.json                 suite manifest (model, revision, reps, treatments, cases)
+../suites/qualification.json      frozen 108-slot local-model qualification plan
+../canonical-artifact.json        pinned canonical CodeIndex artifact identity
 ../cases/*.json                   one case per file
-../artifacts/{accepted,candidate}/ staged artifact trees, ignored by Git
-../workspaces/{no-index,accepted,candidate}
+../artifacts/{accepted,candidate,canonical}/ staged artifact trees, ignored by Git
+../workspaces/{no-index,accepted,candidate,canonical}
 ../results/<campaign-id>/         manifest.json, run state, report.json
 ../results/<campaign-id>/<case>/<treatment>/rep-<n>/
                                   attempt-<n>.json and its raw event streams
@@ -249,6 +251,9 @@ node evaluation/harness/src/cli.ts local-diagnostic --suite evaluation/suites/re
 node evaluation/harness/src/cli.ts local-regression --suite evaluation/suites/release.json \
   --environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
   --target-metric retrievalBytes
+node evaluation/harness/src/cli.ts qualification --suite evaluation/suites/qualification.json \
+  --environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
+  --canonical evaluation/canonical-artifact.json
 node evaluation/harness/src/cli.ts release --suite suites/release.json \
   --hosted-reference references/deepseek-flash.json \
   --target-metric retrievalBytes --dry-run
@@ -415,12 +420,33 @@ must not be rerun to replace a valid wrong answer. It does not qualify a future
 local model because its moving candidate artifact confounds model and product
 changes.
 
-The approved qualification replacement runs the frozen 18-case suite with
-`no-index` and one pinned canonical CodeIndex artifact at three paired repetitions,
-exactly 108 slots. It predeclares correctness, timeout, tool-use, and efficiency
-criteria and changes only the model environment across comparable campaigns.
-EVAL-029 (#56) tracks implementation; no command in this README currently emits
-that verdict.
+### Independent local-model qualification
+
+`qualification` implements the approved replacement. It runs the frozen 18-case
+suite with `no-index` and one digest-pinned canonical CodeIndex artifact at three
+paired repetitions, exactly 108 slots. It predeclares correctness, timeout,
+tool-use, and efficiency criteria and changes only the model environment across
+comparable campaigns:
+
+```bash
+node src/cli.ts qualification --suite suites/qualification.json \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --canonical canonical-artifact.json --dry-run
+node src/cli.ts qualification --suite suites/qualification.json \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --canonical canonical-artifact.json
+```
+
+The suite must select exactly the frozen release cases and the `no-index` and
+`canonical` treatments. The canonical treatment must present exactly the
+identifier, root, entry point, and content digest pinned by
+`canonical-artifact.json`; a missing digest or a different staged tree aborts
+before any model call. The command writes `qualification.json` with
+`claimClass: "local-model-scoped"`, `releaseAuthority: false`, and
+`frontierReleaseGate: "unaffected"`. Its `baseline` excludes the model and
+environment, so two campaigns with the same baseline are directly comparable and
+a changed canonical artifact starts a new baseline. A qualification record never
+satisfies or blocks the hosted release gate.
 
 ### Hosted release campaign
 

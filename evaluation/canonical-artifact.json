@@ -1,0 +1,11 @@
+{
+	"schemaVersion": 1,
+	"id": "codeindex-mcp-canonical",
+	"version": "0.5.0",
+	"root": "artifacts/canonical",
+	"entryPoint": "mcp.mjs",
+	"digest": "aba08ea73b5ebbce2d769b964295d26dea196799cb97b4ef962cd3437a58d6c0",
+	"selectedAt": "2026-10-23T00:00:00.000Z",
+	"rationale": "The released 0.5.0 artifact already exercised by the frozen release suite and the completed 162-slot local regression. Its content digest is fixed and independent of any branch, build directory, or candidate change, so every model campaign compares against byte-identical MCP tools and responses.",
+	"source": "Released codeindex-mcp 0.5.0 package staged as evaluation/artifacts/canonical; the digest covers every artifact file except node_modules and .git."
+}

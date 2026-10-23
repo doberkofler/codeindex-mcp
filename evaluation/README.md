@@ -168,11 +168,35 @@ vice versa. The diagnostic history is recorded in
 [`audits/local-regression-e4.md`](audits/local-regression-e4.md) as historical
 `NOT PASSED` evidence; its valid wrong answer is not rerun for luck.
 
-The approved future local-model qualification instead runs 18 cases ×
-`no-index` and one fixed canonical CodeIndex artifact × 3 paired repetitions =
-108 executions. Only the pinned model/environment changes between comparable
-campaigns. EVAL-029 (#56) tracks the canonical artifact, command, result, and
-predeclared qualification criteria; no such full-suite command exists yet.
+The independent local-model qualification runs 18 cases × `no-index` and one
+fixed canonical CodeIndex artifact × 3 paired repetitions = 108 executions. The
+canonical artifact is pinned by content digest in
+[`canonical-artifact.json`](canonical-artifact.json); the plan and frozen case
+hashes are in [`suites/qualification.json`](suites/qualification.json). Only the
+pinned model/environment changes between comparable campaigns. The canonical
+artifact is staged at `artifacts/canonical/`, which is generated and ignored like
+every other artifact tree:
+
+```bash
+node evaluation/harness/src/cli.ts qualification \
+  --suite suites/qualification.json \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --canonical canonical-artifact.json \
+  --dry-run
+node evaluation/harness/src/cli.ts qualification \
+  --suite suites/qualification.json \
+  --environment environments/ollama-qwen3.8-27b-calibration.json \
+  --canonical canonical-artifact.json
+```
+
+The command verifies the pinned host and model, the frozen release case content,
+and the canonical artifact digest before the first model call. It writes
+`qualification.json` with `claimClass: "local-model-scoped"`,
+`releaseAuthority: false`, and `frontierReleaseGate: "unaffected"`. The record
+keeps qualification and disqualification reasons separate and contains no
+product-release verdict. A failed, blocked, or absent record neither authorizes
+nor blocks the hosted release gate. The plan and criteria are recorded in
+[`audits/local-model-qualification-e0.md`](audits/local-model-qualification-e0.md).
 
 The hosted release campaign pins an exact frontier model in
 [`references/`](references/README.md) and runs from scratch after a passing

@@ -1,10 +1,19 @@
 import {hashOf} from './hash.ts';
 import {callableToolsOf} from './surface.ts';
 
-/** The accepted three-treatment model. Order defines plan order. */
+/** The accepted three-treatment frontier model. Order defines plan order. */
 export const TREATMENT_IDS = ['no-index', 'accepted', 'candidate'] as const;
 
-export type TreatmentIdType = (typeof TREATMENT_IDS)[number];
+/**
+ * The independent local-model qualification model: one plain baseline and one
+ * fixed canonical CodeIndex artifact. It never contains a moving candidate.
+ */
+export const QUALIFICATION_TREATMENT_IDS = ['no-index', 'canonical'] as const;
+
+/** Every treatment id the harness understands, in canonical plan order. */
+export const ALL_TREATMENT_IDS = [...TREATMENT_IDS, 'canonical'] as const;
+
+export type TreatmentIdType = (typeof ALL_TREATMENT_IDS)[number];
 
 /** A treatment either withholds CodeIndex or presents one artifact of it. */
 export const TREATMENT_KINDS = ['no-index', 'codeindex'] as const;
@@ -231,10 +240,10 @@ export const treatmentOf = (value: unknown, context = 'treatment'): TreatmentDef
 	rejectUnknownKeys(record, TREATMENT_KEYS, context);
 
 	const id = requireString(record['id'], 'id', context);
-	const treatmentId = TREATMENT_IDS.find((candidate) => candidate === id);
+	const treatmentId = ALL_TREATMENT_IDS.find((candidate) => candidate === id);
 
 	if (treatmentId === undefined) {
-		throw new Error(`${context} field "id" must be one of ${TREATMENT_IDS.join(', ')}`);
+		throw new Error(`${context} field "id" must be one of ${ALL_TREATMENT_IDS.join(', ')}`);
 	}
 
 	const kind = requireString(record['kind'], 'kind', context);
@@ -264,13 +273,28 @@ export const treatmentOf = (value: unknown, context = 'treatment'): TreatmentDef
 	return {...normalized, definitionHash: treatmentHashOf(normalized)};
 };
 
+/**
+ * Returns the complete treatment set a declared list must equal.
+ *
+ * The presence of the canonical arm selects the independent two-arm
+ * qualification model. Every other set is the three-arm frontier model. The two
+ * models are never mixed, so a qualification campaign can never acquire a
+ * moving accepted or candidate artifact.
+ *
+ * @param ids - Declared treatment ids.
+ * @returns The one complete set the list must match.
+ */
+const expectedTreatmentIdsOf = (ids: readonly TreatmentIdType[]): readonly TreatmentIdType[] =>
+	ids.includes('canonical') ? QUALIFICATION_TREATMENT_IDS : TREATMENT_IDS;
+
 const identityDifferencesOf = (ids: readonly TreatmentIdType[]): readonly string[] => {
 	const differences: string[] = [];
-	const missing = TREATMENT_IDS.filter((id) => !ids.includes(id));
-	const unexpected = ids.filter((id) => !(TREATMENT_IDS as readonly string[]).includes(id));
+	const expected = expectedTreatmentIdsOf(ids);
+	const missing = expected.filter((id) => !ids.includes(id));
+	const unexpected = ids.filter((id) => !expected.includes(id));
 
-	if (ids.length !== TREATMENT_IDS.length) {
-		differences.push(`expected ${TREATMENT_IDS.length} treatments, found ${ids.length}`);
+	if (ids.length !== expected.length) {
+		differences.push(`expected ${expected.length} treatments, found ${ids.length}`);
 	}
 
 	if (new Set(ids).size !== ids.length) {
@@ -360,10 +384,10 @@ export const validateTreatmentSet = (treatments: readonly TreatmentDefinitionTyp
  * Returns treatments in the canonical accepted order.
  *
  * @param treatments - Validated treatment definitions.
- * @returns Definitions ordered by {@link TREATMENT_IDS}.
+ * @returns Definitions ordered by {@link ALL_TREATMENT_IDS}.
  */
 export const canonicalTreatmentsOf = (treatments: readonly TreatmentDefinitionType[]): readonly TreatmentDefinitionType[] =>
-	[...validateTreatmentSet(treatments)].sort((left, right) => TREATMENT_IDS.indexOf(left.id) - TREATMENT_IDS.indexOf(right.id));
+	[...validateTreatmentSet(treatments)].sort((left, right) => ALL_TREATMENT_IDS.indexOf(left.id) - ALL_TREATMENT_IDS.indexOf(right.id));
 
 /**
  * Hashes a treatment set for run identity.

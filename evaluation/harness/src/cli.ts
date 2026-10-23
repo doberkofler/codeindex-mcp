@@ -2,6 +2,7 @@ import {calibrationCommand} from './cliCalibration.ts';
 import {environmentCommand, smokeCommand} from './cliEnvironment.ts';
 import {evaluateCommand} from './cliEvaluate.ts';
 import {localDiagnosticCommand, localRegressionCommand} from './cliLocal.ts';
+import {qualificationCommand} from './cliQualification.ts';
 import {releaseCommand} from './cliRelease.ts';
 import {checkCommand, listCommand, reportCommand} from './cliReport.ts';
 import {routeCommand} from './cliRoute.ts';
@@ -20,6 +21,8 @@ try {
 		await localDiagnosticCommand(flags);
 	} else if (command === 'local-regression') {
 		await localRegressionCommand(flags);
+	} else if (command === 'qualification') {
+		await qualificationCommand(flags);
 	} else if (command === 'release') {
 		await releaseCommand(flags);
 	} else if (command === 'environment') {
@@ -34,7 +37,7 @@ try {
 		listCommand(flags);
 	} else {
 		process.stdout.write(
-			'usage: cli.ts <evaluate|smoke|calibrate|local-diagnostic|local-regression|release|environment|route|report|check|list> --suite <path> [--environment <path>] [--hosted-reference <path>] [--model-free <report>] [--target-metric retrievalBytes|toolCalls|tokens|wallTimeMs] [--exclude id=reason] [--budget-ms n] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate] [--repetitions n] [--dry-run] [--resume] [--campaign-store path] [--output dir]\n',
+			'usage: cli.ts <evaluate|smoke|calibrate|local-diagnostic|local-regression|qualification|release|environment|route|report|check|list> --suite <path> [--environment <path>] [--canonical <manifest>] [--hosted-reference <path>] [--model-free <report>] [--target-metric retrievalBytes|toolCalls|tokens|wallTimeMs] [--exclude id=reason] [--budget-ms n] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate|canonical] [--repetitions n] [--dry-run] [--resume] [--retry-timed-out] [--campaign-store path] [--output dir]\n',
 		);
 		process.exitCode = command === 'help' ? 0 : 2;
 	}

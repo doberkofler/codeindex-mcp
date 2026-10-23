@@ -11,7 +11,7 @@ A manifest declares one `purpose`:
   declared smoke environment. It runs the frozen six-case calibration subset with
   the accepted treatment only. The 8B model checks the environment and harness
   path; it makes no quality claim and is not a regression sentinel.
-- `calibration` pins a model entering the two-treatment qualification.
+- `calibration` pins a model entering the independent `qualification` campaign.
   `ollama-qwen3.8-27b-calibration.json` and
   `ollama-qwen3.6-35b-calibration.json` are the EVAL-022 candidates;
   `ollama-devstral-small-2-calibration.json` is the EVAL-026 candidate. A

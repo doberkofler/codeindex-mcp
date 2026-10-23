@@ -264,6 +264,12 @@ node dist/evaluation.mjs evaluate --suite evaluation/suites/example.json \
 # Tagged subset
 node dist/evaluation.mjs evaluate --suite evaluation/suites/example.json \
 	--tag compact-output --treatment all
+
+# Independent local-model qualification: fixed 108-slot plan
+node evaluation/harness/src/cli.ts qualification \
+	--suite evaluation/suites/qualification.json \
+	--environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
+	--canonical evaluation/canonical-artifact.json --dry-run
 ```
 
 Selection rules:
@@ -368,7 +374,7 @@ any result.
 | `model` | object | yes | `{provider, modelId, digest, quantization, runtime, runtimeVersion, generationSettingsDigest}`. `digest` is the provider's immutable model version or artifact digest, never a floating alias; `generationSettingsDigest` is always a hex digest. |
 | `agent` | object | yes | `{id, version, instructionsHash, toolListHash, permissionsHash, contextBudgetTokens}`. |
 | `treatmentSet` | array | yes | Ordered `{id, kind, definitionHash, mcpSurfaceHash}` ([§3.3](#33-treatment)). |
-| `artifacts` | object | yes | `{accepted, candidate}`, each `{id, digest, entryPoint}` or `null`. |
+| `artifacts` | object | yes | `{accepted, candidate, canonical}`, each `{id, digest, entryPoint}` or `null`. A qualification campaign records only `canonical`; the frontier campaigns record `accepted` and `candidate`. |
 | `codeIndex` | object | yes | `{configDigest}`; the digest covers the effective CodeIndex configuration. |
 | `subject` | object | yes | `{revision, isolationMode, contentManifestHash, projectFilesHash, lockFileHash, externalFixtureHash}`. `revision` is `null` only when `contentManifestHash` is present ([§5](#5-isolation)). |
 | `environment` | object | yes | `{nodeVersion, platform, arch, cpuCount, memoryBytes, referenceMachine}`. |
@@ -415,13 +421,31 @@ non-improving target metric appears. A claim class other than the local class is
 rejected before the local record is written, so local evidence cannot be promoted
 to a release claim and a hosted result cannot replace it.
 
-This is the historical candidate-evaluation command, not the approved future
-local-model qualification gate. The completed v1 record keeps its original `NOT PASSED`
-verdict. EVAL-029 (#56) will add the independent 108-slot qualification campaign: frozen
-18-case suite, `no-index`, one pinned canonical CodeIndex artifact, three paired
-repetitions, and a local-model-scoped result. Until that implementation exists, the
-six-case calibration can screen environments but no command can issue the new full-suite
-qualification verdict.
+This is the historical candidate-evaluation command, not the approved local-model
+qualification gate. The completed v1 record keeps its original `NOT PASSED` verdict and
+is never regraded.
+
+A `qualification` campaign runs the independent 108-slot gate. It loads the frozen
+18-case release corpus from [`evaluation/suites/qualification.json`](../evaluation/suites/qualification.json),
+selects exactly `no-index` and one fixed `canonical` CodeIndex treatment, and runs three
+paired repetitions. The canonical treatment must present exactly the artifact pinned by
+[`evaluation/canonical-artifact.json`](../evaluation/canonical-artifact.json): identifier,
+root, entry point, and content digest all participate in the campaign identity. A missing
+digest, a different artifact id, or a staged tree whose digest differs from the pin
+refuses the campaign before any model call.
+
+The command writes `qualification.json` beside the executions. The record carries
+`claimClass: "local-model-scoped"`, `releaseAuthority: false`, and
+`frontierReleaseGate: "unaffected"`. It records the pinned model and environment, the
+canonical artifact identity and manifest hash, the predeclared correctness, timeout,
+tool-use, and efficiency criteria with their observed values, all 108 slot outcomes, and
+the qualification and disqualification reasons in separate fields. `baseline` is a digest
+over the suite, revision, case content, treatment definitions, harness version, and
+canonical artifact. The model and environment are deliberately excluded, so two campaigns
+with the same baseline are directly comparable; a changed canonical artifact, revision,
+case, treatment, or harness digest starts a new baseline. The command never reads or
+writes hosted release evidence, and neither satisfies nor blocks the frontier
+architecture/release gate.
 
 A `release` campaign runs the hosted architecture/release gate after the model-free
 stage passes. It loads a pinned hosted reference that records the exact
@@ -489,6 +513,12 @@ the rest of the record looks.
 `externalFixtureHash` is required but `null` in v1, because v1 uses no external
 systems ([§5.2](#52-external-systems)); a non-null value is admissible only when a
 future adapter defines it.
+
+A qualification campaign has no accepted or candidate artifact. Its canonical
+artifact identity enters the closed identity through the `canonical` treatment
+definition hash and the manifest treatment record, and the record repeats the
+pinned `{id, digest, root, entryPoint}`. It never occupies the `accepted` or
+`candidate` field, so a moving product baseline cannot masquerade as canonical.
 
 Canonical form and digest:
 
@@ -892,7 +922,8 @@ Integration tests use temporary fixture workspaces:
 
 - one selected case invokes exactly the planned treatment/repetition set;
 - local qualification fixes `no-index`, one canonical artifact, three paired repetitions,
-  and rejects a model comparison when any non-model identity changes;
+  rejects a model comparison when any non-model identity changes, and rejects a missing,
+  unpinned, or digest-mismatched canonical artifact;
 - interruption followed by `--resume` neither repeats nor skips work;
 - edits from one run cannot reach the next run;
 - mismatched revision, model, prompt, bundle, or configuration is rejected;
@@ -962,8 +993,8 @@ only; it neither defines nor reinterprets a gate.
 | Run identity and mismatch invalidation | Run manifest identity; `--resume` matches the complete identity; mismatched revision, model, prompt, bundle, or configuration is rejected ([§6](#6-cli-shape), [§7.3](#73-run-identity-and-resume-equality), [§10](#10-verification)) |
 | Isolation and restoration | Dedicated checkout, ephemeral client state, atomic persistence, restoration after every execution ([§5](#5-isolation), [§5.1](#51-opencode-client-state)) |
 | Treatment equivalence | Treatment definitions record every difference; equivalence checks reject non-equivalent treatments ([§3.3](#33-treatment), [§9](#9-architecture)) |
-| Historical local diagnostic and regression | `local-diagnostic` and `local-regression` retain the old candidate-comparison mechanics and historical verdicts. They are not the future model-qualification gate ([§7.2](#72-run-manifest)) |
-| Local-model qualification | EVAL-029 (#56) must implement the fixed 18 × 2 × 3 plan with `no-index` and one canonical artifact, changing only the model environment across comparable campaigns ([§7.2](#72-run-manifest)) |
+| Historical local diagnostic and regression | `local-diagnostic` and `local-regression` retain the old candidate-comparison mechanics and historical verdicts. They are not the model-qualification gate ([§7.2](#72-run-manifest)) |
+| Local-model qualification | `qualification` runs the fixed 18 × 2 × 3 plan with `no-index`, the digest-pinned canonical artifact, and predeclared criteria. It fails closed on an identity or canonical-artifact mismatch, changes only the model environment across comparable campaigns, and writes a local-model-scoped record with no release authority ([§7.2](#72-run-manifest)) |
 | Hosted release stage | Policy requires a passing same-suite, same-revision, same-artifact model-free report, the pinned hosted reference and runtime, the fixed 18 × 3 × 5 plan, and `release-campaign.json` with hosted authority. Local qualification is not a precondition ([§7.2](#72-run-manifest)) |
 | Telemetry validity | Exact token extraction with availability status; missing usage invalidates the affected metric, never estimated from bytes ([§2](#2-goals), [§7.5](#75-telemetry-availability-states)) |
 | Failed-slot-only retry | One immutable result per execution identity; `--resume` neither repeats nor skips a completed slot; failed and invalid executions stay inspectable ([§6](#6-cli-shape), [§7.6](#76-execution-outcome-and-validity), [§7.7](#77-atomic-persistence-and-partial-writes)) |

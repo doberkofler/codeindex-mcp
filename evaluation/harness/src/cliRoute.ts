@@ -229,7 +229,7 @@ const runContractsOf = async (
 	}>,
 ): Promise<void> => {
 	for (const treatment of input.treatments) {
-		if (treatment.kind === 'no-index' || !input.treatmentIds.includes(treatment.id)) {
+		if (treatment.kind === 'no-index' || (treatment.id !== 'accepted' && treatment.id !== 'candidate') || !input.treatmentIds.includes(treatment.id)) {
 			continue;
 		}
 
