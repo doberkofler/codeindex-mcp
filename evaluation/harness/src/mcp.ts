@@ -41,13 +41,14 @@ const toolNamesOf = (value: unknown): readonly string[] => {
  *
  * @param entryPoint - Absolute path to the artifact's MCP entry.
  * @param cwd - Working directory the artifact resolves as its project.
+ * @param environment - Explicit CodeIndex environment, or none.
  * @returns Server identity and sorted native tool names.
  */
-export const catalogOf = async (entryPoint: string, cwd: string): Promise<CatalogType> => {
+export const catalogOf = async (entryPoint: string, cwd: string, environment: Readonly<Record<string, string>> = {}): Promise<CatalogType> => {
 	const {promise, resolve, reject} = Promise.withResolvers<CatalogType>();
 	const child = spawn(process.execPath, [entryPoint], {
 		cwd,
-		env: isolatedProcessEnvironmentOf(),
+		env: isolatedProcessEnvironmentOf(environment),
 		stdio: ['pipe', 'pipe', 'pipe'],
 	});
 	let buffer = '';

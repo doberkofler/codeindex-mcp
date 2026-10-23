@@ -5,7 +5,9 @@ import {assertEnvironmentMatches, environmentProbeOf, type EnvironmentManifestTy
 import {catalogOf} from './mcp.ts';
 import {type ReportMetadataType} from './report.ts';
 import {writeJsonAtomic} from './result.ts';
+import {evaluationStateRootOf} from './stateRoot.ts';
 import {canonicalTreatmentsOf, toolSurfaceOf, type ToolSurfaceType, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
+import {stageArtifactOf} from './workspace.ts';
 
 /** Harness schema version recorded in every run identity. */
 export const HARNESS_VERSION = 11;
@@ -18,6 +20,23 @@ export const harnessRoot = path.resolve(import.meta.dirname, '..');
 
 /** Directory holding suites, cases, reports, and generated run artifacts. */
 export const evaluationRoot = path.resolve(process.env['EVALUATION_ROOT'] ?? path.join(harnessRoot, '..'));
+
+/**
+ * Primary checkout that must never contain mutable evaluation state.
+ *
+ * The standard layout keeps the harness under `<checkout>/evaluation`. A
+ * standalone fixture root is itself the checkout, so state must stay outside
+ * that root as well.
+ */
+export const primaryCheckout = path.basename(evaluationRoot) === 'evaluation' ? path.dirname(evaluationRoot) : evaluationRoot;
+
+/** Disposable root for workspaces, staged artifacts, databases, and results. */
+export const evaluationStateRoot =
+	process.env['EVALUATION_STATE_ROOT'] !== undefined
+		? evaluationStateRootOf({evaluationRoot, primaryCheckout})
+		: path.basename(evaluationRoot) === 'evaluation'
+			? evaluationStateRootOf({evaluationRoot, primaryCheckout})
+			: evaluationRoot;
 
 export const argsOf = (argv: readonly string[]): Readonly<{command: string; flags: Map<string, string[]>}> => {
 	const [command = 'help', ...rest] = argv;
@@ -163,7 +182,9 @@ export const treatmentsOf = (value: string | undefined, all: readonly TreatmentD
 export type WorkspacePathsType = Readonly<{
 	artifactPath: (treatment: TreatmentDefinitionType) => string;
 	artifactRoot: (treatment: TreatmentDefinitionType) => string;
+	declaredArtifactRoot?: (treatment: TreatmentDefinitionType) => string;
 	workspacePath: (treatment: TreatmentIdType) => string;
+	codeIndexEnvironment?: (treatment: TreatmentDefinitionType) => Readonly<Record<string, string>>;
 }>;
 
 export const surfacesOf = async (
@@ -178,7 +199,7 @@ export const surfacesOf = async (
 			continue;
 		}
 
-		const catalog = await catalogOf(context.artifactPath(treatment), context.workspacePath(treatment.id));
+		const catalog = await catalogOf(context.artifactPath(treatment), context.workspacePath(treatment.id), context.codeIndexEnvironment?.(treatment));
 
 		if (catalog.tools.length === 0) {
 			throw new Error(`treatment ${treatment.id} artifact presented an empty MCP tool catalog`);
@@ -214,7 +235,22 @@ export const artifactsOf = (context: WorkspacePathsType, treatments: readonly Tr
 	const artifacts = new Map<TreatmentIdType, ArtifactIdentityType | null>();
 
 	for (const treatment of treatments) {
-		artifacts.set(treatment.id, treatment.artifact === null ? null : artifactIdentityOf(context.artifactRoot(treatment), treatment));
+		if (treatment.artifact === null) {
+			artifacts.set(treatment.id, null);
+			continue;
+		}
+
+		if (context.declaredArtifactRoot !== undefined) {
+			stageArtifactOf(
+				{
+					declaredArtifactRoot: context.declaredArtifactRoot,
+					artifactRoot: context.artifactRoot,
+				},
+				treatment,
+			);
+		}
+
+		artifacts.set(treatment.id, artifactIdentityOf(context.artifactRoot(treatment), treatment));
 	}
 
 	return artifacts;

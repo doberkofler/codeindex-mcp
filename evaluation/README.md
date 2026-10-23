@@ -5,9 +5,10 @@ The method is specified in
 [`documentation/evaluation-harness.md`](../documentation/evaluation-harness.md).
 
 > **Hosted evaluation paused.** E3 remains historical `NOT PASSED`, but its
-> total-token and cost interpretation is invalid. Request metering and the
-> direct request-1 surface proof are implemented; corpus indexing, workspace
-> isolation, and the frozen statistical contract remain open. Read the
+> total-token and cost interpretation is invalid. Request metering, the direct
+> request-1 surface proof, external-state workspace isolation, and corpus
+> preflight are implemented; the frozen economic/statistical contract and hosted
+> validity pilot remain open. Read the
 > [E3 erratum](audits/hosted-release-e3-erratum.md) and
 > [evaluation validity v2](../documentation/evaluation-validity-v2.md). Do not
 > run another hosted release campaign until the v2 validity milestone passes.
@@ -26,9 +27,14 @@ The method is specified in
 
 Generated material is never committed:
 
-- `artifacts/` — staged accepted and candidate packages;
-- `workspaces/` — isolated subject checkouts;
-- `results/` — raw events, transcripts, and per-run results.
+- `artifacts/` — declared accepted, candidate, and canonical package sources;
+- the external evaluation state root — staged artifacts, isolated workspaces,
+  index databases, client stores, and raw results; select it with
+  `EVALUATION_STATE_ROOT`, otherwise the harness uses a disposable directory
+  outside the checkout.
+
+The state root is never inside the primary checkout. A configured path that
+resolves inside it is rejected before any workspace is created.
 
 Private corpora, proprietary source, hidden cases, and restricted traces stay in
 a separate private data repository. Only reviewed aggregate evidence from this
@@ -60,6 +66,7 @@ The frozen release suite is listed and validated with:
 
 ```bash
 node evaluation/harness/src/cli.ts list --suite suites/release.json
+node evaluation/harness/src/cli.ts preflight --suite suites/release.json
 node evaluation/harness/src/cli.ts evaluate --suite suites/release.json --dry-run
 ```
 

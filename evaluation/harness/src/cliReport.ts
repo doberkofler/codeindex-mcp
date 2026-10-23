@@ -7,7 +7,7 @@ import {loadSuite, selectCases, treatmentIdsOf} from './suite.ts';
 import {canonicalTreatmentsOf} from './treatment.ts';
 import {subjectIdentityOf, workspaceContextOf} from './workspace.ts';
 import {ensureWorkspaces} from './workspaceRestore.ts';
-import {allOf, artifactsOf, evaluationRoot, flagOf, manifestMetadataOf, settingsOf} from './cliSupport.ts';
+import {allOf, artifactsOf, evaluationRoot, evaluationStateRoot, flagOf, manifestMetadataOf, primaryCheckout, settingsOf} from './cliSupport.ts';
 import {printSummary} from './cliSummary.ts';
 
 export const listCommand = (flags: Map<string, string[]>): void => {
@@ -93,7 +93,7 @@ export const latestRun = (resultsRoot: string): string => {
 
 export const reportCommand = (flags: Map<string, string[]>): void => {
 	const runId = flagOf(flags, 'run');
-	const resultsRoot = path.join(evaluationRoot, 'results');
+	const resultsRoot = path.join(evaluationStateRoot, 'results');
 	const directory = runId === undefined ? latestRun(resultsRoot) : path.join(resultsRoot, runId);
 
 	if (!existsSync(directory)) {
@@ -116,7 +116,7 @@ export const checkCommand = (flags: Map<string, string[]>): void => {
 	const {suite, cases} = loadSuite(path.resolve(evaluationRoot, suitePath));
 	const settings = settingsOf();
 	const subject = subjectIdentityOf(settings.subjectRepo, suite.revision);
-	const context = workspaceContextOf(evaluationRoot, {subjectRepo: settings.subjectRepo, subject});
+	const context = workspaceContextOf(evaluationStateRoot, {subjectRepo: settings.subjectRepo, subject, evaluationRoot, primaryCheckout});
 	const treatments = canonicalTreatmentsOf(suite.treatments);
 
 	ensureWorkspaces(context, treatments);

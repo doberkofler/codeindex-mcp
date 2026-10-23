@@ -33,6 +33,8 @@ export type ProviderRequestLedgerEntryType = Readonly<{
 	toolNames: readonly string[];
 	requestBytes: number;
 	responseBytes: number | null;
+	/** Occurrences of a forbidden primary-checkout path in the request body. */
+	pathDisclosureCount?: number;
 	/** Null only while the request is in flight. */
 	settlement: ProviderRequestSettlementType | null;
 }>;
@@ -57,6 +59,10 @@ export type ProviderMeterReconciliationType = Readonly<{
 	/** True only when every started request settled exactly once. */
 	settledExactlyOnce: boolean;
 	failureCauses: readonly Readonly<{ordinal: number; cause: ProviderFailureCauseType}>[];
+	/** Total occurrences of a forbidden path in any request body. */
+	pathDisclosureCount: number;
+	/** True only when no provider request disclosed a forbidden path. */
+	pathClean: boolean;
 	/** Aggregate over every request caused by the task, including title and compaction. */
 	total: ProviderUsageTotalsType;
 	/** Agent-only aggregate, retained as sensitivity evidence rather than the primary claim. */
@@ -79,6 +85,8 @@ export type ProviderMeterInputType = Readonly<{
 	provider: string;
 	/** Headers added to the upstream request, such as authorization. Never retained. */
 	upstreamHeaders?: Readonly<Record<string, string>>;
+	/** Absolute paths that must never occur in a provider request body. */
+	forbiddenPaths?: readonly string[];
 	/** Request body bound; an oversized request settles with a closed failure cause. */
 	maxRequestBytes?: number;
 	/** JSON response bound; event-stream lines are bounded independently. */
@@ -143,18 +151,21 @@ export const reconcileProviderMeterLedger = (ledger: ProviderMeterLedgerType): P
 	const ordinals = ledger.requests.map((request) => request.ordinal);
 	const ordinalsContiguous = ordinals.every((ordinal, index) => ordinal === index + 1);
 	const settledExactlyOnce = pending.length === 0 && ordinalsContiguous;
+	const pathDisclosureCount = ledger.requests.reduce((total, request) => total + (request.pathDisclosureCount ?? 0), 0);
 	const total = totalsOfRequests(ledger.requests);
 	const agentOnly = totalsOfRequests(ledger.requests.filter((request) => request.kind === 'agent'));
 	const reason =
 		ledger.requests.length === 0
 			? 'no provider requests'
-			: !settledExactlyOnce
-				? `${pending.length} provider request(s) are not settled`
-				: failures.length > 0
-					? `${failures.length} provider request(s) failed`
-					: total.state !== 'exact'
-						? 'one or more provider requests lack required usage'
-						: null;
+			: pathDisclosureCount > 0
+				? `${pathDisclosureCount} primary-checkout path disclosure(s) reached a provider request`
+				: !settledExactlyOnce
+					? `${pending.length} provider request(s) are not settled`
+					: failures.length > 0
+						? `${failures.length} provider request(s) failed`
+						: total.state !== 'exact'
+							? 'one or more provider requests lack required usage'
+							: null;
 
 	return {
 		recordType: 'provider-meter-reconciliation',
@@ -166,6 +177,8 @@ export const reconcileProviderMeterLedger = (ledger: ProviderMeterLedgerType): P
 		ordinalsContiguous,
 		settledExactlyOnce,
 		failureCauses: failures,
+		pathDisclosureCount,
+		pathClean: pathDisclosureCount === 0,
 		total,
 		agentOnly,
 		economicClaim: {

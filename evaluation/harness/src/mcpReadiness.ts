@@ -47,6 +47,8 @@ export type McpReadinessType = Readonly<{
 export type McpReadinessInputType = Readonly<{
 	command: readonly string[];
 	cwd: string;
+	/** Explicit environment for the server, without ambient CodeIndex configuration. */
+	environment?: Readonly<Record<string, string>>;
 	/** Native tool names the server must present, without the OpenCode server prefix. */
 	expectedTools?: readonly string[];
 	timeoutMs?: number;
@@ -215,7 +217,7 @@ const attemptOf = async (input: McpReadinessInputType): Promise<AttemptOutcomeTy
 	try {
 		child = spawn(program, args, {
 			cwd: input.cwd,
-			env: isolatedProcessEnvironmentOf(),
+			env: isolatedProcessEnvironmentOf(input.environment),
 			stdio: ['pipe', 'pipe', 'pipe'],
 		});
 	} catch (error) {

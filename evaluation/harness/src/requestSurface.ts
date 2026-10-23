@@ -18,6 +18,7 @@ export const SURFACE_FAILURE_CAUSES = [
 	'incomplete-surface',
 	'unknown-tools',
 	'codeindex-in-no-index',
+	'path-disclosure',
 ] as const;
 
 export type SurfaceFailureCauseType = (typeof SURFACE_FAILURE_CAUSES)[number];
@@ -28,6 +29,8 @@ export type SurfaceRequestType = Readonly<{
 	ordinal: number;
 	kind: ProviderRequestKindType;
 	toolNames: readonly string[];
+	/** Occurrences of a forbidden primary-checkout path in the request body. */
+	pathDisclosureCount?: number;
 }>;
 
 /** The directly inspected agent request-1 surface verdict. */
@@ -114,6 +117,16 @@ export const surfaceRequestLedgerOf = (surface: ToolSurfaceType, requests: reado
 		agentRequests: requests.filter((request) => request.kind === 'agent').length,
 		titleRequests: requests.filter((request) => request.kind === 'title').length,
 	};
+	const disclosed = requests.filter((request) => (request.pathDisclosureCount ?? 0) > 0);
+
+	if (disclosed.length > 0) {
+		return {
+			...base,
+			result: 'fail',
+			cause: 'path-disclosure',
+			differences: disclosed.map((request) => `provider request ${request.ordinal} (${request.kind}) discloses the primary checkout path`),
+		};
+	}
 
 	if (firstAgentRequest === null) {
 		return {

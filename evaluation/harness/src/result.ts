@@ -16,6 +16,7 @@ export const DEFECTS = [
 	'treatment-mismatch',
 	'missing-telemetry',
 	'dirty-isolation',
+	'external-path-attempt',
 ] as const;
 
 export type DefectType = (typeof DEFECTS)[number];

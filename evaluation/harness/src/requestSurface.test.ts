@@ -83,6 +83,15 @@ describe('requestSurface', () => {
 		assert.equal(ledger.cause, 'codeindex-in-no-index');
 	});
 
+	it('rejects a provider request that discloses the primary checkout path', () => {
+		const request = {...requestOf(1, 'agent', presentedToolsOf(indexedSurface)), pathDisclosureCount: 1};
+		const ledger = surfaceRequestLedgerOf(indexedSurface, [request]);
+
+		assert.equal(ledger.result, 'fail');
+		assert.equal(ledger.cause, 'path-disclosure');
+		assert.match(ledger.differences.join('\n'), /provider request 1 \(agent\) discloses/u);
+	});
+
 	it('rejects an agent request with no tools and a probe with no agent request', () => {
 		const empty = surfaceRequestLedgerOf(indexedSurface, [requestOf(1, 'agent', [])]);
 		const absent = surfaceRequestLedgerOf(indexedSurface, [requestOf(1, 'title', [])]);

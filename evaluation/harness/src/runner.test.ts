@@ -289,6 +289,38 @@ describe('runner', () => {
 		assert.equal(stored.timedOut, true);
 	});
 
+	it('records a denied external-path attempt and never retries it', async (testContext: TestContext) => {
+		const root = temporaryRoot(testContext);
+		let retries = 0;
+		const command = scriptOf(
+			root,
+			'external-path',
+			[
+				String.raw`printf '%s\n' 'permission denied: external_directory ../outside.ts'`,
+				"cat <<'EVENTS'",
+				String.raw`{"type":"text","part":{"text":"{\"files\":[\"src/a.ts\"],\"absent\":false}"}}`,
+				String.raw`{"type":"step_finish","part":{"tokens":{"input":10,"output":5},"cost":0.001}}`,
+				'EVENTS',
+			].join('\n'),
+		);
+		const result = await execute(root, command, testCaseOf(), {
+			retry: {maxAttempts: 3, backoffMs: () => 0},
+			prepareRetry: () => {
+				retries += 1;
+
+				return {restored: true, reason: null};
+			},
+		});
+
+		assert.equal(result.outcome, 'failed');
+		assert.equal(result.valid, false);
+		assert.equal(result.externalPathAttemptCount, 1);
+		assert.deepEqual(result.defects, ['external-path-attempt']);
+		assert.match(result.invalidReason ?? '', /denied external-directory access/u);
+		assert.equal(result.attempts.length, 1);
+		assert.equal(retries, 0);
+	});
+
 	it('a descendant that escapes the process group cannot hold the harness open', async (testContext: TestContext) => {
 		const root = temporaryRoot(testContext);
 		const pidFile = path.join(root, 'escaped.pid');

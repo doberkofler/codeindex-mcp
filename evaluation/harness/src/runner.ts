@@ -8,6 +8,7 @@ import {isRateLimited, parseEvents} from './events.ts';
 import {gradeOf} from './grade.ts';
 import {EXECUTION_SCHEMA_VERSION, type ExecutionIdentityType} from './identity.ts';
 import {type ClientStoreType} from './isolation.ts';
+import {externalPathAttemptCountOf, externalPathAttemptsOf} from './externalPath.ts';
 import {openReadyServerOf, type OpenCodeServerType} from './opencodeServer.ts';
 import {type PostRunResultType, postRunOf, skippedPostRunOf} from './postRun.ts';
 import {
@@ -27,24 +28,20 @@ const FINAL_TEXT_TAIL = 4000;
 const STDERR_TAIL = 4000;
 const RAW_STDOUT_LIMIT = 1_000_000;
 const RAW_STDERR_LIMIT = 64_000;
-
 /** Retry policy: bounded attempts with exponential, jittered backoff. */
 const MAX_ATTEMPTS = 6;
 const RATE_LIMIT_BACKOFF_MS = [30_000, 60_000, 120_000, 240_000, 300_000] as const;
 const OTHER_FAILURE_BACKOFF_MS = 10_000;
-
 /** Retry policy for one slot. */
 export type RetryPolicyType = Readonly<{
 	maxAttempts: number;
 	backoffMs: (attempt: number, rateLimited: boolean) => number;
 }>;
-
 /** Restoration performed before another attempt may start. */
 export type RetryPreparationType = Readonly<{
 	restored: boolean;
 	reason: string | null;
 }>;
-
 const withDirtyIsolation = <Result extends Omit<RunResultType, 'attempts' | 'rateLimited'>>(result: Result, reason: string): Result => ({
 	...result,
 	outcome: 'failed',
@@ -53,19 +50,15 @@ const withDirtyIsolation = <Result extends Omit<RunResultType, 'attempts' | 'rat
 	invalidReason: result.invalidReason === null ? reason : `${result.invalidReason}; ${reason}`,
 	isolation: {...result.isolation, restored: false},
 });
-
 const sleep = async (milliseconds: number): Promise<void> => {
 	await delay(milliseconds);
 };
-
 const backoffOf = (attempt: number, rateLimited: boolean): number => {
 	if (!rateLimited) {
 		return OTHER_FAILURE_BACKOFF_MS;
 	}
-
 	const base = RATE_LIMIT_BACKOFF_MS[Math.min(attempt - 1, RATE_LIMIT_BACKOFF_MS.length - 1)] ?? 300_000;
 	const jitter = Math.round(base * 0.2 * Math.random());
-
 	return base + jitter;
 };
 
@@ -73,7 +66,6 @@ const DEFAULT_RETRY: RetryPolicyType = {
 	maxAttempts: MAX_ATTEMPTS,
 	backoffMs: backoffOf,
 };
-
 /** Attempts whose detached model process group is still running. */
 const activeAttempts = new Set<ChildProcess>();
 
@@ -120,7 +112,6 @@ const installTerminationHandlers = (): void => {
 		});
 	}
 };
-
 type AttemptResultType = Readonly<{
 	result: Omit<RunResultType, 'attempts' | 'rateLimited'>;
 	log: AttemptLogType;
@@ -140,9 +131,13 @@ const postRunCheckOf = async (testCase: CaseType, cwd: string, timedOut: boolean
 	return result;
 };
 
-const invalidReasonOf = (timedOut: boolean, exitCode: number | null, routing: RoutingType): string | null => {
+const invalidReasonOf = (timedOut: boolean, exitCode: number | null, routing: RoutingType, externalPathAttemptCount: number): string | null => {
 	if (timedOut) {
 		return 'timed out';
+	}
+
+	if (externalPathAttemptCount > 0) {
+		return `denied external-directory access ${externalPathAttemptCount} time(s)`;
 	}
 
 	if (exitCode === null || exitCode !== 0) {
@@ -213,7 +208,9 @@ const attemptResultOf = (
 		timedOut: context.timedOut,
 		timeoutMs: context.timeoutMs,
 		outcome: context.outcome,
-		defects: [],
+		defects: context.externalPathAttempts.length === 0 ? [] : ['external-path-attempt'],
+		externalPathAttempts: context.externalPathAttempts,
+		externalPathAttemptCount: externalPathAttemptCountOf(context.externalPathAttempts),
 		isolation: {...input.isolation, restored: false},
 		artifacts: input.artifacts,
 		usage: context.events.usage,
@@ -340,7 +337,8 @@ const attemptOnce = async (
 		input.surface,
 		events.toolCalls.map((call) => call.tool),
 	);
-	const invalidReason = invalidReasonOf(timedOut, exitCode, routing);
+	const externalPathAttempts = externalPathAttemptsOf(stdout, stderr);
+	const invalidReason = invalidReasonOf(timedOut, exitCode, routing, externalPathAttemptCountOf(externalPathAttempts));
 	const outcome: OutcomeType = timedOut ? 'timed-out' : invalidReason === null ? 'completed' : 'failed';
 	const throttled = isRateLimited(stdout, stderr, events.errors.join('\n'));
 	const rawFile = rawStreamsOf(input.rawBase, attempt, stdout, stderr);
@@ -364,6 +362,7 @@ const attemptOnce = async (
 		throttled,
 		rawFile,
 		stderr,
+		externalPathAttempts,
 	});
 };
 
@@ -428,6 +427,12 @@ export const runOnce = async (
 		input.onAttempt?.({...last.result, attempts: [...attempts], rateLimited: attempts.some((item) => item.rateLimited)});
 
 		if (last.result.valid || last.result.timedOut) {
+			break;
+		}
+
+		// A denied external-path attempt is retained and never retried until a
+		// favorable clean trajectory appears. The affected slot is invalid.
+		if ((last.result.externalPathAttemptCount ?? 0) > 0) {
 			break;
 		}
 

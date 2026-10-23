@@ -47,6 +47,7 @@ const readinessOf = async (input: TreatmentProofInputType): Promise<McpReadiness
 	const record = await probeMcpReadiness({
 		command: server.command,
 		cwd: input.context.workspacePath(input.treatment.id),
+		...(server.environment === undefined ? {} : {environment: server.environment}),
 		expectedTools: nativeCatalogToolsOf(input.surface, input.treatment.mcp.server),
 	});
 
@@ -97,6 +98,7 @@ const coldStartsOf = async (input: TreatmentProofInputType, workspace: string): 
 			const captured = await capturePresentedTools({
 				workspace,
 				surface: input.surface,
+				forbiddenRoots: [input.context.primaryCheckout],
 				...(input.treatment.mcp === null ? {} : {mcpServer: input.treatment.mcp.server}),
 			});
 

@@ -178,7 +178,9 @@ export type ExecutionIdentityInputType = Readonly<{
 		mode: string;
 		revision: string | null;
 		contentManifestHash: string;
+		projectFilesHash?: string;
 		lockFileHash: string | null;
+		externalFixtureHash?: string | null;
 	}>;
 	artifacts: Readonly<{accepted: ArtifactRefType | null; candidate: ArtifactRefType | null}>;
 	configDigest: string;
@@ -304,9 +306,9 @@ export const executionIdentityOf = (input: ExecutionIdentityInputType): Executio
 		revision: input.subject.revision,
 		isolationMode: input.subject.mode,
 		contentManifestHash: input.subject.contentManifestHash,
-		projectFilesHash: input.subject.contentManifestHash,
+		projectFilesHash: input.subject.projectFilesHash ?? input.subject.contentManifestHash,
 		lockFileHash: input.subject.lockFileHash,
-		externalFixtureHash: null,
+		externalFixtureHash: input.subject.externalFixtureHash ?? null,
 	},
 	artifacts: {accepted: input.artifacts.accepted, candidate: input.artifacts.candidate},
 	codeIndex: {configDigest: input.configDigest},

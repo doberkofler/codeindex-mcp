@@ -9,9 +9,9 @@ import {ROUTE_TREATMENTS, runRoute, type RouteRunType, type RouteTreatmentType} 
 import {loadSuite, selectCases} from './suite.ts';
 import {type CaseClassType} from './schema.ts';
 import {type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
-import {subjectIdentityOf, workspaceContextOf} from './workspace.ts';
+import {stageArtifactOf, subjectIdentityOf, workspaceContextOf} from './workspace.ts';
 import {ensureWorkspaces, restoreWorkspace} from './workspaceRestore.ts';
-import {allOf, evaluationRoot, flagOf, settingsOf, treatmentsOf} from './cliSupport.ts';
+import {allOf, evaluationRoot, evaluationStateRoot, flagOf, primaryCheckout, settingsOf, treatmentsOf} from './cliSupport.ts';
 
 export const routeTreatmentIdsOf = (value: string | undefined, treatments: readonly TreatmentDefinitionType[]): readonly RouteTreatmentType[] =>
 	treatmentsOf(value, treatments)
@@ -35,7 +35,7 @@ export const openRouteSession = async (
 	const session = await openMcpSession({
 		entryPoint: context.artifactPath(treatment),
 		cwd: context.workspacePath(treatment.id),
-		...(projectFile === undefined ? {} : {env: {CODE_INDEX_PROJECT_FILE: projectFile}}),
+		env: {...context.codeIndexEnvironment(treatment), ...(projectFile === undefined ? {} : {CODE_INDEX_PROJECT_FILE: projectFile})},
 	});
 
 	return session;
@@ -45,12 +45,12 @@ export const routeOutputOf = (flags: Map<string, string[]>, suiteId: string, pla
 	const explicit = flagOf(flags, 'output');
 
 	if (explicit !== undefined) {
-		return path.resolve(evaluationRoot, explicit);
+		return path.resolve(evaluationStateRoot, explicit);
 	}
 
 	const stamp = new Date().toISOString().replaceAll(/[:.]/gu, '-');
 
-	return path.join(evaluationRoot, 'results', 'route', `${suiteId}-${planHash.slice(0, 16)}-${stamp}`);
+	return path.join(evaluationStateRoot, 'results', 'route', `${suiteId}-${planHash.slice(0, 16)}-${stamp}`);
 };
 
 /** One MCP session opened for a route treatment. */
@@ -89,7 +89,13 @@ const artifactMapOf = (
 	const artifacts = new Map<TreatmentIdType, ArtifactIdentityType | null>();
 
 	for (const treatment of treatments) {
-		artifacts.set(treatment.id, treatment.artifact === null ? null : artifactIdentityOf(workspace.artifactRoot(treatment), treatment));
+		if (treatment.artifact === null) {
+			artifacts.set(treatment.id, null);
+			continue;
+		}
+
+		stageArtifactOf(workspace, treatment);
+		artifacts.set(treatment.id, artifactIdentityOf(workspace.artifactRoot(treatment), treatment));
 	}
 
 	return artifacts;
@@ -198,7 +204,7 @@ const contractForOf = async (
 			const probeSession = await openMcpSession({
 				entryPoint: input.workspace.artifactPath(treatment),
 				cwd: input.workspace.workspacePath(treatment.id),
-				env,
+				env: {...input.workspace.codeIndexEnvironment(treatment), ...env},
 			});
 
 			return probeSession;
@@ -313,7 +319,7 @@ export const routeCommand = async (flags: Map<string, string[]>): Promise<void> 
 	const treatments = treatmentsOf(flagOf(flags, 'treatment'), suite.treatments);
 	const settings = settingsOf();
 	const subject = subjectIdentityOf(settings.subjectRepo, suite.revision);
-	const context = workspaceContextOf(evaluationRoot, {subjectRepo: settings.subjectRepo, subject});
+	const context = workspaceContextOf(evaluationStateRoot, {subjectRepo: settings.subjectRepo, subject, evaluationRoot, primaryCheckout});
 
 	ensureWorkspaces(context, treatments);
 

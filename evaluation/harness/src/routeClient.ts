@@ -114,12 +114,13 @@ export const openMcpSession = async (input: Readonly<{entryPoint: string; cwd: s
 	const {getDefaultEnvironment, StdioClientTransport} = await import('@modelcontextprotocol/client/stdio');
 	const buffer = {text: ''};
 	const startedAt = performance.now();
+	const baseEnvironment = Object.fromEntries(Object.entries(getDefaultEnvironment()).filter(([name]) => !name.startsWith('CODE_INDEX_')));
 	const transport = new StdioClientTransport({
 		command: process.execPath,
 		args: [input.entryPoint],
 		cwd: input.cwd,
 		stderr: 'pipe',
-		env: {...getDefaultEnvironment(), CODE_INDEX_ANALYTICS: 'false', CODE_INDEX_LOG_LEVEL: 'error', DEBUG: 'codeindex:mcp', ...input.env},
+		env: {...baseEnvironment, CODE_INDEX_ANALYTICS: 'false', CODE_INDEX_LOG_LEVEL: 'error', DEBUG: 'codeindex:mcp', ...input.env},
 	});
 
 	const {stderr} = transport;

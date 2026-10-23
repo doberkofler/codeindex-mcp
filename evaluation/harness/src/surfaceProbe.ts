@@ -7,6 +7,7 @@ import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {isolatedProcessEnvironmentOf} from './processEnvironment.ts';
 import {openReadyServerOf, type OpenCodeMcpReadinessType, type OpenCodeServerType} from './opencodeServer.ts';
+import {pathDisclosureCountOf} from './pathDisclosure.ts';
 import {providerRequestKindOf} from './providerRequestKind.ts';
 import {assertRequestOneSurface, type SurfaceRequestLedgerType, type SurfaceRequestType} from './requestSurface.ts';
 import {type ToolSurfaceType} from './treatment.ts';
@@ -106,7 +107,7 @@ const readBodyOf = async (request: IncomingMessage): Promise<string> => {
 };
 
 /** Provider requests accumulated during one probe. */
-type ProbeStateType = Readonly<{requests: SurfaceRequestType[]}>;
+type ProbeStateType = Readonly<{requests: SurfaceRequestType[]; forbiddenRoots: readonly string[]}>;
 
 const respondToProbeOf = async (
 	input: Readonly<{
@@ -130,8 +131,9 @@ const respondToProbeOf = async (
 		const ordinal = input.state.requests.length + 1;
 		const kind = providerRequestKindOf(parsed, input.request.headers, {agentPrompt: PROBE_PROMPT});
 		const toolNames = requestToolNamesOf(parsed);
+		const pathDisclosureCount = pathDisclosureCountOf(body, input.state.forbiddenRoots);
 
-		input.state.requests.push({ordinal, kind, toolNames});
+		input.state.requests.push({ordinal, kind, toolNames, pathDisclosureCount});
 
 		if (kind === 'agent') {
 			// The first agent request is the only turn that decides the verdict.
@@ -316,12 +318,14 @@ export const capturePresentedTools = async (
 		command?: string;
 		/** Executable for the readiness-gated private server and its client. */
 		serverCommand?: string;
+		/** Absolute paths that no provider request may disclose. */
+		forbiddenRoots?: readonly string[];
 		timeoutMs?: number;
 	}>,
 ): Promise<CapturedSurfaceType> => {
 	const workspace = path.resolve(input.workspace);
 	const dataHome = mkdtempSync(path.join(tmpdir(), 'codeindex-surface-'));
-	const state: ProbeStateType = {requests: []};
+	const state: ProbeStateType = {requests: [], forbiddenRoots: [...(input.forbiddenRoots ?? [])]};
 	const {promise: settled, resolve: settle} = Promise.withResolvers<Error | null>();
 	const {server, port} = await probeServerOf(state, settle);
 	let child: ChildProcess | null = null;

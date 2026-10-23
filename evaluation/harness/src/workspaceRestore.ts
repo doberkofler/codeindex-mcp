@@ -10,6 +10,7 @@ import {
 	contentManifestHashOf,
 	EVALUATOR_AGENT,
 	git,
+	INDEX_CONFIG,
 	SUPPORT_PATHS,
 	TREATMENT_CONFIG,
 } from './workspace.ts';
@@ -145,7 +146,7 @@ export const checkoutVerificationOf = (context: WorkspaceContextType, treatment:
 			.split('\n')
 			.map((line) => line.trimEnd())
 			.filter((line) => line.length > 0)
-			.filter((line) => !line.endsWith(TREATMENT_CONFIG) && !line.endsWith(EVALUATOR_AGENT)),
+			.filter((line) => !line.endsWith(TREATMENT_CONFIG) && !line.endsWith(EVALUATOR_AGENT) && !line.endsWith(INDEX_CONFIG)),
 		...authoredIgnoredPathsOf(workspace).map((entry) => `!! ${entry}`),
 	];
 	const reasons: string[] = [];

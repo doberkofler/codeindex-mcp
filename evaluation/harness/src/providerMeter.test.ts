@@ -402,6 +402,31 @@ describe('provider meter', () => {
 		assert.equal(reconciliation.total.state, 'unavailable');
 	});
 
+	it('records a primary-checkout disclosure without retaining request text', async (testContext: TestContext) => {
+		const upstream = await upstreamOf(testContext, () => ({contentType: 'application/json', body: JSON.stringify({usage: openAiUsage})}));
+		const primary = '/tmp/primary-checkout';
+		const meter = await startProviderMeter({
+			upstreamBaseUrl: upstream.origin,
+			provider: 'deepseek',
+			forbiddenPaths: [primary],
+			now: () => new Date('2026-10-23T10:00:00.000Z'),
+		});
+
+		testContext.onTestFinished(meter.close);
+
+		await postOf(meter, agentBodyOf('deepseek-flash', `inspect ${primary}/src/a.ts`, ['read']));
+
+		const ledger = meter.ledger();
+		const reconciliation = meter.reconciliation();
+
+		assert.equal(ledger.requests[0]?.pathDisclosureCount, 1);
+		assert.equal(reconciliation.pathDisclosureCount, 1);
+		assert.equal(reconciliation.pathClean, false);
+		assert.equal(reconciliation.economicClaim.state, 'invalid');
+		assert.match(reconciliation.economicClaim.reason ?? '', /path disclosure/u);
+		assert.equal(JSON.stringify(ledger).includes(`${primary}/src/a.ts`), false);
+	});
+
 	it('reports the provider configuration that routes OpenCode through the loopback meter', () => {
 		const config = providerMeterConfigOf({baseUrl: 'http://127.0.0.1:1234/v1', provider: 'metered-deepseek', modelId: 'deepseek-flash'});
 

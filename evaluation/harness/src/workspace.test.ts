@@ -6,7 +6,16 @@ import path from 'node:path';
 import {describe, it, type TestContext} from 'vitest';
 import {hashOf} from './hash.ts';
 import {toolSurfaceOf, treatmentOf, type TreatmentDefinitionType} from './treatment.ts';
-import {contentManifestHashOf, subjectIdentityOf, treatmentConfigOf, workspaceContextOf, type WorkspaceContextType} from './workspace.ts';
+import {
+	contentManifestHashOf,
+	EVALUATION_PROJECTS,
+	INDEX_CONFIG,
+	stageArtifactOf,
+	subjectIdentityOf,
+	treatmentConfigOf,
+	workspaceContextOf,
+	type WorkspaceContextType,
+} from './workspace.ts';
 import {assertCheckout, checkoutVerificationOf, ensureWorkspaces, removeWorkspaces, restoreWorkspace} from './workspaceRestore.ts';
 
 const temporaryRoot = (testContext: TestContext): string => {
@@ -73,6 +82,59 @@ describe('workspace', () => {
 			['codeindex_find_symbol', 'codeindex_read_symbol', 'edit', 'glob', 'grep', 'list', 'read', 'shell'],
 		);
 		assert.equal('tools' in config, false);
+	});
+
+	it('artifacts and generated configuration are staged outside the primary checkout', (testContext: TestContext) => {
+		const root = temporaryRoot(testContext);
+		const checkout = path.join(root, 'checkout');
+		const subjectRepo = path.join(checkout, 'subject');
+		const revision = repositoryOf(subjectRepo);
+		const evaluationRoot = path.join(checkout, 'evaluation');
+		const stateRoot = path.join(root, 'state');
+		const accepted = treatmentOf({
+			id: 'accepted',
+			kind: 'codeindex',
+			ordinaryTools: ['bash', 'glob', 'grep', 'list', 'read'],
+			codeMode: 'absent',
+			artifact: {id: 'accepted', root: 'artifacts/accepted', entryPoint: 'mcp.mjs'},
+			mcp: {server: 'codeindex', codemode: false},
+		});
+		const source = path.join(evaluationRoot, 'artifacts', 'accepted');
+
+		mkdirSync(source, {recursive: true});
+		writeFileSync(path.join(source, 'mcp.mjs'), 'export {};\n', 'utf8');
+		writeFileSync(path.join(source, 'package.json'), '{"name":"artifact","type":"module","dependencies":{}}\n', 'utf8');
+
+		const context = workspaceContextOf(stateRoot, {
+			subjectRepo,
+			subject: subjectIdentityOf(subjectRepo, revision),
+			evaluationRoot,
+			primaryCheckout: checkout,
+		});
+		ensureWorkspaces(context, [accepted]);
+		const staged = stageArtifactOf(context, accepted);
+		const config = JSON.parse(readFileSync(path.join(context.workspacePath('accepted'), '.opencode', 'opencode.jsonc'), 'utf8')) as {
+			mcp: {servers: {codeindex: {command: string[]; environment: Record<string, string>}}};
+		};
+
+		assert.equal(existsSync(path.join(checkout, 'artifacts')), false);
+		assert.equal(staged, path.join(stateRoot, 'artifacts', 'accepted'));
+		assert.equal(existsSync(path.join(staged, 'mcp.mjs')), true);
+		assert.equal(existsSync(path.join(source, 'mcp.mjs')), true);
+		assert.equal(JSON.stringify(config).includes(checkout), false);
+		assert.deepEqual(config.mcp.servers.codeindex.command, ['node', path.join(staged, 'mcp.mjs')]);
+		assert.equal(config.mcp.servers.codeindex.environment['CODE_INDEX_DATABASE'], context.databasePath(accepted));
+		assert.equal(path.relative(checkout, config.mcp.servers.codeindex.environment['CODE_INDEX_DATABASE'] ?? '').startsWith('..'), true);
+
+		const indexConfig = JSON.parse(readFileSync(path.join(context.workspacePath('accepted'), INDEX_CONFIG), 'utf8')) as {
+			extractor: {projects: {name: string; project: string}[]};
+		};
+
+		assert.deepEqual(
+			indexConfig.extractor.projects.map((project) => project.project),
+			EVALUATION_PROJECTS.map((project) => project.projectFile),
+		);
+		assert.equal(JSON.stringify(indexConfig).includes(checkout), false);
 	});
 
 	it('a subject checkout is pinned to a clean, exact revision', (testContext: TestContext) => {

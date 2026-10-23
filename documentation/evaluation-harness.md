@@ -4,13 +4,14 @@
 **Scope:** repeatable comparisons of agent work without CodeIndex, with the accepted
 CodeIndex artifact, and with a candidate artifact
 
-> **Validity amendment:** the harness now meters every provider request and
-> asserts the direct agent request-1 surface after actual MCP readiness, but it
-> does not yet satisfy the complete
-> [evaluation validity v2](./evaluation-validity-v2.md) contract. Complete corpus
-> indexing, workspace isolation, and the frozen statistical contract remain
-> open, and `step_finish` events are not the cost ledger. Do not run or cite a
-> new hosted economic campaign until master
+> **Validity amendment:** the harness meters every provider request, asserts the
+> direct agent request-1 surface after actual MCP readiness, stages all mutable
+> execution state outside the primary checkout, and preflights every case corpus
+> before model spend. It does not yet satisfy the complete
+> [evaluation validity v2](./evaluation-validity-v2.md) contract: the frozen
+> economic/statistical contract and hosted validity pilot remain open, and
+> `step_finish` events are not the cost ledger. Do not run or cite a new hosted
+> economic campaign until master
 > [#58](https://github.com/doberkofler/codeindex-mcp/issues/58) and child issues
 > #59–#65 are complete.
 > See the [E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md) and the
@@ -179,19 +180,37 @@ workflow, and process outcome.
 
 ## 5. Isolation
 
+All mutable execution state lives under an external `EVALUATION_STATE_ROOT`:
+staged artifacts, worktrees, index databases, client stores, preflight reports,
+and result records. The primary checkout contains only committed inputs. A state
+root inside the primary checkout is a configuration error before any workspace
+is created.
+
 Each execution uses a dedicated checkout:
 
 1. Resolve the suite revision.
 2. Verify the checkout is clean and at exactly that revision.
 3. Verify the MCP artifact and required dependencies.
-4. Write one isolated agent configuration for the selected treatment.
-5. Run the agent with the case prompt.
-6. Capture events, stderr, status, timeout, and wall time.
-7. Grade correctness and workflow.
-8. Persist the raw result atomically ([§7.7](#77-atomic-persistence-and-partial-writes)).
-9. Restore tracked edits, remove non-ignored unversioned files, and remove
-   authored files that the repository ignores while keeping harness-owned support
-   paths.
+4. Stage the artifact outside the primary checkout and configure the TypeScript
+   extractor with the root, controlled-fixture, and test project contexts.
+5. Run the corpus preflight against `index_status`, expected paths, and known
+   semantic declarations.
+6. Write one isolated agent configuration for the selected treatment.
+7. Run the agent with the case prompt.
+8. Capture events, stderr, status, timeout, and wall time.
+9. Grade correctness and workflow.
+10. Persist the raw result atomically ([§7.7](#77-atomic-persistence-and-partial-writes)).
+11. Restore tracked edits, remove non-ignored unversioned files, and remove
+    authored files that the repository ignores while keeping harness-owned support
+    paths.
+
+Generated instructions and configuration must contain no primary-checkout
+absolute path. Provider requests are scanned at the request-1 surface proof and
+by the optional provider meter; a disclosure is a closed failure, never a
+warning or a retryable execution. Every `external_directory` denial in stdout or
+stderr is recorded with its channel and line, invalidates the slot, and is never
+retried. A campaign that records such an attempt cannot support a hosted validity
+claim.
 
 If no VCS is available, use a disposable copy and a content manifest instead of a
 revision. Record which isolation mode was used.

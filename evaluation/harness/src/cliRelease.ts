@@ -3,7 +3,17 @@ import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {artifactRefOf} from './artifact.ts';
 import {evaluateCommand, type EvaluationRunType} from './cliEvaluate.ts';
-import {artifactsOf, evaluationRoot, flagOf, manifestMetadataOf, manifestPathOf, settingsOf, treatmentsOf} from './cliSupport.ts';
+import {
+	artifactsOf,
+	evaluationRoot,
+	evaluationStateRoot,
+	flagOf,
+	manifestMetadataOf,
+	manifestPathOf,
+	primaryCheckout,
+	settingsOf,
+	treatmentsOf,
+} from './cliSupport.ts';
 import {loadHostedReference, type HostedReferenceType} from './hostedReference.ts';
 import {type TrackedMetricType} from './localContract.ts';
 import {planOf, loadSuite, suiteWithModelOf, treatmentIdsOf} from './suite.ts';
@@ -138,7 +148,7 @@ const stagedArtifactsOf = (inputs: ReleaseInputsType): ReleaseExpectationType['a
 	const treatments = treatmentsOf('all', inputs.suite.treatments);
 	const settings = settingsOf();
 	const subject = subjectIdentityOf(settings.subjectRepo, inputs.suite.revision);
-	const context = workspaceContextOf(evaluationRoot, {subjectRepo: settings.subjectRepo, subject});
+	const context = workspaceContextOf(evaluationStateRoot, {subjectRepo: settings.subjectRepo, subject, evaluationRoot, primaryCheckout});
 
 	ensureWorkspaces(context, treatments);
 

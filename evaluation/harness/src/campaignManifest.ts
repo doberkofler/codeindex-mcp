@@ -173,6 +173,7 @@ export const campaignManifestOf = (
 			revision: subject.revision,
 			declaredRevision: subject.declaredRevision,
 			contentManifestHash: subject.contentManifestHash,
+			projectFilesHash: subject.projectFilesHash,
 			lockFileHash: subject.lockFileHash,
 		},
 		artifacts: {

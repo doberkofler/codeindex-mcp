@@ -5,10 +5,11 @@ baseline and against the currently accepted CodeIndex artifact, implementing the
 method in
 [`documentation/evaluation-harness.md`](../../documentation/evaluation-harness.md).
 
-> **Hosted use blocked:** request-level provider metering and direct agent
-> request-1 surface proof are implemented, but the harness still lacks complete
-> corpus indexing, workspace isolation, and the frozen statistical contract.
-> Read the [E3 erratum](../audits/hosted-release-e3-erratum.md) and
+> **Hosted use blocked:** request-level provider metering, direct agent
+> request-1 surface proof, external-state workspace isolation, and corpus
+> preflight are implemented. The frozen economic/statistical contract and the
+> hosted validity pilot remain open. Read the
+> [E3 erratum](../audits/hosted-release-e3-erratum.md) and
 > [evaluation validity v2](../../documentation/evaluation-validity-v2.md).
 > Do not start another hosted release campaign until master #58 and child issues
 > #59–#65 satisfy that plan.
@@ -124,17 +125,23 @@ harness.json                      optional subject override, ignored by Git
 ../suites/qualification.json      frozen 108-slot local-model qualification plan
 ../canonical-artifact.json        pinned canonical CodeIndex artifact identity
 ../cases/*.json                   one case per file
-../artifacts/{accepted,candidate,canonical}/ staged artifact trees, ignored by Git
-../workspaces/{no-index,accepted,candidate,canonical}
-../results/<campaign-id>/         manifest.json, run state, report.json
-../results/<campaign-id>/<case>/<treatment>/rep-<n>/
-                                  attempt-<n>.json and its raw event streams
+../artifacts/{accepted,candidate,canonical}/ declared artifact sources, ignored by Git
 ../reports/                       reviewed aggregate reports
+$EVALUATION_STATE_ROOT/           disposable state outside the primary checkout
+  artifacts/<id>/                 staged artifact trees the MCP processes run
+  workspaces/{no-index,accepted,candidate,canonical}
+  databases/<treatment>.sqlite    published index databases
+  results/<campaign-id>/          manifest.json, run state, preflight.json, report.json
+  results/<campaign-id>/<case>/<treatment>/rep-<n>/
+                                  attempt-<n>.json and its raw event streams
 ```
 
 Paths in a suite, including `artifact.root`, are relative to the evaluation
 root (`evaluation/`). The subject defaults to the repository root and can be
-overridden with `harness.json` or `EVALUATION_ROOT`.
+overridden with `harness.json` or `EVALUATION_ROOT`. `EVALUATION_STATE_ROOT`
+selects the disposable state root explicitly; the default is a stable
+per-checkout directory under the operating system temporary directory. A state
+root inside the primary checkout is rejected before a workspace is created.
 
 ## Case and suite schema
 
@@ -276,6 +283,7 @@ pnpm eval:evaluate --dry-run
 pnpm eval:evaluate --case locate-schema-version --treatment candidate --repetitions 1
 pnpm eval:evaluate --treatment all
 pnpm eval:evaluate --campaign-store /tmp/codeindex-campaign/client.db
+node evaluation/harness/src/cli.ts preflight --suite suites/release.json
 node evaluation/harness/src/cli.ts local-diagnostic --suite evaluation/suites/release.json \
   --environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
   --target-metric retrievalBytes
@@ -295,6 +303,24 @@ pnpm eval:typecheck
 
 From this directory, `node src/cli.ts` accepts the same flags with
 `--suite suites/q2.json`.
+
+### Corpus preflight
+
+`preflight` proves the corpus before a model call. It stages artifacts and
+workspaces under the external state root, waits until every CodeIndex treatment
+reports `index_status.refresh === "current"`, requires the configured `root`,
+`controlled-typescript`, and `test` project contexts, and verifies every case's
+expected files with `outline` plus the known semantic declarations with
+`find_symbol`. It writes `results/preflight/<suite>-<hash>/preflight.json` and
+exits non-zero on any missing project, unindexed path, or unindexed symbol.
+
+```bash
+node src/cli.ts preflight --suite suites/release.json
+```
+
+The same probe runs automatically inside `evaluate` after the model-free
+readiness proof and before the first execution. A failing preflight writes its
+report and stops the campaign.
 
 ### Model-free complete-route comparison
 
@@ -766,7 +792,22 @@ loaded}`.
 
 ## Isolation and restoration
 
-Every treatment is isolated in `workspaces/<treatment>`:
+Every mutable execution path lives outside the primary checkout:
+
+- workspaces are created under `$EVALUATION_STATE_ROOT/workspaces/<treatment>`;
+- declared artifacts are copied to `$EVALUATION_STATE_ROOT/artifacts/<id>` and
+  the MCP command uses the staged path;
+- each treatment's index database is
+  `$EVALUATION_STATE_ROOT/databases/<treatment>.sqlite`;
+- client stores and every result record stay under the same state root.
+
+The treatment configuration and the generated multi-project index configuration
+are checked for the primary-checkout absolute path before they are written. The
+surface probe and the optional provider meter also count any occurrence of that
+path in a provider request body. A disclosure fails the preflight or invalidates
+the affected economic claim; it is never masked by a retry.
+
+Each treatment workspace is a dedicated checkout:
 
 - `detached-worktree` (default): a detached git worktree of the subject
   repository at the pinned revision. The subject itself must be at that exact,
@@ -797,6 +838,12 @@ edited workspace. `run.json` is marked `failed` with the same reason.
 
 `node_modules` is a symlink to the subject checkout's installed tree; `dist` is
 copied from the subject build so the workspace can run repository commands.
+
+Every result scans stdout and stderr for the `external_directory` denial marker.
+Each attempt is recorded with its channel, line, count, and best-effort target.
+The slot is invalid and is not retried, so a clean later trajectory can never
+replace a contaminated execution. A campaign with any such attempt cannot make a
+hosted validity claim.
 
 `PWD` is set to the workspace for the child process because OpenCode resolves
 project configuration from `PWD` rather than the spawn working directory.
@@ -840,11 +887,12 @@ the subject isolation mode, the client-store mode, the verified pre-execution
 checkout state, and whether the workspace was restored afterwards.
 
 The run manifest records the subject identity (`subject.mode`, `subject.revision`,
-`subject.declaredRevision`, `subject.contentManifestHash`, `subject.lockFileHash`),
-the verified artifact references, `isolation`, and `campaignStore`, so a reviewer
-can reconstruct the isolation and artifact identity without reading a result. A
-failed, timed-out, or successful execution cannot replace the published generation
-of the normal session database.
+`subject.declaredRevision`, `subject.contentManifestHash`,
+`subject.projectFilesHash`, `subject.lockFileHash`), the verified artifact
+references, `isolation`, and `campaignStore`, so a reviewer can reconstruct the
+isolation and artifact identity without reading a result. A failed, timed-out, or
+successful execution cannot replace the published generation of the normal
+session database.
 
 ## Corpus
 
@@ -864,6 +912,13 @@ Twelve cases over the subject repository at the pinned revision, four per class:
 | `impl-analytics-append` | implementation |
 | `impl-worker-dispatch` | implementation |
 | `impl-generation-publish` | implementation |
+
+The frozen release corpus is indexed in one published generation with three
+configured project contexts: `tsconfig.json` for `src/`, the controlled fixture
+`evaluation/fixtures/controlled-typescript/tsconfig.json`, and
+`tsconfig.test.json` for the two implementation cases that change `test/`.
+`preflight` requires every case's expected file and the six known semantic
+declarations to be stored before any model call.
 
 The four impact cases ask for consumers of one symbol, because direct
 `find_dependencies` usage covers external package targets only. Expected files

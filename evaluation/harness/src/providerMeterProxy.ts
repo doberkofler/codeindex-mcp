@@ -1,5 +1,6 @@
 import {type IncomingHttpHeaders, type IncomingMessage, type ServerResponse} from 'node:http';
 import {collectUsageChunkOf, usageCollectorOf, usageOfCollector, type UsageCollectorType} from './providerMeterCollector.ts';
+import {pathDisclosureCountOf} from './pathDisclosure.ts';
 import {providerRequestKindOf} from './providerRequestKind.ts';
 import {type ProviderRequestKindType} from './providerUsage.ts';
 import {
@@ -21,6 +22,7 @@ export type MutableProviderRequestType = {
 	toolNames: readonly string[];
 	requestBytes: number;
 	responseBytes: number | null;
+	pathDisclosureCount: number;
 	settlement: ProviderRequestSettlementType | null;
 };
 
@@ -307,6 +309,7 @@ const forwardOf = async (context: HandlerContextType): Promise<void> => {
 	context.record.kind = providerRequestKindOf(parsedBody, context.request.headers);
 	context.record.model = isRecord(parsedBody) ? sanitizedTextOf(parsedBody['model'], MAX_MODEL_LENGTH) : null;
 	context.record.toolNames = toolNamesOf(parsedBody);
+	context.record.pathDisclosureCount = pathDisclosureCountOf(context.body.toString('utf8'), context.input.forbiddenPaths ?? []);
 
 	try {
 		const upstream = await fetch(targetUrlOf(context.input.upstreamBaseUrl, context.request.url), {
@@ -346,6 +349,7 @@ const recordOf = (state: ProviderMeterStateType, input: ProviderMeterInputType):
 	toolNames: [],
 	requestBytes: 0,
 	responseBytes: null,
+	pathDisclosureCount: 0,
 	settlement: null,
 });
 
@@ -428,6 +432,7 @@ export const ledgerOf = (state: ProviderMeterStateType, provider: string): Provi
 		toolNames: request.toolNames,
 		requestBytes: request.requestBytes,
 		responseBytes: request.responseBytes,
+		pathDisclosureCount: request.pathDisclosureCount,
 		settlement: request.settlement,
 	})),
 });

@@ -4,6 +4,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {artifactRefOf, type ArtifactRefType} from './artifact.ts';
 import {campaignManifestOf, type CampaignManifestType} from './campaignManifest.ts';
 import {assertClaimEnvironmentOf, type CampaignClaimClassType} from './campaignClaim.ts';
+import {assertCorpusPreflight, corpusPreflightOf} from './corpusPreflight.ts';
 import {assertEnvironmentModel, type EnvironmentManifestType} from './environment.ts';
 import {assertHostedModel, type HostedReferenceType} from './hostedReference.ts';
 import {comparisonDigestOf, executionIdentityDigestOf, executionIdentityOf, identityDigestOf, identityOf} from './identity.ts';
@@ -25,7 +26,9 @@ import {
 	artifactsOf,
 	ensureManifestAt,
 	evaluationRoot,
+	evaluationStateRoot,
 	flagOf,
+	primaryCheckout,
 	runArtifactsOf,
 	settingsOf,
 	surfacesOf,
@@ -133,17 +136,13 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 	const coldStarts = coldStartsOfOptions(options);
 	const environment = options.environment ?? null;
 	const hostedReference = options.hostedReference ?? null;
-
 	if (environment !== null) {
 		assertEnvironmentModel(environment, suite.model);
 	}
-
 	if (hostedReference !== null) {
 		assertHostedModel(hostedReference, suite.model);
 	}
-
 	assertClaimEnvironmentOf(options.claimClass, environment, hostedReference);
-
 	const plan = planOf(selected, treatmentIdsOf(treatments), repetitions);
 	const planHash = planHashOf(plan);
 	const identity = identityOf({
@@ -158,7 +157,7 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 	});
 	const identityDigest = identityDigestOf(identity);
 	const comparisonDigest = comparisonDigestOf(identity);
-	const runDir = path.join(evaluationRoot, 'results', `${suite.id}-${identityDigest.slice(0, 16)}`);
+	const runDir = path.join(evaluationStateRoot, 'results', `${suite.id}-${identityDigest.slice(0, 16)}`);
 	const campaignStoreFlag = flagOf(flags, 'campaign-store');
 	const clientStore: ClientStoreType = clientStoreOf({
 		campaignStore: campaignStoreFlag === undefined ? null : campaignStoreFlag === 'true' ? '' : campaignStoreFlag,
@@ -166,7 +165,7 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 	});
 	const settings = settingsOf();
 	const subject = subjectIdentityOf(settings.subjectRepo, suite.revision);
-	const context = workspaceContextOf(evaluationRoot, {subjectRepo: settings.subjectRepo, subject});
+	const context = workspaceContextOf(evaluationStateRoot, {subjectRepo: settings.subjectRepo, subject, evaluationRoot, primaryCheckout});
 
 	return {
 		flags,
@@ -252,11 +251,9 @@ const slotResultOf = async (input: SlotInputType): Promise<Readonly<{result: Run
 	const {setup, entry} = input;
 	const treatment = resolveTreatmentOf(entry, setup.treatments);
 	const treatmentContext = input.treatmentContexts.get(treatment.id);
-
 	if (treatmentContext === undefined) {
 		throw new Error(`no captured surface for treatment ${treatment.id}`);
 	}
-
 	const acceptedRef: ArtifactRefType | null = artifactRefOf(input.artifacts.get('accepted') ?? null);
 	const candidateRef: ArtifactRefType | null = artifactRefOf(input.artifacts.get('candidate') ?? null);
 	const executionIdentity = executionIdentityOf({
@@ -269,6 +266,7 @@ const slotResultOf = async (input: SlotInputType): Promise<Readonly<{result: Run
 			mode: setup.subject.mode,
 			revision: setup.subject.revision,
 			contentManifestHash: setup.subject.contentManifestHash,
+			projectFilesHash: setup.subject.projectFilesHash,
 			lockFileHash: setup.subject.lockFileHash,
 		},
 		artifacts: {accepted: acceptedRef, candidate: candidateRef},
@@ -463,8 +461,20 @@ export const evaluateCommand = async (flags: Map<string, string[]>, options: Eva
 	}
 
 	const {surfaces, treatmentContexts} = await prepareSurfacesOf(setup);
+	const preflight = await corpusPreflightOf({
+		context,
+		cases: setup.selected,
+		treatments: setup.treatments,
+	});
+
+	writeJsonAtomic(path.join(runDir, 'preflight.json'), preflight, true);
+	assertCorpusPreflight(preflight);
+
 	const campaignId = `${suite.id}-${identityDigest.slice(0, 16)}`;
-	const manifest = campaignManifestOf(setup, {artifacts, surfaces, treatmentContexts}, options.claimClass ?? 'none');
+	const manifest = {
+		...campaignManifestOf(setup, {artifacts, surfaces, treatmentContexts}, options.claimClass ?? 'none'),
+		corpusPreflight: {result: preflight.result, file: 'preflight.json', projects: preflight.projects.map((project) => project.name)},
+	};
 
 	ensureManifestAt(path.join(runDir, 'manifest.json'), manifest);
 	writeJsonAtomic(path.join(runDir, 'run.json'), {...manifest, status: 'running'}, true);

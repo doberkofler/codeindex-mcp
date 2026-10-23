@@ -1,5 +1,6 @@
 import {type ArtifactRefType} from './artifact.ts';
 import {type RunEventsType, type TelemetryType} from './events.ts';
+import {type ExternalPathAttemptType} from './externalPath.ts';
 import {type GradeType} from './grade.ts';
 import {type ExecutionIdentityType} from './identity.ts';
 import {type ClientStoreModeType, type IsolationModeType} from './isolation.ts';
@@ -71,6 +72,10 @@ export type RunResultType = Readonly<{
 	outcome: OutcomeType;
 	/** Harness-detected invalidity causes recorded at write time. */
 	defects: readonly DefectType[];
+	/** Every denied external-directory attempt observed in stdout or stderr. */
+	externalPathAttempts?: readonly ExternalPathAttemptType[];
+	/** Total denied external-path attempts, including repeated markers. */
+	externalPathAttemptCount?: number;
 	/** Subject and client isolation verified for this execution. */
 	isolation: ExecutionIsolationType;
 	/** Artifact identities associated with this execution. */
@@ -128,4 +133,5 @@ export type AttemptContextType = Readonly<{
 	throttled: boolean;
 	rawFile: string | null;
 	stderr: string;
+	externalPathAttempts: readonly ExternalPathAttemptType[];
 }>;

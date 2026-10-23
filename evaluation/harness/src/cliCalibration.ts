@@ -11,7 +11,7 @@ import {assertEnvironmentPurpose, environmentHashOf, loadEnvironmentManifest, ty
 import {hashOf} from './hash.ts';
 import {writeJsonAtomic} from './result.ts';
 import {loadSuite} from './suite.ts';
-import {allOf, evaluationRoot, flagOf, verifiedEnvironmentOf} from './cliSupport.ts';
+import {allOf, evaluationRoot, evaluationStateRoot, flagOf, verifiedEnvironmentOf} from './cliSupport.ts';
 import {evaluateCommand} from './cliEvaluate.ts';
 
 /** Declared wall-clock budget for one local-model calibration. */
@@ -271,7 +271,7 @@ const runSlotOf = async (environment: EnvironmentManifestType, context: Calibrat
 const writeSelectionOf = (suite: ReturnType<typeof loadSuite>['suite'], context: CalibrationContextType): void => {
 	const selection = calibrationSelectionOf(context.decisions);
 	const selectionDigest = hashOf({suite: suite.hash, budgetMs: context.budgetMs, decisions: context.decisions, excluded: context.excluded});
-	const selectionDir = path.join(evaluationRoot, 'results', `${suite.id}-selection-${selectionDigest.slice(0, 16)}`);
+	const selectionDir = path.join(evaluationStateRoot, 'results', `${suite.id}-selection-${selectionDigest.slice(0, 16)}`);
 
 	writeJsonAtomic(
 		path.join(selectionDir, 'selection.json'),
