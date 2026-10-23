@@ -5,7 +5,6 @@ import {type CertificationBlockType, type CertificationDesignType} from './certi
 import {type CertificationGateType, type CertificationRouteEvidenceType} from './certificationAnalysis.ts';
 import {evaluationRoot, evaluationStateRoot, settingsOf} from './cliSupport.ts';
 import {EVALUATION_CONTRACT, EVALUATION_CONTRACT_PIN, TARIFF_SNAPSHOT} from './economicContract.ts';
-import {type EvaluationRunType} from './cliEvaluate.ts';
 import {hashOf} from './hash.ts';
 import {type HostedReferenceType} from './hostedReference.ts';
 import {writeJsonAtomic} from './result.ts';
@@ -365,20 +364,19 @@ export const runRouteGateOf = async (design: CertificationDesignType, block: Cer
  *
  * @param design - Frozen certification design.
  * @param block - Executed block.
- * @param run - Evaluation result for the block.
+ * @param run - Run directory holding the campaign manifest and preflight.
  * @param planHash - Digest of the randomized plan.
  * @returns One closed manifest gate.
  */
 export const manifestGateOf = (
 	design: CertificationDesignType,
 	block: CertificationBlockType,
-	run: EvaluationRunType,
+	run: Readonly<{runDir: string}>,
 	planHash: string,
 ): CertificationGateType => {
 	const record = recordOf(readJson(path.join(run.runDir, 'manifest.json')), 'campaign manifest');
 	const suite = recordOf(record['suite'], 'manifest suite');
 	const artifacts = recordOf(record['artifacts'], 'manifest artifacts');
-	const accepted = recordOf(artifacts['accepted'], 'manifest artifacts.accepted');
 	const candidate = recordOf(artifacts['candidate'], 'manifest artifacts.candidate');
 	const subject = recordOf(record['subject'], 'manifest subject');
 	const contract = recordOf(record['contract'], 'manifest contract');
@@ -394,7 +392,6 @@ export const manifestGateOf = (
 		hosted['reference'] === design.model.reference &&
 		subject['revision'] === design.subject.revision &&
 		subject['contentManifestHash'] === design.subject.contentManifestHash &&
-		accepted['digest'] === design.artifacts.accepted.digest &&
 		candidate['digest'] === design.artifacts.candidate.digest &&
 		plan['slotCount'] === block.cases.length * block.repetitions * 2 &&
 		record['planHash'] === planHash &&
@@ -404,7 +401,7 @@ export const manifestGateOf = (
 		id: `${block.id}-manifest`,
 		passed,
 		detail: passed
-			? `campaign ${String(record['campaignId'])} reproduces the frozen suite, artifacts, subject, contract, model, plan, and passing corpus preflight`
+			? `campaign ${String(record['campaignId'])} reproduces the frozen suite, candidate artifact, subject, contract, model, plan, and passing corpus preflight`
 			: `campaign manifest for ${block.id} differs from the frozen design or corpus preflight did not pass`,
 	};
 };

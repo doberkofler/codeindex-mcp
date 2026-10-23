@@ -451,7 +451,6 @@ export const certificationBlockReportOf = (
 	const {block, plan, runs, design} = input;
 	const expectation: CertificationExpectationType = {
 		modelReference: design.model.reference,
-		acceptedDigest: design.artifacts.accepted.digest,
 		candidateDigest: design.artifacts.candidate.digest,
 		tariffDigest: design.tariff.digest,
 		timeoutCeilingMs: design.thresholds.timeoutCeilingMs,

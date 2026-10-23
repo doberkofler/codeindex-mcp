@@ -4,6 +4,7 @@ import {isRateLimited, parseEvents} from './events.ts';
 import {externalPathAttemptsOf} from './externalPath.ts';
 import {gradeOf} from './grade.ts';
 import {invalidReasonOf} from './attemptResult.ts';
+import {surfaceRequestLedgerOf} from './requestSurface.ts';
 import {type ProviderMeterReconciliationType} from './providerMeterLedger.ts';
 import {type PostRunResultType, postRunOf, skippedPostRunOf} from './postRun.ts';
 import {type AttemptContextType, type OutcomeType} from './runTypes.ts';
@@ -83,13 +84,19 @@ export const attemptContextOf = async (
 		events.toolCalls.map((call) => call.tool),
 	);
 	const externalPathAttempts = externalPathAttemptsOf(input.stdout, input.stderr);
-	const invalidReason = invalidReasonOf({
-		timedOut: input.timedOut,
-		exitCode: input.exitCode,
-		routing,
-		externalPathAttemptCount: externalPathAttempts.reduce((total, attempt) => total + attempt.count, 0),
-		providerMeter: input.providerMeter,
-	});
+	const surfaceLedger = input.providerMeter === null ? null : surfaceRequestLedgerOf(input.surface, input.providerMeter.requests);
+	const surfaceReason =
+		surfaceLedger === null || surfaceLedger.result === 'pass'
+			? null
+			: `request-1 surface is ${surfaceLedger.cause ?? 'invalid'}: ${surfaceLedger.differences.join('; ')}`;
+	const invalidReason =
+		invalidReasonOf({
+			timedOut: input.timedOut,
+			exitCode: input.exitCode,
+			routing,
+			externalPathAttemptCount: externalPathAttempts.reduce((total, attempt) => total + attempt.count, 0),
+			providerMeter: input.providerMeter,
+		}) ?? surfaceReason;
 	const outcome: OutcomeType = input.timedOut ? 'timed-out' : invalidReason === null ? 'completed' : 'failed';
 
 	return {

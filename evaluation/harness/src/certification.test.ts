@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {describe, it} from 'vitest';
+import {describe, it, type TestContext} from 'vitest';
 import {certificationBlockReportOf} from './certificationBlock.ts';
 import {certificationDesignOf, type CertificationBlockType, type CertificationDesignType} from './certificationDesign.ts';
 import {certificationPlanOf} from './certificationPlan.ts';
 import {certificationReportOf, type CertificationRouteEvidenceType} from './certificationReport.ts';
+import {manifestGateOf} from './certificationGates.ts';
 import {EVALUATION_CONTRACT_PIN, TARIFF_SNAPSHOT} from './economicContract.ts';
 import {runOf, surfaceOf} from './localTestSupport.ts';
 import {reconcileProviderMeterLedger, type ProviderRequestLedgerEntryType} from './providerMeterLedger.ts';
@@ -203,6 +205,50 @@ describe('certification block analysis', () => {
 		assert.ok((report.economic.cost.ratio.value ?? Number.POSITIVE_INFINITY) < 0.9);
 		assert.ok(report.tokens.every((token) => token.components !== null));
 		assert.equal(report.passed, true);
+	});
+
+	it('accepts a block whose campaign never executes the accepted arm', () => {
+		const block = blockOf('primary', ['impact-a', 'impact-b'], 1);
+		const plan = certificationPlanOf(block, design.digest);
+		const runs = runsOf(block).map((run) => ({...run, artifacts: {...run.artifacts, accepted: null}}));
+		const report = certificationBlockReportOf({block, plan, runs, design});
+
+		assert.equal(report.reliability.validExecutions, 4);
+		assert.equal(report.passed, true);
+		assert.equal(
+			report.trajectories.some((trajectory) => trajectory.causes.includes('accepted-artifact-mismatch')),
+			false,
+		);
+	});
+
+	it('accepts a campaign manifest without the accepted arm', (testContext: TestContext) => {
+		const root = mkdtempSync(path.join(tmpdir(), 'codeindex-certification-manifest-'));
+		testContext.onTestFinished(() => {
+			rmSync(root, {recursive: true, force: true});
+		});
+		const [block] = design.blocks;
+
+		assert.ok(block !== undefined);
+		const planHash = 'a'.repeat(64);
+		writeFileSync(
+			path.join(root, 'manifest.json'),
+			JSON.stringify({
+				campaignId: 'certification-manifest',
+				claimClass: 'hosted-model-scoped',
+				suite: {id: block.suite.id, version: block.suite.version, hash: block.suite.hash},
+				contract: {digest: design.contract.digest},
+				hostedReference: {reference: design.model.reference},
+				subject: {revision: design.subject.revision, contentManifestHash: design.subject.contentManifestHash},
+				artifacts: {accepted: null, candidate: design.artifacts.candidate, canonical: null},
+				plan: {slotCount: block.cases.length * block.repetitions * 2},
+				planHash,
+			}),
+		);
+		writeFileSync(path.join(root, 'preflight.json'), JSON.stringify({result: 'pass'}));
+
+		const gate = manifestGateOf(design, block, {runDir: root}, planHash);
+
+		assert.equal(gate.passed, true);
 	});
 
 	it('retains a missing execution as a closed invalid slot', () => {

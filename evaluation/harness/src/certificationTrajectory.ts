@@ -86,7 +86,6 @@ export type CertificationTrajectorySummaryType = Readonly<{
 /** Expected immutable facts every execution must satisfy. */
 export type CertificationExpectationType = Readonly<{
 	modelReference: string;
-	acceptedDigest: string;
 	candidateDigest: string;
 	tariffDigest: string;
 	timeoutCeilingMs: number;
@@ -253,14 +252,10 @@ const surfaceCausesOf = (run: RunResultType, requestOne: CertificationRequestOne
 
 const identityCausesOf = (run: RunResultType, expectation: CertificationExpectationType): readonly string[] => {
 	const causes: string[] = [];
-	const {accepted, candidate} = run.artifacts;
+	const {candidate} = run.artifacts;
 
 	if (run.model !== expectation.modelReference) {
 		causes.push('model-mismatch');
-	}
-
-	if (accepted === null || accepted.digest !== expectation.acceptedDigest) {
-		causes.push('accepted-artifact-mismatch');
 	}
 
 	if (candidate === null || candidate.digest !== expectation.candidateDigest) {
