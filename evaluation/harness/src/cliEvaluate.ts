@@ -8,15 +8,15 @@ import {assertEnvironmentModel, type EnvironmentManifestType} from './environmen
 import {assertHostedModel, type HostedReferenceType} from './hostedReference.ts';
 import {comparisonDigestOf, executionIdentityDigestOf, executionIdentityOf, identityDigestOf, identityOf} from './identity.ts';
 import {clientStoreOf, prepareClientStore, type ClientStoreType} from './isolation.ts';
+import {budgetOf, printEvaluationPlanOf} from './cliPlan.ts';
 import {compare} from './report.ts';
 import {resumeDecisionOf, resumeStateOf, storeAttemptsOf, writeJsonAtomic} from './result.ts';
 import {printSummary} from './cliSummary.ts';
 import {runOnce, withRestoration} from './runner.ts';
 import {type RunResultType} from './runTypes.ts';
 import {loadSuite, planHashOf, planOf, resolveTreatmentOf, selectCases, suiteWithModelOf, treatmentIdsOf} from './suite.ts';
+import {prepareTreatmentProofOf} from './surfaceProof.ts';
 import {type ToolSurfaceType, type TreatmentDefinitionType, type TreatmentIdType} from './treatment.ts';
-import {assertPresentedSurface} from './surface.ts';
-import {capturePresentedTools} from './surfaceProbe.ts';
 import {applyTreatment, subjectIdentityOf, treatmentConfigOf, workspaceContextOf} from './workspace.ts';
 import {assertCheckout, ensureWorkspaces, restoreWorkspace} from './workspaceRestore.ts';
 import {
@@ -33,10 +33,18 @@ import {
 	PACE_MS,
 } from './cliSupport.ts';
 
+/**
+ * Consecutive model-free cold starts every treatment must survive before the
+ * first hosted-model request. Validity v2 fixes this at twenty.
+ */
+const COLD_START_RUNS = 20;
+
 export type EvaluationOptionsType = Readonly<{
 	/** Restrict the run to these treatments; flags cannot widen it. */
 	treatments?: readonly string[];
 	repetitions?: number;
+	/** Cold-start proofs per treatment; production uses the fixed twenty. */
+	coldStarts?: number;
 	/** Restrict the run to this ordered case subset. */
 	caseIds?: readonly string[];
 	environment?: EnvironmentManifestType | null;
@@ -68,6 +76,7 @@ export type EvaluationSetupType = Readonly<{
 	selected: ReturnType<typeof selectCases>;
 	treatments: ReturnType<typeof treatmentsOf>;
 	repetitions: number;
+	coldStarts: number;
 	environment: EnvironmentManifestType | null;
 	hostedReference: HostedReferenceType | null;
 	plan: ReturnType<typeof planOf>;
@@ -86,6 +95,19 @@ type SurfacesType = Readonly<{
 	surfaces: Awaited<ReturnType<typeof surfacesOf>>;
 	treatmentContexts: ReadonlyMap<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>;
 }>;
+
+const coldStartsOfOptions = (options: EvaluationOptionsType): number => {
+	// A hosted claim always runs the fixed twenty. Local diagnostics and the
+	// deterministic CLI tests may lower the count explicitly; they never widen it.
+	const declared = options.claimClass === 'hosted-model-scoped' ? COLD_START_RUNS : Number(process.env['EVAL_COLD_STARTS'] ?? COLD_START_RUNS);
+	const coldStarts = options.coldStarts ?? declared;
+
+	if (!Number.isInteger(coldStarts) || coldStarts < 1) {
+		throw new Error('cold-start proof count must be a positive integer');
+	}
+
+	return coldStarts;
+};
 
 const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOptionsType): EvaluationSetupType => {
 	const suitePath = flagOf(flags, 'suite');
@@ -108,6 +130,7 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 			? treatmentsOf(flagOf(flags, 'treatment'), suite.treatments)
 			: treatmentsOf(options.treatments.join(','), suite.treatments);
 	const repetitions = options.repetitions ?? Number(flagOf(flags, 'repetitions') ?? suite.repetitions);
+	const coldStarts = coldStartsOfOptions(options);
 	const environment = options.environment ?? null;
 	const hostedReference = options.hostedReference ?? null;
 
@@ -151,6 +174,7 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 		selected,
 		treatments,
 		repetitions,
+		coldStarts,
 		environment,
 		hostedReference,
 		plan,
@@ -163,35 +187,6 @@ const setupEvaluationOf = (flags: Map<string, string[]>, options: EvaluationOpti
 		subject,
 		context,
 	};
-};
-
-const printEvaluationPlanOf = (setup: EvaluationSetupType): void => {
-	const {selected, treatments, repetitions, plan, planHash, identityDigest, runDir, environment, hostedReference, subject, clientStore} = setup;
-	const pinned =
-		subject.revision === null
-			? `revision=${subject.declaredRevision} (copy) content=${subject.contentManifestHash.slice(0, 16)}`
-			: `revision=${subject.revision.slice(0, 7)}`;
-
-	process.stderr.write(
-		`run ${runDir}\nplan ${plan.length} execution(s): ${selected.length} case(s) x ${treatments.length} treatment(s) x ${repetitions} repetition(s)\n`,
-	);
-	process.stderr.write(`plan-hash ${planHash}\nidentity ${identityDigest}\n`);
-
-	if (environment !== null) {
-		process.stderr.write(
-			`environment ${environment.id} ${environment.model.reference} digest ${environment.model.digest} runtime ollama ${environment.runtime.ollama} / opencode ${environment.runtime.opencode}\n`,
-		);
-	}
-
-	if (hostedReference !== null) {
-		process.stderr.write(
-			`hosted ${hostedReference.id} ${hostedReference.reference} released ${hostedReference.releasedAt} opencode ${hostedReference.runtime.opencode}\n`,
-		);
-	}
-
-	process.stderr.write(
-		`isolation ${subject.mode}, ${pinned}, standalone server, client store ${clientStore.mode}${clientStore.path === null ? '' : ` at ${clientStore.path}`}\n`,
-	);
 };
 
 const surfaceForOf = (surfaces: Awaited<ReturnType<typeof surfacesOf>>, treatment: TreatmentDefinitionType): ToolSurfaceType => {
@@ -208,17 +203,25 @@ const prepareSurfacesOf = async (setup: EvaluationSetupType): Promise<SurfacesTy
 	const surfaces = await surfacesOf(setup.context, setup.treatments);
 
 	// The final configuration names the ordinary tools and the captured native
-	// MCP tools exactly. A model-free probe records the tool list OpenCode sends
-	// to a provider and must match that declaration before any model process
-	// starts; an extra or missing tool aborts the campaign.
+	// MCP tools exactly. Each treatment must first prove actual MCP readiness and
+	// then present the exact surface on the first agent request of every cold
+	// start. Any missing, late, duplicated, or unknown tool aborts the campaign
+	// before the first hosted-model request.
 	for (const treatment of setup.treatments) {
 		const surface = surfaceForOf(surfaces, treatment);
 
 		applyTreatment(setup.context, treatment, surface);
-		const captured = await capturePresentedTools({workspace: setup.context.workspacePath(treatment.id), surface});
-		const observed = assertPresentedSurface(surface, captured.tools);
+		const {readiness, captured} = await prepareTreatmentProofOf({
+			runDir: setup.runDir,
+			coldStarts: setup.coldStarts,
+			context: setup.context,
+			treatment,
+			surface,
+		});
 
-		process.stderr.write(`surface ${treatment.id} ${observed.length} tool(s): ${observed.join(', ')}\n`);
+		process.stderr.write(
+			`surface ${treatment.id} agent request 1 exact across ${setup.coldStarts} cold start(s)${readiness === null ? '' : ` after ${readiness.attempts} readiness attempt(s)`}: ${captured.tools.join(', ')}\n`,
+		);
 	}
 
 	const treatmentContexts = new Map<TreatmentIdType, Readonly<{surface: ToolSurfaceType; configDigest: string}>>();
@@ -319,6 +322,7 @@ const slotResultOf = async (input: SlotInputType): Promise<Readonly<{result: Run
 			revisionMatch: verification.revisionMatch,
 		},
 		artifacts: runArtifactsOf(input.artifacts, treatment),
+		mcpServers: treatment.mcp === null ? [] : [treatment.mcp.server],
 		rawBase: path.join(slotDirectory, 'raw'),
 		firstAttempt: resume.nextAttempt,
 		prepareRetry: () => restoreWorkspace(setup.context, treatment, treatmentContext.surface),
@@ -380,20 +384,6 @@ const executePlanOf = async (
 	}
 
 	return {results, budgetExceeded};
-};
-
-const budgetOf = (
-	budgetMs: number | undefined,
-	startedAt: number,
-	exceeded: boolean,
-): Readonly<{budgetMs: number; elapsedMs: number; exceeded: boolean}> | null => {
-	if (budgetMs === undefined) {
-		return null;
-	}
-
-	const elapsedMs = Date.now() - startedAt;
-
-	return {budgetMs, elapsedMs, exceeded: exceeded || elapsedMs > budgetMs};
 };
 
 // Calibration writes its own qualification decision. The ordinary paired

@@ -5,7 +5,9 @@ The method is specified in
 [`documentation/evaluation-harness.md`](../documentation/evaluation-harness.md).
 
 > **Hosted evaluation paused.** E3 remains historical `NOT PASSED`, but its
-> total-token and cost interpretation is invalid. Read the
+> total-token and cost interpretation is invalid. Request metering and the
+> direct request-1 surface proof are implemented; corpus indexing, workspace
+> isolation, and the frozen statistical contract remain open. Read the
 > [E3 erratum](audits/hosted-release-e3-erratum.md) and
 > [evaluation validity v2](../documentation/evaluation-validity-v2.md). Do not
 > run another hosted release campaign until the v2 validity milestone passes.

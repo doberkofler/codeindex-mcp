@@ -10,7 +10,6 @@ import {loadSuite, planHashOf, planOf, selectCases} from './suite.ts';
 import {treatmentHashOf} from './treatment.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-
 const gitIn = (cwd: string, args: readonly string[]): string => {
 	const result = spawnSync('git', args, {cwd, encoding: 'utf8'});
 
@@ -101,6 +100,22 @@ const cliSandbox = (testContext: TestContext): Readonly<{root: string; env: Node
 	const marker = path.join(root, 'opencode-invoked');
 	mkdirSync(bin, {recursive: true});
 	writeFileSync(
+		path.join(bin, 'serve.mjs'),
+		[
+			"import {createServer} from 'node:http';",
+			'const server = createServer((request, response) => {',
+			"\tif (request.url === '/api/mcp') { response.writeHead(200, {'content-type': 'application/json'}); response.end(JSON.stringify({data: []})); return; }",
+			'\tresponse.writeHead(404); response.end();',
+			'});',
+			"server.listen(0, '127.0.0.1', () => {",
+			'\tconst address = server.address();',
+			String.raw`	process.stdout.write('server listening on http://127.0.0.1:' + address.port + '\n'); process.stdout.write('server password fixture\n');`,
+			'});',
+			'',
+		].join('\n'),
+		{encoding: 'utf8', mode: 0o644},
+	);
+	writeFileSync(
 		path.join(bin, 'probe.mjs'),
 		[
 			"const config = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT ?? '{}');",
@@ -120,6 +135,9 @@ const cliSandbox = (testContext: TestContext): Readonly<{root: string; env: Node
 		path.join(bin, 'opencode'),
 		[
 			'#!/bin/sh',
+			'if [ "$1" = "serve" ]; then',
+			`  exec node "${path.join(bin, 'serve.mjs')}"`,
+			'fi',
 			'for arg in "$@"; do',
 			'  if [ "$arg" = "surface-probe/probe" ]; then',
 			`    exec node "${path.join(bin, 'probe.mjs')}"`,
@@ -164,7 +182,7 @@ const cliSandbox = (testContext: TestContext): Readonly<{root: string; env: Node
 
 	return {
 		root,
-		env: {...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}`, MARKER: marker, EVALUATION_ROOT: root, EVAL_PACE_MS: '0'},
+		env: {...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}`, MARKER: marker, EVALUATION_ROOT: root, EVAL_PACE_MS: '0', EVAL_COLD_STARTS: '1'},
 		marker,
 		suitePath: 'evaluation/suites/suite.json',
 	};

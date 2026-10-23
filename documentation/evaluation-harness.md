@@ -4,14 +4,17 @@
 **Scope:** repeatable comparisons of agent work without CodeIndex, with the accepted
 CodeIndex artifact, and with a candidate artifact
 
-> **Validity amendment:** the shipped v1 harness does not yet satisfy the
-> [evaluation validity v2](./evaluation-validity-v2.md) contract. In particular,
-> an eventual union of tool lists does not prove request-1 availability, and
-> `step_finish` events do not meter every provider request. Do not run or cite a
+> **Validity amendment:** the harness now meters every provider request and
+> asserts the direct agent request-1 surface after actual MCP readiness, but it
+> does not yet satisfy the complete
+> [evaluation validity v2](./evaluation-validity-v2.md) contract. Complete corpus
+> indexing, workspace isolation, and the frozen statistical contract remain
+> open, and `step_finish` events are not the cost ledger. Do not run or cite a
 > new hosted economic campaign until master
 > [#58](https://github.com/doberkofler/codeindex-mcp/issues/58) and child issues
 > #59–#65 are complete.
-> See the [E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md).
+> See the [E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md) and the
+> [request-1 evidence](../evaluation/audits/request-1-surface-eval-032.md).
 
 This document owns harness mechanics. The
 [MCP evaluation strategy](./mcp-evaluation-strategy.md) owns product questions, test
@@ -199,12 +202,17 @@ Evaluation executions must never write to the operator's normal OpenCode session
 Start every agent process with a private server and an ephemeral database:
 
 ```bash
-OPENCODE_DB=:memory: opencode run --standalone \
+OPENCODE_DB=:memory: opencode serve --hostname 127.0.0.1 --port 0
+# wait until every expected MCP server reports connected through /api/mcp
+OPENCODE_DB=:memory: OPENCODE_SERVER_PASSWORD=<printed> \
+	opencode run --server <printed-url> \
 	--model <pinned-model> --format json "<case prompt>"
 ```
 
-- `--standalone` keeps the execution off the shared background service, so it cannot
-  observe or contend with an ordinary session.
+- The private server keeps the execution off the shared background service, so it
+  cannot observe or contend with an ordinary session.
+- The prompt is admitted only after the configured MCP server is actually connected.
+  Starting a process or registering a server in configuration is not readiness.
 - `OPENCODE_DB=:memory:` keeps sessions, messages, and tool events out of
   `~/.local/share/opencode/opencode.db`. Every execution starts with no prior session
   and leaves no session for the operator to see or delete.
@@ -212,19 +220,24 @@ OPENCODE_DB=:memory: opencode run --standalone \
   the isolated server needs no project-local `.opencode` edit.
 
 These settings apply to every treatment, case, and repetition. Evidence must be captured
-from the process stream before the standalone server exits, because an in-memory
+from the process stream before the private server exits, because an in-memory
 database cannot be inspected afterwards.
 
-Before the first model call, a model-free surface probe records the exact tool list
-OpenCode sends to a provider. The probe starts a loopback OpenAI-compatible endpoint,
-points a private `surface-probe` provider at it through `OPENCODE_CONFIG_CONTENT`, and
-uses the treatment's unchanged configuration, agent, artifact, and MCP server. It
-answers the session-title request, then a few `read` turns so an asynchronously
-connecting MCP server can publish its catalog, and unions every observed tool list.
-The result must equal the declared surface exactly: `edit` presents `edit` and `write`,
-`bash` is presented as `shell`, and the retired `list` tool is omitted. A missing or
-undeclared tool aborts the campaign before any model process starts. The probe is not a
-model execution and contributes no result record.
+Before the first model call, a model-free surface proof records the exact tools OpenCode
+offers on agent request 1. The proof starts a loopback OpenAI-compatible endpoint, points
+a private `surface-probe` provider at it through `OPENCODE_CONFIG_CONTENT`, and uses the
+treatment's unchanged configuration, agent, artifact, and MCP server. It first requires
+the exact configured MCP command to complete an `initialize`/`tools/list` handshake,
+then requires OpenCode's `/api/mcp` status to report the configured server connected
+before a prompt is admitted. The first agent request is answered and stopped; later
+turns never contribute to the verdict.
+
+The request-1 list must equal the declared surface exactly: `edit` presents `edit` and
+`write`, `bash` is presented as `shell`, and the retired `list` tool is omitted. A
+missing, late, duplicated, or undeclared tool aborts the campaign before any hosted
+model process starts and records a closed cause. Every treatment must pass twenty
+consecutive cold starts. The probe is not a model execution and contributes no result
+record.
 
 When a suite requires a persistent execution store for resume or post-run inspection,
 use one campaign-local database outside the normal data directory, record its path in

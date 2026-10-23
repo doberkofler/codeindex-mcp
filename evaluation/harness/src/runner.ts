@@ -1,14 +1,15 @@
-import {spawn, type ChildProcess} from 'node:child_process';
+import {type ChildProcess} from 'node:child_process';
 import {mkdirSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
+import {agentEnvironmentOf, agentProcessOf} from './agentProcess.ts';
 import {runChildOf, signalGroup, TERMINATE_GRACE_MS} from './childProcess.ts';
 import {isRateLimited, parseEvents} from './events.ts';
 import {gradeOf} from './grade.ts';
 import {EXECUTION_SCHEMA_VERSION, type ExecutionIdentityType} from './identity.ts';
 import {type ClientStoreType} from './isolation.ts';
+import {openReadyServerOf, type OpenCodeServerType} from './opencodeServer.ts';
 import {type PostRunResultType, postRunOf, skippedPostRunOf} from './postRun.ts';
-import {isolatedProcessEnvironmentOf} from './processEnvironment.ts';
 import {
 	type AttemptContextType,
 	type AttemptLogType,
@@ -26,9 +27,6 @@ const FINAL_TEXT_TAIL = 4000;
 const STDERR_TAIL = 4000;
 const RAW_STDOUT_LIMIT = 1_000_000;
 const RAW_STDERR_LIMIT = 64_000;
-
-/** Default executable; tests replace it with a controlled agent script. */
-const AGENT_COMMAND = 'opencode';
 
 /** Retry policy: bounded attempts with exponential, jittered backoff. */
 const MAX_ATTEMPTS = 6;
@@ -127,22 +125,6 @@ type AttemptResultType = Readonly<{
 	result: Omit<RunResultType, 'attempts' | 'rateLimited'>;
 	log: AttemptLogType;
 }>;
-
-const agentProcessOf = (input: Readonly<{cwd: string; model: string; clientStore: ClientStoreType; command?: string}>, prompt: string): ChildProcess =>
-	spawn(input.command ?? AGENT_COMMAND, ['run', '--standalone', '--agent', 'evaluator', '--model', input.model, '--format', 'json', '--auto', prompt], {
-		cwd: input.cwd,
-		// A new process group lets the timeout reach the standalone server and
-		// every tool subprocess. The group is never the harness's own.
-		detached: process.platform !== 'win32',
-		// OpenCode resolves the project from PWD, which spawn does not update.
-		// OPENCODE_DB is always explicit; an inherited value is never reused.
-		env: isolatedProcessEnvironmentOf({
-			PWD: input.cwd,
-			OPENCODE_DB: input.clientStore.opencodeDb,
-			OPENCODE_DISABLE_TELEMETRY: '1',
-		}),
-		stdio: ['ignore', 'pipe', 'pipe'],
-	});
 
 const postRunCheckOf = async (testCase: CaseType, cwd: string, timedOut: boolean): Promise<PostRunResultType | null> => {
 	if (testCase.check === null) {
@@ -300,6 +282,8 @@ const attemptOnce = async (
 		timeoutMs?: number;
 		/** Executable override; production uses `opencode`. */
 		command?: string;
+		/** Configured MCP servers that must connect before the prompt is admitted. */
+		mcpServers?: readonly string[];
 	}>,
 	attempt: number,
 ): Promise<AttemptResultType> => {
@@ -307,14 +291,43 @@ const attemptOnce = async (
 	const started = Date.now();
 	const prompt = promptOf(input.testCase);
 	const timeoutMs = input.timeoutMs ?? input.testCase.timeoutMs;
-	const child = agentProcessOf(input, prompt);
+	let openCode: OpenCodeServerType | null = null;
+
+	if (input.command === undefined) {
+		// A fresh private server is made ready before the prompt exists. The
+		// `run` process connects to it, so request 1 cannot be composed while an
+		// expected MCP server is still registering.
+		const ready = await openReadyServerOf({
+			cwd: input.cwd,
+			env: agentEnvironmentOf(input),
+			expectedServers: input.mcpServers ?? [],
+		});
+
+		openCode = ready.server;
+	}
+
+	let child: ChildProcess;
+
+	try {
+		child = agentProcessOf(input, prompt, openCode);
+	} catch (error) {
+		await openCode?.close();
+		throw error;
+	}
 
 	installTerminationHandlers();
 	activeAttempts.add(child);
 
-	const {stdout, stderr, timedOut, exit} = await runChildOf({child, timeoutMs});
+	let executed: Awaited<ReturnType<typeof runChildOf>>;
 
-	activeAttempts.delete(child);
+	try {
+		executed = await runChildOf({child, timeoutMs});
+	} finally {
+		activeAttempts.delete(child);
+		await openCode?.close();
+	}
+
+	const {stdout, stderr, timedOut, exit} = executed;
 
 	const durationMs = Date.now() - started;
 	const completedAt = new Date().toISOString();
@@ -387,6 +400,8 @@ export const runOnce = async (
 		timeoutMs?: number;
 		/** Executable override; production uses `opencode`. */
 		command?: string;
+		/** Configured MCP servers that must connect before each prompt is admitted. */
+		mcpServers?: readonly string[];
 		/** Retry policy override for focused tests. */
 		retry?: RetryPolicyType;
 		/** First attempt ordinal, used to continue a slot's stored sequence. */

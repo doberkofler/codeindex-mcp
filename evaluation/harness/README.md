@@ -5,9 +5,9 @@ baseline and against the currently accepted CodeIndex artifact, implementing the
 method in
 [`documentation/evaluation-harness.md`](../../documentation/evaluation-harness.md).
 
-> **Hosted use blocked:** request-level provider metering is implemented, but the
-> harness still lacks direct proof of the agent request-1 tool surface, complete
-> corpus indexing, and workspace isolation.
+> **Hosted use blocked:** request-level provider metering and direct agent
+> request-1 surface proof are implemented, but the harness still lacks complete
+> corpus indexing, workspace isolation, and the frozen statistical contract.
 > Read the [E3 erratum](../audits/hosted-release-e3-erratum.md) and
 > [evaluation validity v2](../../documentation/evaluation-validity-v2.md).
 > Do not start another hosted release campaign until master #58 and child issues
@@ -66,30 +66,48 @@ to any comparable field yields a different identity.
 
 ## Tool surface capture
 
-The implementation below is historical v1 behavior. Its eventual union can
-detect a permanently missing tool, but cannot prove the complete treatment
-surface was available on agent request 1. Validity v2 requires direct capture
-and assertion of request 1 after actual MCP readiness.
-
 The declared surface of a treatment is the ordinary tool list from the validated
 definition plus the native names from the artifact's `tools/list`, recorded under
-the server prefix OpenCode presents (`codeindex_*`). Presentation is not assumed:
+the server prefix OpenCode presents (`codeindex_*`). Presentation is not assumed.
 
-- before the first model call of every campaign, a model-free probe starts a
-  loopback OpenAI-compatible endpoint and points a private `surface-probe`
-  provider at it through `OPENCODE_CONFIG_CONTENT`;
-- the workspace configuration, agent, artifact, and MCP server are used
-  unchanged, and no model is contacted;
-- the probe answers the session-title request, then a few `read` turns, and
-  records every tool list OpenCode sends; MCP tools appear only after the server
-  connects, so the probe requires a stable list after a settle period;
-- the captured union must equal the declared surface. A missing declared tool or
-  an undeclared tool aborts the campaign before any model process starts.
+Every campaign runs a readiness and cold-start proof before the first hosted
+model request:
+
+- the exact configured MCP command must complete an `initialize` and
+  `tools/list` handshake with the declared native catalog; a process that merely
+  starts or a server that is merely registered is not ready;
+- for each treatment, a private OpenCode server is started, and its `/api/mcp`
+  status must report every expected MCP server `connected` before a `run`
+  process is allowed to admit a prompt;
+- each cold start is a fresh OpenCode server and provider probe. The loopback
+  OpenAI-compatible endpoint records every request with its ordinal and closed
+  kind (`agent`, `title`, `compaction`, `other`);
+- only the first agent request is asserted, against the exact declared surface.
+  An eventual union, a later turn, or the first selected tool never repairs a
+  missing request-1 tool;
+- a missing, late, duplicated, or undeclared tool aborts the campaign before any
+  hosted-model spend and writes a closed cause in the surface evidence.
+
+The proof runs twenty consecutive cold starts per treatment. A hosted claim
+always uses twenty; local diagnostics may lower `EVAL_COLD_STARTS` explicitly,
+but a hosted campaign ignores that override. Evidence is written under
+`results/<campaign>/surface/<treatment>/`:
+
+- `readiness.json` — the exact-command MCP handshake and native catalog;
+- `cold-start-NN.json` — the OpenCode MCP readiness record and the direct agent
+  request-1 ledger;
+- a failure records `recordType: "surface-proof-failure"` with its closed cause.
 
 `edit` presents `edit` and `write` because both share the `edit` permission;
 `bash` is presented as `shell` and normalized back to `bash` in the event stream;
 `patch` is accepted when a model advertises it. `list` is retired in OpenCode 2,
 so suites may keep it declared while the expected surface omits it.
+
+The manifest and every result record the surface. Every observed tool call is
+classified as ordinary, native CodeIndex, generic `execute`, or unknown. Any
+tool outside the callable surface is recorded and makes the execution invalid.
+Generic `execute` and `search` are disabled in every treatment; a call to either
+is recorded and fails the report.
 
 The manifest and every result record the surface. Every observed tool call is
 classified as ordinary, native CodeIndex, generic `execute`, or unknown. Any
@@ -785,9 +803,12 @@ project configuration from `PWD` rather than the spawn working directory.
 
 ### OpenCode client state
 
-Every execution starts `opencode run --standalone` with an explicit
-`OPENCODE_DB`, so it never contacts the shared background service and never
-reads or writes `~/.local/share/opencode/opencode.db`:
+Every execution starts a private `opencode serve` with an explicit
+`OPENCODE_DB`, waits until every expected MCP server reports `connected` through
+`/api/mcp`, and only then starts `opencode run --server <url>` with the prompt.
+It therefore never contacts the shared background service, never reads or writes
+`~/.local/share/opencode/opencode.db`, and cannot compose request 1 before the
+treatment surface exists:
 
 - the default store is `OPENCODE_DB=:memory:`, which gives every execution an
   empty session database that disappears with the private server;
@@ -797,8 +818,9 @@ reads or writes `~/.local/share/opencode/opencode.db`:
   `~/.local/share/opencode`);
 - no execution passes `--continue`, `--session`, or `--fork`, so a repetition
   cannot inherit a prior session;
-- stdout and stderr are captured from the process pipes until the private
-  server exits; an in-memory database is never inspected afterwards.
+- stdout and stderr are captured from the `run` process; the private server is
+  closed with a bounded terminate after the agent exits or times out. An
+  in-memory database is never inspected afterwards.
 
 The agent runs as a process-group leader. The hard timeout is
 `case.timeoutMs`: the harness sends `SIGTERM` to the whole group, escalates to

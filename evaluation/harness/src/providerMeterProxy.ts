@@ -1,6 +1,7 @@
 import {type IncomingHttpHeaders, type IncomingMessage, type ServerResponse} from 'node:http';
 import {collectUsageChunkOf, usageCollectorOf, usageOfCollector, type UsageCollectorType} from './providerMeterCollector.ts';
-import {PROVIDER_REQUEST_KINDS, type ProviderRequestKindType} from './providerUsage.ts';
+import {providerRequestKindOf} from './providerRequestKind.ts';
+import {type ProviderRequestKindType} from './providerUsage.ts';
 import {
 	type ProviderFailureCauseType,
 	type ProviderMeterInputType,
@@ -80,19 +81,7 @@ const abortFlagOf = (): AbortFlagType => {
 
 const clockOf = (now: (() => Date) | undefined): string => (now ?? (() => new Date()))().toISOString();
 
-const headerTextOf = (headers: IncomingHttpHeaders, name: string): string | null => {
-	const value = headers[name];
-
-	if (typeof value === 'string') {
-		return value;
-	}
-
-	return Array.isArray(value) ? (value[0] ?? null) : null;
-};
-
 const sanitizedTextOf = (value: unknown, maximum: number): string | null => (typeof value === 'string' && value.length > 0 ? value.slice(0, maximum) : null);
-
-const isRequestKindOf = (value: string): value is ProviderRequestKindType => (PROVIDER_REQUEST_KINDS as readonly string[]).includes(value);
 
 const toolNamesOf = (body: unknown): readonly string[] => {
 	if (!isRecord(body) || !Array.isArray(body['tools'])) {
@@ -110,61 +99,6 @@ const toolNamesOf = (body: unknown): readonly string[] => {
 	}
 
 	return names;
-};
-
-const contentTextOf = (value: unknown): readonly string[] => {
-	if (typeof value === 'string') {
-		return [value];
-	}
-
-	if (!Array.isArray(value)) {
-		return [];
-	}
-
-	return value.flatMap((part) => (isRecord(part) && typeof part['text'] === 'string' ? [part['text']] : []));
-};
-
-const promptTextOf = (body: Readonly<Record<string, unknown>>): string => {
-	const parts = [...contentTextOf(body['system'])];
-	const {messages} = body;
-
-	if (Array.isArray(messages)) {
-		for (const message of messages) {
-			if (isRecord(message)) {
-				parts.push(...contentTextOf(message['content']));
-			}
-		}
-	}
-
-	return parts.join('\n').toLowerCase();
-};
-
-const kindOf = (body: unknown, headers: IncomingHttpHeaders): ProviderRequestKindType => {
-	const explicit = headerTextOf(headers, 'x-codeindex-request-kind');
-
-	if (explicit !== null && isRequestKindOf(explicit)) {
-		return explicit;
-	}
-
-	if (toolNamesOf(body).length > 0) {
-		return 'agent';
-	}
-
-	if (!isRecord(body)) {
-		return 'other';
-	}
-
-	const text = promptTextOf(body);
-
-	if (/compact|conversation summary|summari[sz]e (?:the )?(?:conversation|session)/u.test(text)) {
-		return 'compaction';
-	}
-
-	if (/generate (?:a|the) (?:short |concise )?title|conversation title|session title|title for (?:this|the) (?:conversation|session)/u.test(text)) {
-		return 'title';
-	}
-
-	return 'other';
 };
 
 const requestHeadersOf = (headers: IncomingHttpHeaders, overrides: Readonly<Record<string, string>> | undefined): Record<string, string> => {
@@ -370,7 +304,7 @@ const consumeAndSettleOf = async (context: HandlerContextType, upstream: Respons
 const forwardOf = async (context: HandlerContextType): Promise<void> => {
 	const parsedBody = parseBodyOf(context.body);
 
-	context.record.kind = kindOf(parsedBody, context.request.headers);
+	context.record.kind = providerRequestKindOf(parsedBody, context.request.headers);
 	context.record.model = isRecord(parsedBody) ? sanitizedTextOf(parsedBody['model'], MAX_MODEL_LENGTH) : null;
 	context.record.toolNames = toolNamesOf(parsedBody);
 

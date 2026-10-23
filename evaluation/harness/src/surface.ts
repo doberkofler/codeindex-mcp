@@ -137,6 +137,25 @@ export const presentedToolsOf = (surface: Pick<ToolSurfaceType, 'ordinary' | 'co
 	].sort();
 
 /**
+ * Removes the OpenCode server prefix from the captured CodeIndex names.
+ *
+ * @param surface - Captured surface.
+ * @param server - Configured MCP server name.
+ * @returns Sorted native catalog names the artifact itself must present.
+ */
+export const nativeCatalogToolsOf = (surface: Pick<ToolSurfaceType, 'codeIndex'>, server: string): readonly string[] => {
+	const prefix = `${server}_`;
+
+	return surface.codeIndex.map((name) => {
+		if (!name.startsWith(prefix)) {
+			throw new Error(`captured CodeIndex tool ${name} does not carry the ${prefix} prefix`);
+		}
+
+		return name.slice(prefix.length);
+	});
+};
+
+/**
  * Lists every difference between the declared surface and the tools a
  * model-free probe observed being sent to the provider.
  *
