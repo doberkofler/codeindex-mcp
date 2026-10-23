@@ -1,6 +1,7 @@
 import {existsSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import {artifactIdentityOf, artifactRefOf, type ArtifactIdentityType, type ArtifactRefType} from './artifact.ts';
+import {contractPinOfUnknown} from './economicContract.ts';
 import {assertEnvironmentMatches, environmentProbeOf, type EnvironmentManifestType} from './environment.ts';
 import {catalogOf} from './mcp.ts';
 import {type ReportMetadataType} from './report.ts';
@@ -132,7 +133,6 @@ export const manifestMetadataOf = (directory: string): ReportMetadataType => {
 	const suiteVersion = suite['version'];
 	const suiteHash = suite['hash'];
 	const suiteStatus = suite['status'];
-
 	if (typeof campaignId !== 'string' || typeof schemaVersion !== 'string' || typeof claimClass !== 'string') {
 		throw new TypeError('manifest field "campaignId, schemaVersion, or claimClass" has an invalid shape');
 	}
@@ -141,12 +141,15 @@ export const manifestMetadataOf = (directory: string): ReportMetadataType => {
 		throw new TypeError('manifest field "suite" has an invalid shape');
 	}
 
+	const contract = record['contract'] === undefined ? null : contractPinOfUnknown(record['contract']);
+
 	return {
 		campaignId,
 		schemaVersion,
 		suite: {id: suiteId, version: suiteVersion, hash: suiteHash, status: suiteStatus},
 		components: componentsOf(record['components']),
 		claimClass,
+		contract,
 	};
 };
 

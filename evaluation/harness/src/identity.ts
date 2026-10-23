@@ -1,4 +1,5 @@
 import {type ArtifactRefType} from './artifact.ts';
+import {type ContractPinType, type EconomicContractType, contractPinOf} from './economicContract.ts';
 import {type EnvironmentManifestType} from './environment.ts';
 import {hashOf} from './hash.ts';
 import {hostedReferenceHashOf, type HostedReferenceType} from './hostedReference.ts';
@@ -20,6 +21,8 @@ export type ModelPinType = Readonly<{
 /** Closed identity for one planned execution. */
 export type IdentityType = Readonly<{
 	harness: Readonly<{version: number; schemaVersion: number}>;
+	/** Frozen economic and statistical contract bound to this campaign. */
+	contract: ContractPinType;
 	suite: Readonly<{id: string; version: number; hash: string}>;
 	model: string;
 	/** Pinned local-model environment identity, or null for a hosted or unpinned model. */
@@ -46,6 +49,8 @@ export type IdentityInputType = Readonly<{
 	environment?: EnvironmentManifestType | null;
 	/** Pinned hosted reference, or null when the campaign is local or unpinned. */
 	hostedReference?: HostedReferenceType | null;
+	/** Frozen contract; the accepted validity-v2 contract when omitted. */
+	contract?: EconomicContractType;
 }>;
 
 /**
@@ -81,6 +86,7 @@ export const identityOf = (input: IdentityInputType): IdentityType => {
 
 	return {
 		harness: {version: input.harnessVersion, schemaVersion: SUITE_SCHEMA_VERSION},
+		contract: contractPinOf(input.contract),
 		suite: {id: input.suite.id, version: input.suite.version, hash: input.suite.hash},
 		model: input.suite.model,
 		environment: input.environment === undefined || input.environment === null ? null : {id: input.environment.id, hash: hashOf(input.environment)},
@@ -156,6 +162,8 @@ export type ExecutionSubjectIdentityType = Readonly<{
 /** Complete identity for exactly one execution attempt. */
 export type ExecutionIdentityType = Readonly<{
 	harness: Readonly<{schemaVersion: string; version: number}>;
+	/** Frozen contract pin; absent only in historical pre-v2 results. */
+	contract?: ContractPinType;
 	suite: Readonly<{id: string; version: number; hash: string}>;
 	case: Readonly<{id: string; hash: string; promptHash: string; timeoutMs: number}>;
 	model: ExecutionModelIdentityType;
@@ -192,6 +200,8 @@ export type ExecutionIdentityInputType = Readonly<{
 	environment?: EnvironmentManifestType | null;
 	/** Pinned hosted reference, or null for a local or unpinned model. */
 	hostedReference?: HostedReferenceType | null;
+	/** Frozen contract; the accepted validity-v2 contract when omitted. */
+	contract?: EconomicContractType;
 }>;
 
 /**
@@ -287,6 +297,7 @@ const agentIdentityOf = (input: ExecutionIdentityInputType): ExecutionAgentIdent
  */
 export const executionIdentityOf = (input: ExecutionIdentityInputType): ExecutionIdentityType => ({
 	harness: {schemaVersion: EXECUTION_SCHEMA_VERSION, version: input.harnessVersion},
+	contract: contractPinOf(input.contract),
 	suite: {id: input.suite.id, version: input.suite.version, hash: input.suite.hash},
 	case: {
 		id: input.testCase.id,
@@ -339,6 +350,7 @@ export const executionIdentityDigestOf = (identity: ExecutionIdentityType): stri
 export const comparisonDigestOf = (identity: IdentityType): string =>
 	hashOf({
 		harness: identity.harness,
+		contract: identity.contract,
 		suite: identity.suite,
 		model: identity.model,
 		environment: identity.environment,
@@ -367,6 +379,7 @@ export const comparisonDigestOf = (identity: IdentityType): string =>
 export const executionCampaignDigestOf = (identity: ExecutionIdentityType): string =>
 	hashOf({
 		harness: identity.harness,
+		contract: identity.contract ?? null,
 		suite: identity.suite,
 		model: identity.model,
 		agent: {

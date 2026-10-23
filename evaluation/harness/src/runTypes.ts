@@ -1,4 +1,5 @@
 import {type ArtifactRefType} from './artifact.ts';
+import {type TaskCostVectorType} from './taskCost.ts';
 import {type RunEventsType, type TelemetryType} from './events.ts';
 import {type ExternalPathAttemptType} from './externalPath.ts';
 import {type GradeType} from './grade.ts';
@@ -83,6 +84,8 @@ export type RunResultType = Readonly<{
 	usage: RunEventsType['usage'];
 	/** Exact-or-unavailable token and cost metrics; never estimated from bytes. */
 	telemetry: TelemetryType;
+	/** Complete provider-request cost vector, or null when the task was not metered. */
+	providerCost?: TaskCostVectorType | null;
 	/** Normalized calls in stream order, including nested, unknown, and failed calls. */
 	toolCalls: RunEventsType['toolCalls'];
 	outputBytes: number;

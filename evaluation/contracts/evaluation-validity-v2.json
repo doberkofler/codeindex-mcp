@@ -1,0 +1,146 @@
+{
+	"id": "evaluation-validity-v2",
+	"version": 2,
+	"frozenAt": "2026-10-23T00:00:00.000Z",
+	"metricName": "preweighted candidate/no-index total user-visible task cost",
+	"suite": {
+		"id": "codeindex-release",
+		"version": 1,
+		"caseCount": 18,
+		"weighting": "class-balanced",
+		"classWeights": {
+			"locate": 0.25,
+			"impact": 0.25,
+			"semantic": 0.25,
+			"implementation": 0.25
+		},
+		"caseWeights": {
+			"locate-schema-version": 0.0625,
+			"locate-read-symbol-tool": 0.0625,
+			"locate-stale-file-error": 0.0625,
+			"locate-result-size-guard": 0.0625,
+			"impact-build-generation-references": 0.041666666666666664,
+			"impact-hash-content-references": 0.041666666666666664,
+			"impact-bounded-paged-result-references": 0.041666666666666664,
+			"impact-schema-version-references": 0.041666666666666664,
+			"impact-config-load-references": 0.041666666666666664,
+			"impact-codeindex-error-references": 0.041666666666666664,
+			"semantic-renamed-reexport": 0.041666666666666664,
+			"semantic-barrel-chain": 0.041666666666666664,
+			"semantic-shadowed-name": 0.041666666666666664,
+			"semantic-interface-implementations": 0.041666666666666664,
+			"semantic-type-only-import": 0.041666666666666664,
+			"semantic-default-export": 0.041666666666666664,
+			"impl-default-result-bytes": 0.125,
+			"impl-empty-relative-path": 0.125
+		}
+	},
+	"model": {
+		"provider": "deepseek",
+		"modelId": "deepseek-flash",
+		"modelVersion": "DeepSeek-V4.1-Flash-1017",
+		"reference": "deepseek/deepseek-flash",
+		"runtime": "opencode 2.1.2",
+		"exposureMode": "native-mcp",
+		"codeMode": "absent"
+	},
+	"estimand": {
+		"population": "fixed-suite",
+		"metric": "total-user-visible-task-cost-usd",
+		"form": "ratio-of-preweighted-means",
+		"arms": ["candidate", "no-index"],
+		"includesIncorrectValidExecutions": true
+	},
+	"cost": {
+		"targetRatio": 0.9,
+		"confidence": 0.95,
+		"sided": "one-sided",
+		"upperBoundBelow": 1
+	},
+	"correctness": {
+		"metric": "paired-success-rate-difference",
+		"nonInferiorityMargin": 0.02,
+		"confidence": 0.95,
+		"sided": "one-sided",
+		"falseAbsenceTolerance": 0
+	},
+	"latency": {
+		"metric": "wall-time-ms",
+		"timeoutCeilingMs": 180000,
+		"optimizationTarget": false
+	},
+	"output": {
+		"metric": "all-tool-output-bytes",
+		"families": ["index", "search", "read", "list", "write", "execute", "task", "other"],
+		"narrowerLegacyMetric": "retrievalBytes"
+	},
+	"confidence": {
+		"method": "paired-case-cluster-percentile-bootstrap",
+		"resamples": 2000,
+		"oneSidedUpperQuantile": 0.95,
+		"twoSidedLowerQuantile": 0.025,
+		"twoSidedUpperQuantile": 0.975
+	},
+	"caseGeneralization": {
+		"method": "paired-case-uniform-bootstrap",
+		"population": "case-superpopulation",
+		"authority": "descriptive"
+	},
+	"sampleSize": {
+		"method": "paired-log-ratio-simulation",
+		"desiredPower": 0.8,
+		"oneSidedAlpha": 0.05,
+		"simulations": 2000,
+		"minRepetitions": 1,
+		"maxRepetitions": 20,
+		"requiresDisjointPilotCampaign": true
+	},
+	"budget": {
+		"caseCount": 18,
+		"treatments": 3,
+		"repetitions": 5,
+		"executions": 270,
+		"maxWallClockMs": 48600000,
+		"maxProviderCostUsd": 25
+	},
+	"tariff": {
+		"id": "deepseek-flash-2026-10-23",
+		"provider": "deepseek",
+		"modelId": "deepseek-flash",
+		"modelVersion": "DeepSeek-V4.1-Flash-1017",
+		"currency": "USD",
+		"unit": "per-million-tokens",
+		"source": "https://api-docs.deepseek.com/quick_start/pricing",
+		"retrievedAt": "2026-10-23T00:00:00.000Z",
+		"effectiveFrom": "2026-09-10T00:00:00.000Z",
+		"bands": {
+			"peak": {
+				"cacheReadInputPerMillionUsd": 0.006,
+				"cacheMissInputPerMillionUsd": 0.3,
+				"cacheWritePerMillionUsd": {},
+				"outputPerMillionUsd": 1.2,
+				"reasoningPerMillionUsd": 1.2
+			},
+			"offPeak": {
+				"cacheReadInputPerMillionUsd": 0.003,
+				"cacheMissInputPerMillionUsd": 0.15,
+				"cacheWritePerMillionUsd": {},
+				"outputPerMillionUsd": 0.6,
+				"reasoningPerMillionUsd": 0.6
+			}
+		},
+		"peakWindows": [
+			{
+				"weekdays": [1, 2, 3, 4, 5],
+				"startUtcHour": 1,
+				"endUtcHour": 4
+			},
+			{
+				"weekdays": [1, 2, 3, 4, 5],
+				"startUtcHour": 6,
+				"endUtcHour": 10
+			}
+		],
+		"holidayExclusions": []
+	}
+}

@@ -6,12 +6,13 @@ The method is specified in
 
 > **Hosted evaluation paused.** E3 remains historical `NOT PASSED`, but its
 > total-token and cost interpretation is invalid. Request metering, the direct
-> request-1 surface proof, external-state workspace isolation, and corpus
-> preflight are implemented; the frozen economic/statistical contract and hosted
-> validity pilot remain open. Read the
-> [E3 erratum](audits/hosted-release-e3-erratum.md) and
-> [evaluation validity v2](../documentation/evaluation-validity-v2.md). Do not
-> run another hosted release campaign until the v2 validity milestone passes.
+> request-1 surface proof, external-state workspace isolation, corpus preflight,
+> and the frozen economic/statistical contract are implemented; the hosted
+> validity pilot remains open. Read the
+> [E3 erratum](audits/hosted-release-e3-erratum.md),
+> [evaluation validity v2](../documentation/evaluation-validity-v2.md), and the
+> [frozen contract evidence](audits/economic-contract-eval-034.md). Do not run
+> another hosted release campaign until the v2 validity milestone passes.
 
 | Directory | Contents |
 | --- | --- |

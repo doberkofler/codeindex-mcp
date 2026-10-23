@@ -1,5 +1,6 @@
 import {rngOf} from './bootstrapRng.ts';
 import {hashOf} from './hash.ts';
+import {ratioOf, ratioValueOf} from './ratio.ts';
 import {
 	type AnalysisType,
 	type CaseDeltaType,
@@ -37,12 +38,14 @@ export type PairedMetricNameType = (typeof PAIRED_METRICS)[number];
 /**
  * Returns the relative change between two arm medians.
  *
+ * Positive over zero is unbounded, not zero. Zero over positive is zero. Two
+ * zeros are equal.
+ *
  * @param treatmentValue - Treatment median.
  * @param baselineValue - Baseline median.
- * @returns The ratio, or a defined boundary value when the baseline is zero.
+ * @returns The numeric ratio used by a lower-is-better threshold.
  */
-const ratioOf = (treatmentValue: number, baselineValue: number): number =>
-	baselineValue === 0 ? (treatmentValue === 0 ? 1 : 0) : treatmentValue / baselineValue;
+const ratioOfThreshold = (treatmentValue: number, baselineValue: number): number => ratioValueOf(treatmentValue, baselineValue);
 
 export const percentile = (values: readonly number[], fraction: number): number => {
 	if (values.length === 0) {
@@ -64,6 +67,15 @@ export const sampleStatisticsOf = (values: readonly number[]): SampleStatisticsT
 });
 
 export const retrievalBytesOf = (run: RunResultType): number => run.familyBytes.index + run.familyBytes.search + run.familyBytes.read + run.familyBytes.list;
+
+/**
+ * Sums every tool-output family, including shell/execute, task, write, and
+ * unrecognized output.
+ *
+ * @param run - Stored result.
+ * @returns Total tool-output bytes.
+ */
+export const allToolOutputBytesOf = (run: RunResultType): number => Object.values(run.familyBytes).reduce((total, value) => total + value, 0);
 
 /**
  * Returns the claimable uncached token total, or null when any component is
@@ -105,10 +117,6 @@ export const metricValueOf = (run: RunResultType, metric: PairedMetricNameType):
 
 	if (metric === 'wallTimeMs') {
 		return run.durationMs;
-	}
-
-	if (!run.grade.success) {
-		return null;
 	}
 
 	if (metric === 'retrievalBytes') {
@@ -186,6 +194,8 @@ export const pairedMetricOf = (
 			treatmentMedian: null,
 			medianDelta: null,
 			medianRatio: null,
+			ratioState: 'finite',
+			ratioIntervalState: 'unavailable',
 			state: 'unavailable',
 			deltaInterval95: null,
 			ratioInterval95: null,
@@ -194,7 +204,7 @@ export const pairedMetricOf = (
 
 	const point = aggregateMediansOf(pairs);
 	const delta = point.treatment - point.baseline;
-	const pointRatio = point.baseline === 0 ? null : point.treatment / point.baseline;
+	const pointRatio = ratioOf(point.treatment, point.baseline);
 
 	if (pairs.length < 2) {
 		return {
@@ -204,7 +214,9 @@ export const pairedMetricOf = (
 			baselineMedian: point.baseline,
 			treatmentMedian: point.treatment,
 			medianDelta: delta,
-			medianRatio: pointRatio,
+			medianRatio: pointRatio.value,
+			ratioState: pointRatio.state,
+			ratioIntervalState: 'unavailable',
 			state: 'exact',
 			deltaInterval95: null,
 			ratioInterval95: null,
@@ -214,6 +226,7 @@ export const pairedMetricOf = (
 	const random = rngOf(intervalSeed);
 	const deltas: number[] = [];
 	const ratios: number[] = [];
+	let ratioUnbounded = false;
 
 	for (let resample = 0; resample < BOOTSTRAP_RESAMPLES; resample += 1) {
 		const drawn = Array.from({length: pairs.length}, () => pairs[Math.floor(random() * pairs.length)]).filter((pair): pair is PairType => pair !== undefined);
@@ -221,8 +234,12 @@ export const pairedMetricOf = (
 
 		deltas.push(sampled.treatment - sampled.baseline);
 
-		if (sampled.baseline !== 0) {
-			ratios.push(sampled.treatment / sampled.baseline);
+		const sampledRatio = ratioOf(sampled.treatment, sampled.baseline);
+
+		if (sampledRatio.state === 'positive-over-zero') {
+			ratioUnbounded = true;
+		} else if (sampledRatio.value !== null) {
+			ratios.push(sampledRatio.value);
 		}
 	}
 
@@ -233,10 +250,12 @@ export const pairedMetricOf = (
 		baselineMedian: point.baseline,
 		treatmentMedian: point.treatment,
 		medianDelta: delta,
-		medianRatio: pointRatio,
+		medianRatio: pointRatio.value,
+		ratioState: pointRatio.state,
+		ratioIntervalState: ratioUnbounded ? 'unbounded' : 'bounded',
 		state: 'exact',
 		deltaInterval95: intervalOf(deltas, intervalSeed),
-		ratioInterval95: intervalOf(ratios, intervalSeed),
+		ratioInterval95: ratioUnbounded ? null : intervalOf(ratios, intervalSeed),
 	};
 };
 
@@ -311,9 +330,9 @@ export const caseDeltasOf = (runs: readonly RunResultType[]): readonly CaseDelta
 };
 export const thresholdsOf = (analysis: Pick<AnalysisType, 'noIndex' | 'accepted' | 'candidate' | 'caseDeltas'>): readonly ThresholdType[] => {
 	const {noIndex, accepted, candidate, caseDeltas} = analysis;
-	const outputRatio = ratioOf(candidate.statistics.retrievalBytes.median, noIndex.statistics.retrievalBytes.median);
-	const tokenRatio = ratioOf(candidate.statistics.tokens.median, noIndex.statistics.tokens.median);
-	const timeRatio = ratioOf(candidate.statistics.wallTimeMs.p95, noIndex.statistics.wallTimeMs.p95);
+	const outputRatio = ratioOfThreshold(candidate.statistics.retrievalBytes.median, noIndex.statistics.retrievalBytes.median);
+	const tokenRatio = ratioOfThreshold(candidate.statistics.tokens.median, noIndex.statistics.tokens.median);
+	const timeRatio = ratioOfThreshold(candidate.statistics.wallTimeMs.p95, noIndex.statistics.wallTimeMs.p95);
 	const toolDelta = candidate.statistics.toolCalls.median - noIndex.statistics.toolCalls.median;
 	const tokenTelemetryComplete = [noIndex, accepted, candidate].every((summary) => summary.statistics.tokens.complete);
 

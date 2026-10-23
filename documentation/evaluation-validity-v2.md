@@ -72,9 +72,15 @@ Track [#61](https://github.com/doberkofler/codeindex-mcp/issues/61).
 
 Track [#62](https://github.com/doberkofler/codeindex-mcp/issues/62).
 
-Freeze before A/B sampling:
+Status: **frozen** as `evaluation-validity-v2` version 2 on 2026-10-23. The
+machine-readable contract is
+[`../evaluation/contracts/evaluation-validity-v2.json`](../evaluation/contracts/evaluation-validity-v2.json)
+and the evidence is
+[`../evaluation/audits/economic-contract-eval-034.md`](../evaluation/audits/economic-contract-eval-034.md).
 
-- the suite population and case weights;
+Frozen before A/B sampling:
+
+- the suite population and class-balanced case weights;
 - provider, model, runtime, generation settings, and exposure mode;
 - official tariff snapshot and timestamp;
 - primary cost target and confidence method;
@@ -82,10 +88,11 @@ Freeze before A/B sampling:
   rule;
 - timeout ceiling, execution budget, invalidation policy, and sample size.
 
-The recommended primary fixed-suite estimand is the ratio of preweighted mean
-total provider cost, candidate/no-index. The proposed economic gate is a ratio
-at most `0.90` with a one-sided 95% upper bound below `1.00`. Final values become
-normative only when frozen in the campaign contract.
+The primary fixed-suite estimand is the ratio of preweighted mean total
+user-visible task cost, candidate/no-index. The economic gate is a ratio at most
+`0.90` with a one-sided 95% upper bound below `1.00`. Any change to a threshold,
+weight, tariff, model, exposure mode, or budget changes the contract digest and
+therefore the campaign identity.
 
 Include every valid execution regardless of answer correctness. Keep correctness,
 cost, reliability, and latency separate. Report fixed-suite inference separately

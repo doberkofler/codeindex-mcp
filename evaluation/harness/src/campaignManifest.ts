@@ -1,5 +1,6 @@
 import os from 'node:os';
 import {artifactRefOf} from './artifact.ts';
+import {EVALUATION_CONTRACT, contractRecordOf} from './economicContract.ts';
 import {environmentHashOf, hostFactsOf} from './environment.ts';
 import {hostedReferenceHashOf} from './hostedReference.ts';
 import {EXECUTION_SCHEMA_VERSION, modelIdentityOf} from './identity.ts';
@@ -124,6 +125,7 @@ export const campaignManifestOf = (
 		schemaVersion: EXECUTION_SCHEMA_VERSION,
 		campaignId,
 		claimClass,
+		contract: contractRecordOf(EVALUATION_CONTRACT),
 		suite: {id: suite.id, version: suite.version, status: suite.status, hash: suite.hash},
 		cases: selected.map((testCase) => ({id: testCase.id, hash: caseHashOf(testCase)})),
 		harness: HARNESS_VERSION,

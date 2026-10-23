@@ -769,6 +769,42 @@ no generic `execute` call in any treatment, and no unknown tool in any
 treatment. `report.json` records each threshold with its measured value and pass
 state.
 
+## Validity-v2 economic contract
+
+New campaigns are bound to the frozen `evaluation-validity-v2` contract. Its
+digest is part of the campaign and execution identity, so a changed threshold,
+case weight, tariff, model, exposure mode, or budget cannot reuse a campaign
+identity. The contract and tariff snapshot are machine-readable under
+[`../contracts/evaluation-validity-v2.json`](../contracts/evaluation-validity-v2.json)
+and
+[`../tariffs/deepseek-flash-2026-10-23.json`](../tariffs/deepseek-flash-2026-10-23.json);
+the evidence is in
+[`../audits/economic-contract-eval-034.md`](../audits/economic-contract-eval-034.md).
+
+- The primary estimand is the ratio of preweighted mean total user-visible task
+  cost, candidate/no-index, over the fixed 18-case suite. Case weights are
+  class-balanced and frozen in the contract.
+- Cost is derived per request from non-cached input, cache read, every
+  cache-write tier, visible output, and reasoning. Agent, title, compaction, and
+  other request kinds all participate; agent-only cost is sensitivity evidence.
+- Every valid execution, including an incorrect answer, participates in the
+  economic estimate. Correctness is a separate paired non-inferiority decision
+  with an owner-approved margin and zero-tolerance false absence.
+- The cost gate is a ratio at most `0.90` with a one-sided 95% upper bound below
+  `1.00`. Ratios distinguish finite, both-zero, positive-over-zero, and
+  zero-over-positive states; positive over zero is never a favorable zero.
+- The fixed-suite interval resamples whole cases with frozen weights. A separate
+  uniform-case interval describes case-population generalization and is not the
+  primary gate.
+- Latency is recorded against the frozen timeout ceiling and is not an
+  optimization target.
+- The output metric sums every tool-output family, including shell/execute,
+  task, write, and unrecognized output. The historical `retrievalBytes` metric
+  remains an explicitly narrower legacy metric.
+- Final repetitions are sized by simulation from a disjoint paired pilot; the
+  pilot cannot be the final campaign.
+- Historical E3 records remain under their original `retrievalBytes` contract.
+
 ## Artifact verification
 
 Every CodeIndex artifact is verified before the first model call and its

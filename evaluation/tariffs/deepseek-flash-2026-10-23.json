@@ -1,0 +1,40 @@
+{
+	"id": "deepseek-flash-2026-10-23",
+	"provider": "deepseek",
+	"modelId": "deepseek-flash",
+	"modelVersion": "DeepSeek-V4.1-Flash-1017",
+	"currency": "USD",
+	"unit": "per-million-tokens",
+	"source": "https://api-docs.deepseek.com/quick_start/pricing",
+	"retrievedAt": "2026-10-23T00:00:00.000Z",
+	"effectiveFrom": "2026-09-10T00:00:00.000Z",
+	"bands": {
+		"peak": {
+			"cacheReadInputPerMillionUsd": 0.006,
+			"cacheMissInputPerMillionUsd": 0.3,
+			"cacheWritePerMillionUsd": {},
+			"outputPerMillionUsd": 1.2,
+			"reasoningPerMillionUsd": 1.2
+		},
+		"offPeak": {
+			"cacheReadInputPerMillionUsd": 0.003,
+			"cacheMissInputPerMillionUsd": 0.15,
+			"cacheWritePerMillionUsd": {},
+			"outputPerMillionUsd": 0.6,
+			"reasoningPerMillionUsd": 0.6
+		}
+	},
+	"peakWindows": [
+		{
+			"weekdays": [1, 2, 3, 4, 5],
+			"startUtcHour": 1,
+			"endUtcHour": 4
+		},
+		{
+			"weekdays": [1, 2, 3, 4, 5],
+			"startUtcHour": 6,
+			"endUtcHour": 10
+		}
+	],
+	"holidayExclusions": []
+}
