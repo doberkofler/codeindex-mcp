@@ -5,8 +5,9 @@ baseline and against the currently accepted CodeIndex artifact, implementing the
 method in
 [`documentation/evaluation-harness.md`](../../documentation/evaluation-harness.md).
 
-> **Hosted use blocked:** the current harness does not provide cost-valid
-> request-level metering or direct proof of the agent request-1 tool surface.
+> **Hosted use blocked:** request-level provider metering is implemented, but the
+> harness still lacks direct proof of the agent request-1 tool surface, complete
+> corpus indexing, and workspace isolation.
 > Read the [E3 erratum](../audits/hosted-release-e3-erratum.md) and
 > [evaluation validity v2](../../documentation/evaluation-validity-v2.md).
 > Do not start another hosted release campaign until master #58 and child issues
@@ -634,6 +635,35 @@ reported cost stay separately available. A missing component is `unavailable`
 with a null value; it is never replaced with zero, a byte estimate, or another
 run's value. The token gate fails when a successful run lacks exact usage, while
 correctness, calls, bytes, and latency remain valid evidence.
+
+## Provider-request metering
+
+Event-stream usage is not the cost ledger. The harness provides a loopback
+provider proxy (`providerMeter.ts`) that meters every request routed through it,
+so a missing `step_finish`, an early `session.execution.succeeded`, or an
+asynchronous title request cannot remove usage from the record.
+
+- The proxy forwards to the configured upstream and records the request ordinal,
+  closed kind (`agent`, `title`, `compaction`, `other`), actual provider/model,
+  timestamps, offered tool names, body sizes, and the terminal settlement.
+- Usage is read from the terminal JSON or SSE response. Non-cached input, cache
+  read, each provider-named cache-write tier, visible output, reasoning, and
+  provider-reported cost stay separate. Absent components remain null; they are
+  never replaced with zero or inferred from another request.
+- Every started request settles exactly once: one completed usage record or one
+  closed failure cause. A pending, failed, missing, or unparseable request
+  invalidates the affected economic claim instead of shrinking the total.
+- Reconciliation reports the total over every request the task caused and an
+  agent-only aggregate as sensitivity evidence.
+- Ledgers contain no prompts, source text, credentials, or provider envelopes.
+  Only tool names, model identity, categories, counts, and timestamps are kept.
+- Metering does not read OpenCode's session database, so `OPENCODE_DB=:memory:`
+  cannot prevent recovery. Static tariff arithmetic is labelled
+  `sensitivity-not-invoice-time`; provider-reported cost is not invoice-time
+  cost either.
+- The deterministic tests cover terminal usage in SSE, asynchronous title usage,
+  compaction, upstream failure, missing usage, unsettled requests, and the
+  `session.execution.succeeded`-before-`session.step.ended` ordering.
 
 ## Metrics
 
