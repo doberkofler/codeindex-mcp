@@ -274,7 +274,10 @@ Selection rules:
   ([§7.7](#77-atomic-persistence-and-partial-writes));
 - a complete, effectively valid result is never re-executed; a stored `aborted`
   attempt does not satisfy its slot
-  ([strategy §8.1.5](./mcp-evaluation-strategy.md#815-failed-slot-only-retry)).
+  ([strategy §8.1.5](./mcp-evaluation-strategy.md#815-failed-slot-only-retry));
+- `--retry-timed-out` with `--resume` re-executes a slot whose highest attempt timed
+  out and writes the next attempt ordinal; the timeout is retained, and no completed
+  non-timeout result is ever rerun by this flag.
 
 ## 7. Result contract
 
@@ -487,6 +490,10 @@ exception.
 3. the stored record's effective validity is `valid` ([7.6](#76-execution-outcome-and-validity));
 4. no later attempt exists for the same identity.
 
+`--retry-timed-out` is the one explicit exception to rule 3: a timed-out attempt is
+otherwise valid evidence, so only that flag may send its slot back to execution. It
+writes the next attempt ordinal and leaves the timeout in place for inspection.
+
 One differing field satisfies none of these conditions. The stored result is
 retained, is not reused, is not deleted, and is not evidence for the new identity. If
 the difference contradicts a comparison predeclared before execution, the affected
@@ -633,9 +640,10 @@ A result is atomic and append-only.
   it. At most one attempt per identity may be effectively valid, because a valid
   execution is final ([strategy §8.1.5](./mcp-evaluation-strategy.md#815-failed-slot-only-retry));
   a retry is admissible only while no attempt is valid. `--resume` selects the highest
-  attempt that is complete, readable, and effectively valid. When no attempt is valid,
-  the slot is pending retry and needs a named cause before it runs. Two effectively
-  valid attempts for one identity are a harness defect, invalid under
+  attempt that is complete, readable, and effectively valid. `--retry-timed-out` makes
+  a timed-out highest attempt pending retry without discarding it. When no attempt is
+  valid, the slot is pending retry and needs a named cause before it runs. Two
+  effectively valid attempts for one identity are a harness defect, invalid under
   `configuration-mismatch` for both.
 - A second complete write for an existing `identityDigest` and `attempt` is a harness
   defect, handled as an isolation or artifact failure

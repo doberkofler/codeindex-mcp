@@ -375,6 +375,52 @@ export const attemptFilesOf = (slotDirectory: string): readonly Readonly<{attemp
 };
 
 /**
+ * Decision to reuse a stored slot or send it back to execution.
+ *
+ * `retryingTimedOut` is true only when an explicit timed-out replay overrode an
+ * otherwise reusable attempt.
+ */
+export type ResumeDecisionType = Readonly<{
+	record: RunResultType | null;
+	attempt: number | null;
+	nextAttempt: number;
+	retryingTimedOut: boolean;
+}>;
+
+/**
+ * Applies the campaign flags to one slot's stored state.
+ *
+ * A timed-out attempt is valid evidence, so only `--retry-timed-out` sends it
+ * back to execution.
+ *
+ * @param state - Stored-attempt state for the slot.
+ * @param flags - Parsed campaign flags.
+ * @returns The reusable record and the timeout-replay marker.
+ */
+export const resumeDecisionOf = (state: ResumeStateType, flags: Readonly<{has: (name: string) => boolean}>): ResumeDecisionType => {
+	const retryingTimedOut = flags.has('retry-timed-out') && state.record?.timedOut === true;
+	const reusable = flags.has('resume') && state.record !== null && !retryingTimedOut;
+
+	return {record: reusable ? state.record : null, attempt: state.attempt, nextAttempt: state.nextAttempt, retryingTimedOut};
+};
+
+/**
+ * Persists every attempt of one slot, with the final result replacing its
+ * in-flight copy.
+ *
+ * @param slotDirectory - Directory holding the slot's attempts.
+ * @param attempts - Attempts produced during execution.
+ * @param result - Final result of the slot.
+ */
+export const storeAttemptsOf = (slotDirectory: string, attempts: readonly RunResultType[], result: RunResultType): void => {
+	for (const [index, attempt] of attempts.entries()) {
+		const stored = index === attempts.length - 1 ? result : attempt;
+
+		writeResult(resultPathOf(slotDirectory, stored.attempt), stored);
+	}
+};
+
+/**
  * Resolves whether a slot may resume from a stored attempt.
  *
  * Only a complete, readable, effectively valid record with exactly the planned

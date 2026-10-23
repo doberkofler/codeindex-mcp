@@ -9,7 +9,7 @@ import {assertHostedModel, type HostedReferenceType} from './hostedReference.ts'
 import {comparisonDigestOf, executionIdentityDigestOf, executionIdentityOf, identityDigestOf, identityOf} from './identity.ts';
 import {clientStoreOf, prepareClientStore, type ClientStoreType} from './isolation.ts';
 import {compare} from './report.ts';
-import {resultPathOf, resumeStateOf, writeJsonAtomic, writeResult} from './result.ts';
+import {resumeDecisionOf, resumeStateOf, storeAttemptsOf, writeJsonAtomic} from './result.ts';
 import {printSummary} from './cliSummary.ts';
 import {runOnce, withRestoration} from './runner.ts';
 import {type RunResultType} from './runTypes.ts';
@@ -245,7 +245,7 @@ type SlotInputType = Readonly<{
 	index: number;
 }>;
 
-const slotResultOf = async (input: SlotInputType): Promise<RunResultType> => {
+const slotResultOf = async (input: SlotInputType): Promise<Readonly<{result: RunResultType; executed: boolean}>> => {
 	const {setup, entry} = input;
 	const treatment = resolveTreatmentOf(entry, setup.treatments);
 	const treatmentContext = input.treatmentContexts.get(treatment.id);
@@ -278,25 +278,26 @@ const slotResultOf = async (input: SlotInputType): Promise<RunResultType> => {
 	});
 	const slotIdentityDigest = executionIdentityDigestOf(executionIdentity);
 	const slotDirectory = path.join(setup.runDir, entry.caseId, entry.treatment, `rep-${entry.repetition}`);
-	const resume = resumeStateOf(slotDirectory, slotIdentityDigest);
+	const resume = resumeDecisionOf(resumeStateOf(slotDirectory, slotIdentityDigest), setup.flags);
 
-	if (setup.flags.has('resume') && resume.record !== null) {
+	if (resume.record !== null) {
 		process.stderr.write(
 			`[${input.index + 1}/${setup.plan.length}] ${entry.caseId} ${entry.treatment} rep-${entry.repetition} resumed attempt ${resume.attempt}\n`,
 		);
 
-		return resume.record;
+		return {result: resume.record, executed: false};
 	}
 
 	// RestoreWorkspace writes the ordinary-only configuration, so the exact
 	// captured surface is rewritten before every slot and before every retry.
 	applyTreatment(setup.context, treatment, treatmentContext.surface);
 
-	// Reject, never silently repair: a dirty or mismatched workspace would
-	// mean the execution observes content the suite did not pin.
+	// Reject, never silently repair: a dirty workspace would observe unpinned content.
 	const verification = assertCheckout(setup.context, treatment);
 
-	process.stderr.write(`[${input.index + 1}/${setup.plan.length}] ${entry.caseId} ${entry.treatment} rep-${entry.repetition}\n`);
+	process.stderr.write(
+		`[${input.index + 1}/${setup.plan.length}] ${entry.caseId} ${entry.treatment} rep-${entry.repetition}${resume.retryingTimedOut ? ` retrying timed-out attempt ${resume.attempt}` : ''}\n`,
+	);
 
 	const attemptResults: RunResultType[] = [];
 	const execution = await runOnce({
@@ -332,11 +333,7 @@ const slotResultOf = async (input: SlotInputType): Promise<RunResultType> => {
 		process.stderr.write(`  retried ${result.attempts.length - 1} time(s); last reason ${result.invalidReason ?? 'accepted'}\n`);
 	}
 
-	for (const [attemptIndex, attemptResult] of attemptResults.entries()) {
-		const stored = attemptIndex === attemptResults.length - 1 ? result : attemptResult;
-
-		writeResult(resultPathOf(slotDirectory, stored.attempt), stored);
-	}
+	storeAttemptsOf(slotDirectory, attemptResults, result);
 
 	if (!result.isolation.restored || result.defects.includes('dirty-isolation')) {
 		throw new Error(
@@ -344,7 +341,7 @@ const slotResultOf = async (input: SlotInputType): Promise<RunResultType> => {
 		);
 	}
 
-	return result;
+	return {result, executed: true};
 };
 
 const executePlanOf = async (
@@ -372,9 +369,12 @@ const executePlanOf = async (
 			break;
 		}
 
-		results.push(await slotResultOf({...input, entry, testCase, index}));
+		const slot = await slotResultOf({...input, entry, testCase, index});
 
-		if (index < input.setup.plan.length - 1) {
+		results.push(slot.result);
+
+		// Pacing protects live calls; a slot restored from disk starts none.
+		if (slot.executed && index < input.setup.plan.length - 1) {
 			await delay(PACE_MS);
 		}
 	}

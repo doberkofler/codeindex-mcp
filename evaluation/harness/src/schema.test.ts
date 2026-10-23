@@ -4,6 +4,7 @@ import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, r
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, it, type TestContext} from 'vitest';
+import {readResult, writeResult} from './result.ts';
 import {CASE_SCHEMA_VERSION, SUITE_SCHEMA_VERSION, canonicalJson, caseHashOf, caseOf, hashOf, suiteFieldsOf} from './schema.ts';
 import {loadSuite, planHashOf, planOf, selectCases} from './suite.ts';
 import {treatmentHashOf} from './treatment.ts';
@@ -422,5 +423,60 @@ describe('schema', () => {
 		assert.equal(repaired.status, 0, repaired.stderr);
 		assert.equal(invocations(), 4);
 		assert.equal(resultFiles().length, 3);
+	});
+
+	it('retry-timed-out reruns a stored timeout and leaves valid slots resumed', (testContext) => {
+		const fixture = cliSandbox(testContext);
+		const evaluate = (flags: readonly string[]): SpawnSyncReturns<string> =>
+			spawnSync(
+				process.execPath,
+				['src/cli.ts', 'evaluate', '--suite', fixture.suitePath, '--case', 'case-a', '--treatment', 'no-index', '--repetitions', '2', ...flags],
+				{cwd: fixture.root, env: fixture.env, encoding: 'utf8'},
+			);
+		const invocations = (): number => (existsSync(fixture.marker) ? Number(readFileSync(fixture.marker, 'utf8')) : 0);
+		const attemptFile = (): string => {
+			const root = path.join(fixture.root, 'results');
+			const [file] = readdirSync(root, {recursive: true, encoding: 'utf8'})
+				.filter((entry) => /^attempt-\d+\.json$/u.test(path.basename(entry)))
+				.map((entry) => path.join(root, entry))
+				.sort();
+
+			if (file === undefined) {
+				throw new Error('the first campaign wrote no attempt');
+			}
+
+			return file;
+		};
+
+		const first = evaluate([]);
+
+		assert.equal(first.status, 0, first.stderr);
+		assert.equal(invocations(), 2);
+
+		const file = attemptFile();
+		const record = readResult(file);
+
+		assert.ok(record !== null);
+		writeResult(path.join(path.dirname(file), 'attempt-2.json'), {
+			...record,
+			attempt: 2,
+			outcome: 'timed-out',
+			timedOut: true,
+			valid: false,
+			invalidReason: 'timed out',
+			grade: {...record.grade, success: false},
+		});
+
+		const resumed = evaluate(['--resume']);
+
+		assert.equal(resumed.status, 0, resumed.stderr);
+		assert.equal(invocations(), 2);
+		assert.match(resumed.stderr, /resumed attempt 2/u);
+
+		const retried = evaluate(['--resume', '--retry-timed-out']);
+
+		assert.equal(retried.status, 0, retried.stderr);
+		assert.equal(invocations(), 3);
+		assert.match(retried.stderr, /retrying timed-out attempt 2/u);
 	});
 });

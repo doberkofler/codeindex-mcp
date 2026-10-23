@@ -459,15 +459,21 @@ Completed, failed, and timed-out executions all satisfy their slot; an `aborted`
 execution, a record with defects, a corrupt file, and every identity mismatch do
 not. Corrupt attempts are treated as absent, while a record for another identity
 is retained untouched and the new identity receives the next attempt ordinal.
-The campaign manifest is written once and is never rewritten in place.
+A timed-out attempt satisfies its slot like any other complete result. Add
+`--retry-timed-out` with `--resume` to send only timed-out slots back to
+execution; the timeout is retained and the new execution writes the next
+attempt ordinal. The campaign manifest is written once and is never rewritten in
+place.
 
 Readers implement schema major version 1 and accept any minor version, ignore
 unknown fields, and reject a failed integrity check. A document that is not a
 valid result is never evidence and never receives an invalidation cause.
 
 Each execution retries internally up to six times with jittered exponential
-backoff, and 5 s of pacing separates executions (`EVAL_PACE_MS`). A hard timeout
-is not retried: it is the recorded outcome of its slot. A retry is never a
+backoff, and 5 s of pacing separates live executions (`EVAL_PACE_MS`). A slot
+restored by `--resume` starts no model call and is not paced. A hard timeout is
+not retried internally: it is the recorded outcome of its slot, and only an
+explicit `--retry-timed-out` replay overrides it. A retry is never a
 repetition: every attempt is written as its own immutable record and raw event
 stream in the slot directory, and the highest complete attempt decides what a
 later resume reuses.
