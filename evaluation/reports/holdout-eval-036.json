@@ -1,0 +1,75 @@
+{
+	"recordType": "holdout-corpus",
+	"schemaVersion": 1,
+	"id": "holdout-eval-036",
+	"frozenAt": "2026-10-23T13:05:00.000Z",
+	"suite": {
+		"id": "codeindex-holdout",
+		"version": 1,
+		"hash": "5eb2106b709d1edfcd6a7539179f78dacb8e4e5de51dbc24b24b9ad09a1d8326",
+		"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516",
+		"caseHashes": {
+			"holdout-unique-identifier": "9d5f0b928f244cd24ffa95ca35031aeca0b21ed5256c3ead1d963b32e07c1f10",
+			"holdout-ambiguous-name": "9ffd01082315fa2aa83ae94b8db5b5754663db5213d9a4d649b6c71a3e338489",
+			"holdout-semantic-relationship": "c046b78c5c339966a5ee713745b1169d9dc91551fa8b5d9bd0a4b9ac257b80b3",
+			"holdout-baseline-payload": "9f1bfe1dc31e5c8c4843ccbccb982d440e1459cce6530daf4469ad9b19fd9f45"
+		}
+	},
+	"selection": {
+		"basis": "pinned after reading the corrected development trajectories; selected by task ambiguity, semantic relationships, and observed baseline payload/turn cost rather than repository size",
+		"developmentReadBeforeSelection": {
+			"noIndexMeanCostUsd": 0.0010096374705882353,
+			"candidateMeanCostUsd": 0.0013117104705882353,
+			"noIndexRequestCount": 52,
+			"candidateRequestCount": 58,
+			"observedBaselineCases": [
+				"locate-schema-version",
+				"impact-build-generation-references",
+				"impact-schema-version-references",
+				"semantic-renamed-reexport",
+				"semantic-interface-implementations",
+				"impl-default-result-bytes"
+			],
+			"note": "These development observations selected the holdout shape. They are not certification results and are never reused as holdout evidence."
+		},
+		"cases": [
+			{
+				"id": "holdout-unique-identifier",
+				"class": "locate",
+				"span": "unique identifier",
+				"reason": "A unique exported constant exercises exact declaration lookup with a low baseline search cardinality."
+			},
+			{
+				"id": "holdout-ambiguous-name",
+				"class": "locate",
+				"span": "ambiguous name",
+				"reason": "Ten source files mention IndexStatusType, so the case spans baseline name ambiguity without a repository-size proxy."
+			},
+			{
+				"id": "holdout-semantic-relationship",
+				"class": "impact",
+				"span": "semantic relationship",
+				"reason": "Callers of one pagination helper require a reference relationship rather than a literal declaration match."
+			},
+			{
+				"id": "holdout-baseline-payload",
+				"class": "locate",
+				"span": "observed baseline payload/turn cost",
+				"reason": "A common SQLite connection symbol produces roughly 100 baseline grep lines, so it spans the costly baseline payload shape observed in development."
+			}
+		]
+	},
+	"preflight": {
+		"command": "node evaluation/harness/src/cli.ts preflight --suite suites/holdout.json",
+		"result": "pass",
+		"projects": ["root", "controlled-typescript", "test"],
+		"indexedFiles": 341,
+		"unindexedExpectedPaths": 0,
+		"treatments": ["accepted", "candidate"]
+	},
+	"execution": {
+		"status": "not-run",
+		"reason": "Holdout cases stay unexecuted in this development pilot so no development observation is reused as certification evidence."
+	},
+	"certificationBoundary": "Only a later predeclared certification campaign may execute these cases. This record cannot authorize a release and cannot be merged with development executions."
+}

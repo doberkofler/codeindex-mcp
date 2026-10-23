@@ -1,0 +1,56 @@
+{
+	"schemaVersion": 2,
+	"id": "codeindex-holdout",
+	"version": 1,
+	"status": "frozen",
+	"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516",
+	"model": "deepseek/deepseek-flash",
+	"repetitions": 1,
+	"treatments": [
+		{
+			"id": "no-index",
+			"kind": "no-index",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": null,
+			"mcp": null
+		},
+		{
+			"id": "accepted",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-accepted",
+				"root": "artifacts/accepted",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		},
+		{
+			"id": "candidate",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-candidate",
+				"root": "artifacts/candidate",
+				"entryPoint": "mcp.mjs"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		}
+	],
+	"cases": ["holdout-unique-identifier", "holdout-ambiguous-name", "holdout-semantic-relationship", "holdout-baseline-payload"],
+	"caseHashes": {
+		"holdout-unique-identifier": "9d5f0b928f244cd24ffa95ca35031aeca0b21ed5256c3ead1d963b32e07c1f10",
+		"holdout-ambiguous-name": "9ffd01082315fa2aa83ae94b8db5b5754663db5213d9a4d649b6c71a3e338489",
+		"holdout-semantic-relationship": "c046b78c5c339966a5ee713745b1169d9dc91551fa8b5d9bd0a4b9ac257b80b3",
+		"holdout-baseline-payload": "9f1bfe1dc31e5c8c4843ccbccb982d440e1459cce6530daf4469ad9b19fd9f45"
+	}
+}

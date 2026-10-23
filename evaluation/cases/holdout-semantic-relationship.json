@@ -1,0 +1,23 @@
+{
+	"schemaVersion": 1,
+	"id": "holdout-semantic-relationship",
+	"title": "Bounded pagination helper callers",
+	"class": "impact",
+	"tags": ["holdout", "impact", "semantic-relationship"],
+	"prompt": "Which files under src/ call the boundedPagedResult helper, excluding the file that declares it? List every calling file and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": [
+		"src/core/query/outlineQuery.ts",
+		"src/core/query/queryService.ts",
+		"src/core/query/readSymbolQuery.ts",
+		"src/core/query/referenceQuery.ts"
+	],
+	"contextFiles": [],
+	"forbiddenFiles": ["src/core/query/querySupport.ts"],
+	"workflow": {
+		"maxTotalCalls": 24,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

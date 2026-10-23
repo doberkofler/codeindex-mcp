@@ -1,0 +1,3432 @@
+{
+	"recordType": "development-pilot-report",
+	"schemaVersion": 1,
+	"claimClass": "development-pilot",
+	"efficacyClaim": false,
+	"releaseAuthority": false,
+	"generatedAt": "2026-10-23T13:11:25.355Z",
+	"design": {
+		"id": "ab-development-v1",
+		"digest": "76a1c8de068b5824a03825967bdc8ac255e86a41bd64251e880a95f074a7093d",
+		"frozenAt": "2026-10-23T12:00:00.000Z"
+	},
+	"contract": {
+		"id": "evaluation-validity-v2",
+		"version": 2,
+		"digest": "179bb5df1bc96ee86c54da20f26034a59fe50671dfc9912d805ed4588204a22f"
+	},
+	"suite": {
+		"id": "codeindex-calibration",
+		"version": 2,
+		"hash": "14d11804cd15ba6348549bdfb1600804c2e85167cb083aaa9edb746331a145b6"
+	},
+	"campaign": {
+		"campaignId": "codeindex-calibration-e09e68cbe41c577e",
+		"identityDigest": "55ba4e02f544ef73b211e4ee6467a1f47c503cced4cf3fe993557e61e595fea2",
+		"harnessVersion": 11,
+		"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516",
+		"contentManifestHash": "70403067fd91080b9949b26f3a68d632898586b019d53e1ee4291641e0bbb907",
+		"artifacts": {
+			"accepted": null,
+			"candidate": {
+				"id": "codeindex-mcp-candidate",
+				"digest": "ac846e44cf7c527f9d361ff7ca266e5e2bbdae4d2dd80f9c1e111ac124d4e205"
+			}
+		}
+	},
+	"model": {
+		"provider": "deepseek",
+		"modelId": "deepseek-flash",
+		"reference": "deepseek/deepseek-flash",
+		"runtime": "2.1.3"
+	},
+	"exposure": {
+		"selected": "direct-mcp",
+		"codeMode": "absent",
+		"comparison": "explicit-selection",
+		"rationale": "The frozen validity-v2 contract pins native MCP tools with Code Mode absent. Direct MCP is selected explicitly before certification; adding a Code Mode arm would change the treatment surface and is not compared in this development pilot."
+	},
+	"plan": {
+		"cases": [
+			{
+				"id": "locate-schema-version",
+				"class": "locate",
+				"weight": 0.17647058823529413
+			},
+			{
+				"id": "impact-build-generation-references",
+				"class": "impact",
+				"weight": 0.11764705882352941
+			},
+			{
+				"id": "impact-schema-version-references",
+				"class": "impact",
+				"weight": 0.11764705882352941
+			},
+			{
+				"id": "semantic-renamed-reexport",
+				"class": "semantic",
+				"weight": 0.11764705882352941
+			},
+			{
+				"id": "semantic-interface-implementations",
+				"class": "semantic",
+				"weight": 0.11764705882352941
+			},
+			{
+				"id": "impl-default-result-bytes",
+				"class": "implementation",
+				"weight": 0.35294117647058826
+			}
+		],
+		"repetitions": 2,
+		"randomizationSeed": "ab-development-2026-10-23",
+		"plannedExecutions": 24,
+		"storedExecutions": 24,
+		"validExecutions": 24,
+		"invalidExecutions": 0
+	},
+	"trajectories": [
+		{
+			"caseId": "impact-build-generation-references",
+			"caseClass": "impact",
+			"treatment": "candidate",
+			"repetition": 1,
+			"attempt": 2,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 6988,
+			"totalUsd": 0.000389502,
+			"agentOnlyUsd": 0.0003618,
+			"costState": "exact",
+			"agentRequests": 3,
+			"requestKinds": {
+				"agent": 3,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 2,
+				"completedIndexCalls": 2,
+				"authoritativeCalls": 2,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 1655,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": "authoritative-stop",
+				"indexContribution": "authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:52:25.009Z",
+					"completedAt": "2026-10-23T12:52:27.158Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000110082,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:52:25.010Z",
+					"completedAt": "2026-10-23T12:52:25.835Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000027701999999999997,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:52:27.195Z",
+					"completedAt": "2026-10-23T12:52:28.861Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00011760000000000001,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:52:28.907Z",
+					"completedAt": "2026-10-23T12:52:30.290Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000134118,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"caseClass": "impact",
+			"treatment": "candidate",
+			"repetition": 2,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 6004,
+			"totalUsd": 0.00040105199999999994,
+			"agentOnlyUsd": 0.00037335,
+			"costState": "exact",
+			"agentRequests": 3,
+			"requestKinds": {
+				"agent": 3,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 2,
+				"completedIndexCalls": 2,
+				"authoritativeCalls": 2,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 1658,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": "authoritative-stop",
+				"indexContribution": "authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:52:37.098Z",
+					"completedAt": "2026-10-23T12:52:38.261Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000110082,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:52:37.098Z",
+					"completedAt": "2026-10-23T12:52:37.787Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000027701999999999997,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:52:38.303Z",
+					"completedAt": "2026-10-23T12:52:39.971Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.0001248,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:52:40.012Z",
+					"completedAt": "2026-10-23T12:52:41.406Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000138468,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"caseClass": "impact",
+			"treatment": "no-index",
+			"repetition": 1,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 4091,
+			"totalUsd": 0.00028605000000000004,
+			"agentOnlyUsd": 0.00025834800000000004,
+			"costState": "exact",
+			"agentRequests": 2,
+			"requestKinds": {
+				"agent": 2,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:51:59.818Z",
+					"completedAt": "2026-10-23T12:52:01.099Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000121848,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:51:59.819Z",
+					"completedAt": "2026-10-23T12:52:00.924Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000027701999999999997,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:52:01.149Z",
+					"completedAt": "2026-10-23T12:52:02.570Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.0001365,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["grep"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"caseClass": "impact",
+			"treatment": "no-index",
+			"repetition": 2,
+			"attempt": 2,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 5730,
+			"totalUsd": 0.000556536,
+			"agentOnlyUsd": 0.0005288339999999999,
+			"costState": "exact",
+			"agentRequests": 3,
+			"requestKinds": {
+				"agent": 3,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:01.990Z",
+					"completedAt": "2026-10-23T12:53:03.215Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000103032,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:53:01.990Z",
+					"completedAt": "2026-10-23T12:53:02.876Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000027701999999999997,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:03.271Z",
+					"completedAt": "2026-10-23T12:53:04.575Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.0001509,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:04.635Z",
+					"completedAt": "2026-10-23T12:53:06.363Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000274902,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["grep", "grep"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"caseClass": "impact",
+			"treatment": "candidate",
+			"repetition": 1,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 7908,
+			"totalUsd": 0.0007709400000000001,
+			"agentOnlyUsd": 0.0007415880000000001,
+			"costState": "exact",
+			"agentRequests": 4,
+			"requestKinds": {
+				"agent": 4,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 4,
+				"completedIndexCalls": 4,
+				"authoritativeCalls": 2,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 2667,
+				"ordinaryRetrievalCallsAfterFirstIndex": 1,
+				"fallbacksAfterAuthoritative": 1,
+				"authoritativeStop": null,
+				"indexContribution": "authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:13.210Z",
+					"completedAt": "2026-10-23T12:53:14.637Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000134148,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:53:13.211Z",
+					"completedAt": "2026-10-23T12:53:14.345Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000029352,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:14.694Z",
+					"completedAt": "2026-10-23T12:53:16.127Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00017775,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:16.172Z",
+					"completedAt": "2026-10-23T12:53:17.698Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000162486,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:17.754Z",
+					"completedAt": "2026-10-23T12:53:19.402Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000267204,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["codeindex_find_symbol", "codeindex_index_status", "codeindex_find_references", "codeindex_find_references", "grep"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"caseClass": "impact",
+			"treatment": "candidate",
+			"repetition": 2,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 4275,
+			"totalUsd": 0.00034358399999999997,
+			"agentOnlyUsd": 0.000314232,
+			"costState": "exact",
+			"agentRequests": 2,
+			"requestKinds": {
+				"agent": 2,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 2,
+				"completedIndexCalls": 2,
+				"authoritativeCalls": 2,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 1547,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": "authoritative-stop",
+				"indexContribution": "authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:47.013Z",
+					"completedAt": "2026-10-23T12:53:48.214Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000135132,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:53:47.014Z",
+					"completedAt": "2026-10-23T12:53:48.038Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000029352,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:48.275Z",
+					"completedAt": "2026-10-23T12:53:49.555Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.0001791,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"caseClass": "impact",
+			"treatment": "no-index",
+			"repetition": 1,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 4108,
+			"totalUsd": 0.0003789,
+			"agentOnlyUsd": 0.000349548,
+			"costState": "exact",
+			"agentRequests": 2,
+			"requestKinds": {
+				"agent": 2,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:25.831Z",
+					"completedAt": "2026-10-23T12:53:27.282Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000130098,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:53:25.831Z",
+					"completedAt": "2026-10-23T12:53:26.622Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000029352,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:27.334Z",
+					"completedAt": "2026-10-23T12:53:28.619Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00021945,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["grep"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"caseClass": "impact",
+			"treatment": "no-index",
+			"repetition": 2,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 6468,
+			"totalUsd": 0.0010254359999999998,
+			"agentOnlyUsd": 0.000996084,
+			"costState": "exact",
+			"agentRequests": 3,
+			"requestKinds": {
+				"agent": 3,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:35.059Z",
+					"completedAt": "2026-10-23T12:53:36.505Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000130482,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:53:35.060Z",
+					"completedAt": "2026-10-23T12:53:36.054Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000029352,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:36.570Z",
+					"completedAt": "2026-10-23T12:53:38.746Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.0006915,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:38.793Z",
+					"completedAt": "2026-10-23T12:53:40.193Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00017410199999999998,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["grep", "grep", "grep"]
+		},
+		{
+			"caseId": "impl-default-result-bytes",
+			"caseClass": "implementation",
+			"treatment": "candidate",
+			"repetition": 1,
+			"attempt": 2,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 9623,
+			"totalUsd": 0.0021949499999999998,
+			"agentOnlyUsd": 0.002159898,
+			"costState": "exact",
+			"agentRequests": 5,
+			"requestKinds": {
+				"agent": 5,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 1,
+				"completedIndexCalls": 1,
+				"authoritativeCalls": 0,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 415,
+				"ordinaryRetrievalCallsAfterFirstIndex": 3,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "non-authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:50.644Z",
+					"completedAt": "2026-10-23T12:57:52.024Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00013551,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:57:50.645Z",
+					"completedAt": "2026-10-23T12:57:51.372Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000035051999999999996,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:52.096Z",
+					"completedAt": "2026-10-23T12:57:54.290Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00017055,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:54.344Z",
+					"completedAt": "2026-10-23T12:57:56.050Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.001552602,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:56.121Z",
+					"completedAt": "2026-10-23T12:57:57.407Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000183834,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 6,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:57.456Z",
+					"completedAt": "2026-10-23T12:57:58.570Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000117402,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["grep", "codeindex_find_symbol", "read", "grep", "read", "edit", "edit"]
+		},
+		{
+			"caseId": "impl-default-result-bytes",
+			"caseClass": "implementation",
+			"treatment": "candidate",
+			"repetition": 2,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 7162,
+			"totalUsd": 0.0016732199999999998,
+			"agentOnlyUsd": 0.001635768,
+			"costState": "exact",
+			"agentRequests": 4,
+			"requestKinds": {
+				"agent": 4,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 1,
+				"completedIndexCalls": 1,
+				"authoritativeCalls": 0,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 373,
+				"ordinaryRetrievalCallsAfterFirstIndex": 2,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "non-authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:58:05.848Z",
+					"completedAt": "2026-10-23T12:58:07.242Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00013731,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:58:05.849Z",
+					"completedAt": "2026-10-23T12:58:06.940Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.00003745199999999999,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:58:07.330Z",
+					"completedAt": "2026-10-23T12:58:08.790Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.0001374,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:58:08.832Z",
+					"completedAt": "2026-10-23T12:58:10.226Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.0012559679999999999,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:58:10.300Z",
+					"completedAt": "2026-10-23T12:58:11.341Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00010509000000000001,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["grep", "codeindex_find_symbol", "read", "read", "edit", "edit"]
+		},
+		{
+			"caseId": "impl-default-result-bytes",
+			"caseClass": "implementation",
+			"treatment": "no-index",
+			"repetition": 1,
+			"attempt": 2,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 10600,
+			"totalUsd": 0.001686603,
+			"agentOnlyUsd": 0.001650351,
+			"costState": "exact",
+			"agentRequests": 6,
+			"requestKinds": {
+				"agent": 6,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:14.029Z",
+					"completedAt": "2026-10-23T12:57:15.318Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000125901,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:57:14.030Z",
+					"completedAt": "2026-10-23T12:57:14.726Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000036252,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:15.368Z",
+					"completedAt": "2026-10-23T12:57:16.907Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.0001434,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:16.955Z",
+					"completedAt": "2026-10-23T12:57:18.313Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.0006600180000000001,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:18.359Z",
+					"completedAt": "2026-10-23T12:57:20.015Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00020352,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 6,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:20.063Z",
+					"completedAt": "2026-10-23T12:57:21.843Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000150672,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 7,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:57:21.888Z",
+					"completedAt": "2026-10-23T12:57:23.292Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00036683999999999995,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["grep", "grep", "glob", "glob", "grep", "read", "read", "edit", "edit", "read"]
+		},
+		{
+			"caseId": "impl-default-result-bytes",
+			"caseClass": "implementation",
+			"treatment": "no-index",
+			"repetition": 2,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 9764,
+			"totalUsd": 0.001694439,
+			"agentOnlyUsd": 0.001659387,
+			"costState": "exact",
+			"agentRequests": 5,
+			"requestKinds": {
+				"agent": 5,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:58:18.222Z",
+					"completedAt": "2026-10-23T12:58:19.905Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00014810099999999998,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:58:18.223Z",
+					"completedAt": "2026-10-23T12:58:19.201Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000035051999999999996,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:58:19.951Z",
+					"completedAt": "2026-10-23T12:58:21.379Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000142434,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:58:21.434Z",
+					"completedAt": "2026-10-23T12:58:22.805Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000988902,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:58:22.850Z",
+					"completedAt": "2026-10-23T12:58:25.095Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000262266,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 6,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:58:25.166Z",
+					"completedAt": "2026-10-23T12:58:26.648Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000117684,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["glob", "grep", "read", "glob", "grep", "edit", "edit"]
+		},
+		{
+			"caseId": "locate-schema-version",
+			"caseClass": "locate",
+			"treatment": "candidate",
+			"repetition": 1,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 4924,
+			"totalUsd": 0.0026390520000000002,
+			"agentOnlyUsd": 0.0026085,
+			"costState": "exact",
+			"agentRequests": 2,
+			"requestKinds": {
+				"agent": 2,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 1,
+				"completedIndexCalls": 1,
+				"authoritativeCalls": 1,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 1919,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": "authoritative-stop",
+				"indexContribution": "authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:51:22.160Z",
+					"completedAt": "2026-10-23T12:51:23.609Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.0024315,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:51:22.165Z",
+					"completedAt": "2026-10-23T12:51:23.446Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000030552,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:51:23.665Z",
+					"completedAt": "2026-10-23T12:51:25.336Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000177,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["codeindex_find_symbol"]
+		},
+		{
+			"caseId": "locate-schema-version",
+			"caseClass": "locate",
+			"treatment": "candidate",
+			"repetition": 2,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 3887,
+			"totalUsd": 0.000230484,
+			"agentOnlyUsd": 0.000199332,
+			"costState": "exact",
+			"agentRequests": 2,
+			"requestKinds": {
+				"agent": 2,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 1,
+				"completedIndexCalls": 1,
+				"authoritativeCalls": 1,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 586,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": "authoritative-stop",
+				"indexContribution": "authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:51:41.759Z",
+					"completedAt": "2026-10-23T12:51:42.847Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000107532,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:51:41.760Z",
+					"completedAt": "2026-10-23T12:51:42.812Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000031152,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:51:42.892Z",
+					"completedAt": "2026-10-23T12:51:43.926Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00009180000000000001,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["codeindex_find_symbol"]
+		},
+		{
+			"caseId": "locate-schema-version",
+			"caseClass": "locate",
+			"treatment": "no-index",
+			"repetition": 1,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 4444,
+			"totalUsd": 0.000985236,
+			"agentOnlyUsd": 0.0009552839999999999,
+			"costState": "exact",
+			"agentRequests": 2,
+			"requestKinds": {
+				"agent": 2,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:51:31.809Z",
+					"completedAt": "2026-10-23T12:51:32.775Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.0005096339999999999,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:51:31.810Z",
+					"completedAt": "2026-10-23T12:51:32.555Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000029952,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:51:32.846Z",
+					"completedAt": "2026-10-23T12:51:34.915Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00044565,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["grep"]
+		},
+		{
+			"caseId": "locate-schema-version",
+			"caseClass": "locate",
+			"treatment": "no-index",
+			"repetition": 2,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 4299,
+			"totalUsd": 0.000533802,
+			"agentOnlyUsd": 0.0005038499999999999,
+			"costState": "exact",
+			"agentRequests": 2,
+			"requestKinds": {
+				"agent": 2,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:51:50.388Z",
+					"completedAt": "2026-10-23T12:51:52.028Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00009568199999999998,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:51:50.389Z",
+					"completedAt": "2026-10-23T12:51:51.503Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000029952,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:51:52.075Z",
+					"completedAt": "2026-10-23T12:51:53.347Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000408168,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["grep"]
+		},
+		{
+			"caseId": "semantic-interface-implementations",
+			"caseClass": "semantic",
+			"treatment": "candidate",
+			"repetition": 1,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 11653,
+			"totalUsd": 0.00143631,
+			"agentOnlyUsd": 0.001400208,
+			"costState": "exact",
+			"agentRequests": 6,
+			"requestKinds": {
+				"agent": 6,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 5,
+				"completedIndexCalls": 4,
+				"authoritativeCalls": 3,
+				"firstIndexTool": "codeindex_index_status",
+				"indexOutputBytes": 4695,
+				"ordinaryRetrievalCallsAfterFirstIndex": 7,
+				"fallbacksAfterAuthoritative": 6,
+				"authoritativeStop": null,
+				"indexContribution": "authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:20.550Z",
+					"completedAt": "2026-10-23T12:55:21.892Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000150498,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:55:20.551Z",
+					"completedAt": "2026-10-23T12:55:21.635Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000036102,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:21.954Z",
+					"completedAt": "2026-10-23T12:55:23.508Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.0003708,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:23.567Z",
+					"completedAt": "2026-10-23T12:55:25.057Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00028699199999999997,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:25.108Z",
+					"completedAt": "2026-10-23T12:55:27.239Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00020764799999999997,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 6,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:27.276Z",
+					"completedAt": "2026-10-23T12:55:29.291Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00020528399999999997,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 7,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:29.344Z",
+					"completedAt": "2026-10-23T12:55:30.492Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000178986,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": [
+				"codeindex_index_status",
+				"glob",
+				"codeindex_read_symbol",
+				"codeindex_outline",
+				"codeindex_find_symbol",
+				"read",
+				"codeindex_find_references",
+				"read",
+				"read",
+				"read",
+				"grep",
+				"grep"
+			]
+		},
+		{
+			"caseId": "semantic-interface-implementations",
+			"caseClass": "semantic",
+			"treatment": "candidate",
+			"repetition": 2,
+			"attempt": 3,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 9581,
+			"totalUsd": 0.001058718,
+			"agentOnlyUsd": 0.001024416,
+			"costState": "exact",
+			"agentRequests": 5,
+			"requestKinds": {
+				"agent": 5,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 3,
+				"completedIndexCalls": 3,
+				"authoritativeCalls": 3,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 5039,
+				"ordinaryRetrievalCallsAfterFirstIndex": 5,
+				"fallbacksAfterAuthoritative": 5,
+				"authoritativeStop": null,
+				"indexContribution": "authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:27.301Z",
+					"completedAt": "2026-10-23T12:56:28.952Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000165666,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:56:27.302Z",
+					"completedAt": "2026-10-23T12:56:28.176Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000034302,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:29.012Z",
+					"completedAt": "2026-10-23T12:56:30.444Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000350784,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:30.496Z",
+					"completedAt": "2026-10-23T12:56:31.947Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00022930799999999998,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:31.995Z",
+					"completedAt": "2026-10-23T12:56:33.686Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000163128,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 6,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:33.742Z",
+					"completedAt": "2026-10-23T12:56:35.154Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00011552999999999999,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["codeindex_find_symbol", "codeindex_outline", "codeindex_find_references", "grep", "read", "read", "read", "grep"]
+		},
+		{
+			"caseId": "semantic-interface-implementations",
+			"caseClass": "semantic",
+			"treatment": "no-index",
+			"repetition": 1,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 7827,
+			"totalUsd": 0.0009420359999999999,
+			"agentOnlyUsd": 0.000906534,
+			"costState": "exact",
+			"agentRequests": 4,
+			"requestKinds": {
+				"agent": 4,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:36.949Z",
+					"completedAt": "2026-10-23T12:55:38.342Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00014884799999999998,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:55:36.950Z",
+					"completedAt": "2026-10-23T12:55:37.773Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000035502,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:38.408Z",
+					"completedAt": "2026-10-23T12:55:39.892Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00033824999999999995,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:39.947Z",
+					"completedAt": "2026-10-23T12:55:41.688Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00021139199999999997,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:41.749Z",
+					"completedAt": "2026-10-23T12:55:43.452Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000208044,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["bash", "bash", "bash"]
+		},
+		{
+			"caseId": "semantic-interface-implementations",
+			"caseClass": "semantic",
+			"treatment": "no-index",
+			"repetition": 2,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 8270,
+			"totalUsd": 0.000704856,
+			"agentOnlyUsd": 0.0006705540000000001,
+			"costState": "exact",
+			"agentRequests": 5,
+			"requestKinds": {
+				"agent": 5,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:41.636Z",
+					"completedAt": "2026-10-23T12:56:43.078Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00009291,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:56:41.637Z",
+					"completedAt": "2026-10-23T12:56:42.629Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000034302,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:43.138Z",
+					"completedAt": "2026-10-23T12:56:44.518Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00017955,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:44.575Z",
+					"completedAt": "2026-10-23T12:56:46.069Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000127602,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:46.128Z",
+					"completedAt": "2026-10-23T12:56:47.436Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00014292000000000002,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 6,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:56:47.468Z",
+					"completedAt": "2026-10-23T12:56:48.568Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000127572,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["bash", "bash", "bash", "grep"]
+		},
+		{
+			"caseId": "semantic-renamed-reexport",
+			"caseClass": "semantic",
+			"treatment": "candidate",
+			"repetition": 1,
+			"attempt": 2,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 9292,
+			"totalUsd": 0.001024332,
+			"agentOnlyUsd": 0.00098913,
+			"costState": "exact",
+			"agentRequests": 5,
+			"requestKinds": {
+				"agent": 5,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 4,
+				"completedIndexCalls": 4,
+				"authoritativeCalls": 0,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 5255,
+				"ordinaryRetrievalCallsAfterFirstIndex": 3,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "non-authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:23.982Z",
+					"completedAt": "2026-10-23T12:54:25.439Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000160566,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:54:23.983Z",
+					"completedAt": "2026-10-23T12:54:25.290Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.00003520199999999999,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:25.478Z",
+					"completedAt": "2026-10-23T12:54:27.075Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00034823399999999995,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:27.105Z",
+					"completedAt": "2026-10-23T12:54:28.616Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000213624,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:28.661Z",
+					"completedAt": "2026-10-23T12:54:30.247Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000149094,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 6,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:30.302Z",
+					"completedAt": "2026-10-23T12:54:31.556Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000117612,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["codeindex_find_symbol", "codeindex_outline", "codeindex_find_references", "codeindex_find_references", "read", "read", "grep"]
+		},
+		{
+			"caseId": "semantic-renamed-reexport",
+			"caseClass": "semantic",
+			"treatment": "candidate",
+			"repetition": 2,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 10128,
+			"totalUsd": 0.0009658259999999999,
+			"agentOnlyUsd": 0.000929424,
+			"costState": "exact",
+			"agentRequests": 5,
+			"requestKinds": {
+				"agent": 5,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"edit",
+					"glob",
+					"grep",
+					"read",
+					"shell",
+					"write"
+				],
+				"codeIndexTools": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at"
+				],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 4,
+				"completedIndexCalls": 4,
+				"authoritativeCalls": 4,
+				"firstIndexTool": "codeindex_find_symbol",
+				"indexOutputBytes": 4690,
+				"ordinaryRetrievalCallsAfterFirstIndex": 2,
+				"fallbacksAfterAuthoritative": 2,
+				"authoritativeStop": null,
+				"indexContribution": "authoritative"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:38.335Z",
+					"completedAt": "2026-10-23T12:54:39.882Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.00013476599999999998,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:54:38.337Z",
+					"completedAt": "2026-10-23T12:54:39.386Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000036401999999999995,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:39.944Z",
+					"completedAt": "2026-10-23T12:54:41.464Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.0002781,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:41.511Z",
+					"completedAt": "2026-10-23T12:54:43.371Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000205356,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 5,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:43.418Z",
+					"completedAt": "2026-10-23T12:54:45.607Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000196008,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 6,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:54:45.661Z",
+					"completedAt": "2026-10-23T12:54:46.761Z",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"edit",
+						"glob",
+						"grep",
+						"read",
+						"shell",
+						"write"
+					],
+					"status": "completed",
+					"costUsd": 0.000115194,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["codeindex_find_symbol", "codeindex_outline", "codeindex_find_references", "read", "codeindex_find_references", "grep"]
+		},
+		{
+			"caseId": "semantic-renamed-reexport",
+			"caseClass": "semantic",
+			"treatment": "no-index",
+			"repetition": 1,
+			"attempt": 1,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 5572,
+			"totalUsd": 0.000453486,
+			"agentOnlyUsd": 0.000416484,
+			"costState": "exact",
+			"agentRequests": 3,
+			"requestKinds": {
+				"agent": 3,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:56.020Z",
+					"completedAt": "2026-10-23T12:53:57.389Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000158748,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:53:56.021Z",
+					"completedAt": "2026-10-23T12:53:56.827Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000037001999999999996,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:57.438Z",
+					"completedAt": "2026-10-23T12:53:58.843Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00016575,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:53:58.884Z",
+					"completedAt": "2026-10-23T12:54:00.221Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000091986,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["read", "bash", "bash"]
+		},
+		{
+			"caseId": "semantic-renamed-reexport",
+			"caseClass": "semantic",
+			"treatment": "no-index",
+			"repetition": 2,
+			"attempt": 2,
+			"valid": true,
+			"correct": true,
+			"falseAbsence": false,
+			"outcome": "completed",
+			"durationMs": 5500,
+			"totalUsd": 0.00039485400000000004,
+			"agentOnlyUsd": 0.00035845200000000004,
+			"costState": "exact",
+			"agentRequests": 3,
+			"requestKinds": {
+				"agent": 3,
+				"other": 1
+			},
+			"requestOne": {
+				"state": "present",
+				"kind": "agent",
+				"tools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"codeIndexTools": [],
+				"ordinaryTools": ["edit", "glob", "grep", "read", "shell", "write"],
+				"reason": null
+			},
+			"index": {
+				"indexCalls": 0,
+				"completedIndexCalls": 0,
+				"authoritativeCalls": 0,
+				"firstIndexTool": null,
+				"indexOutputBytes": 0,
+				"ordinaryRetrievalCallsAfterFirstIndex": 0,
+				"fallbacksAfterAuthoritative": 0,
+				"authoritativeStop": null,
+				"indexContribution": "none"
+			},
+			"requests": [
+				{
+					"ordinal": 1,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:09.585Z",
+					"completedAt": "2026-10-23T12:55:10.913Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000092916,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 2,
+					"kind": "other",
+					"startedAt": "2026-10-23T12:55:09.586Z",
+					"completedAt": "2026-10-23T12:55:10.673Z",
+					"toolNames": [],
+					"status": "completed",
+					"costUsd": 0.000036401999999999995,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 3,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:10.971Z",
+					"completedAt": "2026-10-23T12:55:12.456Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.00016425,
+					"costState": "exact"
+				},
+				{
+					"ordinal": 4,
+					"kind": "agent",
+					"startedAt": "2026-10-23T12:55:12.515Z",
+					"completedAt": "2026-10-23T12:55:13.744Z",
+					"toolNames": ["edit", "glob", "grep", "read", "shell", "write"],
+					"status": "completed",
+					"costUsd": 0.000101286,
+					"costState": "exact"
+				}
+			],
+			"toolSequence": ["bash", "bash"]
+		}
+	],
+	"trajectorySummary": [
+		{
+			"treatment": "no-index",
+			"executions": 12,
+			"valid": 12,
+			"requestOnePresent": 12,
+			"requestOneMismatch": 0,
+			"indexUsed": 0,
+			"authoritativeResults": 0,
+			"authoritativeStops": 0,
+			"fallbacksAfterAuthoritative": 0,
+			"ordinaryFallbackRuns": 0,
+			"exactCostVectors": 12,
+			"unavailableCostVectors": 0,
+			"requestKinds": {
+				"agent": 40,
+				"other": 12
+			}
+		},
+		{
+			"treatment": "candidate",
+			"executions": 12,
+			"valid": 12,
+			"requestOnePresent": 12,
+			"requestOneMismatch": 0,
+			"indexUsed": 12,
+			"authoritativeResults": 9,
+			"authoritativeStops": 5,
+			"fallbacksAfterAuthoritative": 14,
+			"ordinaryFallbackRuns": 7,
+			"exactCostVectors": 12,
+			"unavailableCostVectors": 0,
+			"requestKinds": {
+				"agent": 46,
+				"other": 12
+			}
+		}
+	],
+	"classes": [
+		{
+			"class": "locate",
+			"caseIds": ["locate-schema-version"],
+			"weights": {
+				"locate-schema-version": 1
+			},
+			"executions": 4,
+			"valid": 4,
+			"invalid": 0,
+			"costRatio": 1.8890482002425222,
+			"costUpper95": 1.8890482002425222,
+			"costGatePassed": false,
+			"correctnessGatePassed": true,
+			"candidateSuccessRate": 1,
+			"baselineSuccessRate": 1,
+			"indexUsed": 2,
+			"authoritativeResults": 2,
+			"authoritativeStops": 2,
+			"fallbackRuns": 0
+		},
+		{
+			"class": "impact",
+			"caseIds": ["impact-build-generation-references", "impact-schema-version-references"],
+			"weights": {
+				"impact-build-generation-references": 0.5,
+				"impact-schema-version-references": 0.5
+			},
+			"executions": 8,
+			"valid": 8,
+			"invalid": 0,
+			"costRatio": 0.8478612074651457,
+			"costUpper95": 0.9382472530993867,
+			"costGatePassed": true,
+			"correctnessGatePassed": true,
+			"candidateSuccessRate": 1,
+			"baselineSuccessRate": 1,
+			"indexUsed": 4,
+			"authoritativeResults": 4,
+			"authoritativeStops": 3,
+			"fallbackRuns": 1
+		},
+		{
+			"class": "implementation",
+			"caseIds": ["impl-default-result-bytes"],
+			"weights": {
+				"impl-default-result-bytes": 1
+			},
+			"executions": 4,
+			"valid": 4,
+			"invalid": 0,
+			"costRatio": 1.1440762936396531,
+			"costUpper95": 1.1440762936396531,
+			"costGatePassed": false,
+			"correctnessGatePassed": true,
+			"candidateSuccessRate": 1,
+			"baselineSuccessRate": 1,
+			"indexUsed": 2,
+			"authoritativeResults": 0,
+			"authoritativeStops": 0,
+			"fallbackRuns": 2
+		},
+		{
+			"class": "semantic",
+			"caseIds": ["semantic-renamed-reexport", "semantic-interface-implementations"],
+			"weights": {
+				"semantic-renamed-reexport": 0.5,
+				"semantic-interface-implementations": 0.5
+			},
+			"executions": 8,
+			"valid": 8,
+			"invalid": 0,
+			"costRatio": 1.7975025969529084,
+			"costUpper95": 2.3459438432703865,
+			"costGatePassed": false,
+			"correctnessGatePassed": true,
+			"candidateSuccessRate": 1,
+			"baselineSuccessRate": 1,
+			"indexUsed": 4,
+			"authoritativeResults": 3,
+			"authoritativeStops": 0,
+			"fallbackRuns": 4
+		}
+	],
+	"economic": {
+		"contract": {
+			"id": "evaluation-validity-v2",
+			"version": 2,
+			"digest": "1af806c164ca30d80a0f0f56a249bf0e0de83541e89099ebda616522be8b6974",
+			"frozenAt": "2026-10-23T00:00:00.000Z"
+		},
+		"estimand": {
+			"population": "fixed-suite",
+			"metric": "total-user-visible-task-cost-usd",
+			"form": "ratio-of-preweighted-means",
+			"arms": ["candidate", "no-index"],
+			"includesIncorrectValidExecutions": true
+		},
+		"weights": {
+			"locate-schema-version": 0.17647058823529413,
+			"impact-build-generation-references": 0.11764705882352941,
+			"impact-schema-version-references": 0.11764705882352941,
+			"semantic-renamed-reexport": 0.11764705882352941,
+			"semantic-interface-implementations": 0.11764705882352941,
+			"impl-default-result-bytes": 0.35294117647058826
+		},
+		"executions": {
+			"valid": 24,
+			"correct": 24,
+			"incorrectIncluded": 0,
+			"falseAbsence": 0,
+			"timedOut": 0,
+			"costExact": 24,
+			"costUnavailable": 0
+		},
+		"cost": {
+			"state": "exact",
+			"metric": "total-user-visible-task-cost-usd",
+			"population": "fixed-suite",
+			"baseline": "no-index",
+			"treatment": "candidate",
+			"caseCount": 6,
+			"executionCount": 24,
+			"incorrectExecutionCount": 0,
+			"baselineMeanUsd": 0.0010096374705882353,
+			"treatmentMeanUsd": 0.0013117104705882353,
+			"ratio": {
+				"state": "finite",
+				"value": 1.2991895693253204
+			},
+			"targetRatio": 0.9,
+			"oneSidedUpper95": 1.7339634427555477,
+			"oneSidedUpperState": "bounded",
+			"twoSidedInterval95": {
+				"low": 1.1109711287534778,
+				"high": 1.7878480037674391,
+				"confidence": 0.95
+			},
+			"caseGeneralization": {
+				"meanRatio": {
+					"state": "finite",
+					"value": 1.3615070947251435
+				},
+				"oneSidedUpper95": 1.7119146404616294,
+				"oneSidedUpperState": "bounded",
+				"method": "paired-case-uniform-bootstrap"
+			},
+			"gate": {
+				"passed": false,
+				"detail": "1.299 candidate/no-index; one-sided upper 1.734 (target <= 0.90, upper < 1.00)"
+			},
+			"reason": null,
+			"pairs": [
+				{
+					"caseId": "locate-schema-version",
+					"baseline": 0.000759519,
+					"treatment": 0.0014347680000000001
+				},
+				{
+					"caseId": "impact-build-generation-references",
+					"baseline": 0.00042129300000000005,
+					"treatment": 0.000395277
+				},
+				{
+					"caseId": "impact-schema-version-references",
+					"baseline": 0.0007021679999999999,
+					"treatment": 0.000557262
+				},
+				{
+					"caseId": "semantic-renamed-reexport",
+					"baseline": 0.00042417,
+					"treatment": 0.0009950789999999998
+				},
+				{
+					"caseId": "semantic-interface-implementations",
+					"baseline": 0.000823446,
+					"treatment": 0.001247514
+				},
+				{
+					"caseId": "impl-default-result-bytes",
+					"baseline": 0.001690521,
+					"treatment": 0.0019340849999999999
+				}
+			]
+		},
+		"correctness": {
+			"state": "exact",
+			"pairedDifference": 0,
+			"oneSidedUpper95": 0,
+			"margin": 0.02,
+			"falseAbsenceCount": 0,
+			"candidateSuccessRate": 1,
+			"baselineSuccessRate": 1,
+			"gate": {
+				"passed": true,
+				"detail": "paired difference 0.0000; one-sided upper 0.0000; margin 0.02; false absence 0"
+			},
+			"reason": null
+		},
+		"latency": {
+			"executionCount": 24,
+			"timedOutCount": 0,
+			"maxDurationMs": 11653,
+			"timeoutCeilingMs": 180000,
+			"ceilingSatisfied": false,
+			"optimizationTarget": false
+		},
+		"output": {
+			"metric": "all-tool-output-bytes",
+			"families": ["index", "search", "read", "list", "write", "execute", "task", "other"],
+			"candidatePreweightedMeanBytes": 12673.029411764706,
+			"baselinePreweightedMeanBytes": 10067,
+			"ratio": {
+				"state": "finite",
+				"value": 1.2588685220785445
+			}
+		},
+		"thresholds": [
+			{
+				"name": "preweighted candidate/no-index total task cost ratio <= 0.90 with one-sided 95% upper bound < 1.00",
+				"passed": false,
+				"detail": "1.299 candidate/no-index; one-sided upper 1.734 (target <= 0.90, upper < 1.00)"
+			},
+			{
+				"name": "paired correctness non-inferiority upper bound < 0.02",
+				"passed": true,
+				"detail": "paired difference 0.0000; one-sided upper 0.0000; margin 0.02; false absence 0"
+			},
+			{
+				"name": "false absence has zero tolerance",
+				"passed": true,
+				"detail": "0 candidate false absence(s)"
+			},
+			{
+				"name": "latency recorded under the 180000 ms timeout ceiling and not optimized",
+				"passed": false,
+				"detail": "0 timeout(s); max 11653 ms; target=false"
+			},
+			{
+				"name": "every valid execution has an exact provider request vector",
+				"passed": true,
+				"detail": "24/24 valid execution(s) exact"
+			},
+			{
+				"name": "every tool-output family is included in the output metric",
+				"passed": true,
+				"detail": "index, search, read, list, write, execute, task, other"
+			}
+		],
+		"passed": false
+	},
+	"latency": {
+		"executionCount": 24,
+		"timedOutCount": 0,
+		"maxDurationMs": 11653,
+		"timeoutCeilingMs": 180000,
+		"ceilingSatisfied": false,
+		"optimizationTarget": false
+	},
+	"decision": {
+		"decision": "narrow-scope",
+		"reason": "candidate did not meet the frozen cost target without a correctness or request-1 defect; the beneficial evidence is class-specific: 1.299 candidate/no-index; one-sided upper 1.734 (target <= 0.90, upper < 1.00)",
+		"evidence": [
+			"cost-ratio=1.2991895693253204",
+			"cost-upper=1.7339634427555477",
+			"index-used=12/12",
+			"authoritative-stops=5",
+			"target=0.9",
+			"locate: cost-ratio=1.889 upper=1.889 stops=2/2 fallback-runs=0/2",
+			"impact: cost-ratio=0.848 upper=0.938 stops=3/4 fallback-runs=1/4",
+			"implementation: cost-ratio=1.144 upper=1.144 stops=0/2 fallback-runs=2/2",
+			"semantic: cost-ratio=1.798 upper=2.346 stops=0/4 fallback-runs=4/4"
+		]
+	}
+}

@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "holdout-baseline-payload",
+	"title": "High-cardinality baseline retrieval",
+	"class": "locate",
+	"tags": ["holdout", "locate", "baseline-payload"],
+	"prompt": "Which source file opens both the writer and reader SQLite connections through openDatabaseConnections? Name the file and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": ["src/core/storage/databaseOpen.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 12,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

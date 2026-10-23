@@ -46,9 +46,27 @@ export type ProviderMeterLedgerType = Readonly<{
 	requests: readonly ProviderRequestLedgerEntryType[];
 }>;
 
+/** One sanitized request in the task trajectory. */
+export type ProviderRequestTrajectoryEntryType = Readonly<{
+	ordinal: number;
+	kind: ProviderRequestKindType;
+	provider: string;
+	model: string | null;
+	startedAt: string;
+	completedAt: string | null;
+	/** Offered tool names in request order; prompt content is never retained. */
+	toolNames: readonly string[];
+	requestBytes: number;
+	responseBytes: number | null;
+	status: 'completed' | 'failed' | 'pending';
+	failureCause: ProviderFailureCauseType | null;
+}>;
+
 /** Reconciliation of started requests with their terminal settlements. */
 export type ProviderMeterReconciliationType = Readonly<{
 	recordType: 'provider-meter-reconciliation';
+	/** Sanitized ordered request trajectory for this task. */
+	requests: readonly ProviderRequestTrajectoryEntryType[];
 	requestCount: number;
 	settledCount: number;
 	pendingCount: number;
@@ -167,8 +185,23 @@ export const reconcileProviderMeterLedger = (ledger: ProviderMeterLedgerType): P
 							? 'one or more provider requests lack required usage'
 							: null;
 
+	const trajectory = ledger.requests.map((request) => ({
+		ordinal: request.ordinal,
+		kind: request.kind,
+		provider: request.provider,
+		model: request.model,
+		startedAt: request.startedAt,
+		completedAt: request.completedAt,
+		toolNames: request.toolNames,
+		requestBytes: request.requestBytes,
+		responseBytes: request.responseBytes,
+		status: request.settlement?.status ?? ('pending' as const),
+		failureCause: request.settlement?.status === 'failed' ? request.settlement.cause : null,
+	}));
+
 	return {
 		recordType: 'provider-meter-reconciliation',
+		requests: trajectory,
 		requestCount: ledger.requests.length,
 		settledCount: settled.length,
 		pendingCount: pending.length,

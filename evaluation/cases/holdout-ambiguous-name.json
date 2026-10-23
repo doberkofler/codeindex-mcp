@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "holdout-ambiguous-name",
+	"title": "Ambiguous exported type declaration",
+	"class": "locate",
+	"tags": ["holdout", "locate", "ambiguous-name"],
+	"prompt": "Which source file declares the exported type named IndexStatusType? Name the declaration file and nothing else.",
+	"scope": ["src/**"],
+	"expectedFiles": ["src/core/model.ts"],
+	"contextFiles": [],
+	"forbiddenFiles": [],
+	"workflow": {
+		"maxTotalCalls": 12,
+		"requiredFirstTool": null,
+		"maxOutputBytes": 200000
+	},
+	"timeoutMs": 180000
+}

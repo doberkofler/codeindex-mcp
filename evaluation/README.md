@@ -4,18 +4,21 @@ Controlled evaluation of the CodeIndex MCP server against retrieval baselines.
 The method is specified in
 [`documentation/evaluation-harness.md`](../documentation/evaluation-harness.md).
 
-> **Hosted evaluation paused.** E3 remains historical `NOT PASSED`, but its
+> **Hosted certification paused.** E3 remains historical `NOT PASSED`, but its
 > total-token and cost interpretation is invalid. Request metering, the direct
 > request-1 surface proof, external-state workspace isolation, corpus preflight,
-> the frozen economic/statistical contract, and the deterministic-plus-A/A
-> validity calibration are implemented. The calibration passed its point-label
-> equivalence criterion; the observed variance implies 7 paired repetitions
-> (378 executions), above the frozen 270-execution budget. Repin the client
-> runtime and revise the budget before a campaign. Read the
-> [E3 erratum](audits/hosted-release-e3-erratum.md),
+> the frozen economic/statistical contract, the deterministic-plus-A/A validity
+> calibration, and the budgeted development pilot are implemented. The point
+> A/A label ratio passed its predeclared criterion; the observed variance implies
+> 7 paired repetitions (378 executions), above the frozen 270-execution budget.
+> The development pilot found a class-specific effect: the impact class met the
+> cost target while the full six-case mix did not. The next step is a
+> narrow-scope decision plus a revised budget, not a full certification claim.
+> Read the [E3 erratum](audits/hosted-release-e3-erratum.md),
 > [evaluation validity v2](../documentation/evaluation-validity-v2.md), the
-> [frozen contract evidence](audits/economic-contract-eval-034.md), and the
-> [validity/A/A evidence](audits/validity-aa-eval-035.md).
+> [frozen contract evidence](audits/economic-contract-eval-034.md), the
+> [validity/A/A evidence](audits/validity-aa-eval-035.md), and the
+> [development pilot evidence](audits/ab-development-eval-036.md).
 
 | Directory | Contents |
 | --- | --- |
@@ -26,6 +29,7 @@ The method is specified in
 | `corpora/` | Pinned corpus manifests, including the selected external repository |
 | `routes/` | Declared complete-route plans for model-free E1 comparison |
 | `references/` | Pinned hosted-model identities for release campaigns |
+| `pilots/` | Frozen development-pilot designs and breadth-selection records |
 | `audits/` | Recorded E0 case and truth review notes |
 | `reports/` | Reviewed aggregate reports safe for publication |
 
@@ -105,6 +109,24 @@ node evaluation/harness/src/cli.ts evaluate --suite suites/calibration.json --dr
 
 A local smoke run executes those six cases with `no-index` and `accepted`
 treatments at one repetition, for 12 executions.
+
+The budgeted development pilot runs the frozen two-arm design and writes
+trajectory, class, and decision evidence:
+
+```bash
+EVALUATION_STATE_ROOT=<external-root> DEEPSEEK_API_KEY=<key> \
+  node evaluation/harness/src/cli.ts pilot \
+  --suite suites/calibration.json \
+  --design pilots/ab-development-v1.json \
+  --hosted-reference references/deepseek-flash-validity-2026-10-23.json \
+  --provider-auth-env DEEPSEEK_API_KEY
+```
+
+The pinned holdout suite is validated without a model call:
+
+```bash
+node evaluation/harness/src/cli.ts preflight --suite suites/holdout.json
+```
 
 The hosted validity calibration runs every zero-spend gate, one hosted smoke,
 and two identical no-index A/A arms in randomized paired order. The record is

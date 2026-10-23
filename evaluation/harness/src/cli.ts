@@ -2,6 +2,7 @@ import {calibrationCommand} from './cliCalibration.ts';
 import {environmentCommand, smokeCommand} from './cliEnvironment.ts';
 import {evaluateCommand} from './cliEvaluate.ts';
 import {localDiagnosticCommand, localRegressionCommand} from './cliLocal.ts';
+import {pilotCommand} from './cliPilot.ts';
 import {preflightCommand} from './cliPreflight.ts';
 import {qualificationCommand} from './cliQualification.ts';
 import {releaseCommand} from './cliRelease.ts';
@@ -29,6 +30,8 @@ try {
 		await releaseCommand(flags);
 	} else if (command === 'validity') {
 		await validityCommand(flags);
+	} else if (command === 'pilot') {
+		await pilotCommand(flags);
 	} else if (command === 'environment') {
 		await environmentCommand(flags);
 	} else if (command === 'route') {
@@ -43,7 +46,7 @@ try {
 		listCommand(flags);
 	} else {
 		process.stdout.write(
-			'usage: cli.ts <evaluate|smoke|calibrate|local-diagnostic|local-regression|qualification|release|validity|environment|route|preflight|report|check|list> --suite <path> [--environment <path>] [--canonical <manifest>] [--hosted-reference <path>] [--model-free <report>] [--provider-upstream url] [--provider-auth-env name] [--aa-case id] [--aa-repetitions n] [--smoke-case id] [--target-metric retrievalBytes|toolCalls|tokens|wallTimeMs] [--exclude id=reason] [--budget-ms n] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate|canonical] [--repetitions n] [--dry-run] [--resume] [--retry-timed-out] [--campaign-store path] [--output dir]\n',
+			'usage: cli.ts <evaluate|smoke|calibrate|local-diagnostic|local-regression|qualification|release|validity|pilot|environment|route|preflight|report|check|list> --suite <path> [--design <path>] [--environment <path>] [--canonical <manifest>] [--hosted-reference <path>] [--model-free <report>] [--provider-upstream url] [--provider-auth-env name] [--aa-case id] [--aa-repetitions n] [--smoke-case id] [--target-metric retrievalBytes|toolCalls|tokens|wallTimeMs] [--exclude id=reason] [--budget-ms n] [--plan <path>] [--case id] [--tag tag] [--treatment all|no-index|accepted|candidate|canonical] [--repetitions n] [--dry-run] [--resume] [--retry-timed-out] [--campaign-store path] [--output dir]\n',
 		);
 		process.exitCode = command === 'help' ? 0 : 2;
 	}

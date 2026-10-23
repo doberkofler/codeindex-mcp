@@ -132,6 +132,17 @@ evidence.
 
 Track [#64](https://github.com/doberkofler/codeindex-mcp/issues/64).
 
+Status: **development pilot recorded** on 2026-10-23. The frozen two-arm pilot
+executed 24 valid, exactly metered pairings over six cases. Candidate correctness
+was not inferior, but the full-suite cost ratio was `1.299` with a one-sided
+upper bound of `1.723`. The impact class met the cost target (`0.848`, upper
+`0.938`) while locate, implementation, and semantic did not. The decision is
+**narrow scope** to impact-class reference relationships; no interface redesign
+is authorized by this pilot. Four holdout cases are pinned and preflighted but
+unexecuted. Direct native MCP is selected explicitly for the next certification
+step; Code Mode remains a separate PROD-004 comparison. Evidence is in
+[`../evaluation/audits/ab-development-eval-036.md`](../evaluation/audits/ab-development-eval-036.md).
+
 - Compare no-index and the unchanged candidate using the corrected harness.
 - Inspect request-1 availability, index contribution, authoritative stop
   behavior, fallback, and complete provider-cost trajectories.

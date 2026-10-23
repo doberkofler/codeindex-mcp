@@ -1,0 +1,69 @@
+{
+	"recordType": "breadth-selection",
+	"schemaVersion": 1,
+	"id": "breadth-selection-v1",
+	"frozenAt": "2026-10-23T12:00:00.000Z",
+	"method": "Candidates are ranked by task ambiguity, semantic relationships, and measured baseline lexical retrieval behavior. Repository size alone is not a selection criterion.",
+	"baselineMeasurement": {
+		"kind": "literal-preliminary-search",
+		"command": "grep -R -n <identifier> <selected-project-directory>",
+		"note": "Matching lines and output bytes are a model-free baseline retrieval cost. They are not a model trajectory and do not grant a case."
+	},
+	"candidates": [
+		{
+			"id": "typescript",
+			"repository": "https://github.com/microsoft/TypeScript.git",
+			"revision": "050880ce59e30b356b686bd3144efe24f875ebc8",
+			"projectFile": "src/compiler/tsconfig.json",
+			"indexedFiles": 77,
+			"symbols": 33134,
+			"baselineRetrieval": {"identifier": "SyntaxKind", "matchingLines": 9370, "matchingBytes": 1048255},
+			"ambiguity": "dense reference graph inside a small compiler project",
+			"semanticCoverage": ["references", "implementations"],
+			"selected": false,
+			"reason": "A single ambiguous name produces about one megabyte of baseline output, and the corpus adds almost no module-boundary or semantic-relationship coverage beyond the repository snapshot."
+		},
+		{
+			"id": "vscode",
+			"repository": "https://github.com/microsoft/vscode.git",
+			"revision": "072586267e68ece9a47aa43f8c108e0dcbf44622",
+			"projectFile": "src/tsconfig.json",
+			"indexedFiles": 4935,
+			"symbols": 293866,
+			"baselineRetrieval": {"identifier": "registerCommand", "matchingLines": 333, "matchingBytes": 50111},
+			"ambiguity": "moderate name ambiguity at the largest scale",
+			"semanticCoverage": ["references", "implementations", "type-only-imports"],
+			"selected": false,
+			"reason": "Its baseline payload per ambiguous query is higher than Material UI and its build/database cost is several times larger, while it lacks the renamed re-exports, barrels, default exports, and mixed TSX/JavaScript coverage the pilot needs."
+		},
+		{
+			"id": "external-material-ui",
+			"repository": "https://github.com/mui/material-ui.git",
+			"revision": "28eadba9ec2899226ecbf4058b8fba1ddeab9e6d",
+			"projectFile": "packages/mui-material/tsconfig.json",
+			"indexedFiles": 1069,
+			"symbols": 17464,
+			"baselineRetrieval": {"identifier": "createTheme", "matchingLines": 341, "matchingBytes": 38166},
+			"ambiguity": "high name ambiguity with renamed and star re-exports and deep barrels",
+			"semanticCoverage": [
+				"renamed-reexports",
+				"barrel-chains",
+				"shadowed-names",
+				"interface-implementations",
+				"type-only-imports",
+				"default-exports",
+				"tsx",
+				"javascript"
+			],
+			"selected": true,
+			"reason": "It combines high task ambiguity with the lowest measured baseline payload among the larger candidates and supplies every semantic relationship pattern the pilot must span."
+		}
+	],
+	"selectedCorpusIds": ["codeindex-repository-snapshot", "external-material-ui"],
+	"decision": "Retain the repository snapshot for exact architecture cases and Material UI as the larger external corpus. VS Code and TypeScript are rejected despite their size because baseline retrieval behavior is more expensive and their additional coverage is redundant.",
+	"limits": [
+		"The baseline measurement is lexical and model-free; it selects breadth, not a case answer.",
+		"No external case is admitted to certification by this record.",
+		"Any external campaign must pin the corpus revision, lock hash, project file, and state root outside the primary checkout."
+	]
+}

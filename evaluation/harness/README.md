@@ -347,6 +347,35 @@ calibration selected 7 repetitions (378 executions), above the frozen
 `claimClass: "validity-only"`, `efficacyClaim: false`, and
 `releaseAuthority: false`.
 
+### Budgeted A/B development pilot
+
+`pilot` runs a frozen two-arm `no-index`/`candidate` development design before
+certification. The design pins cases, contract weights renormalized to the
+selected cases, model, exposure, repetitions, budget, thresholds, holdout
+reservation, breadth record, and the closed decision vocabulary. It must be
+committed before execution; changing any of those fields changes the design
+digest and is rejected.
+
+```bash
+EVALUATION_STATE_ROOT=<external-root> DEEPSEEK_API_KEY=<key> \
+  node src/cli.ts pilot --suite suites/calibration.json \
+  --design pilots/ab-development-v1.json \
+  --hosted-reference references/deepseek-flash-validity-2026-10-23.json \
+  --provider-auth-env DEEPSEEK_API_KEY
+```
+
+The report preserves ordered provider requests, request-1 availability, index
+contribution, authoritative stop behavior, ordinary fallback, and complete cost
+vectors. It reports overall and class-scoped paired cost uncertainty and records
+one of `continue`, `redesign`, `narrow-scope`, or `stop`. `--dry-run` validates
+the design and prints the randomized plan without a model call. `--resume`
+reuses only stored executions with the same complete identity.
+
+The surface probe waits a bounded interval after OpenCode reports an MCP server
+`connected` before it admits the probe prompt, because `connected` can precede
+the session tool registry. The request-1 assertion is unchanged: the wait never
+repairs or excuses a missing, late, duplicated, or unknown tool.
+
 ### Model-free complete-route comparison
 
 `route` implements E1 without a model. It loads a declared route plan, validates

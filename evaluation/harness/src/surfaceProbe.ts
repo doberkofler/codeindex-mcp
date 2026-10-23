@@ -36,6 +36,17 @@ const PROBE_PROMPT = 'Reply with the JSON object {"files":[],"absent":true} and 
 /** Upper bound for one probe, including MCP startup and catalog listing. */
 const PROBE_TIMEOUT_MS = 120_000;
 
+/**
+ * Settle interval after OpenCode reports an MCP server connected.
+ *
+ * OpenCode publishes `connected` when the MCP handshake completes, but its
+ * per-session tool registry can still be one tick behind. Admitting the prompt
+ * immediately can therefore produce an agent request without the native tools
+ * even though readiness passed. The probe waits this bounded interval after
+ * connected; the request-1 assertion still decides pass or fail.
+ */
+const MCP_TOOL_SETTLE_MS = 1000;
+
 /** Grace before a probe child group is killed outright. */
 const TERMINATE_GRACE_MS = 5000;
 
@@ -198,7 +209,14 @@ type ProbeInvocationType = Readonly<{
 }>;
 
 const invocationOf = async (
-	input: Readonly<{workspace: string; surface: ToolSurfaceType; mcpServer?: string; command?: string; serverCommand?: string}>,
+	input: Readonly<{
+		workspace: string;
+		surface: ToolSurfaceType;
+		mcpServer?: string;
+		command?: string;
+		serverCommand?: string;
+		registrationSettleMs?: number;
+	}>,
 	dataHome: string,
 	port: number,
 ): Promise<ProbeInvocationType> => {
@@ -234,6 +252,12 @@ const invocationOf = async (
 		expectedServers: input.mcpServer === undefined ? [] : [input.mcpServer],
 		...(input.serverCommand === undefined ? {} : {command: input.serverCommand}),
 	});
+
+	// Connected is necessary but not sufficient: wait for the session tool
+	// registry, then let the request-1 assertion decide.
+	if (input.mcpServer !== undefined) {
+		await delay(input.registrationSettleMs ?? MCP_TOOL_SETTLE_MS);
+	}
 
 	return {
 		args: [
@@ -318,6 +342,8 @@ export const capturePresentedTools = async (
 		command?: string;
 		/** Executable for the readiness-gated private server and its client. */
 		serverCommand?: string;
+		/** Bounded settle interval after OpenCode reports MCP connected. */
+		registrationSettleMs?: number;
 		/** Absolute paths that no provider request may disclose. */
 		forbiddenRoots?: readonly string[];
 		timeoutMs?: number;
