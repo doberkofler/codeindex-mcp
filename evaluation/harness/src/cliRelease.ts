@@ -144,9 +144,8 @@ const assertHostedRuntime = (hosted: HostedReferenceType): void => {
 	}
 };
 
-const stagedArtifactsOf = (inputs: ReleaseInputsType): ReleaseExpectationType['artifacts'] => {
+const stagedArtifactsOf = (inputs: ReleaseInputsType, settings: Readonly<{subjectRepo: string}>): ReleaseExpectationType['artifacts'] => {
 	const treatments = treatmentsOf('all', inputs.suite.treatments);
-	const settings = settingsOf();
 	const subject = subjectIdentityOf(settings.subjectRepo, inputs.suite.revision);
 	const context = workspaceContextOf(evaluationStateRoot, {subjectRepo: settings.subjectRepo, subject, evaluationRoot, primaryCheckout});
 
@@ -160,7 +159,11 @@ const stagedArtifactsOf = (inputs: ReleaseInputsType): ReleaseExpectationType['a
 	};
 };
 
-const optionsOf = (inputs: ReleaseInputsType, flags: Map<string, string[]>): Parameters<typeof evaluateCommand>[1] => {
+const optionsOf = (
+	inputs: ReleaseInputsType,
+	flags: Map<string, string[]>,
+	settings: Readonly<{subjectRepo: string}>,
+): Parameters<typeof evaluateCommand>[1] => {
 	const budgetMs = budgetOf(flags);
 
 	return {
@@ -171,6 +174,7 @@ const optionsOf = (inputs: ReleaseInputsType, flags: Map<string, string[]>): Par
 		model: inputs.hosted.reference,
 		claimClass: RELEASE_CLAIM_CLASS,
 		comparison: true,
+		settings,
 		...(budgetMs === undefined ? {} : {budgetMs}),
 	};
 };
@@ -215,13 +219,15 @@ const printReportOf = (report: ReturnType<typeof releaseCampaignReportOf>, runDi
  * identity and therefore requires a new paired baseline.
  *
  * @param flags - Parsed CLI flags.
+ * @param options - Injected harness settings; the CLI reads machine-local settings only when absent.
  */
-export const releaseCommand = async (flags: Map<string, string[]>): Promise<void> => {
+export const releaseCommand = async (flags: Map<string, string[]>, options: Readonly<{settings?: Readonly<{subjectRepo: string}>}> = {}): Promise<void> => {
+	const settings = options.settings ?? settingsOf();
 	const inputs = releaseInputsOf(flags);
-	const options = optionsOf(inputs, flags);
+	const evaluationOptions = optionsOf(inputs, flags, settings);
 
 	if (flags.has('dry-run')) {
-		await evaluateCommand(flags, options);
+		await evaluateCommand(flags, evaluationOptions);
 
 		return;
 	}
@@ -229,7 +235,7 @@ export const releaseCommand = async (flags: Map<string, string[]>): Promise<void
 	assertHostedRuntime(inputs.hosted);
 
 	const modelFreePath = manifestPathOf(flags, 'model-free');
-	const artifacts = stagedArtifactsOf(inputs);
+	const artifacts = stagedArtifactsOf(inputs, settings);
 	const expectation: ReleaseExpectationType = {
 		suite: {id: inputs.suite.id, version: inputs.suite.version, hash: inputs.suite.hash, revision: inputs.suite.revision},
 		cases: inputs.cases.map((testCase) => ({id: testCase.id, hash: caseHashOf(testCase)})),
@@ -242,7 +248,7 @@ export const releaseCommand = async (flags: Map<string, string[]>): Promise<void
 		`release ${inputs.hosted.reference}: ${RELEASE_CASE_COUNT} case(s) x ${RELEASE_TREATMENT_IDS.length} treatment(s) x ${RELEASE_REPETITIONS} repetitions = ${RELEASE_EXECUTIONS} executions\n`,
 	);
 
-	const run: EvaluationRunType | null = await evaluateCommand(flags, options);
+	const run: EvaluationRunType | null = await evaluateCommand(flags, evaluationOptions);
 
 	if (run === null) {
 		return;

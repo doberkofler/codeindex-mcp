@@ -61,6 +61,8 @@ export type EvaluationOptionsType = Readonly<{
 	providerMeter?: ExecutionProviderMeterType | null;
 	/** Explicit randomized plan; when absent the ordinary suite plan is used. */
 	plan?: ReturnType<typeof planOf>;
+	/** Harness settings; injected by callers and tests instead of reading machine-local files. */
+	settings?: Readonly<{subjectRepo: string}>;
 }>;
 
 export type EvaluationRunType = Readonly<{
@@ -134,7 +136,7 @@ export const setupEvaluationOf = (flags: Map<string, string[]>, options: Evaluat
 		campaignStore: campaignStoreFlag === undefined ? null : campaignStoreFlag === 'true' ? '' : campaignStoreFlag,
 		campaignDir: runDir,
 	});
-	const settings = settingsOf();
+	const settings = options.settings ?? settingsOf();
 	const subject = subjectIdentityOf(settings.subjectRepo, suite.revision);
 	const context = workspaceContextOf(evaluationStateRoot, {subjectRepo: settings.subjectRepo, subject, evaluationRoot, primaryCheckout});
 

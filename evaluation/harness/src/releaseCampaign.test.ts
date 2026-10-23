@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {describe, it, vi} from 'vitest';
+import {describe, it, type TestContext, vi} from 'vitest';
 import {releaseCommand} from './cliRelease.ts';
 import {hashOf} from './hash.ts';
 import {hostedReferenceHashOf, hostedReferenceOf, type HostedReferenceType} from './hostedReference.ts';
@@ -104,6 +105,18 @@ const releaseFlags = (extra: Readonly<Record<string, string[]>> = {}): Map<strin
 		['dry-run', ['true']],
 		...Object.entries(extra),
 	]);
+
+const subjectFixtureOf = (testContext: TestContext): Readonly<{subjectRepo: string}> => {
+	const root = mkdtempSync(path.join(tmpdir(), 'codeindex-release-subject-'));
+
+	writeFileSync(path.join(root, 'package.json'), '{"name":"release-fixture"}\n');
+	writeFileSync(path.join(root, 'README.md'), '# release fixture\n');
+	testContext.onTestFinished(() => {
+		rmSync(root, {recursive: true, force: true});
+	});
+
+	return {subjectRepo: root};
+};
 
 describe('hosted release campaign', () => {
 	it('reports a complete 270-slot campaign with class verdicts and paired intervals', () => {
@@ -216,12 +229,12 @@ describe('hosted release campaign', () => {
 		assert.equal(hostedReferenceHashOf(reference), 'e3d86f8914fe9b9d77e9048216acd1535a44cf98b7e69a35edb3a1cf19dae07e');
 	});
 
-	it('plans the 270 hosted slots without local evidence', async () => {
+	it('plans the 270 hosted slots without local evidence', async (testContext: TestContext) => {
 		const capture = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
 		let output = '';
 
 		try {
-			await releaseCommand(releaseFlags());
+			await releaseCommand(releaseFlags(), {settings: subjectFixtureOf(testContext)});
 			output = capture.mock.calls.map(([chunk]) => (typeof chunk === 'string' ? chunk : chunk.toString())).join('');
 		} finally {
 			capture.mockRestore();
@@ -231,12 +244,14 @@ describe('hosted release campaign', () => {
 		assert.doesNotMatch(output, /local-regression/u);
 	});
 
-	it('does not read a supplied local qualification path', async () => {
+	it('does not read a supplied local qualification path', async (testContext: TestContext) => {
 		const capture = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
 		let output = '';
 
 		try {
-			await releaseCommand(releaseFlags({'local-regression': ['results/local/missing/local-regression.json']}));
+			await releaseCommand(releaseFlags({'local-regression': ['results/local/missing/local-regression.json']}), {
+				settings: subjectFixtureOf(testContext),
+			});
 			output = capture.mock.calls.map(([chunk]) => (typeof chunk === 'string' ? chunk : chunk.toString())).join('');
 		} finally {
 			capture.mockRestore();
