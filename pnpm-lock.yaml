@@ -85,8 +85,8 @@ importers:
         specifier: 5.0.5
         version: 5.0.5(vitest@5.0.5)
       agent-task-queue:
-        specifier: 0.4.0
-        version: 0.4.0
+        specifier: 0.5.0
+        version: 0.5.0
       antlr-ng:
         specifier: 1.0.10
         version: 1.0.10
@@ -1451,8 +1451,8 @@ packages:
     resolution: {integrity: sha512-TQf59BsZnytt8GdJKLPfUZ54g/iaUL2OWDSFCCvMOhsHduDQxO8xC4PNeyIkVcA5KwL2phPSv0douC0fgWzmnA==}
     engines: {node: '>= 20'}
 
-  agent-task-queue@0.4.0:
-    resolution: {integrity: sha512-hzaC+hM4qwhxqvmsCz0JZg0d7OC1Lg099mAKcN7KlYZ34LmuW/xjqK4SsMp05gX0K5gplGPlTK6jTm494Y8ESQ==}
+  agent-task-queue@0.5.0:
+    resolution: {integrity: sha512-i/a/jzFmf88KbhNgb9JFgBuJzCXXBVfvHkYS1DGkWNO4LoCz5yKcAuvbONuGeyI0O8/z879Gl43VDqKIRLcMOw==}
     engines: {node: '>=26'}
     hasBin: true
 
@@ -3954,7 +3954,7 @@ snapshots:
 
   agent-base@9.0.0: {}
 
-  agent-task-queue@0.4.0:
+  agent-task-queue@0.5.0:
     dependencies:
       cross-spawn: 7.0.6
       zod: 4.6.7
