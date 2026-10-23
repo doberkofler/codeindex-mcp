@@ -365,9 +365,38 @@ client event export for that denominator.
   upgrade;
 - never weaken TypeScript, lint, format, Knip, or test checks to ship.
 
+### 9.1 Post-release monitoring
+
+Watch the first week after a tag through the release issue and consumer reports.
+No production telemetry is collected; analytics remain local and opt-out. Inspect:
+
+- the startup banner reports the released program version;
+- MCP initialization succeeds and request 1 presents the declared tool surface;
+- `codeindex_index_status` reports fresh generation state and scope;
+- `read_symbol` returns `stale_file` rather than source after an edit;
+- client shutdown leaves no detached CodeIndex MCP process;
+- reported wrong answers, false absences, crashes, or data loss.
+
+A reproducible stale-source result, false absence, missing request-1 tool, orphan
+process, or crash is a patch-or-rollback trigger. Record the failing version,
+configuration, client, and reproduction in the release issue before changing code.
+
+### 9.2 Artifact caveat
+
+A version bump changes the program version embedded in `dist` and therefore the
+artifact digest. When a release is built from an already certified source revision,
+state in the release notes whether the published artifact is byte-identical to the
+certified artifact or differs only in version metadata. Cost evidence remains scoped
+to the artifact that was actually measured; a version-only delta does not create a
+new exact-artifact cost claim.
+
 ## 10. Rollback
 
 Rollback is configuration-only: disconnect or remove the MCP registration and use
 normal repository tools. The index is derived data. Cleanup may remove bounded
 cache and analytics locations but never source, build artifacts, or retained
 evaluation evidence unless separately requested.
+
+Repin to the previous known-good tag; do not move or rewrite a published tag. If no
+previous tag is compatible, remove the registration until a patch is released.
+Preserve the failing version and evidence so the defect can be reproduced.
