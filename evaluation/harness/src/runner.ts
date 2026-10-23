@@ -1,7 +1,7 @@
 import {type ChildProcess} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
 import {agentEnvironmentOf, agentProcessOf} from './agentProcess.ts';
-import {runChildOf, signalGroup, TERMINATE_GRACE_MS} from './childProcess.ts';
+import {runChildOf, signalGroup} from './childProcess.ts';
 import {type ExecutionIdentityType} from './identity.ts';
 import {type ClientStoreType} from './isolation.ts';
 import {attemptResultOf, type AttemptResultType} from './attemptResult.ts';
@@ -55,6 +55,10 @@ const DEFAULT_RETRY: RetryPolicyType = {
 };
 /** Attempts whose detached model process group is still running. */
 const activeAttempts = new Set<ChildProcess>();
+/** Private OpenCode servers whose MCP children have not finished cleanup. */
+const activeServers = new Set<OpenCodeServerType>();
+/** Milliseconds a terminal signal waits for server and attempt cleanup. */
+const SHUTDOWN_GRACE_MS = 15_000;
 
 let terminationHandlersInstalled = false;
 
@@ -73,6 +77,14 @@ export const terminateActiveAttempts = (signal: NodeJS.Signals): void => {
 	}
 };
 
+const closeQuietlyOf = async (server: OpenCodeServerType): Promise<void> => {
+	try {
+		await server.close();
+	} catch {
+		// Cleanup is best effort; the execution outcome carries the actionable cause.
+	}
+};
+
 const installTerminationHandlers = (): void => {
 	if (terminationHandlersInstalled) {
 		return;
@@ -83,9 +95,17 @@ const installTerminationHandlers = (): void => {
 	for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 		process.on(signal, () => {
 			terminateActiveAttempts(signal);
-			const deadline = Date.now() + TERMINATE_GRACE_MS * 2;
+
+			// A signal can arrive while a slot is still waiting for MCP
+			// readiness, before the attempt is active. Close the private server
+			// here as well; the close is shared with the attempt cleanup.
+			for (const server of activeServers) {
+				void closeQuietlyOf(server);
+			}
+
+			const deadline = Date.now() + SHUTDOWN_GRACE_MS;
 			const finish = (): void => {
-				if (activeAttempts.size === 0 || Date.now() >= deadline) {
+				if ((activeAttempts.size === 0 && activeServers.size === 0) || Date.now() >= deadline) {
 					for (const child of activeAttempts) {
 						signalGroup(child, 'SIGKILL');
 					}
@@ -98,6 +118,21 @@ const installTerminationHandlers = (): void => {
 			setTimeout(finish, 25);
 		});
 	}
+};
+
+const unregisterServerOf = (server: OpenCodeServerType | null): void => {
+	if (server !== null) {
+		activeServers.delete(server);
+	}
+};
+
+const abandonAttemptOf = async (openCode: OpenCodeServerType | null, meter: Awaited<ReturnType<typeof startExecutionMeterOf>>): Promise<void> => {
+	if (openCode !== null) {
+		await closeQuietlyOf(openCode);
+		unregisterServerOf(openCode);
+	}
+
+	await meter.finish();
 };
 
 const cleanupAttemptOf = async (
@@ -174,17 +209,22 @@ const attemptOnce = async (
 		if (input.command === undefined) {
 			// A fresh private server is made ready before the prompt exists. The
 			// `run` process connects to it, so request 1 cannot be composed while an
-			// expected MCP server is still registering.
+			// expected MCP server is still registering. Register it before readiness
+			// polling so a termination signal can still disconnect its MCP children.
 			const ready = await openReadyServerOf({
 				cwd: input.cwd,
 				env: {...agentEnvironmentOf(input), ...meter.environment},
 				expectedServers: input.mcpServers ?? [],
+				onServer: (server) => {
+					openCode = server;
+					activeServers.add(server);
+				},
 			});
 
 			openCode = ready.server;
 		}
 	} catch (error) {
-		await meter.finish();
+		await abandonAttemptOf(openCode, meter);
 		throw error;
 	}
 
@@ -198,6 +238,7 @@ const attemptOnce = async (
 		child = agentProcessOf({...input, environmentOverrides: meter.environment}, promptOf(input.testCase), openCode);
 	} catch (error) {
 		await openCode?.close();
+		unregisterServerOf(openCode);
 		await meter.finish();
 		throw error;
 	}
@@ -217,6 +258,7 @@ const attemptOnce = async (
 		providerMeter = cleanup.reconciliation;
 		cleanupError = cleanup.error;
 		activeAttempts.delete(child);
+		unregisterServerOf(openCode);
 	}
 
 	if (cleanupError !== null) {

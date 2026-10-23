@@ -251,6 +251,8 @@ export const startOpenCodeServer = async (input: OpenCodeServerInputType): Promi
 		throw error;
 	}
 
+	let closing: Promise<void> | null = null;
+
 	return {
 		url: endpoint.url,
 		password: endpoint.password,
@@ -319,11 +321,18 @@ export const startOpenCodeServer = async (input: OpenCodeServerInputType): Promi
 			});
 		},
 		close: async () => {
-			try {
-				await disconnectMcpServersOf(endpoint);
-			} finally {
-				await closeServerOf(child);
-			}
+			// Signal handling and attempt cleanup can race to close one server.
+			// Disconnecting an already-closed server is not idempotent, so the
+			// first close is shared by every caller.
+			closing ??= (async (): Promise<void> => {
+				try {
+					await disconnectMcpServersOf(endpoint);
+				} finally {
+					await closeServerOf(child);
+				}
+			})();
+
+			await closing;
 		},
 	};
 };
@@ -336,9 +345,18 @@ export const startOpenCodeServer = async (input: OpenCodeServerInputType): Promi
  * @throws {@link OpenCodeServerError} With a closed cause when not ready.
  */
 export const openReadyServerOf = async (
-	input: OpenCodeServerInputType & Readonly<{expectedServers: readonly string[]; readinessTimeoutMs?: number}>,
+	input: OpenCodeServerInputType &
+		Readonly<{
+			expectedServers: readonly string[];
+			readinessTimeoutMs?: number;
+			/** Called with the started server before readiness polling begins. */
+			onServer?: (server: OpenCodeServerType) => void;
+		}>,
 ): Promise<Readonly<{server: OpenCodeServerType; readiness: OpenCodeMcpReadinessType}>> => {
 	const server = await startOpenCodeServer(input);
+
+	input.onServer?.(server);
+
 	const readiness = await server.awaitMcpReady(input.expectedServers, input.readinessTimeoutMs);
 
 	if (!readiness.ready) {
