@@ -1,6 +1,6 @@
 import {createServer, type Server} from 'node:http';
 import {once} from 'node:events';
-import {handleMeteredRequestOf, ledgerOf, type ProviderMeterStateType} from './providerMeterProxy.ts';
+import {handleMeteredRequestOf, ledgerOf, settlePendingRequestsOf, type ProviderMeterStateType} from './providerMeterProxy.ts';
 import {type ProviderMeterInputType, type ProviderMeterType, reconcileProviderMeterLedger} from './providerMeterLedger.ts';
 
 export {type ProviderMeterLedgerType, type ProviderMeterType, providerMeterConfigOf, reconcileProviderMeterLedger} from './providerMeterLedger.ts';
@@ -50,8 +50,11 @@ export const startProviderMeter = async (input: ProviderMeterInputType): Promise
 	const close = async (): Promise<void> => {
 		state.closed = true;
 		server.close();
-		await Promise.allSettled(state.inFlight);
+		// Abort client connections before waiting for handlers. An upstream that
+		// never answers must not keep the meter, or its ledger, open forever.
 		server.closeAllConnections();
+		settlePendingRequestsOf(state, 'proxy-error', input.now ?? ((): Date => new Date()));
+		await Promise.allSettled(state.inFlight);
 		await closed;
 	};
 

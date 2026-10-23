@@ -48,29 +48,6 @@ export type ProviderUsageTotalsType = Readonly<{
 	reportedCostUsd: number | null;
 }>;
 
-/** One provider-reported cost vector and the arithmetic that produced it. */
-export type StaticTariffType = Readonly<{
-	id: string;
-	currency: 'USD';
-	perMillionTokens: Readonly<{
-		nonCachedInput: number;
-		cacheRead: number;
-		cacheWrite: Readonly<Record<string, number>>;
-		visibleOutput: number;
-		reasoning: number;
-	}>;
-}>;
-
-/** Static-tariff arithmetic, explicitly not an invoice-time cost. */
-export type StaticTariffCostType = Readonly<{
-	amount: number | null;
-	currency: 'USD';
-	basis: 'static-tariff-arithmetic';
-	claim: 'sensitivity-not-invoice-time';
-	invoiceTime: false;
-	tariffId: string;
-}>;
-
 type NumberFieldType = Readonly<{value: number | null; reported: boolean; valid: boolean}>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -141,27 +118,26 @@ const cacheWriteFieldOf = (record: Readonly<Record<string, unknown>>): CacheWrit
 	return {value: single.valid && single.value !== null ? {default: single.value} : null, reported: true, valid: single.valid};
 };
 
-const nonCachedInputOf = (record: Readonly<Record<string, unknown>>, cacheRead: NumberFieldType, cacheWrite: CacheWriteFieldType): NumberFieldType => {
-	const explicit = numberFieldOf(record, ['non_cached_input_tokens', 'nonCachedInputTokens', 'prompt_cache_miss_tokens', 'cache_miss_tokens']);
+const writeTotalOf = (cacheWrite: CacheWriteFieldType): number => Object.values(cacheWrite.value ?? {}).reduce((total, value) => total + value, 0);
 
-	if (explicit.reported) {
-		return explicit;
+const hasAnthropicCacheOf = (record: Readonly<Record<string, unknown>>): boolean =>
+	['cache_read_input_tokens', 'cache_read_tokens', 'cache_creation_input_tokens', 'cache_write_tokens'].some((name) => Object.hasOwn(record, name));
+
+const inclusiveInputOf = (input: NumberFieldType, cacheRead: NumberFieldType, cacheWrite: CacheWriteFieldType): NumberFieldType => {
+	if (!cacheRead.valid || !cacheWrite.valid || input.value === null) {
+		return {value: null, reported: true, valid: false};
 	}
 
-	const input = numberFieldOf(record, ['input_tokens', 'inputTokens']);
-
-	if (input.reported) {
-		// Anthropic-compatible usage reports `input_tokens` outside cache reads and
-		// cache creation, so it is already the non-cached component.
-		return input;
-	}
-
-	const prompt = numberFieldOf(record, ['prompt_tokens', 'promptTokens']);
-
-	if (!prompt.reported) {
+	if (!cacheRead.reported) {
 		return {value: null, reported: false, valid: true};
 	}
 
+	const nonCached = input.value - (cacheRead.value ?? 0) - writeTotalOf(cacheWrite);
+
+	return nonCached < 0 ? {value: null, reported: true, valid: false} : {value: nonCached, reported: true, valid: true};
+};
+
+const promptInputOf = (prompt: NumberFieldType, cacheRead: NumberFieldType, cacheWrite: CacheWriteFieldType): NumberFieldType => {
 	if (!cacheRead.reported && !cacheWrite.reported) {
 		// The provider schema has no cache field at all. `prompt_tokens` is the
 		// whole input; the cache components stay null because they were not
@@ -179,10 +155,31 @@ const nonCachedInputOf = (record: Readonly<Record<string, unknown>>, cacheRead: 
 		return {value: null, reported: false, valid: true};
 	}
 
-	const writeTotal = Object.values(cacheWrite.value ?? {}).reduce((total, value) => total + value, 0);
-	const nonCached = prompt.value - (cacheRead.value ?? 0) - writeTotal;
+	const nonCached = prompt.value - (cacheRead.value ?? 0) - writeTotalOf(cacheWrite);
 
 	return nonCached < 0 ? {value: null, reported: true, valid: false} : {value: nonCached, reported: true, valid: true};
+};
+
+const nonCachedInputOf = (record: Readonly<Record<string, unknown>>, cacheRead: NumberFieldType, cacheWrite: CacheWriteFieldType): NumberFieldType => {
+	const explicit = numberFieldOf(record, ['non_cached_input_tokens', 'nonCachedInputTokens', 'prompt_cache_miss_tokens', 'cache_miss_tokens']);
+
+	if (explicit.reported) {
+		return explicit;
+	}
+
+	const input = numberFieldOf(record, ['input_tokens', 'inputTokens']);
+
+	if (input.reported) {
+		// Anthropic-compatible usage reports `input_tokens` outside cache reads and
+		// cache creation, so it is already the non-cached component. The OpenAI
+		// Responses shape instead reports `input_tokens` as the inclusive total,
+		// with `input_tokens_details.cached_tokens` as a subset.
+		return hasAnthropicCacheOf(record) || (!cacheRead.reported && !cacheWrite.reported) ? input : inclusiveInputOf(input, cacheRead, cacheWrite);
+	}
+
+	const prompt = numberFieldOf(record, ['prompt_tokens', 'promptTokens']);
+
+	return prompt.reported ? promptInputOf(prompt, cacheRead, cacheWrite) : {value: null, reported: false, valid: true};
 };
 
 const usageFieldsOf = (
@@ -237,14 +234,24 @@ const mergeUsageRecordsOf = (records: readonly Readonly<Record<string, unknown>>
 		}
 
 		const details = record['completion_tokens_details'];
+		const outputDetails = record['output_tokens_details'];
 		const promptDetails = record['prompt_tokens_details'];
+		const inputDetails = record['input_tokens_details'];
 
 		if (isRecord(details) && isTokenCount(details['reasoning_tokens'])) {
 			merged['reasoning_tokens'] = details['reasoning_tokens'];
 		}
 
+		if (isRecord(outputDetails) && isTokenCount(outputDetails['reasoning_tokens'])) {
+			merged['reasoning_tokens'] = outputDetails['reasoning_tokens'];
+		}
+
 		if (isRecord(promptDetails) && isTokenCount(promptDetails['cached_tokens'])) {
 			merged['cached_tokens'] = promptDetails['cached_tokens'];
+		}
+
+		if (isRecord(inputDetails) && isTokenCount(inputDetails['cached_tokens'])) {
+			merged['cached_tokens'] = inputDetails['cached_tokens'];
 		}
 	}
 
@@ -266,7 +273,7 @@ export const providerUsageRecordsOf = (value: unknown): readonly Readonly<Record
 	}
 
 	const records: Readonly<Record<string, unknown>>[] = [];
-	const {message, choices} = value;
+	const {message, choices, response, result, data} = value;
 	const top = value['usage'];
 
 	if (isRecord(top)) {
@@ -275,6 +282,18 @@ export const providerUsageRecordsOf = (value: unknown): readonly Readonly<Record
 
 	if (isRecord(message) && isRecord(message['usage'])) {
 		records.push(message['usage']);
+	}
+
+	if (isRecord(response) && isRecord(response['usage'])) {
+		records.push(response['usage']);
+	}
+
+	if (isRecord(result) && isRecord(result['usage'])) {
+		records.push(result['usage']);
+	}
+
+	if (isRecord(data) && isRecord(data['usage'])) {
+		records.push(data['usage']);
 	}
 
 	if (Array.isArray(choices)) {
@@ -434,55 +453,4 @@ export const providerUsageTotalsOf = (usages: readonly ProviderTokenUsageType[])
 		totalTokens,
 		reportedCostUsd: reportedCost,
 	};
-};
-
-/**
- * Applies a static tariff to already-retained provider components.
- *
- * The result is labelled sensitivity arithmetic. It is never an invoice-time
- * cost and is never presented as one.
- *
- * @param totals - Exact provider components.
- * @param tariff - Versioned static tariff.
- * @returns Static-tariff arithmetic or an unavailable result.
- */
-export const staticTariffCostOf = (totals: ProviderUsageTotalsType, tariff: StaticTariffType): StaticTariffCostType => {
-	const base = {
-		currency: tariff.currency,
-		basis: 'static-tariff-arithmetic' as const,
-		claim: 'sensitivity-not-invoice-time' as const,
-		invoiceTime: false as const,
-		tariffId: tariff.id,
-	};
-
-	if (
-		totals.state !== 'exact' ||
-		totals.nonCachedInputTokens === null ||
-		totals.cacheReadTokens === null ||
-		totals.cacheWriteTokens === null ||
-		totals.visibleOutputTokens === null
-	) {
-		return {...base, amount: null};
-	}
-
-	let amount = (totals.nonCachedInputTokens * tariff.perMillionTokens.nonCachedInput) / 1_000_000;
-	amount += (totals.cacheReadTokens * tariff.perMillionTokens.cacheRead) / 1_000_000;
-
-	for (const [name, value] of Object.entries(totals.cacheWriteTokens)) {
-		const rate = tariff.perMillionTokens.cacheWrite[name];
-
-		if (rate === undefined) {
-			return {...base, amount: null};
-		}
-
-		amount += (value * rate) / 1_000_000;
-	}
-
-	amount += (totals.visibleOutputTokens * tariff.perMillionTokens.visibleOutput) / 1_000_000;
-
-	if (totals.reasoningTokens !== null) {
-		amount += (totals.reasoningTokens * tariff.perMillionTokens.reasoning) / 1_000_000;
-	}
-
-	return {...base, amount};
 };

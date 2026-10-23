@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {createServer, type IncomingMessage, type Server} from 'node:http';
 import {once} from 'node:events';
+import {setTimeout as delay} from 'node:timers/promises';
 import {describe, it, type TestContext} from 'vitest';
 import {parseEvents} from './events.ts';
 import {
@@ -10,7 +11,8 @@ import {
 	type ProviderMeterLedgerType,
 	type ProviderMeterType,
 } from './providerMeter.ts';
-import {providerUsageOf, staticTariffCostOf, type ProviderTokenUsageType} from './providerUsage.ts';
+import {providerUsageOf, type ProviderTokenUsageType} from './providerUsage.ts';
+import {staticTariffCostOf} from './providerTariff.ts';
 
 const openAiUsage = {
 	prompt_tokens: 100,
@@ -170,11 +172,9 @@ const completedUsageOf = (ledger: ProviderMeterLedgerType, ordinal: number): Pro
 describe('provider usage', () => {
 	it('OpenAI-compatible usage splits non-cached input, cache read, cache write, visible output, and reasoning', () => {
 		const usage = providerUsageOf({usage: openAiUsage});
-
 		if (usage === null) {
 			throw new Error('expected provider usage');
 		}
-
 		assert.deepEqual(
 			{
 				nonCached: usage.nonCachedInputTokens,
@@ -204,6 +204,31 @@ describe('provider usage', () => {
 		assert.equal(usage.reasoningTokens, null);
 		assert.equal(usage.complete, true);
 		assert.deepEqual(usage.missingFields, []);
+	});
+
+	it('OpenAI Responses usage keeps inclusive input and reasoning subsets non-overlapping', () => {
+		const usage = providerUsageOf({
+			type: 'response.completed',
+			response: {
+				usage: {
+					input_tokens: 100,
+					input_tokens_details: {cached_tokens: 30},
+					output_tokens: 40,
+					output_tokens_details: {reasoning_tokens: 5},
+					cost_usd: 0.001,
+				},
+			},
+		});
+		if (usage === null) {
+			throw new Error('expected provider usage');
+		}
+		assert.equal(usage.nonCachedInputTokens, 70);
+		assert.equal(usage.cacheReadTokens, 30);
+		assert.deepEqual(usage.cacheWriteTokens, {});
+		assert.equal(usage.visibleOutputTokens, 35);
+		assert.equal(usage.reasoningTokens, 5);
+		assert.equal(usage.reportedCostUsd, 0.001);
+		assert.equal(usage.complete, true);
 	});
 
 	it('missing and unparseable usage stay unavailable instead of becoming zero', () => {
@@ -400,6 +425,36 @@ describe('provider meter', () => {
 		assert.equal(reconciliation.settledExactlyOnce, false);
 		assert.equal(reconciliation.economicClaim.state, 'invalid');
 		assert.equal(reconciliation.total.state, 'unavailable');
+	});
+
+	it('close settles an in-flight request when the upstream never responds', async (testContext: TestContext) => {
+		const server = createServer(() => undefined);
+		const port = await listenOf(server);
+		const closed = once(server, 'close');
+		const meter = await startProviderMeter({upstreamBaseUrl: `http://127.0.0.1:${port}`, provider: 'deepseek'});
+		testContext.onTestFinished(async () => {
+			server.close();
+			server.closeAllConnections();
+			await closed;
+		});
+		const pending = (async (): Promise<void> => {
+			try {
+				await fetch(`${meter.baseUrl}/chat/completions`, {method: 'POST', body: JSON.stringify(agentBodyOf())});
+			} catch {
+				// The meter intentionally closes the client connection on shutdown.
+			}
+		})();
+		while (meter.ledger().requests.length === 0) {
+			await delay(5);
+		}
+		await meter.close();
+		await pending;
+		const reconciliation = meter.reconciliation();
+		assert.equal(reconciliation.requestCount, 1);
+		assert.equal(reconciliation.pendingCount, 0);
+		assert.equal(reconciliation.settledExactlyOnce, true);
+		assert.equal(reconciliation.failedCount, 1);
+		assert.equal(reconciliation.requests[0]?.status, 'failed');
 	});
 
 	it('records a primary-checkout disclosure without retaining request text', async (testContext: TestContext) => {

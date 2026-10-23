@@ -413,6 +413,25 @@ export const handleMeteredRequestOf = async (
 };
 
 /**
+ * Settles every request still in flight with one closed failure cause.
+ *
+ * Closing a meter must never leave a started request pending, including when an
+ * upstream request never responds. A later response cannot overwrite the
+ * settlement because the first settlement is final.
+ *
+ * @param state - Live meter state.
+ * @param cause - Closed failure cause recorded for every pending request.
+ * @param now - Completion timestamp source.
+ */
+export const settlePendingRequestsOf = (state: ProviderMeterStateType, cause: ProviderFailureCauseType, now: () => Date): void => {
+	const at = now().toISOString();
+
+	for (const request of state.requests) {
+		settleOf(request, {status: 'failed', cause, httpStatus: null}, at);
+	}
+};
+
+/**
  * Copies live request state into the sanitized ledger.
  *
  * @param state - Live meter state.
