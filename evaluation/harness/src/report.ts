@@ -288,13 +288,53 @@ const analysisOf = (runs: readonly RunResultType[], seed: string): AnalysisType 
 	};
 };
 
+/** Comparable keys of one stored result. */
+type RunKeysType = Readonly<{
+	slot: string;
+	campaignDigest: string;
+	caseDigest: string;
+	treatmentDigest: string;
+}>;
+
+/**
+ * Validates one result and returns the keys it is compared by.
+ *
+ * @param run - Stored result.
+ * @returns Slot, campaign, case, and per-treatment configuration digests.
+ */
+const runKeysOf = (run: RunResultType): RunKeysType => {
+	if (!(TREATMENT_IDS as readonly string[]).includes(run.treatment)) {
+		throw new Error(`result ${run.caseId}/${run.treatment} has an undeclared treatment; pooled index-usage groups are not comparable`);
+	}
+
+	if (!(REPORT_CLASSES as readonly string[]).includes(run.caseClass)) {
+		throw new Error(`result ${run.caseId} has unknown case class "${run.caseClass}"`);
+	}
+
+	if (run.identity.case.id !== run.caseId || run.identity.treatment.id !== run.treatment || run.identity.repetitionIndex !== run.repetition) {
+		throw new Error(`result ${run.caseId}/${run.treatment}/rep-${run.repetition} disagrees with its execution identity`);
+	}
+
+	return {
+		slot: `${run.caseId}/${run.treatment}/${run.repetition}`,
+		campaignDigest: executionCampaignDigestOf(run.identity),
+		caseDigest: executionCaseComparisonDigestOf(run.identity),
+		treatmentDigest: hashOf({
+			agent: {toolListHash: run.identity.agent.toolListHash, permissionsHash: run.identity.agent.permissionsHash},
+			codeIndex: run.identity.codeIndex,
+		}),
+	};
+};
+
 /**
  * Rejects results that cannot share one campaign or one paired case.
  *
  * The only grouping used by a report is the declared treatment. Results with an
  * undeclared treatment, a duplicate slot, or a different campaign identity are
  * rejected instead of pooled, so a caller cannot manufacture a
- * used-versus-not-used comparison from mixed results.
+ * used-versus-not-used comparison from mixed results. Tool and CodeIndex
+ * configuration may differ between treatments by design, but must stay identical
+ * within one treatment.
  *
  * @param runs - Results proposed for one report.
  */
@@ -307,45 +347,39 @@ export const assertComparableRuns = (runs: readonly RunResultType[]): void => {
 	const caseDigests = new Map<string, string>();
 	const slots = new Set<string>();
 	const campaignIds = new Set<string>();
+	const treatmentDigests = new Map<string, string>();
 
 	for (const run of runs) {
-		if (!(TREATMENT_IDS as readonly string[]).includes(run.treatment)) {
-			throw new Error(`result ${run.caseId}/${run.treatment} has an undeclared treatment; pooled index-usage groups are not comparable`);
+		const keys = runKeysOf(run);
+
+		if (slots.has(keys.slot)) {
+			throw new Error(`results contain duplicate slot ${keys.slot}`);
 		}
 
-		if (!(REPORT_CLASSES as readonly string[]).includes(run.caseClass)) {
-			throw new Error(`result ${run.caseId} has unknown case class "${run.caseClass}"`);
-		}
-
-		if (run.identity.case.id !== run.caseId || run.identity.treatment.id !== run.treatment || run.identity.repetitionIndex !== run.repetition) {
-			throw new Error(`result ${run.caseId}/${run.treatment}/rep-${run.repetition} disagrees with its execution identity`);
-		}
-
-		const slot = `${run.caseId}/${run.treatment}/${run.repetition}`;
-
-		if (slots.has(slot)) {
-			throw new Error(`results contain duplicate slot ${slot}`);
-		}
-
-		slots.add(slot);
+		slots.add(keys.slot);
 		campaignIds.add(run.campaignId);
 
-		const campaignDigest = executionCampaignDigestOf(run.identity);
+		const existingTreatmentDigest = treatmentDigests.get(run.treatment);
 
-		if (campaignDigests.size > 0 && !campaignDigests.has(campaignDigest)) {
+		if (existingTreatmentDigest !== undefined && existingTreatmentDigest !== keys.treatmentDigest) {
+			throw new Error(`results for treatment ${run.treatment} disagree on tool or CodeIndex configuration`);
+		}
+
+		treatmentDigests.set(run.treatment, keys.treatmentDigest);
+
+		if (campaignDigests.size > 0 && !campaignDigests.has(keys.campaignDigest)) {
 			throw new Error('results have incompatible campaign identities; model, subject, agent, artifact, or configuration differs');
 		}
 
-		campaignDigests.add(campaignDigest);
+		campaignDigests.add(keys.campaignDigest);
 
-		const caseDigest = executionCaseComparisonDigestOf(run.identity);
-		const existing = caseDigests.get(run.caseId);
+		const existingCaseDigest = caseDigests.get(run.caseId);
 
-		if (existing !== undefined && existing !== caseDigest) {
+		if (existingCaseDigest !== undefined && existingCaseDigest !== keys.caseDigest) {
 			throw new Error(`results for case ${run.caseId} have incompatible comparison identities`);
 		}
 
-		caseDigests.set(run.caseId, caseDigest);
+		caseDigests.set(run.caseId, keys.caseDigest);
 	}
 
 	if (campaignIds.size !== 1) {

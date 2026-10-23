@@ -351,11 +351,13 @@ export const comparisonDigestOf = (identity: IdentityType): string =>
 /**
  * Hashes the fields that must match across every result in a campaign.
  *
- * The case, treatment, repetition, and candidate artifact are deliberately
- * excluded: a campaign compares different cases, treatments, and repetitions,
- * while the model, subject, agent, accepted baseline, and CodeIndex
- * configuration must stay identical. Pooling results that disagree on any of
- * these fields is never a valid comparison.
+ * The case, treatment, repetition, candidate artifact, tool surface, and
+ * CodeIndex configuration are deliberately excluded: each treatment presents a
+ * different surface by design, and the paired comparison exists to measure that
+ * difference. The evaluator persona, model, subject, accepted baseline, and
+ * randomization seed must stay identical. Per-treatment tool and CodeIndex
+ * consistency is enforced separately, so drift inside one treatment is still
+ * rejected instead of being absorbed into the campaign digest.
  *
  * @param identity - Complete execution identity.
  * @returns Digest of the campaign-comparable fields.
@@ -365,10 +367,14 @@ export const executionCampaignDigestOf = (identity: ExecutionIdentityType): stri
 		harness: identity.harness,
 		suite: identity.suite,
 		model: identity.model,
-		agent: identity.agent,
+		agent: {
+			id: identity.agent.id,
+			version: identity.agent.version,
+			instructionsHash: identity.agent.instructionsHash,
+			contextBudgetTokens: identity.agent.contextBudgetTokens,
+		},
 		subject: identity.subject,
 		artifacts: {accepted: identity.artifacts.accepted},
-		codeIndex: identity.codeIndex,
 		randomizationSeed: identity.randomizationSeed,
 	});
 

@@ -336,6 +336,45 @@ describe('report', () => {
 		assert.equal(simpleMedian(candidateBytes), report.candidate.statistics.retrievalBytes.median);
 	});
 
+	it('a campaign aggregates treatments whose tool and CodeIndex identities differ by design', () => {
+		const runs = campaignRuns({noIndex: [400], accepted: [200], candidate: [100]}).map((run) => {
+			if (run.treatment === 'no-index') {
+				return run;
+			}
+
+			const identity = {
+				...run.identity,
+				agent: {
+					...run.identity.agent,
+					toolListHash: hashOf({surface: run.treatment}),
+					permissionsHash: hashOf({config: run.treatment}),
+				},
+				codeIndex: {configDigest: hashOf({config: run.treatment})},
+			};
+
+			return {...run, identity, identityDigest: hashOf(identity)};
+		});
+
+		const report = compare(runs, metadata);
+
+		assert.equal(report.runs.length, 3);
+		assert.equal(report.sources.identityDigests.length, 3);
+	});
+
+	it('a campaign rejects tool or CodeIndex drift within one treatment', () => {
+		const runs = campaignRuns({noIndex: [400, 500], accepted: [200], candidate: [100]}).map((run, index) => {
+			if (run.treatment !== 'no-index' || index !== 1) {
+				return run;
+			}
+
+			const identity = {...run.identity, codeIndex: {configDigest: hashOf('drifted')}};
+
+			return {...run, identity, identityDigest: hashOf(identity)};
+		});
+
+		assert.throws(() => compare(runs, metadata), /tool or CodeIndex configuration/u);
+	});
+
 	it('a percentile from one observation still carries its sample count', () => {
 		const runs = campaignRuns({noIndex: [400], accepted: [200], candidate: [100]});
 		const report = compare(runs, metadata);
