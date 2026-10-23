@@ -83,7 +83,7 @@ storage, publication, MCP envelopes, and analytics do not change.
 The package is consumed directly from GitHub. No npm publication is performed.
 
 ```bash
-pnpm add github:doberkofler/codeindex-mcp#v0.1.0
+pnpm add github:doberkofler/codeindex-mcp#v0.6.0
 ```
 
 Pin a released tag. The Git dependency runs its `prepare` script, which builds:
@@ -95,6 +95,16 @@ dist/console.mjs
 dist/console/
 ```
 
+With pnpm 12, approve the Git dependency build and the `oracledb` install script in
+`pnpm-workspace.yaml`. Use the resolved commit key that pnpm prints:
+
+```yaml
+allowBuilds:
+  codeindex-mcp@https://codeload.github.com/doberkofler/codeindex-mcp/tar.gz/<commit-sha>: true
+  oracledb: true
+```
+
+See [the user guide](documentation/user-guide.md#install) for the complete sequence.
 Do not depend on the `main` branch. Every upgrade requires a new tag, an explicit
 dependency update, a lockfile update, and verification in the consuming project.
 

@@ -44,21 +44,25 @@ Current constraints:
 The package is consumed directly from GitHub. No npm publication is performed.
 
 ```bash
-pnpm add github:doberkofler/codeindex-mcp#v0.1.0
+pnpm add github:doberkofler/codeindex-mcp#v0.6.0
 ```
 
 Pin a released tag, never `main`. The Git dependency runs `prepare`, which builds
 `dist/mcp.mjs`, `dist/cli.mjs`, `dist/console.mjs`, and `dist/console/`.
 
-pnpm 12 requires the Git dependency to be allowed to run its build:
+pnpm 12 requires both the Git dependency build and the `oracledb` install script to
+be allowed:
 
 ```yaml
 # pnpm-workspace.yaml
 allowBuilds:
   codeindex-mcp@https://codeload.github.com/doberkofler/codeindex-mcp/tar.gz/<commit-sha>: true
+  oracledb: true
 ```
 
-Use the commit SHA recorded in `pnpm-lock.yaml`.
+Use the commit SHA recorded in `pnpm-lock.yaml`, or the exact key pnpm prints when it
+refuses the install. The key is commit-specific; a tag without the key fails before
+`prepare` runs.
 
 ## Configure
 
