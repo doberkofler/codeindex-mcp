@@ -52,6 +52,24 @@ to a published generation, and waits through the rebuild before querying. Route
 reports are regenerated from a clean route directory after the old model-free
 evidence is archived.
 
+## Cause 4: a route contract probe observed a partial rebuild
+
+A second resume reached the model-free route cases successfully, but the
+contract probes read a published generation containing 341 files and only 26
+symbols. Pagination and truncation therefore observed empty results, and the
+stale-file probe could not resolve its symbol. The route gate recorded
+`E1 NOT PASSED`, but the campaign continued into cold starts because only a
+thrown route error stopped execution. It was terminated before any primary slot
+ran.
+
+Remediation:
+
+- A failed model-free route gate now stops the campaign before cold starts and
+  before any hosted-model spend.
+- The derived route databases are discarded and rebuilt from the clean
+  workspaces before the next resume. They are disposable state, not evidence.
+- No primary or holdout slot from the aborted attempt is retained.
+
 ## Cause 3: seven request-1 surface violations were admitted
 
 Seven candidate-arm executions admitted an agent request 1 with only
@@ -78,7 +96,8 @@ ordinary retry policy applies, bounded at six attempts.
 
 - The run-1 certification record, route reports, and logs are retained under
   `audits/run-1/`.
-- The aborted resume record and logs are retained under `audits/run-2/`.
+- The aborted resume record and logs are retained under `audits/run-2/` and
+  `audits/run-3/`.
 - The seven slot directories are moved out of the result tree, with their raw
   streams, to `quarantine/request-1-surface/` under the state root.
 - The invalid certification record and run-1 logs are retained under

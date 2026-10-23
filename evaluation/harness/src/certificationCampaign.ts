@@ -25,6 +25,20 @@ export type CertificationCampaignResultType = Readonly<{
 	spentUsd: number;
 }>;
 
+/**
+ * Returns the campaign failure when the model-free route gate did not pass.
+ *
+ * @param route - Route evidence, or null when the gate could not run.
+ * @returns A closed failure reason, or null when the gate passed.
+ */
+export const routeGateFailureOf = (route: CertificationRouteEvidenceType | null): string | null => {
+	if (route === null) {
+		return 'model-free route gate produced no evidence';
+	}
+
+	return route.passed ? null : 'model-free route gate did not pass';
+};
+
 const blockFlagsOf = (flags: Map<string, string[]>, block: CertificationBlockType): Map<string, string[]> => {
 	const clean = new Map<string, string[]>([['suite', [block.suite.path]]]);
 	const campaignStore = flags.get('campaign-store')?.[0];
@@ -178,6 +192,8 @@ export const runCertificationCampaignOf = async (
 	} else {
 		failure = 'certification design has no primary block';
 	}
+
+	failure ??= routeGateFailureOf(route);
 
 	if (failure !== null) {
 		return {route, blocks: [], gates: [{id: 'campaign-completeness', passed: false, detail: failure}], failure, spentUsd: 0};

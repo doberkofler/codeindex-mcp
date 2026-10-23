@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, it, type TestContext} from 'vitest';
 import {certificationBlockReportOf} from './certificationBlock.ts';
+import {routeGateFailureOf} from './certificationCampaign.ts';
 import {certificationDesignOf, type CertificationBlockType, type CertificationDesignType} from './certificationDesign.ts';
 import {certificationPlanOf} from './certificationPlan.ts';
 import {certificationReportOf, type CertificationRouteEvidenceType} from './certificationReport.ts';
@@ -167,6 +168,14 @@ describe('frozen certification design', () => {
 		first['class'] = 'locate';
 
 		assert.throws(() => certificationDesignOf(tampered), /only impact-class/u);
+	});
+});
+
+describe('certification campaign gate', () => {
+	it('refuses hosted execution when the model-free route gate did not pass', () => {
+		assert.equal(routeGateFailureOf(null), 'model-free route gate produced no evidence');
+		assert.equal(routeGateFailureOf({...routeOf(), passed: false}), 'model-free route gate did not pass');
+		assert.equal(routeGateFailureOf(routeOf()), null);
 	});
 });
 
