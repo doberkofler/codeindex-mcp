@@ -56,6 +56,44 @@ const itemIdentityOf = (item: Readonly<Record<string, unknown>>): string => {
 
 const withCursor = (args: Readonly<Record<string, unknown>>, cursor: string): Readonly<Record<string, unknown>> => ({...args, cursor});
 
+const currentIndexOf = (data: unknown): boolean => {
+	if (!isRecord(data) || data['building'] === true) {
+		return false;
+	}
+
+	const {freshness} = data;
+
+	if (isRecord(freshness)) {
+		return freshness['state'] === 'current';
+	}
+
+	return data['refresh'] === 'current';
+};
+
+/**
+ * Waits until a probe session reports a current index.
+ *
+ * A probe session may open while its private database is still building. During
+ * that window a query can return an empty page with an ok status, which is not
+ * a contract failure. Sessions without an index-status surface are left
+ * unchanged for focused tests.
+ *
+ * @param session - Connected artifact.
+ */
+const waitForCurrentIndex = async (session: McpSessionType): Promise<void> => {
+	const deadline = performance.now() + INDEX_READY_TIMEOUT_MS;
+
+	for (;;) {
+		const outcome = await session.callTool('index_status', {});
+
+		if (outcome.status !== 'ok' || currentIndexOf(outcome.structured) || performance.now() >= deadline) {
+			return;
+		}
+
+		await delay(INDEX_READY_POLL_MS);
+	}
+};
+
 const callWhenReady = async (
 	session: McpSessionType,
 	tool: string,
@@ -271,10 +309,12 @@ export const runContractProbes = async (
 		restore: () => void;
 	}>,
 ): Promise<readonly ContractProbeType[]> => {
+	await waitForCurrentIndex(input.session);
 	const pagination = await paginationProbeOf(input.session, input.plan.pagination);
 	const truncationSession = await input.openSession({CODE_INDEX_MAX_RESULT_BYTES: String(input.plan.truncation.maxResultBytes)});
 
 	try {
+		await waitForCurrentIndex(truncationSession);
 		const truncation = await truncationProbeOf(truncationSession, input.plan.truncation);
 		const failure = await failureProbeOf(input.session, input.plan.failure);
 		const staleFile = await staleFileProbeOf(input.session, input.workspace, input.plan.staleFile, input.restore);

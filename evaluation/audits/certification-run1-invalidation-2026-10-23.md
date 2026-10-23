@@ -52,25 +52,32 @@ to a published generation, and waits through the rebuild before querying. Route
 reports are regenerated from a clean route directory after the old model-free
 evidence is archived.
 
-## Cause 4: a route contract probe observed a partial rebuild
+## Cause 3: route contract probes shared a project-scoped database
 
-A second resume reached the model-free route cases successfully, but the
-contract probes read a published generation containing 341 files and only 26
-symbols. Pagination and truncation therefore observed empty results, and the
-stale-file probe could not resolve its symbol. The route gate recorded
-`E1 NOT PASSED`, but the campaign continued into cold starts because only a
-thrown route error stopped execution. It was terminated before any primary slot
-ran.
+A second resume reached the model-free route cases successfully, but every
+contract probe reported an empty corpus. The route opens project-scoped
+sessions for the controlled TypeScript fixtures, and those sessions rebuilt the
+single treatment database with only that fixture project (341 files, 26
+symbols). Contract probes then used the same session and database and observed
+the narrow generation.
+
+The route gate recorded `E1 NOT PASSED`, but the campaign continued into cold
+starts because only a thrown route error stopped execution. It was terminated
+before any primary slot ran.
 
 Remediation:
 
+- Contract probes now open their own root-scoped database
+  (`<treatment>-contract.sqlite`) and wait for current freshness before probing.
+  Project-scoped route sessions can no longer overwrite their corpus.
 - A failed model-free route gate now stops the campaign before cold starts and
   before any hosted-model spend.
-- The derived route databases are discarded and rebuilt from the clean
-  workspaces before the next resume. They are disposable state, not evidence.
-- No primary or holdout slot from the aborted attempt is retained.
+- The derived route databases are discarded before the next resume. They are
+  disposable state, not evidence.
+- Both accepted and candidate model-free route commands were re-run directly
+  and passed `G-E1a`, `G-E1b`, `G-E1c`, and `E1` before resuming the campaign.
 
-## Cause 3: seven request-1 surface violations were admitted
+## Cause 4: seven request-1 surface violations were admitted
 
 Seven candidate-arm executions admitted an agent request 1 with only
 `glob`, `grep`, `read`, and `shell`. The seven CodeIndex tools first appeared on

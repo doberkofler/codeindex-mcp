@@ -181,54 +181,63 @@ const contractForOf = async (
 	input: Readonly<{
 		workspace: ReturnType<typeof workspaceContextOf>;
 		plan: ReturnType<typeof loadRoutePlan>['contract'];
-		sessions: Map<string, RouteSessionType>;
 		contract: ContractRecordType;
 	}>,
 	treatment: TreatmentDefinitionType,
 ): Promise<void> => {
-	const session = input.sessions.get(sessionKeyOf(treatment.id));
-
-	if (session === undefined) {
-		return;
-	}
-
 	const treatmentId = treatment.id === 'accepted' || treatment.id === 'candidate' ? treatment.id : undefined;
 
 	if (treatmentId === undefined) {
 		throw new Error(`contract probes do not apply to treatment ${treatment.id}`);
 	}
 
-	const probes = await runContractProbes({
-		session,
-		openSession: async (env) => {
-			const probeSession = await openMcpSession({
-				entryPoint: input.workspace.artifactPath(treatment),
-				cwd: input.workspace.workspacePath(treatment.id),
-				env: {...input.workspace.codeIndexEnvironment(treatment), ...env},
-			});
-
-			return probeSession;
-		},
-		workspace: input.workspace.workspacePath(treatment.id),
-		plan: input.plan,
-		restore: () => {
-			const restored = restoreWorkspace(input.workspace, treatment);
-
-			if (!restored.restored) {
-				throw new Error(`failed to restore ${treatment.id} after the stale-file probe: ${restored.reason ?? 'unknown reason'}`);
-			}
-		},
+	// Project-scoped route sessions can rebuild the shared database with a
+	// narrower project. Contract probes must see the complete configured corpus,
+	// so they run against a dedicated root-scoped database.
+	const environment = {
+		...input.workspace.codeIndexEnvironment(treatment),
+		CODE_INDEX_DATABASE: path.join(path.dirname(input.workspace.databasePath(treatment)), `${treatment.id}-contract.sqlite`),
+	};
+	const session = await openMcpSession({
+		entryPoint: input.workspace.artifactPath(treatment),
+		cwd: input.workspace.workspacePath(treatment.id),
+		env: environment,
 	});
 
-	input.contract[treatmentId] = probes;
-	process.stderr.write(`${treatment.id} contract ${probes.map((probe) => `${probe.kind}=${probe.result}`).join(' ')}\n`);
+	try {
+		const probes = await runContractProbes({
+			session,
+			openSession: async (env) => {
+				const probeSession = await openMcpSession({
+					entryPoint: input.workspace.artifactPath(treatment),
+					cwd: input.workspace.workspacePath(treatment.id),
+					env: {...environment, ...env},
+				});
+
+				return probeSession;
+			},
+			workspace: input.workspace.workspacePath(treatment.id),
+			plan: input.plan,
+			restore: () => {
+				const restored = restoreWorkspace(input.workspace, treatment);
+
+				if (!restored.restored) {
+					throw new Error(`failed to restore ${treatment.id} after the stale-file probe: ${restored.reason ?? 'unknown reason'}`);
+				}
+			},
+		});
+
+		input.contract[treatmentId] = probes;
+		process.stderr.write(`${treatment.id} contract ${probes.map((probe) => `${probe.kind}=${probe.result}`).join(' ')}\n`);
+	} finally {
+		await session.close();
+	}
 };
 
 const runContractsOf = async (
 	input: Readonly<{
 		treatments: readonly TreatmentDefinitionType[];
 		treatmentIds: readonly RouteTreatmentType[];
-		sessions: Map<string, RouteSessionType>;
 		workspace: ReturnType<typeof workspaceContextOf>;
 		plan: ReturnType<typeof loadRoutePlan>['contract'];
 		contract: ContractRecordType;
@@ -331,7 +340,7 @@ export const routeCommand = async (flags: Map<string, string[]>): Promise<void> 
 	try {
 		await openSessionsOf(context, treatments, sessions);
 		await runRoutesOf({selected, routes, treatmentIds, treatments, sessions, runs, workspace: context});
-		await runContractsOf({treatments, treatmentIds, sessions, workspace: context, plan: plan.contract, contract});
+		await runContractsOf({treatments, treatmentIds, workspace: context, plan: plan.contract, contract});
 	} finally {
 		for (const session of sessions.values()) {
 			await session.close();
