@@ -1,0 +1,189 @@
+{
+	"recordType": "certification-design",
+	"schemaVersion": 1,
+	"id": "impact-certification-v1",
+	"status": "frozen",
+	"frozenAt": "2026-10-23T13:30:00.000Z",
+	"authorization": {
+		"pilot": {
+			"id": "ab-development-v1",
+			"digest": "76a1c8de068b5824a03825967bdc8ac255e86a41bd64251e880a95f074a7093d",
+			"decision": "narrow-scope",
+			"scope": "impact-class",
+			"report": "reports/ab-development-eval-036.json",
+			"reportDigest": "697908b4a500d3fcc6be575d7b8fd9df647feebd76816c4b129208b0c033b20b"
+		},
+		"exposure": {
+			"selected": "direct-mcp",
+			"codeMode": "absent",
+			"issue": "#50",
+			"record": "audits/ab-development-eval-036.md",
+			"recordDigest": "b239fedc3a213d421b5de511e7e5466386c0af47a305f1eaa6ca849dd33f6919",
+			"status": "selected-before-certification"
+		}
+	},
+	"contract": {
+		"id": "evaluation-validity-v2",
+		"version": 2,
+		"digest": "179bb5df1bc96ee86c54da20f26034a59fe50671dfc9912d805ed4588204a22f"
+	},
+	"model": {
+		"provider": "deepseek",
+		"modelId": "deepseek-flash",
+		"reference": "deepseek/deepseek-flash",
+		"runtime": "2.1.3",
+		"generation": {
+			"temperature": null,
+			"topP": null,
+			"topK": null,
+			"repeatPenalty": null,
+			"stop": []
+		}
+	},
+	"exposure": {
+		"selected": "direct-mcp",
+		"codeMode": "absent",
+		"rationale": "Direct native MCP is the production exposure selected by the EVAL-036 breadth and exposure record before certification. Adding a Code Mode arm would change the treatment identity and remains a separate PROD-004 measurement. This record makes no Code Mode overhead claim."
+	},
+	"artifacts": {
+		"accepted": {
+			"id": "codeindex-mcp-accepted",
+			"digest": "aba08ea73b5ebbce2d769b964295d26dea196799cb97b4ef962cd3437a58d6c0"
+		},
+		"candidate": {
+			"id": "codeindex-mcp-candidate",
+			"digest": "ac846e44cf7c527f9d361ff7ca266e5e2bbdae4d2dd80f9c1e111ac124d4e205"
+		}
+	},
+	"subject": {
+		"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516",
+		"contentManifestHash": "70403067fd91080b9949b26f3a68d632898586b019d53e1ee4291641e0bbb907"
+	},
+	"tariff": {
+		"id": "deepseek-flash-2026-10-23",
+		"source": "https://api-docs.deepseek.com/quick_start/pricing",
+		"retrievedAt": "2026-10-23T00:00:00.000Z",
+		"digest": "593634d1954e4ccd8303d71b68db15ba6f266e154a5f7f2e3da1f9db0fd16712"
+	},
+	"route": {
+		"suiteId": "codeindex-release",
+		"suiteVersion": 1,
+		"suiteHash": "073378fe3b9dc71710797a4a31a249d36363802f4347f87b73ff4fe6ae47f110",
+		"plan": "routes/codeindex-release.json",
+		"planHash": "96dee1cb3fd17fcfa66ec0ac6917bffda737119fe019f10570bd66f6c85547e4"
+	},
+	"blocks": [
+		{
+			"id": "primary",
+			"role": "confirmatory",
+			"suite": {
+				"id": "codeindex-release",
+				"path": "suites/release.json",
+				"version": 1,
+				"hash": "073378fe3b9dc71710797a4a31a249d36363802f4347f87b73ff4fe6ae47f110",
+				"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516"
+			},
+			"cases": [
+				{
+					"id": "impact-build-generation-references",
+					"class": "impact",
+					"weight": 0.16666666666666666
+				},
+				{
+					"id": "impact-hash-content-references",
+					"class": "impact",
+					"weight": 0.16666666666666666
+				},
+				{
+					"id": "impact-bounded-paged-result-references",
+					"class": "impact",
+					"weight": 0.16666666666666666
+				},
+				{
+					"id": "impact-schema-version-references",
+					"class": "impact",
+					"weight": 0.16666666666666666
+				},
+				{
+					"id": "impact-config-load-references",
+					"class": "impact",
+					"weight": 0.16666666666666666
+				},
+				{
+					"id": "impact-codeindex-error-references",
+					"class": "impact",
+					"weight": 0.16666666666666666
+				}
+			],
+			"repetitions": 20
+		},
+		{
+			"id": "holdout",
+			"role": "descriptive",
+			"suite": {
+				"id": "codeindex-holdout",
+				"path": "suites/holdout.json",
+				"version": 1,
+				"hash": "5eb2106b709d1edfcd6a7539179f78dacb8e4e5de51dbc24b24b9ad09a1d8326",
+				"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516"
+			},
+			"cases": [
+				{
+					"id": "holdout-unique-identifier",
+					"class": "locate",
+					"weight": 0.25
+				},
+				{
+					"id": "holdout-ambiguous-name",
+					"class": "locate",
+					"weight": 0.25
+				},
+				{
+					"id": "holdout-semantic-relationship",
+					"class": "impact",
+					"weight": 0.25
+				},
+				{
+					"id": "holdout-baseline-payload",
+					"class": "locate",
+					"weight": 0.25
+				}
+			],
+			"repetitions": 7
+		}
+	],
+	"seed": "impact-certification-2026-10-23",
+	"budget": {
+		"maxExecutions": 300,
+		"maxWallClockMs": 14400000,
+		"maxProviderCostUsd": 10
+	},
+	"thresholds": {
+		"costRatioTarget": 0.9,
+		"confidence": 0.95,
+		"upperBoundBelow": 1,
+		"nonInferiorityMargin": 0.02,
+		"falseAbsenceTolerance": 0,
+		"timeoutCeilingMs": 180000
+	},
+	"sampleSize": {
+		"method": "paired-log-ratio-simulation",
+		"caseCount": 6,
+		"repetitions": 20,
+		"desiredPower": 0.8,
+		"oneSidedAlpha": 0.05,
+		"simulations": 2000,
+		"designAlternative": 0.85,
+		"assumedEffectLogRatio": -0.16251892949777494,
+		"betweenCaseVariance": 0.03668677498818783,
+		"withinCaseVariance": 0.34191643377948705,
+		"power": 0.5225,
+		"reason": "The frozen maximum of 20 paired repetitions reaches simulated power 0.5225 at the 0.85 design alternative; the observed per-execution variance cannot reach 80% power for the narrowed six-case impact population within the contract maximum. The campaign still records the authoritative fixed-suite interval and a closed decision.",
+		"source": "audits/validity-aa-eval-035.md"
+	},
+	"decisionPolicy": {
+		"release": "Release only the exact frozen candidate artifact and configuration when the model-free route gate, every planned execution, exact metering, request-1 surface, impact-class cost gate, correctness non-inferiority, and zero false absence all pass.",
+		"notRelease": "Record not-release for the exact frozen configuration when any gate fails, any planned execution is invalid, metering is incomplete, the cost point or upper bound misses the target, correctness is inferior, or false absence is observed."
+	},
+	"digest": "5b3ab83fc4c006a4371c2e4ff77ef3f0e5d8c0d0e2e1a1f236f6aa4429da03f7"
+}

@@ -149,7 +149,8 @@
 					"tool": "find_references",
 					"arguments": {
 						"role": "reference",
-						"limit": 100
+						"limit": 100,
+						"context": "root"
 					},
 					"symbolFrom": {
 						"fromStep": "find-build-generation",
@@ -192,7 +193,8 @@
 					"tool": "find_references",
 					"arguments": {
 						"role": "reference",
-						"limit": 100
+						"limit": 100,
+						"context": "root"
 					},
 					"symbolFrom": {
 						"fromStep": "find-hash-content",
@@ -235,7 +237,8 @@
 					"tool": "find_references",
 					"arguments": {
 						"role": "reference",
-						"limit": 100
+						"limit": 100,
+						"context": "root"
 					},
 					"symbolFrom": {
 						"fromStep": "find-bounded-result",
@@ -278,7 +281,8 @@
 					"tool": "find_references",
 					"arguments": {
 						"role": "reference",
-						"limit": 100
+						"limit": 100,
+						"context": "root"
 					},
 					"symbolFrom": {
 						"fromStep": "find-schema-version",
@@ -321,7 +325,8 @@
 					"tool": "find_references",
 					"arguments": {
 						"role": "reference",
-						"limit": 100
+						"limit": 100,
+						"context": "root"
 					},
 					"symbolFrom": {
 						"fromStep": "find-load-config",
@@ -364,7 +369,8 @@
 					"tool": "find_references",
 					"arguments": {
 						"role": "reference",
-						"limit": 100
+						"limit": 100,
+						"context": "root"
 					},
 					"symbolFrom": {
 						"fromStep": "find-codeindex-error",

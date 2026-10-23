@@ -297,7 +297,7 @@ const slotResultOf = async (input: SlotInputType): Promise<Readonly<{result: Run
 		rawBase: path.join(slotDirectory, 'raw'),
 		firstAttempt: resume.nextAttempt,
 		prepareRetry: () => restoreWorkspace(setup.context, treatment, treatmentContext.surface),
-		...(input.budgetDeadline === null ? {} : {timeoutMs: Math.max(1, input.budgetDeadline - Date.now())}),
+		...(input.budgetDeadline === null ? {} : {timeoutMs: Math.max(1, Math.min(input.testCase.timeoutMs, input.budgetDeadline - Date.now()))}),
 		onAttempt: (attemptResult) => {
 			attemptResults.push(attemptResult);
 		},
