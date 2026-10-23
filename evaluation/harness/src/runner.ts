@@ -99,6 +99,31 @@ const installTerminationHandlers = (): void => {
 		});
 	}
 };
+
+const cleanupAttemptOf = async (
+	openCode: OpenCodeServerType | null,
+	meter: Awaited<ReturnType<typeof startExecutionMeterOf>>,
+): Promise<Readonly<{cost: TaskCostVectorType | null; reconciliation: ProviderMeterReconciliationType | null; error: Error | null}>> => {
+	let error: Error | null = null;
+
+	try {
+		await openCode?.close();
+	} catch (error_) {
+		error = error_ instanceof Error ? error_ : new Error('OpenCode server cleanup failed', {cause: error_});
+	}
+
+	try {
+		const measured = await meter.finish();
+
+		return {cost: measured.cost, reconciliation: measured.reconciliation, error};
+	} catch (error_) {
+		return {
+			cost: null,
+			reconciliation: null,
+			error: error_ instanceof Error ? error_ : new Error('provider meter cleanup failed', {cause: error_}),
+		};
+	}
+};
 /**
  * Executes one attempt and derives its graded result.
  *
@@ -167,6 +192,7 @@ const attemptOnce = async (
 	let executed: Awaited<ReturnType<typeof runChildOf>>;
 	let providerCost: TaskCostVectorType | null;
 	let providerMeter: ProviderMeterReconciliationType | null;
+	let cleanupError: Error | null;
 
 	try {
 		child = agentProcessOf({...input, environmentOverrides: meter.environment}, promptOf(input.testCase), openCode);
@@ -182,15 +208,19 @@ const attemptOnce = async (
 	try {
 		executed = await runChildOf({child, timeoutMs});
 	} finally {
-		activeAttempts.delete(child);
 		// The private server may still be settling an asynchronous title request,
-		// so it closes before the meter reconciles.
-		await openCode?.close();
+		// so it closes before the meter reconciles. Signal handlers may exit only
+		// after both cleanup operations settle.
+		const cleanup = await cleanupAttemptOf(openCode, meter);
 
-		const measured = await meter.finish();
+		providerCost = cleanup.cost;
+		providerMeter = cleanup.reconciliation;
+		cleanupError = cleanup.error;
+		activeAttempts.delete(child);
+	}
 
-		providerCost = measured.cost;
-		providerMeter = measured.reconciliation;
+	if (cleanupError !== null) {
+		throw cleanupError;
 	}
 
 	const context = await attemptContextOf({

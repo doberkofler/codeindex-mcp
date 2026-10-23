@@ -61,6 +61,7 @@ const DEFAULT_START_TIMEOUT_MS = 20_000;
 const DEFAULT_READINESS_TIMEOUT_MS = 20_000;
 const READINESS_POLL_MS = 100;
 const CLOSE_GRACE_MS = 1000;
+const MCP_DISCONNECT_TIMEOUT_MS = 5000;
 const SERVER_URL = /server listening on (?<url>http:\/\/\S+)/u;
 const SERVER_PASSWORD = /server password (?<password>\S+)/u;
 
@@ -137,10 +138,11 @@ const waitForEndpointOf = async (child: ChildProcess, timeoutMs: number): Promis
 	return endpoint;
 };
 
+const authorizationOf = (password: string): string => `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`;
+
 const fetchStatusOf = async (input: Readonly<{url: string; password: string}>): Promise<readonly OpenCodeMcpServerStatusType[]> => {
-	const authorization = `Basic ${Buffer.from(`opencode:${input.password}`).toString('base64')}`;
 	const response = await fetch(`${input.url}/api/mcp`, {
-		headers: {authorization},
+		headers: {authorization: authorizationOf(input.password)},
 		signal: AbortSignal.timeout(2000),
 	});
 
@@ -160,6 +162,25 @@ const fetchStatusOf = async (input: Readonly<{url: string; password: string}>): 
 
 		return status === null ? [] : [status];
 	});
+};
+
+const disconnectMcpServersOf = async (input: Readonly<{url: string; password: string}>): Promise<void> => {
+	const servers = await fetchStatusOf(input);
+	const authorization = authorizationOf(input.password);
+
+	await Promise.all(
+		servers.map(async (server) => {
+			const response = await fetch(`${input.url}/api/experimental/mcp/${encodeURIComponent(server.name)}/disconnect`, {
+				method: 'POST',
+				headers: {authorization},
+				signal: AbortSignal.timeout(MCP_DISCONNECT_TIMEOUT_MS),
+			});
+
+			if (!response.ok) {
+				throw new Error(`MCP disconnect for ${server.name} returned HTTP ${response.status}`);
+			}
+		}),
+	);
 };
 
 const readinessFailureOf = (
@@ -298,7 +319,11 @@ export const startOpenCodeServer = async (input: OpenCodeServerInputType): Promi
 			});
 		},
 		close: async () => {
-			await closeServerOf(child);
+			try {
+				await disconnectMcpServersOf(endpoint);
+			} finally {
+				await closeServerOf(child);
+			}
 		},
 	};
 };
