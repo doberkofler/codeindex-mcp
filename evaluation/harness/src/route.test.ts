@@ -278,6 +278,53 @@ describe('route', () => {
 		}
 	});
 
+	it('complete route waits for current freshness behind a published generation', async () => {
+		const workspace = tempWorkspace();
+		let statusCalls = 0;
+
+		try {
+			writeFile(workspace, 'src/a.ts', 'export const value = 1;\n');
+			const session = sessionOf((tool) => {
+				if (tool === 'index_status') {
+					statusCalls += 1;
+
+					return outcomeOf({
+						ready: true,
+						state: 'published',
+						building: false,
+						freshness: {state: statusCalls > 1 ? 'current' : 'updating'},
+					});
+				}
+
+				return outcomeOf({items: [{symbolId: 'symbol-1', path: 'src/a.ts', name: 'value', match: 'exact_name'}]});
+			});
+			const run = await runRoute({
+				caseId: 'case',
+				treatment: 'accepted',
+				steps: [
+					{
+						kind: 'mcp',
+						id: 'find',
+						tool: 'find_symbol',
+						arguments: {query: 'value'},
+						collect: 'exact-name-paths',
+						exactName: 'value',
+					},
+				],
+				workspace,
+				expectedFiles: ['src/a.ts'],
+				client: session,
+				awaitIndexReady: true,
+			});
+
+			assert.equal(run.exact, true);
+			assert.equal(statusCalls, 2);
+			assert.equal(run.metrics.callCount, 3);
+		} finally {
+			rmSync(workspace, {recursive: true, force: true});
+		}
+	});
+
 	it('route summaries use medians and report unavailable core time', () => {
 		const runs = [
 			{...baseRunOf(1, 1), caseId: 'a', treatment: 'accepted' as const, answerFiles: [], expectedFiles: [], calls: [], defects: []},

@@ -253,7 +253,29 @@ const executeMcpPage = async (
 	return outcome;
 };
 
-const readyOf = (data: unknown): boolean => isRecord(data) && (data['ready'] === true || data['state'] === 'published');
+const freshnessOf = (data: Record<string, unknown>): string | null => {
+	const {freshness} = data;
+
+	if (isRecord(freshness) && typeof freshness['state'] === 'string') {
+		return freshness['state'];
+	}
+
+	return typeof data['refresh'] === 'string' ? data['refresh'] : null;
+};
+
+const readyOf = (data: unknown): boolean => {
+	if (!isRecord(data) || data['building'] === true) {
+		return false;
+	}
+
+	const freshness = freshnessOf(data);
+	const ready = data['ready'] === true || data['state'] === 'published';
+
+	// A published generation can still be refreshing behind a dirty working
+	// copy. Querying during the rebuild observes the previous generation, so the
+	// route waits until the index reports current freshness as well.
+	return ready && (freshness === null || freshness === 'current');
+};
 
 const waitForIndexReady = async (state: ExecutionStateType, client: McpSessionType): Promise<void> => {
 	const deadline = performance.now() + INDEX_READY_TIMEOUT_MS;

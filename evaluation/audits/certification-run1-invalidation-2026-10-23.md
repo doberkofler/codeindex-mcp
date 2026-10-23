@@ -39,7 +39,20 @@ Remediation: per-run identity and the manifest now validate the candidate
 artifact only. The accepted artifact identity remains a release gate through
 the model-free route evidence, which requires both staged artifact digests.
 
-## Cause 2: seven request-1 surface violations were admitted
+## Cause 2: the resume route gate queried during an index rebuild
+
+The first resume attempt stopped before any hosted spend. The model-free route
+gate opened a published generation whose working copy was dirty, issued its
+probes while freshness was still `updating`, and recorded the previous
+generation as missing symbols. It then refused to overwrite the existing route
+report. The stop is correct; the readiness condition was not.
+
+Remediation: the route readiness loop now requires current freshness in addition
+to a published generation, and waits through the rebuild before querying. Route
+reports are regenerated from a clean route directory after the old model-free
+evidence is archived.
+
+## Cause 3: seven request-1 surface violations were admitted
 
 Seven candidate-arm executions admitted an agent request 1 with only
 `glob`, `grep`, `read`, and `shell`. The seven CodeIndex tools first appeared on
@@ -63,6 +76,9 @@ ordinary retry policy applies, bounded at six attempts.
 
 ## Handling
 
+- The run-1 certification record, route reports, and logs are retained under
+  `audits/run-1/`.
+- The aborted resume record and logs are retained under `audits/run-2/`.
 - The seven slot directories are moved out of the result tree, with their raw
   streams, to `quarantine/request-1-surface/` under the state root.
 - The invalid certification record and run-1 logs are retained under
