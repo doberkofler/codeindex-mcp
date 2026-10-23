@@ -5,6 +5,13 @@ baseline and against the currently accepted CodeIndex artifact, implementing the
 method in
 [`documentation/evaluation-harness.md`](../../documentation/evaluation-harness.md).
 
+> **Hosted use blocked:** the current harness does not provide cost-valid
+> request-level metering or direct proof of the agent request-1 tool surface.
+> Read the [E3 erratum](../audits/hosted-release-e3-erratum.md) and
+> [evaluation validity v2](../../documentation/evaluation-validity-v2.md).
+> Do not start another hosted release campaign until master #58 and child issues
+> #59–#65 satisfy that plan.
+
 The harness, public cases, suites, and reviewed aggregate reports are part of
 this repository. Raw event streams, transcripts, artifacts, workspaces,
 generated results, and any private corpus stay outside the published package.
@@ -57,6 +64,11 @@ timeouts, shared configuration, repetitions, and the ordered plan, so a change
 to any comparable field yields a different identity.
 
 ## Tool surface capture
+
+The implementation below is historical v1 behavior. Its eventual union can
+detect a permanently missing tool, but cannot prove the complete treatment
+surface was available on agent request 1. Validity v2 requires direct capture
+and assertion of request 1 after actual MCP readiness.
 
 The declared surface of a treatment is the ordinary tool list from the validated
 definition plus the native names from the artifact's `tools/list`, recorded under
@@ -449,6 +461,10 @@ a changed canonical artifact starts a new baseline. A qualification record never
 satisfies or blocks the hosted release gate.
 
 ### Hosted release campaign
+
+This command is retained for historical reproduction and dry-run diagnosis. It
+is blocked for new hosted evidence until the validity-v2 requirements are
+implemented and pass.
 
 `release` is the frontier architecture/release gate. It loads a pinned hosted reference, which
 records the exact provider, model ID, provider release, OpenCode runtime, and

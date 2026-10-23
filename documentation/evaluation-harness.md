@@ -4,6 +4,15 @@
 **Scope:** repeatable comparisons of agent work without CodeIndex, with the accepted
 CodeIndex artifact, and with a candidate artifact
 
+> **Validity amendment:** the shipped v1 harness does not yet satisfy the
+> [evaluation validity v2](./evaluation-validity-v2.md) contract. In particular,
+> an eventual union of tool lists does not prove request-1 availability, and
+> `step_finish` events do not meter every provider request. Do not run or cite a
+> new hosted economic campaign until master
+> [#58](https://github.com/doberkofler/codeindex-mcp/issues/58) and child issues
+> #59–#65 are complete.
+> See the [E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md).
+
 This document owns harness mechanics. The
 [MCP evaluation strategy](./mcp-evaluation-strategy.md) owns product questions, test
 data, metrics, gates, evaluation tiers, the stage order, stop rules, retry policy,

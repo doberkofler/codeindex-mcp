@@ -2,7 +2,10 @@
 
 Date: 2026-10-23
 
-Status: accepted evaluation plan, including the 2026-10-23 gate-responsibility split.
+Status: historical v1 strategy, amended by the accepted
+[evaluation validity v2 plan](./evaluation-validity-v2.md). No new hosted
+campaign may rely on the v1 metering, request-1 surface probe, corpus setup, or
+economic statistics until the v2 validity gates pass.
 Existing accepted gates in
 [the publication-policy redesign](./codeindex-publication-policy-redesign.md) remain
 normative. This document defines how to produce the evidence needed to judge the MCP
@@ -12,6 +15,12 @@ The companion [controlled evaluation harness](./evaluation-harness.md) describes
 mechanics. The separate [codebase testing strategy](./codebase-testing-strategy.md)
 describes implementation tests. Passing codebase tests is necessary, but is not evidence
 that the MCP server helps an agent.
+
+The completed E3 campaign remains historical `NOT PASSED` evidence under its
+original `retrievalBytes` contract. Its total-token and cost interpretation is
+withdrawn; see the
+[E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md). The v2 plan
+supersedes this document where validity or economic requirements conflict.
 
 ## 1. Purpose
 
@@ -718,13 +727,17 @@ evaluation win. A smaller interface that loses semantic correctness is also not 
 
 ## 13. Immediate priorities
 
-1. Re-run the model-free route for the staged release artifacts.
-2. Run EVAL-028 (#36) from scratch: 270 executions with the pinned frontier reference.
-   The `release` command requires current model-free evidence and no longer reads a
-   local-regression argument.
-3. Run the independent 108-slot local-model qualification. The canonical artifact is
-   pinned in `evaluation/canonical-artifact.json`, the frozen plan is in
-   `evaluation/suites/qualification.json`, and `evaluation/harness/src/cli.ts qualification`
-   emits the local-model-scoped record.
-4. Preserve the completed v1 local regression as historical `NOT PASSED` evidence; never
-   rerun its valid failures for a luckier sample.
+1. Complete [evaluation validity v2](./evaluation-validity-v2.md): request-level
+   metering, request-1 readiness, complete corpus indexing, external workspace
+   isolation, and corrected economic/statistical aggregation.
+2. Pass deterministic cold-start validity checks and a small hosted validity
+   smoke. Neither is efficacy evidence.
+3. Run a disjoint A/A calibration and size later sampling from observed paired
+   variance.
+4. Run a budgeted A/B development pilot and breadth/holdout validation. Do not
+   redesign the interface unless corrected trajectories demonstrate a defect.
+5. Run final frontier certification once after every threshold, weight, model,
+   exposure, tariff, and budget is frozen.
+6. Preserve E3 and the completed v1 local regression as historical `NOT PASSED`
+   evidence; never reinterpret their valid failures or incomplete E3 usage as a
+   total-cost result.

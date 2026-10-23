@@ -1,5 +1,12 @@
 # Hosted release campaign: E3 record
 
+> **Historical record — interpretation corrected.** The campaign remains
+> `NOT PASSED` under its original `retrievalBytes` contract, but it is not valid
+> total-token or total-cost evidence. The post-campaign audit found incomplete
+> provider-request metering, likely request-1 treatment absence, omitted semantic
+> corpus coverage, and workspace-path contamination. Read the
+> [E3 erratum](./hosted-release-e3-erratum.md) before using any result below.
+
 Authoritative frontier-model architecture and release record for
 [EVAL-028 (#36)](https://github.com/doberkofler/codeindex-mcp/issues/36), run
 from scratch under
@@ -130,6 +137,10 @@ improve the target metric against `accepted`.
   target metric, and `impact` and `semantic` fail at least one class Q2 gate.
 
 ## Attribution
+
+> **Superseded by the [E3 erratum](./hosted-release-e3-erratum.md).** The claim
+> below that these were not harness defects is retained only as part of the
+> original record and must not be cited as the current interpretation.
 
 The failures are model-selection and interface-cost findings, not artifact or
 harness defects. Every artifact surface matched its declaration, every slot was

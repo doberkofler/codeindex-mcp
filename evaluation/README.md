@@ -4,6 +4,12 @@ Controlled evaluation of the CodeIndex MCP server against retrieval baselines.
 The method is specified in
 [`documentation/evaluation-harness.md`](../documentation/evaluation-harness.md).
 
+> **Hosted evaluation paused.** E3 remains historical `NOT PASSED`, but its
+> total-token and cost interpretation is invalid. Read the
+> [E3 erratum](audits/hosted-release-e3-erratum.md) and
+> [evaluation validity v2](../documentation/evaluation-validity-v2.md). Do not
+> run another hosted release campaign until the v2 validity milestone passes.
+
 | Directory | Contents |
 | --- | --- |
 | `harness/` | Runner, schemas, isolation, normalization, grading, and reporting code |
@@ -203,6 +209,10 @@ The hosted release campaign pins an exact frontier model in
 model-free route report covers the same suite and staged artifacts. Local-model
 qualification is independent. The campaign executes the frozen 18-case suite
 with all three treatments and five paired repetitions, exactly 270 slots:
+
+The command below documents the historical v1 workflow. It is not authorized
+for a new hosted campaign until the v2 metering, request-1 surface, corpus,
+isolation, and statistical requirements are implemented.
 
 ```bash
 node evaluation/harness/src/cli.ts release \
