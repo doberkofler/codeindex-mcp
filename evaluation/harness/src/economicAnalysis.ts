@@ -25,8 +25,11 @@ const caseSuccessRateOf = (executions: readonly EconomicExecutionType[], caseId:
 /**
  * Estimates paired candidate/no-index correctness non-inferiority.
  *
- * A timed-out or incorrect execution contributes a zero success and is never
- * dropped. False absence has a strict zero-tolerance rule.
+ * The difference is candidate degradation, `baseline - candidate`. Positive
+ * values mean the candidate is worse. The one-sided upper confidence bound must
+ * stay below the non-inferiority margin. A timed-out or incorrect execution
+ * contributes a zero success and is never dropped. False absence has a strict
+ * zero-tolerance rule.
  *
  * @param executions - Economic observations for one campaign.
  * @param options - Frozen weights, margin, confidence, and seed.
@@ -75,7 +78,7 @@ export const pairedCorrectnessStudyOf = (
 		};
 	}
 
-	const point = weightedMeanOf(differences, options.weights, 'treatment') - weightedMeanOf(differences, options.weights, 'baseline');
+	const point = weightedMeanOf(differences, options.weights, 'baseline') - weightedMeanOf(differences, options.weights, 'treatment');
 	const random = rngOf(options.seed);
 	const draws: number[] = [];
 
@@ -83,7 +86,7 @@ export const pairedCorrectnessStudyOf = (
 		const drawn = Array.from({length: differences.length}, () => differences[Math.floor(random() * differences.length)]).filter(
 			(pair): pair is PairedCaseType => pair !== undefined,
 		);
-		draws.push(weightedMeanOf(drawn, options.weights, 'treatment') - weightedMeanOf(drawn, options.weights, 'baseline'));
+		draws.push(weightedMeanOf(drawn, options.weights, 'baseline') - weightedMeanOf(drawn, options.weights, 'treatment'));
 	}
 
 	const upper = percentileOf(draws, options.confidence);
