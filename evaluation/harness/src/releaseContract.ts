@@ -37,9 +37,9 @@ export type ReleaseExpectationType = Readonly<{
 	artifacts: ReleaseArtifactsType;
 }>;
 
-/** One prior stage that must pass before a release campaign may start. */
+/** The model-free stage that must pass before a release campaign may start. */
 export type ReleasePreconditionType = Readonly<{
-	kind: 'model-free' | 'local-regression';
+	kind: 'model-free';
 	recordType: string;
 	id: string;
 	digest: string;
@@ -112,7 +112,6 @@ export type ReleaseCampaignReportType = Readonly<{
 	targetMetric: TrackedMetricType;
 	preconditions: Readonly<{
 		modelFree: ReleasePreconditionType;
-		localRegression: ReleasePreconditionType;
 	}>;
 	plan: Readonly<{
 		caseCount: number;

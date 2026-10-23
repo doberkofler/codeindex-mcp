@@ -80,6 +80,6 @@ implementation.
 
 Candidate architecture is judged separately by the 270-slot frontier campaign
 with `deepseek/deepseek-flash` in EVAL-028 (#36). Local qualification neither
-authorizes nor blocks it. The
-current executable `release` command still has the obsolete local-regression
-precondition; EVAL-030 (#57) must land before #36 can run.
+authorizes nor blocks it. EVAL-030 (#57) removed the obsolete local-regression
+precondition, so the executable `release` command now requires only current
+model-free evidence for the same suite, revision, and staged artifacts.

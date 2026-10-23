@@ -437,11 +437,11 @@ recorded as valid or invalid with a closed cause; the overall and class verdicts
 the unchanged Q2 gates, the predeclared target metric, and the paired bootstrap
 intervals stay separate. Local evidence never fills a missing hosted execution.
 
-Implementation status: the current `release` command still requires a passing
-`local-regression` record. That contradicts the approved split and currently prevents a
-valid #36 invocation. EVAL-030 (#57) removes only this obsolete precondition; the
-model-free precondition, hosted reference, 270-slot plan, Q2 gates, and identity checks
-remain unchanged.
+The command does not read local qualification. A failed, blocked, or absent local
+record neither authorizes nor blocks a hosted plan. `--local-regression` is no longer
+part of the interface, so its value is never consulted. The model-free precondition,
+hosted reference and runtime, 270-slot plan, Q2 gates, and identity checks remain
+unchanged.
 
 A `calibration` manifest serves the historical six-case environment screen.
 `calibrate` verifies every eligible pinned environment, rebinds the frozen suite
@@ -964,7 +964,7 @@ only; it neither defines nor reinterprets a gate.
 | Treatment equivalence | Treatment definitions record every difference; equivalence checks reject non-equivalent treatments ([§3.3](#33-treatment), [§9](#9-architecture)) |
 | Historical local diagnostic and regression | `local-diagnostic` and `local-regression` retain the old candidate-comparison mechanics and historical verdicts. They are not the future model-qualification gate ([§7.2](#72-run-manifest)) |
 | Local-model qualification | EVAL-029 (#56) must implement the fixed 18 × 2 × 3 plan with `no-index` and one canonical artifact, changing only the model environment across comparable campaigns ([§7.2](#72-run-manifest)) |
-| Hosted release stage | Policy requires a passing same-artifact model-free report, the pinned hosted reference and runtime, the fixed 18 × 3 × 5 plan, and `release-campaign.json` with hosted authority. The current extra local-regression precondition is an implementation defect tracked by EVAL-030 (#57) ([§7.2](#72-run-manifest)) |
+| Hosted release stage | Policy requires a passing same-suite, same-revision, same-artifact model-free report, the pinned hosted reference and runtime, the fixed 18 × 3 × 5 plan, and `release-campaign.json` with hosted authority. Local qualification is not a precondition ([§7.2](#72-run-manifest)) |
 | Telemetry validity | Exact token extraction with availability status; missing usage invalidates the affected metric, never estimated from bytes ([§2](#2-goals), [§7.5](#75-telemetry-availability-states)) |
 | Failed-slot-only retry | One immutable result per execution identity; `--resume` neither repeats nor skips a completed slot; failed and invalid executions stay inspectable ([§6](#6-cli-shape), [§7.6](#76-execution-outcome-and-validity), [§7.7](#77-atomic-persistence-and-partial-writes)) |
 | Stop rules | The harness records pass, fail, or invalid per execution with raw evidence. Applying a stop rule is a reviewer decision, not a harness verdict |

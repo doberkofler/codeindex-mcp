@@ -90,7 +90,7 @@ The stage is verified without a model by:
 
 | Criterion | Status |
 | --- | --- |
-| Campaign runs only after model-free and local gates pass | Implemented: the command validates both stages and staged artifacts before any model call |
+| Campaign runs only after model-free and local gates pass | Historical precondition: the recorded stage validated both; EVAL-030 (#57) removed local qualification as a hosted prerequisite |
 | All 270 slots valid or explicitly invalidated with cause | Implemented: every declared slot is recorded as valid or invalid with a closed cause; a missing or invalid slot blocks the verdict |
 | No historical run is used as a comparison | Implemented: the campaign runs one fresh three-treatment plan; a changed hosted reference changes identity and requires a new baseline |
 | Local evidence is not substituted for the hosted result | Implemented: the release record carries `hosted-model-scoped` and `releaseAuthority: true`; local records carry `local-model-scoped` and `releaseAuthority: false` |
@@ -120,7 +120,8 @@ The current policy precondition is one passing model-free route report for the s
 suite, revision, and staged artifacts. Independent local-model qualification neither
 authorizes nor blocks the frontier campaign.
 
-The current `release` implementation still enforces the historical local-regression
-precondition described above. EVAL-030 (#57) removes that executable mismatch. After
-#57, re-run the model-free route for the staged artifacts and execute EVAL-028 (#36)
-from scratch.
+EVAL-030 (#57) removed the historical local-regression precondition described
+above. The executable command now requires only current model-free evidence for the
+same suite, revision, and staged artifacts and no longer reads a local-regression
+argument. After staging current artifacts, re-run the model-free route and execute
+EVAL-028 (#36) from scratch.

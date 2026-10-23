@@ -693,9 +693,11 @@ hosted-model-scoped record that accounts for every slot as valid or invalid with
 cause. A changed hosted reference changes the campaign identity and requires a new paired
 baseline.
 
-Implementation status: the current command still requires a passing `local-regression`
-record. That obsolete precondition must be removed before the hosted campaign can run; see
-EVAL-030 (#57). No frontier execution command is valid until that change lands.
+The command does not read local qualification. A failed, blocked, or absent local record
+neither authorizes nor blocks a hosted plan; the historical `--local-regression` argument
+is no longer part of the interface and its value is never consulted. A real run still
+refuses missing, failing, stale, or artifact-mismatched model-free evidence before the
+first model call.
 
 ## 12. Change interpretation
 
@@ -716,11 +718,11 @@ evaluation win. A smaller interface that loses semantic correctness is also not 
 
 ## 13. Immediate priorities
 
-1. Implement EVAL-030 (#57) so `release` requires current model-free evidence but no local
-   regression record.
-2. Re-run the model-free route for the staged release artifacts.
-3. Run EVAL-028 (#36) from scratch: 270 executions with the pinned frontier reference.
-4. Implement EVAL-029 (#56): pin the canonical CodeIndex artifact and add the independent
+1. Re-run the model-free route for the staged release artifacts.
+2. Run EVAL-028 (#36) from scratch: 270 executions with the pinned frontier reference.
+   The `release` command requires current model-free evidence and no longer reads a
+   local-regression argument.
+3. Implement EVAL-029 (#56): pin the canonical CodeIndex artifact and add the independent
    108-slot local-model qualification.
-5. Preserve the completed v1 local regression as historical `NOT PASSED` evidence; never
+4. Preserve the completed v1 local regression as historical `NOT PASSED` evidence; never
    rerun its valid failures for a luckier sample.

@@ -47,8 +47,8 @@ node evaluation/harness/src/cli.ts release \
   --dry-run
 ```
 
-After EVAL-030 (#57) lands, run the campaign from scratch after a passing
-model-free route report exists for the same suite and staged artifacts:
+Run the campaign from scratch after a passing model-free route report exists for
+the same suite, revision, and staged artifacts:
 
 ```bash
 node evaluation/harness/src/cli.ts release \
@@ -58,12 +58,12 @@ node evaluation/harness/src/cli.ts release \
   --target-metric retrievalBytes
 ```
 
-The current implementation still requires `--local-regression`; that obsolete
-precondition means the real command above is not yet valid. The dry run remains
-available for plan inspection. EVAL-030 removes only the local requirement.
+The command does not read local qualification. A failed, blocked, or absent local
+record neither authorizes nor blocks the hosted plan, and the historical
+`--local-regression` argument is no longer part of the interface.
 
 The command verifies `opencode --version` against the pinned runtime before the
-first model call. It refuses a non-passing, incomplete, or artifact-mismatched
-model-free precondition. The resulting `release-campaign.json` carries
-`claimClass: "hosted-model-scoped"` and `releaseAuthority: true`; local evidence
-is never promoted to that class.
+first model call. It refuses missing, non-passing, stale, incomplete, or
+artifact-mismatched model-free evidence. The resulting `release-campaign.json`
+carries `claimClass: "hosted-model-scoped"` and `releaseAuthority: true`; local
+evidence is never promoted to that class.

@@ -16,7 +16,6 @@ import {
 	RELEASE_REPETITIONS,
 	RELEASE_TREATMENT_IDS,
 	modelFreePreconditionOf,
-	localRegressionPreconditionOf,
 	releaseCampaignReportOf,
 	releaseCampaignSummaryOf,
 	type ReleaseExpectationType,
@@ -166,19 +165,11 @@ const optionsOf = (inputs: ReleaseInputsType, flags: Map<string, string[]>): Par
 	};
 };
 
-type PreconditionsType = Readonly<{modelFree: ReleasePreconditionType; localRegression: ReleasePreconditionType}>;
+type PreconditionsType = Readonly<{modelFree: ReleasePreconditionType}>;
 
-const preconditionsOf = (modelFreePath: string, localPath: string, expectation: ReleaseExpectationType): PreconditionsType => {
-	const localManifestPath = path.join(path.dirname(localPath), 'manifest.json');
-	const modelFree = modelFreePreconditionOf(readJson(modelFreePath, 'model-free report'), expectation);
-	const localRegression = localRegressionPreconditionOf(
-		readJson(localPath, 'local regression record'),
-		readJson(localManifestPath, 'local regression manifest'),
-		expectation,
-	);
-
-	return {modelFree, localRegression};
-};
+const preconditionsOf = (modelFreePath: string, expectation: ReleaseExpectationType): PreconditionsType => ({
+	modelFree: modelFreePreconditionOf(readJson(modelFreePath, 'model-free report'), expectation),
+});
 
 const printReportOf = (report: ReturnType<typeof releaseCampaignReportOf>, runDir: string): void => {
 	process.stdout.write(
@@ -207,10 +198,11 @@ const printReportOf = (report: ReturnType<typeof releaseCampaignReportOf>, runDi
  * Runs the deferred hosted release campaign.
  *
  * The command refuses to start a model unless a passing model-free route report
- * and a passing local regression cover the same suite and staged artifacts. It
- * then runs exactly 18 cases × 3 treatments × 5 paired repetitions and writes a
- * sanitized hosted-model-scoped record. A changed hosted reference changes the
- * campaign identity and therefore requires a new paired baseline.
+ * covers the same suite, revision, and staged artifacts. Independent local
+ * qualification is neither read nor promoted to a precondition. It then runs
+ * exactly 18 cases × 3 treatments × 5 paired repetitions and writes a sanitized
+ * hosted-model-scoped record. A changed hosted reference changes the campaign
+ * identity and therefore requires a new paired baseline.
  *
  * @param flags - Parsed CLI flags.
  */
@@ -227,7 +219,6 @@ export const releaseCommand = async (flags: Map<string, string[]>): Promise<void
 	assertHostedRuntime(inputs.hosted);
 
 	const modelFreePath = manifestPathOf(flags, 'model-free');
-	const localPath = manifestPathOf(flags, 'local-regression');
 	const artifacts = stagedArtifactsOf(inputs);
 	const expectation: ReleaseExpectationType = {
 		suite: {id: inputs.suite.id, version: inputs.suite.version, hash: inputs.suite.hash, revision: inputs.suite.revision},
@@ -235,7 +226,7 @@ export const releaseCommand = async (flags: Map<string, string[]>): Promise<void
 		targetMetric: inputs.targetMetric,
 		artifacts,
 	};
-	const preconditions = preconditionsOf(modelFreePath, localPath, expectation);
+	const preconditions = preconditionsOf(modelFreePath, expectation);
 
 	process.stderr.write(
 		`release ${inputs.hosted.reference}: ${RELEASE_CASE_COUNT} case(s) x ${RELEASE_TREATMENT_IDS.length} treatment(s) x ${RELEASE_REPETITIONS} repetitions = ${RELEASE_EXECUTIONS} executions\n`,

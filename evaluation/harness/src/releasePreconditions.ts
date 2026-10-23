@@ -1,8 +1,6 @@
 import {hashOf} from './hash.ts';
 import {
-	RELEASE_CASE_COUNT,
 	RELEASE_CLAIM_CLASS,
-	RELEASE_TREATMENT_IDS,
 	type ReleaseArtifactType,
 	type ReleaseArtifactsType,
 	type ReleaseExpectationType,
@@ -51,9 +49,6 @@ const requireArray = (value: unknown, field: string, context: string): readonly 
 	return value;
 };
 
-const requireStringArray = (value: unknown, field: string, context: string): readonly string[] =>
-	requireArray(value, field, context).map((item, index) => requireString(item, `${field}[${index}]`, context));
-
 const suiteOf = (value: unknown, context: string): Readonly<{id: string; version: number; hash: string}> => {
 	const record = requireRecord(value, `${context} field "suite"`);
 
@@ -88,10 +83,10 @@ const artifactsOf = (value: unknown, context: string): ReleaseArtifactsType => {
 
 const sameArtifacts = (left: ReleaseArtifactsType, right: ReleaseArtifactsType): boolean => JSON.stringify(left) === JSON.stringify(right);
 
-// The suite hash is model-bound: local evidence runs the same cases under the
-// local model, while release evidence binds the hosted reference. Stage lineage is
-// therefore the suite id and version plus the frozen case hashes below; the
-// model-bound hash is recorded with each stage but is never compared across models.
+// The suite hash is model-bound because release evidence binds the hosted
+// reference. Stage lineage is therefore the suite id and version plus the frozen
+// case hashes below; the model-bound hash is recorded with the stage but is never
+// compared across model bindings.
 const assertSuiteMatches = (
 	actual: Readonly<{id: string; version: number; hash: string}>,
 	expected: ReleaseExpectationType['suite'],
@@ -184,173 +179,6 @@ export const modelFreePreconditionOf = (value: unknown, expected: ReleaseExpecta
 		artifacts,
 		model: null,
 		environment: null,
-	};
-};
-
-const localManifestOf = (
-	value: unknown,
-): Readonly<{
-	campaignId: string;
-	suite: Readonly<{id: string; version: number; hash: string}>;
-	revision: string;
-	artifacts: ReleaseArtifactsType;
-	cases: readonly Readonly<{id: string; hash: string}>[];
-}> => {
-	const record = requireRecord(value, 'local regression manifest');
-	const cases = requireArray(record['cases'], 'cases', 'local regression manifest').map((item, index) => {
-		const testCase = requireRecord(item, `local regression manifest case ${index}`);
-
-		return {
-			id: requireString(testCase['id'], 'case.id', 'local regression manifest'),
-			hash: requireString(testCase['hash'], 'case.hash', 'local regression manifest'),
-		};
-	});
-
-	return {
-		campaignId: requireString(record['campaignId'], 'campaignId', 'local regression manifest'),
-		suite: suiteOf(record['suite'], 'local regression manifest'),
-		revision: requireString(record['revision'], 'revision', 'local regression manifest'),
-		artifacts: artifactsOf(record['artifacts'], 'local regression manifest'),
-		cases,
-	};
-};
-
-/**
- * Validates the passing local regression required before a release campaign.
- *
- * A local record is local-model-scoped by construction. It may gate the release
- * campaign but can never be promoted to hosted evidence, so a record carrying
- * release authority or a hosted claim class is rejected rather than reused.
- *
- * @param recordValue - Parsed local-regression record.
- * @param manifestValue - Parsed campaign manifest from the same result directory.
- * @param expected - Frozen suite, target metric, and staged artifacts.
- * @returns The pinned local precondition.
- */
-type LocalFactsType = Readonly<{
-	recordType: string;
-	suite: Readonly<{id: string; version: number; hash: string}>;
-	campaignId: string;
-	model: string;
-	environment: Readonly<{id: string; hash: string}>;
-}>;
-
-const assertLocalHeaderOf = (record: Record<string, unknown>, expected: ReleaseExpectationType): LocalFactsType => {
-	const recordType = requireString(record['recordType'], 'recordType', 'local regression record');
-
-	if (recordType !== 'local-regression') {
-		throw new Error(`local evidence must be a local-regression record, found "${recordType}"`);
-	}
-
-	if (requireNumber(record['schemaVersion'], 'schemaVersion', 'local regression record') !== 1) {
-		throw new Error('local regression record schemaVersion must be 1');
-	}
-
-	const claimClass = requireString(record['claimClass'], 'claimClass', 'local regression record');
-
-	if (claimClass !== 'local-model-scoped') {
-		throw new Error(`local regression record must carry claimClass local-model-scoped, found "${claimClass}"`);
-	}
-
-	if (requireBoolean(record['releaseAuthority'], 'releaseAuthority', 'local regression record')) {
-		throw new Error('local regression record must not carry release authority');
-	}
-
-	if (!requireBoolean(record['passed'], 'passed', 'local regression record')) {
-		throw new Error('local regression did not pass');
-	}
-
-	if (requireBoolean(record['diagnosisRequired'], 'diagnosisRequired', 'local regression record')) {
-		throw new Error('local regression requires targeted diagnosis');
-	}
-
-	const suite = suiteOf(record['suite'], 'local regression record');
-	const targetMetric = requireString(record['targetMetric'], 'targetMetric', 'local regression record');
-
-	if (targetMetric !== expected.targetMetric) {
-		throw new Error(`local regression target metric ${targetMetric} differs from release target ${expected.targetMetric}`);
-	}
-
-	const report = requireRecord(record['report'], 'local regression record field "report"');
-	const environment = requireRecord(record['environment'], 'local regression record field "environment"');
-
-	return {
-		recordType,
-		suite,
-		campaignId: requireString(report['campaignId'], 'report.campaignId', 'local regression record'),
-		model: requireString(record['model'], 'model', 'local regression record'),
-		environment: {
-			id: requireString(environment['id'], 'environment.id', 'local regression record'),
-			hash: requireString(environment['hash'], 'environment.hash', 'local regression record'),
-		},
-	};
-};
-
-const assertLocalPlanOf = (record: Record<string, unknown>): void => {
-	const plan = requireRecord(record['plan'], 'local regression record field "plan"');
-	const expectedExecutions = requireNumber(plan['expectedExecutions'], 'plan.expectedExecutions', 'local regression record');
-	const executions = requireNumber(plan['executions'], 'plan.executions', 'local regression record');
-	const validExecutions = requireNumber(plan['validExecutions'], 'plan.validExecutions', 'local regression record');
-	const caseCount = requireNumber(plan['caseCount'], 'plan.caseCount', 'local regression record');
-	const repetitions = requireNumber(plan['repetitions'], 'plan.repetitions', 'local regression record');
-	const treatments = requireStringArray(plan['treatments'], 'plan.treatments', 'local regression record');
-
-	if (expectedExecutions !== 162 || executions !== 162 || validExecutions !== 162) {
-		throw new Error(`local regression plan is incomplete: ${executions}/${expectedExecutions} executions, ${validExecutions} valid`);
-	}
-
-	if (caseCount !== RELEASE_CASE_COUNT || repetitions !== 3 || [...treatments].sort().join(',') !== [...RELEASE_TREATMENT_IDS].sort().join(',')) {
-		throw new Error('local regression plan does not cover the 18-case, three-treatment, three-repetition stage');
-	}
-};
-
-const assertLocalDiagnosticOf = (record: Record<string, unknown>): void => {
-	const diagnostic = requireRecord(record['diagnostic'], 'local regression record field "diagnostic"');
-
-	if (!requireBoolean(diagnostic['passed'], 'diagnostic.passed', 'local regression record')) {
-		throw new Error('local regression diagnostic did not pass');
-	}
-
-	if (!requireBoolean(diagnostic['targetImproved'], 'diagnostic.targetImproved', 'local regression record')) {
-		throw new Error('local regression diagnostic did not improve the target metric');
-	}
-};
-
-const assertLocalManifestOf = (manifest: ReturnType<typeof localManifestOf>, facts: LocalFactsType, expected: ReleaseExpectationType): void => {
-	if (manifest.campaignId !== facts.campaignId) {
-		throw new Error(`local regression manifest ${manifest.campaignId} differs from its record ${facts.campaignId}`);
-	}
-
-	assertSuiteMatches(facts.suite, expected.suite, 'local regression record');
-	assertSuiteMatches(manifest.suite, expected.suite, 'local regression manifest');
-	assertCasesMatch(manifest.cases, expected.cases, 'local regression manifest');
-	assertArtifactsMatch(manifest.artifacts, expected.artifacts, 'local regression manifest');
-
-	if (manifest.revision !== expected.suite.revision) {
-		throw new Error(`local regression manifest covers revision ${manifest.revision}, but the release suite pins ${expected.suite.revision}`);
-	}
-};
-
-export const localRegressionPreconditionOf = (recordValue: unknown, manifestValue: unknown, expected: ReleaseExpectationType): ReleasePreconditionType => {
-	const record = requireRecord(recordValue, 'local regression record');
-	const facts = assertLocalHeaderOf(record, expected);
-
-	assertLocalPlanOf(record);
-	assertLocalDiagnosticOf(record);
-
-	const manifest = localManifestOf(manifestValue);
-
-	assertLocalManifestOf(manifest, facts, expected);
-
-	return {
-		kind: 'local-regression',
-		recordType: facts.recordType,
-		id: facts.campaignId,
-		digest: hashOf(record),
-		suite: facts.suite,
-		artifacts: manifest.artifacts,
-		model: facts.model,
-		environment: facts.environment,
 	};
 };
 

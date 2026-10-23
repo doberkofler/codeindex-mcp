@@ -446,10 +446,11 @@ node src/cli.ts release --suite suites/release.json \
   --target-metric retrievalBytes
 ```
 
-Implementation status: the current command still requires `--local-regression`.
-That obsolete requirement is tracked by EVAL-030 (#57), which blocks #36. The real
-command above is not executable until #57 lands; the dry run starts no model and
-remains valid for plan inspection.
+Local qualification is not read by the command. A failed, blocked, or absent
+local record neither authorizes nor blocks a valid hosted plan. The historical
+`--local-regression` argument is no longer part of the interface, so its value is
+never consulted; the real command requires only current model-free evidence for
+the same suite, revision, and staged artifacts.
 
 The real command runs 18 cases × 3 treatments × 5 paired repetitions, exactly
 270 slots. It writes `release-campaign.json` beside `report.json`, carrying

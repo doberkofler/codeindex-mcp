@@ -21,7 +21,7 @@ import {type CaseClassType} from './schema.ts';
 import {assertReleaseClaimClass} from './releasePreconditions.ts';
 
 export * from './releaseContract.ts';
-export {assertReleaseClaimClass, localRegressionPreconditionOf, modelFreePreconditionOf} from './releasePreconditions.ts';
+export {assertReleaseClaimClass, modelFreePreconditionOf} from './releasePreconditions.ts';
 
 const slotKeyOf = (caseId: string, treatment: string, repetition: number): string => `${caseId}\u0000${treatment}\u0000${repetition}`;
 

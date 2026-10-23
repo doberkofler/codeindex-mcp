@@ -198,10 +198,11 @@ class-stratified failure blocks the release verdict. The selected reference and
 the current gate status are recorded in
 [`audits/hosted-release-campaign-e2.md`](audits/hosted-release-campaign-e2.md).
 
-Current implementation gap: `release` still requires
-`--local-regression <local-regression.json>`. EVAL-030 (#57) removes that obsolete
-precondition. Until it lands, no real frontier command is valid under the
-approved policy; `--dry-run` remains plan validation only.
+Local qualification is not a release precondition. A failed, blocked, or absent
+local record neither authorizes nor blocks a valid hosted plan. The historical
+`--local-regression` argument is no longer part of the interface, so its value is
+never consulted. The real command requires current model-free evidence for the
+same suite, revision, and staged artifacts before the first model call.
 
 ## Operational soak
 

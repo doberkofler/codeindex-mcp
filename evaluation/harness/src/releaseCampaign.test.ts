@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
-import {describe, it} from 'vitest';
+import {readFileSync} from 'node:fs';
+import path from 'node:path';
+import {describe, it, vi} from 'vitest';
+import {releaseCommand} from './cliRelease.ts';
 import {hashOf} from './hash.ts';
 import {hostedReferenceHashOf, hostedReferenceOf, type HostedReferenceType} from './hostedReference.ts';
 import {
 	assertReleaseClaimClass,
-	localRegressionPreconditionOf,
 	modelFreePreconditionOf,
 	RELEASE_CLAIM_CLASS,
 	releaseCampaignReportOf,
@@ -13,8 +15,6 @@ import {
 } from './releaseCampaign.ts';
 import {compare} from './report.ts';
 import {CASE_LAYOUT, campaignRunsOf, metadata} from './localTestSupport.ts';
-
-const DIGEST = 'a'.repeat(64);
 
 const hosted = (overrides: Readonly<Record<string, unknown>> = {}): HostedReferenceType =>
 	hostedReferenceOf({
@@ -62,39 +62,6 @@ const routeReport = (overrides: Readonly<Record<string, unknown>> = {}): Readonl
 	...overrides,
 });
 
-const localRecord = (overrides: Readonly<Record<string, unknown>> = {}): Readonly<Record<string, unknown>> => ({
-	recordType: 'local-regression',
-	schemaVersion: 1,
-	claimClass: 'local-model-scoped',
-	releaseAuthority: false,
-	passed: true,
-	diagnosisRequired: false,
-	suite,
-	targetMetric: 'retrievalBytes',
-	model: 'ollama/model',
-	environment: {id: 'environment-a', hash: 'e'.repeat(64)},
-	diagnostic: {passed: true, targetImproved: true},
-	plan: {
-		caseCount: 18,
-		treatments: ['no-index', 'accepted', 'candidate'],
-		repetitions: 3,
-		expectedExecutions: 162,
-		executions: 162,
-		validExecutions: 162,
-	},
-	report: {campaignId: 'local-campaign', comparisonDigest: DIGEST, identityDigests: []},
-	...overrides,
-});
-
-const localManifest = (overrides: Readonly<Record<string, unknown>> = {}): Readonly<Record<string, unknown>> => ({
-	campaignId: 'local-campaign',
-	suite,
-	revision: suite.revision,
-	artifacts,
-	cases,
-	...overrides,
-});
-
 const expectedSlots = CASE_LAYOUT.flatMap((testCase) =>
 	['no-index', 'accepted', 'candidate'].flatMap((treatment) =>
 		Array.from({length: 5}, (_, index) => ({caseId: testCase.id, treatment, repetition: index + 1})),
@@ -121,16 +88,22 @@ const releaseReport = (values?: ReleaseValuesType, override?: Parameters<typeof 
 		record: releaseCampaignReportOf({
 			hosted: hosted(),
 			expectation,
-			preconditions: {
-				modelFree: modelFreePreconditionOf(routeReport(), expectation),
-				localRegression: localRegressionPreconditionOf(localRecord(), localManifest(), expectation),
-			},
+			preconditions: {modelFree: modelFreePreconditionOf(routeReport(), expectation)},
 			expectedSlots,
 			results: runs,
 			report,
 		}),
 	};
 };
+
+const releaseFlags = (extra: Readonly<Record<string, string[]>> = {}): Map<string, string[]> =>
+	new Map<string, string[]>([
+		['suite', ['suites/release.json']],
+		['hosted-reference', ['references/deepseek-flash.json']],
+		['target-metric', ['retrievalBytes']],
+		['dry-run', ['true']],
+		...Object.entries(extra),
+	]);
 
 describe('hosted release campaign', () => {
 	it('reports a complete 270-slot campaign with class verdicts and paired intervals', () => {
@@ -161,9 +134,8 @@ describe('hosted release campaign', () => {
 			assert.equal(verdict.passed, true);
 		}
 
+		assert.deepEqual(Object.keys(record.preconditions), ['modelFree']);
 		assert.equal(record.preconditions.modelFree.kind, 'model-free');
-		assert.equal(record.preconditions.localRegression.kind, 'local-regression');
-		assert.equal(record.preconditions.localRegression.environment?.id, 'environment-a');
 		assert.match(releaseCampaignSummaryOf(record), /claim hosted-model-scoped release-authority=yes/u);
 	});
 
@@ -173,10 +145,7 @@ describe('hosted release campaign', () => {
 		const record = releaseCampaignReportOf({
 			hosted: hosted(),
 			expectation,
-			preconditions: {
-				modelFree: modelFreePreconditionOf(routeReport(), expectation),
-				localRegression: localRegressionPreconditionOf(localRecord(), localManifest(), expectation),
-			},
+			preconditions: {modelFree: modelFreePreconditionOf(routeReport(), expectation)},
 			expectedSlots,
 			results: runs.slice(0, -1),
 			report,
@@ -202,22 +171,18 @@ describe('hosted release campaign', () => {
 		assert.match(record.blocking.join('; '), /retrievalBytes candidate\/accepted ratio/u);
 	});
 
-	it('rejects model-free and local evidence that do not cover the release inputs', () => {
+	it('rejects model-free evidence that is failing, stale, incomplete, or artifact-mismatched', () => {
 		assert.throws(() => modelFreePreconditionOf(routeReport({gates: [{id: 'G-E1a', result: 'fail'}]}), expectation), /model-free gate did not pass/u);
+		assert.throws(() => modelFreePreconditionOf(routeReport({passed: false}), expectation), /model-free report did not pass/u);
 		assert.throws(
 			() =>
 				modelFreePreconditionOf(routeReport({artifacts: {accepted: artifacts.accepted, candidate: {id: 'candidate', digest: 'f'.repeat(64)}}}), expectation),
 			/different artifacts/u,
 		);
-		assert.throws(
-			() => localRegressionPreconditionOf(localRecord({claimClass: RELEASE_CLAIM_CLASS}), localManifest(), expectation),
-			/claimClass local-model-scoped/u,
-		);
-		assert.throws(() => localRegressionPreconditionOf(localRecord({releaseAuthority: true}), localManifest(), expectation), /release authority/u);
-		assert.throws(
-			() => localRegressionPreconditionOf(localRecord(), localManifest({artifacts: {...artifacts, candidate: null}}), expectation),
-			/different artifacts/u,
-		);
+		assert.throws(() => modelFreePreconditionOf(routeReport({suite: {...suite, version: 2}}), expectation), /covers suite/u);
+		assert.throws(() => modelFreePreconditionOf(routeReport({suite: {...suite, revision: 'def5678'}}), expectation), /covers revision/u);
+		assert.throws(() => modelFreePreconditionOf(routeReport({cases: []}), expectation), /does not cover the frozen/u);
+		assert.throws(() => modelFreePreconditionOf(routeReport({recordType: 'local-regression'}), expectation), /must be a route-report/u);
 	});
 
 	it('rejects a local claim class as release authority', () => {
@@ -226,14 +191,11 @@ describe('hosted release campaign', () => {
 		}, /expected hosted-model-scoped/u);
 	});
 
-	it('accepts lower-tier evidence bound to another model when cases, revision, and artifacts match', () => {
-		const localSuite = {...suite, hash: 'e'.repeat(64)};
+	it('accepts model-free evidence bound to another suite hash when cases, revision, and artifacts match', () => {
 		const routeSuite = {...suite, hash: 'f'.repeat(64)};
 		const route = modelFreePreconditionOf(routeReport({suite: routeSuite}), expectation);
-		const local = localRegressionPreconditionOf(localRecord({suite: localSuite}), localManifest({suite: localSuite}), expectation);
 
 		assert.equal(route.suite.hash, routeSuite.hash);
-		assert.equal(local.suite.hash, localSuite.hash);
 	});
 
 	it('a changed hosted reference is a different pinned identity', () => {
@@ -242,5 +204,44 @@ describe('hosted release campaign', () => {
 
 		assert.notEqual(first.releasedAt, second.releasedAt);
 		assert.notEqual(hostedReferenceHashOf(first), hostedReferenceHashOf(second));
+	});
+
+	it('pins the selected hosted reference and runtime', () => {
+		const file = path.resolve(import.meta.dirname, '../../references/deepseek-flash.json');
+		const reference = hostedReferenceOf(JSON.parse(readFileSync(file, 'utf8')) as unknown);
+
+		assert.equal(reference.reference, 'deepseek/deepseek-flash');
+		assert.equal(reference.releasedAt, '2026-10-17T00:00:00.000Z');
+		assert.equal(reference.runtime.opencode, '2.1.2');
+		assert.equal(hostedReferenceHashOf(reference), 'e3d86f8914fe9b9d77e9048216acd1535a44cf98b7e69a35edb3a1cf19dae07e');
+	});
+
+	it('plans the 270 hosted slots without local evidence', async () => {
+		const capture = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+		let output = '';
+
+		try {
+			await releaseCommand(releaseFlags());
+			output = capture.mock.calls.map(([chunk]) => (typeof chunk === 'string' ? chunk : chunk.toString())).join('');
+		} finally {
+			capture.mockRestore();
+		}
+
+		assert.match(output, /plan 270 execution\(s\): 18 case\(s\) x 3 treatment\(s\) x 5 repetition\(s\)/u);
+		assert.doesNotMatch(output, /local-regression/u);
+	});
+
+	it('does not read a supplied local qualification path', async () => {
+		const capture = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+		let output = '';
+
+		try {
+			await releaseCommand(releaseFlags({'local-regression': ['results/local/missing/local-regression.json']}));
+			output = capture.mock.calls.map(([chunk]) => (typeof chunk === 'string' ? chunk : chunk.toString())).join('');
+		} finally {
+			capture.mockRestore();
+		}
+
+		assert.match(output, /plan 270 execution\(s\)/u);
 	});
 });
