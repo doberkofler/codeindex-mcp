@@ -37,10 +37,6 @@ export const addressIssue = (segments: FactAddressType): string | null => {
 // Builds the natural identity of one binding before hashing.
 export const bindingIdentity = (symbolId: string, bindingKey: string): string => `${symbolId}\u0000${bindingKey}`;
 
-// Builds the natural identity of one binding site.
-export const siteIdentity = (symbolId: string, path: string, startOffset: number, kind: string): string =>
-	`${symbolId}\u0000${path}\u0000${String(startOffset)}\u0000${kind}`;
-
 // Compares two ranges by start, end, line, then column.
 export const compareRanges = (left: FactRangeType, right: FactRangeType): number =>
 	left.startOffset - right.startOffset || left.endOffset - right.endOffset || left.startLine - right.startLine || left.startColumn - right.startColumn;

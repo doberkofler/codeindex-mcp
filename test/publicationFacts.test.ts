@@ -349,6 +349,26 @@ describe('publication fact invariants', () => {
 	});
 });
 
+describe('binding site identity', () => {
+	it('keeps one source site per binding when two bindings share one site', () => {
+		const rootSegments: FactAddressType = [
+			['module', 'src/a.ts'],
+			['member', 'api'],
+		];
+		const surfaceSegments: FactAddressType = [...rootSegments, ['member', 'run']];
+		const shared = facts({
+			bindings: [binding('s1', rootSegments), binding('s1', surfaceSegments)],
+			bindingContexts: [context('s1', rootSegments, 'published'), context('s1', surfaceSegments, 'published')],
+			bindingSites: [site('s1', rootSegments), site('s1', surfaceSegments)],
+		});
+		const report = finalizeFacts(shared, REPORT_POLICY);
+
+		expect(report.issues).toStrictEqual([]);
+		expect(report.bindingSites).toHaveLength(2);
+		expect(() => finalizeFacts(shared, {...REPORT_POLICY, mode: 'enforce'})).not.toThrow();
+	});
+});
+
 describe('publication adapter seam', () => {
 	it('accepts the TypeScript adapter bundle without crossing the compiler seam', () => {
 		const {config, cleanup} = createFixtureConfig('simple-project');

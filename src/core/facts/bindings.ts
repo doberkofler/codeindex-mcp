@@ -1,5 +1,5 @@
 import {type IndexedSymbolType} from '../model.ts';
-import {addressIssue, bindingIdentity, siteIdentity} from './address.ts';
+import {addressIssue, bindingIdentity} from './address.ts';
 import {createFactId, serializeAddress} from './canonical.ts';
 import {addIssue} from './issues.ts';
 import {
@@ -184,9 +184,11 @@ export const collectSites = (
 ): SiteCollectionType => {
 	const sites: PendingSiteType[] = [];
 	const sitesByKey = new Map<string, PendingSiteType>();
-	const seen = new Set<string>();
 	void identities;
 
+	// One binding may own several canonical addresses projected from the same
+	// authored site, so location identity must include the binding. Two bindings
+	// sharing a symbol and source offset still each retain their own site.
 	for (const site of facts.bindingSites) {
 		const invalid = addressIssue(site.segments);
 
@@ -202,15 +204,13 @@ export const collectSites = (
 			continue;
 		}
 
-		const identity = siteIdentity(site.symbolId, site.path, site.range.startOffset, site.kind);
 		const location = `${entry.bindingId}\u0000${site.path}\u0000${String(site.range.startOffset)}`;
 		const existing = sitesByKey.get(location);
 
-		if (seen.has(identity) || (existing !== undefined && siteKindRank(existing.kind) <= siteKindRank(site.kind))) {
+		if (existing !== undefined && siteKindRank(existing.kind) <= siteKindRank(site.kind)) {
 			continue;
 		}
 
-		seen.add(identity);
 		const row: PendingSiteType = {bindingId: entry.bindingId, kind: site.kind, path: site.path, range: site.range, symbolId: site.symbolId};
 		sitesByKey.set(location, row);
 	}
