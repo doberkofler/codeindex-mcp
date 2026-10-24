@@ -1,4 +1,4 @@
-import {mkdtempSync, realpathSync, rmSync, writeFileSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
@@ -84,6 +84,46 @@ describe('configuration', () => {
 	it('rejects repository paths that escape the root', () => {
 		expect(() => toRepositoryPath('/root/workspace', '/root/elsewhere/file.ts')).toThrow(/outside/u);
 		expect(toRepositoryPath('/root/workspace', '/root/workspace/src/file.ts')).toBe('src/file.ts');
+	});
+});
+
+describe('configuration storage binding', () => {
+	it('keeps the storage location bound to the checkout when the project id is pinned', () => {
+		const base = mkdtempSync(path.join(tmpdir(), 'code-index-config-'));
+		const store = path.join(base, 'store');
+		const checkout = (name: string, projectId?: string): string => {
+			const workspace = path.join(base, name);
+			mkdirSync(path.join(workspace, 'src'), {recursive: true});
+			writeFileSync(
+				path.join(workspace, 'tsconfig.json'),
+				JSON.stringify({compilerOptions: {target: 'ES2024', module: 'ESNext', moduleResolution: 'Bundler', strict: true, noEmit: true}, include: ['src/**/*']}),
+			);
+			writeFileSync(path.join(workspace, 'src', 'index.ts'), 'export const value = 1;\n');
+			const configPath = path.join(workspace, 'codeindex.config.json');
+			writeFileSync(
+				configPath,
+				JSON.stringify({
+					project: {...(projectId === undefined ? {} : {id: projectId}), root: '.'},
+					extractor: {id: 'typescript', project: 'tsconfig.json'},
+					storage: {directory: store},
+				}),
+			);
+			return configPath;
+		};
+
+		try {
+			const left = loadConfig({CODE_INDEX_CONFIG: checkout('left', 'pinned-project')});
+			const right = loadConfig({CODE_INDEX_CONFIG: checkout('right', 'pinned-project')});
+			const derived = loadConfig({CODE_INDEX_CONFIG: checkout('derived')});
+
+			expect(left.projectId).toBe('pinned-project');
+			expect(right.projectId).toBe('pinned-project');
+			expect(left.databasePath).not.toBe(right.databasePath);
+			expect(path.basename(path.dirname(left.databasePath))).toMatch(/^[0-9a-f]{16}$/u);
+			expect(path.basename(path.dirname(derived.databasePath))).toBe(derived.projectId);
+		} finally {
+			rmSync(base, {recursive: true, force: true});
+		}
 	});
 });
 

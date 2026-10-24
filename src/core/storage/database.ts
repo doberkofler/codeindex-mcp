@@ -103,7 +103,7 @@ export class IndexDatabase {
 		const owner = databasePath === ':memory:' ? null : registerProcessOwner(databasePath);
 
 		try {
-			const {writer, reader} = openDatabaseConnections(databasePath);
+			const {writer, reader} = openDatabaseConnections(databasePath, context.rootDir);
 			const projectId = context.projectId ?? 'default';
 			const database = new IndexDatabase(reader, writer, projectId, owner);
 			ensureMetadata(writer);

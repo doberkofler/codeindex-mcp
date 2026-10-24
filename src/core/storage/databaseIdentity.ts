@@ -6,6 +6,7 @@ import {toRepositoryPath} from '../config/config.ts';
 import {debugFor} from '../logging/debug.ts';
 import {asString} from './databaseRows.ts';
 import {SCHEMA_VERSION} from './schema.ts';
+import {ensureWorkspaceBinding} from './workspaceBinding.ts';
 
 const debug = debugFor('database');
 
@@ -82,8 +83,10 @@ export const ensureIdentity = (
 	}>,
 ): void => {
 	const {writer, reader, context} = input;
+	ensureWorkspaceBinding(writer, context.rootDir);
 	// Persist only workspace-relative paths. The opaque working-copy identifier
-	// carries identity; the root itself is always the relative marker.
+	// carries identity; the root itself is always the relative marker and the
+	// metadata fingerprint binds the database to one physical checkout.
 	const canonicalRoot = '.';
 	const now = new Date().toISOString();
 	const existing = reader.prepare('select * from working_copy limit 1').get();

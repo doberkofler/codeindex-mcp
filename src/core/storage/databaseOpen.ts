@@ -4,6 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {debugFor} from '../logging/debug.ts';
 import {asString} from './databaseRows.ts';
 import {SCHEMA_SQL, SCHEMA_VERSION} from './schema.ts';
+import {assertWorkspaceBinding} from './workspaceBinding.ts';
 
 const debug = debugFor('database');
 
@@ -109,14 +110,18 @@ const recreateIfIncompatible = (databasePath: string, expectedVersion: string): 
 /**
  * Opens the writer and reader connections for one index database.
  *
- * Incompatible derived data is moved aside before the writer opens the file.
+ * A database bound to another checkout is rejected and incompatible derived
+ * data is moved aside before the writer opens the file.
  *
  * @param databasePath - SQLite file path, or `:memory:` for a single connection.
+ * @param rootDir - Canonical workspace root requesting the database.
  * @returns Writer and read-only connections to the current schema.
+ * @throws {@link Error} When the database belongs to a different workspace root.
  */
-export const openDatabaseConnections = (databasePath: string): Readonly<{writer: DatabaseSync; reader: DatabaseSync}> => {
+export const openDatabaseConnections = (databasePath: string, rootDir?: string): Readonly<{writer: DatabaseSync; reader: DatabaseSync}> => {
 	if (databasePath !== ':memory:') {
 		mkdirSync(path.dirname(databasePath), {recursive: true});
+		assertWorkspaceBinding(databasePath, rootDir);
 		recreateIfIncompatible(databasePath, SCHEMA_VERSION);
 	}
 

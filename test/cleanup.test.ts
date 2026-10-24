@@ -171,6 +171,16 @@ describe('cleanup targets', () => {
 describe('cleanup safety', () => {
 	afterEach(removeTemporaryDirectories);
 
+	it('reclaims a legacy explicit project id directory with --all', () => {
+		const {base, roots} = fixture();
+		const legacy = join(roots.storage, 'legacy-project');
+		mkdirSync(legacy, {recursive: true});
+		writeFileSync(join(legacy, 'index.sqlite'), 'x');
+
+		expect(collectCleanupTargets(roots, all).map((target) => path.relative(base, target.path))).toContain(join('index', 'legacy-project'));
+		expect(collectCleanupTargets(roots, current).map((target) => target.path)).not.toContain(legacy);
+	});
+
 	it('sums nested directories and ignores nested links', () => {
 		const {base, roots} = fixture();
 		const nested = join(roots.storage, 'fedcba9876543210');

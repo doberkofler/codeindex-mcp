@@ -11,10 +11,10 @@ selected tests and records the MCP protocol split.
 Scope is every Vitest test module selected by `vitest.config.ts`:
 
 ```text
-test/**/*.test.ts                     90 files
+test/**/*.test.ts                     91 files
 evaluation/harness/src/**/*.test.ts   26 files
                                      ---------
-                                     116 files
+                                     117 files
 ```
 
 Support files under `test/helpers/`, fixture trees under `test/fixtures/`, and non-test harness
@@ -51,12 +51,12 @@ class table.
 |---|---:|---:|---:|
 | Module test | 51 | 22 | 73 |
 | Adapter contract | 15 | 0 | 15 |
-| Core integration | 10 | 0 | 10 |
+| Core integration | 11 | 0 | 11 |
 | MCP protocol contract | 5 | 0 | 5 |
 | Deterministic system test | 3 | 2 | 5 |
 | Semantic qualification | 4 | 2 | 6 |
 | Performance test | 2 | 0 | 2 |
-| **Total** | **90** | **26** | **116** |
+| **Total** | **91** | **26** | **117** |
 
 `referenceGrouping.test.ts` is classed as core integration rather than MCP protocol because its
 claim is reference-grouping semantics; it calls `CodeIndex` directly.
@@ -81,11 +81,12 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/buildWorker.test.ts` | Module test | `isBuildWorkerData`, `runBuildWorker` | Handcrafted facts | Only a complete build payload is accepted and worker failures are reported without a parent port. |
 | `test/buildWorkerClient.test.ts` | Module test | `runBuildWorkerThread` | Micro fixture | Worker reports are validated, malformed fields rejected, and worker errors preserved over exit codes. |
 | `test/builtProcess.test.ts` | Deterministic system test | Built `dist/mcp.mjs` over stdio | Temporary workspace | Initial publication, every tool, stream isolation, edits, stale refusal, watcher rebuilds, add/delete/rename, failed-build isolation, restart reuse, and clean shutdown hold in the built process. |
+| `test/checkoutLifecycle.test.ts` | Core integration | `runCli`, `loadConfig`, `collectCleanupTargets` | Temporary workspaces + temporary SQLite | A copy or move gets its own database and generation, an explicitly shared database is rejected, and a deleted checkout stays cleanable. |
 | `test/leaseContention.test.ts` | Deterministic system test | Two built `dist/mcp.mjs` processes over one database | Temporary workspace | One owner holds the lease, the reader serves the published generation, a killed owner never publishes, its heartbeat stops, and an expired lease is taken over. |
 | `test/cleanup.test.ts` | Module test | `collectCleanupTargets`, `removeCleanupTargets`, `runCleanup` | Temporary workspace | Cleanup defaults to the current project's database, scopes `--all` to managed databases, and enforces ownership, symlink, and root safety while continuing after failure. |
 | `test/cli.test.ts` | Core integration | `runCli` | Vertical fixture + temporary SQLite | Update, status, verify, reuse, and force-rebuild operate one real index and map failures to exit codes. |
 | `test/codeIndex.test.ts` | Core integration | `CodeIndex` queries | Vertical fixtures | Symbol search, outline, paging, references, dependencies, impact, and freshness obey the core query contract. |
-| `test/config.test.ts` | Module test | `loadConfig`, `toRepositoryPath` | Temporary workspace | Configuration resolves roots and overrides and rejects database, tsconfig, and path escapes. |
+| `test/config.test.ts` | Module test | `loadConfig`, `toRepositoryPath` | Temporary workspace | Configuration resolves roots and overrides, rejects database, tsconfig, and path escapes, and keeps storage bound to the checkout when the project id is pinned. |
 | `test/consoleDashboard.test.ts` | Module test | `buildAnalyticsDashboard` | Synthetic artifacts | Tool, build, freshness, and watcher signals aggregate over a window without exposing raw events. |
 | `test/consoleServer.test.ts` | Module test | `startConsoleServer` | Stub boundary | Bundle serving, token protection, loopback and host checks, and same-origin mutation policy hold. |
 | `test/consoleService.test.ts` | Module test | `ConsoleService` | Stub boundary | Status, jobs, analytics, operations, installation, failure retention, and one-time close follow the service contract. |
@@ -261,10 +262,10 @@ integration tests.
 The inventory contains one row per test module selected by the Vitest include patterns.
 
 ```text
-test/**/*.test.ts                     90
+test/**/*.test.ts                     91
 evaluation/harness/src/**/*.test.ts   26
                                      ---
-inventory rows                       116
+inventory rows                       117
 ```
 
 Verification commands:
@@ -276,7 +277,7 @@ find evaluation/harness/src -type f -name '*.test.ts' | wc -l
 
 Checks:
 
-- [x] Every one of the 116 test files has exactly one class and one primary claim.
+- [x] Every one of the 117 test files has exactly one class and one primary claim.
 - [x] No file is unclassified.
 - [x] No test file is listed in more than one inventory row.
 - [x] Every duplicate has a named owner; the remaining overlaps state their wiring reason.

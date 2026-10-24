@@ -111,13 +111,46 @@ incompatible compiler programs; only identical source locations are grouped.
 Defaults:
 
 - storage root: `~/.local/share/codeindex-mcp/`;
-- database: `<storage>/<projectId>/index.sqlite`;
-- analytics: `<storage>/<projectId>/analytics/events.jsonl`;
+- database: `<storage>/<storageKey>/index.sqlite`;
+- analytics: `<storage>/<storageKey>/analytics/events.jsonl`;
 - result bound: 32,768 bytes;
 - read bound: 200 lines.
 
-The project identifier is derived from the real workspace root, extractor, and
-project file unless configured explicitly. It is stable and non-reversible.
+The storage key is derived from the real workspace root, extractor, and project
+file. It binds one database to one physical checkout and is stable and
+non-reversible. The project identifier is the storage key unless it is
+configured explicitly with `project.id` or `CODE_INDEX_PROJECT_ID`; the
+configured identifier changes only the reported logical identity and never
+selects the storage directory. Use `storage.directory` or `storage.database` to
+place the database explicitly.
+
+### Moving, copying, and deleting a checkout
+
+A copy or a move resolves a new storage key, so the checkout gets its own
+database, its own build lease, and its own published generation. The source
+database is never attached or mutated.
+
+- **Move**: the first build at the new path rebuilds the index. It never reuses
+  a generation built for the old root. The old database stays behind until it is
+  reclaimed with `codeindex-cli clean --all --yes`.
+- **Copy**: the copy builds its own database and generation. Copying the
+  checkout does not copy the index, and a copied checkout never attaches to the
+  source database.
+- **Delete**: remove the checkout directory, then run
+  `codeindex-cli clean --all --yes` from any workspace. A database whose owning
+  process has exited stays cleanable without manual lease surgery; owner markers
+  written by dead processes are ignored. The default `clean` cannot resolve the
+  deleted workspace, so `--all` is the recovery command. It only covers the
+  default storage root; with a custom `storage.directory`, remove that
+  workspace's database directory directly.
+
+An explicit `storage.database` or `CODE_INDEX_DATABASE` path is bound to the
+checkout that created it. Pointing a second checkout at one database file fails
+with a `different working copy` error and leaves that file untouched. Give each
+checkout its own database path, then rebuild.
+
+The retained verification record is [Checkout move, copy, and delete
+semantics](./checkout-lifecycle.md).
 
 ## Use from OpenCode
 
@@ -301,7 +334,9 @@ database path overridden with `CODE_INDEX_DATABASE` or `storage.database` is
 cleaned as individual SQLite files, never as its whole directory.
 
 `--all` targets every managed database under the default code index root,
-`~/.local/share/codeindex-mcp`, regardless of the current configuration. A
+`~/.local/share/codeindex-mcp`, regardless of the current configuration. It also
+reclaims databases left behind by a moved or deleted checkout, including
+directories named by an explicitly configured project id in older releases. A
 custom `storage.directory` is outside that scope.
 
 Cleanup refuses to run while a server or console process owns a targeted
@@ -390,7 +425,7 @@ Set `CODE_INDEX_ANALYTICS=false` to disable writes.
 | `CODE_INDEX_MAX_RESULT_BYTES` | `32768` | Maximum serialized MCP result size |
 | `CODE_INDEX_MAX_READ_LINES` | `200` | Maximum `read_symbol` source lines |
 | `CODE_INDEX_SEMANTIC_DIAGNOSTICS` | `false` | Collect full semantic diagnostics |
-| `CODE_INDEX_PROJECT_ID` | derived | Stable project identifier |
+| `CODE_INDEX_PROJECT_ID` | derived | Stable logical project identifier; storage stays bound to the checkout |
 | `CODE_INDEX_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 
 Invalid roots, configuration paths, and storage locations make startup fail with

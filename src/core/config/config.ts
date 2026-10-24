@@ -109,6 +109,9 @@ export type ConfigType = Readonly<{
 	readonly configPath: string | null;
 }>;
 
+/** Resolved identity that both the workspace and storage resolvers share. */
+type WorkspaceIdentityType = Pick<ConfigType, 'extractorId' | 'projectFilePath' | 'projects' | 'projectId' | 'projectName'> & Readonly<{storageKey: string}>;
+
 const fail = (message: string): never => {
 	debug('invalid configuration: %s', message);
 	throw new Error(`Invalid code index configuration: ${message}`);
@@ -144,7 +147,8 @@ const resolveWithin = (rootDir: string, baseDirectory: string, candidate: string
  * Creates a stable, non-reversible identifier for one indexed project.
  *
  * The identifier is derived from real paths so tool results never leak absolute
- * filesystem locations.
+ * filesystem locations. It is always used as the storage key and, unless the
+ * project id is configured, as the project id.
  *
  * @param rootDir - Absolute indexed workspace root.
  * @param extractorId - Selected language extractor.
@@ -328,12 +332,7 @@ const resolveProjectContexts = (
 	return contexts;
 };
 
-const projectIdentity = (
-	environment: ParsedEnvironmentType,
-	file: FileConfigType,
-	realRootDir: string,
-	cwd: string,
-): Readonly<{extractorId: string; projectFilePath: string; projects: readonly ProjectContextConfigType[]; projectId: string; projectName: string}> => {
+const projectIdentity = (environment: ParsedEnvironmentType, file: FileConfigType, realRootDir: string, cwd: string): WorkspaceIdentityType => {
 	const extractorId = environment.CODE_INDEX_EXTRACTOR ?? file.extractor.id ?? DEFAULT_EXTRACTOR_ID;
 	const projects = resolveProjectContexts({environment, file, realRootDir, cwd, extractorId});
 	const [firstProject] = projects;
@@ -342,36 +341,27 @@ const projectIdentity = (
 		return fail('at least one extractor project is required');
 	}
 
-	const projectId =
-		environment.CODE_INDEX_PROJECT_ID ??
-		file.project?.id ??
-		createProjectId(
-			realRootDir,
-			extractorId,
-			projects.map((project) => project.projectFilePath),
-		);
+	// The storage key always binds to the physical checkout, so a copy or a move
+	// never reaches another checkout's database. A configured project id changes
+	// only the reported logical identity.
+	const storageKey = createProjectId(
+		realRootDir,
+		extractorId,
+		projects.map((project) => project.projectFilePath),
+	);
+	const projectId = environment.CODE_INDEX_PROJECT_ID ?? file.project?.id ?? storageKey;
 
 	return {
 		extractorId,
 		projectFilePath: firstProject.projectFilePath,
 		projects,
 		projectId,
+		storageKey,
 		projectName: file.project?.name ?? basename(realRootDir),
 	};
 };
 
-const resolveWorkspace = (
-	input: FileConfigSourceType,
-	cwd: string,
-): Readonly<{
-	rawRootDir: string;
-	realRootDir: string;
-	extractorId: string;
-	projectFilePath: string;
-	projects: readonly ProjectContextConfigType[];
-	projectId: string;
-	projectName: string;
-}> => {
+const resolveWorkspace = (input: FileConfigSourceType, cwd: string): WorkspaceIdentityType & Readonly<{rawRootDir: string; realRootDir: string}> => {
 	const {environment, config: file, directory} = input;
 	const root = workspaceRoot(environment, file, directory, cwd);
 
@@ -391,7 +381,7 @@ const storagePath = (overridePath: string | undefined, filePath: string | undefi
 const resolveStorage = (
 	input: FileConfigSourceType,
 	cwd: string,
-	workspace: Readonly<{rawRootDir: string; realRootDir: string; projectId: string}>,
+	workspace: Readonly<{rawRootDir: string; realRootDir: string; storageKey: string}>,
 ): Readonly<{storageDirectory: string; databasePath: string; analyticsPath: string; analyticsEnabled: boolean}> => {
 	const {environment, config: file, directory} = input;
 	const storageDirectory = canonicalisePath(workspace.rawRootDir, workspace.realRootDir, resolve(directory, file.storage?.directory ?? indexRootDirectory()));
@@ -401,7 +391,7 @@ const resolveStorage = (
 		storagePath(
 			environment.CODE_INDEX_DATABASE,
 			file.storage?.database,
-			defaultDatabasePath(storageDirectory, workspace.projectId),
+			defaultDatabasePath(storageDirectory, workspace.storageKey),
 			environment.CODE_INDEX_DATABASE === undefined ? directory : cwd,
 		),
 	);
@@ -413,7 +403,7 @@ const resolveStorage = (
 		storagePath(
 			environment.CODE_INDEX_ANALYTICS_PATH ?? environment.CODE_INDEX_LOG,
 			file.storage?.analytics,
-			defaultAnalyticsPath(storageDirectory, workspace.projectId),
+			defaultAnalyticsPath(storageDirectory, workspace.storageKey),
 			environment.CODE_INDEX_ANALYTICS_PATH === undefined && environment.CODE_INDEX_LOG === undefined ? directory : cwd,
 		),
 	);
@@ -443,8 +433,8 @@ const resolveStorage = (
  */
 export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): ConfigType => {
 	const environment = parseSource(source, cwd);
-	const {rawRootDir, realRootDir, extractorId, projectFilePath, projects, projectId, projectName} = resolveWorkspace(environment, cwd);
-	const {storageDirectory, databasePath, analyticsPath, analyticsEnabled} = resolveStorage(environment, cwd, {rawRootDir, realRootDir, projectId});
+	const {rawRootDir, realRootDir, extractorId, projectFilePath, projects, projectId, storageKey, projectName} = resolveWorkspace(environment, cwd);
+	const {storageDirectory, databasePath, analyticsPath, analyticsEnabled} = resolveStorage(environment, cwd, {rawRootDir, realRootDir, storageKey});
 
 	debug('configuration resolved', {
 		configPath: environment.configPath,
@@ -455,6 +445,7 @@ export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): Conf
 		databasePath,
 		analyticsPath,
 		projectId,
+		storageKey,
 	});
 
 	return {

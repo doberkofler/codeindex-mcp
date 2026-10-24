@@ -159,11 +159,18 @@ published content hash and rejects dirty or changed paths with `stale_file`.
 The database is derived data. An incompatible schema is moved aside as one
 `.schema-<version>.bak` file and rebuilt; there is no in-place migration.
 
+The default database directory is keyed by a storage key derived from the
+canonical root, extractor, and project files, and the database records a
+non-reversible fingerprint of that root in `metadata`. A database opened from a
+different root is rejected before a writer connection opens, so a copied or moved
+checkout never shares a database, lease, or published generation. See
+[Checkout move, copy, and delete semantics](./checkout-lifecycle.md).
+
 Core tables:
 
 | Table | Contents |
 | --- | --- |
-| `metadata` | Schema version and published generation token |
+| `metadata` | Schema version, workspace fingerprint, and published generation token |
 | `working_copy` | Workspace identity and optional VCS provenance |
 | `indexed_project` | Extractor, primary project file, and compiler identity |
 | `generation` | Build state, hashes, counts, stages, error |

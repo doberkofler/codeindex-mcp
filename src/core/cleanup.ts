@@ -109,6 +109,20 @@ const directorySize = (directory: string): number => {
 
 const protectedTarget = (target: string, protectedPaths: readonly string[]): boolean => protectedPaths.some((protectedPath) => isWithin(target, protectedPath));
 
+/**
+ * Reports whether one child of the managed storage root holds a project database.
+ *
+ * Current directories are keyed by a 16-character storage key. Older releases
+ * used an explicitly configured project id as the directory name, so a child
+ * that still contains `index.sqlite` is also a project database. Anything else
+ * in the tool-owned root is left alone.
+ *
+ * @param target - Absolute child directory.
+ * @param name - Child directory name.
+ * @returns Whether cleanup may remove the directory.
+ */
+const isManagedProjectDirectory = (target: string, name: string): boolean => INDEX_PATTERN.test(name) || existsSync(join(target, DATABASE_NAME));
+
 const childTargets = (root: string, protectedPaths: readonly string[]): readonly CleanupTargetType[] => {
 	if (!existsSync(root)) {
 		return [];
@@ -117,7 +131,7 @@ const childTargets = (root: string, protectedPaths: readonly string[]): readonly
 	return readdirSync(root, {withFileTypes: true}).flatMap((entry) => {
 		const target = join(root, entry.name);
 
-		if (!entry.isDirectory() || entry.isSymbolicLink() || !INDEX_PATTERN.test(entry.name) || protectedTarget(target, protectedPaths)) {
+		if (!entry.isDirectory() || entry.isSymbolicLink() || !isManagedProjectDirectory(target, entry.name) || protectedTarget(target, protectedPaths)) {
 			return [];
 		}
 
