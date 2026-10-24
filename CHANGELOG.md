@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.6.0...v0.7.0) (2026-10-24)
+
+### Added
+
+* **evaluation:** retain reference-workstation baseline ([e95e18e](https://github.com/doberkofler/codeindex-mcp/commit/e95e18ef283745c97d23efacf0c8a15ca5a4bc2e))
+
+### Fixed
+
+* **evaluation:** settle every started provider request ([d72b668](https://github.com/doberkofler/codeindex-mcp/commit/d72b668918416dc17c2df716b05296800b981cff))
+* **facts:** keep one site per binding at a shared source location ([74db2e7](https://github.com/doberkofler/codeindex-mcp/commit/74db2e747a10d6b0e2fe8f4377acde871afcdc2b))
+* **generation:** take over expired build leases ([a301f4d](https://github.com/doberkofler/codeindex-mcp/commit/a301f4dd94cc0d7f60c8b7a4fe2365ef58a7f1f2)), references [#49](https://github.com/doberkofler/codeindex-mcp/issues/49)
+* **storage:** refresh query-planner statistics at publication ([b883a0c](https://github.com/doberkofler/codeindex-mcp/commit/b883a0c7790a4b1ae2bce0ae7bcf446cec044e71))
+
+### Changed
+
+* **query:** restore index-bounded find_symbol and outline pages ([c0816f5](https://github.com/doberkofler/codeindex-mcp/commit/c0816f5e46bee4be08a722f0069b34a97aa9625c))
+
+### Documentation
+
+* consolidate publication and evaluation policy ([dbc5d90](https://github.com/doberkofler/codeindex-mcp/commit/dbc5d9034057b5eb4c2a50de55799c2a67094176))
+* document pnpm 12 approvals for GitHub installs ([769fa1e](https://github.com/doberkofler/codeindex-mcp/commit/769fa1e36e268b680d6d23e849b39611e95ffc22))
+* move actionable enhancements to service requests ([8e18f58](https://github.com/doberkofler/codeindex-mcp/commit/8e18f5851763360c17ddb780cd1bbe7e490807d4))
+* **query:** record PROD-008 evidence and plans ([18d1b3a](https://github.com/doberkofler/codeindex-mcp/commit/18d1b3ac1c9d6b9ccf2a729535f7d0873733cacb)), references [#48](https://github.com/doberkofler/codeindex-mcp/issues/48)
+
 ## [0.6.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.5.0...v0.6.0) (2026-10-23)
 
 ### Added
