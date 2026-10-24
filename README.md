@@ -231,7 +231,7 @@ codeindex-cli benchmark-prepare  # clone and install pinned public projects
 codeindex-cli qualify --extractor typescript  # language-service reference cross-check
 codeindex-cli qualify --extractor oracle --identifiers ... --dependencies ...
 codeindex-cli publication-report --output report.json  # report-only Phase 2 measurements
-codeindex-cli clean      # remove local caches (dry run by default)
+codeindex-cli clean      # remove project index databases (dry run by default)
 ```
 
 Index-backed commands accept `--config`, `--root`, `--extractor`, `--project-file`, and

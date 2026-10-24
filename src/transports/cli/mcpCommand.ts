@@ -173,6 +173,15 @@ const install = (input: InputType, configPath: string): string => {
 	return text;
 };
 
+// Install writes the schema hint only when the file has none. The config carries
+// no provenance marker, so uninstall removes the key only when it still holds
+// the exact value install writes; a different value belongs to the user.
+const removeInstallSchema = (text: string, configPath: string): string => {
+	const config = parseJsonc(text, configPath);
+
+	return config['$schema'] === SCHEMA_URL ? applyPath(text, ['$schema'], REMOVE) : text;
+};
+
 const uninstall = (configPath: string): Readonly<{text: string; removed: boolean}> => {
 	if (!existsSync(configPath)) {
 		return {text: '', removed: false};
@@ -186,7 +195,7 @@ const uninstall = (configPath: string): Readonly<{text: string; removed: boolean
 	}
 
 	const withoutServer = applyPath(text, ['mcp', 'servers', SERVER_NAME], REMOVE);
-	const cleaned = removeEmptyAncestors(withoutServer);
+	const cleaned = removeInstallSchema(removeEmptyAncestors(withoutServer), configPath);
 	parseJsonc(cleaned, configPath);
 	return {text: cleaned, removed: true};
 };
@@ -222,8 +231,9 @@ const parseOptions = (argv: readonly string[]): Record<string, unknown> => {
 /**
  * Installs or removes the project-local code-index MCP server.
  *
- * The command updates only `mcp.servers.codeindex` and preserves unrelated
- * OpenCode configuration, comments, and formatting where possible.
+ * The command updates only `mcp.servers.codeindex`, plus the `$schema` hint that
+ * install adds and uninstall removes again, and preserves unrelated OpenCode
+ * configuration, comments, and formatting where possible.
  *
  * @param argv - Arguments after the `mcp` command.
  * @param io - Output sinks.

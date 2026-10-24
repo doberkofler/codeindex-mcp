@@ -231,7 +231,7 @@ codeindex-cli status      # generation, counts, freshness, scope
 codeindex-cli verify      # SQLite integrity and persisted counts
 codeindex-cli analytics   # offline analytics report
 codeindex-cli benchmark   # cold/warm build, edit-to-fresh, resources, deep cursors
-codeindex-cli clean       # remove local caches (dry run by default)
+codeindex-cli clean       # remove project index databases (dry run by default)
 ```
 
 Common options:
@@ -291,12 +291,13 @@ Pass `--truth-policy v1` to reproduce the frozen Phase 0 policy; the default
 ```bash
 codeindex-cli clean             # preview
 codeindex-cli clean --yes       # delete
-codeindex-cli clean --keep-index
 ```
 
-Cleanup targets code-index cache entries under the OpenCode temporary root and
-project index databases. It refuses to run while a server or console process is
-active. It never touches repository files or `dist`.
+Cleanup targets the project index databases under the code index root, which is
+`~/.local/share/codeindex-mcp` by default. It refuses to run while a server or
+console process is active. It never touches repository files, `dist`, or shared
+temporary directories, so it cannot delete cache entries that belong to another
+workspace on the same machine.
 
 ## Console
 

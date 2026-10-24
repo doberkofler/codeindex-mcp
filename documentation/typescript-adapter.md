@@ -391,8 +391,9 @@ Cross-cutting contracts and performance targets live in
   separate database, analytics opt-out, and configuration-only rollback are
   retained in
   [Fresh-consumer installation and rollback](./fresh-consumer-installation.md).
-  The residual `$schema` asymmetry and the shared-cache scope of `clean` are
-  recorded there.
+  Both residual observations from that verification are resolved: `mcp
+  uninstall` removes the `$schema` key that install adds, and `clean` no longer
+  scans the shared OpenCode temporary root.
 - **WP8:** run at least 20 representative normal sessions; retain qualitative
   failures, freshness/resource results, and correctly measured index-first
   adoption; obtain explicit user acceptance before default enablement.

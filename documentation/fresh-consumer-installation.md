@@ -271,10 +271,9 @@ Post-rollback properties:
   derived data only.
 
 `clean --yes` removed both sandbox project databases. The index root contained
-zero files afterwards. Cleanup also targets `codeindex-*` entries under the
-OpenCode temporary root, so the command reports and removes unrelated cache
-entries from other runs on the same machine; the retained transcript below is
-limited to the sandbox databases:
+zero files afterwards. The command also inspected the OpenCode temporary root
+for `codeindex-*` entries, which could reach caches from other runs on the same
+machine; the retained transcript below is limited to the sandbox databases:
 
 ```text
 remove <index-root>/0f46d165d5c54af7
@@ -295,17 +294,17 @@ remaining index files: 0
 
 ## 8. Residual observations
 
-- `mcp uninstall` removes the server registration but not the `$schema` key that
-  `mcp install` adds to an existing configuration. This does not leave a
-  CodeIndex registration, but the file is not byte-identical to its pre-install
-  state.
+- **Resolved after 0.7.0:** `mcp uninstall` also removes the `$schema` key when
+  it still holds the value `mcp install` writes, so a rollback no longer leaves
+  an install artifact behind. A `$schema` the user selected is preserved.
 - The first `opencode mcp list` immediately after assigning a private service
   port reported no configured servers; the next invocation, after OpenCode read
   the same project configuration, reported `codeindex` connected. The resolved
-  configuration was correct throughout.
-- `clean` owns the whole OpenCode temporary cache root, not one consumer. A
-  consumer rollback can therefore remove cache entries belonging to other runs
-  on the same machine. Project databases remain under the consumer's own home.
+  configuration was correct throughout. This is client-side timing, not a
+  CodeIndex defect.
+- **Resolved after 0.7.0:** `clean` no longer inspects the OpenCode temporary
+  root. It removes only the hashed project databases under the code index root,
+  so a rollback cannot reach another workspace's caches.
 
 ## 9. Reproduction outline
 

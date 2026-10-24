@@ -1,5 +1,5 @@
 import {existsSync, lstatSync, readdirSync, rmSync, type Dirent} from 'node:fs';
-import {homedir, tmpdir} from 'node:os';
+import {homedir} from 'node:os';
 import path from 'node:path';
 import {Command} from 'commander';
 import {type CommandIoType, configureCommand, parseCommand} from '../transports/cli/commanderSupport.ts';
@@ -9,14 +9,12 @@ import {activeProcessOwners} from './storage/processOwnership.ts';
 const {isAbsolute, join, relative, resolve} = path;
 
 export type CleanupRootsType = Readonly<{
-	opencode: string;
 	index: string;
 	protectedPaths: readonly string[];
 }>;
 
-export type CleanupOptionsType = Readonly<{
+type CleanupOptionsType = Readonly<{
 	yes: boolean;
-	keepIndex: boolean;
 }>;
 
 export type CleanupTargetType = Readonly<{
@@ -24,7 +22,6 @@ export type CleanupTargetType = Readonly<{
 	bytes: number;
 }>;
 
-const OPENCODE_PATTERN = /^codeindex-/u;
 const INDEX_PATTERN = /^[0-9a-f]{16}$/u;
 
 const processIo: CommandIoType = {
@@ -135,23 +132,22 @@ const assertNoActiveIndexProcesses = (indexRoot: string): void => {
 };
 
 /**
- * Collects code index cache directories that are safe to delete.
+ * Collects project index databases that are safe to delete.
  *
- * @param roots - Cache roots and paths that must never be deleted.
- * @param options - Whether to keep index databases.
+ * Only databases inside the code index root are candidates. Shared temporary
+ * directories are never inspected, so cleanup cannot reach caches that belong
+ * to another workspace on the same machine.
+ *
+ * @param roots - Index root and paths that must never be deleted.
  * @returns Existing targets with their recursive sizes.
- * @throws {Error} When a root is unsafe, contains a protected path, or a live
+ * @throws {Error} When the root is unsafe, contains a protected path, or a live
  * process still owns an index database.
  */
-export const collectCleanupTargets = (roots: CleanupRootsType, options: CleanupOptionsType): readonly CleanupTargetType[] => {
-	assertSafeRoot(roots.opencode, 'opencode root', roots.protectedPaths);
+export const collectCleanupTargets = (roots: CleanupRootsType): readonly CleanupTargetType[] => {
 	assertSafeRoot(roots.index, 'index root', roots.protectedPaths);
 	assertNoActiveIndexProcesses(roots.index);
 
-	return [
-		...childTargets(roots.opencode, OPENCODE_PATTERN, roots.protectedPaths),
-		...(options.keepIndex ? [] : childTargets(roots.index, INDEX_PATTERN, roots.protectedPaths)),
-	];
+	return childTargets(roots.index, INDEX_PATTERN, roots.protectedPaths);
 };
 
 /**
@@ -185,13 +181,12 @@ const formatSize = (bytes: number): string => {
 };
 
 const defaultRoots = (): CleanupRootsType => ({
-	opencode: join(tmpdir(), 'opencode'),
 	index: indexRootDirectory(),
 	protectedPaths: [process.cwd()],
 });
 
 const executeCleanup = (options: CleanupOptionsType): void => {
-	const targets = collectCleanupTargets(defaultRoots(), options);
+	const targets = collectCleanupTargets(defaultRoots());
 	const total = targets.reduce((sum, target) => sum + target.bytes, 0);
 
 	if (targets.length === 0) {
@@ -215,17 +210,16 @@ const executeCleanup = (options: CleanupOptionsType): void => {
 const cleanupCommand = (): Command => {
 	const command = configureCommand(
 		new Command('clean')
-			.description('Remove local code index caches. The repository and dist are never touched. The default is a dry run.')
+			.description('Remove project index databases. The repository and dist are never touched. The default is a dry run.')
 			.option('--yes', 'delete the listed targets')
-			.option('--keep-index', 'keep project index databases')
 			.allowExcessArguments(true),
 		processIo,
-	).action((options: Readonly<{yes?: boolean | undefined; keepIndex?: boolean | undefined}>) => {
+	).action((options: Readonly<{yes?: boolean | undefined}>) => {
 		if (command.args.length > 0) {
 			throw new Error(`Unexpected argument: ${command.args[0] ?? ''}\n\n${command.helpInformation().trimEnd()}`);
 		}
 
-		executeCleanup({yes: options.yes === true, keepIndex: options.keepIndex === true});
+		executeCleanup({yes: options.yes === true});
 	});
 
 	return command;

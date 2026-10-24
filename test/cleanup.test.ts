@@ -2,33 +2,27 @@ import {chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writ
 import {homedir, tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {collectCleanupTargets, removeCleanupTargets, runCleanup, type CleanupOptionsType, type CleanupRootsType} from '../src/core/cleanup.ts';
+import {collectCleanupTargets, removeCleanupTargets, runCleanup, type CleanupRootsType} from '../src/core/cleanup.ts';
 
 const {join} = path;
 const temporaryDirectories: string[] = [];
-
-const options = (overrides: Partial<CleanupOptionsType> = {}): CleanupOptionsType => ({
-	yes: true,
-	keepIndex: false,
-	...overrides,
-});
 
 const fixture = (): Readonly<{base: string; roots: CleanupRootsType}> => {
 	const base = mkdtempSync(join(tmpdir(), 'codeindex-cleanup-'));
 	temporaryDirectories.push(base);
 
-	const opencode = join(base, 'opencode');
 	const index = join(base, 'index');
 	const results = join(base, 'results');
+	const sharedTemporary = join(base, 'temp', 'opencode');
 
-	mkdirSync(join(opencode, 'codeindex-smoke'), {recursive: true});
-	mkdirSync(join(opencode, 'other-tool'), {recursive: true});
 	mkdirSync(join(index, '0123456789abcdef'), {recursive: true});
+	mkdirSync(join(index, 'not-a-database'), {recursive: true});
+	mkdirSync(join(sharedTemporary, 'codeindex-smoke'), {recursive: true});
 	mkdirSync(results, {recursive: true});
 	writeFileSync(join(index, '0123456789abcdef', 'index.sqlite'), 'x'.repeat(1024));
 	writeFileSync(join(results, 'report.md'), 'keep');
 
-	return {base, roots: {opencode, index, protectedPaths: [results]}};
+	return {base, roots: {index, protectedPaths: [results]}};
 };
 
 const removeTemporaryDirectories = (): void => {
@@ -40,19 +34,20 @@ const removeTemporaryDirectories = (): void => {
 describe('cleanup targets', () => {
 	afterEach(removeTemporaryDirectories);
 
-	it('collects only known code index caches', () => {
+	it('collects only project index databases', () => {
 		const {base, roots} = fixture();
-		const targets = collectCleanupTargets(roots, options());
+		const targets = collectCleanupTargets(roots);
 
-		expect(targets.map((target) => path.relative(base, target.path))).toStrictEqual([join('opencode', 'codeindex-smoke'), join('index', '0123456789abcdef')]);
-		expect(targets[1]?.bytes).toBeGreaterThan(0);
+		expect(targets.map((target) => path.relative(base, target.path))).toStrictEqual([join('index', '0123456789abcdef')]);
+		expect(targets[0]?.bytes).toBeGreaterThan(0);
 	});
 
-	it('honours the keep flag', () => {
+	it('never collects shared temporary caches', () => {
 		const {base, roots} = fixture();
-		const targets = collectCleanupTargets(roots, options({keepIndex: true}));
 
-		expect(targets.map((target) => path.relative(base, target.path))).toStrictEqual([join('opencode', 'codeindex-smoke')]);
+		const targets = collectCleanupTargets(roots);
+
+		expect(targets.map((target) => target.path)).not.toContain(join(base, 'temp', 'opencode', 'codeindex-smoke'));
 	});
 
 	it('refuses to clean while an index process owner is alive', () => {
@@ -63,7 +58,7 @@ describe('cleanup targets', () => {
 			JSON.stringify({pid: process.pid, ownerId: 'owner', startedAt: new Date().toISOString()}),
 		);
 
-		expect(() => collectCleanupTargets(roots, options())).toThrow(/code index processes are active/u);
+		expect(() => collectCleanupTargets(roots)).toThrow(/code index processes are active/u);
 	});
 
 	it('ignores ownership markers left by dead processes', () => {
@@ -74,44 +69,44 @@ describe('cleanup targets', () => {
 			JSON.stringify({pid: 2_147_483_647, ownerId: 'owner', startedAt: new Date().toISOString()}),
 		);
 
-		const targets = collectCleanupTargets(roots, options());
+		const targets = collectCleanupTargets(roots);
 
 		expect(targets.map((target) => path.relative(base, target.path))).toContain(join('index', '0123456789abcdef'));
 	});
 
 	it('removes targets and leaves protected and unrelated directories', () => {
 		const {base, roots} = fixture();
-		const targets = collectCleanupTargets(roots, options());
+		const targets = collectCleanupTargets(roots);
 
 		removeCleanupTargets(targets);
 
-		expect(existsSync(join(base, 'opencode', 'codeindex-smoke'))).toBe(false);
 		expect(existsSync(join(base, 'index', '0123456789abcdef'))).toBe(false);
-		expect(existsSync(join(base, 'opencode', 'other-tool'))).toBe(true);
+		expect(existsSync(join(base, 'index', 'not-a-database'))).toBe(true);
+		expect(existsSync(join(base, 'temp', 'opencode', 'codeindex-smoke'))).toBe(true);
 		expect(existsSync(join(base, 'results', 'report.md'))).toBe(true);
 	});
 
 	it('refuses a root containing a protected path', () => {
 		const {base, roots} = fixture();
-		const unsafe: CleanupRootsType = {...roots, opencode: base};
+		const unsafe: CleanupRootsType = {...roots, index: base};
 
-		expect(() => collectCleanupTargets(unsafe, options())).toThrow(/inside/u);
+		expect(() => collectCleanupTargets(unsafe)).toThrow(/inside/u);
 	});
 
 	it('refuses a symlinked root', () => {
 		const {base, roots} = fixture();
-		const link = join(base, 'opencode-link');
-		symlinkSync(roots.opencode, link);
+		const link = join(base, 'index-link');
+		symlinkSync(roots.index, link);
 
-		expect(() => collectCleanupTargets({...roots, opencode: link}, options())).toThrow(/symbolic link/u);
+		expect(() => collectCleanupTargets({...roots, index: link})).toThrow(/symbolic link/u);
 	});
 
 	it('skips symlinked children', () => {
 		const {base, roots} = fixture();
-		const link = join(roots.opencode, 'codeindex-linked');
+		const link = join(roots.index, 'fedcba9876543210');
 		symlinkSync(join(base, 'results'), link);
 
-		const targets = collectCleanupTargets(roots, options());
+		const targets = collectCleanupTargets(roots);
 
 		expect(targets.map((target) => target.path)).not.toContain(link);
 		expect(existsSync(join(base, 'results', 'report.md'))).toBe(true);
@@ -128,17 +123,14 @@ describe('cleanup safety', () => {
 		writeFileSync(join(nested, 'nested', 'file.bin'), 'x'.repeat(512));
 		symlinkSync(join(base, 'results'), join(nested, 'linked'));
 
-		const target = collectCleanupTargets(roots, options()).find((candidate) => candidate.path === nested);
+		const target = collectCleanupTargets(roots).find((candidate) => candidate.path === nested);
 
 		expect(target?.bytes).toBe(512);
 	});
 
-	it('returns no targets when cache roots do not exist', () => {
+	it('returns no targets when the cache root does not exist', () => {
 		const {base, roots} = fixture();
-		const targets = collectCleanupTargets(
-			{opencode: join(base, 'missing-opencode'), index: join(base, 'missing-index'), protectedPaths: roots.protectedPaths},
-			options(),
-		);
+		const targets = collectCleanupTargets({index: join(base, 'missing-index'), protectedPaths: roots.protectedPaths});
 
 		expect(targets).toStrictEqual([]);
 	});
@@ -146,9 +138,9 @@ describe('cleanup safety', () => {
 	it('refuses relative, filesystem, and home roots', () => {
 		const {base, roots} = fixture();
 
-		expect(() => collectCleanupTargets({...roots, opencode: 'relative/path'}, options())).toThrow(/unsafe root/u);
-		expect(() => collectCleanupTargets({...roots, opencode: path.parse(base).root}, options())).toThrow(/unsafe root/u);
-		expect(() => collectCleanupTargets({...roots, opencode: homedir()}, options())).toThrow(/home directory/u);
+		expect(() => collectCleanupTargets({...roots, index: 'relative/path'})).toThrow(/unsafe root/u);
+		expect(() => collectCleanupTargets({...roots, index: path.parse(base).root})).toThrow(/unsafe root/u);
+		expect(() => collectCleanupTargets({...roots, index: homedir()})).toThrow(/home directory/u);
 	});
 
 	it('keeps removing after a target fails', () => {
@@ -180,6 +172,19 @@ describe('cleanup safety', () => {
 
 			expect(runCleanup(['unexpected'])).toBe(1);
 			expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Unexpected argument: unexpected'));
+		} finally {
+			stdout.mockRestore();
+			stderr.mockRestore();
+		}
+	});
+
+	it('rejects the removed keep-index flag', () => {
+		const stdout = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+		const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+		try {
+			expect(runCleanup(['--keep-index'])).toBe(1);
+			expect(stderr).toHaveBeenCalledWith(expect.stringContaining('unknown option'));
 		} finally {
 			stdout.mockRestore();
 			stderr.mockRestore();

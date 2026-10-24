@@ -163,6 +163,53 @@ describe('mcp command', () => {
 	});
 });
 
+describe('mcp command schema hint', () => {
+	let directory: string | undefined;
+
+	afterEach(() => {
+		if (directory !== undefined) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		directory = undefined;
+	});
+
+	const fixture = (): Readonly<{root: string; mcpPath: string; configPath: string}> => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-mcp-'));
+		const root = path.join(directory, 'workspace');
+		const mcpPath = path.join(root, 'tools', 'code_index', 'dist', 'mcp.mjs');
+		mkdirSync(path.dirname(mcpPath), {recursive: true});
+		writeFileSync(mcpPath, '// mcp bundle\n');
+
+		return {root, mcpPath, configPath: path.join(root, '.opencode', 'opencode.jsonc')};
+	};
+
+	it('removes the schema hint that install added', () => {
+		const {root, mcpPath, configPath} = fixture();
+
+		expect(runMcpCommand(['install', '--root', root], createIo().io, {mcpPath})).toBe(0);
+		expect(parseConfig(readFileSync(configPath, 'utf8')).$schema).toBe('https://opencode.ai/config.json');
+
+		expect(runMcpCommand(['uninstall', '--root', root], createIo().io, {mcpPath})).toBe(0);
+
+		const config = parseConfig(readFileSync(configPath, 'utf8'));
+		expect(config.$schema).toBeUndefined();
+		expect(config.mcp).toBeUndefined();
+	});
+
+	it('preserves a schema hint the user chose', () => {
+		const {root, mcpPath, configPath} = fixture();
+		mkdirSync(path.dirname(configPath), {recursive: true});
+		writeFileSync(configPath, '{\n\t"$schema": "https://example.test/config.json"\n}\n');
+
+		expect(runMcpCommand(['install', '--root', root], createIo().io, {mcpPath})).toBe(0);
+		expect(runMcpCommand(['uninstall', '--root', root], createIo().io, {mcpPath})).toBe(0);
+
+		const config = parseConfig(readFileSync(configPath, 'utf8'));
+		expect(config.$schema).toBe('https://example.test/config.json');
+	});
+});
+
 describe('mcp command with a CodeIndex configuration', () => {
 	let directory: string | undefined;
 
