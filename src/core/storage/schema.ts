@@ -229,6 +229,7 @@ create table if not exists definition_site (
 	path text not null,
 	start_offset integer not null,
 	role text not null check (role = 'definition'),
+	-- 1 for the smallest definition offset of a symbol in a path, else 0.
 	first_in_symbol integer not null default 0 check (first_in_symbol in (0, 1)),
 	primary key (generation_id, site_id),
 	foreign key (generation_id, symbol_id, path, start_offset, role) references occurrence(generation_id, symbol_id, path, start_offset, role) on delete cascade

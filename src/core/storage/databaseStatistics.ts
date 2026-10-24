@@ -5,11 +5,9 @@ const STATISTICS_TABLE = 'sqlite_stat1';
 /**
  * Refreshes SQLite query-planner statistics.
  *
- * Symbol search filters exposure through a correlated subquery over
- * `symbol_name_context`. Without statistics SQLite scans the whole generation
- * through `symbol_name_context_by_exposure` for every candidate row instead of
- * seeking `symbol_name_context` by `(generation_id, binding_id)`, which costs
- * seconds per page on a large index.
+ * Statistics keep range estimates for binding search, outline paging, and
+ * reference joins accurate; without them SQLite can choose a whole-generation
+ * index scan for a statement whose bound range it cannot estimate.
  *
  * @param writer - Writer connection.
  */

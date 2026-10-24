@@ -117,28 +117,76 @@ samples after warm-up; per-item and per-KiB use the last page's own items/bytes.
 
 | Call | Items | Bytes | p50 | p95 | ms/item | ms/KiB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `find_symbol` first page | 21 | 32,646 | 4.71 | 5.79 | 0.221 | 0.145 |
-| `find_symbol` page at depth 10,000 | 2 | 3,280 | 2.90 | 3.27 | 1.393 | 0.870 |
-| `outline` first page | 58 | 32,592 | 1.12 | 1.27 | 0.019 | 0.034 |
-| `outline` page at depth 9,800 | 55 | 32,197 | 1.09 | 1.19 | 0.020 | 0.035 |
+| `find_symbol` first page | 21 | 32,646 | 4.72 | 5.51 | 0.248 | 0.163 |
+| `find_symbol` page at depth 10,000 | 2 | 3,280 | 2.79 | 3.16 | 1.365 | 0.852 |
+| `outline` first page | 58 | 32,592 | 1.10 | 1.18 | 0.019 | 0.035 |
+| `outline` page at depth 9,800 | 55 | 32,197 | 1.09 | 1.22 | 0.020 | 0.034 |
+
+Whole walk: `find_symbol` 1,168 ms for 239 pages and 5,000 items; `outline`
+241 ms for 182 pages and 10,000 items.
 
 ### Generated xl
 
 | Call | Items | Bytes | p50 | p95 | ms/item | ms/KiB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `find_symbol` first page | 21 | 32,646 | 4.87 | 6.11 | 0.254 | 0.167 |
-| `find_symbol` page at depth 10,000 | 4 | 6,357 | 5.99 | 7.25 | 1.533 | 0.988 |
-| `outline` first page | 58 | 32,592 | 1.14 | 1.30 | 0.019 | 0.035 |
-| `outline` page at depth 9,800 | 55 | 32,197 | 1.30 | 1.54 | 0.026 | 0.045 |
+| `find_symbol` first page | 21 | 32,646 | 4.74 | 5.52 | 0.219 | 0.144 |
+| `find_symbol` page at depth 10,000 | 4 | 6,357 | 6.01 | 6.89 | 1.463 | 0.943 |
+| `outline` first page | 58 | 32,592 | 1.15 | 1.26 | 0.020 | 0.036 |
+| `outline` page at depth 9,800 | 55 | 32,197 | 1.29 | 1.53 | 0.025 | 0.044 |
 
-Before the fix the retained baseline recorded 108–186 ms for an xl `find_symbol`
-page and 103–121 ms for an xl `outline` page; large was 68 ms and 19–23 ms.
+Whole walk: `find_symbol` 4,139 ms for 477 pages and 10,000 items; `outline`
+1,569 ms for 909 pages and 50,000 items.
+
+### Retained suite samples
+
+The clean-tree generated suite (`~/codeindex-evidence/prod-008-20261024`) records
+one first-page sample per cursor statement and the gate result:
+
+| Corpus | `find_symbol` first | ms/item | `outline` first | `deep_cursor` wall | Gate |
+| --- | ---: | ---: | ---: | ---: | --- |
+| large | 6.58 ms | 0.313 | 2.48 ms | 2,015 ms | pass |
+| xl | 8.56 ms | 0.408 | 3.08 ms | 5,437 ms | pass |
+
+The pre-fix `deep_cursor` scenario wall was 24,399 ms large and 114,699 ms xl.
+
+### Attribution after the fix
+
+Large first page:
+
+| Stage | Cost |
+| --- | ---: |
+| Candidate statement (4,020 rows, covering index) | 1.68 ms |
+| Symbol summaries for the page | 0.05 ms |
+| Binding details for the page | 0.10 ms |
+| Definition sites for the page | 0.07 ms |
+| JavaScript dedupe, `localeCompare` sort, byte-budget search, serialization | 2.29 ms |
+| Whole first page | 4.33 ms |
+
+Outline first page:
+
+| Stage | Cost |
+| --- | ---: |
+| Page query, symbol summaries, and site selection (`outlineSymbols`) | 0.97 ms |
+| — symbol summaries and contexts inside that call | 0.38 ms |
+| — definition-site and occurrence join inside that call | 0.48 ms |
+| Re-export scan (covered by `(path, kind)`) | 0.01 ms |
+| Serialization and file check | 0.13 ms |
+| Whole first page | 1.11 ms |
+
+Before the fix, the same large page measured 24.7 ms candidate, 24.5 ms binding
+details, 15.3 ms definition sites, and 66.7 ms whole; the outline read and sorted
+the whole file in 15.4 ms.
 
 The residual per-item growth on the final `find_symbol` page is explained by the
 returned item count: the page contains 2–4 items, so fixed page overhead is
 divided over fewer items. Page cost itself is flat in depth: the candidate
 statement is bounded by `fetchLimit`, and the outline scan touches one covering
 index entry per item advanced.
+
+For comparison, the v0.3.0 large page (3 ms for a 32 KiB page) was about
+0.09 ms/KiB; the binding-aware page is 0.145–0.18 ms/KiB, a 1.6–2× per-byte
+deviation recorded as a deliberate product tradeoff rather than a regression.
+The xl page is 0.167 ms/KiB against about 0.28 ms/KiB for the 9 ms v0.3.0 page.
 
 ### Public projects
 
@@ -187,9 +235,10 @@ Deep-cursor samples now record `items` and `bytes`. The evaluation adds:
 | `absolute.cursor.find_symbol.item` (ms per returned item, page-sized samples) | 0.75 | 1.5 |
 
 The pre-fix large page was 68 ms for 21 items (3.2 ms/item); xl was 108–186 ms
-for about 21 items (5.1–8.9 ms/item). Both fail. The fixed large page is
-0.22 ms/item and xl is 0.25 ms/item. A regression test constructs a 60 ms,
-20-item sample and asserts the gate fails.
+for about 21 items (5.1–8.9 ms/item). Both fail. The fixed clean-suite samples
+are 0.313 ms/item large and 0.408 ms/item xl (0.22–0.25 ms/item in the
+50-sample probe). A regression test constructs a 60 ms, 20-item sample and
+asserts the gate fails.
 
 The `queries` scenario no longer uses `query: 'a'`, `limit: 10`; it derives a
 three-character prefix from the corpus and requests a 200-item page, so the
@@ -204,8 +253,8 @@ yielding, the queued request delay is:
 
 | Corpus | p50 | p95 | Max |
 | --- | ---: | ---: | ---: |
-| large, depth 10,000 | 2.83 ms | 3.27 ms | 3.71 ms |
-| xl, depth 10,000 | 6.04 ms | 6.51 ms | 8.03 ms |
+| large, depth 10,000 | 2.85 ms | 3.44 ms | 3.89 ms |
+| xl, depth 10,000 | 6.19 ms | 9.25 ms | 9.57 ms |
 
 Before the fix, the same page measured 68 ms large and 108–186 ms xl, so a
 trivial request could wait an order of magnitude longer.
@@ -217,29 +266,47 @@ trivial request could wait an order of magnitude longer.
 | Every cursor-bound query planned without a full table scan on the hot path | §4: all three statements use an index, with no `SCAN` at offset 0 or maximum depth |
 | Deep pagination reaches the last page without duplicates or omissions | §6: 14 traversals, 52,507 items, zero differences; every walk terminates on a null cursor |
 | Depth does not change the plan shape or introduce a scan | §4: identical plans at offset 0 and maximum depth |
-| Per-page latency stays within the retained baseline | §5: outline is 1.2–1.5 ms (baseline 1–2 ms); `find_symbol` is 5.8–7.3 ms versus 9–186 ms, with the per-byte deviation recorded as the deliberate binding-aware output decision |
+| Per-page latency stays within the retained baseline | §5: outline is 1.2–1.5 ms (baseline 1–2 ms); `find_symbol` is 5.5–6.9 ms versus 9–186 ms, with the per-byte deviation recorded as the deliberate binding-aware output decision |
 | Result recorded against a pinned corpus and artifact digest | §1 corpora, §10 commit and bundle digests |
 
-## 10. Reproduction
+## 10. Retained evidence and reproduction
+
+The clean-tree run is retained at `~/codeindex-evidence/prod-008-20261024`
+(manifest, summary, per-step JSON/Markdown/evaluation reports, logs, and
+`checksums.sha256`). Identity:
+
+| Field | Value |
+| --- | --- |
+| Commit | `c0816f5e46bee4be08a722f0069b34a97aa9625c` |
+| Tree | clean (`dirty: false`, empty status digest) |
+| Suite digest | `bad3b2bef0ea1e875451e6f2d0dad6241092e38179bf829d279f30b1482331f5` |
+| CLI bundle SHA-256 | `6766933f4af9e03cb02ca2c2c29b57fa0a61dd2a2b364fbd8f76a578e0529b0d` |
+| Result | passed; large run 01/02 and xl run 01 |
+
+The equivalence dumps, comparison result, per-corpus probes, probe source, and
+`checksums.sha256` are retained at `~/codeindex-evidence/prod-008-query`. The
+comparison summary digest is
+`2da1c0d9840f39c746d3e10d29a6190bb0acad35c0b3ce2048f0708b45a5e44a`.
 
 ```bash
 pnpm build
-node dist/cli.mjs benchmark --profile large \
-  --workspace ~/codeindex-perf/large \
-  --database ~/codeindex-perf/large-db/index.sqlite \
-  --scenarios warm --keep-workspace \
-  --output ~/codeindex-perf/final-large.json
+node dist/cli.mjs benchmark-suite \
+  --suite benchmark/suites/typescript-generated.json \
+  --output ~/codeindex-evidence/prod-008-20261024
 ```
 
-Then run `evidence.ts` (kept outside the repository) against the resulting
-database for the p95 and per-item/per-byte table, and run the suite:
+The per-corpus probe (first/deep p95, whole walk, attribution, per-item and
+per-byte cost, queued-request delay) is run against an already-published
+database:
 
 ```bash
-pnpm run benchmark:typescript:generated
+node --experimental-strip-types ~/codeindex-evidence/prod-008-query/evidence.ts \
+  "$HOME/codeindex-perf/large-db/index.sqlite" \
+  "$HOME/codeindex-perf/large" \
+  large
 ```
 
-The retained run is recorded against the commit that carries this change; the
-tree must have an empty `git status --porcelain` before the suite run.
+The tree must have an empty `git status --porcelain` before the suite run.
 
 ## 11. Limitations
 
