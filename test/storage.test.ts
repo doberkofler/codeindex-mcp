@@ -8,9 +8,11 @@ import {type SourceFileType} from '../src/core/model.ts';
 import {createSourceFileRecord} from '../src/core/generation/sourceFiles.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
 import {renewLease} from '../src/core/storage/databaseLease.ts';
+import {REQUIRED_PLANNER_STATISTICS} from '../src/core/storage/databaseStatistics.ts';
 import {bindingCandidateQuery, outlinePageQuerySql, referencePageQuery} from '../src/core/storage/databasePublicationQueries.ts';
 import {explainQueryPlan} from '../src/core/storage/databaseOpen.ts';
 import {createGenerationFactSeed} from './helpers/generationFacts.ts';
+import {assertCompleteStatistics, assertIndexedPlan, publishGeneration, publishNewGeneration, statisticsOf} from './helpers/statistics.ts';
 
 type GenerationInputType = Readonly<{
 	id: string;
@@ -273,43 +275,6 @@ describe('index storage coordination and plans', () => {
 	});
 });
 
-/**
- * Reads one recorded planner statistic.
- *
- * @param databasePath - Index database file.
- * @param table - Table the statistic belongs to.
- * @param index - Index the statistic belongs to.
- * @returns The recorded `sqlite_stat1` value, or null when absent.
- */
-const statisticsOf = (databasePath: string, table: string, index: string): string | null => {
-	const reader = new DatabaseSync(databasePath, {readOnly: true});
-
-	try {
-		const row = reader.prepare('select stat from sqlite_stat1 where tbl = ? and idx = ?').get(table, index);
-		return row === undefined ? null : String(row['stat']);
-	} finally {
-		reader.close();
-	}
-};
-
-/**
- * Builds and publishes one synthetic generation.
- *
- * @param databasePath - Index database file.
- * @param symbolCount - Number of symbols to publish.
- */
-const seedPublishedGeneration = (databasePath: string, symbolCount: number): void => {
-	const database = IndexDatabase.open(databasePath, {projectId: 'storage-test'});
-
-	try {
-		database.createGeneration(generation('generation-1'));
-		database.insertGenerationFacts({generationId: 'generation-1', ...createGenerationFactSeed({symbolCount})});
-		database.publish('generation-1');
-	} finally {
-		database.close();
-	}
-};
-
 describe('index storage query-planner statistics', () => {
 	let directory: string | undefined;
 
@@ -321,24 +286,85 @@ describe('index storage query-planner statistics', () => {
 		directory = undefined;
 	});
 
-	it('writes statistics for the correlated exposure lookup at publication', () => {
+	it('writes complete statistics for the correlated exposure lookup at publication', () => {
 		directory = mkdtempSync(path.join(tmpdir(), 'code-index-statistics-'));
 		const databasePath = path.join(directory, 'index.sqlite');
 
-		seedPublishedGeneration(databasePath, 20);
+		publishNewGeneration(databasePath, 'generation-1', 20);
 
 		// The correlated exposure subquery in symbol search seeks this index by
-		// (generation_id, binding_id). Without statistics SQLite instead scans the
-		// whole generation through symbol_name_context_by_exposure for every
+		// (generation_id, binding_id). Without a row estimate SQLite instead scans
+		// the whole generation through symbol_name_context_by_exposure for every
 		// candidate row, which costs seconds per page on a large index.
 		expect(statisticsOf(databasePath, 'symbol_name_context', 'sqlite_autoindex_symbol_name_context_1')).toMatch(/^20\b/u);
+		assertCompleteStatistics(databasePath);
+	});
+
+	it('keeps statistics complete through empty start, growth, rebuild, and watcher-style publication', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-statistics-'));
+		const databasePath = path.join(directory, 'index.sqlite');
+		const database = IndexDatabase.open(databasePath, {projectId: 'storage-test'});
+
+		try {
+			// An empty database has no estimates for unpublished application rows.
+			// Metadata and working-copy bookkeeping rows may still have their own.
+			expect(REQUIRED_PLANNER_STATISTICS.filter((requirement) => statisticsOf(databasePath, requirement.table, requirement.index) !== null)).toStrictEqual([]);
+			assertCompleteStatistics(databasePath);
+
+			publishGeneration(database, 'generation-1', 20);
+			assertCompleteStatistics(databasePath);
+			const small = Number(statisticsOf(databasePath, 'symbol_name', 'symbol_name_by_name')?.split(' ')[0]);
+			expect(small).toBe(20);
+
+			// Small-to-large replacement keeps the previous generation only as the
+			// superseded row set, so the statistic must follow the new total.
+			publishGeneration(database, 'generation-2', 1200);
+			assertCompleteStatistics(databasePath);
+			const large = Number(statisticsOf(databasePath, 'symbol_name', 'symbol_name_by_name')?.split(' ')[0]);
+			expect(large).toBeGreaterThan(small);
+
+			// Forced rebuild and the watcher refresh both publish through the same
+			// transaction, so each must refresh the estimates again.
+			publishGeneration(database, 'generation-3', 1200);
+			assertCompleteStatistics(databasePath);
+			publishGeneration(database, 'generation-4', 40, 'src/watched.ts');
+			assertCompleteStatistics(databasePath);
+		} finally {
+			database.close();
+		}
+	});
+
+	it('repairs selected missing statistics rows on open', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-statistics-'));
+		const databasePath = path.join(directory, 'index.sqlite');
+
+		publishNewGeneration(databasePath, 'generation-1', 20);
+		const raw = new DatabaseSync(databasePath);
+		raw.exec(
+			`delete from sqlite_stat1
+			 where (tbl = 'symbol_name' and idx = 'symbol_name_by_name')
+			    or (tbl = 'definition_site' and idx = 'definition_site_by_path')
+			    or (tbl = 'occurrence' and idx = 'sqlite_autoindex_occurrence_1')`,
+		);
+		raw.close();
+
+		expect(statisticsOf(databasePath, 'symbol_name', 'symbol_name_by_name')).toBeNull();
+		expect(statisticsOf(databasePath, 'definition_site', 'definition_site_by_path')).toBeNull();
+		expect(statisticsOf(databasePath, 'occurrence', 'sqlite_autoindex_occurrence_1')).toBeNull();
+
+		IndexDatabase.open(databasePath, {projectId: 'storage-test'}).close();
+
+		expect(statisticsOf(databasePath, 'symbol_name', 'symbol_name_by_name')).toMatch(/^20\b/u);
+		expect(statisticsOf(databasePath, 'definition_site', 'definition_site_by_path')).toMatch(/^20\b/u);
+		expect(statisticsOf(databasePath, 'occurrence', 'sqlite_autoindex_occurrence_1')).toMatch(/^20\b/u);
+		assertCompleteStatistics(databasePath);
 	});
 
 	it('backfills statistics for a database built without them', () => {
 		directory = mkdtempSync(path.join(tmpdir(), 'code-index-statistics-'));
 		const databasePath = path.join(directory, 'index.sqlite');
 
-		seedPublishedGeneration(databasePath, 20);
+		publishNewGeneration(databasePath, 'generation-1', 20);
 
 		const raw = new DatabaseSync(databasePath);
 		raw.exec('drop table sqlite_stat1');
@@ -347,5 +373,54 @@ describe('index storage query-planner statistics', () => {
 		IndexDatabase.open(databasePath, {projectId: 'storage-test'}).close();
 
 		expect(statisticsOf(databasePath, 'symbol_name_context', 'sqlite_autoindex_symbol_name_context_1')).toMatch(/^20\b/u);
+		assertCompleteStatistics(databasePath);
+	});
+});
+
+describe('index storage hot-statement plans', () => {
+	let directory: string | undefined;
+
+	afterEach(() => {
+		if (directory !== undefined) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		directory = undefined;
+	});
+
+	it('plans hot statements without a scan or temporary B-tree at shallow and maximum depth', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-statistics-'));
+		const databasePath = path.join(directory, 'index.sqlite');
+		const database = IndexDatabase.open(databasePath, {projectId: 'storage-test'});
+		const pathName = 'src/hot.ts';
+		const symbolCount = 100;
+
+		try {
+			publishGeneration(database, 'generation-1', symbolCount, pathName);
+			assertCompleteStatistics(databasePath);
+
+			for (const offset of [0, symbolCount - 10]) {
+				const candidate = bindingCandidateQuery({
+					generationId: 'generation-1',
+					query: 'example',
+					match: 'name',
+					exposure: 'visible',
+					fetchLimit: 10,
+				});
+				const outlinePlan = database.explainQueryPlan(outlinePageQuerySql(0), ['generation-1', pathName, 10, offset]);
+				const candidatePlan = database.explainQueryPlan(candidate.sql, candidate.parameters);
+				const reference = referencePageQuery({generationId: 'generation-1', symbolId: 'symbol-0', limit: 10, offset});
+				const referencePlan = database.explainQueryPlan(reference.sql, reference.parameters);
+
+				expect(outlinePlan.join('\n')).toContain('definition_site_by_path');
+				expect(candidatePlan.join('\n')).toContain('symbol_name_by_name');
+				expect(referencePlan.join('\n')).toContain('sqlite_autoindex_occurrence_1');
+				assertIndexedPlan(`outline.plan.offset.${String(offset)}`, outlinePlan);
+				assertIndexedPlan(`find_symbol.candidate.plan.offset.${String(offset)}`, candidatePlan);
+				assertIndexedPlan(`find_references.page.plan.offset.${String(offset)}`, referencePlan);
+			}
+		} finally {
+			database.close();
+		}
 	});
 });

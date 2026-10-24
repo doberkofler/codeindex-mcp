@@ -1,7 +1,8 @@
 # Query regression: post-publication `find_symbol` and `outline`
 
 Status: fixed for the next release. Answers PROD-008 ([#68]) and retains every
-acceptance criterion of the superseded PROD-002 ([#48]).
+acceptance criterion of the superseded PROD-002 ([#48]). TEST-009 adds the
+planner-statistics lifecycle, repair, and page-first regression coverage in §12.
 
 The publication/binding refactor replaced index-ordered, `LIMIT`-bounded
 statements with statements that materialized and hydrated a whole candidate or
@@ -319,3 +320,66 @@ The tree must have an empty `git status --porcelain` before the suite run.
 - A rebuild publishes from a worker thread; the query path only reads the
   published generation. Concurrency with publication is covered by the existing
   publication tests, not by a new latency claim here.
+
+## 12. Statistics lifecycle and pull-request regression coverage
+
+TEST-009 closes the verification gaps left by the page-first change.
+
+### Required statistics
+
+`src/core/storage/databaseStatistics.ts` no longer accepts a database merely
+because `sqlite_stat1` exists. It names every index the hot statements depend on
+and re-runs `ANALYZE` on open when any non-empty table is missing its row. The
+required set covers:
+
+- `find_symbol`: `symbol_name_by_name`, `symbol_name_by_symbol`,
+  `sqlite_autoindex_symbol_name_context_1` and `symbol_name_context_by_exposure`;
+- `outline`: `definition_site_by_path`, `definition_site_by_occurrence` and
+  `sqlite_autoindex_symbol_name_site_1`;
+- `find_references`: `sqlite_autoindex_occurrence_1` and
+  `sqlite_autoindex_occurrence_context_1`;
+- symbol hydration: `sqlite_autoindex_symbol_1`.
+
+`publish` still refreshes all estimates inside the publication transaction, so
+initial build, forced rebuild, and watcher refresh share one lifecycle.
+
+### Lifecycle and repair coverage
+
+`test/storage.test.ts` covers an empty database, first publication,
+small-to-large replacement, forced rebuild, and watcher-style publication, and
+asserts every required statistic equals its table's row count. It also deletes
+selected statistic rows (not the whole table) and proves `IndexDatabase.open`
+restores them before the first query. `test/database.test.ts` covers derived
+`exposure`, `has_declared_site`, and `first_in_symbol` values, and keeps one
+reader open while a separate Node process publishes a larger generation; the
+surviving reader then plans all three hot statements without a `SCAN` or
+temporary B-tree.
+
+### Red-capable page-first checks
+
+`test/database.test.ts` also owns the two structural regressions:
+
+- `find_symbol` builds 1,200 candidates and asserts that symbol summaries,
+  binding details, and definition sites receive only the five emitted page
+  identifiers. Hydrating every candidate fails with a stage label such as
+  `find_symbol.binding_details`.
+- `outline` uses the production `outlinePageQuerySql` builder at offset 0 and
+  the maximum depth, asserts the `definition_site_by_path` plan, and executes
+  the statement against a file with two definitions for one symbol. Dropping
+  `first_in_symbol` fails with `outline.page.plan.offset.0` and
+  `USE TEMP B-TREE FOR ORDER BY`; reading all sites fails on
+  `outline.page_rows.offset.0`.
+
+Both checks were verified by temporarily reverting the corresponding page-first
+condition; each failed with the named stage, not a latency threshold.
+
+### Pull-request benchmark decision
+
+No new timing benchmark is added to `verify:pr`. The structural checks above run
+inside the existing `test` step and fail deterministically when page work
+regresses; a wall-clock sample over a generated corpus remains nightly and
+stable coverage, where cardinality, machine variance, and retained references
+are already controlled. The existing `verify:pr` budget stays at 120 s. The
+three affected test files measured 0.91 s in a focused run, and the complete
+`verify:pr` measurement remains recorded in
+[Codebase testing strategy §6](./codebase-testing-strategy.md#6-target-workflows).
