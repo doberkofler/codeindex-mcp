@@ -348,7 +348,7 @@ plan. Status meanings:
 
 | Package | Status | Current implementation or remaining work |
 | --- | --- | --- |
-| WP0 — baselines and pilot gates | Partial | Build stages, local analytics, offline reports, the version-2 model-free benchmark, deterministic large-project profiles, a versioned baseline, explicit gates, an evaluation sidecar, Markdown summaries, the final reference corpus, and declarative suites for generated and pinned public-project benchmark runs exist. Missing retained reference-machine measurements. |
+| WP0 — baselines and pilot gates | Implemented | Build stages, local analytics, offline reports, the version-2 model-free benchmark, deterministic large-project profiles, a versioned baseline, explicit gates, an evaluation sidecar, Markdown summaries, the final reference corpus, declarative suites for generated and pinned public-project benchmark runs, and retained reference-machine measurements exist. The retained record is [Reference-workstation baseline](./reference-baseline.md). |
 | WP1 — native OpenCode exposure | Partial | MCP installation and current Code Mode behavior are documented and protocol-tested. Retained direct-versus-Code-Mode benchmark and formal normal-session smoke evidence remain open. |
 | WP2 — continuous freshness | Implemented | Coordinator, recursive watcher, 500 ms debounce, 60 s reconciliation, one follow-up build, query freshness, dirty-source rejection, and shutdown ownership are implemented and tested. |
 | WP3 — persistence and writer coordination | Partial | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, and bounded generation cleanup exist. Process-level contention/termination evidence and explicit checkout move/copy/delete semantics remain incomplete. |
@@ -364,9 +364,11 @@ Cross-cutting contracts and performance targets live in
 
 ### 9.1 Remaining pilot TODOs by work package
 
-- **WP0:** retain machine-readable reference-workstation baselines for startup,
-  cold/warm builds, edit-to-fresh, query layers, RSS, CPU, and storage using
-  `benchmark-suite`; generated and pinned public-project execution is automated.
+- **WP0:** retain a new baseline when the reference machine, runtime, corpus, or
+  artifact identity changes; the current record is
+  [Reference-workstation baseline](./reference-baseline.md). The pinned public
+  suite remains directional and VS Code is currently blocked by an unrepresentable
+  empty-string member name.
 - **WP1:** record a disposable normal OpenCode session invoking every tool without
   a bridge; compare Code Mode and direct exposure with the same model and task;
   retain client version and effective configuration with the result.
@@ -463,7 +465,9 @@ artifacts.
 ### 11.5 Performance and evaluation
 
 - add a model-free edit-to-fresh benchmark; **done**
-- retain machine-readable startup, build, query, CPU, memory, and storage results; **versioned baseline, gate evaluation, and JSON artifacts implemented; reference-machine measurements still need retention**
+- retain machine-readable startup, build, query, CPU, memory, and storage results;
+  **versioned baseline, gate evaluation, JSON artifacts, and reference-machine
+  measurements are retained in [Reference-workstation baseline](./reference-baseline.md)**
 - verify deep cursor query plans at production cardinalities; **sampling and plan gates implemented; production-cardinality reference runs still need retention**
 - publish a Markdown summary while keeping JSON authoritative; **done**
 - compare direct MCP and Code Mode wrapping;

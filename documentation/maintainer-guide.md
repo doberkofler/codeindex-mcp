@@ -316,7 +316,9 @@ Reference-machine targets:
 
 Hardware-sensitive gates may be recalibrated only with the prior baseline,
 replacement value, machine identity, and reason recorded. CI may use broader
-regression bounds but must detect order-of-magnitude regressions.
+regression bounds but must detect order-of-magnitude regressions. The current
+retained reference-machine record, its bundle digest, and its reproduction
+commands are in [Reference-workstation baseline](./reference-baseline.md).
 
 ### 7.4 Operational soak and recovery
 
