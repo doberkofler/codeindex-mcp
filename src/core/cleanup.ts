@@ -3,19 +3,24 @@ import {homedir} from 'node:os';
 import path from 'node:path';
 import {Command} from 'commander';
 import {type CommandIoType, configureCommand, parseCommand} from '../transports/cli/commanderSupport.ts';
-import {indexRootDirectory} from './config/config.ts';
-import {activeProcessOwners} from './storage/processOwnership.ts';
+import {activeProcessOwnersInDirectory} from './storage/processOwnership.ts';
 
-const {isAbsolute, join, relative, resolve} = path;
+const {basename, dirname, isAbsolute, join, relative, resolve} = path;
 
 export type CleanupRootsType = Readonly<{
-	index: string;
+	storage: string;
+	/** Current workspace database, or `null` when cleaning every managed project. */
+	databasePath: string | null;
 	protectedPaths: readonly string[];
 }>;
 
-type CleanupOptionsType = Readonly<{
+export type CleanupOptionsType = Readonly<{
 	yes: boolean;
+	all: boolean;
 }>;
+
+/** Resolves cleanup roots; the `all` flag selects every managed database. */
+export type CleanupRootsResolverType = (all: boolean) => CleanupRootsType;
 
 export type CleanupTargetType = Readonly<{
 	path: string;
@@ -23,6 +28,7 @@ export type CleanupTargetType = Readonly<{
 }>;
 
 const INDEX_PATTERN = /^[0-9a-f]{16}$/u;
+const DATABASE_NAME = 'index.sqlite';
 
 const processIo: CommandIoType = {
 	stdout: (line) => {
@@ -101,7 +107,9 @@ const directorySize = (directory: string): number => {
 	return total;
 };
 
-const childTargets = (root: string, pattern: RegExp, protectedPaths: readonly string[]): readonly CleanupTargetType[] => {
+const protectedTarget = (target: string, protectedPaths: readonly string[]): boolean => protectedPaths.some((protectedPath) => isWithin(target, protectedPath));
+
+const childTargets = (root: string, protectedPaths: readonly string[]): readonly CleanupTargetType[] => {
 	if (!existsSync(root)) {
 		return [];
 	}
@@ -109,22 +117,96 @@ const childTargets = (root: string, pattern: RegExp, protectedPaths: readonly st
 	return readdirSync(root, {withFileTypes: true}).flatMap((entry) => {
 		const target = join(root, entry.name);
 
-		if (!entry.isDirectory() || entry.isSymbolicLink() || !pattern.test(entry.name)) {
+		if (!entry.isDirectory() || entry.isSymbolicLink() || !INDEX_PATTERN.test(entry.name) || protectedTarget(target, protectedPaths)) {
 			return [];
-		}
-
-		for (const protectedPath of protectedPaths) {
-			if (isWithin(target, protectedPath)) {
-				return [];
-			}
 		}
 
 		return [{path: target, bytes: directorySize(target)}];
 	});
 };
 
-const assertNoActiveIndexProcesses = (indexRoot: string): void => {
-	const active = activeProcessOwners(indexRoot);
+/**
+ * Collects the SQLite files and sidecars of a database that is stored outside
+ * the managed project layout.
+ *
+ * A configured `CODE_INDEX_DATABASE` may point at any directory, so cleanup
+ * must not assume that the database's parent directory belongs to CodeIndex.
+ *
+ * @param databasePath - Resolved database file.
+ * @param protectedPaths - Paths that must never be deleted.
+ * @returns Existing files with their sizes.
+ */
+const databaseArtifacts = (databasePath: string, protectedPaths: readonly string[]): readonly CleanupTargetType[] => {
+	const directory = dirname(databasePath);
+	const name = basename(databasePath);
+
+	if (!existsSync(directory)) {
+		return [];
+	}
+
+	return readdirSync(directory, {withFileTypes: true}).flatMap((entry) => {
+		const isArtifact =
+			entry.name === name ||
+			entry.name === `${name}-wal` ||
+			entry.name === `${name}-shm` ||
+			(entry.name.startsWith(`${name}.schema-`) && entry.name.endsWith('.bak')) ||
+			(entry.name.startsWith(`${name}.owner-`) && entry.name.endsWith('.json'));
+		const target = join(directory, entry.name);
+
+		if (!entry.isFile() || entry.isSymbolicLink() || !isArtifact || protectedTarget(target, protectedPaths)) {
+			return [];
+		}
+
+		try {
+			return [{path: target, bytes: lstatSync(target).size}];
+		} catch {
+			return [];
+		}
+	});
+};
+
+/**
+ * Collects the database of the current workspace.
+ *
+ * A database in the managed `<storage>/<projectId>/index.sqlite` layout owns its
+ * whole project directory. Any other path is an explicit override, so only the
+ * database and its own sidecars are removed.
+ *
+ * @param roots - Storage root, current database, and protected paths.
+ * @returns Existing target, if any.
+ */
+const currentTargets = (roots: CleanupRootsType): readonly CleanupTargetType[] => {
+	if (roots.databasePath === null) {
+		throw new Error('Refusing to clean the current project: no database path was resolved');
+	}
+
+	const databasePath = resolve(roots.databasePath);
+	const projectDirectory = dirname(databasePath);
+	const managed =
+		basename(databasePath) === DATABASE_NAME && INDEX_PATTERN.test(basename(projectDirectory)) && resolve(dirname(projectDirectory)) === resolve(roots.storage);
+
+	if (!managed) {
+		return databaseArtifacts(databasePath, roots.protectedPaths);
+	}
+
+	if (!existsSync(projectDirectory) || lstatSync(projectDirectory).isSymbolicLink() || protectedTarget(projectDirectory, roots.protectedPaths)) {
+		return [];
+	}
+
+	return [{path: projectDirectory, bytes: directorySize(projectDirectory)}];
+};
+
+const assertNoActiveProcesses = (targets: readonly CleanupTargetType[]): void => {
+	const directories = new Set(
+		targets.map((target) => {
+			try {
+				return existsSync(target.path) && lstatSync(target.path).isDirectory() ? target.path : dirname(target.path);
+			} catch {
+				return dirname(target.path);
+			}
+		}),
+	);
+	const active = [...directories].flatMap((directory) => activeProcessOwnersInDirectory(directory));
 
 	if (active.length > 0) {
 		throw new Error(`Refusing to clean while code index processes are active:\n${active.map((owner) => `${owner.pid}: ${owner.file}`).join('\n')}`);
@@ -134,20 +216,22 @@ const assertNoActiveIndexProcesses = (indexRoot: string): void => {
 /**
  * Collects project index databases that are safe to delete.
  *
- * Only databases inside the code index root are candidates. Shared temporary
- * directories are never inspected, so cleanup cannot reach caches that belong
- * to another workspace on the same machine.
+ * The default target is the database of the current workspace. Shared temporary
+ * directories and other workspaces are never inspected, so cleanup cannot reach
+ * caches that belong to another checkout on the same machine.
  *
- * @param roots - Index root and paths that must never be deleted.
+ * @param roots - Storage root, current database, and paths that must never be deleted.
+ * @param options - Whether to target every managed project database.
  * @returns Existing targets with their recursive sizes.
  * @throws {Error} When the root is unsafe, contains a protected path, or a live
- * process still owns an index database.
+ * process still owns a target database.
  */
-export const collectCleanupTargets = (roots: CleanupRootsType): readonly CleanupTargetType[] => {
-	assertSafeRoot(roots.index, 'index root', roots.protectedPaths);
-	assertNoActiveIndexProcesses(roots.index);
+export const collectCleanupTargets = (roots: CleanupRootsType, options: CleanupOptionsType): readonly CleanupTargetType[] => {
+	assertSafeRoot(roots.storage, 'storage root', roots.protectedPaths);
+	const targets = options.all ? childTargets(roots.storage, roots.protectedPaths) : currentTargets(roots);
+	assertNoActiveProcesses(targets);
 
-	return childTargets(roots.index, INDEX_PATTERN, roots.protectedPaths);
+	return targets;
 };
 
 /**
@@ -180,13 +264,8 @@ const formatSize = (bytes: number): string => {
 	return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit] ?? 'B'}`;
 };
 
-const defaultRoots = (): CleanupRootsType => ({
-	index: indexRootDirectory(),
-	protectedPaths: [process.cwd()],
-});
-
-const executeCleanup = (options: CleanupOptionsType): void => {
-	const targets = collectCleanupTargets(defaultRoots());
+const executeCleanup = (options: CleanupOptionsType, rootsOf: CleanupRootsResolverType): void => {
+	const targets = collectCleanupTargets(rootsOf(options.all), options);
 	const total = targets.reduce((sum, target) => sum + target.bytes, 0);
 
 	if (targets.length === 0) {
@@ -207,19 +286,20 @@ const executeCleanup = (options: CleanupOptionsType): void => {
 	process.stdout.write(`Removed ${targets.length} target(s), ${formatSize(removed)}.\n`);
 };
 
-const cleanupCommand = (): Command => {
+const cleanupCommand = (rootsOf: CleanupRootsResolverType): Command => {
 	const command = configureCommand(
 		new Command('clean')
-			.description('Remove project index databases. The repository and dist are never touched. The default is a dry run.')
+			.description('Remove the current project index database. The repository and dist are never touched. The default is a dry run.')
 			.option('--yes', 'delete the listed targets')
+			.option('--all', 'remove every managed project database under the default index root')
 			.allowExcessArguments(true),
 		processIo,
-	).action((options: Readonly<{yes?: boolean | undefined}>) => {
+	).action((options: Readonly<{yes?: boolean | undefined; all?: boolean | undefined}>) => {
 		if (command.args.length > 0) {
 			throw new Error(`Unexpected argument: ${command.args[0] ?? ''}\n\n${command.helpInformation().trimEnd()}`);
 		}
 
-		executeCleanup({yes: options.yes === true});
+		executeCleanup({yes: options.yes === true, all: options.all === true}, rootsOf);
 	});
 
 	return command;
@@ -229,11 +309,13 @@ const cleanupCommand = (): Command => {
  * Runs the `clean` subcommand.
  *
  * @param argv - Arguments after the `clean` command.
+ * @param rootsOf - Resolves the storage root and either the current database
+ * or every managed database. The CLI supplies the configured workspace.
  * @returns Process exit code.
  */
-export const runCleanup = (argv: readonly string[]): number => {
+export const runCleanup = (argv: readonly string[], rootsOf: CleanupRootsResolverType): number => {
 	const program = new Command('codeindex-cli');
-	program.addCommand(cleanupCommand());
+	program.addCommand(cleanupCommand(rootsOf));
 
 	return parseCommand(program, ['clean', ...argv], processIo, {usageExitCode: 1});
 };

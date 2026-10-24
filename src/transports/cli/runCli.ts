@@ -4,7 +4,8 @@ import {addBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
 import {addBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
 import {addBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
 import {addSoakCommand} from '../../core/benchmark/soakCommand.ts';
-import {loadConfig} from '../../core/config/config.ts';
+import {type CleanupRootsType} from '../../core/cleanup.ts';
+import {indexRootDirectory, loadConfig} from '../../core/config/config.ts';
 import {isCodeIndexError} from '../../core/errors/errors.ts';
 import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
 import {debugFor, enableDebug} from '../../core/logging/debug.ts';
@@ -42,6 +43,27 @@ type CliContextType = Readonly<{
 	readonly io: CliIoType;
 	readonly workerEntry?: string;
 }>;
+
+/**
+ * Resolves the roots that the `clean` command may target.
+ *
+ * `--all` is deliberately independent of the current configuration so it
+ * always covers exactly the default managed storage root.
+ *
+ * @param all - Whether to target every managed project database.
+ * @param environment - Environment used to resolve the current workspace.
+ * @param cwd - Directory used to resolve the current workspace.
+ * @returns Cleanup storage root and current database.
+ */
+export const cleanupRootsOf = (all: boolean, environment: NodeJS.ProcessEnv, cwd = process.cwd()): CleanupRootsType => {
+	if (all) {
+		return {storage: indexRootDirectory(), databasePath: null, protectedPaths: [cwd]};
+	}
+
+	const config = loadConfig(environment, cwd);
+
+	return {storage: config.storageDirectory, databasePath: config.databasePath, protectedPaths: [cwd, config.rootDir]};
+};
 
 const writeJson = (value: unknown, io: CliIoType): void => {
 	io.stdout(JSON.stringify(value, null, 2));

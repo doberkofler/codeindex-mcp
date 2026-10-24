@@ -6,7 +6,6 @@ import {z} from 'zod';
 const {dirname, relative, resolve, sep} = path;
 
 const SERVER_NAME = 'codeindex';
-const SCHEMA_URL = 'https://opencode.ai/config.json';
 // jsonc-parser deletes a property when the value is undefined; avoid an explicit
 // undefined literal to satisfy the lint policy.
 const REMOVE: unknown = new Map<string, unknown>().get('missing');
@@ -162,26 +161,14 @@ const install = (input: InputType, configPath: string): string => {
 	}
 
 	let text = readConfig(configPath);
-	const config = parseJsonc(text, configPath);
-
-	if (!('$schema' in config)) {
-		text = applyPath(text, ['$schema'], SCHEMA_URL);
-	}
-
+	parseJsonc(text, configPath);
 	text = applyPath(text, ['mcp', 'servers', SERVER_NAME], serverEntry(input.root, input.mcpPath, input.codeIndexConfig));
 	parseJsonc(text, configPath);
 	return text;
 };
 
-// Install writes the schema hint only when the file has none. The config carries
-// no provenance marker, so uninstall removes the key only when it still holds
-// the exact value install writes; a different value belongs to the user.
-const removeInstallSchema = (text: string, configPath: string): string => {
-	const config = parseJsonc(text, configPath);
-
-	return config['$schema'] === SCHEMA_URL ? applyPath(text, ['$schema'], REMOVE) : text;
-};
-
+// The config carries no provenance marker, so install never writes `$schema`:
+// uninstall could not distinguish a hint it added from one the user chose.
 const uninstall = (configPath: string): Readonly<{text: string; removed: boolean}> => {
 	if (!existsSync(configPath)) {
 		return {text: '', removed: false};
@@ -194,8 +181,7 @@ const uninstall = (configPath: string): Readonly<{text: string; removed: boolean
 		return {text, removed: false};
 	}
 
-	const withoutServer = applyPath(text, ['mcp', 'servers', SERVER_NAME], REMOVE);
-	const cleaned = removeInstallSchema(removeEmptyAncestors(withoutServer), configPath);
+	const cleaned = removeEmptyAncestors(applyPath(text, ['mcp', 'servers', SERVER_NAME], REMOVE));
 	parseJsonc(cleaned, configPath);
 	return {text: cleaned, removed: true};
 };
@@ -231,9 +217,8 @@ const parseOptions = (argv: readonly string[]): Record<string, unknown> => {
 /**
  * Installs or removes the project-local code-index MCP server.
  *
- * The command updates only `mcp.servers.codeindex`, plus the `$schema` hint that
- * install adds and uninstall removes again, and preserves unrelated OpenCode
- * configuration, comments, and formatting where possible.
+ * The command updates only `mcp.servers.codeindex` and preserves unrelated
+ * OpenCode configuration, comments, and formatting where possible.
  *
  * @param argv - Arguments after the `mcp` command.
  * @param io - Output sinks.

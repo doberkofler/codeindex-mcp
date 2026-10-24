@@ -49,6 +49,7 @@ export const createFixtureConfig = (
 		extractorOptions: {},
 		projectFilePath: firstProject.projectFilePath,
 		projects: projectContexts,
+		storageDirectory: temporaryRoot,
 		databasePath: path.join(temporaryRoot, 'index.sqlite'),
 		analyticsEnabled: false,
 		analyticsPath: path.join(temporaryRoot, 'analytics', 'events.jsonl'),

@@ -392,8 +392,9 @@ Cross-cutting contracts and performance targets live in
   retained in
   [Fresh-consumer installation and rollback](./fresh-consumer-installation.md).
   Both residual observations from that verification are resolved: `mcp
-  uninstall` removes the `$schema` key that install adds, and `clean` no longer
-  scans the shared OpenCode temporary root.
+  install` no longer writes a `$schema` hint that uninstall would have to
+  guess, and `clean` no longer scans the shared OpenCode temporary root or
+  another workspace's database.
 - **WP8:** run at least 20 representative normal sessions; retain qualitative
   failures, freshness/resource results, and correctly measured index-first
   adoption; obtain explicit user acceptance before default enablement.

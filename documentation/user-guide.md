@@ -289,15 +289,25 @@ Pass `--truth-policy v1` to reproduce the frozen Phase 0 policy; the default
 ### Cache cleanup
 
 ```bash
-codeindex-cli clean             # preview
-codeindex-cli clean --yes       # delete
+codeindex-cli clean             # preview the current project database
+codeindex-cli clean --yes       # delete the current project database
+codeindex-cli clean --all       # preview every managed project database
+codeindex-cli clean --all --yes # delete every managed project database
 ```
 
-Cleanup targets the project index databases under the code index root, which is
-`~/.local/share/codeindex-mcp` by default. It refuses to run while a server or
-console process is active. It never touches repository files, `dist`, or shared
-temporary directories, so it cannot delete cache entries that belong to another
-workspace on the same machine.
+Without `--all`, cleanup resolves the current workspace configuration and
+targets only that project's database directory under the code index root. A
+database path overridden with `CODE_INDEX_DATABASE` or `storage.database` is
+cleaned as individual SQLite files, never as its whole directory.
+
+`--all` targets every managed database under the default code index root,
+`~/.local/share/codeindex-mcp`, regardless of the current configuration. A
+custom `storage.directory` is outside that scope.
+
+Cleanup refuses to run while a server or console process owns a targeted
+database. It never touches repository files, `dist`, or shared temporary
+directories, so it cannot delete cache entries that belong to another workspace
+on the same machine.
 
 ## Console
 

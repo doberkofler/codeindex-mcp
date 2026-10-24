@@ -101,7 +101,7 @@ The resulting registration was:
 ```
 
 The existing comment, `model`, and `other` server survived unchanged. The CLI
-added `$schema` because the pre-existing file omitted it.
+touched only the CodeIndex server entry and did not add a `$schema` hint.
 
 ## 3. Installed artifacts
 
@@ -265,15 +265,13 @@ Post-rollback properties:
 
 - no `mcp.servers.codeindex` entry remained;
 - the comment, `model`, and unrelated `other` server remained;
-- the `$schema` key added during install remained, as it is not a CodeIndex
-  registration;
+- install added no `$schema` key, so no install artifact remained;
 - the package remained installed, so the rollback changed configuration and
   derived data only.
 
-`clean --yes` removed both sandbox project databases. The index root contained
-zero files afterwards. The command also inspected the OpenCode temporary root
-for `codeindex-*` entries, which could reach caches from other runs on the same
-machine; the retained transcript below is limited to the sandbox databases:
+`clean --yes` removed each sandbox project's own database. The index root
+contained zero files afterwards. The command does not inspect the OpenCode
+temporary root or another workspace's database:
 
 ```text
 remove <index-root>/0f46d165d5c54af7
@@ -294,17 +292,18 @@ remaining index files: 0
 
 ## 8. Residual observations
 
-- **Resolved after 0.7.0:** `mcp uninstall` also removes the `$schema` key when
-  it still holds the value `mcp install` writes, so a rollback no longer leaves
-  an install artifact behind. A `$schema` the user selected is preserved.
+- **Resolved after 0.7.0:** `mcp install` no longer writes a `$schema` hint, so
+  a rollback cannot confuse a hint the tool added with one the user chose.
+  `mcp uninstall` preserves any `$schema` the user already had.
 - The first `opencode mcp list` immediately after assigning a private service
   port reported no configured servers; the next invocation, after OpenCode read
   the same project configuration, reported `codeindex` connected. The resolved
   configuration was correct throughout. This is client-side timing, not a
   CodeIndex defect.
 - **Resolved after 0.7.0:** `clean` no longer inspects the OpenCode temporary
-  root. It removes only the hashed project databases under the code index root,
-  so a rollback cannot reach another workspace's caches.
+  root, and it defaults to the current project's database only. `clean --all`
+  is the explicit opt-in for every managed database, so a rollback cannot reach
+  another workspace's caches.
 
 ## 9. Reproduction outline
 

@@ -65,6 +65,7 @@ const config: ConfigType = {
 	extractorOptions: {},
 	projectFilePath: '/workspace/tsconfig.json',
 	projects: [{name: 'root', projectFilePath: '/workspace/tsconfig.json'}],
+	storageDirectory: '/workspace/.codeindex',
 	databasePath: '/workspace/.codeindex/index.sqlite',
 	analyticsEnabled: true,
 	analyticsPath: '/workspace/.codeindex/events.jsonl',

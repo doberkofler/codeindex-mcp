@@ -65,53 +65,46 @@ const isProcessAlive = (pid: number): boolean => {
 };
 
 /**
- * Lists live processes that still own a database under the index root.
+ * Lists live processes that still own a database in one directory.
  *
  * Owner markers written by dead processes are ignored, so a crash never blocks
  * cleanup permanently.
  *
- * @param indexRoot - Root holding one directory per indexed project.
+ * @param directory - Directory that holds database owner markers.
  * @returns Live owners with their marker paths.
  */
-export const activeProcessOwners = (indexRoot: string): readonly ActiveProcessOwnerType[] => {
-	if (!existsSync(indexRoot)) {
+export const activeProcessOwnersInDirectory = (directory: string): readonly ActiveProcessOwnerType[] => {
+	if (!existsSync(directory)) {
 		return [];
 	}
 
-	return readdirSync(indexRoot, {withFileTypes: true}).flatMap((entry) => {
-		if (!entry.isDirectory() || entry.isSymbolicLink()) {
+	let names: readonly string[];
+
+	try {
+		names = readdirSync(directory);
+	} catch {
+		return [];
+	}
+
+	return names.flatMap((name) => {
+		const match = OWNER_FILE_PATTERN.exec(name);
+
+		if (match === null) {
 			return [];
 		}
 
-		const directory = join(indexRoot, entry.name);
-		let names: readonly string[];
+		const file = join(directory, name);
 
 		try {
-			names = readdirSync(directory);
+			const parsed = OwnerSchema.safeParse(JSON.parse(readFileSync(file, 'utf8')));
+
+			if (!parsed.success || !isProcessAlive(parsed.data.pid)) {
+				return [];
+			}
+
+			return [{pid: parsed.data.pid, file, startedAt: parsed.data.startedAt}];
 		} catch {
 			return [];
 		}
-
-		return names.flatMap((name) => {
-			const match = OWNER_FILE_PATTERN.exec(name);
-
-			if (match === null) {
-				return [];
-			}
-
-			const file = join(directory, name);
-
-			try {
-				const parsed = OwnerSchema.safeParse(JSON.parse(readFileSync(file, 'utf8')));
-
-				if (!parsed.success || !isProcessAlive(parsed.data.pid)) {
-					return [];
-				}
-
-				return [{pid: parsed.data.pid, file, startedAt: parsed.data.startedAt}];
-			} catch {
-				return [];
-			}
-		});
 	});
 };

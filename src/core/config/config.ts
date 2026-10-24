@@ -96,6 +96,8 @@ export type ConfigType = Readonly<{
 	/** First configured project; retained for compatibility with single-project surfaces. */
 	readonly projectFilePath: string;
 	readonly projects: readonly ProjectContextConfigType[];
+	/** Root holding one directory per indexed project. */
+	readonly storageDirectory: string;
 	readonly databasePath: string;
 	readonly analyticsEnabled: boolean;
 	readonly analyticsPath: string;
@@ -390,9 +392,9 @@ const resolveStorage = (
 	input: FileConfigSourceType,
 	cwd: string,
 	workspace: Readonly<{rawRootDir: string; realRootDir: string; projectId: string}>,
-): Readonly<{databasePath: string; analyticsPath: string; analyticsEnabled: boolean}> => {
+): Readonly<{storageDirectory: string; databasePath: string; analyticsPath: string; analyticsEnabled: boolean}> => {
 	const {environment, config: file, directory} = input;
-	const storageDirectory = resolve(directory, file.storage?.directory ?? indexRootDirectory());
+	const storageDirectory = canonicalisePath(workspace.rawRootDir, workspace.realRootDir, resolve(directory, file.storage?.directory ?? indexRootDirectory()));
 	const databasePath = canonicalisePath(
 		workspace.rawRootDir,
 		workspace.realRootDir,
@@ -418,6 +420,7 @@ const resolveStorage = (
 	assertOutsideRoot(workspace.realRootDir, analyticsPath, 'analytics path');
 
 	return {
+		storageDirectory,
 		databasePath,
 		analyticsPath,
 		analyticsEnabled: environment.CODE_INDEX_ANALYTICS ?? file.storage?.analyticsEnabled ?? true,
@@ -441,7 +444,7 @@ const resolveStorage = (
 export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): ConfigType => {
 	const environment = parseSource(source, cwd);
 	const {rawRootDir, realRootDir, extractorId, projectFilePath, projects, projectId, projectName} = resolveWorkspace(environment, cwd);
-	const {databasePath, analyticsPath, analyticsEnabled} = resolveStorage(environment, cwd, {rawRootDir, realRootDir, projectId});
+	const {storageDirectory, databasePath, analyticsPath, analyticsEnabled} = resolveStorage(environment, cwd, {rawRootDir, realRootDir, projectId});
 
 	debug('configuration resolved', {
 		configPath: environment.configPath,
@@ -461,6 +464,7 @@ export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): Conf
 		extractorOptions: environment.config.extractor.options ?? {},
 		projectFilePath,
 		projects,
+		storageDirectory,
 		databasePath,
 		analyticsEnabled,
 		analyticsPath,

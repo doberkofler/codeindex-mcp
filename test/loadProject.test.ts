@@ -20,6 +20,7 @@ const configOf = (rootDir: string, projectFilePath: string, semanticDiagnostics 
 	extractorOptions: {},
 	projectFilePath,
 	projects: [{name: 'root', projectFilePath}],
+	storageDirectory: path.dirname(rootDir),
 	databasePath: path.join(path.dirname(rootDir), 'index.sqlite'),
 	analyticsEnabled: false,
 	analyticsPath: path.join(path.dirname(rootDir), 'events.jsonl'),
