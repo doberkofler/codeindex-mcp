@@ -80,6 +80,10 @@ export type BenchmarkCursorSampleType = Readonly<{
 	readonly depth: number;
 	readonly limit: number;
 	readonly elapsedMs: number;
+	/** Items returned by the bounded page. */
+	readonly items: number;
+	/** Serialized result bytes for the bounded page. */
+	readonly bytes: number;
 	readonly plan: readonly string[];
 	readonly usesIndex: boolean;
 	readonly usesTempBTree: boolean;

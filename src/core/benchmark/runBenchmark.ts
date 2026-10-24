@@ -101,7 +101,7 @@ const measureQueryScenario = async (
 	try {
 		const build = await index.ensureReady();
 		const files = database.listFiles(build.generationId);
-		const outlinePath = files.find((file) => file.path.endsWith('outline.ts'))?.path ?? files.at(0)?.path;
+		const outlinePath = database.busiestSymbolPath(build.generationId) ?? files.find((file) => file.path.endsWith('outline.ts'))?.path ?? files.at(0)?.path;
 
 		if (outlinePath === undefined) {
 			throw new Error('Benchmark requires at least one indexed file');

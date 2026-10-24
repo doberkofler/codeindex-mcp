@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '9';
+export const SCHEMA_VERSION = '10';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -122,6 +122,8 @@ create table if not exists symbol_name (
 	container text not null,
 	name text not null check (length(name) > 0),
 	qualified_name text not null check (length(qualified_name) > 0),
+	exposure text not null check (exposure in ('published', 'reachable', 'internal')),
+	has_declared_site integer not null check (has_declared_site in (0, 1)),
 	primary key (generation_id, binding_id),
 	unique (generation_id, symbol_id, binding_key),
 	foreign key (generation_id, symbol_id) references symbol(generation_id, id) on delete cascade
@@ -227,6 +229,7 @@ create table if not exists definition_site (
 	path text not null,
 	start_offset integer not null,
 	role text not null check (role = 'definition'),
+	first_in_symbol integer not null default 0 check (first_in_symbol in (0, 1)),
 	primary key (generation_id, site_id),
 	foreign key (generation_id, symbol_id, path, start_offset, role) references occurrence(generation_id, symbol_id, path, start_offset, role) on delete cascade
 );
@@ -315,13 +318,13 @@ create index if not exists symbol_by_qualified_name on symbol (generation_id, qu
 create index if not exists symbol_by_enclosing on symbol (generation_id, enclosing_id);
 
 create index if not exists symbol_name_by_symbol on symbol_name (generation_id, symbol_id, binding_key);
-create index if not exists symbol_name_by_name on symbol_name (generation_id, name);
+create index if not exists symbol_name_by_name on symbol_name (generation_id, name, container, binding_id, symbol_id, exposure, has_declared_site, qualified_name);
 create index if not exists symbol_name_by_qualified_name on symbol_name (generation_id, qualified_name);
 create index if not exists symbol_name_by_container_name on symbol_name (generation_id, container, name);
 
 create index if not exists symbol_name_context_by_exposure on symbol_name_context (generation_id, context_name, exposure, binding_id);
 
-create index if not exists symbol_name_site_by_path on symbol_name_site (generation_id, path, start_offset);
+create index if not exists symbol_name_site_by_path on symbol_name_site (generation_id, path, kind, start_offset);
 
 create index if not exists surface_binding_origin_by_root on surface_binding_origin (generation_id, root_binding_id, context_name);
 
@@ -332,6 +335,7 @@ create index if not exists occurrence_by_enclosing on occurrence (generation_id,
 create index if not exists occurrence_by_definition_site on occurrence (generation_id, symbol_id, path, start_offset, role);
 
 create index if not exists definition_site_by_occurrence on definition_site (generation_id, symbol_id, path, start_offset, role);
+create index if not exists definition_site_by_path on definition_site (generation_id, path, first_in_symbol, start_offset, symbol_id);
 
 create index if not exists dependency_by_target_identifier on dependency_edge (generation_id, target_identifier, source_path);
 create index if not exists dependency_by_target on dependency_edge (generation_id, target_path, source_path);

@@ -468,7 +468,10 @@ artifacts.
 - retain machine-readable startup, build, query, CPU, memory, and storage results;
   **versioned baseline, gate evaluation, JSON artifacts, and reference-machine
   measurements are retained in [Reference-workstation baseline](./reference-baseline.md)**
-- verify deep cursor query plans at production cardinalities; **sampling and plan gates implemented; production-cardinality reference runs still need retention**
+- verify deep cursor query plans at production cardinalities; **done — production statements,
+  plan captures at offset 0 and maximum depth, retained per-page latency, and the
+  `find_symbol`/`outline` regression are recorded in
+  [Query regression](./query-regression.md)**
 - publish a Markdown summary while keeping JSON authoritative; **done**
 - compare direct MCP and Code Mode wrapping;
 - complete two-process, lease takeover, and four-hour soak runs; **deterministic restart, unattended recovery, and retention evidence implemented by `soak`**;

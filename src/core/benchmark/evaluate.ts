@@ -4,7 +4,7 @@ import {compatibilityGates} from './compatibility.ts';
 import {type BenchmarkEvaluationSummaryType, type BenchmarkEvaluationType, type BenchmarkGateType} from './evaluationTypes.ts';
 import {absoluteGate, gate, ratioGate, skipped} from './gates.ts';
 
-const planGates = (report: BenchmarkReportType): readonly BenchmarkGateType[] => {
+const planGates = (report: BenchmarkReportType, baseline: BenchmarkBaselineType): readonly BenchmarkGateType[] => {
 	const cursor = report.scenarios.find((scenario) => scenario.kind === 'cursor');
 
 	if (cursor === undefined) {
@@ -28,6 +28,8 @@ const planGates = (report: BenchmarkReportType): readonly BenchmarkGateType[] =>
 		.slice(0, 5)
 		.map((sample) => `${sample.kind}@${String(sample.depth)}`)
 		.join(', ');
+	const symbolPages = cursor.samples.filter((sample) => sample.kind === 'find_symbol' && sample.items >= 10);
+	const worstItemMs = symbolPages.length === 0 ? null : Math.max(...symbolPages.map((sample) => Math.round((sample.elapsedMs / sample.items) * 1000) / 1000));
 
 	return [
 		gate(missingIndex.length === 0 ? 'pass' : 'failure', 'plan.index_usage', 'plan', {
@@ -42,6 +44,16 @@ const planGates = (report: BenchmarkReportType): readonly BenchmarkGateType[] =>
 			expected: 0,
 			unit: 'count',
 		}),
+		worstItemMs === null
+			? skipped('absolute.cursor.find_symbol.item', 'No page-sized find_symbol cursor sample was recorded', 'absolute')
+			: absoluteGate({
+					code: 'absolute.cursor.find_symbol.item',
+					message: 'find_symbol cursor latency per returned item',
+					current: worstItemMs,
+					warning: baseline.thresholds.cursorItemWarningMs,
+					failure: baseline.thresholds.cursorItemFailureMs,
+					unit: 'ms',
+				}),
 	];
 };
 
@@ -290,7 +302,14 @@ export const evaluateBenchmark = (report: BenchmarkReportType, baseline: Benchma
 			? regressionGates(report, baseline)
 			: [skipped('regression.reference', 'Reference is incompatible; relative regression gates are skipped', 'regression')];
 	const gates = capRelativeFailures(
-		[...compatibility.gates, ...planGates(report), ...editGates(report, baseline), ...queryGates(report, baseline), ...hygieneGates(report), ...regression],
+		[
+			...compatibility.gates,
+			...planGates(report, baseline),
+			...editGates(report, baseline),
+			...queryGates(report, baseline),
+			...hygieneGates(report),
+			...regression,
+		],
 		referencePlatformMatches(report, baseline),
 	);
 	const summary = summaryOf(gates);

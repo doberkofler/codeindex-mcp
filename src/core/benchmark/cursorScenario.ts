@@ -2,7 +2,7 @@ import {type ConfigType} from '../config/config.ts';
 import {createCodeIndex} from '../generation/codeIndex.ts';
 import {createLogger} from '../logging/logger.ts';
 import {IndexDatabase} from '../storage/database.ts';
-import {outlineQuerySql, referenceQuerySql, symbolSearchQuerySql} from '../storage/databaseSymbolQueries.ts';
+import {bindingCandidateQuery, outlinePageQuerySql, referencePageQuery} from '../storage/databasePublicationQueries.ts';
 import {type BenchmarkCursorSampleType, type BenchmarkCursorScenarioType} from './benchTypes.ts';
 import {measure} from './percentiles.ts';
 import {readStorage, startResourceSampler} from './resources.ts';
@@ -21,6 +21,8 @@ const planFlags = (plan: readonly string[], indexes: readonly string[]): Readonl
 	usesIndex: plan.some((line) => indexes.some((index) => line.includes(index))),
 	usesTempBTree: plan.some((line) => line.includes('USE TEMP B-TREE')),
 });
+
+const pageBytes = (page: PageType): number => Buffer.byteLength(JSON.stringify(page), 'utf8');
 
 const fetchPage = (fetch: FetcherType, cursor: string | undefined): Readonly<{elapsedMs: number; page: PageType}> => {
 	let page: PageType = {items: [], nextCursor: null};
@@ -56,33 +58,6 @@ const pageAtDepth = (
 	throw new Error(`Deep cursor did not reach depth ${String(input.targetDepth)}`);
 };
 
-const symbolPlanParameters = (input: Readonly<{generationId: string; query: string; limit: number; offset: number}>): readonly (string | number)[] => {
-	const upper = `${input.query}\uFFFF`;
-	const {generationId, query, limit, offset} = input;
-
-	return [
-		generationId,
-		query,
-		generationId,
-		query,
-		query,
-		generationId,
-		query,
-		upper,
-		query,
-		query,
-		generationId,
-		query,
-		upper,
-		query,
-		query,
-		query,
-		upper,
-		limit,
-		offset,
-	];
-};
-
 const outlineSamples = (
 	input: Readonly<{
 		index: ReturnType<typeof createCodeIndex>;
@@ -99,9 +74,18 @@ const outlineSamples = (
 			timeoutPages: 2000,
 			fetch: (cursor) => input.index.getOutline({path: input.path, limit: input.limit, ...(cursor === undefined ? {} : {cursor})}),
 		});
-		const plan = input.database.explainQueryPlan(outlineQuerySql(0), [input.generationId, input.path, input.limit + 1, result.depth]);
+		const plan = input.database.explainQueryPlan(outlinePageQuerySql(0), [input.generationId, input.path, input.limit + 1, result.depth]);
 
-		return {kind: 'outline' as const, depth: result.depth, limit: input.limit, elapsedMs: result.elapsedMs, plan, ...planFlags(plan, ['symbol_by_path'])};
+		return {
+			kind: 'outline' as const,
+			depth: result.depth,
+			limit: input.limit,
+			elapsedMs: result.elapsedMs,
+			items: result.page.items.length,
+			bytes: pageBytes(result.page),
+			plan,
+			...planFlags(plan, ['definition_site_by_path']),
+		};
 	});
 
 const symbolSamples = (
@@ -120,18 +104,24 @@ const symbolSamples = (
 			timeoutPages: 2000,
 			fetch: (cursor) => input.index.findSymbols({query: input.query, limit: input.limit, ...(cursor === undefined ? {} : {cursor})}),
 		});
-		const plan = input.database.explainQueryPlan(
-			symbolSearchQuerySql(false),
-			symbolPlanParameters({generationId: input.generationId, query: input.query, limit: input.limit + 1, offset: result.depth}),
-		);
+		const candidateQuery = bindingCandidateQuery({
+			generationId: input.generationId,
+			query: input.query,
+			match: 'name',
+			exposure: 'visible',
+			fetchLimit: input.limit + 1,
+		});
+		const plan = input.database.explainQueryPlan(candidateQuery.sql, candidateQuery.parameters);
 
 		return {
 			kind: 'find_symbol' as const,
 			depth: result.depth,
 			limit: input.limit,
 			elapsedMs: result.elapsedMs,
+			items: result.page.items.length,
+			bytes: pageBytes(result.page),
 			plan,
-			...planFlags(plan, ['symbol_by_name', 'symbol_by_qualified_name']),
+			...planFlags(plan, ['symbol_name_by_name']),
 		};
 	});
 
@@ -151,15 +141,23 @@ const referenceSamples = (
 			timeoutPages: 2000,
 			fetch: (cursor) => input.index.findReferences({symbolId: input.symbolId, limit: input.limit, ...(cursor === undefined ? {} : {cursor})}),
 		});
-		const plan = input.database.explainQueryPlan(referenceQuerySql(false, false), [input.generationId, input.symbolId, input.limit + 1, result.depth]);
+		const referenceQuery = referencePageQuery({
+			generationId: input.generationId,
+			symbolId: input.symbolId,
+			limit: input.limit,
+			offset: result.depth,
+		});
+		const plan = input.database.explainQueryPlan(referenceQuery.sql, referenceQuery.parameters);
 
 		return {
 			kind: 'find_references' as const,
 			depth: result.depth,
 			limit: input.limit,
 			elapsedMs: result.elapsedMs,
+			items: result.page.items.length,
+			bytes: pageBytes(result.page),
 			plan,
-			...planFlags(plan, ['sqlite_autoindex_occurrence', 'occurrence']),
+			...planFlags(plan, ['occurrence_by_path', 'occurrence']),
 		};
 	});
 
@@ -168,8 +166,9 @@ const outlinePathOf = (input: Readonly<{database: IndexDatabase; generationId: s
 		return input.explicit;
 	}
 
+	const busiest = input.database.busiestSymbolPath(input.generationId);
 	const files = input.database.listFiles(input.generationId);
-	const outline = files.find((file) => file.path.endsWith('outline.ts')) ?? files.at(0);
+	const outline = files.find((file) => file.path === busiest) ?? files.find((file) => file.path.endsWith('outline.ts')) ?? files.at(0);
 
 	if (outline === undefined) {
 		throw new Error('Deep cursor benchmark requires at least one indexed file');

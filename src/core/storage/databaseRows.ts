@@ -130,6 +130,4 @@ export const DEPENDENCY_EDGE_COLUMNS =
 
 export const DEPENDENCY_BINDING_COLUMNS = 'edge_id, position, kind, imported_name, exported_name, local_name, compile_time_only';
 
-export const SYMBOL_COLUMNS = 'id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, enclosing_id';
-
 export const placeholders = (count: number): string => Array.from({length: count}, () => '?').join(', ');

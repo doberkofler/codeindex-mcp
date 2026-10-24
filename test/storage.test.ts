@@ -8,6 +8,7 @@ import {type SourceFileType} from '../src/core/model.ts';
 import {createSourceFileRecord} from '../src/core/generation/sourceFiles.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
 import {renewLease} from '../src/core/storage/databaseLease.ts';
+import {bindingCandidateQuery, outlinePageQuerySql, referencePageQuery} from '../src/core/storage/databasePublicationQueries.ts';
 import {explainQueryPlan} from '../src/core/storage/databaseOpen.ts';
 import {createGenerationFactSeed} from './helpers/generationFacts.ts';
 
@@ -238,25 +239,36 @@ describe('index storage coordination and plans', () => {
 		}
 	});
 
-	it('uses intended indexes for hot statements', () => {
+	it('uses intended indexes for hot statements at every depth', () => {
 		const database = open();
 		const pathName = 'src/hot.ts';
 		database.createGeneration(generation('generation-1'));
 		database.insertGenerationFacts({generationId: 'generation-1', ...createGenerationFactSeed({symbolCount: 100, path: pathName})});
 
-		const outlinePlan = database.explainQueryPlan('select id from symbol where generation_id = ? and path = ? order by start_offset, id limit ? offset ?', [
-			'generation-1',
-			pathName,
-			10,
-			0,
-		]);
-		const referencePlan = database.explainQueryPlan(
-			'select path from occurrence where generation_id = ? and symbol_id = ? order by path, start_offset, role limit ? offset ?',
-			['generation-1', 'symbol-0', 10, 0],
-		);
+		const candidate = bindingCandidateQuery({
+			generationId: 'generation-1',
+			query: 'example',
+			match: 'name',
+			exposure: 'visible',
+			fetchLimit: 10,
+		});
 
-		expect(outlinePlan.join('\n')).toContain('symbol_by_path');
-		expect(referencePlan.join('\n')).toContain('occurrence_by_definition_site');
+		for (const offset of [0, 90]) {
+			const outlinePlan = database.explainQueryPlan(outlinePageQuerySql(0), ['generation-1', pathName, 10, offset]);
+			const candidatePlan = database.explainQueryPlan(candidate.sql, candidate.parameters);
+			const referencePlan = database.explainQueryPlan(
+				referencePageQuery({generationId: 'generation-1', symbolId: 'symbol-0', limit: 10, offset}).sql,
+				referencePageQuery({generationId: 'generation-1', symbolId: 'symbol-0', limit: 10, offset}).parameters,
+			);
+
+			expect(outlinePlan.join('\n')).toContain('definition_site_by_path');
+			expect(outlinePlan.some((line) => line.startsWith('SCAN'))).toBe(false);
+			expect(candidatePlan.join('\n')).toContain('symbol_name_by_name');
+			expect(candidatePlan.some((line) => line.startsWith('SCAN'))).toBe(false);
+			expect(referencePlan.join('\n')).toContain('SEARCH o USING INDEX');
+			expect(referencePlan.some((line) => line.startsWith('SCAN'))).toBe(false);
+		}
+
 		database.close();
 	});
 });

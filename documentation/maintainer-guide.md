@@ -318,7 +318,10 @@ Hardware-sensitive gates may be recalibrated only with the prior baseline,
 replacement value, machine identity, and reason recorded. CI may use broader
 regression bounds but must detect order-of-magnitude regressions. The current
 retained reference-machine record, its bundle digest, and its reproduction
-commands are in [Reference-workstation baseline](./reference-baseline.md).
+commands are in [Reference-workstation baseline](./reference-baseline.md). The
+post-publication `find_symbol` and `outline` regression, its measured cause, the
+fix, and the retained per-page evidence are in
+[Query regression](./query-regression.md).
 
 ### 7.4 Operational soak and recovery
 

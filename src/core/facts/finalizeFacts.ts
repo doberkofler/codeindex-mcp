@@ -9,6 +9,7 @@ import {finalizeSymbols} from './symbols.ts';
 import {
 	type ExtractedFactSetType,
 	type ExtractedOccurrenceType,
+	type FactExposureType,
 	type FactIssueType,
 	type FinalizationPolicyType,
 	type FinalizedBindingContextType,
@@ -34,7 +35,30 @@ const groupDefinitions = (occurrences: readonly ExtractedOccurrenceType[]): Read
 	return groups;
 };
 
-const bindingRowsOf = (entries: ReadonlyMap<string, BindingEntryType>): readonly FinalizedBindingType[] =>
+const strongestExposure = (exposures: readonly FactExposureType[] | undefined): FactExposureType => {
+	let selected: FactExposureType = 'internal';
+
+	for (const exposure of exposures ?? []) {
+		if (exposure === 'published') {
+			return 'published';
+		}
+
+		if (exposure === 'reachable') {
+			selected = 'reachable';
+		}
+	}
+
+	return selected;
+};
+
+const hasDeclaredSite = (sites: readonly PendingSiteType[] | undefined): boolean =>
+	(sites ?? []).some((site) => site.kind === 'declared' || site.kind === 'default');
+
+const bindingRowsOf = (
+	entries: ReadonlyMap<string, BindingEntryType>,
+	exposuresByBinding: ReadonlyMap<string, readonly FactExposureType[]>,
+	sitesByBinding: ReadonlyMap<string, readonly PendingSiteType[]>,
+): readonly FinalizedBindingType[] =>
 	[...entries.values()]
 		.map((entry) => {
 			const display = displayBinding(entry.binding.segments);
@@ -47,6 +71,8 @@ const bindingRowsOf = (entries: ReadonlyMap<string, BindingEntryType>): readonly
 				container: display.container,
 				name: display.name,
 				qualifiedName: display.qualifiedName,
+				exposure: strongestExposure(exposuresByBinding.get(entry.bindingId)),
+				hasDeclaredSite: hasDeclaredSite(sitesByBinding.get(entry.bindingId)),
 			};
 		})
 		.sort(
@@ -187,7 +213,7 @@ export const finalizeFacts = (facts: ExtractedFactSetType, policy: FinalizationP
 
 	assertBindingCoverage(entries, exposuresByBinding, sitesByBinding, issues);
 
-	const finalBindings = bindingRowsOf(entries);
+	const finalBindings = bindingRowsOf(entries, exposuresByBinding, sitesByBinding);
 	const finalContexts = sortContexts(contexts);
 	const finalSites = sortSites(sites);
 	const finalOrigins = sortOrigins(origins);

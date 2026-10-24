@@ -96,12 +96,22 @@ const insertSymbolRows = (writer: DatabaseSync, input: GenerationFactsInputType)
 
 const insertBindingRows = (writer: DatabaseSync, input: GenerationFactsInputType): void => {
 	const statement = writer.prepare(
-		`insert into symbol_name (generation_id, binding_id, symbol_id, binding_key, container, name, qualified_name)
-		 values (?, ?, ?, ?, ?, ?, ?)`,
+		`insert into symbol_name (generation_id, binding_id, symbol_id, binding_key, container, name, qualified_name, exposure, has_declared_site)
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	);
 
 	for (const binding of input.facts.bindings) {
-		statement.run(input.generationId, binding.bindingId, binding.symbolId, binding.bindingKey, binding.container, binding.name, binding.qualifiedName);
+		statement.run(
+			input.generationId,
+			binding.bindingId,
+			binding.symbolId,
+			binding.bindingKey,
+			binding.container,
+			binding.name,
+			binding.qualifiedName,
+			binding.exposure,
+			binding.hasDeclaredSite ? 1 : 0,
+		);
 	}
 };
 
@@ -211,14 +221,22 @@ const definitionSiteIdOf = (symbolId: string, path: string, startOffset: number)
 	createFactId('o_', [symbolId, path, String(startOffset), 'definition']);
 
 const insertDefinitionSiteRows = (writer: DatabaseSync, input: GenerationFactsInputType): number => {
-	const statement = writer.prepare('insert into definition_site (generation_id, site_id, symbol_id, path, start_offset, role) values (?, ?, ?, ?, ?, ?)');
+	const statement = writer.prepare(
+		'insert into definition_site (generation_id, site_id, symbol_id, path, start_offset, role, first_in_symbol) values (?, ?, ?, ?, ?, ?, ?)',
+	);
+	const seen = new Set<string>();
 	let count = 0;
 
+	// Finalized occurrences are ordered by path and start offset, so the first
+	// site seen for one symbol and path is its smallest offset in that path.
 	for (const occurrence of input.facts.occurrences) {
 		if (occurrence.role !== 'definition') {
 			continue;
 		}
 
+		const key = `${occurrence.symbolId}\u0000${occurrence.path}`;
+		const firstInSymbol = !seen.has(key);
+		seen.add(key);
 		statement.run(
 			input.generationId,
 			definitionSiteIdOf(occurrence.symbolId, occurrence.path, occurrence.startOffset),
@@ -226,6 +244,7 @@ const insertDefinitionSiteRows = (writer: DatabaseSync, input: GenerationFactsIn
 			occurrence.path,
 			occurrence.startOffset,
 			occurrence.role,
+			firstInSymbol ? 1 : 0,
 		);
 		count += 1;
 	}

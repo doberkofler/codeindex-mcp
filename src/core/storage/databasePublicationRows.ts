@@ -37,10 +37,6 @@ export const siteKindOf = (value: string): BindingSiteKindType => {
 
 export const EXPOSURE_ORDER = `case exposure when 'published' then 2 when 'reachable' then 1 else 0 end`;
 
-export const BINDING_COLUMNS = `n.binding_id, n.symbol_id, n.name, n.container, n.qualified_name,
-	s.kind, s.path, s.start_line, s.start_column, s.end_line, s.end_column, s.start_offset, s.end_offset,
-	s.enclosing_id, s.exposure as symbol_exposure`;
-
 export const toSymbolSummary = (row: SqlRowType, contexts: readonly string[]): SymbolSummaryType => ({
 	id: asString(row, 'symbol_id'),
 	name: asString(row, 'name'),

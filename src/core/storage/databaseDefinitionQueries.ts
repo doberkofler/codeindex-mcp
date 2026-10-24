@@ -92,7 +92,69 @@ export const definitionSitesForSymbols = (
 };
 
 /**
+ * Reads symbol summaries and their project contexts by identifier.
+ *
+ * @param reader - Reader connection.
+ * @param generationId - Published generation.
+ * @param symbolIds - Symbol identifiers to load.
+ * @returns A summary per requested identifier that exists in the generation.
+ */
+export const symbolSummariesByIds = (reader: DatabaseSync, generationId: string, symbolIds: readonly string[]): ReadonlyMap<string, SymbolSummaryType> => {
+	if (symbolIds.length === 0) {
+		return new Map();
+	}
+
+	const rows = reader
+		.prepare(
+			`select id as symbol_id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id
+			 from symbol
+			 where generation_id = ? and id in (${placeholders(symbolIds.length)})`,
+		)
+		.all(generationId, ...symbolIds);
+	const contexts = symbolContextsForRows(reader, generationId, symbolIds);
+
+	return new Map(rows.map((row) => [asString(row, 'symbol_id'), toSymbolSummary(row, contexts.get(asString(row, 'symbol_id')) ?? [])]));
+};
+
+/**
+ * Builds the lexical outline page statement used by the hot page path.
+ *
+ * Exported so benchmarks and plan tests explain the production statement
+ * rather than a hand-maintained copy.
+ *
+ * @param kindCount - Number of kind filter parameters.
+ * @returns The statement text.
+ */
+export const outlinePageQuerySql = (kindCount: number): string => {
+	const kindJoin = kindCount === 0 ? '' : ' join symbol s on s.generation_id = d.generation_id and s.id = d.symbol_id and s.path = d.path';
+	const kindClause = kindCount === 0 ? '' : ` and s.kind in (${placeholders(kindCount)})`;
+
+	return `select d.symbol_id as symbol_id, d.start_offset as start_offset
+			 from definition_site d${kindJoin}
+			 where d.generation_id = ? and d.path = ? and d.first_in_symbol = 1${kindClause}
+			 order by d.start_offset, d.symbol_id
+			 limit ? offset ?`;
+};
+
+/**
+ * Reads the path with the most symbols in one generation.
+ *
+ * @param reader - Reader connection.
+ * @param generationId - Published generation.
+ * @returns The busiest path, or null for an empty generation.
+ */
+export const busiestSymbolPath = (reader: DatabaseSync, generationId: string): string | null => {
+	const row = reader.prepare('select path from symbol where generation_id = ? group by path order by count(*) desc, path asc limit 1').get(generationId);
+
+	return row === undefined ? null : asString(row, 'path');
+};
+
+/**
  * Reads the lexical outline for one path.
+ *
+ * Page membership and order are derived from `definition_site` in path order so
+ * a deep page never materializes the whole file or scans the generation. Symbol
+ * summaries, contexts, and sites are then loaded for the page only.
  *
  * @param reader - Reader connection.
  * @param input - Generation, path, kind filter, and page bounds.
@@ -102,47 +164,35 @@ export const outlineSymbols = (
 	reader: DatabaseSync,
 	input: Readonly<{generationId: string; path: string; kinds: readonly string[]; limit: number; offset: number}>,
 ): readonly {symbol: SymbolSummaryType; site: DefinitionSiteSummaryType}[] => {
-	const kindClause = input.kinds.length === 0 ? '' : ` and s.kind in (${placeholders(input.kinds.length)})`;
-	const rows = reader
-		.prepare(
-			`select s.id, s.name, s.qualified_name, s.kind, s.path, s.start_line, s.start_column, s.end_line, s.end_column,
-				s.enclosing_id, s.exposure, d.site_id, o.start_offset, o.end_offset, o.start_line, o.end_line, o.declaration_kind, o.forward_definition,
-				o.primary_rank, o.anchor_rank, o.extent_start, o.extent_end
-			 from symbol s
-			 join definition_site d on d.generation_id = s.generation_id and d.symbol_id = s.id
-			 join occurrence o on o.generation_id = d.generation_id and o.symbol_id = d.symbol_id and o.path = d.path and o.start_offset = d.start_offset and o.role = 'definition'
-			 where s.generation_id = ? and d.path = ?${kindClause}
-			 group by s.id
-			 order by min(o.start_offset), s.id
-			 limit ? offset ?`,
-		)
-		.all(input.generationId, input.path, ...input.kinds, input.limit, input.offset);
-	const symbolIds = rows.map((row) => asString(row, 'id'));
-	const contexts = symbolContextsForRows(reader, input.generationId, symbolIds);
+	const pageRows = reader.prepare(outlinePageQuerySql(input.kinds.length)).all(input.generationId, input.path, ...input.kinds, input.limit, input.offset);
+
+	if (pageRows.length === 0) {
+		return [];
+	}
+
+	const symbolIds = pageRows.map((row) => asString(row, 'symbol_id'));
+	const summaries = symbolSummariesByIds(reader, input.generationId, symbolIds);
 	const sitesBySymbol = definitionSitesForSymbols(reader, {generationId: input.generationId, symbolIds});
+	const items: {symbol: SymbolSummaryType; site: DefinitionSiteSummaryType}[] = [];
 
-	return rows.map((row) => {
-		const symbolId = asString(row, 'id');
-		const selected = sitesBySymbol.get(symbolId)?.find((site) => site.path === input.path && site.nameStart === asNumber(row, 'start_offset'));
+	for (const pageRow of pageRows) {
+		const symbolId = asString(pageRow, 'symbol_id');
+		const symbol = summaries.get(symbolId);
+		const sites = sitesBySymbol.get(symbolId) ?? [];
+		const startOffset = asNumber(pageRow, 'start_offset');
+		const site = sites.find((entry) => entry.path === input.path && entry.nameStart === startOffset) ?? sites.find((entry) => entry.path === input.path);
 
-		return {
-			symbol: toSymbolSummary({...row, symbol_id: symbolId}, contexts.get(symbolId) ?? []),
-			site: selected ?? {
-				siteId: asString(row, 'site_id'),
-				path: input.path,
-				nameStart: asNumber(row, 'start_offset'),
-				nameEnd: asNumber(row, 'end_offset'),
-				extentStart: asNumber(row, 'extent_start'),
-				extentEnd: asNumber(row, 'extent_end'),
-				startLine: asNumber(row, 'start_line'),
-				endLine: asNumber(row, 'end_line'),
-				declarationKind: asString(row, 'declaration_kind'),
-				forwardDefinition: asNumber(row, 'forward_definition') === 1,
-				primary: true,
-				identityAnchor: true,
-			},
-		};
-	});
+		if (symbol === undefined || site === undefined) {
+			continue;
+		}
+
+		items.push({
+			symbol: {...symbol, startOffset: site.nameStart, endOffset: site.nameEnd},
+			site,
+		});
+	}
+
+	return items;
 };
 
 /**

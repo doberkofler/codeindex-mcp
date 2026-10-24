@@ -11,6 +11,7 @@ import {
 	type FindSymbolItemType,
 	type FindSymbolResultType,
 	type QueryFreshnessType,
+	type SymbolSummaryType,
 } from '../model.ts';
 import {boundedPagedResult, decodeCursor, normalizeRelativePath} from './querySupport.ts';
 import {type BindingCandidateType} from '../storage/databasePublicationQueries.ts';
@@ -55,8 +56,6 @@ const compareTuples = (left: readonly (number | string)[], right: readonly (numb
 
 	return left.length - right.length;
 };
-
-const declaredSiteRank = (detail: BindingDetailType): number => (detail.sites.some((site) => site.kind === 'declared' || site.kind === 'default') ? 0 : 1);
 
 const primaryBindingOf = (details: readonly BindingDetailType[], symbolStart: number, symbolEnd: number): BindingDetailType | null => {
 	let selected: BindingDetailType | null = null;
@@ -149,45 +148,54 @@ const reduceItem = (item: FindSymbolItemType, level: number): FindSymbolItemType
 	};
 };
 
-const candidateScore = (candidate: BindingCandidateType, detail: BindingDetailType): readonly [number, number, number, string, string, string, string] => [
+const candidateScore = (candidate: BindingCandidateType): readonly [number, number, number, string, string, string, string] => [
 	matchRank(candidate.match),
 	-exposureRank(candidate.binding.exposure),
-	declaredSiteRank(detail),
+	candidate.hasDeclaredSite ? 0 : 1,
 	candidate.binding.container,
 	candidate.binding.name,
 	candidate.binding.bindingId,
-	candidate.symbol.id,
+	candidate.symbolId,
 ];
 
-const selectBestCandidates = (
-	candidates: readonly BindingCandidateType[],
-	detailsBySymbol: ReadonlyMap<string, readonly BindingDetailType[]>,
-): readonly BindingCandidateType[] => {
+const compareCandidates = (left: BindingCandidateType, right: BindingCandidateType): number =>
+	matchRank(left.match) - matchRank(right.match) ||
+	exposureRank(right.binding.exposure) - exposureRank(left.binding.exposure) ||
+	(left.hasDeclaredSite ? 0 : 1) - (right.hasDeclaredSite ? 0 : 1) ||
+	left.binding.container.localeCompare(right.binding.container) ||
+	left.binding.name.localeCompare(right.binding.name) ||
+	left.binding.bindingId.localeCompare(right.binding.bindingId) ||
+	left.symbolId.localeCompare(right.symbolId);
+
+const selectBestCandidates = (candidates: readonly BindingCandidateType[]): readonly BindingCandidateType[] => {
 	const best = new Map<string, {candidate: BindingCandidateType; score: readonly (number | string)[]}>();
 
 	for (const candidate of candidates) {
-		const detail = detailsBySymbol.get(candidate.symbol.id)?.find((entry) => entry.bindingId === candidate.binding.bindingId) ?? emptyDetail(candidate.binding);
-		const score = candidateScore(candidate, detail);
-		const current = best.get(candidate.symbol.id);
+		const score = candidateScore(candidate);
+		const current = best.get(candidate.symbolId);
 
 		if (current === undefined || compareTuples(score, current.score) < 0) {
-			best.set(candidate.symbol.id, {candidate, score});
+			best.set(candidate.symbolId, {candidate, score});
 		}
 	}
 
-	return [...best.values()].map((entry) => entry.candidate);
+	return [...best.values()].map((entry) => entry.candidate).sort(compareCandidates);
 };
 
-const buildSymbolItem = (candidate: BindingCandidateType, details: readonly BindingDetailType[], sites: FindSymbolItemType['sites']): FindSymbolItemType => {
+const buildSymbolItem = (
+	candidate: BindingCandidateType,
+	symbol: SymbolSummaryType,
+	details: readonly BindingDetailType[],
+	sites: FindSymbolItemType['sites'],
+): FindSymbolItemType => {
 	const matched = details.find((detail) => detail.bindingId === candidate.binding.bindingId) ?? emptyDetail(candidate.binding);
 	const primarySite = sites.find((site) => site.primary) ?? sites[0];
-	const primary =
-		primaryBindingOf(details, primarySite?.nameStart ?? candidate.symbol.startOffset, primarySite?.nameEnd ?? candidate.symbol.endOffset) ?? matched;
+	const primary = primaryBindingOf(details, primarySite?.nameStart ?? symbol.startOffset, primarySite?.nameEnd ?? symbol.endOffset) ?? matched;
 	const others = details.filter((detail) => detail.bindingId !== matched.bindingId).map((detail) => summaryOf(detail));
 
 	return {
-		...candidate.symbol,
-		symbolId: candidate.symbol.id,
+		...symbol,
+		symbolId: candidate.symbolId,
 		symbolExposure: symbolExposureOf(details),
 		match: candidate.match,
 		matched,
@@ -201,20 +209,11 @@ const buildSymbolItem = (candidate: BindingCandidateType, details: readonly Bind
 	};
 };
 
-const compareSymbolItems = (left: FindSymbolItemType, right: FindSymbolItemType): number =>
-	matchRank(left.match) - matchRank(right.match) ||
-	exposureRank(right.matched.exposure) - exposureRank(left.matched.exposure) ||
-	declaredSiteRank(left.matched) - declaredSiteRank(right.matched) ||
-	left.matched.container.localeCompare(right.matched.container) ||
-	left.matched.name.localeCompare(right.matched.name) ||
-	left.matched.bindingId.localeCompare(right.matched.bindingId) ||
-	left.symbolId.localeCompare(right.symbolId);
-
 const boundedResult = (
 	input: Readonly<{
 		context: QueryContextType;
-		items: readonly FindSymbolItemType[];
 		page: readonly FindSymbolItemType[];
+		hasMore: boolean;
 		offset: number;
 		level: number;
 		queryKind: string;
@@ -229,7 +228,7 @@ const boundedResult = (
 			items: input.page.map((item) => reduceItem(item, input.level)),
 			offset: input.offset,
 			queryKind: input.queryKind,
-			hasMore: input.items.length > input.offset + input.page.length,
+			hasMore: input.hasMore,
 			maxResultBytes: input.maxResultBytes,
 			createResult: (paged) => ({
 				generationId: input.context.generationId,
@@ -260,13 +259,10 @@ const loadSymbolCandidates = (
 		normalizedPath: string | undefined;
 		offset: number;
 	}>,
-): Readonly<{
-	candidates: readonly BindingCandidateType[];
-	detailsBySymbol: ReadonlyMap<string, readonly BindingDetailType[]>;
-	definitionsBySymbol: ReturnType<QueryContextType['database']['definitionSites']>;
-}> => {
+): readonly BindingCandidateType[] => {
 	const fetchLimit = Math.min(10 ** 4, Math.max(10 ** 3, (search.offset + input.limit + 1) * 20));
-	const candidates = context.database.findBindingCandidates({
+
+	return context.database.findBindingCandidates({
 		generationId: context.generationId,
 		query: search.query,
 		match: search.match,
@@ -277,17 +273,6 @@ const loadSymbolCandidates = (
 		exposure: search.exposure,
 		fetchLimit,
 	});
-	const symbolIds = [...new Set(candidates.map((candidate) => candidate.symbol.id))];
-
-	return {
-		candidates,
-		detailsBySymbol: context.database.bindingDetails({
-			generationId: context.generationId,
-			symbolIds,
-			...(input.context === undefined ? {} : {context: input.context}),
-		}),
-		definitionsBySymbol: context.database.definitionSites({generationId: context.generationId, symbolIds}),
-	};
 };
 
 const recordExactNameOutcome = (context: QueryContextType, input: FindSymbolInputType, query: string, match: FindSymbolResultType['match']): void => {
@@ -333,17 +318,33 @@ export const findSymbols = (context: QueryContextType, input: FindSymbolInputTyp
 		input.context ?? null,
 	]);
 	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
-	const {candidates, detailsBySymbol, definitionsBySymbol} = loadSymbolCandidates(context, input, {query, match, exposure, normalizedPath, offset});
-	const items = selectBestCandidates(candidates, detailsBySymbol)
-		.map((candidate) => buildSymbolItem(candidate, detailsBySymbol.get(candidate.symbol.id) ?? [], definitionsBySymbol.get(candidate.symbol.id) ?? []))
-		.sort(compareSymbolItems);
-	const page = items.slice(offset, offset + input.limit);
+	const candidates = loadSymbolCandidates(context, input, {query, match, exposure, normalizedPath, offset});
+	const ordered = selectBestCandidates(candidates);
+	const pageCandidates = ordered.slice(offset, offset + input.limit);
+	const symbolIds = pageCandidates.map((candidate) => candidate.symbolId);
+	const summaries = context.database.symbolSummaries(context.generationId, symbolIds);
+	const detailsBySymbol = context.database.bindingDetails({
+		generationId: context.generationId,
+		symbolIds,
+		...(input.context === undefined ? {} : {context: input.context}),
+	});
+	const definitionsBySymbol = context.database.definitionSites({generationId: context.generationId, symbolIds});
+	const page = pageCandidates.map((candidate) => {
+		const symbol = summaries.get(candidate.symbolId);
+
+		if (symbol === undefined) {
+			throw new Error(`Published symbol is missing: ${candidate.symbolId}`);
+		}
+
+		return buildSymbolItem(candidate, symbol, detailsBySymbol.get(candidate.symbolId) ?? [], definitionsBySymbol.get(candidate.symbolId) ?? []);
+	});
+	const hasMore = ordered.length > offset + page.length;
 
 	for (let level = 0; level < 4; level += 1) {
 		const result = boundedResult({
 			context,
-			items,
 			page,
+			hasMore,
 			offset,
 			level,
 			queryKind,

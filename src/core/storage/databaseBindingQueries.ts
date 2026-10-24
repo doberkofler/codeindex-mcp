@@ -1,20 +1,16 @@
 import {type DatabaseSync} from 'node:sqlite';
-import {
-	type BindingDetailType,
-	type BindingSiteSummaryType,
-	type BindingSummaryType,
-	type ContextExposureType,
-	type ExactNamePresenceType,
-	type SymbolSummaryType,
-} from '../model.ts';
+import {type BindingDetailType, type BindingSiteSummaryType, type BindingSummaryType, type ContextExposureType, type ExactNamePresenceType} from '../model.ts';
 import {asNumber, asString, placeholders} from './databaseRows.ts';
-import {BINDING_COLUMNS, EXPOSURE_ORDER, exposureOf, siteKindOf, toSymbolSummary} from './databasePublicationRows.ts';
+import {exposureOf, siteKindOf} from './databasePublicationRows.ts';
 
 /** One symbol candidate before symbol-level deduplication. */
 export type BindingCandidateType = Readonly<{
 	readonly binding: BindingSummaryType;
-	readonly symbol: SymbolSummaryType;
+	/** Identifier of the owning symbol; the summary is loaded for the emitted page only. */
+	readonly symbolId: string;
 	readonly match: 'exact_qualified' | 'exact_name' | 'prefix_qualified' | 'prefix_name';
+	/** Whether a declared or default source site introduces this binding. */
+	readonly hasDeclaredSite: boolean;
 }>;
 
 const contextClause = (context: string | undefined, alias: string): Readonly<{sql: string; parameters: readonly string[]}> =>
@@ -27,7 +23,7 @@ const contextClause = (context: string | undefined, alias: string): Readonly<{sq
 
 const exposureColumn = (context: string | undefined): string =>
 	context === undefined
-		? `(select c.exposure from symbol_name_context c where c.generation_id = n.generation_id and c.binding_id = n.binding_id order by ${EXPOSURE_ORDER} desc limit 1)`
+		? 'n.exposure'
 		: `(select c.exposure from symbol_name_context c where c.generation_id = n.generation_id and c.binding_id = n.binding_id and c.context_name = ? limit 1)`;
 
 export const symbolContextsForRows = (reader: DatabaseSync, generationId: string, symbolIds: readonly string[]): ReadonlyMap<string, readonly string[]> => {
@@ -103,33 +99,35 @@ export const exactNamePresence = (
 	return EXACT_NAME_PRESENCES.find((presence) => presence === bits) ?? 'none';
 };
 
+/** Input shared by the production candidate statement and its plan capture. */
+export type BindingCandidateQueryType = Readonly<{
+	readonly generationId: string;
+	readonly query: string;
+	readonly match: 'name' | 'qualified';
+	readonly kind?: string | undefined;
+	readonly container?: string | undefined;
+	readonly path?: string | undefined;
+	readonly context?: string | undefined;
+	readonly exposure: 'published' | 'reachable' | 'visible' | 'internal' | 'any';
+	readonly fetchLimit: number;
+}>;
+
 /**
- * Finds bindings that satisfy a symbol-search filter before deduplication.
+ * Builds the symbol candidate statement used by the hot page path.
  *
- * @param reader - Reader connection.
+ * Exported so benchmarks and plan tests explain the production statement
+ * rather than a hand-maintained copy.
+ *
  * @param input - Generation, match mode, filters, and fetch bound.
- * @returns Binding candidates with their owning symbols.
+ * @returns Statement text and bound parameters.
  */
-export const findBindingCandidates = (
-	reader: DatabaseSync,
-	input: Readonly<{
-		readonly generationId: string;
-		readonly query: string;
-		readonly match: 'name' | 'qualified';
-		readonly kind?: string | undefined;
-		readonly container?: string | undefined;
-		readonly path?: string | undefined;
-		readonly context?: string | undefined;
-		readonly exposure: 'published' | 'reachable' | 'visible' | 'internal' | 'any';
-		readonly fetchLimit: number;
-	}>,
-): readonly BindingCandidateType[] => {
+export const bindingCandidateQuery = (input: BindingCandidateQueryType): Readonly<{sql: string; parameters: readonly (string | number)[]}> => {
 	const field = input.match === 'qualified' ? 'n.qualified_name' : 'n.name';
 	const upper = `${input.query}\uFFFF`;
 	const contextFilter = contextClause(input.context, 'n');
 	const parameters: (string | number)[] = input.context === undefined ? [input.generationId] : [input.context, input.generationId];
 
-	parameters.push(input.query, input.query, upper);
+	parameters.push(input.query, upper);
 
 	if (input.kind !== undefined) {
 		parameters.push(input.kind);
@@ -150,25 +148,39 @@ export const findBindingCandidates = (
 
 	parameters.push(...contextFilter.parameters, ...exposureContext, ...exposure.parameters, input.fetchLimit);
 
-	const sql = `select ${BINDING_COLUMNS}, ${exposureExpression} as exposure
+	const symbolJoin = input.kind === undefined ? '' : 'join symbol s on s.generation_id = n.generation_id and s.id = n.symbol_id';
+
+	return {
+		sql: `select n.binding_id, n.symbol_id, n.name, n.container, n.qualified_name, ${exposureExpression} as exposure, n.has_declared_site
 		from symbol_name n
-		join symbol s on s.generation_id = n.generation_id and s.id = n.symbol_id
+		${symbolJoin}
 		where n.generation_id = ?
-		and (${field} = ? or (${field} >= ? and ${field} < ?))
+		and ${field} >= ? and ${field} < ?
 		${input.kind === undefined ? '' : ' and s.kind = ?'}
 		${input.container === undefined ? '' : ' and n.container = ?'}
 		${input.path === undefined ? '' : ` and exists (select 1 from occurrence o where o.generation_id = n.generation_id and o.symbol_id = n.symbol_id and o.role = 'definition' and o.path = ?)`}
 		${contextFilter.sql}
 		${exposure.sql}
 		order by n.name, n.container, n.binding_id
-		limit ?`;
+		limit ?`,
+		parameters,
+	};
+};
 
+/**
+ * Finds bindings that satisfy a symbol-search filter before deduplication.
+ *
+ * The candidate statement reads only `symbol_name` and orders by the indexed
+ * `(name, container, binding_id)` tuple. Symbol summaries are loaded later for
+ * the emitted page, so a page never joins the symbol table for every candidate.
+ *
+ * @param reader - Reader connection.
+ * @param input - Generation, match mode, filters, and fetch bound.
+ * @returns Binding candidates with their owning symbol identifiers.
+ */
+export const findBindingCandidates = (reader: DatabaseSync, input: BindingCandidateQueryType): readonly BindingCandidateType[] => {
+	const {sql, parameters} = bindingCandidateQuery(input);
 	const rows = reader.prepare(sql).all(...parameters);
-	const contexts = symbolContextsForRows(
-		reader,
-		input.generationId,
-		rows.map((row) => asString(row, 'symbol_id')),
-	);
 
 	return rows.map((row) => {
 		const name = asString(row, 'name');
@@ -185,7 +197,7 @@ export const findBindingCandidates = (
 				exposure: bindingExposure,
 				inRequestedContext: input.context === undefined ? null : true,
 			},
-			symbol: toSymbolSummary(row, contexts.get(asString(row, 'symbol_id')) ?? []),
+			symbolId: asString(row, 'symbol_id'),
 			match: exact
 				? input.match === 'qualified'
 					? ('exact_qualified' as const)
@@ -193,6 +205,7 @@ export const findBindingCandidates = (
 				: input.match === 'qualified'
 					? ('prefix_qualified' as const)
 					: ('prefix_name' as const),
+			hasDeclaredSite: asNumber(row, 'has_declared_site') === 1,
 		};
 	});
 };
@@ -298,8 +311,7 @@ export const bindingDetailsForSymbols = (
 	const parameters = input.context === undefined ? [input.generationId, ...input.symbolIds] : [input.generationId, ...input.symbolIds, input.context];
 	const rows = reader
 		.prepare(
-			`select n.binding_id, n.symbol_id, n.name, n.container, n.qualified_name,
-				(select c.exposure from symbol_name_context c where c.generation_id = n.generation_id and c.binding_id = n.binding_id order by ${EXPOSURE_ORDER} desc limit 1) as exposure
+			`select n.binding_id, n.symbol_id, n.name, n.container, n.qualified_name, n.exposure
 			 from symbol_name n
 			 where n.generation_id = ? and n.symbol_id in (${placeholders(input.symbolIds.length)})${contextFilter}
 			 order by n.symbol_id, n.container, n.name, n.binding_id`,

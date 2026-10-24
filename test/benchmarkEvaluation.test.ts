@@ -10,7 +10,7 @@ import {
 	type BenchmarkBaselineType,
 	type BenchmarkReferenceType,
 } from '../src/core/benchmark/baseline.ts';
-import {type BenchmarkReportType} from '../src/core/benchmark/benchTypes.ts';
+import {type BenchmarkCursorSampleType, type BenchmarkReportType} from '../src/core/benchmark/benchTypes.ts';
 import {benchmarkCorpusCounts} from '../src/core/benchmark/corpus.ts';
 import {runBenchmarkCommand, runBenchmarkReport} from '../src/core/benchmark/runBenchmark.ts';
 import {evaluateBenchmark} from '../src/core/benchmark/evaluate.ts';
@@ -42,6 +42,13 @@ const brokenPlan = (report: BenchmarkReportType): BenchmarkReportType => ({
 					samples: scenario.samples.map((sample, index) => (index === 0 ? {...sample, usesIndex: false} : sample)),
 				}
 			: scenario,
+	),
+});
+
+const withFindSymbolSample = (report: BenchmarkReportType, sample: BenchmarkCursorSampleType): BenchmarkReportType => ({
+	...report,
+	scenarios: report.scenarios.map((scenario) =>
+		scenario.kind === 'cursor' ? {...scenario, samples: [...scenario.samples.filter((entry) => entry.kind !== 'find_symbol'), sample]} : scenario,
 	),
 });
 
@@ -132,6 +139,34 @@ describe('benchmark evaluation', () => {
 			expect(evaluation.gates.find((entry) => entry.code === 'plan.index_usage')?.status).toBe('pass');
 			expect(broken.status).toBe('failure');
 			expect(broken.gates.find((entry) => entry.code === 'plan.index_usage')?.status).toBe('failure');
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
+	it('fails a find_symbol cursor page that is slow per returned item', async () => {
+		const fixture = createFixtureConfig('simple-project');
+
+		try {
+			const report = await runBenchmarkReport({config: fixture.config, iterations: 1, force: false, scenarios: ['deep_cursor']});
+			const slowSample: BenchmarkCursorSampleType = {
+				kind: 'find_symbol' as const,
+				depth: 0,
+				limit: 200,
+				elapsedMs: 60,
+				items: 20,
+				bytes: 32_000,
+				plan: ['SEARCH n USING COVERING INDEX symbol_name_by_name (generation_id=? AND name>? AND name<?)'],
+				usesIndex: true,
+				usesTempBTree: false,
+			};
+			const slow = withFindSymbolSample(report, slowSample);
+			const evaluation = evaluateBenchmark(slow, baselineOf({thresholds: {cursorItemWarningMs: 1, cursorItemFailureMs: 2}}));
+
+			expect(evaluation.gates.find((entry) => entry.code === 'absolute.cursor.find_symbol.item')).toMatchObject({
+				status: 'failure',
+				actual: 3,
+			});
 		} finally {
 			fixture.cleanup();
 		}

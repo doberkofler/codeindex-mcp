@@ -107,6 +107,8 @@ const ThresholdsSchema = z.object({
 	queryFailureRatio: z.number().min(1).default(20),
 	queryP95WarningMs: z.number().min(0).default(25),
 	queryP95FailureMs: z.number().min(0).default(100),
+	cursorItemWarningMs: z.number().min(0).default(0.75),
+	cursorItemFailureMs: z.number().min(0).default(1.5),
 	memoryWarningRatio: z.number().min(1).default(2),
 	memoryFailureRatio: z.number().min(1).default(4),
 	cpuWarningRatio: z.number().min(1).default(2),
@@ -162,6 +164,14 @@ export const BenchmarkBaselineSchema = z
 				code: 'custom',
 				path: ['thresholds', 'queryP95FailureMs'],
 				message: 'queryP95FailureMs must be greater than or equal to queryP95WarningMs',
+			});
+		}
+
+		if (baseline.thresholds.cursorItemFailureMs < baseline.thresholds.cursorItemWarningMs) {
+			context.addIssue({
+				code: 'custom',
+				path: ['thresholds', 'cursorItemFailureMs'],
+				message: 'cursorItemFailureMs must be greater than or equal to cursorItemWarningMs',
 			});
 		}
 	});

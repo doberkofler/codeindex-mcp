@@ -18,6 +18,8 @@
 		"queryWarningRatio": 5,
 		"queryFailureRatio": 20,
 		"queryP95WarningMs": 250,
+		"cursorItemWarningMs": 0.75,
+		"cursorItemFailureMs": 1.5,
 		"queryP95FailureMs": 1000,
 		"memoryWarningRatio": 2,
 		"memoryFailureRatio": 4,

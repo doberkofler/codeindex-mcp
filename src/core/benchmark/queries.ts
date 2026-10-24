@@ -5,6 +5,10 @@ import {measure, summarize} from './percentiles.ts';
 /**
  * Measures cached status and bounded query latency without model calls.
  *
+ * The symbol query is a corpus-derived prefix and requests a full page, so the
+ * sample exercises candidate ranking and page truncation instead of an empty
+ * or single-row result.
+ *
  * @param index - Built index.
  * @param outlinePath - Indexed source file for outline queries.
  * @param sample - Optional symbol for reference and source reads.
@@ -14,7 +18,7 @@ import {measure, summarize} from './percentiles.ts';
 export const measureQueries = (
 	index: CodeIndex,
 	outlinePath: string,
-	sample: Readonly<{id: string}> | undefined,
+	sample: Readonly<{id: string; name: string}> | undefined,
 	iterations: number,
 ): Readonly<Record<string, number[]>> => {
 	const queries: Record<string, number[]> = {
@@ -24,6 +28,7 @@ export const measureQueries = (
 		find_references: [],
 		read_symbol: [],
 	};
+	const symbolQuery = sample === undefined || sample.name.length === 0 ? 'a' : sample.name.slice(0, 3);
 
 	for (let iteration = 0; iteration < iterations; iteration += 1) {
 		queries['status']?.push(
@@ -33,7 +38,7 @@ export const measureQueries = (
 		);
 		queries['find_symbol']?.push(
 			measure(() => {
-				index.findSymbols({query: 'a', limit: 10});
+				index.findSymbols({query: symbolQuery, limit: 200});
 			}),
 		);
 		queries['outline']?.push(

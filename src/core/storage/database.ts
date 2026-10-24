@@ -37,6 +37,7 @@ import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
 import {asNumber, asString} from './databaseRows.ts';
+import {verifyDatabaseIntegrity} from './databaseIntegrity.ts';
 import {analyzeDatabase, ensureStatistics} from './databaseStatistics.ts';
 import {listProjectContextNames as listStoredProjectContextNames} from './databaseContextQueries.ts';
 import {
@@ -45,6 +46,7 @@ import {
 	bindingDetailsForSymbols,
 	bindingExposure,
 	bindingSitesFor,
+	busiestSymbolPath,
 	definitionSiteById,
 	definitionSitesForSymbol,
 	definitionSitesForSymbols,
@@ -58,6 +60,7 @@ import {
 	referenceRows,
 	referenceTotals,
 	symbolAncestors,
+	symbolSummariesByIds,
 	symbolSummaryById,
 	symbolsAtPosition,
 } from './databasePublicationQueries.ts';
@@ -313,18 +316,7 @@ export class IndexDatabase {
 	}
 
 	public verifyIntegrity(): void {
-		const integrity = this.#reader.prepare('pragma integrity_check').all();
-		const integrityFailures = integrity.filter((row) => asString(row, 'integrity_check') !== 'ok');
-
-		if (integrityFailures.length > 0) {
-			throw new Error('SQLite integrity check failed');
-		}
-
-		const foreignKeyFailures = this.#reader.prepare('pragma foreign_key_check').all();
-
-		if (foreignKeyFailures.length > 0) {
-			throw new Error('SQLite foreign-key check failed');
-		}
+		verifyDatabaseIntegrity(this.#reader);
 	}
 
 	public listBuildStats(generationId: string): readonly BuildStatType[] {
@@ -347,6 +339,10 @@ export class IndexDatabase {
 
 	public listFiles(generationId: string): readonly Readonly<{path: string; sha256: string}>[] {
 		return listStoredFiles(this.#reader, generationId);
+	}
+
+	public busiestSymbolPath(generationId: string): string | null {
+		return busiestSymbolPath(this.#reader, generationId);
 	}
 	public listProjectContextNames(generationId: string): readonly string[] {
 		return listStoredProjectContextNames(this.#reader, generationId);
@@ -374,6 +370,10 @@ export class IndexDatabase {
 
 	public bindingDetails(input: Parameters<typeof bindingDetailsForSymbols>[1]): ReturnType<typeof bindingDetailsForSymbols> {
 		return bindingDetailsForSymbols(this.#reader, input);
+	}
+
+	public symbolSummaries(generationId: string, symbolIds: readonly string[]): ReturnType<typeof symbolSummariesByIds> {
+		return symbolSummariesByIds(this.#reader, generationId, symbolIds);
 	}
 
 	public bindingContexts(generationId: string, bindingIds: readonly string[]): ReturnType<typeof bindingContextsFor> {

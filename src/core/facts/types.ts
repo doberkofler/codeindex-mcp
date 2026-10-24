@@ -177,6 +177,10 @@ export type FinalizedBindingType = Readonly<{
 	readonly container: string;
 	readonly name: string;
 	readonly qualifiedName: string;
+	/** Strongest exposure across every project context that contains the binding. */
+	readonly exposure: FactExposureType;
+	/** Whether a declared or default source site introduces the binding. */
+	readonly hasDeclaredSite: boolean;
 }>;
 
 export type FinalizedBindingContextType = Readonly<{

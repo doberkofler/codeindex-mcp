@@ -72,8 +72,7 @@ export const assertReferenceSelector = (input: FindReferencesInputType): 'symbol
 const queryCandidates = (database: IndexDatabase, generationId: string, input: FindReferencesInputType): readonly SymbolCandidateType[] => {
 	const query = (input.query ?? '').trim();
 	const bestBySymbol = new Map<string, SymbolCandidateType>();
-
-	for (const candidate of database.findBindingCandidates({
+	const candidates = database.findBindingCandidates({
 		generationId,
 		query,
 		match: input.match ?? 'name',
@@ -83,15 +82,24 @@ const queryCandidates = (database: IndexDatabase, generationId: string, input: F
 		...(input.context === undefined ? {} : {context: input.context}),
 		exposure: input.exposure ?? 'visible',
 		fetchLimit: CANDIDATE_FETCH_LIMIT,
-	})) {
+	});
+	const summaries = database.symbolSummaries(generationId, [...new Set(candidates.map((candidate) => candidate.symbolId))]);
+
+	for (const candidate of candidates) {
+		const symbol = summaries.get(candidate.symbolId);
+
+		if (symbol === undefined) {
+			continue;
+		}
+
 		const next: SymbolCandidateType = {
-			symbolId: candidate.symbol.id,
-			name: candidate.symbol.name,
-			qualifiedName: candidate.symbol.qualifiedName,
-			kind: candidate.symbol.kind,
-			path: candidate.symbol.path,
-			startLine: candidate.symbol.startLine,
-			endLine: candidate.symbol.endLine,
+			symbolId: symbol.id,
+			name: symbol.name,
+			qualifiedName: symbol.qualifiedName,
+			kind: symbol.kind,
+			path: symbol.path,
+			startLine: symbol.startLine,
+			endLine: symbol.endLine,
 			match: candidate.match,
 			exposure: candidate.binding.exposure,
 			container: candidate.binding.container,

@@ -123,6 +123,32 @@ const occurrenceContexts = (
 };
 
 /**
+ * Builds the reference page statement used by the hot page path.
+ *
+ * Exported so benchmarks and plan tests explain the production statement
+ * rather than a hand-maintained copy.
+ *
+ * @param input - Generation, symbol, filters, and page bounds.
+ * @returns Statement text and bound parameters.
+ */
+export const referencePageQuery = (
+	input: ReferenceScopeType & Readonly<{offset: number; limit: number}>,
+): Readonly<{sql: string; parameters: readonly (string | number)[]}> => {
+	const {sql: clauses, parameters: clauseParameters} = occurrenceClauses(input, 'o');
+
+	return {
+		sql: `select o.symbol_id, o.path, o.start_offset, o.end_offset, o.start_line, o.start_column, o.end_line, o.end_column,
+				o.role, o.usage, o.enclosing_id, s.name as owner_name, s.kind as owner_kind, s.path as owner_path, s.start_line as owner_start_line
+			 from occurrence o
+			 left join symbol s on s.generation_id = o.generation_id and s.id = o.enclosing_id
+			 where ${clauses}
+			 order by o.path, o.start_offset, o.role, o.symbol_id, o.end_offset
+			 limit ? offset ?`,
+		parameters: [...clauseParameters, input.limit + 1, input.offset],
+	};
+};
+
+/**
  * Reads a page of reference occurrences with owner summaries and context filters.
  *
  * @param reader - Reader connection.
@@ -130,19 +156,8 @@ const occurrenceContexts = (
  * @returns Occurrences in deterministic path order.
  */
 export const referenceRows = (reader: DatabaseSync, input: ReferenceScopeType & Readonly<{offset: number; limit: number}>): readonly ReferenceType[] => {
-	const {sql: clauses, parameters: clauseParameters} = occurrenceClauses(input, 'o');
-	const parameters: (string | number)[] = [...clauseParameters, input.limit + 1, input.offset];
-	const rows = reader
-		.prepare(
-			`select o.symbol_id, o.path, o.start_offset, o.end_offset, o.start_line, o.start_column, o.end_line, o.end_column,
-				o.role, o.usage, o.enclosing_id, s.name as owner_name, s.kind as owner_kind, s.path as owner_path, s.start_line as owner_start_line
-			 from occurrence o
-			 left join symbol s on s.generation_id = o.generation_id and s.id = o.enclosing_id
-			 where ${clauses}
-			 order by o.path, o.start_offset, o.role, o.symbol_id, o.end_offset
-			 limit ? offset ?`,
-		)
-		.all(...parameters);
+	const {sql, parameters} = referencePageQuery(input);
+	const rows = reader.prepare(sql).all(...parameters);
 	const contextGroups = occurrenceContexts(
 		reader,
 		input.generationId,
