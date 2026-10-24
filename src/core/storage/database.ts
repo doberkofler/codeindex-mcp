@@ -37,6 +37,7 @@ import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
 import {asNumber, asString} from './databaseRows.ts';
+import {analyzeDatabase, ensureStatistics} from './databaseStatistics.ts';
 import {listProjectContextNames as listStoredProjectContextNames} from './databaseContextQueries.ts';
 import {
 	bindingBelongsToSymbol,
@@ -105,6 +106,7 @@ export class IndexDatabase {
 			ensureMetadata(writer);
 			ensureIdentity({writer, reader, context});
 			database.discardIncompleteGenerations();
+			ensureStatistics(reader, writer);
 			debug('database opened', {path: databasePath, projectId});
 
 			return database;
@@ -294,6 +296,9 @@ export class IndexDatabase {
 				.prepare("insert into metadata (key, value) values ('current_generation', ?) on conflict(key) do update set value = excluded.value")
 				.run(generationId);
 			this.#writer.exec('delete from content where not exists (select 1 from file where file.content_sha256 = content.sha256)');
+			// Refresh planner statistics inside the publication transaction so every
+			// reader plans against the published row counts.
+			analyzeDatabase(this.#writer);
 		});
 		const publicationMs = Math.round(performance.now() - publicationStartedAt);
 		this.#writer.prepare('update generation set publication_ms = ? where id = ?').run(publicationMs, generationId);

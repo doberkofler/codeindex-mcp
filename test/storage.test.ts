@@ -260,3 +260,80 @@ describe('index storage coordination and plans', () => {
 		database.close();
 	});
 });
+
+/**
+ * Reads one recorded planner statistic.
+ *
+ * @param databasePath - Index database file.
+ * @param table - Table the statistic belongs to.
+ * @param index - Index the statistic belongs to.
+ * @returns The recorded `sqlite_stat1` value, or null when absent.
+ */
+const statisticsOf = (databasePath: string, table: string, index: string): string | null => {
+	const reader = new DatabaseSync(databasePath, {readOnly: true});
+
+	try {
+		const row = reader.prepare('select stat from sqlite_stat1 where tbl = ? and idx = ?').get(table, index);
+		return row === undefined ? null : String(row['stat']);
+	} finally {
+		reader.close();
+	}
+};
+
+/**
+ * Builds and publishes one synthetic generation.
+ *
+ * @param databasePath - Index database file.
+ * @param symbolCount - Number of symbols to publish.
+ */
+const seedPublishedGeneration = (databasePath: string, symbolCount: number): void => {
+	const database = IndexDatabase.open(databasePath, {projectId: 'storage-test'});
+
+	try {
+		database.createGeneration(generation('generation-1'));
+		database.insertGenerationFacts({generationId: 'generation-1', ...createGenerationFactSeed({symbolCount})});
+		database.publish('generation-1');
+	} finally {
+		database.close();
+	}
+};
+
+describe('index storage query-planner statistics', () => {
+	let directory: string | undefined;
+
+	afterEach(() => {
+		if (directory !== undefined) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		directory = undefined;
+	});
+
+	it('writes statistics for the correlated exposure lookup at publication', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-statistics-'));
+		const databasePath = path.join(directory, 'index.sqlite');
+
+		seedPublishedGeneration(databasePath, 20);
+
+		// The correlated exposure subquery in symbol search seeks this index by
+		// (generation_id, binding_id). Without statistics SQLite instead scans the
+		// whole generation through symbol_name_context_by_exposure for every
+		// candidate row, which costs seconds per page on a large index.
+		expect(statisticsOf(databasePath, 'symbol_name_context', 'sqlite_autoindex_symbol_name_context_1')).toMatch(/^20\b/u);
+	});
+
+	it('backfills statistics for a database built without them', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-statistics-'));
+		const databasePath = path.join(directory, 'index.sqlite');
+
+		seedPublishedGeneration(databasePath, 20);
+
+		const raw = new DatabaseSync(databasePath);
+		raw.exec('drop table sqlite_stat1');
+		raw.close();
+
+		IndexDatabase.open(databasePath, {projectId: 'storage-test'}).close();
+
+		expect(statisticsOf(databasePath, 'symbol_name_context', 'sqlite_autoindex_symbol_name_context_1')).toMatch(/^20\b/u);
+	});
+});
