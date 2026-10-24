@@ -2,12 +2,14 @@ import {describe, expect, it} from 'vitest';
 import {formatBytes, formatClock, formatDuration, formatNumber, formatPercent, formatTimestamp, shortId} from '../src/ui/console/format.ts';
 
 describe('console number formatting', () => {
-	it('keeps full numbers below ten thousand and compacts at the boundary', () => {
-		expect(formatNumber(0)).toBe('0');
-		expect(formatNumber(9999)).toBe('9,999');
-		expect(formatNumber(10_000)).not.toBe('10,000');
-		expect(formatNumber(-9999)).toBe('-9,999');
-		expect(formatNumber(-10_000)).not.toBe('-10,000');
+	it.each([
+		[0, '0'],
+		[9999, '9,999'],
+		[10_000, '10K'],
+		[-9999, '-9,999'],
+		[-10_000, '-10K'],
+	] as const)('formats %s as %s across the compact-number boundary', (value, expected) => {
+		expect(formatNumber(value)).toBe(expected);
 	});
 });
 

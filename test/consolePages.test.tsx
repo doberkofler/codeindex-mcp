@@ -296,7 +296,7 @@ describe('console pages', () => {
 			expect(screen.getByText('analytics disabled')).not.toBeNull();
 		});
 
-		it('rejects an empty token, accepts Enter, and renders a rejection', async () => {
+		it('rejects an empty token, retries after a rejection, and renders the rejection', async () => {
 			const onSubmit = vi.fn<(token: string) => void>();
 			const {rerender} = renderWithProviders(<TokenGate error={null} onSubmit={onSubmit} />);
 
@@ -309,6 +309,10 @@ describe('console pages', () => {
 
 			rerender(<TokenGate error="Token rejected" onSubmit={onSubmit} />);
 			expect(screen.getByText('Token rejected')).not.toBeNull();
+
+			await userEvent.clear(input);
+			await userEvent.type(input, 'retry-token{enter}');
+			expect(onSubmit).toHaveBeenLastCalledWith('retry-token');
 		});
 	});
 

@@ -42,6 +42,31 @@ const installFetch = (): ReturnType<typeof vi.fn> => {
 	return fetchMock;
 };
 
+type ColorSchemeType = Readonly<{background: string; text: string; paper: string}>;
+type ThemeModeType = 'light' | 'dark' | 'system';
+
+const colorSchemeOf = (): ColorSchemeType => {
+	const paper = globalThis.document.querySelector('.MuiDrawer-paper');
+
+	if (!(paper instanceof globalThis.HTMLElement)) {
+		throw new TypeError('Expected the console shell drawer');
+	}
+
+	const body = globalThis.getComputedStyle(globalThis.document.body);
+
+	return {background: body.backgroundColor, text: body.color, paper: globalThis.getComputedStyle(paper).backgroundColor};
+};
+
+const renderColorScheme = async (mode: ThemeModeType, prefersDark: boolean): Promise<ColorSchemeType> => {
+	installBrowserStubs({prefersDark});
+	localStorage.setItem('code-index-console-theme', mode);
+	const {unmount} = renderWithProviders(<App />);
+	await screen.findByText('Your code index, at a glance.');
+	const scheme = colorSchemeOf();
+	unmount();
+	return scheme;
+};
+
 describe('console application composition', () => {
 	beforeEach(() => {
 		installBrowserStubs();
@@ -128,20 +153,18 @@ describe('console application composition', () => {
 		expect(sessionStorage.getItem('code-index-console-token')).toBeNull();
 	});
 
-	it('renders with stored dark and system theme preferences', async () => {
+	it('renders light, dark, and system color schemes with semantic tokens', async () => {
 		installFetch();
-		installBrowserStubs({prefersDark: true});
 		sessionStorage.setItem('code-index-console-token', 'token');
-		localStorage.setItem('code-index-console-theme', 'dark');
 
-		const {unmount} = renderWithProviders(<App />);
-		const heading = await screen.findByText('Your code index, at a glance.');
-		expect(heading).not.toBeNull();
-		unmount();
+		const light = await renderColorScheme('light', false);
+		const dark = await renderColorScheme('dark', false);
+		const systemDark = await renderColorScheme('system', true);
+		const systemLight = await renderColorScheme('system', false);
 
-		localStorage.setItem('code-index-console-theme', 'system');
-		renderWithProviders(<App />);
-		const systemHeading = await screen.findByText('Your code index, at a glance.');
-		expect(systemHeading).not.toBeNull();
+		expect(light).toStrictEqual({background: 'rgb(244, 247, 247)', text: 'rgb(16, 35, 34)', paper: 'rgb(255, 255, 255)'});
+		expect(dark).toStrictEqual({background: 'rgb(7, 19, 18)', text: 'rgb(230, 255, 251)', paper: 'rgb(13, 31, 30)'});
+		expect(systemDark).toStrictEqual(dark);
+		expect(systemLight).toStrictEqual(light);
 	});
 });

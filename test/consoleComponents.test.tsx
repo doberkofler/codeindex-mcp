@@ -10,6 +10,13 @@ import {ToolDialog} from '../src/ui/console/components/ToolDialog.tsx';
 import {createConsoleTheme} from '../src/ui/console/theme.ts';
 import {installBrowserStubs, renderWithProviders, statusOf, toolOf} from './helpers/consoleUi.tsx';
 
+const {restoreOverlayTrigger} = vi.hoisted(() => ({restoreOverlayTrigger: vi.fn<() => void>()}));
+
+vi.mock(import('../src/ui/console/overlayFocus.ts'), () => ({
+	rememberOverlayTrigger: vi.fn<(fallback?: Element | null) => void>(),
+	restoreOverlayTrigger,
+}));
+
 const chartSeries = [
 	{
 		label: 'Tool calls',
@@ -86,10 +93,11 @@ describe('console presentational components', () => {
 		expect([...globalThis.document.querySelectorAll('title')].some((title) => title.textContent.startsWith('Tool calls: 5 at'))).toBe(true);
 	});
 
-	it('renders the tool dialog closed and its metrics when open', async () => {
+	it('renders the tool dialog closed and restores its trigger when open and closed', async () => {
 		installBrowserStubs();
 		const onClose = vi.fn<() => void>();
 		const tool = toolOf();
+		restoreOverlayTrigger.mockClear();
 
 		const {rerender} = renderWithProviders(<ToolDialog tool={null} onClose={onClose} />);
 		expect(screen.queryByText(tool.name)).toBeNull();
@@ -102,6 +110,8 @@ describe('console presentational components', () => {
 		await userEvent.click(screen.getByRole('button', {name: 'Close'}));
 		// oxlint-disable-next-line vitest/prefer-to-have-length -- Assert the exact call count without the conflicting mock-call rules.
 		expect(onClose.mock.calls.length).toBe(1);
+		// oxlint-disable-next-line vitest/prefer-to-have-length -- Assert the exact call count without the conflicting mock-call rules.
+		expect(restoreOverlayTrigger.mock.calls.length).toBe(1);
 	});
 
 	it('builds light and dark themes with semantic palette tokens', () => {
