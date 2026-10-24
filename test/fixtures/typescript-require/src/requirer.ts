@@ -8,3 +8,4 @@ if (enabled) {
 }
 
 export {renamed, value, whole};
+export const computed = renamed(value);

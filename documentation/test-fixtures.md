@@ -1,25 +1,27 @@
 # Test Fixture Catalogue
 
-Date: 2026-10-22
+Date: 2026-10-24
 
 Status: accepted catalogue for the fixture cleanup sequence in
 [Codebase testing strategy](./codebase-testing-strategy.md#5-test-data). This document
 describes existing fixtures; the consuming-test lists follow the current MCP seam split.
-No fixture content or configuration changed.
+The four TypeScript adapter contract fixtures were added with the adapter contract
+tests and are catalogued here.
 
 ## 1. Scope and method
 
 Scope is every tracked file under `test/fixtures/`:
 
 ```text
-fixture directories                   17
-tracked fixture files                204
+fixture directories                   21
+tracked fixture files                222
 ```
 
-The parent issue cites 205 files. The tracked tree contains 204; the extra directory
-entry was the ignored macOS `.DS_Store` metadata file at the fixture root, which is
-not a fixture and is not catalogued. Every remaining file is attributed to exactly one
-directory entry.
+The parent issue cites 205 files. The tracked tree contains 222: 204 at catalogue
+acceptance plus 18 in the four TypeScript adapter contract fixtures added with their
+tests. The earlier extra directory entry was the ignored macOS `.DS_Store` metadata
+file at the fixture root, which is not a fixture and is not catalogued. Every remaining
+file is attributed to exactly one directory entry.
 
 Each entry records the claim the fixture supports, the constructs and failure classes
 it isolates, the authority for its expected result, the expected result itself, the
@@ -579,9 +581,99 @@ test/fixtures/oracle-grammar-gaps/wrapped.pkb
 test/fixtures/oracle-grammar-gaps/xmltable-returning-sequence.sql
 ```
 
+### F18 `test/fixtures/typescript-extends/`
+
+| Field | Value |
+|---|---|
+| Claim | A relative `extends` array inherits compiler options, `include`, and `exclude`, applies root overrides over inherited values, and adds every inherited configuration file to the watch set. A package base inherits options and selection through package resolution. |
+| Constructs | Root `extends: ["./tsconfig.base.json", "./tsconfig.extra.json"]`; base sets `target`, `module`, `moduleResolution`, `strict`, `noEmit`, `baseUrl`, `paths`, and `include`; extra sets `exclude`; root overrides `noUnusedLocals`; `src/entry.ts` imports the excluded `src/excluded/skip.ts`. |
+| Failure classes | Inherited option or selection loss, array-order or override inversion, configured `exclude` confused with scanner exclusion, missing config-chain watch entry, package-base resolution loss. |
+| Authority | Compiler output. Effective options, root names, and module resolution come from `ts.createProgram`; expected paths and the watch chain are reviewed from the checked-in configuration and source. |
+| Expected result | Effective options are `strict: true`, `target: ES2022` (9), `noUnusedLocals: false`, and `paths["@base/*"] = ["src/*"]`. Program roots and scan files are exactly `src/entry.ts`; `src/excluded/skip.ts` is authored by scanner policy but removed by configured `exclude`. The published generation contains `src/entry.ts` and the imported `src/excluded/skip.ts`, and `find_symbol` resolves `skipped`. The watch set contains `package.json`, `tsconfig.json`, `tsconfig.base.json`, and `tsconfig.extra.json`. The separately constructed `@fixture/base` package base inherits `strict` and `target`, selects `src/main.ts` only, and watches both base `package.json` and `tsconfig.json`. |
+| Consuming tests | `test/typescriptAdapterContracts.test.ts`. |
+| Mutation policy | Ground truth for inheritance and selection. Any option, include, exclude, or import change requires updating this entry and the test together; the package-base case is synthesized in a temporary workspace, not stored here. |
+| Known limitations | One relative chain depth and one package base. It does not exercise JavaScript configs, project references, or cyclic `extends`. |
+| Update procedure | Edit the configuration or sources, re-derive options and roots with the compiler, update this entry and the test, then run `pnpm vitest run test/typescriptAdapterContracts.test.ts` and `pnpm verify`. |
+| Files (6) | See the manifest below. |
+
+```text
+test/fixtures/typescript-extends/package.json
+test/fixtures/typescript-extends/src/entry.ts
+test/fixtures/typescript-extends/src/excluded/skip.ts
+test/fixtures/typescript-extends/tsconfig.base.json
+test/fixtures/typescript-extends/tsconfig.extra.json
+test/fixtures/typescript-extends/tsconfig.json
+```
+
+### F19 `test/fixtures/typescript-files/`
+
+| Field | Value |
+|---|---|
+| Claim | A `files` list selects the published roots, while an authored transitive import is published and an unrelated authored file is not. |
+| Constructs | `files: ["src/selected.ts"]`; `src/selected.ts` imports `src/imported.ts`; `src/unused.ts` exists and is neither selected nor imported. |
+| Failure classes | `include` semantics substituted for `files`, imported-outside-project file dropped, unrelated authored file published, scanner policy mistaken for configured selection. |
+| Authority | Compiler output. The program root names and module resolution come from `ts.createProgram`; the published set is reviewed from the source graph. |
+| Expected result | Scan files are exactly `src/selected.ts`. The published generation contains `src/imported.ts` and `src/selected.ts`. A symbol query for `unused` returns no items. |
+| Consuming tests | `test/typescriptAdapterContracts.test.ts`. |
+| Mutation policy | Ground truth. Changing the `files` list or the import edge requires updating this entry and the test together. |
+| Known limitations | One root and one transitive import. It does not prove `files` plus `include` interaction or multi-context union. |
+| Update procedure | Edit the configuration or sources, re-derive roots and the published set by hand, update this entry and the test, then run `pnpm vitest run test/typescriptAdapterContracts.test.ts` and `pnpm verify`. |
+| Files (5) | See the manifest below. |
+
+```text
+test/fixtures/typescript-files/package.json
+test/fixtures/typescript-files/src/imported.ts
+test/fixtures/typescript-files/src/selected.ts
+test/fixtures/typescript-files/src/unused.ts
+test/fixtures/typescript-files/tsconfig.json
+```
+
+### F20 `test/fixtures/typescript-invalid/`
+
+| Field | Value |
+|---|---|
+| Claim | A syntactically invalid construct produces one bounded compiler diagnostic, and extraction still publishes one complete generation carrying that diagnostic. |
+| Constructs | One source with an invalid type annotation: `export const broken: = 1;`. |
+| Failure classes | Silently empty diagnostics, partial or unpublished generation, diagnostic count drift, diagnostic path escaping the repository-relative form. |
+| Authority | Compiler output. TypeScript reports parser diagnostic code 1110 at the invalid annotation; the fixture contains exactly that one error. |
+| Expected result | Loading reports one diagnostic with `category: "error"`, `code: 1110`, and `path: "src/broken.ts"`; `diagnosticCount` is 1. Verification reports one file and one diagnostic with matching metadata, only one generation exists, it is `published`, and its file list is exactly `src/broken.ts`. |
+| Consuming tests | `test/typescriptAdapterContracts.test.ts`. |
+| Mutation policy | Ground truth. Keep exactly one invalid construct so the diagnostic count and code stay pinned; a compiler upgrade that changes the code requires updating this entry. |
+| Known limitations | Proves diagnostic publication, not a hard extraction abort. Fatal project-configuration failures are covered by `test/loadProject.test.ts`. |
+| Update procedure | Edit the invalid source, confirm the compiler diagnostic code and count, update this entry and the test, then run `pnpm vitest run test/typescriptAdapterContracts.test.ts` and `pnpm verify`. |
+| Files (3) | See the manifest below. |
+
+```text
+test/fixtures/typescript-invalid/package.json
+test/fixtures/typescript-invalid/src/broken.ts
+test/fixtures/typescript-invalid/tsconfig.json
+```
+
+### F21 `test/fixtures/typescript-require/`
+
+| Field | Value |
+|---|---|
+| Claim | Literal CommonJS `require()` calls emit authored and package dependency edges with variable and destructured bindings, no binding for a conditional bare call, and classified read and call usage bits. |
+| Constructs | `const whole = require('./dep')`; `const {value, helper: renamed} = require('./dep')`; conditional bare `require('optional-package')`; `renamed(value)` and `export {renamed, value, whole}`. |
+| Failure classes | Missing `require` edge, authored target reported as a package, binding or alias loss, synthetic binding for a bare call, compile-time-only misclassification, usage bit drift. |
+| Authority | Reviewed source manifest. Edge targets, binding forms, and the read/call usage bits are derived from the checked-in source and the compiler's CommonJS resolution. |
+| Expected result | Two authored edges from `src/requirer.ts` with `rawTarget: "./dep"`, `kind: "require"`, `targetPath: "src/dep.ts"`, `targetIdentifier: null`, and `compileTimeOnly: false`. Bindings are `whole`, destructured `value`, and destructured `helper` renamed to `renamed`, all `kind: "require"` and `compileTimeOnly: false`. One conditional package edge has `targetIdentifier: "optional-package"` and no bindings; direct usage reports the single consumer `src/requirer.ts`. Reference usage is read (2) for `value` and call (1) for `renamed`. |
+| Consuming tests | `test/typescriptAdapterContracts.test.ts`. |
+| Mutation policy | Ground truth. A change to the require forms or the use of a binding requires updating this entry and the test together. |
+| Known limitations | Literal specifiers only; non-literal `require()` calls remain unindexed. Authored bindings are local aliases and are not resolved back to the required module's exported symbols. |
+| Update procedure | Edit the source, re-derive edges, bindings, and usage bits by hand, update this entry and the test, then run `pnpm vitest run test/typescriptAdapterContracts.test.ts` and `pnpm verify`. |
+| Files (4) | See the manifest below. |
+
+```text
+test/fixtures/typescript-require/package.json
+test/fixtures/typescript-require/src/dep.ts
+test/fixtures/typescript-require/src/requirer.ts
+test/fixtures/typescript-require/tsconfig.json
+```
+
 ## 5. Orphan register
 
-No fixture directory is orphaned: all seventeen directories are consumed by at least
+No fixture directory is orphaned: all twenty-one directories are consumed by at least
 one test named above. No fixture file was deleted or bound by this catalogue.
 
 Two files are exercised only through a whole-fixture contract rather than a dedicated
@@ -618,7 +710,11 @@ Per-directory counts:
 | F15 | `test/fixtures/oracle-publication-project/` | 10 |
 | F16 | `test/fixtures/oracle-qualification-v2/` | 2 |
 | F17 | `test/fixtures/oracle-grammar-gaps/` | 10 |
-| **Total** | **17 directories** | **204** |
+| F18 | `test/fixtures/typescript-extends/` | 6 |
+| F19 | `test/fixtures/typescript-files/` | 5 |
+| F20 | `test/fixtures/typescript-invalid/` | 3 |
+| F21 | `test/fixtures/typescript-require/` | 4 |
+| **Total** | **21 directories** | **222** |
 
 Every fixture path appears in exactly one manifest. Verify the set and the
 uniqueness:
@@ -632,7 +728,7 @@ uniq -d /tmp/catalogued-paths.txt
 wc -l /tmp/fixture-paths.txt /tmp/catalogued-paths.txt
 ```
 
-The `diff` and `uniq -d` commands must print nothing, and both counts must be 204.
+The `diff` and `uniq -d` commands must print nothing, and both counts must be 222.
 
 Checks:
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
 import {loadTypeScriptProject} from '../src/adapters/typescript/loadProject.ts';
-import {scanProject} from '../src/adapters/typescript/scanProject.ts';
+import {isAuthoredSourceFile, scanProject} from '../src/adapters/typescript/scanProject.ts';
 import {type ConfigType} from '../src/core/config/config.ts';
 import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
 
@@ -116,7 +116,9 @@ describe('TypeScript project configuration inheritance', () => {
 
 		expect(loaded.program.getCompilerOptions()).toMatchObject({strict: true, target: 9});
 		expect(loaded.program.getRootFileNames().map((file) => path.basename(file))).toStrictEqual(['main.ts']);
+		expect(watched).toContain('node_modules/@fixture/base/package.json');
 		expect(watched).toContain('node_modules/@fixture/base/tsconfig.json');
+		expect(watched).toContain('package.json');
 		expect(watched).toContain('tsconfig.json');
 	});
 
@@ -127,6 +129,8 @@ describe('TypeScript project configuration inheritance', () => {
 			const scan = scanProject(fixture.config);
 			const symbols = fixture.index.findSymbols({query: 'skipped', limit: 10});
 
+			// The scanner would index this path; only the configured exclude removes it.
+			expect(isAuthoredSourceFile(join(fixture.config.rootDir, 'src', 'excluded', 'skip.ts'), fixture.config.rootDir)).toBe(true);
 			expect(scan.files.map((file) => file.path)).not.toContain('src/excluded/skip.ts');
 			expect(publishedPaths(fixture)).toStrictEqual(['src/entry.ts', 'src/excluded/skip.ts']);
 			expect(symbols.items.map((symbol) => `${symbol.path}:${symbol.name}`)).toContain('src/excluded/skip.ts:skipped');
@@ -155,7 +159,7 @@ describe('TypeScript CommonJS require dependencies', () => {
 		}
 	});
 
-	it('emits package and authored require edges with variable and destructured bindings', () => {
+	it('emits package and authored require edges with variable bindings, destructured bindings, and usage bits', () => {
 		const fixture = createFixtureIndex('typescript-require');
 
 		try {
@@ -175,10 +179,11 @@ describe('TypeScript CommonJS require dependencies', () => {
 					kind: edge.kind,
 					targetPath: edge.targetPath,
 					targetIdentifier: edge.targetIdentifier,
+					compileTimeOnly: edge.compileTimeOnly,
 				})),
 			).toStrictEqual([
-				{sourcePath: 'src/requirer.ts', rawTarget: './dep', kind: 'require', targetPath: 'src/dep.ts', targetIdentifier: null},
-				{sourcePath: 'src/requirer.ts', rawTarget: './dep', kind: 'require', targetPath: 'src/dep.ts', targetIdentifier: null},
+				{sourcePath: 'src/requirer.ts', rawTarget: './dep', kind: 'require', targetPath: 'src/dep.ts', targetIdentifier: null, compileTimeOnly: false},
+				{sourcePath: 'src/requirer.ts', rawTarget: './dep', kind: 'require', targetPath: 'src/dep.ts', targetIdentifier: null, compileTimeOnly: false},
 			]);
 			expect(packageEdges).toHaveLength(1);
 			expect(packageEdges[0]).toMatchObject({
@@ -187,7 +192,14 @@ describe('TypeScript CommonJS require dependencies', () => {
 				kind: 'require',
 				targetPath: null,
 				targetIdentifier: 'optional-package',
+				compileTimeOnly: false,
 			});
+			expect(
+				fixture.database.listDependencyBindings(
+					generation.id,
+					packageEdges.map((edge) => edge.id),
+				),
+			).toStrictEqual([]);
 			const bindings = fixture.database
 				.listDependencyBindings(
 					generation.id,
@@ -202,6 +214,39 @@ describe('TypeScript CommonJS require dependencies', () => {
 					{kind: 'require', importedName: 'helper', exportedName: null, localName: 'renamed', compileTimeOnly: false, position: 1},
 				]),
 			);
+
+			const usageOf = (query: string): readonly Readonly<{role: string; usage: number}>[] => {
+				const result = fixture.index.findReferences({query, group: 'occurrence', path: 'src/requirer.ts', limit: 10});
+
+				if (result.kind !== 'occurrences') {
+					throw new Error(`Expected rendered occurrences for ${query}`);
+				}
+
+				return result.items.map((item) => ({role: item.role, usage: item.usage}));
+			};
+			const directUsage = fixture.index.findDependencies({target: 'optional-package', detail: 'evidence', limit: 10});
+			const evidences = directUsage.items.flatMap((item) => ('evidence' in item ? [item.evidence] : []));
+
+			expect(usageOf('value')).toStrictEqual([
+				{role: 'definition', usage: 0},
+				{role: 'reference', usage: 2},
+				{role: 'reference', usage: 2},
+			]);
+			expect(usageOf('renamed')).toStrictEqual([
+				{role: 'definition', usage: 0},
+				{role: 'reference', usage: 2},
+				{role: 'reference', usage: 1},
+			]);
+			expect(directUsage.items.map(({path: itemPath, depth, directRoot}) => ({path: itemPath, depth, directRoot}))).toStrictEqual([
+				{path: 'src/requirer.ts', depth: 1, directRoot: 'src/requirer.ts'},
+			]);
+			expect(evidences).toHaveLength(1);
+			expect(evidences[0]).toMatchObject({
+				targetIdentifier: 'optional-package',
+				kind: 'require',
+				bindings: [],
+			});
+			expect(directUsage.summary).toStrictEqual({totalConsumers: 1, directConsumers: 1, transitiveConsumers: 0, roots: []});
 		} finally {
 			fixture.cleanup();
 		}
@@ -229,10 +274,13 @@ describe('TypeScript unsupported construct diagnostics', () => {
 
 			try {
 				const verification = fixture.index.verify();
+				const published = fixture.database.getPublishedGeneration();
 
 				expect(verification.counts).toMatchObject({files: 1, diagnostics: 1});
 				expect(verification.metadataMatches).toBe(true);
 				expect(publishedPaths(fixture)).toStrictEqual(['src/broken.ts']);
+				expect(fixture.database.generationCount()).toBe(1);
+				expect(published).toMatchObject({state: 'published'});
 			} finally {
 				fixture.cleanup();
 			}

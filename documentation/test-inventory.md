@@ -279,10 +279,10 @@ direct tests. The MCP protocol rows were already resolved and remain covered.
 
 | Seam | Contract | Direct test |
 |---|---|---|
-| TypeScript adapter | `tsconfig` `extends` inheritance | `test/typescriptAdapterContracts.test.ts` proves inherited compiler options, inherited `include`/`exclude`, resolved roots, and the watch set for relative and package bases. |
-| TypeScript adapter | `tsconfig` `exclude` and `files` selection | `test/typescriptAdapterContracts.test.ts` proves configured exclusion, `files` roots, and the imported-outside-project publication rule. |
-| TypeScript adapter | CommonJS `require()` dependency edges | `test/typescriptAdapterContracts.test.ts` asserts authored and package edges plus variable and destructured bindings through the core dependency model. |
-| TypeScript adapter | Unsupported-construct diagnostics | `test/typescriptAdapterContracts.test.ts` asserts one bounded parser diagnostic and a complete published generation with matching counts. |
+| TypeScript adapter | `tsconfig` `extends` inheritance | `test/typescriptAdapterContracts.test.ts` proves inherited options with a distinct root override, inherited `include`/`exclude`, resolved roots, package-base selection, and the complete watch chain. |
+| TypeScript adapter | `tsconfig` `exclude` and `files` selection | `test/typescriptAdapterContracts.test.ts` proves scanner-authored paths removed only by configured `exclude`, `files` roots, and the imported-outside-project publication rule. |
+| TypeScript adapter | CommonJS `require()` dependency edges | `test/typescriptAdapterContracts.test.ts` asserts authored and package edges, variable and destructured bindings, no binding for a conditional bare call, direct usage, and read/call usage bits through the core dependency model. |
+| TypeScript adapter | Unsupported-construct diagnostics | `test/typescriptAdapterContracts.test.ts` asserts one bounded parser diagnostic with its stable code, one complete published generation, and no partial generation. |
 | MCP protocol | A controlled fake index for protocol contracts | `test/helpers/fakeIndex.ts`; every protocol contract uses it, and only `test/mcpSmoke.test.ts` rebuilds a real fixture index. |
 | MCP protocol | Exact tool input schemas and invalid-argument rejection | `test/mcp.test.ts` asserts every tool schema, required field, enum, default, and invalid-argument rejection. |
 | MCP protocol | Tool descriptions for every tool | `test/mcp.test.ts` asserts every tool description and the server instructions. |
