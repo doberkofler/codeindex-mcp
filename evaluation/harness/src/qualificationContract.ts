@@ -1,4 +1,5 @@
 import {type CanonicalArtifactType} from './canonicalArtifact.ts';
+import {type ContractPinType} from './economicContract.ts';
 import {type EnvironmentManifestType} from './environment.ts';
 import {hashOf} from './hash.ts';
 import {type ExecutionModelIdentityType} from './identity.ts';
@@ -7,6 +8,9 @@ import {type PairedMetricNameType, type PairedMetricType, type TreatmentSummaryT
 import {type RunResultType} from './runTypes.ts';
 import {caseHashOf, type CaseType, type SuiteType} from './schema.ts';
 import {treatmentSetHashOf} from './treatment.ts';
+
+/** Schema version of the qualification record. */
+export const QUALIFICATION_SCHEMA_VERSION = 2 as const;
 
 /** Claim class of independent local-model qualification. */
 export const QUALIFICATION_CLAIM_CLASS = 'local-model-scoped' as const;
@@ -72,13 +76,102 @@ export const QUALIFICATION_CRITERIA = {
 	},
 } as const;
 
+/**
+ * Validity-v2 measurement controls adopted by local qualification.
+ *
+ * The hosted contract's model, tariff, and economic pins do not apply to a local
+ * model. These requirements do: complete request metering, the request-1
+ * treatment surface, complete corpus coverage, external-workspace isolation, and
+ * aggregation over every valid run. Local qualification predeclares its own
+ * correctness, timeout, tool-use, and efficiency criteria separately.
+ */
+export const QUALIFICATION_VALIDITY_CRITERIA = {
+	version: 1,
+	metering: {
+		/** Every execution carries one settled request ledger. */
+		requireExactRequestMetering: true,
+		maximumUnsettledRequests: 0,
+		maximumFailedRequests: 0,
+	},
+	requestOne: {
+		/** Agent request 1 must present exactly the declared treatment surface. */
+		requireExactSurface: true,
+	},
+	corpus: {
+		/** Every expected path and semantic declaration must be indexed. */
+		requireCompleteCoverage: true,
+		requireSemanticSymbolProbes: true,
+	},
+	isolation: {
+		/** No execution may reach the primary checkout. */
+		requireExternalAttemptsZero: true,
+		/** Every workspace must be restored to the pinned subject. */
+		requireRestoredWorkspace: true,
+		/** Mutable state must stay outside the primary checkout. */
+		requireStateRootOutsideCheckout: true,
+	},
+} as const;
+
 /** One evaluated criterion, with the expected bound and observed value. */
 export type QualificationCriterionType = Readonly<{
 	id: string;
-	kind: 'correctness' | 'timeout' | 'tool-use' | 'efficiency';
+	kind: 'correctness' | 'timeout' | 'tool-use' | 'efficiency' | 'validity';
 	passed: boolean;
 	expected: string;
 	observed: string;
+}>;
+
+/** Corpus evidence required for one qualification case. */
+export type QualificationCasePreflightType = Readonly<{
+	caseId: string;
+	pathsPresent: boolean;
+	symbolProbe: Readonly<{symbol: string; path: string; ok: boolean}> | null;
+}>;
+
+/** Indexed-treatment evidence required for one qualification corpus preflight. */
+export type QualificationTreatmentPreflightType = Readonly<{
+	treatmentId: string;
+	ready: boolean;
+	filesIndexed: boolean;
+	rootMatches: boolean;
+	projectsConfigured: boolean;
+	missingPaths: readonly string[];
+	unindexedPaths: readonly string[];
+	failures: readonly string[];
+}>;
+
+/** Corpus preflight evidence retained by the qualification record. */
+export type QualificationPreflightType = Readonly<{
+	result: 'pass' | 'fail';
+	cases: readonly QualificationCasePreflightType[];
+	treatments: readonly QualificationTreatmentPreflightType[];
+	failures: readonly string[];
+}>;
+
+/** Validity-v2 evidence and its deterministic gates. */
+export type QualificationValidityType = Readonly<{
+	contract: ContractPinType;
+	metering: Readonly<{runs: number; exactRuns: number; requests: number; unsettledRequests: number; failedRequests: number}>;
+	requestOne: Readonly<{runs: number; exactRuns: number}>;
+	corpus: Readonly<{
+		result: 'pass' | 'fail';
+		cases: number;
+		casesWithPaths: number;
+		symbolProbes: number;
+		symbolProbesOk: number;
+		missingPaths: number;
+		unindexedPaths: number;
+		failures: readonly string[];
+	}>;
+	isolation: Readonly<{
+		runs: number;
+		cleanRuns: number;
+		restoredRuns: number;
+		stateRootOutsideCheckout: boolean;
+		externalPathAttempts: number;
+		pathDisclosures: number;
+	}>;
+	checks: readonly QualificationCriterionType[];
 }>;
 
 /** Status of exactly one slot in the fixed 108-execution plan. */
@@ -93,7 +186,7 @@ export type QualificationSlotType = Readonly<{
 /** Sanitized independent local-model qualification record. */
 export type QualificationReportType = Readonly<{
 	recordType: 'local-model-qualification';
-	schemaVersion: 1;
+	schemaVersion: typeof QUALIFICATION_SCHEMA_VERSION;
 	claimClass: typeof QUALIFICATION_CLAIM_CLASS;
 	releaseAuthority: typeof QUALIFICATION_RELEASE_AUTHORITY;
 	/** Local qualification cannot satisfy or block the hosted release gate. */
@@ -105,6 +198,8 @@ export type QualificationReportType = Readonly<{
 	harness: Readonly<{version: number; schemaVersion: string}>;
 	suite: Readonly<{id: string; version: number; hash: string}>;
 	subject: Readonly<{revision: string; contentManifestHash: string}>;
+	/** Accepted validity-v2 contract this revalidation is bound to. */
+	contract: ContractPinType;
 	/** Digest of every field that must stay fixed across model campaigns. */
 	baseline: string;
 	canonical: Readonly<{
@@ -116,6 +211,8 @@ export type QualificationReportType = Readonly<{
 		manifestHash: string;
 	}>;
 	criteria: typeof QUALIFICATION_CRITERIA;
+	/** Measurement-validity controls and evidence; never a hosted economic claim. */
+	validity: QualificationValidityType;
 	checks: readonly QualificationCriterionType[];
 	plan: Readonly<{
 		caseCount: number;
@@ -169,6 +266,12 @@ export type QualificationInputType = Readonly<{
 	harnessVersion: number;
 	campaignId: string;
 	claimClass: string;
+	/** Accepted validity-v2 contract pin the campaign must be bound to. */
+	contract: ContractPinType;
+	/** Corpus preflight that preceded the campaign. */
+	preflight: QualificationPreflightType;
+	/** Whether the external state root resolved outside the primary checkout. */
+	stateRootOutsideCheckout: boolean;
 	expectedSlots: readonly Readonly<{caseId: string; treatment: string; repetition: number}>[];
 	results: readonly RunResultType[];
 }>;

@@ -314,6 +314,11 @@ node evaluation/harness/src/cli.ts qualification \
 	--environment evaluation/environments/ollama-qwen3.8-27b-calibration.json \
 	--canonical evaluation/canonical-artifact.json --dry-run
 
+# Model-free revalidation of the qualification path (validity-only)
+node evaluation/harness/src/cli.ts qualification \
+	--suite evaluation/suites/qualification.json \
+	--canonical evaluation/canonical-artifact.json --revalidate
+
 # Zero-spend validity gates, hosted smoke, and randomized A/A calibration
 EVALUATION_STATE_ROOT=<external-root> DEEPSEEK_API_KEY=<key> \
 node evaluation/harness/src/cli.ts validity \
@@ -496,6 +501,16 @@ with the same baseline are directly comparable; a changed canonical artifact, re
 case, treatment, or harness digest starts a new baseline. The command never reads or
 writes hosted release evidence, and neither satisfies nor blocks the frontier
 architecture/release gate.
+
+Schema 2 binds the record to `evaluation-validity-v2` and adds five validity checks: a
+settled request ledger with exact token usage for every execution, the exact agent
+request-1 surface, complete corpus and semantic coverage, external-workspace isolation,
+and aggregation over every valid execution including incorrect answers. The pinned local
+environment supplies the Ollama endpoint for the loopback meter, so local evidence carries
+no hosted tariff or USD claim. `--revalidate` exercises these inputs, the canonical
+artifact, twenty request-1 cold starts per treatment, the corpus preflight, the meter
+self-check, and path isolation without calling a model, and writes a validity-only
+`revalidation.json` with no qualification verdict.
 
 A `release` campaign runs the hosted architecture/release gate after the model-free
 stage passes. It loads a pinned hosted reference that records the exact

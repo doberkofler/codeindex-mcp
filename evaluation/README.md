@@ -232,8 +232,9 @@ canonical artifact is pinned by content digest in
 [`canonical-artifact.json`](canonical-artifact.json); the plan and frozen case
 hashes are in [`suites/qualification.json`](suites/qualification.json). Only the
 pinned model/environment changes between comparable campaigns. The canonical
-artifact is staged at `artifacts/canonical/`, which is generated and ignored like
-every other artifact tree:
+artifact is staged at `artifacts/canonical/`, which is ignored like every other
+artifact tree. It must be provisioned from the released 0.5.0 package and match
+the manifest digest byte for byte; it is never rebuilt from the current checkout:
 
 ```bash
 node evaluation/harness/src/cli.ts qualification \
@@ -245,15 +246,31 @@ node evaluation/harness/src/cli.ts qualification \
   --suite suites/qualification.json \
   --environment environments/ollama-qwen3.8-27b-calibration.json \
   --canonical canonical-artifact.json
+node evaluation/harness/src/cli.ts qualification \
+  --suite suites/qualification.json \
+  --canonical canonical-artifact.json \
+  --revalidate
 ```
 
 The command verifies the pinned host and model, the frozen release case content,
-and the canonical artifact digest before the first model call. It writes
-`qualification.json` with `claimClass: "local-model-scoped"`,
-`releaseAuthority: false`, and `frontierReleaseGate: "unaffected"`. The record
-keeps qualification and disqualification reasons separate and contains no
-product-release verdict. A failed, blocked, or absent record neither authorizes
-nor blocks the hosted release gate. The plan and criteria are recorded in
+and the canonical artifact digest before the first model call. It enables the
+loopback provider meter against the pinned Ollama endpoint, requires the exact
+agent request-1 treatment surface in every execution, and requires complete
+corpus coverage and restored external workspaces. It writes
+`qualification.json` (schema 2) with `claimClass: "local-model-scoped"`,
+`releaseAuthority: false`, `frontierReleaseGate: "unaffected"`, and five
+validity-v2 checks beside the local criteria. The record keeps qualification and
+disqualification reasons separate and contains no product-release verdict. A
+failed, blocked, or absent record neither authorizes nor blocks the hosted
+release gate.
+
+`--revalidate` exercises the same frozen inputs, canonical artifact, request-1
+cold starts, corpus preflight, meter self-check, and path-isolation check without
+calling a model. It writes a `qualification-revalidation.json` record with
+`claimClass: "validity-only"`, `releaseAuthority: false`, and no qualification
+verdict. The completed revalidation is recorded in
+[`audits/local-model-qualification-v2-revalidation.md`](audits/local-model-qualification-v2-revalidation.md);
+the plan and criteria are recorded in
 [`audits/local-model-qualification-e0.md`](audits/local-model-qualification-e0.md).
 
 The hosted release campaign pins an exact frontier model in

@@ -1,0 +1,82 @@
+{
+	"recordType": "qualification-revalidation",
+	"schemaVersion": 1,
+	"claimClass": "validity-only",
+	"releaseAuthority": false,
+	"frontierReleaseGate": "unaffected",
+	"generatedAt": "2026-10-24T22:50:20.940Z",
+	"contract": {
+		"id": "evaluation-validity-v2",
+		"version": 2,
+		"digest": "179bb5df1bc96ee86c54da20f26034a59fe50671dfc9912d805ed4588204a22f",
+		"frozenAt": "2026-10-23T00:00:00.000Z"
+	},
+	"suite": {
+		"id": "codeindex-qualification",
+		"version": 1,
+		"hash": "53586e43eb8e4882df2761244b0d5b9bd8537636315818e564585e131a4a223d"
+	},
+	"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516",
+	"canonical": {
+		"id": "codeindex-mcp-canonical",
+		"version": "0.5.0",
+		"digest": "aba08ea73b5ebbce2d769b964295d26dea196799cb97b4ef962cd3437a58d6c0"
+	},
+	"plan": {
+		"caseCount": 18,
+		"treatments": ["no-index", "canonical"],
+		"repetitions": 3,
+		"executions": 108,
+		"hash": "c2e4812557d2e928fe9f54a167a2e32369c9885e2f19f114f0e71b373f3f0351"
+	},
+	"requestOne": {
+		"coldStarts": 20,
+		"treatments": ["no-index", "canonical"]
+	},
+	"gates": [
+		{
+			"id": "contract",
+			"passed": true,
+			"evidence": "evaluation-validity-v2@2",
+			"reason": null
+		},
+		{
+			"id": "canonical-artifact",
+			"passed": true,
+			"evidence": "codeindex-mcp-canonical@aba08ea73b5ebbce2d769b964295d26dea196799cb97b4ef962cd3437a58d6c0",
+			"reason": null
+		},
+		{
+			"id": "plan",
+			"passed": true,
+			"evidence": "108 unique slot(s), 2 treatment(s), 3 repetition(s)",
+			"reason": null
+		},
+		{
+			"id": "request-1-surface",
+			"passed": true,
+			"evidence": "2/2 treatment(s) exact across 20 cold start(s)",
+			"reason": null
+		},
+		{
+			"id": "corpus",
+			"passed": true,
+			"evidence": "18 case(s), 1 indexed treatment(s)",
+			"reason": null
+		},
+		{
+			"id": "metering",
+			"passed": true,
+			"evidence": "1 request(s), settled-exactly-once=true, claim=exact",
+			"reason": null
+		},
+		{
+			"id": "path-isolation",
+			"passed": true,
+			"evidence": "state root is outside the primary checkout",
+			"reason": null
+		}
+	],
+	"passed": true,
+	"note": "model-free revalidation of the qualification path; no model was called and no qualification verdict is issued"
+}

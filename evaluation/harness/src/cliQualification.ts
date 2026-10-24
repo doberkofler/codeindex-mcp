@@ -1,32 +1,32 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
-import {assertCanonicalTreatmentOf, loadCanonicalArtifact, type CanonicalArtifactType} from './canonicalArtifact.ts';
 import {evaluateCommand, type EvaluationRunType} from './cliEvaluate.ts';
-import {HARNESS_VERSION, allOf, evaluationRoot, flagOf, manifestMetadataOf, manifestPathOf, verifiedEnvironmentOf} from './cliSupport.ts';
+import {revalidationCommand} from './cliQualificationRevalidation.ts';
+import {
+	HARNESS_VERSION,
+	allOf,
+	evaluationRoot,
+	flagOf,
+	manifestMetadataOf,
+	primaryCheckout,
+	stateRootOutsidePrimaryOf,
+	verifiedEnvironmentOf,
+} from './cliSupport.ts';
+import {EVALUATION_CONTRACT_PIN} from './economicContract.ts';
 import {assertEnvironmentPurpose, loadEnvironmentManifest, type EnvironmentManifestType} from './environment.ts';
+import {type ExecutionProviderMeterType} from './executionMeter.ts';
 import {assertLocalClaimClass, LOCAL_CLAIM_CLASS} from './localContract.ts';
-import {QUALIFICATION_CASE_COUNT, QUALIFICATION_EXECUTIONS, QUALIFICATION_REPETITIONS, QUALIFICATION_TREATMENT_IDS} from './qualificationContract.ts';
+import {QUALIFICATION_REPETITIONS, QUALIFICATION_TREATMENT_IDS, type QualificationPreflightType} from './qualificationContract.ts';
+import {commonQualificationInputsOf, type QualificationCommonInputsType} from './qualificationInputs.ts';
 import {qualificationReportOf, qualificationSummaryOf} from './qualification.ts';
 import {writeJsonAtomic} from './result.ts';
-import {caseHashOf, type CaseType, type SuiteType} from './schema.ts';
-import {loadSuite, planOf, treatmentIdsOf} from './suite.ts';
-import {type TreatmentDefinitionType} from './treatment.ts';
-
-/** Frozen release suite that supplies the qualification case corpus. */
-const RELEASE_SUITE_PATH = 'suites/release.json';
-
-/** Flags that would change the fixed 108-slot qualification plan or criteria. */
-const FIXED_PLAN_FLAGS = ['case', 'tag', 'treatment', 'repetitions', 'target-metric'] as const;
+import {planOf} from './suite.ts';
 
 /** Resolved frozen inputs for one qualification campaign. */
-type QualificationInputsType = Readonly<{
-	flags: Map<string, string[]>;
-	suite: SuiteType;
-	cases: readonly CaseType[];
-	canonicalTreatment: TreatmentDefinitionType;
-	canonical: CanonicalArtifactType;
-	environment: EnvironmentManifestType;
-}>;
+type QualificationInputsType = QualificationCommonInputsType &
+	Readonly<{
+		environment: EnvironmentManifestType;
+	}>;
 
 const budgetOf = (flags: Map<string, string[]>): number | undefined => {
 	const raw = flagOf(flags, 'budget-ms');
@@ -44,52 +44,8 @@ const budgetOf = (flags: Map<string, string[]>): number | undefined => {
 	return budgetMs;
 };
 
-const assertReleaseCorpusOf = (suite: SuiteType, cases: readonly CaseType[]): void => {
-	const release = loadSuite(path.resolve(evaluationRoot, RELEASE_SUITE_PATH));
-
-	if (release.suite.status !== 'frozen') {
-		throw new Error(`qualification requires the frozen release suite; ${release.suite.id} is ${release.suite.status}`);
-	}
-
-	if (release.cases.length !== QUALIFICATION_CASE_COUNT) {
-		throw new Error(
-			`qualification requires the frozen ${QUALIFICATION_CASE_COUNT}-case release suite; ${release.suite.id} declares ${release.cases.length} case(s)`,
-		);
-	}
-
-	if (suite.revision !== release.suite.revision) {
-		throw new Error(`qualification suite revision ${suite.revision} differs from release suite revision ${release.suite.revision}`);
-	}
-
-	const releaseHashes = new Map(release.cases.map((testCase) => [testCase.id, caseHashOf(testCase)]));
-	const caseIds = cases.map((testCase) => testCase.id).sort();
-
-	if (caseIds.join(',') !== [...releaseHashes.keys()].sort().join(',')) {
-		throw new Error('qualification suite must select exactly the frozen release case set');
-	}
-
-	for (const testCase of cases) {
-		const pinned = releaseHashes.get(testCase.id);
-
-		if (pinned === undefined || pinned !== caseHashOf(testCase)) {
-			throw new Error(`qualification case ${testCase.id} differs from the frozen release case content`);
-		}
-	}
-};
-
 const qualificationInputsOf = (flags: Map<string, string[]>): QualificationInputsType => {
-	const suitePath = flagOf(flags, 'suite');
-
-	if (suitePath === undefined || suitePath === 'true') {
-		throw new Error('--suite is required');
-	}
-
-	for (const forbidden of FIXED_PLAN_FLAGS) {
-		if (flags.has(forbidden)) {
-			throw new Error(`qualification does not accept --${forbidden}; the frozen qualification plan is fixed`);
-		}
-	}
-
+	const common = commonQualificationInputsOf(flags);
 	const environmentPaths = allOf(flags, 'environment');
 
 	if (environmentPaths.length !== 1) {
@@ -102,47 +58,28 @@ const qualificationInputsOf = (flags: Map<string, string[]>): QualificationInput
 		throw new Error('--environment is required');
 	}
 
-	const canonicalPath = manifestPathOf(flags, 'canonical');
-	const loaded = loadSuite(path.resolve(evaluationRoot, suitePath));
-
-	if (loaded.suite.status !== 'frozen') {
-		throw new Error(`suite ${loaded.suite.id} must be frozen for qualification`);
-	}
-
-	if (loaded.cases.length !== QUALIFICATION_CASE_COUNT) {
-		throw new Error(
-			`qualification requires the frozen ${QUALIFICATION_CASE_COUNT}-case suite; suite ${loaded.suite.id} declares ${loaded.cases.length} case(s)`,
-		);
-	}
-
-	if (loaded.suite.repetitions !== QUALIFICATION_REPETITIONS) {
-		throw new Error(`qualification requires ${QUALIFICATION_REPETITIONS} paired repetitions; suite ${loaded.suite.id} declares ${loaded.suite.repetitions}`);
-	}
-
-	const treatmentIds = treatmentIdsOf(loaded.suite.treatments);
-
-	if (treatmentIds.join(',') !== QUALIFICATION_TREATMENT_IDS.join(',')) {
-		throw new Error(
-			`qualification requires treatments ${QUALIFICATION_TREATMENT_IDS.join(', ')}; suite ${loaded.suite.id} declares ${treatmentIds.join(', ')}`,
-		);
-	}
-
-	const canonicalTreatment = loaded.suite.treatments.find((treatment) => treatment.id === 'canonical');
-
-	if (canonicalTreatment === undefined) {
-		throw new Error(`suite ${loaded.suite.id} declares no canonical treatment`);
-	}
-
-	const canonical = loadCanonicalArtifact(canonicalPath);
-
-	assertCanonicalTreatmentOf(canonical, canonicalTreatment);
-	assertReleaseCorpusOf(loaded.suite, loaded.cases);
-
 	const environment = loadEnvironmentManifest(path.resolve(evaluationRoot, environmentPath));
 
 	assertEnvironmentPurpose(environment, 'calibration');
 
-	return {flags, suite: loaded.suite, cases: loaded.cases, canonicalTreatment, canonical, environment};
+	return {...common, environment};
+};
+
+const providerMeterOf = (environment: EnvironmentManifestType): ExecutionProviderMeterType => {
+	const separator = environment.model.reference.indexOf('/');
+	const provider = separator === -1 ? '' : environment.model.reference.slice(0, separator);
+	const modelId = separator === -1 ? '' : environment.model.reference.slice(separator + 1);
+
+	if (provider.length === 0 || modelId.length === 0) {
+		throw new Error(`environment model reference "${environment.model.reference}" must have the form <provider>/<model>`);
+	}
+
+	return {
+		upstreamBaseUrl: environment.runtime.ollamaEndpoint,
+		provider,
+		modelId,
+		forbiddenPaths: [primaryCheckout],
+	};
 };
 
 const optionsOf = (inputs: QualificationInputsType): Parameters<typeof evaluateCommand>[1] => {
@@ -156,6 +93,7 @@ const optionsOf = (inputs: QualificationInputsType): Parameters<typeof evaluateC
 		model: inputs.environment.model.reference,
 		claimClass: LOCAL_CLAIM_CLASS,
 		comparison: false,
+		providerMeter: providerMeterOf(inputs.environment),
 		...(budgetMs === undefined ? {} : {budgetMs}),
 	};
 };
@@ -212,6 +150,100 @@ const campaignManifestOf = (
 	};
 };
 
+const stringsOf = (value: unknown, context: string): readonly string[] =>
+	Array.isArray(value)
+		? value.map((item, index) => {
+				if (typeof item !== 'string') {
+					throw new TypeError(`${context}[${index}] must be a string`);
+				}
+
+				return item;
+			})
+		: [];
+
+const booleanOf = (value: unknown, context: string): boolean => {
+	if (typeof value !== 'boolean') {
+		throw new TypeError(`${context} must be a boolean`);
+	}
+
+	return value;
+};
+
+const symbolProbeOf = (value: unknown, context: string): QualificationPreflightType['cases'][number]['symbolProbe'] => {
+	if (value === null || value === undefined) {
+		return null;
+	}
+
+	if (!isRecord(value)) {
+		throw new TypeError(`${context} must be an object or null`);
+	}
+
+	const {symbol, path: probePath, ok} = value;
+
+	if (typeof symbol !== 'string' || typeof probePath !== 'string') {
+		throw new TypeError(`${context} must name a symbol and path`);
+	}
+
+	return {symbol, path: probePath, ok: booleanOf(ok, `${context}.ok`)};
+};
+
+const preflightOf = (runDir: string): QualificationPreflightType => {
+	const file = path.join(runDir, 'preflight.json');
+	const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
+
+	if (!isRecord(parsed)) {
+		throw new TypeError(`corpus preflight at ${file} is not a JSON object`);
+	}
+
+	const {result, cases, treatments, failures} = parsed;
+
+	if (result !== 'pass' && result !== 'fail') {
+		throw new TypeError(`corpus preflight at ${file} has no result`);
+	}
+
+	return {
+		result,
+		cases: (Array.isArray(cases) ? cases : [])
+			.filter((item) => isRecord(item))
+			.map((item, index) => {
+				const {caseId, pathsPresent, symbolProbe} = item;
+
+				if (typeof caseId !== 'string') {
+					throw new TypeError(`corpus preflight case[${index}] has no id`);
+				}
+
+				return {
+					caseId,
+					pathsPresent: booleanOf(pathsPresent, `corpus preflight case[${index}].pathsPresent`),
+					symbolProbe: symbolProbeOf(symbolProbe, `corpus preflight case[${index}].symbolProbe`),
+				};
+			}),
+		treatments: (Array.isArray(treatments) ? treatments : [])
+			.filter((item) => isRecord(item))
+			.map((item, index) => {
+				const {treatmentId} = item;
+
+				if (typeof treatmentId !== 'string') {
+					throw new TypeError(`corpus preflight treatment[${index}] has no id`);
+				}
+
+				const context = `corpus preflight treatment[${index}]`;
+
+				return {
+					treatmentId,
+					ready: booleanOf(item['ready'], `${context}.ready`),
+					filesIndexed: booleanOf(item['filesIndexed'], `${context}.filesIndexed`),
+					rootMatches: booleanOf(item['rootMatches'], `${context}.rootMatches`),
+					projectsConfigured: booleanOf(item['projectsConfigured'], `${context}.projectsConfigured`),
+					missingPaths: stringsOf(item['missingPaths'], `${context}.missingPaths`),
+					unindexedPaths: stringsOf(item['unindexedPaths'], `${context}.unindexedPaths`),
+					failures: stringsOf(item['failures'], `${context}.failures`),
+				};
+			}),
+		failures: stringsOf(failures, 'corpus preflight failures'),
+	};
+};
+
 const printReportOf = (report: ReturnType<typeof qualificationReportOf>, runDir: string): void => {
 	process.stdout.write(
 		`local qualification ${report.status.toUpperCase()} claim=${report.claimClass} release-authority=${String(report.releaseAuthority)} frontier-gate=${report.frontierReleaseGate} model=${report.model.modelId} executions=${report.plan.validExecutions}/${report.plan.expectedExecutions}\n`,
@@ -238,9 +270,19 @@ const printReportOf = (report: ReturnType<typeof qualificationReportOf>, runDir:
  * campaigns. It writes a local-model-scoped record with no release authority and
  * never reads or changes hosted release evidence.
  *
+ * `--revalidate` runs the same frozen inputs, canonical artifact, request-1
+ * surface, corpus, metering, and isolation checks without calling a model and
+ * writes a validity-only revalidation record.
+ *
  * @param flags - Parsed CLI flags.
  */
 export const qualificationCommand = async (flags: Map<string, string[]>): Promise<void> => {
+	if (flags.has('revalidate')) {
+		await revalidationCommand(flags);
+
+		return;
+	}
+
 	const inputs = qualificationInputsOf(flags);
 	const options = optionsOf(inputs);
 
@@ -254,7 +296,7 @@ export const qualificationCommand = async (flags: Map<string, string[]>): Promis
 	await verifiedEnvironmentOf(inputs.environment);
 
 	process.stderr.write(
-		`qualification ${inputs.environment.model.reference}: ${QUALIFICATION_CASE_COUNT} case(s) x ${QUALIFICATION_TREATMENT_IDS.length} treatment(s) x ${QUALIFICATION_REPETITIONS} repetitions = ${QUALIFICATION_EXECUTIONS} executions\n`,
+		`qualification ${inputs.environment.model.reference}: ${inputs.cases.length} case(s) x ${QUALIFICATION_TREATMENT_IDS.length} treatment(s) x ${QUALIFICATION_REPETITIONS} repetitions\n`,
 	);
 
 	const run: EvaluationRunType | null = await evaluateCommand(flags, options);
@@ -279,6 +321,9 @@ export const qualificationCommand = async (flags: Map<string, string[]>): Promis
 		harnessVersion: HARNESS_VERSION,
 		campaignId: metadata.campaignId,
 		claimClass: metadata.claimClass,
+		contract: EVALUATION_CONTRACT_PIN,
+		preflight: preflightOf(run.runDir),
+		stateRootOutsideCheckout: stateRootOutsidePrimaryOf().passed,
 		expectedSlots: planOf(inputs.cases, [...QUALIFICATION_TREATMENT_IDS], QUALIFICATION_REPETITIONS),
 		results: run.results,
 	});

@@ -39,6 +39,21 @@ export const evaluationStateRoot =
 			? evaluationStateRootOf({evaluationRoot, primaryCheckout, environment: process.env})
 			: evaluationRoot;
 
+/**
+ * Verifies that mutable evaluation state stays outside the primary checkout.
+ *
+ * @returns Whether the state root is external, with a redacted explanation.
+ */
+export const stateRootOutsidePrimaryOf = (): Readonly<{passed: boolean; detail: string}> => {
+	const relative = path.relative(primaryCheckout, evaluationStateRoot);
+	const outside = relative !== '' && (relative.startsWith('..') || path.isAbsolute(relative));
+
+	return {
+		passed: outside,
+		detail: outside ? 'state root is outside the primary checkout' : 'state root resolves inside the primary checkout',
+	};
+};
+
 export const argsOf = (argv: readonly string[]): Readonly<{command: string; flags: Map<string, string[]>}> => {
 	const [command = 'help', ...rest] = argv;
 	const flags = new Map<string, string[]>();

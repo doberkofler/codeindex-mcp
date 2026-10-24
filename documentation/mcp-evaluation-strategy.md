@@ -680,6 +680,11 @@ three paired repetitions. This is 108 executions per model. Change only the pinn
 environment when comparing future models. Apply the predeclared qualification criteria and
 report model capability by class.
 
+Before any model spend, revalidate the qualification path model-free against the validity-v2
+measurement controls: complete request metering, the agent request-1 treatment surface,
+corpus coverage, external-workspace isolation, and aggregation over every valid run. The
+revalidation record is validity-only and carries no qualification verdict.
+
 Do not include a moving candidate, and do not use this result as an architecture or release
 precondition. The earlier four-execution diagnostic and 162-execution three-treatment local
 regression are historical candidate-evaluation methods. Their retained records and verdicts

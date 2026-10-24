@@ -547,6 +547,8 @@ node src/cli.ts qualification --suite suites/qualification.json \
 node src/cli.ts qualification --suite suites/qualification.json \
   --environment environments/ollama-qwen3.8-27b-calibration.json \
   --canonical canonical-artifact.json
+node src/cli.ts qualification --suite suites/qualification.json \
+  --canonical canonical-artifact.json --revalidate
 ```
 
 The suite must select exactly the frozen release cases and the `no-index` and
@@ -559,6 +561,20 @@ before any model call. The command writes `qualification.json` with
 environment, so two campaigns with the same baseline are directly comparable and
 a changed canonical artifact starts a new baseline. A qualification record never
 satisfies or blocks the hosted release gate.
+
+Schema 2 binds the record to the accepted `evaluation-validity-v2` contract and
+adds five deterministic validity controls beside the local criteria: complete
+provider-request metering, the exact agent request-1 surface, corpus coverage,
+external-workspace isolation, and aggregation over every valid execution
+including incorrect answers. Metering uses the pinned Ollama endpoint through
+the loopback proxy, so every execution retains settled requests and exact token
+usage without a hosted tariff claim.
+
+`--revalidate` runs the same frozen inputs and the canonical artifact through the
+request-1 cold starts, corpus preflight, meter self-check, and path-isolation
+check without calling a model. It writes `revalidation.json` with
+`claimClass: "validity-only"`, `releaseAuthority: false`, and no qualification
+verdict.
 
 ### Hosted release campaign
 

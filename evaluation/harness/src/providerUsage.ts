@@ -149,11 +149,14 @@ const promptInputOf = (prompt: NumberFieldType, cacheRead: NumberFieldType, cach
 		return {value: null, reported: true, valid: false};
 	}
 
-	if (!cacheRead.reported || !cacheWrite.reported) {
-		// Without both cache components the non-cached remainder cannot be
-		// derived from the provider total without inferring cache state.
+	if (!cacheRead.reported) {
 		return {value: null, reported: false, valid: true};
 	}
+
+	// A provider schema without a cache-write field has no cache-write tokens,
+	// so an unreported tier map contributes zero rather than an unknown amount.
+	// `prompt_tokens` stays the inclusive input total and `cached_tokens` its
+	// cached subset, which makes the remainder exact.
 
 	const nonCached = prompt.value - (cacheRead.value ?? 0) - writeTotalOf(cacheWrite);
 

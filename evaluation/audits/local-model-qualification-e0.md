@@ -143,6 +143,16 @@ The record has no hosted claim, no Q2 verdict, and no `passed` release field. It
 cannot be cited as production release evidence, and a failed or absent
 qualification cannot block a valid hosted campaign.
 
+## Validity-v2 revalidation
+
+The qualification path was revalidated model-free against the validity-v2
+measurement controls before any local campaign spends on 108 slots: complete
+request metering, the agent request-1 surface, corpus coverage, external
+workspace isolation, and all-valid-run aggregation. The result record and its
+scope are in
+[`local-model-qualification-v2-revalidation.md`](local-model-qualification-v2-revalidation.md).
+The record remains validity-only and issues no qualification verdict.
+
 ## Historical evidence
 
 The completed v1 local regression in

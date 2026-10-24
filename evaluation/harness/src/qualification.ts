@@ -1,3 +1,4 @@
+import {assertAcceptedContractOf} from './economicContract.ts';
 import {assertLocalClaimClass} from './localContract.ts';
 import {hashOf} from './hash.ts';
 import {EXECUTION_SCHEMA_VERSION, modelIdentityOf} from './identity.ts';
@@ -10,6 +11,7 @@ import {
 	QUALIFICATION_FRONTIER_GATE,
 	QUALIFICATION_RELEASE_AUTHORITY,
 	QUALIFICATION_REPETITIONS,
+	QUALIFICATION_SCHEMA_VERSION,
 	QUALIFICATION_TREATMENT_IDS,
 	qualificationBaselineOf,
 	type QualificationCriterionType,
@@ -17,6 +19,7 @@ import {
 	type QualificationReportType,
 	type QualificationSlotType,
 } from './qualificationContract.ts';
+import {qualificationValidityOf} from './qualificationValidity.ts';
 import {type RunResultType} from './runTypes.ts';
 import {caseHashOf} from './schema.ts';
 
@@ -363,6 +366,7 @@ const efficiencyOf = (results: readonly RunResultType[], seed: string): Qualific
 export const qualificationReportOf = (input: QualificationInputType): QualificationReportType => {
 	const planned = expectedSlots(input);
 
+	assertAcceptedContractOf(input.contract);
 	assertIdentityOf(input, planned);
 
 	const slots = slotsOf(input);
@@ -371,7 +375,15 @@ export const qualificationReportOf = (input: QualificationInputType): Qualificat
 	const canonical = summarizeTreatment(input.results.filter((run) => run.treatment === 'canonical'));
 	const seed = hashOf({campaignId: input.campaignId, canonical: input.canonical.digest, plan: QUALIFICATION_EXECUTIONS});
 	const efficiency = efficiencyOf(input.results, seed);
+	const validity = qualificationValidityOf({
+		contract: input.contract,
+		preflight: input.preflight,
+		stateRootOutsideCheckout: input.stateRootOutsideCheckout,
+		plan,
+		results: input.results,
+	});
 	const checks = [
+		...validity.checks,
 		...correctnessChecksOf(input, plan, canonical),
 		...timeoutChecksOf(input.results),
 		...toolUseChecksOf(input.results),
@@ -385,7 +397,7 @@ export const qualificationReportOf = (input: QualificationInputType): Qualificat
 
 	return {
 		recordType: 'local-model-qualification',
-		schemaVersion: 1,
+		schemaVersion: QUALIFICATION_SCHEMA_VERSION,
 		claimClass: QUALIFICATION_CLAIM_CLASS,
 		releaseAuthority: QUALIFICATION_RELEASE_AUTHORITY,
 		frontierReleaseGate: QUALIFICATION_FRONTIER_GATE,
@@ -395,6 +407,7 @@ export const qualificationReportOf = (input: QualificationInputType): Qualificat
 		harness: {version: input.harnessVersion, schemaVersion: EXECUTION_SCHEMA_VERSION},
 		suite: input.suite,
 		subject: input.subject,
+		contract: input.contract,
 		baseline: qualificationBaselineOf({
 			suite: input.loadedSuite,
 			cases: input.caseList,
@@ -410,6 +423,7 @@ export const qualificationReportOf = (input: QualificationInputType): Qualificat
 			manifestHash: hashOf(input.canonical),
 		},
 		criteria: QUALIFICATION_CRITERIA,
+		validity,
 		checks,
 		plan,
 		slots,

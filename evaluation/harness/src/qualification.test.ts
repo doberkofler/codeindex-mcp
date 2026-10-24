@@ -1,153 +1,28 @@
 import assert from 'node:assert/strict';
-import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, it, type TestContext} from 'vitest';
 import {artifactIdentityOf} from './artifact.ts';
-import {assertCanonicalTreatmentOf, canonicalArtifactOf, canonicalArtifactHashOf, loadCanonicalArtifact} from './canonicalArtifact.ts';
+import {assertCanonicalTreatmentOf, canonicalArtifactOf, canonicalArtifactHashOf} from './canonicalArtifact.ts';
 import {HARNESS_VERSION} from './cliSupport.ts';
-import {environmentManifestOf} from './environment.ts';
-import {executionIdentityDigestOf, executionIdentityOf} from './identity.ts';
+import {EVALUATION_CONTRACT_PIN} from './economicContract.ts';
 import {LOCAL_CLAIM_CLASS} from './localContract.ts';
 import {
 	QUALIFICATION_CASE_COUNT,
 	QUALIFICATION_EXECUTIONS,
 	QUALIFICATION_REPETITIONS,
+	QUALIFICATION_SCHEMA_VERSION,
 	QUALIFICATION_TREATMENT_IDS,
 	assertComparableQualificationBaselines,
 	qualificationBaselineOf,
 } from './qualificationContract.ts';
 import {qualificationReportOf, qualificationSummaryOf} from './qualification.ts';
 import {assertReleaseClaimClass} from './releasePreconditions.ts';
-import {runOf} from './localTestSupport.ts';
-import {type RunResultType} from './runTypes.ts';
+import {canonical, CONTENT_HASH, EVALUATION_ROOT, inputOf, loaded, resultsOf, slotsOf} from './qualificationTestSupport.ts';
 import {caseHashOf} from './schema.ts';
-import {loadSuite, planOf} from './suite.ts';
-import {toolSurfaceOf, treatmentOf} from './treatment.ts';
-
-const EVALUATION_ROOT = path.resolve(import.meta.dirname, '..', '..');
-const SUITE_PATH = path.join(EVALUATION_ROOT, 'suites', 'qualification.json');
-const CANONICAL_PATH = path.join(EVALUATION_ROOT, 'canonical-artifact.json');
-const ENVIRONMENT_PATH = path.join(EVALUATION_ROOT, 'environments', 'ollama-qwen3.8-27b-calibration.json');
-
-const loaded = loadSuite(SUITE_PATH);
-const canonical = loadCanonicalArtifact(CANONICAL_PATH);
-const environment = environmentManifestOf(JSON.parse(readFileSync(ENVIRONMENT_PATH, 'utf8')) as unknown);
-const CONTENT_HASH = 'a'.repeat(64);
-const CAMPAIGN_ID = 'campaign-qualification';
-
-type OptionsType = Readonly<{
-	noIndexBytes?: number;
-	canonicalBytes?: number;
-	failCanonicalCaseId?: string;
-	timedOut?: boolean;
-	unknownTools?: readonly string[];
-}>;
-
-type SlotType = Readonly<{caseId: string; treatment: (typeof QUALIFICATION_TREATMENT_IDS)[number]; repetition: number}>;
-
-const valuesOf = (slot: SlotType, options: OptionsType): Readonly<{success: boolean; timedOut: boolean; unknownTools: readonly string[]}> => {
-	const canonicalArm = slot.treatment === 'canonical';
-
-	return {
-		success: !(canonicalArm && slot.caseId === options.failCanonicalCaseId),
-		timedOut: options.timedOut === true,
-		unknownTools: options.unknownTools ?? [],
-	};
-};
-
-const invalidReasonOf = (timedOut: boolean, unknownTools: readonly string[]): string | null => {
-	if (timedOut) {
-		return 'timed out';
-	}
-
-	return unknownTools.length > 0 ? `unknown tool(s): ${unknownTools.join(', ')}` : null;
-};
-
-const resultOf = (slot: SlotType, options: OptionsType = {}): RunResultType => {
-	const testCase = loaded.cases.find((item) => item.id === slot.caseId);
-	const treatment = loaded.suite.treatments.find((item) => item.id === slot.treatment);
-
-	if (testCase === undefined || treatment === undefined) {
-		throw new Error(`missing case or treatment for ${slot.caseId}/${slot.treatment}`);
-	}
-
-	const canonicalArm = slot.treatment === 'canonical';
-	const surface = toolSurfaceOf(treatment, canonicalArm ? ['find_symbol'] : []);
-	const identity = executionIdentityOf({
-		suite: loaded.suite,
-		testCase,
-		model: environment.model.reference,
-		treatment,
-		surface,
-		subject: {mode: 'detached-worktree', revision: loaded.suite.revision, contentManifestHash: CONTENT_HASH, lockFileHash: null},
-		artifacts: {accepted: null, candidate: null},
-		configDigest: 'b'.repeat(64),
-		repetitionIndex: slot.repetition,
-		randomizationSeed: 'c'.repeat(64),
-		harnessVersion: HARNESS_VERSION,
-		environment,
-	});
-	const {success, timedOut, unknownTools} = valuesOf(slot, options);
-	const base = runOf({
-		caseId: slot.caseId,
-		caseClass: testCase.class,
-		treatment: slot.treatment,
-		repetition: slot.repetition,
-		success,
-		retrievalBytes: canonicalArm ? (options.canonicalBytes ?? 200) : (options.noIndexBytes ?? 400),
-		toolCalls: canonicalArm ? 1 : 2,
-		durationMs: canonicalArm ? 100 : 200,
-	});
-	const invalidReason = invalidReasonOf(timedOut, unknownTools);
-
-	return {
-		...base,
-		campaignId: CAMPAIGN_ID,
-		identity,
-		identityDigest: executionIdentityDigestOf(identity),
-		model: environment.model.reference,
-		revision: loaded.suite.revision,
-		timedOut,
-		exitCode: timedOut ? null : 0,
-		outcome: timedOut ? 'timed-out' : 'completed',
-		valid: invalidReason === null,
-		invalidReason,
-		artifacts: {
-			accepted: null,
-			candidate: null,
-			loaded: canonicalArm ? {id: canonical.id, digest: canonical.digest} : null,
-		},
-		surface,
-		indexCalls: canonicalArm ? 1 : 0,
-		routing: {
-			...base.routing,
-			codeIndexCalls: canonicalArm ? 1 : 0,
-			unknownTools,
-		},
-	};
-};
-
-const slotsOf = (): ReturnType<typeof planOf<(typeof QUALIFICATION_TREATMENT_IDS)[number]>> =>
-	planOf(loaded.cases, QUALIFICATION_TREATMENT_IDS, QUALIFICATION_REPETITIONS);
-
-const resultsOf = (options: OptionsType = {}): readonly RunResultType[] => slotsOf().map((slot) => resultOf(slot, options));
-
-const inputOf = (results: readonly RunResultType[], overrides: Record<string, unknown> = {}): Parameters<typeof qualificationReportOf>[0] => ({
-	suite: {id: loaded.suite.id, version: loaded.suite.version, hash: loaded.suite.hash},
-	loadedSuite: loaded.suite,
-	caseList: loaded.cases,
-	canonical,
-	stagedCanonical: {id: canonical.id, digest: canonical.digest},
-	environment,
-	subject: {revision: loaded.suite.revision, contentManifestHash: CONTENT_HASH},
-	harnessVersion: HARNESS_VERSION,
-	campaignId: CAMPAIGN_ID,
-	claimClass: LOCAL_CLAIM_CLASS,
-	expectedSlots: slotsOf(),
-	results,
-	...overrides,
-});
+import {loadSuite} from './suite.ts';
+import {treatmentOf} from './treatment.ts';
 
 describe('local-model qualification', () => {
 	it('fixes the frozen 18-case, two-treatment, three-repetition plan', () => {
@@ -181,8 +56,16 @@ describe('local-model qualification', () => {
 		assert.equal(report.releaseAuthority, false);
 		assert.equal(report.frontierReleaseGate, 'unaffected');
 		assert.equal(report.harness.version, HARNESS_VERSION);
+		assert.equal(report.schemaVersion, QUALIFICATION_SCHEMA_VERSION);
 		assert.equal(report.plan.expectedExecutions, QUALIFICATION_EXECUTIONS);
 		assert.equal(report.plan.validExecutions, QUALIFICATION_EXECUTIONS);
+		assert.deepEqual(report.contract, EVALUATION_CONTRACT_PIN);
+		assert.equal(report.validity.metering.exactRuns, QUALIFICATION_EXECUTIONS);
+		assert.equal(report.validity.requestOne.exactRuns, QUALIFICATION_EXECUTIONS);
+		assert.equal(report.validity.isolation.cleanRuns, QUALIFICATION_EXECUTIONS);
+		assert.equal(report.validity.isolation.restoredRuns, QUALIFICATION_EXECUTIONS);
+		assert.equal(report.validity.corpus.result, 'pass');
+		assert.equal(report.validity.checks.length, 5);
 		assert.equal(
 			report.checks.every((check) => check.passed),
 			true,
