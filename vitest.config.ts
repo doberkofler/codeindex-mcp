@@ -134,6 +134,7 @@ const MCP_FAKE_INDEX_TESTS = ['test/mcp.test.ts', 'test/mcpGuidance.test.ts', 't
 
 const DETERMINISTIC_SYSTEM_TESTS = [
 	'test/builtProcess.test.ts',
+	'test/leaseContention.test.ts',
 	'test/soak.test.ts',
 	'evaluation/harness/src/runner.test.ts',
 	'evaluation/harness/src/runnerRecovery.test.ts',

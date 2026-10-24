@@ -351,7 +351,7 @@ plan. Status meanings:
 | WP0 — baselines and pilot gates | Implemented | Build stages, local analytics, offline reports, the version-2 model-free benchmark, deterministic large-project profiles, a versioned baseline, explicit gates, an evaluation sidecar, Markdown summaries, the final reference corpus, declarative suites for generated and pinned public-project benchmark runs, and retained reference-machine measurements exist. The retained record is [Reference-workstation baseline](./reference-baseline.md). |
 | WP1 — native OpenCode exposure | Partial | MCP installation and current Code Mode behavior are documented and protocol-tested. Retained direct-versus-Code-Mode benchmark and formal normal-session smoke evidence remain open. |
 | WP2 — continuous freshness | Implemented | Coordinator, recursive watcher, 500 ms debounce, 60 s reconciliation, one follow-up build, query freshness, dirty-source rejection, and shutdown ownership are implemented and tested. |
-| WP3 — persistence and writer coordination | Partial | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, and bounded generation cleanup exist. Process-level contention/termination evidence and explicit checkout move/copy/delete semantics remain incomplete. |
+| WP3 — persistence and writer coordination | Partial | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, and bounded generation cleanup exist. Multi-process contention, owner termination, reader isolation, and expired-lease takeover are evidenced by `test/leaseContention.test.ts`; explicit checkout move/copy/delete semantics remain incomplete. |
 | WP4 — compiler/reference alignment | Implemented | Declared compiler identity, drift, TypeScript API extraction, and the ≥200-symbol, ≥99.5%-recall, 100%-precision gate with construct stratification and a checked-in corpus exist. |
 | WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, worker builds, a resumable per-run evidence suite, and the deterministic model-free E3 operational soak exist. Retained reference-machine measurements, Code Mode comparison, contention evidence, and four-hour soak evidence remain incomplete. Incremental compiler state remains conditional. |
 | WP6 — build separation | Superseded/partial | MCP, CLI, console server, and browser bundles are separate. The evaluation harness and public cases live under `evaluation/` and are not bundled; private corpora and restricted results remain outside this repository. |
@@ -375,9 +375,10 @@ Cross-cutting contracts and performance targets live in
 - **WP2:** no known feature TODO; retain regression coverage for add/change/delete,
   rename, configuration changes, events during builds, failure recovery, and
   shutdown on every supported platform.
-- **WP3:** add real multi-process contention, owner-termination, and expired-lease
-  takeover tests; document and verify checkout move, copy, and deletion behavior;
-  prove later adapter contexts do not replace core identity concepts.
+- **WP3:** multi-process contention, owner termination, reader isolation, and
+  expired-lease takeover are covered by `test/leaseContention.test.ts`; document and
+  verify checkout move, copy, and deletion behavior; prove later adapter contexts do
+  not replace core identity concepts.
 - **WP4:** no known feature TODO; keep the corpus representative when adding new
   syntax constructs and retain a focused fixture for every mismatch class.
 - **WP5:** complete event-to-publication, MCP, startup, idle CPU, peak memory,

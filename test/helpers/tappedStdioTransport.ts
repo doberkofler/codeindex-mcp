@@ -66,6 +66,15 @@ export class TappedStdioTransport implements Transport {
 		return this.#waitForExit();
 	}
 
+	/**
+	 * Process identifier of the started child.
+	 *
+	 * @returns The child PID, or null before startup.
+	 */
+	public get pid(): number | null {
+		return this.#child?.pid ?? null;
+	}
+
 	public async start(): Promise<void> {
 		if (this.#child !== null) {
 			throw new Error('Transport already started');
@@ -141,6 +150,18 @@ export class TappedStdioTransport implements Transport {
 			clearTimeout(signalTimer);
 			clearTimeout(killTimer);
 		}
+	}
+
+	/**
+	 * Sends one signal to the child without waiting for it to exit.
+	 *
+	 * @param signal - Signal to deliver.
+	 * @returns True when the signal was sent.
+	 */
+	public signal(signal: NodeJS.Signals): boolean {
+		const child = this.#child;
+
+		return child?.exitCode === null && child.signalCode === null ? child.kill(signal) : false;
 	}
 
 	/**

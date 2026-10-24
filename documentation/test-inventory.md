@@ -11,10 +11,10 @@ selected tests and records the MCP protocol split.
 Scope is every Vitest test module selected by `vitest.config.ts`:
 
 ```text
-test/**/*.test.ts                     89 files
+test/**/*.test.ts                     90 files
 evaluation/harness/src/**/*.test.ts   26 files
                                      ---------
-                                     115 files
+                                     116 files
 ```
 
 Support files under `test/helpers/`, fixture trees under `test/fixtures/`, and non-test harness
@@ -53,10 +53,10 @@ class table.
 | Adapter contract | 15 | 0 | 15 |
 | Core integration | 10 | 0 | 10 |
 | MCP protocol contract | 5 | 0 | 5 |
-| Deterministic system test | 2 | 2 | 4 |
+| Deterministic system test | 3 | 2 | 5 |
 | Semantic qualification | 4 | 2 | 6 |
 | Performance test | 2 | 0 | 2 |
-| **Total** | **89** | **26** | **115** |
+| **Total** | **90** | **26** | **116** |
 
 `referenceGrouping.test.ts` is classed as core integration rather than MCP protocol because its
 claim is reference-grouping semantics; it calls `CodeIndex` directly.
@@ -81,6 +81,7 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/buildWorker.test.ts` | Module test | `isBuildWorkerData`, `runBuildWorker` | Handcrafted facts | Only a complete build payload is accepted and worker failures are reported without a parent port. |
 | `test/buildWorkerClient.test.ts` | Module test | `runBuildWorkerThread` | Micro fixture | Worker reports are validated, malformed fields rejected, and worker errors preserved over exit codes. |
 | `test/builtProcess.test.ts` | Deterministic system test | Built `dist/mcp.mjs` over stdio | Temporary workspace | Initial publication, every tool, stream isolation, edits, stale refusal, watcher rebuilds, add/delete/rename, failed-build isolation, restart reuse, and clean shutdown hold in the built process. |
+| `test/leaseContention.test.ts` | Deterministic system test | Two built `dist/mcp.mjs` processes over one database | Temporary workspace | One owner holds the lease, the reader serves the published generation, a killed owner never publishes, its heartbeat stops, and an expired lease is taken over. |
 | `test/cleanup.test.ts` | Module test | `collectCleanupTargets`, `removeCleanupTargets`, `runCleanup` | Temporary workspace | Cleanup removes only known caches, honours keep, ownership, symlink, and root safety, and continues after failure. |
 | `test/cli.test.ts` | Core integration | `runCli` | Vertical fixture + temporary SQLite | Update, status, verify, reuse, and force-rebuild operate one real index and map failures to exit codes. |
 | `test/codeIndex.test.ts` | Core integration | `CodeIndex` queries | Vertical fixtures | Symbol search, outline, paging, references, dependencies, impact, and freshness obey the core query contract. |
@@ -207,6 +208,7 @@ owner and left in place for the later cleanup sequence.
 | Oracle golden fact aggregate | Adapter contract | `test/oracleGoldenFacts.test.ts` | `test/oracleAntlrDeclarations.test.ts`, `test/oracleAntlrReferences.test.ts` | Intentional overlap: the golden file is a frozen aggregate; the ANTLR tests own granular construct claims. |
 | Oracle truth policy and comparison | Semantic qualification | `test/oracleQualification.test.ts` | `test/oracleQualificationRun.test.ts` | Intentional overlap: the run test owns orchestration and reporting only. |
 | Build-lease ownership and renewal | Core integration | `test/storage.test.ts` | `test/database.test.ts` | Intentional overlap: `database` asserts ownership as a publication precondition; `storage` owns lease semantics. |
+| Multi-process lease contention and takeover | Deterministic system test | `test/leaseContention.test.ts` | `test/storage.test.ts` | No duplicate: `storage` owns in-process lease semantics; `leaseContention` owns process death, reader isolation, and takeover. |
 | Generation publication lifecycle | Core integration | `test/database.test.ts` | `test/databaseFacts.test.ts` | Intentional overlap: `databaseFacts` owns row-level integrity and failure isolation. |
 | Page, source, and envelope byte bounds | Module test | `test/querySupport.test.ts` (pages), `test/readSymbolSource.test.ts` (source), `test/readSymbolResult.test.ts` (result) | `test/mcp.test.ts` | No duplicate: each file owns a distinct bound stage; MCP owns only the outer envelope bound. |
 | Answer guidance rules | Module test | `test/toolGuidance.test.ts` | `test/mcpGuidance.test.ts` | Intentional overlap: MCP proves the guidance survives the envelope. |
@@ -250,7 +252,8 @@ Nearest coverage is listed so the later gap-filling item can add the smallest te
 | MCP protocol | Exact tool input schemas and invalid-argument rejection | `test/mcp.test.ts` asserts every tool schema, required field, enum, default, and invalid-argument rejection |
 | MCP protocol | Tool descriptions for every tool | `test/mcp.test.ts` asserts every tool description and the server instructions |
 The built-process deterministic system contracts previously listed here are covered by
-`test/builtProcess.test.ts`; the in-process mechanisms remain with their module and core
+`test/builtProcess.test.ts`, and multi-process lease contention by
+`test/leaseContention.test.ts`; the in-process mechanisms remain with their module and core
 integration tests.
 
 ## 6. Completeness check
@@ -258,10 +261,10 @@ integration tests.
 The inventory contains one row per test module selected by the Vitest include patterns.
 
 ```text
-test/**/*.test.ts                     89
+test/**/*.test.ts                     90
 evaluation/harness/src/**/*.test.ts   26
                                      ---
-inventory rows                       115
+inventory rows                       116
 ```
 
 Verification commands:
@@ -273,7 +276,7 @@ find evaluation/harness/src -type f -name '*.test.ts' | wc -l
 
 Checks:
 
-- [x] Every one of the 115 test files has exactly one class and one primary claim.
+- [x] Every one of the 116 test files has exactly one class and one primary claim.
 - [x] No file is unclassified.
 - [x] No test file is listed in more than one inventory row.
 - [x] Every duplicate has a named owner; the remaining overlaps state their wiring reason.

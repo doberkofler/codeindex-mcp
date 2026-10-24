@@ -119,7 +119,9 @@ integration, and semantic-qualification classes. `test/referenceGrouping.test.ts
 Start the built `dist/mcp.mjs` over stdio with the official client and a temporary
 workspace. Prove initial publication, all tools, stdout isolation, source edits, stale
 refusal, watcher rebuild, add/delete/rename, failed-build isolation, restart reuse, and
-clean shutdown.
+clean shutdown. A second built process on the same database proves single-owner contention,
+reader isolation, dead-owner heartbeat failure, and expired-lease takeover without a half
+publication.
 
 ## 5. Test data
 

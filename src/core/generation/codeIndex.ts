@@ -15,7 +15,7 @@ import {type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
 import {findDependencies as queryDependencies, findReferences as queryReferences, findSymbols as querySymbols} from '../query/queryService.ts';
 import {CodeIndexError, IndexNotReadyError} from '../errors/errors.ts';
-import {observeExternalBuild} from './externalBuild.ts';
+import {acquireOrObserveBuildLease, EXTERNAL_BUILD_TIMEOUT_MS} from './externalBuild.ts';
 import {collectStatus} from '../freshness/indexStatus.ts';
 import {
 	type BuildReportType,
@@ -180,17 +180,18 @@ export class CodeIndex {
 	async #performRefresh(reason: RefreshReasonType, force: boolean): Promise<BuildReportType> {
 		debug('refresh start', {reason, force});
 		const startedAt = performance.now();
-		const leaseAcquired = this.#database.tryAcquireBuildLease(this.#ownerId, process.pid, BUILD_LEASE_TTL_MS);
-		if (!leaseAcquired) {
-			debug('build lease held by another process');
-			return observeExternalBuild({
-				database: this.#database,
-				previous: this.#published,
-				startedAt,
-				record: (event, fields) => {
-					this.#analytics?.record(event, fields);
-				},
-			});
+		const leaseOutcome = await acquireOrObserveBuildLease({
+			database: this.#database,
+			previous: this.#published,
+			startedAt,
+			deadlineAt: Date.now() + EXTERNAL_BUILD_TIMEOUT_MS,
+			tryAcquire: () => this.#database.tryAcquireBuildLease(this.#ownerId, process.pid, BUILD_LEASE_TTL_MS),
+			record: (event, fields) => {
+				this.#analytics?.record(event, fields);
+			},
+		});
+		if (leaseOutcome.state === 'published') {
+			return leaseOutcome.report;
 		}
 		const stopHeartbeat = startBuildLeaseHeartbeat({
 			renew: () => this.#database.renewBuildLease(this.#ownerId, BUILD_LEASE_TTL_MS),
@@ -495,6 +496,5 @@ export class CodeIndex {
 		return published;
 	}
 }
-
 export const createCodeIndex = (config: ConfigType, database: IndexDatabase, logger: LoggerType, options: CodeIndexOptionsType = {}): CodeIndex =>
 	new CodeIndex(config, database, logger, options);
