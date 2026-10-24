@@ -5,14 +5,15 @@ baseline and against the currently accepted CodeIndex artifact, implementing the
 method in
 [`documentation/evaluation-harness.md`](../../documentation/evaluation-harness.md).
 
-> **Hosted use blocked:** request-level provider metering, direct agent
-> request-1 surface proof, external-state workspace isolation, and corpus
-> preflight are implemented. The frozen economic/statistical contract and the
-> hosted validity pilot remain open. Read the
-> [E3 erratum](../audits/hosted-release-e3-erratum.md) and
-> [evaluation validity v2](../../documentation/evaluation-validity-v2.md).
-> Do not start another hosted release campaign until master #58 and child issues
-> #59–#65 satisfy that plan.
+> **Certification status:** request-level provider metering, direct agent
+> request-1 surface proof, external-state workspace isolation, corpus preflight,
+> and the frozen economic/statistical contract are implemented. EVAL-037 recorded
+> **RELEASE** for the pinned impact-class primary population with native direct
+> MCP; the holdout is descriptive only. Read the
+> [E3 erratum](../audits/hosted-release-e3-erratum.md), the
+> [frozen contract](../contracts/evaluation-validity-v2.json), and the
+> [certification record](../audits/certification-eval-037.md). Do not cite a new
+> economic result outside the frozen contract and pinned configuration.
 
 The harness, public cases, suites, and reviewed aggregate reports are part of
 this repository. Raw event streams, transcripts, artifacts, workspaces,

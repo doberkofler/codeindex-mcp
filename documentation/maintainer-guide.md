@@ -50,6 +50,15 @@ Schema changes bump `SCHEMA_VERSION`. Move one incompatible database aside as a
 `.schema-<version>.bak` file and rebuild. Never add in-place migrations to derived
 index data.
 
+Finalization and persisted validation run while the generation is `building` and
+before publication. Production builds run the structural invariants in `enforce`
+mode; a violation or a per-root ceiling overrun fails the candidate and retains the
+previous published generation. Qualification-only overrides run in `report` mode,
+where an overrun marks the report incomplete instead of truncating facts. Changing an
+input that can alter emitted facts changes `config_hash`; changing a compiled ceiling
+or extractor semantic requires an adapter-version bump, which is part of the project
+configuration identity.
+
 ## 5. Adapter acceptance
 
 Every adapter must provide:

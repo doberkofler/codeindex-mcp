@@ -1,7 +1,7 @@
 # Model-free accepted-versus-candidate gate: E1 execution
 
 Execution record for the stage-1 accepted-versus-candidate gate required by
-[strategy §8.1.2](../../documentation/mcp-evaluation-strategy.md#812-mandatory-stage-order)
+[strategy §8.1.2](../../documentation/mcp-evaluation-strategy.md#812-mandatory-architecture-order)
 and [G-E1a–G-E1c](../../documentation/mcp-evaluation-strategy.md#818-gate-to-check-map).
 No model, agent, or prompt was involved.
 

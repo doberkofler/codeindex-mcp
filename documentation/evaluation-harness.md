@@ -1,21 +1,23 @@
 # Controlled Evaluation Harness
 
-**Status:** proposed methodology
+**Status:** implemented methodology
 **Scope:** repeatable comparisons of agent work without CodeIndex, with the accepted
 CodeIndex artifact, and with a candidate artifact
 
-> **Validity amendment:** the harness meters every provider request, asserts the
-> direct agent request-1 surface after actual MCP readiness, stages all mutable
-> execution state outside the primary checkout, and preflights every case corpus
-> before model spend. It does not yet satisfy the complete
-> [evaluation validity v2](./evaluation-validity-v2.md) contract: the frozen
-> economic/statistical contract and hosted validity pilot remain open, and
-> `step_finish` events are not the cost ledger. Do not run or cite a new hosted
-> economic campaign until master
-> [#58](https://github.com/doberkofler/codeindex-mcp/issues/58) and child issues
-> #59–#65 are complete.
-> See the [E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md) and the
-> [request-1 evidence](../evaluation/audits/request-1-surface-eval-032.md).
+> **Validity status:** the V1–V7 validity sequence is complete. Final certification
+> EVAL-037 recorded **RELEASE** for the pinned impact-class primary population
+> with native direct MCP, and made no Code Mode or generalization claim. The
+> harness meters every provider request, asserts the direct agent request-1
+> surface after actual MCP readiness, stages all mutable execution state outside
+> the primary checkout, and preflights every case corpus before model spend.
+> Provider metering, not `step_finish` events, is the cost ledger. The frozen
+> economic contract is
+> [`../evaluation/contracts/evaluation-validity-v2.json`](../evaluation/contracts/evaluation-validity-v2.json);
+> the certification record is
+> [`../evaluation/audits/certification-eval-037.md`](../evaluation/audits/certification-eval-037.md).
+> Do not cite a new economic result outside the frozen contract and pinned
+> configuration. See the [E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md)
+> and the [request-1 evidence](../evaluation/audits/request-1-surface-eval-032.md).
 
 This document owns harness mechanics. The
 [MCP evaluation strategy](./mcp-evaluation-strategy.md) owns product questions, test

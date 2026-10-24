@@ -92,9 +92,10 @@ valid request-1 A/B pilot demonstrates unnecessary fallback.
 
 ## Replacement evidence path
 
-The normative replacement plan is
-[`documentation/evaluation-validity-v2.md`](../../documentation/evaluation-validity-v2.md).
-It requires complete request-level metering, request-1 surface proof, corpus
-preflight, external workspace isolation, corrected statistics, disjoint A/A
-calibration, a budgeted A/B development pilot, and one final certification
-campaign.
+The normative replacement contract is
+[`evaluation/contracts/evaluation-validity-v2.json`](../contracts/evaluation-validity-v2.json),
+executed through EVAL-031 to EVAL-037 and recorded in
+[`certification-eval-037.md`](./certification-eval-037.md). It requires complete
+request-level metering, request-1 surface proof, corpus preflight, external
+workspace isolation, corrected statistics, disjoint A/A calibration, a budgeted
+A/B development pilot, and one final certification campaign.

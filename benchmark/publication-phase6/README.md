@@ -1,7 +1,7 @@
 # Publication Policy Phase 6 Evidence
 
 Phase 6 decisions for
-[codeindex-publication-policy-redesign.md](../../documentation/codeindex-publication-policy-redesign.md).
+[publication classification](../../documentation/typescript-adapter.md#42-surface-projection-and-reachability).
 
 The files contain aggregate counts only: no source text, symbol names, query text,
 credentials, or absolute paths.

@@ -4,8 +4,8 @@ Date: 2026-10-23
 
 Scope: implementation and execution evidence for
 [EVAL-036 (#64)](https://github.com/doberkofler/codeindex-mcp/issues/64), under
-the [evaluation validity v2](../documentation/evaluation-validity-v2.md)
-contract. This is development evidence. It does not authorize a release, does
+the frozen [validity-v2 contract](../contracts/evaluation-validity-v2.json).
+This is development evidence. It does not authorize a release, does
 not replace final certification, and does not reuse any development execution as
 holdout evidence.
 

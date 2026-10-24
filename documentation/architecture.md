@@ -172,7 +172,13 @@ Core tables:
 | `content` | Immutable content versions keyed by SHA-256 |
 | `symbol` | Declarations with stable IDs and source ranges |
 | `symbol_context` | Compiler contexts that produced each declaration |
+| `symbol_name` | Canonical binding keys and display fields |
+| `symbol_name_context` | Binding exposure per project context |
+| `symbol_name_site` | Binding source sites |
+| `surface_binding_origin` | Published root and projected relative path |
 | `occurrence` | Definition/reference occurrences and enclosing symbol |
+| `definition_site` | Deterministic definition-site IDs |
+| `build_stats` | Closed aggregate fact metrics per generation |
 | `occurrence_context` | Compiler contexts that resolved each occurrence |
 | `dependency_edge` | Authored imports/exports and external dependency facts |
 | `dependency_binding` | Imported/exported/local names per edge |
@@ -187,9 +193,9 @@ Persisted paths are workspace-relative POSIX paths. Absolute paths appear only i
 full `index_status.scope` payload for the configured root and project files; the default
 summary omits the absolute root.
 
-The [publication policy](./codeindex-publication-policy-redesign.md) defines the next
-schema version's normalized fact tables. The list above describes the current release
-until that redesign is implemented.
+The fact tables implement the symbol, binding, exposure, and definition-site model in
+§7.3. Schema version 9 is current; §7.4 defines the invariants validated before
+publication.
 
 Previous generations are retained as `superseded` for one generation so in-flight
 queries holding a generation identifier can complete. Unreferenced content and
@@ -239,6 +245,250 @@ different builds.
 An adapter may be configured as optional only when query coverage reports its
 absence explicitly. Failure of a required adapter fails the candidate and retains
 the previous published generation.
+
+### 7.3 Symbol, binding, and exposure model
+
+The persisted fact model separates symbol identity, searchable address, and
+exposure. Adapters classify language semantics and emit serializable facts; the
+core derives identity, exposure, denormalized fields, and validation.
+
+**Persistence** is per symbol:
+
+- `stored`: a navigable symbol with at least one definition occurrence;
+- `ephemeral`: a declaration used during resolution or classification but not
+  persisted as a symbol or occurrence owner.
+
+**Exposure** is per binding and project context:
+
+- `published`: the binding is an address a consumer can write or follow;
+- `reachable`: the declaration is consumer-visible through a published type
+  surface, but this lexical binding is not itself writable;
+- `internal`: the binding is not consumer-visible from a published root.
+
+Exposure is classified per binding; a published alias never upgrades or hides the
+symbol's other lexical bindings. Symbol exposure is the maximum across its bindings
+and contexts, ordered `published > reachable > internal_only`. Oracle does not use
+`reachable`: its lexical address is its consumer address.
+
+```ts
+const x = (): void => {};
+export {x as y};
+```
+
+Binding `x` is internal, binding `y` is published, and the symbol is published.
+
+The lexical hierarchy and the address hierarchy are independent:
+
+- `symbol.enclosing_id` is lexical/navigation ownership;
+- a binding key is a searchable address;
+- lexical containment never implies addressability.
+
+#### Binding identity
+
+Every extracted binding carries an adapter-produced, injective vector of typed
+address segments. The core validates the generic tuple shape, serializes the
+vector canonically as `binding_key`, and derives `binding_id`. It never interprets
+language-specific segment kinds.
+
+```ts
+type AddressSegment = readonly [
+	kind: string,
+	value: string | number | null,
+];
+```
+
+Vectors are non-empty. Segment kinds are non-empty strings; numeric values are
+non-negative safe integers; tuples have exactly two elements. `JSON.stringify`
+with no whitespace is the persisted canonical serialization, so dotted, quoted,
+numeric, and separator-containing names cannot collide. Changing segment meaning,
+ordering, or serialization is an incompatible fact-model change requiring a schema
+and adapter-version bump.
+
+TypeScript uses one leading `module`, `global`, or `external_module` segment
+followed by typed segments:
+
+| Kind | Value | Meaning |
+|---|---|---|
+| `module` | workspace-relative POSIX module path | internal module identity |
+| `global` | `null` | script/global namespace |
+| `external_module` | canonical external target | authored external-module augmentation |
+| `member` | exact authored/exported name | named address segment |
+| `sig` | overload index | disambiguated call signature; omitted when only one exists |
+| `param` | parameter index | parameter type |
+| `return` | `null` | call result |
+| `construct` | `null` | constructed instance type |
+| `awaited` | `null` | awaited payload |
+| `element` | `null` or element index | array element type or zero-based tuple position |
+
+Oracle uses an `owner` segment followed by one or more `member` segments. Overloads
+may share an address; distinct symbol IDs keep their bindings distinct. Unquoted
+identifiers use Oracle canonical uppercase spelling; quoted identifiers preserve
+authored spelling.
+
+`container`, `name`, and `qualified_name` are derived display/search fields.
+Display may evolve without changing binding identity. The core compares complete
+`name` or complete `qualified_name`; it never parses display text.
+
+Natural binding uniqueness is `(generation_id, symbol_id, binding_key)`.
+
+#### Binding sites and contexts
+
+One binding can have several source sites:
+
+| Site kind | Meaning |
+|---|---|
+| `declared` | the symbol's authored identifier |
+| `alias` | same-module export specifier |
+| `default` | `export default` clause |
+| `reexport` | named re-export from another internal module |
+| `wildcard` | binding introduced through internal `export *` |
+| `commonjs` | CommonJS export assignment; reserved while publication is disabled |
+| `surface` | projected address whose source site is its published root |
+
+A declared site equals a definition occurrence's name range. Export sites lie in
+authored export syntax. Surface sites equal a site of their root binding.
+
+Bindings and sites are stored once per generation. `symbol_name_context` states
+where each binding exists and its exposure. The same location-derived symbol may
+have different keys and exposure across contexts.
+
+`surface_binding_origin` stores the root binding ID and the canonical segments
+after that root; the destination vector must equal root vector plus relative
+vector.
+
+#### Definition occurrences
+
+Every definition occurrence has `role = definition`, a `declaration_kind`,
+`forward_definition`, a name range, a declaration extent, `anchor_rank`,
+`primary_rank`, and an enclosing stored owner. References have no declaration kind
+or extent and are never forward definitions.
+
+| Construct | Definition treatment |
+|---|---|
+| Oracle package spec and body | two definitions; neither forward |
+| Oracle spec routine or cursor requiring a body | definition + forward |
+| Oracle body full routine or cursor | definition |
+| Oracle package-body private forward | definition + forward |
+| Oracle call spec or polymorphic table function | definition, not forward |
+| Oracle spec-only constant, variable, type, exception | definition |
+| TypeScript overload signature | definition + forward |
+| TypeScript implementation signature | definition |
+| TypeScript merged declarations | one definition per declaration |
+
+Extents are the TypeScript node start through `node.end`, or the Oracle declaration
+range. They are not widened to comments or trivia. Per-site kinds are required
+because one TypeScript symbol can merge a function and a namespace.
+
+Every stored symbol has exactly one identity anchor, which supplies the symbol ID
+and `symbol.kind`, and exactly one primary definition, which `read_symbol` reads by
+default. Identity and primary read site are independent. Selection orders by the
+adapter rank, then path, start offset, and the remaining occurrence key.
+
+```text
+TypeScript identity anchor:  equal rank across authored declarations
+TypeScript primary:          implementation, overload, then merged order
+Oracle identity anchor:      spec site, body implementation, then body forward
+Oracle routine primary:      full body, specification, then body forward
+Oracle package primary:      specification, then body
+```
+
+The denormalized `symbol` path/range comes from the primary definition; `symbol.kind`
+comes from the identity anchor. The primary binding is the `declared` or `default`
+site matching the primary definition's name range, preferring `declared`, then
+`binding_key` and `binding_id`. `symbol.name` and `symbol.qualified_name` copy that
+binding. A context filter never changes the global primary binding.
+
+Occurrences are stored only when their target is a stored symbol. Reference
+ownership is the innermost stored definition extent containing the reference name
+range; definition ownership excludes the definition's own target. Exposure never
+controls occurrence storage.
+
+Usage bits are `call` 1, `read` 2, `write` 4, and `type_ref` 8. Legal values are
+`0`, `1`, `2`, `4`, `6`, and `8`; zero means unclassified, and definitions use
+zero. Compound assignment, increment/decrement, and Oracle `IN OUT` arguments use
+read + write. Ownership plus a call bit is not a call graph.
+
+### 7.4 Fact finalization and validation
+
+One language-neutral finalizer under `src/core/facts/` owns deterministic ordering,
+canonical serialization, ID derivation, anchor and primary selection, exposure
+derivation, denormalized fields, aggregate statistics, structural invariants, and
+duplicate/collision detection. It imports no compiler, parser, package manager, or
+version-control client. Adapter semantics such as exportability, Oracle publicity,
+and anonymous-shape classification stay in the adapter.
+
+Validation runs after persistence while the candidate is `building`, and before
+atomic publication.
+
+| ID | Owner | Invariant |
+|---|---|---|
+| S1 | Core | Symbol keys are unique |
+| S2 | Core | `enclosing_id` is null or references a stored symbol in the generation |
+| S3 | Measured | Child definitions lie within a same-path definition extent of their enclosing symbol; chains are acyclic |
+| S4 | Adapter | `enclosing_id` is the nearest enclosing stored declaration |
+| S5 | Core | Every symbol has definitions, one identity anchor, and one primary definition |
+| S6 | Core | Denormalized location/name fields equal the selected primary site/binding; kind equals the anchor kind |
+| S7 | Core | Symbol exposure equals the maximum of its binding-context exposure |
+| N1 | Core | Every symbol has a declared/default binding at a definition site |
+| N2 | Core | Every binding has a canonical key, display fields, a site, and a context row |
+| N3 | Core | Every `declared` site equals a definition occurrence name range for the same symbol |
+| N4 | Adapter | Export, default, re-export, and CommonJS sites lie in recognized authored export syntax |
+| N5 | Core | Every surface binding/context has one origin; its root is published and non-surface |
+| N6 | Core | Every binding-context row has a matching symbol-context row |
+| N7 | Adapter | A binding is published only when its address is writable or followable |
+| N8 | Core | Binding and definition-site IDs equal their derivations; collisions fail |
+| O1 | Core | Every occurrence targets a stored symbol |
+| O2 | Measured | Owner is the unique innermost containing stored definition; definitions exclude their own target |
+| O3 | Core | Definitions have kind, ranks, an enclosing extent, zero usage, and one definition-site row |
+| O4 | Core | References have no extent, kind, or ranks and are never forward definitions |
+| L1 | Measured | Definition extents in one path are disjoint or nested; no two symbols share an identical extent |
+| F1 | Measured | Per declaration kind, at most one forward and one full definition |
+| B1 | Adapter | Stored definition sites belong to authored roots; external declarations are not materialized |
+
+Measured invariants become enforced only after the dry run resolves every valid
+violation class. Production builds run S3, O2, L1, and F1 in `enforce` mode;
+qualification-only parser overrides remain report-only.
+
+Per-root emitted-fact ceilings are finite and fail the candidate on overrun. The
+accepted production values are compiled from qualification evidence. Changing one is
+an extractor change: bump the adapter version, which participates in the project
+configuration identity, and rebuild. Qualification runs may override them. Neither
+mode truncates facts: a report overrun marks the report incomplete and aborts that
+run.
+
+### 7.5 Deterministic identifiers
+
+Tool-visible IDs are hashes of natural keys without `generation_id`:
+
+```text
+site_id    = hash(symbol_id, path, start_offset, role)
+binding_id = hash(symbol_id, binding_key)
+```
+
+Use SHA-256, retain 96 bits as 24 lowercase hexadecimal characters, and prefix with
+`o_` for definition sites and `b_` for bindings. Each key part is UTF-8 preceded by
+its UTF-8 byte length in ASCII decimal and `:` and followed by `;`; numeric parts
+use finite base-10 spelling. Uniqueness is per generation; a collision fails the
+candidate build. Autoincrement IDs are rejected because a stale ID could select a
+different row after rebuild.
+
+### 7.6 Rejected publication alternatives
+
+| Alternative | Reason rejected |
+|---|---|
+| Persist published symbols only | destroys internal callers, reference ownership, dependency chains, and implementation navigation |
+| Put visibility on `symbol` | one symbol can have internal and published aliases |
+| Three exclusive symbol tiers | conflates persistence with name exposure |
+| Persist parameters and locals | search-noise cost exceeds navigation value |
+| Separate `symbol_location` table | definition occurrences already carry typed locations |
+| One symbol per spec/body or merged declaration | fragments references and loses canonical identity |
+| Materialize dependency declarations | violates authored-root scope and increases noise/storage |
+| Persist every possible deep consumer path | disproportionate storage; reachable lexical bindings preserve discovery |
+| Use display text as binding identity | separator and formatting changes can collide or churn IDs |
+| Autoincrement external IDs | stale IDs can silently select different rows |
+| One database transaction for the whole build | generation states already provide isolation without a long writer transaction |
+| In-place schema migration | derived indexes are rebuilt on schema-version change |
+| PL/Scope-backed production indexing | unavailable for wrapped/offline source and violates source-based adapter design |
 
 ## 8. Adapter contract
 
@@ -294,11 +544,11 @@ An adapter emits serializable facts only. Compiler objects, database connections
 parser trees, credentials, and client-specific configuration remain inside the
 adapter boundary.
 
-Symbol persistence, binding exposure, surface projection, reachability, and the
-resulting schema and query behavior are defined by the
-[publication policy](./codeindex-publication-policy-redesign.md). That contract keeps
-language semantics in adapters and generic finalization, validation, persistence, and
-bounds in the core.
+Symbol persistence, binding exposure, and definition-site selection follow §7.3;
+adapters own language classification, while the core owns generic finalization,
+validation, persistence, and bounds. TypeScript publication rules are in
+[TypeScript adapter §4](./typescript-adapter.md#4-files-symbols-and-occurrences) and
+Oracle rules in [Oracle adapter §3](./oracle-adapter.md#3-symbols).
 
 ## 9. Query contract
 
@@ -312,11 +562,10 @@ cursor, and a truncation flag.
 | `find_symbol` | query, optional context, detail, limit, cursor | Exact qualified, exact name, prefix qualified, prefix name |
 | `find_references` | symbol id or query, group, role, filters, limit, cursor | Occurrences, file groups, owner groups, ambiguity, or text-search fallback |
 | `find_dependencies` | target, optional context, direction, transitive, root, detail, limit, cursor | Direct target usage or dependency impact |
-| `read_symbol` | symbol id, context lines | Verifies current content hash |
+| `read_symbol` | symbol id or definition site; context lines; `sites`, `names`, `binding_sites`, `binding_contexts` list modes | Verifies current content hash |
 
-Symbol exposure (`published`, `reachable`, `internal`) and its ranking effect are
-defined by the [publication policy](./codeindex-publication-policy-redesign.md);
-`find_symbol` defaults to the `visible` filter (published or reachable).
+Symbol exposure (`published`, `reachable`, `internal`) and its ranking effect follow
+§7.3; `find_symbol` defaults to the `visible` filter (published or reachable).
 
 `outline` and `find_symbol` default to `detail: compact`, which returns the
 symbol identifier, name, kind, path, and line range. `detail: full` adds
@@ -341,6 +590,13 @@ Result rules:
 - Follow `nextCursor` when `truncated` is true. Cursors are bound to a
   generation.
 - Responses never include stack traces, credentials, or absolute source paths.
+- Nested lists carry totals and truncation flags. Nested caps are three contexts and
+  three sites on a matched binding, five other binding summaries, and five
+  definition sites. Byte reduction drops `otherNames`, then reduces contexts and
+  binding sites to one each, then definition sites to the primary site, then drops
+  trailing top-level items and returns a cursor. Totals survive reduction; a single
+  minimal item that cannot fit returns `response_too_large` rather than a partial
+  object.
 - Unexpected failures are reduced to `internal_error`.
 
 Stable error codes: `index_not_ready`, `index_build_failed`,

@@ -1,8 +1,8 @@
 # Corpus indexing and workspace isolation: eval-033
 
 Record for [EVAL-033 / #61](https://github.com/doberkofler/codeindex-mcp/issues/61),
-under the [evaluation validity v2](../documentation/evaluation-validity-v2.md)
-contract. Date: 2026-10-23.
+under the frozen [validity-v2 contract](../contracts/evaluation-validity-v2.json).
+Date: 2026-10-23.
 
 ## Change boundary
 

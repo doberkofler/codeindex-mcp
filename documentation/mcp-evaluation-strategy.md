@@ -2,14 +2,13 @@
 
 Date: 2026-10-23
 
-Status: historical v1 strategy, amended by the accepted
-[evaluation validity v2 plan](./evaluation-validity-v2.md). No new hosted
-campaign may rely on the v1 metering, request-1 surface probe, corpus setup, or
-economic statistics until the v2 validity gates pass.
-Existing accepted gates in
-[the publication-policy redesign](./codeindex-publication-policy-redesign.md) remain
-normative. This document defines how to produce the evidence needed to judge the MCP
-server as a product.
+Status: historical v1 strategy. The v2 validity sequence is complete under the
+frozen [economic contract](../evaluation/contracts/evaluation-validity-v2.json) and
+the [EVAL-037 certification](../evaluation/audits/certification-eval-037.md). The v1
+metering, request-1 surface probe, corpus setup, and economic statistics are
+historical and must not support a new claim. Accepted publication gates now live in
+[Architecture](./architecture.md) and the adapter documents. This document records
+how to produce evidence for judging the MCP server as a product.
 
 The companion [controlled evaluation harness](./evaluation-harness.md) describes runner
 mechanics. The separate [codebase testing strategy](./codebase-testing-strategy.md)
@@ -19,8 +18,9 @@ that the MCP server helps an agent.
 The completed E3 campaign remains historical `NOT PASSED` evidence under its
 original `retrievalBytes` contract. Its total-token and cost interpretation is
 withdrawn; see the
-[E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md). The v2 plan
-supersedes this document where validity or economic requirements conflict.
+[E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md). The frozen v2
+contract and its certification record supersede this document where validity or
+economic requirements conflict.
 
 ## 1. Purpose
 
@@ -391,8 +391,7 @@ states what it authorizes, when its evidence is invalid, and what a failure bloc
 Normative sources, in precedence order:
 
 1. the accepted Q2 gates in
-   [the publication-policy redesign](./codeindex-publication-policy-redesign.md#real-task-evaluation),
-   recorded on 2026-10-20 and retained verbatim in §8 above;
+   [§8 above](#8-acceptance-gates), recorded on 2026-10-20;
 2. the scope and claim authority of [§1.1](#11-evaluation-scope) and
    [§1.2](#12-claim-authority);
 3. this subsection, for tier order, invalidation, retry, and stop rules;
@@ -725,19 +724,26 @@ For each MCP interface change:
 A feature that increases internal semantic richness but does not improve a task is not an
 evaluation win. A smaller interface that loses semantic correctness is also not a win.
 
-## 13. Immediate priorities
+## 13. Current status and remaining work
 
-1. Complete [evaluation validity v2](./evaluation-validity-v2.md): request-level
-   metering, request-1 readiness, complete corpus indexing, external workspace
-   isolation, and corrected economic/statistical aggregation.
-2. Pass deterministic cold-start validity checks and a small hosted validity
-   smoke. Neither is efficacy evidence.
-3. Run a disjoint A/A calibration and size later sampling from observed paired
-   variance.
-4. Run a budgeted A/B development pilot and breadth/holdout validation. Do not
-   redesign the interface unless corrected trajectories demonstrate a defect.
-5. Run final frontier certification once after every threshold, weight, model,
-   exposure, tariff, and budget is frozen.
-6. Preserve E3 and the completed v1 local regression as historical `NOT PASSED`
+Completed:
+
+1. Validity v2 V1–V7: request-level metering, request-1 readiness, complete corpus
+   indexing, external workspace isolation, corrected economic/statistical
+   aggregation, deterministic validity and A/A calibration, budgeted A/B
+   development, and final certification.
+2. EVAL-037 recorded **RELEASE** for the pinned impact-class primary population
+   with native direct MCP. The holdout remains descriptive and the primary sample
+   is underpowered at the frozen alternative.
+
+Open:
+
+1. Production readiness #47–#53: retained reference baselines, deep-cursor plans at
+   production cardinality, multi-process lease proof, direct-MCP versus Code Mode
+   cost, fresh-consumer installation, checkout lifecycle semantics, and a
+   representative normal-session pilot.
+2. Holdout diagnosis #67; do not re-grade EVAL-037 or treat the holdout as release
+   evidence.
+3. Preserve E3 and the completed v1 local regression as historical `NOT PASSED`
    evidence; never reinterpret their valid failures or incomplete E3 usage as a
    total-cost result.

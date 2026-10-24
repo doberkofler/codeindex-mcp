@@ -2,7 +2,7 @@
 
 Model-free pilot required by
 [strategy §5](../../documentation/mcp-evaluation-strategy.md#5-evaluation-data) and
-[§13](../../documentation/mcp-evaluation-strategy.md#13-immediate-priorities). It compares
+[§13](../../documentation/mcp-evaluation-strategy.md#13-current-status-and-remaining-work). It compares
 setup cost, usable semantic cases, build time, fixture stability, and distinct evidence,
 then selects one external repository. No model call, case run, or source mutation was
 involved.

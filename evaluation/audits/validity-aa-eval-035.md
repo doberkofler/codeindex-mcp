@@ -4,8 +4,8 @@ Date: 2026-10-23
 
 Scope: implementation and execution evidence for
 [EVAL-035 (#63)](https://github.com/doberkofler/codeindex-mcp/issues/63), under
-the [evaluation validity v2](../documentation/evaluation-validity-v2.md)
-contract. This is hosted validity evidence only. It makes no candidate efficacy,
+the frozen [validity-v2 contract](../contracts/evaluation-validity-v2.json).
+This is hosted validity evidence only. It makes no candidate efficacy,
 interface, invoice-time cost, or release-authority claim.
 
 ## What was built

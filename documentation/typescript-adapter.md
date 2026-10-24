@@ -88,6 +88,149 @@ Current symbol identity is project/path/range based. Moving or structurally
 rewriting a declaration can change its identifier. Cross-generation semantic
 symbol identity is deferred.
 
+### 4.1 Persistence and exposure
+
+Stored navigable candidates are named module- and script-scope declarations,
+members of stored declarations, authored members reached by surface projection,
+synthetic authored alias symbols for supported external exports, and synthetic
+`default` symbols. Parameters, type parameters, loop iterators, anonymous
+callbacks, ordinary local variables, and declarations sourced only outside
+authored roots are never stored. Named nested functions are stored because they are
+named callers; top-level candidates are stored regardless of exposure.
+
+Authored roots exclude declaration files, generated output, `node_modules`,
+TypeScript library declarations, and declarations from other packages. ESM
+JavaScript follows the TypeScript path when `allowJs` is enabled.
+
+Anonymous object literals, anonymous class expressions, and anonymous callbacks
+are transparent for lexical ownership. A stored member reached through transparent
+or ephemeral syntax keeps the nearest stored lexical declaration as
+`enclosing_id`; projection never rewrites lexical ownership.
+
+Default exports are classified as follows:
+
+- anonymous default function/class: one symbol named `default`, a default site on
+  the clause, and the declaration extent;
+- `export default x` for an internal symbol: a default binding and site on `x`; no
+  second symbol;
+- every other default expression: one synthetic variable symbol named `default`
+  with a default site and a projection root.
+
+For anonymous or synthetic defaults the name range is the `default` token and the
+extent is the complete export-default declaration or assignment. A synthetic
+external alias uses the authored export specifier as its extent and the exported
+name token as its name range and declared site.
+
+### 4.2 Surface projection and reachability
+
+A publication root is a published binding in one context, not merely a declaration.
+Roots include exported declarations and aliases, internal re-export bindings,
+script globals, authored global/module augmentation contributions, and synthetic
+default bindings. An internal helper called by an exported declaration is not a
+root. Multiple published aliases of one symbol are distinct roots.
+
+The persisted projection contains exactly:
+
+1. each published root binding;
+2. members lexically contained by a published class, interface, enum, type, or
+   namespace;
+3. members of anonymous shapes at any depth below a root;
+4. inherited authored members under each published derived type;
+5. depth-zero members of the declared or inferred type of a published value root.
+
+At depth zero, value-root members are enumerated even when the type is named. Below
+depth zero only anonymous shapes expand; entering a named type terminates address
+projection and makes its authored declarations reachable instead. Projection
+follows compiler-resolved types, retains every distinct canonical path including
+equal-depth paths, and never materializes parameters or locals.
+
+Address edges are properties, methods, accessors, call signatures and their
+parameters and returns, construct signatures and instance types, awaited payloads,
+array/tuple elements, and inherited authored members. Type arguments of other
+generic types are reachability edges, not projected addresses. Private and
+ECMAScript `#` members are never projected; protected members remain part of the
+type surface.
+
+A type is expandable as an anonymous shape only when it has no authored named
+class, interface, type-alias, enum, or namespace identity and no `aliasSymbol`
+denoting one; `ts.ObjectFlags.Anonymous` alone is insufficient. Output traversal
+uses path-local cycle detection so distinct equal-depth paths survive. A cycle
+without a named terminal fails the candidate. Union and intersection
+constituent-only declarations are reachable, not projected.
+
+Reachability is a separate idempotent closure over every projection edge, named
+type, base type and heritage clause, union/intersection constituent, generic type
+argument, enum member and namespace export, `typeof` target, and index signature or
+constraint. For each context, an importable binding is published when its address is
+writable, a surface binding is published when its root is, a non-writable lexical
+binding is reachable when marked by the closure, and the rest are internal.
+
+Address count and reachability steps are bounded per root. Overrun fails the
+candidate; incomplete facts are never published. The accepted ceilings are 2,000
+surface addresses and 50,000 reachability steps per root, derived from measured
+maxima with headroom; qualification runs may override them. Changing either is an
+extractor change: bump the adapter version, which participates in the project
+configuration identity, and rebuild. Projection also uses a 64-level depth guard,
+and a depth-limited root makes the measurement partial.
+
+### 4.3 External declarations and CommonJS
+
+External declarations are never materialized as symbols, bindings, or occurrences.
+Named external re-exports, `export {importedExternal}`, `export * as ns from 'ext'`,
+and `export default importedExternal` each produce one authored, published alias
+symbol. A bare `export * from 'ext'` produces only a dependency fact and a status
+counter. Internal `export *` expands one wildcard binding per resolved exported
+name using compiler conflict resolution. Authored augmentations store only their
+authored declarations and members.
+
+`external_target` stores the module specifier and `external_name` the imported name
+(`*` for namespaces, `default` for default imports). References to external terminals
+are dropped and counted. External-terminal filtering uses the terminal
+declaration's file, so an authored property whose value type is external remains a
+searchable authored declaration.
+
+CommonJS `export =` publication is deferred. There is no defensible single binding
+name across its identifier and expression forms, and `getExportsOfModule` exposes
+no consumer-facing name for it. CommonJS files remain indexed with non-publication
+semantics.
+
+### 4.4 Publication qualification
+
+TypeScript exposure gates run independently per project context:
+
+- **G-A (published addresses):** emit declarations with the pinned compiler into a
+  fresh temporary output, load them into an independent program, normalize module
+  identity back to workspace-relative source paths, expand internal `export *`
+  through the checker export table, independently compute the scoped projection,
+  drop external terminals, ignore compatibility placeholders, and compare the
+  multiset of canonical binding keys. Zero missing, zero extra, and equal
+  multiplicities are required. Production classification must walk compiler types
+  directly and must not invoke declaration emit.
+- **G-A2 (reachability):** build source-associated truth from declaration maps plus
+  independent resolution of inferred addresses, require unique association, and
+  compare binding exposure. Missing or ambiguous mapping blocks the gate rather
+  than weakening it.
+- **G-B (cross-file exposure):** every indexed cross-file reference target must be
+  published or reachable in its context. Only genuinely dynamic constructs are
+  exceptions; each has a fixed name and aggregate count.
+- **G-C (usage):** compiler-resolved fixtures for call, read, write, and type
+  positions.
+- **G-D (references):** 100% precision against the language truth source and recall
+  over all visible symbols, including barrels and projected members.
+- **G-F (structural):** every enforced invariant in
+  [Architecture §7.4](./architecture.md#74-fact-finalization-and-validation)
+  passes before publication.
+
+Gate evidence is retained under `benchmark/publication-phase2/` and
+`benchmark/publication-phase6/`.
+
+### 4.5 Context-dependent classification
+
+A source file can be a script in one project context and a module in another, so
+the same location-derived symbol may have different binding keys and exposure per
+context. Classification, projection, and ceilings are computed independently for
+every context; facts are never merged across incompatible programs.
+
 ## 5. Dependency extraction
 
 The adapter emits dependency edges and binding details for:

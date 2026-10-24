@@ -99,6 +99,72 @@ declared source sites. Specification and standalone declarations are published;
 body-only declarations and nested routines are internal. Oracle does not use the
 `reachable` exposure.
 
+### 3.1 Canonical identity and exposure
+
+Owner participates in canonical identity and binding keys because a workspace can
+span several schemas. Unquoted identifiers canonicalize to uppercase; quoted
+identifiers preserve authored spelling and stay distinct from unquoted
+equivalents.
+
+Production indexing uses authored source and the structural parser as its only
+name source. It does not dereference synonyms. Qualification truth uses
+`ALL_PROCEDURES`, `ALL_ARGUMENTS`, and PL/Scope restricted to the frozen
+`(OWNER, OBJECT_NAME)` inventory. `CURRENT_SCHEMA` resolves unqualified names when
+Oracle compiles a unit, so the adapter records the manifest or default schema as
+the owner segment for unqualified declarations and preserves explicit qualifiers.
+A synonym target is never expanded into a different owner or name.
+
+Matching is exact on the persisted canonical spelling. An unquoted query
+canonicalizes to uppercase before exact or prefix comparison; a quoted query
+preserves its spelling. With `NLS_COMP = BINARY`, unquoted names are compared
+without linguistic case folding.
+
+Package members are classified only after whole-generation spec/body pairing,
+because exposure is not file-local.
+
+### 3.2 Definition occurrences
+
+| Construct | Definition treatment |
+|---|---|
+| package specification and body | two definitions; neither forward |
+| spec routine or cursor requiring a body | definition + forward |
+| body full routine or cursor | definition |
+| package-body private forward | definition + forward |
+| call spec or polymorphic table function | definition, not forward |
+| spec-only constant, variable, type, exception | definition |
+
+The structural parser records each routine/cursor form: specification
+declaration, full definition, package-body forward declaration, call spec, and
+polymorphic table function declaration.
+
+Identity and primary-definition selection follow
+[Architecture §7.3](./architecture.md#73-symbol-binding-and-exposure-model):
+paired spec sites anchor identity, the full body is the primary read site, and a
+package anchors on its specification. Parameter defaults and a lone `IN` are
+ignored when pairing; names, modes, types, order, return types, and modifiers stay
+significant. Ambiguity never silently chooses a target.
+
+Definition extents are the parser's declaration range and are not widened to
+comments or trivia.
+
+### 3.3 Qualification boundary
+
+PL/Scope is never a runtime dependency. It supplies qualification evidence for
+declarations, definitions, references, calls, assignments, and signatures.
+Wrapped units provide no PL/Scope data and are reported as a limitation.
+
+- **G-E (pairing):** the frozen baseline of 610 package specifications, 606
+  bodies, and 606 pairs remains authoritative. Spec-only packages are not errors
+  unless they declare a routine or cursor that is neither a call spec nor a
+  polymorphic table function. Every non-exempt spec routine/cursor in a paired
+  package has exactly one full body definition, and full normalized headings must
+  match.
+- **G-C/G-D (usage and references):** zero `call` and `write` mismatches against
+  PL/Scope; 100% reference precision and recall over policy-visible symbols.
+
+Omission categories are persisted as aggregate build statistics or explicit
+limitations; none is silently reclassified as complete.
+
 ## 4. References
 
 References are emitted only when static resolution proves a target and that target

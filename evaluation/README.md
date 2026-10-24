@@ -4,18 +4,18 @@ Controlled evaluation of the CodeIndex MCP server against retrieval baselines.
 The method is specified in
 [`documentation/evaluation-harness.md`](../documentation/evaluation-harness.md).
 
-> **Hosted certification paused.** E3 remains historical `NOT PASSED`, but its
-> total-token and cost interpretation is invalid. Request metering, the direct
-> request-1 surface proof, external-state workspace isolation, corpus preflight,
-> the frozen economic/statistical contract, the deterministic-plus-A/A validity
-> calibration, and the budgeted development pilot are implemented. The point
-> A/A label ratio passed its predeclared criterion; the observed variance implies
-> 7 paired repetitions (378 executions), above the frozen 270-execution budget.
-> The development pilot found a class-specific effect: the impact class met the
-> cost target while the full six-case mix did not. The next step is a
-> narrow-scope decision plus a revised budget, not a full certification claim.
-> Read the [E3 erratum](audits/hosted-release-e3-erratum.md),
-> [evaluation validity v2](../documentation/evaluation-validity-v2.md), the
+> **Certification status:** EVAL-037 recorded **RELEASE** for the pinned
+> impact-class primary population with native direct MCP. E3 remains historical
+> `NOT PASSED`; its total-token and cost interpretation is invalid and withdrawn.
+> The frozen contract, the deterministic-plus-A/A calibration, the budgeted
+> development pilot, and the holdout block are all recorded. The holdout is
+> descriptive only: its cost ratio was `1.119`, it does not enlarge the release
+> population, and `holdout-baseline-payload` failed for both treatments. The
+> primary sample is underpowered at the frozen design alternative, and Code Mode
+> overhead remains open under PROD-004. Read the
+> [certification record](audits/certification-eval-037.md), the
+> [E3 erratum](audits/hosted-release-e3-erratum.md), the
+> [frozen contract](contracts/evaluation-validity-v2.json), the
 > [frozen contract evidence](audits/economic-contract-eval-034.md), the
 > [validity/A/A evidence](audits/validity-aa-eval-035.md), and the
 > [development pilot evidence](audits/ab-development-eval-036.md).

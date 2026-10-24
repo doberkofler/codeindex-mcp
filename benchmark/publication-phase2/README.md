@@ -1,7 +1,7 @@
 # Publication Policy Phase 2 Evidence
 
 Report-only measurements for
-[codeindex-publication-policy-redesign.md](../../documentation/codeindex-publication-policy-redesign.md).
+[publication classification](../../documentation/typescript-adapter.md#42-surface-projection-and-reachability).
 
 The JSON files contain aggregate values only. They contain no source text, query text,
 symbol names, credentials, or absolute paths. Local diagnostic artifacts stay outside
