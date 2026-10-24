@@ -1,6 +1,6 @@
 # Test Inventory and Ownership
 
-Date: 2026-10-22
+Date: 2026-10-24
 
 Status: accepted inventory for the cleanup sequence in
 [Codebase testing strategy](./codebase-testing-strategy.md). This document classifies the
@@ -11,10 +11,10 @@ selected tests and records the MCP protocol split.
 Scope is every Vitest test module selected by `vitest.config.ts`:
 
 ```text
-test/**/*.test.ts                     91 files
-evaluation/harness/src/**/*.test.ts   26 files
-                                     ---------
-                                     117 files
+test/**/*.test.ts(x)                  110 files
+evaluation/harness/src/**/*.test.ts    42 files
+                                      ---------
+                                      152 files
 ```
 
 Support files under `test/helpers/`, fixture trees under `test/fixtures/`, and non-test harness
@@ -49,14 +49,14 @@ class table.
 
 | Class | `test/` | `evaluation/harness/src/` | Total |
 |---|---:|---:|---:|
-| Module test | 51 | 22 | 73 |
-| Adapter contract | 15 | 0 | 15 |
+| Module test | 61 | 38 | 99 |
+| Adapter contract | 24 | 0 | 24 |
 | Core integration | 11 | 0 | 11 |
 | MCP protocol contract | 5 | 0 | 5 |
 | Deterministic system test | 3 | 2 | 5 |
 | Semantic qualification | 4 | 2 | 6 |
 | Performance test | 2 | 0 | 2 |
-| **Total** | **91** | **26** | **117** |
+| **Total** | **110** | **42** | **152** |
 
 `referenceGrouping.test.ts` is classed as core integration rather than MCP protocol because its
 claim is reference-grouping semantics; it calls `CodeIndex` directly.
@@ -83,7 +83,7 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/builtProcess.test.ts` | Deterministic system test | Built `dist/mcp.mjs` over stdio | Temporary workspace | Initial publication, every tool, stream isolation, edits, stale refusal, watcher rebuilds, add/delete/rename, failed-build isolation, restart reuse, and clean shutdown hold in the built process. |
 | `test/checkoutLifecycle.test.ts` | Core integration | `runCli`, `loadConfig`, `collectCleanupTargets` | Temporary workspaces + temporary SQLite | A copy or move gets its own database and generation, an explicitly shared database is rejected, and a deleted checkout stays cleanable. |
 | `test/leaseContention.test.ts` | Deterministic system test | Two built `dist/mcp.mjs` processes over one database | Temporary workspace | One owner holds the lease, the reader serves the published generation, a killed owner never publishes, its heartbeat stops, and an expired lease is taken over. |
-| `test/cleanup.test.ts` | Module test | `collectCleanupTargets`, `removeCleanupTargets`, `runCleanup` | Temporary workspace | Cleanup defaults to the current project's database, scopes `--all` to managed databases, and enforces ownership, symlink, and root safety while continuing after failure. |
+| `test/cleanup.test.ts` | Module test | `collectCleanupTargets`, `removeCleanupTargets`, `formatSize`, `executeCleanup`, `runCleanup` | Temporary workspace | Cleanup defaults to the current project's database, scopes `--all` to managed databases, enforces ownership, symlink, and root safety, presents empty/dry-run/removal summaries through injected sinks, and continues after failure. |
 | `test/cli.test.ts` | Core integration | `runCli` | Vertical fixture + temporary SQLite | Update, status, verify, reuse, and force-rebuild operate one real index and map failures to exit codes. |
 | `test/codeIndex.test.ts` | Core integration | `CodeIndex` queries | Vertical fixtures | Symbol search, outline, paging, references, dependencies, impact, and freshness obey the core query contract. |
 | `test/config.test.ts` | Module test | `loadConfig`, `toRepositoryPath` | Temporary workspace | Configuration resolves roots and overrides, rejects database, tsconfig, and path escapes, and keeps storage bound to the checkout when the project id is pinned. |
@@ -158,6 +158,25 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/vcs.test.ts` | Module test | `readVcsProvenance` | Temporary workspace | Unversioned workspaces omit provenance and injected provenance persists across inner database opens. |
 | `test/version.test.ts` | Module test | `PROGRAM_VERSION` | Inline values | The compiled version equals the package manifest. |
 | `test/workspaceWatcher.test.ts` | Module test | `WorkspaceWatcher` | Temporary workspace | Changed files, project-wide invalidation, atomic writes, deletion, recreation, and ignored segments are reported. |
+| `test/consoleApi.test.tsx` | Module test | `readToken`, `storeToken`, `clearToken`, `useSnapshot`, `useAnalytics`, `useRunOperation` | Stub boundary | URL-fragment tokens are stored and stripped, request errors map to stable messages, analytics stays disabled until requested, and an operation posts JSON and invalidates the snapshot. |
+| `test/consoleApp.test.tsx` | Module test | `App` composition | Stub boundary | Token entry, every page route, theme persistence, refresh, operation dispatch, and a rejected connection compose through the console application. |
+| `test/consoleComponents.test.tsx` | Module test | `BarList`, `MetricCard`, `StatusChip`, `TimeSeriesChart`, `ToolDialog`, `createConsoleTheme` | Inline values | Presentational components render empty and populated states, dialogs restore focus, and light and dark themes retain semantic palette tokens. |
+| `test/consoleFormat.test.ts` | Module test | `format.ts` formatters | Inline values | Compact numbers, durations, bytes, percentages, timestamps, clocks, and shortened identities obey their boundaries. |
+| `test/consoleMain.test.tsx` | Module test | Browser entry mounting | Stub boundary | The console mounts under `#root` and rejects a page without it. |
+| `test/consoleOverlayFocus.test.ts` | Module test | `rememberOverlayTrigger`, `restoreOverlayTrigger` | Inline values | Fallback containers, body focus, blur, disconnected triggers, double restore, and non-element fallbacks are safe. |
+| `test/consolePages.test.tsx` | Module test | Console pages and shell | Stub boundary | Overview, operations, analytics, configuration, token gate, and shell navigation render loading, empty, error, and interactive states. |
+| `test/oracleConditionalCompilation.test.ts` | Adapter contract | `prepareConditionalSource` | Micro fixture | Literal and unknown conditions, nested blocks, branch selection, line preservation, and every unbalanced directive are classified. |
+| `test/oracleLiveQualificationCoverage.test.ts` | Module test | `runOracleLiveQualification` | Stub boundary | Connected planning, generated and explicit manifests, invalid roots and manifests, unsafe output, apply reporting, metadata, and error exits are bounded. |
+| `test/oracleNestedBlocks.test.ts` | Adapter contract | `parseNestedBlockDeclarations` | Micro fixture | Nested declarations, directives, pragmas, empty statements, missing `BEGIN`, and cursor bounds are parsed. |
+| `test/oracleParserBase.test.ts` | Adapter contract | `PlSqlParserBase` | Inline values | Solidus placement, version toggles, unit flags, numeric-function tokens, and join keywords follow the parser predicates. |
+| `test/oracleReferenceArguments.test.ts` | Adapter contract | Argument shapes, predicates, type references, BULK markers | Micro fixture | Literal and named arguments, index chains, statement and assignment positions, numeric ranges, type anchors, and BULK COLLECT markers are classified. |
+| `test/oracleResolveCandidates.test.ts` | Adapter contract | `chooseCandidateOf` | Inline values | Candidate deduplication, arity, ambiguity diagnostics, callable fallback, same-file proximity, statement calls, and type filtering are exercised. |
+| `test/oracleResolveTypes.test.ts` | Adapter contract | `filterByTypes` | Inline values | Literal, exact, family, JSON, alias, collection-element, recursive, anchored, OUT, and unresolved type paths are exercised. |
+| `test/oracleScanProject.test.ts` | Adapter contract | `scanOracleProject`, `isOracleAuthoredSourceFile`, `collectOracleConfigFiles` | Temporary workspace | Include/exclude, extensions, ignored segments, duplicate contexts, snapshot manifest paths, and invalid manifests are handled. |
+| `test/oracleSqlNames.test.ts` | Adapter contract | `collectAntlrSqlNames` | Micro fixture | Tables, aliases, column aliases, query names, qualified names, and identifier-less aliases are collected without leaking unrelated names. |
+| `test/publicationDiagnostics.test.ts` | Module test | `createPublicationDiagnostics` | Synthetic artifacts | Empty classes, complete and truncated examples, the twenty-example cap, invariant order, incoming truncation, and bounded content are asserted. |
+| `test/soakCommand.test.ts` | Module test | `addSoakCommand`, option parsers, report paths | Stub boundary | Numeric bounds, profile allow-list, paths, forwarding, debug, progress, success, retention, failure exit, and cleanup are exercised without a real soak. |
+| `test/typescriptAdapterContracts.test.ts` | Adapter contract | Project loading, scanning, dependencies, diagnostics | Temporary workspace + micro fixture | Relative and package `extends`, inherited selection, excluded imports, `files` roots, CommonJS `require()` edges, and unsupported syntax diagnostics publish deterministically. |
 
 ### 3.2 `evaluation/harness/src/`
 
@@ -189,6 +208,22 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `evaluation/harness/src/treatment.test.ts` | Module test | Treatment definitions, equivalence, catalog, identity | Synthetic artifacts | Treatment hashing, equivalence, surface capture, catalog lookup, and run identity are exact. |
 | `evaluation/harness/src/workflow.test.ts` | Module test | `workflowOf` | Synthetic artifacts | Call, byte, and token budgets, required and forbidden tools, first retrieval, duplicate reads, and fallback classify exactly. |
 | `evaluation/harness/src/workspace.test.ts` | Module test | Workspace context and restoration | Temporary workspace | Checkouts are pinned, clean, and restorable, authored and ignored changes are rejected, and the manifest fallback holds. |
+| `evaluation/harness/src/attemptContext.test.ts` | Module test | Attempt context request-1 surface | Synthetic artifacts | An admitted attempt is invalidated when its first request omits a declared tool and retained when complete. |
+| `evaluation/harness/src/certification.test.ts` | Module test | Certification design, blocks, and verdicts | Synthetic artifacts | The frozen design drives paired blocks, metered evidence, and a deterministic certification verdict. |
+| `evaluation/harness/src/corpusPreflight.test.ts` | Module test | Corpus preflight | Temporary workspace | Fixture and repository cases map to the controlled project or root and preflight the declared session. |
+| `evaluation/harness/src/economicAnalysis.test.ts` | Module test | Paired correctness non-inferiority | Synthetic artifacts | A better candidate passes and an upper degradation bound beyond the margin fails. |
+| `evaluation/harness/src/economicContract.test.ts` | Module test | Economic contract and tariff snapshot | Synthetic artifacts | Frozen thresholds and weights, request kinds, billing bands, and cache-write tiers are priced and change-protected. |
+| `evaluation/harness/src/externalPath.test.ts` | Module test | External path evidence | Inline values | Every denial is recorded with channel and line, and a clean stream yields no evidence. |
+| `evaluation/harness/src/mcpReadiness.test.ts` | Module test | MCP readiness handshake | Stub boundary | Native catalog handshake, delayed registration, reconnect, and closed startup causes are bounded. |
+| `evaluation/harness/src/opencodeServer.test.ts` | Module test | Private server lifecycle | Stub boundary | MCP children disconnect before exit, registration completes, and failed reconnects retain a closed cause. |
+| `evaluation/harness/src/pilot.test.ts` | Module test | Development pilot design and analysis | Synthetic artifacts | The frozen pilot design, case weights, holdout isolation, pairing, and analysis remain deterministic. |
+| `evaluation/harness/src/providerMeter.test.ts` | Module test | Provider meter | Stub boundary | Agent, title, and compaction requests are metered with usage and response text retained. |
+| `evaluation/harness/src/providerRequestKind.test.ts` | Module test | Request-kind classification | Inline values | Title, empty agent, tool-bearing agent, and explicit header kinds are classified in precedence order. |
+| `evaluation/harness/src/qualification.test.ts` | Module test | Qualification campaign | Synthetic artifacts | The frozen qualification suite, canonical artifact, and environment produce deterministic campaign results. |
+| `evaluation/harness/src/requestSurface.test.ts` | Module test | Request surface policy | Inline values | Exact indexed and ordinary surfaces are accepted while duplicates, unknown tools, late tools, and path disclosure are rejected. |
+| `evaluation/harness/src/startupBaseline.test.ts` | Module test | Warm startup baseline | Inline values | Nearest-rank percentiles, empty samples, and the declared p95 budget are computed. |
+| `evaluation/harness/src/stateRoot.test.ts` | Module test | State root and path disclosure | Temporary workspace | Defaults stay outside the checkout, configured unsafe roots are rejected, and literal checkout paths are counted without echoing unrelated text. |
+| `evaluation/harness/src/validityCalibration.test.ts` | Module test | Validity calibration | Synthetic artifacts | The randomized A/A plan, labels, cost vectors, and calibration validity remain deterministic. |
 
 ## 4. Behaviour ownership and duplicate register
 
@@ -239,48 +274,48 @@ benchmark-preparation overlap, which has a named owner and is out of scope for t
 
 ## 5. Unexercised contracts from the seam policy
 
-These contracts are named by
-[the strategy](./codebase-testing-strategy.md#4-module-and-seam-policy) but have no direct test.
-Nearest coverage is listed so the later gap-filling item can add the smallest test.
+The TypeScript adapter contracts that this inventory previously recorded as unexercised now have
+direct tests. The MCP protocol rows were already resolved and remain covered.
 
-| Seam | Contract without a direct test | Nearest existing coverage |
+| Seam | Contract | Direct test |
 |---|---|---|
-| TypeScript adapter | `tsconfig` `extends` inheritance in project loading | `test/scanWorkspace.test.ts` collects `extends` inputs for watching only |
-| TypeScript adapter | `tsconfig` `exclude` (and `files`-based selection) | `test/scanWorkspace.test.ts` excludes generated and declaration files by scanner policy, not configured `exclude` |
-| TypeScript adapter | CommonJS `require()` dependency edges | `test/dependencyCases.test.ts` covers static import and export; `test/codeIndex.test.ts` covers dynamic import; `test/publicationReport.test.ts` covers `module.exports` publication |
-| TypeScript adapter | Unsupported-construct diagnostics and extraction failure behaviour | `test/loadProject.test.ts` covers project diagnostics; `test/publicationFacts.test.ts` covers finalization failures |
-| MCP protocol | A controlled fake index for protocol contracts | Resolved by `test/helpers/fakeIndex.ts`; all protocol contracts use it, and only `test/mcpSmoke.test.ts` rebuilds a real fixture index |
-| MCP protocol | Exact tool input schemas and invalid-argument rejection | `test/mcp.test.ts` asserts every tool schema, required field, enum, default, and invalid-argument rejection |
-| MCP protocol | Tool descriptions for every tool | `test/mcp.test.ts` asserts every tool description and the server instructions |
-The built-process deterministic system contracts previously listed here are covered by
-`test/builtProcess.test.ts`, and multi-process lease contention by
-`test/leaseContention.test.ts`; the in-process mechanisms remain with their module and core
-integration tests.
+| TypeScript adapter | `tsconfig` `extends` inheritance | `test/typescriptAdapterContracts.test.ts` proves inherited compiler options, inherited `include`/`exclude`, resolved roots, and the watch set for relative and package bases. |
+| TypeScript adapter | `tsconfig` `exclude` and `files` selection | `test/typescriptAdapterContracts.test.ts` proves configured exclusion, `files` roots, and the imported-outside-project publication rule. |
+| TypeScript adapter | CommonJS `require()` dependency edges | `test/typescriptAdapterContracts.test.ts` asserts authored and package edges plus variable and destructured bindings through the core dependency model. |
+| TypeScript adapter | Unsupported-construct diagnostics | `test/typescriptAdapterContracts.test.ts` asserts one bounded parser diagnostic and a complete published generation with matching counts. |
+| MCP protocol | A controlled fake index for protocol contracts | `test/helpers/fakeIndex.ts`; every protocol contract uses it, and only `test/mcpSmoke.test.ts` rebuilds a real fixture index. |
+| MCP protocol | Exact tool input schemas and invalid-argument rejection | `test/mcp.test.ts` asserts every tool schema, required field, enum, default, and invalid-argument rejection. |
+| MCP protocol | Tool descriptions for every tool | `test/mcp.test.ts` asserts every tool description and the server instructions. |
+
+The built-process deterministic system contracts are covered by `test/builtProcess.test.ts`, and
+multi-process lease contention by `test/leaseContention.test.ts`; the in-process mechanisms remain
+with their module and core integration tests.
 
 ## 6. Completeness check
 
 The inventory contains one row per test module selected by the Vitest include patterns.
 
 ```text
-test/**/*.test.ts                     91
-evaluation/harness/src/**/*.test.ts   26
-                                     ---
-inventory rows                       117
+test/**/*.test.ts(x)                  110
+evaluation/harness/src/**/*.test.ts    42
+                                     ----
+inventory rows                        152
 ```
 
 Verification commands:
 
 ```bash
-find test -type f -name '*.test.ts' | wc -l
+find test -type f -name '*.test.ts*' | wc -l
 find evaluation/harness/src -type f -name '*.test.ts' | wc -l
 ```
 
 Checks:
 
-- [x] Every one of the 117 test files has exactly one class and one primary claim.
+- [x] Every one of the 152 test files has exactly one class and one primary claim.
 - [x] No file is unclassified.
 - [x] No test file is listed in more than one inventory row.
 - [x] Every duplicate has a named owner; the remaining overlaps state their wiring reason.
 - [x] One duplicate is not intentional and is assigned to `test/suitePrepare.test.ts` for the
       later cleanup sequence.
 - [x] The MCP protocol split is recorded here without changing production response shapes.
+- [x] The console UI tests are selected by the `fast` workflow and the coverage report includes `src/ui/**`.

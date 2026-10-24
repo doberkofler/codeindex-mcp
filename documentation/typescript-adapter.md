@@ -240,6 +240,7 @@ The adapter emits dependency edges and binding details for:
 - named, default, and namespace bindings;
 - re-exports and `export *`;
 - literal dynamic imports;
+- literal CommonJS `require('specifier')` calls, including local variable and destructured bindings;
 - `import x = require(...)`.
 
 Module resolution runs with the effective project options. A specifier resolving
@@ -247,8 +248,9 @@ to authored source becomes an internal edge. TypeScript path aliases remain
 authored edges and are not misreported as external packages. Other specifiers are
 normalized to package identity.
 
-Non-literal dynamic imports are not indexed. Dependency facts establish module
-relationships; they do not prove runtime loading or use of a particular binding.
+Non-literal dynamic imports and non-literal `require()` calls are not indexed. Dependency
+facts establish module relationships; they do not prove runtime loading or use of a
+particular binding.
 
 ## 6. Query semantics
 

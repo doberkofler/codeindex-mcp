@@ -1,8 +1,18 @@
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
 import {homedir, tmpdir} from 'node:os';
+import {indexRootDirectory} from '../src/core/config/config.ts';
+import {cleanupRootsOf} from '../src/transports/cli/runCli.ts';
 import path from 'node:path';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {collectCleanupTargets, removeCleanupTargets, runCleanup, type CleanupOptionsType, type CleanupRootsType} from '../src/core/cleanup.ts';
+import {
+	collectCleanupTargets,
+	executeCleanup,
+	formatSize,
+	removeCleanupTargets,
+	runCleanup,
+	type CleanupOptionsType,
+	type CleanupRootsType,
+} from '../src/core/cleanup.ts';
 
 const {join} = path;
 const temporaryDirectories: string[] = [];
@@ -194,6 +204,32 @@ describe('cleanup safety', () => {
 		expect(target?.bytes).toBe(1024);
 	});
 
+	it('returns no targets when the current database directory does not exist', () => {
+		const {base, roots} = fixture();
+		const targets = collectCleanupTargets({...roots, databasePath: join(base, 'missing', 'state.sqlite')}, current);
+
+		expect(targets).toStrictEqual([]);
+	});
+
+	it('refuses a current project without a resolved database path', () => {
+		const {roots} = fixture();
+
+		expect(() => collectCleanupTargets({...roots, databasePath: null}, current)).toThrow(/no database path was resolved/u);
+	});
+
+	it('skips a missing or symlinked managed project directory', () => {
+		const {base, roots} = fixture();
+		const missing = join(roots.storage, 'aaaabbbbccccdddd', 'index.sqlite');
+		const linkName = join(roots.storage, 'bbbbccccddddeeee');
+		const linked = join(base, 'linked-project');
+		mkdirSync(linked, {recursive: true});
+		writeFileSync(join(linked, 'index.sqlite'), 'x');
+		symlinkSync(linked, linkName);
+
+		expect(collectCleanupTargets({...roots, databasePath: missing}, current)).toStrictEqual([]);
+		expect(collectCleanupTargets({...roots, databasePath: join(linkName, 'index.sqlite')}, current)).toStrictEqual([]);
+	});
+
 	it('returns no targets when the storage root does not exist', () => {
 		const {base, roots} = fixture();
 		const targets = collectCleanupTargets({storage: join(base, 'missing-index'), databasePath: null, protectedPaths: roots.protectedPaths}, all);
@@ -208,6 +244,10 @@ describe('cleanup safety', () => {
 		expect(() => collectCleanupTargets({...roots, storage: path.parse(base).root}, current)).toThrow(/unsafe root/u);
 		expect(() => collectCleanupTargets({...roots, storage: homedir()}, current)).toThrow(/home directory/u);
 	});
+});
+
+describe('cleanup safety failures', () => {
+	afterEach(removeTemporaryDirectories);
 
 	it('keeps removing after a target fails', () => {
 		const base = mkdtempSync(join(tmpdir(), 'codeindex-cleanup-failure-'));
@@ -275,5 +315,97 @@ describe('cleanup safety', () => {
 			stdout.mockRestore();
 			stderr.mockRestore();
 		}
+	});
+});
+
+const captureIo = (): Readonly<{stdout: string[]; stderr: string[]; io: Readonly<{stdout: (line: string) => void; stderr: (line: string) => void}>}> => {
+	const stdout: string[] = [];
+	const stderr: string[] = [];
+
+	return {
+		stdout,
+		stderr,
+		io: {
+			stdout: (line) => {
+				stdout.push(line);
+			},
+			stderr: (line) => {
+				stderr.push(line);
+			},
+		},
+	};
+};
+
+describe('cleanup presentation', () => {
+	afterEach(removeTemporaryDirectories);
+
+	it('prints nothing to clean and exits zero for an empty target set', () => {
+		const captured = captureIo();
+		const roots: CleanupRootsType = {storage: join(tmpdir(), 'codeindex-missing-cleanup-root'), databasePath: null, protectedPaths: []};
+
+		expect(runCleanup(['--all'], () => roots, captured.io)).toBe(0);
+		expect(captured.stdout).toStrictEqual(['Nothing to clean.']);
+		expect(captured.stderr).toStrictEqual([]);
+	});
+
+	it('lists every target and the total for a dry run without deleting', () => {
+		const {base, roots} = fixture();
+		const captured = captureIo();
+
+		executeCleanup({yes: false, all: false}, () => roots, captured.io);
+
+		expect(captured.stdout).toStrictEqual([
+			`would remove ${join(base, 'index', '0123456789abcdef')} (1.0 KB)`,
+			'Dry run: 1.0 KB in 1 target(s). Pass --yes to delete.',
+		]);
+		expect(existsSync(join(base, 'index', '0123456789abcdef', 'index.sqlite'))).toBe(true);
+	});
+
+	it('removes targets and reports the reclaimed total', () => {
+		const {base, roots} = fixture();
+		const captured = captureIo();
+
+		executeCleanup({yes: true, all: false}, () => roots, captured.io);
+
+		expect(captured.stdout).toStrictEqual([`remove ${join(base, 'index', '0123456789abcdef')} (1.0 KB)`, 'Removed 1 target(s), 1.0 KB.']);
+		expect(existsSync(join(base, 'index', '0123456789abcdef'))).toBe(false);
+	});
+
+	it('reports a failed removal on stderr and keeps the successful bytes', () => {
+		const base = mkdtempSync(join(tmpdir(), 'codeindex-cleanup-presentation-'));
+		const parent = join(base, 'locked');
+		const child = join(parent, 'target');
+		const captured = captureIo();
+
+		mkdirSync(child, {recursive: true});
+		chmodSync(parent, 0o500);
+
+		try {
+			expect(removeCleanupTargets([{path: child, bytes: 10}], captured.io)).toBe(0);
+			expect(captured.stderr).toStrictEqual([expect.stringContaining('Failed to remove')]);
+		} finally {
+			chmodSync(parent, 0o700);
+			rmSync(base, {recursive: true, force: true});
+		}
+	});
+
+	it('formats byte magnitudes at every unit boundary', () => {
+		expect(formatSize(0)).toBe('0 B');
+		expect(formatSize(1023)).toBe('1023 B');
+		expect(formatSize(1024)).toBe('1.0 KB');
+		expect(formatSize(1024 * 1024 - 1)).toBe('1024.0 KB');
+		expect(formatSize(1024 * 1024)).toBe('1.0 MB');
+		expect(formatSize(1024 ** 3)).toBe('1.0 GB');
+		expect(formatSize(1024 ** 4)).toBe('1.0 TB');
+		expect(formatSize(1024 ** 5)).toBe('1024.0 TB');
+		expect(formatSize(-1)).toBe('-1 B');
+		expect(formatSize(Number.POSITIVE_INFINITY)).toBe('Infinity TB');
+	});
+
+	it('resolves default roots to the real index root and protects the working directory', () => {
+		const cwd = mkdtempSync(join(tmpdir(), 'codeindex-cleanup-roots-'));
+		temporaryDirectories.push(cwd);
+
+		expect(cleanupRootsOf(true, {}, cwd)).toStrictEqual({storage: indexRootDirectory(), databasePath: null, protectedPaths: [cwd]});
 	});
 });

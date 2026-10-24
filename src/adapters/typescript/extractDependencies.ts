@@ -149,6 +149,56 @@ const dynamicImport = (node: ts.CallExpression): FoundDependencyType | null => {
 	return argument !== undefined && ts.isStringLiteralLike(argument) ? {literal: argument, kind: 'dynamic-import', compileTimeOnly: false, bindings: []} : null;
 };
 
+/**
+ * Reads bindings introduced by the common variable forms of a CommonJS `require()` call.
+ *
+ * A bare or conditional call has no local binding. Destructured properties name
+ * the imported export; nested and rest patterns remain outside the dependency
+ * model instead of producing a synthetic edge binding.
+ *
+ * @param node - Require call expression.
+ * @returns Local bindings, or an empty list for a bare or conditional call.
+ */
+const requireBindings = (node: ts.CallExpression): readonly PendingBindingType[] => {
+	const declaration = node.parent;
+
+	if (!ts.isVariableDeclaration(declaration) || declaration.initializer !== node) {
+		return [];
+	}
+
+	if (ts.isIdentifier(declaration.name)) {
+		return [binding({kind: 'require', importedName: null, exportedName: null, localName: declaration.name.text, compileTimeOnly: false})];
+	}
+
+	if (!ts.isObjectBindingPattern(declaration.name)) {
+		return [];
+	}
+
+	return declaration.name.elements.flatMap((element) => {
+		if (element.dotDotDotToken !== undefined || !ts.isIdentifier(element.name)) {
+			return [];
+		}
+
+		const imported = element.propertyName ?? element.name;
+
+		return ts.isIdentifier(imported)
+			? [binding({kind: 'require', importedName: imported.text, exportedName: null, localName: element.name.text, compileTimeOnly: false})]
+			: [];
+	});
+};
+
+const commonJsRequire = (node: ts.CallExpression): FoundDependencyType | null => {
+	if (!ts.isIdentifier(node.expression) || node.expression.text !== 'require') {
+		return null;
+	}
+
+	const [argument] = node.arguments;
+
+	return argument !== undefined && ts.isStringLiteralLike(argument)
+		? {literal: argument, kind: 'require', compileTimeOnly: false, bindings: requireBindings(node)}
+		: null;
+};
+
 const importType = (node: ts.ImportTypeNode): FoundDependencyType | null => {
 	if (!ts.isLiteralTypeNode(node.argument) || !ts.isStringLiteral(node.argument.literal)) {
 		return null;
@@ -171,7 +221,7 @@ const foundDependency = (node: ts.Node): FoundDependencyType | null => {
 	}
 
 	if (ts.isCallExpression(node)) {
-		return dynamicImport(node);
+		return dynamicImport(node) ?? commonJsRequire(node);
 	}
 
 	if (ts.isImportTypeNode(node)) {

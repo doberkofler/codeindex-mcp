@@ -252,20 +252,27 @@ export const collectCleanupTargets = (roots: CleanupRootsType, options: CleanupO
  * Deletes collected targets.
  *
  * @param targets - Targets returned by {@link collectCleanupTargets}.
+ * @param io - Output sinks; defaults to the process streams.
  * @returns Reclaimed bytes for targets removed successfully.
  */
-export const removeCleanupTargets = (targets: readonly CleanupTargetType[]): number =>
+export const removeCleanupTargets = (targets: readonly CleanupTargetType[], io: CommandIoType = processIo): number =>
 	targets.reduce((total, target) => {
 		try {
 			rmSync(target.path, {recursive: true, force: true});
 			return total + target.bytes;
 		} catch (error) {
-			process.stderr.write(`Failed to remove ${target.path}: ${error instanceof Error ? error.message : String(error)}\n`);
+			io.stderr(`Failed to remove ${target.path}: ${error instanceof Error ? error.message : String(error)}`);
 			return total;
 		}
 	}, 0);
 
-const formatSize = (bytes: number): string => {
+/**
+ * Formats a byte count with binary units for cleanup presentation.
+ *
+ * @param bytes - Byte count.
+ * @returns Size with a binary unit suffix.
+ */
+export const formatSize = (bytes: number): string => {
 	const units = ['B', 'KB', 'MB', 'GB', 'TB'];
 	let value = bytes;
 	let unit = 0;
@@ -278,42 +285,42 @@ const formatSize = (bytes: number): string => {
 	return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit] ?? 'B'}`;
 };
 
-const executeCleanup = (options: CleanupOptionsType, rootsOf: CleanupRootsResolverType): void => {
+export const executeCleanup = (options: CleanupOptionsType, rootsOf: CleanupRootsResolverType, io: CommandIoType = processIo): void => {
 	const targets = collectCleanupTargets(rootsOf(options.all), options);
 	const total = targets.reduce((sum, target) => sum + target.bytes, 0);
 
 	if (targets.length === 0) {
-		process.stdout.write('Nothing to clean.\n');
+		io.stdout('Nothing to clean.');
 		return;
 	}
 
 	for (const target of targets) {
-		process.stdout.write(`${options.yes ? 'remove' : 'would remove'} ${target.path} (${formatSize(target.bytes)})\n`);
+		io.stdout(`${options.yes ? 'remove' : 'would remove'} ${target.path} (${formatSize(target.bytes)})`);
 	}
 
 	if (!options.yes) {
-		process.stdout.write(`Dry run: ${formatSize(total)} in ${targets.length} target(s). Pass --yes to delete.\n`);
+		io.stdout(`Dry run: ${formatSize(total)} in ${targets.length} target(s). Pass --yes to delete.`);
 		return;
 	}
 
-	const removed = removeCleanupTargets(targets);
-	process.stdout.write(`Removed ${targets.length} target(s), ${formatSize(removed)}.\n`);
+	const removed = removeCleanupTargets(targets, io);
+	io.stdout(`Removed ${targets.length} target(s), ${formatSize(removed)}.`);
 };
 
-const cleanupCommand = (rootsOf: CleanupRootsResolverType): Command => {
+const cleanupCommand = (rootsOf: CleanupRootsResolverType, io: CommandIoType): Command => {
 	const command = configureCommand(
 		new Command('clean')
 			.description('Remove the current project index database. The repository and dist are never touched. The default is a dry run.')
 			.option('--yes', 'delete the listed targets')
 			.option('--all', 'remove every managed project database under the default index root')
 			.allowExcessArguments(true),
-		processIo,
+		io,
 	).action((options: Readonly<{yes?: boolean | undefined; all?: boolean | undefined}>) => {
 		if (command.args.length > 0) {
 			throw new Error(`Unexpected argument: ${command.args[0] ?? ''}\n\n${command.helpInformation().trimEnd()}`);
 		}
 
-		executeCleanup({yes: options.yes === true, all: options.all === true}, rootsOf);
+		executeCleanup({yes: options.yes === true, all: options.all === true}, rootsOf, io);
 	});
 
 	return command;
@@ -325,11 +332,12 @@ const cleanupCommand = (rootsOf: CleanupRootsResolverType): Command => {
  * @param argv - Arguments after the `clean` command.
  * @param rootsOf - Resolves the storage root and either the current database
  * or every managed database. The CLI supplies the configured workspace.
+ * @param io - Output sinks; defaults to the process streams.
  * @returns Process exit code.
  */
-export const runCleanup = (argv: readonly string[], rootsOf: CleanupRootsResolverType): number => {
+export const runCleanup = (argv: readonly string[], rootsOf: CleanupRootsResolverType, io: CommandIoType = processIo): number => {
 	const program = new Command('codeindex-cli');
-	program.addCommand(cleanupCommand(rootsOf));
+	program.addCommand(cleanupCommand(rootsOf, io));
 
-	return parseCommand(program, ['clean', ...argv], processIo, {usageExitCode: 1});
+	return parseCommand(program, ['clean', ...argv], io, {usageExitCode: 1});
 };

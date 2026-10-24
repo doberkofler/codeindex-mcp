@@ -45,7 +45,7 @@ const profileOf = (value: string): BenchmarkProfileType => {
 	return value;
 };
 
-const planOf = (options: SoakCommandOptionsType): SoakPlanType => ({
+export const planOf = (options: SoakCommandOptionsType): SoakPlanType => ({
 	profile: profileOf(options.profile),
 	rounds: integerOf('--rounds', options.rounds, 1, 100),
 	burstEdits: integerOf('--burst-edits', options.burstEdits, 1, 20),
@@ -55,13 +55,18 @@ const planOf = (options: SoakCommandOptionsType): SoakPlanType => ({
 	timeoutMs: integerOf('--timeout-ms', options.timeoutMs, 1000, 600_000),
 });
 
-const outputPathsOf = (options: SoakCommandOptionsType): Readonly<{report: string; markdown: string}> => {
+export const outputPathsOf = (options: SoakCommandOptionsType): Readonly<{report: string; markdown: string}> => {
 	const report = path.resolve(options.output);
 
 	return {report, markdown: options.markdown === undefined ? `${report}.md` : path.resolve(options.markdown)};
 };
 
-const runOptionsOf = (configOf: () => ConfigType, options: SoakCommandOptionsType, workerEntry: string | undefined, io: SoakCliIoType): SoakRunOptionsType => {
+export const runOptionsOf = (
+	configOf: () => ConfigType,
+	options: SoakCommandOptionsType,
+	workerEntry: string | undefined,
+	io: SoakCliIoType,
+): SoakRunOptionsType => {
 	const plan = planOf(options);
 
 	return {
@@ -89,13 +94,19 @@ const runOptionsOf = (configOf: () => ConfigType, options: SoakCommandOptionsTyp
  *
  * @param program - Commander root program.
  * @param io - Output sinks.
- * @param runtime - Injected build-worker entry point and base configuration provider.
+ * @param runtime - Injected build-worker entry point, base configuration provider,
+ * and optional run/cleanup overrides used by command tests.
  * @returns The same program with the soak command.
  */
 export const addSoakCommand = (
 	program: Command,
 	io: SoakCliIoType,
-	runtime: Readonly<{workerEntry?: string | undefined; configOf: () => ConfigType}>,
+	runtime: Readonly<{
+		workerEntry?: string | undefined;
+		configOf: () => ConfigType;
+		run?: typeof runSoak | undefined;
+		removeWorkspace?: typeof removeSoakWorkspace | undefined;
+	}>,
 ): Command =>
 	program
 		.command('soak')
@@ -117,7 +128,7 @@ export const addSoakCommand = (
 				enableDebug();
 			}
 
-			const run = await runSoak(runOptionsOf(runtime.configOf, options, runtime.workerEntry, io));
+			const run = await (runtime.run ?? runSoak)(runOptionsOf(runtime.configOf, options, runtime.workerEntry, io));
 
 			try {
 				const paths = outputPathsOf(options);
@@ -139,7 +150,7 @@ export const addSoakCommand = (
 				}
 			} finally {
 				if (!options.keepWorkspace) {
-					removeSoakWorkspace(run);
+					(runtime.removeWorkspace ?? removeSoakWorkspace)(run);
 				}
 			}
 		});
