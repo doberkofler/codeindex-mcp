@@ -44,7 +44,7 @@ Current constraints:
 The package is consumed directly from GitHub. No npm publication is performed.
 
 ```bash
-pnpm add github:doberkofler/codeindex-mcp#v0.6.0
+pnpm add github:doberkofler/codeindex-mcp#v0.7.0
 ```
 
 Pin a released tag, never `main`. The Git dependency runs `prepare`, which builds

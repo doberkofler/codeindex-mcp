@@ -83,7 +83,7 @@ storage, publication, MCP envelopes, and analytics do not change.
 The package is consumed directly from GitHub. No npm publication is performed.
 
 ```bash
-pnpm add github:doberkofler/codeindex-mcp#v0.6.0
+pnpm add github:doberkofler/codeindex-mcp#v0.7.0
 ```
 
 Pin a released tag. The Git dependency runs its `prepare` script, which builds:
