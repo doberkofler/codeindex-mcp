@@ -5,7 +5,7 @@ Operational and design documentation for CodeIndex MCP.
 | Document | Purpose |
 | --- | --- |
 | [Architecture](./architecture.md) | Core design, generation lifecycle, storage, symbol/binding/exposure model, validation invariants, and query contracts |
-| [TypeScript/JavaScript adapter](./typescript-adapter.md) | Shipped extractor behavior, publication classification, production-pilot status, validation, limitations, and enhancement backlog |
+| [TypeScript/JavaScript adapter](./typescript-adapter.md) | Shipped extractor behavior, publication classification, production-pilot status, validation, limitations, and enhancement decisions |
 | [Oracle adapter](./oracle-adapter.md) | Static Oracle 19c SQL/PL/SQL extraction, manifest configuration, symbols, references, and package dependencies |
 | [ORDS and cross-language resolution](./ords-cross-language.md) | Planned HTTP, ORDS, and PL/SQL route evidence and cross-language graph construction |
 | [Roadmap](./roadmap.md) | Ordered delivery phases, acceptance gates, stop rules, and open decisions |
@@ -15,7 +15,7 @@ Operational and design documentation for CodeIndex MCP.
 | [Codebase testing strategy](./codebase-testing-strategy.md) | Test classes, module seams, ownership, fixture policy, and workflow targets |
 | [Evaluation harness](./evaluation-harness.md) | Implemented methodology for controlled index-versus-baseline comparisons |
 | [Migration coverage](./migration-coverage.md) | Audit of preserved, generalized, deferred, and intentionally excluded design knowledge |
-| [Enhancements: dependency removal](./enhancements.md) | Dependency-removal TODOs, retention decisions, and rejected library additions |
+| [Enhancements: dependency decisions](./enhancements.md) | Dependency retention decisions, rejected library additions, and links to open dependency work |
 | [Source-line counter](./tools/countSourceLines.py) | Local measurement helper for repository size |
 
 ## Scope

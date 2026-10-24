@@ -526,7 +526,8 @@ The TypeScript/JavaScript adapter uses the TypeScript compiler API. It:
 JavaScript is indexed only when the project enables `allowJs`.
 
 See [TypeScript and JavaScript adapter](./typescript-adapter.md) for its complete
-fact semantics, production-pilot status, validation gates, and enhancement backlog.
+fact semantics, production-pilot status, validation gates, and enhancement
+decisions.
 
 Adding another language means implementing this interface and registering the
 adapter. Storage, publication, pagination, MCP envelopes, and analytics do not

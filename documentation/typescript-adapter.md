@@ -415,30 +415,39 @@ Relevant implementation:
 - [`toolSchemas.ts`](../src/transports/mcp/toolSchemas.ts)
 - [`buildMcpServer.ts`](../src/transports/mcp/buildMcpServer.ts)
 
-## 11. Open enhancement backlog
+## 11. Enhancements and open work
+
+Actionable work is tracked in GitHub issues labeled `enhancement`. This section
+keeps only the reasoning and trigger conditions that must outlive an issue.
+Resolved work is recorded in [Dependency decisions](./enhancements.md) or in the
+issue itself.
 
 ### 11.1 Reference quality
 
-- raise the verifier to the production sample and thresholds;
-- preserve deterministic stratification for aliases, barrels, path aliases, JSX,
-  inheritance, declaration merging, and type/value usage;
-- turn every mismatch into a fixture before changing extraction;
-- retain 100% precision while improving recall.
+Tracked in [#73](https://github.com/doberkofler/codeindex-mcp/issues/73).
+
+Deterministic stratification remains a requirement for aliases, barrels, path
+aliases, JSX, inheritance, declaration merging, and type/value usage. Every
+mismatch becomes a fixture before extraction changes.
 
 ### 11.2 Binding-aware façade analysis
 
-Trace binding identity through named imports, aliases, named re-exports, and
-authored façade exports. Distinguish “imports a façade module” from “uses the
-façade binding backed by this package.” Namespace access, `export *`, computed
-exports, dynamic properties, and CommonJS interoperability require explicit
-confidence or unknown states. Uncertain paths remain module-impact evidence.
+Tracked in [#71](https://github.com/doberkofler/codeindex-mcp/issues/71).
+
+The contract: trace binding identity through named imports, aliases, named
+re-exports, and authored façade exports. Distinguish “imports a façade module”
+from “uses the façade binding backed by this package.” Namespace access,
+`export *`, computed exports, dynamic properties, and CommonJS interoperability
+require explicit confidence or unknown states. Uncertain paths remain
+module-impact evidence.
 
 This enhancement starts only after compact impact behavior is measured. It must
 use the existing TypeScript program/checker and preserve 100% reviewed precision.
 
 ### 11.3 Information depth
 
-Add facts only after observed follow-up calls justify them:
+Add facts only after observed follow-up calls justify them. No issue is created
+until its trigger fires:
 
 | Candidate | Trigger |
 | --- | --- |
@@ -460,7 +469,7 @@ not merged merely because paths match.
 
 Remaining work: per-context extraction-artifact reuse is currently keyed by the
 combined configuration digest, so one changed project invalidates all per-file
-artifacts.
+artifacts. Tracked in [#72](https://github.com/doberkofler/codeindex-mcp/issues/72).
 
 ### 11.5 Performance and evaluation
 
@@ -473,11 +482,14 @@ artifacts.
   `find_symbol`/`outline` regression are recorded in
   [Query regression](./query-regression.md)**
 - publish a Markdown summary while keeping JSON authoritative; **done**
-- compare direct MCP and Code Mode wrapping;
+- compare direct MCP and Code Mode wrapping; tracked in
+  [#50](https://github.com/doberkofler/codeindex-mcp/issues/50)
 - complete two-process, lease takeover, and four-hour soak runs; **deterministic restart, unattended recovery, and retention evidence implemented by `soak`**;
 - implement private controlled cases for direct dependency usage, grouped impact,
-  binding-aware façades, and fallback behavior;
-- measure index-first adoption only from an approved complete client event stream.
+  binding-aware façades, and fallback behavior; façade cases are part of
+  [#71](https://github.com/doberkofler/codeindex-mcp/issues/71)
+- measure index-first adoption only from an approved complete client event stream;
+  tracked in [#53](https://github.com/doberkofler/codeindex-mcp/issues/53)
 
 Do not infer adoption from MCP analytics; MCP cannot observe repository search and
 file-read tools.

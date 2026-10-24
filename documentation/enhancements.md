@@ -1,6 +1,9 @@
-# Enhancements: Dependency Removal
+# Enhancements: Dependency Decisions
 
-Status: proposed. No dependency change is approved by this document.
+This document records dependency decisions and rejection rationale. Actionable
+work is tracked in GitHub issues; this file is not a backlog.
+
+Labels: open work uses `enhancement` with `priority:p3`.
 
 ## 1. Purpose
 
@@ -35,119 +38,79 @@ into the store, so treat them as relative indicators.
 | `commander` | 232 KB | CLI parsing | Retain (adopted in `5663fea`) |
 | `csv-parse` | 1.6 MB | Oracle CSV import | Retain (adopted in `2a9efda`) |
 | `csv-stringify` | 1.0 MB | Oracle CSV export | Retain (adopted in `2a9efda`) |
-| `debug` | 60 KB | Namespaced trace output | Evaluate (`DEP-2`) |
+| `debug` | 60 KB | Namespaced trace output | Retain (`DEP-2`) |
 | `jsonc-parser` | 252 KB | OpenCode JSONC read and edit | Retain (`DEP-3`) |
-| `typescript` | 24 MB | TypeScript extractor and compiler API | Retain; packaging decision (`DEP-4`) |
+| `typescript` | 24 MB | TypeScript extractor and compiler API | Retain; packaging tracked in `ENH-002` |
 | `zod` | 8.1 MB | Runtime boundary validation | Retain |
 
 ### Development dependencies in scope
 
 | Dependency | Installed | Role | Disposition |
 | --- | --- | --- | --- |
-| `@mui/icons-material` | 172 MB | 24 icons in 7 console files | Evaluate (`DEP-1`) |
+| `@mui/icons-material` | 172 MB | 24 icons in 7 console files | Tracked in `ENH-001` |
 | `@mui/material` | 16 MB | Console component library | Retain |
 | `@emotion/react`, `@emotion/styled` | peer | Required by MUI | Retain; not directly imported |
 | `@tanstack/react-query` | 2.6 MB | Console polling and invalidation | Retain (`DEP-5`) |
-| `eslint-plugin-regexp` | 556 KB | Regexp rules for Oxlint | Retain (`DEP-7`) |
+| `eslint-plugin-regexp` | 556 KB | Regexp rules for Oxlint | Tracked in `ENH-003` |
 | `antlr-ng` | 5.0 MB | Regenerates the Oracle lexer | Retain |
 | `vite`, `vitest`, `@vitest/coverage-v8` | 2.4–3.0 MB each | Build and tests | Retain |
 
-`pnpm knip` reports no unused dependency. The only current findings are one
-unused exported type and one duplicate export, both unrelated to dependencies.
+`pnpm knip` reports no unused dependency.
 
-## 3. Removal TODOs
+## 3. Open work
 
-### [ ] DEP-1 — Remove `@mui/icons-material`
+| ID | Issue | Scope |
+| --- | --- | --- |
+| `ENH-001` / `DEP-1` | [#74](https://github.com/doberkofler/codeindex-mcp/issues/74) | Remove `@mui/icons-material` |
+| `ENH-002` / `DEP-4` | [#76](https://github.com/doberkofler/codeindex-mcp/issues/76) | Decide whether `typescript` becomes an optional peer |
+| `ENH-003` / `DEP-7` | [#75](https://github.com/doberkofler/codeindex-mcp/issues/75) | Revisit `eslint-plugin-regexp` when Oxlint ships native regexp rules |
+| `ENH-004` / `DEP-8` | [#70](https://github.com/doberkofler/codeindex-mcp/issues/70) | Guard optional Oracle dependencies |
 
-- **Evidence:** 24 unique icons across 7 files, always imported per icon path
-  (for example `@mui/icons-material/Refresh`). Installed package is ~172 MB.
-- **Gain:** largest single reduction in developer and CI install footprint.
-  No shipped bundle change: per-icon imports are already tree-shaken.
-- **Cost:** maintain ~24 local SVG components plus the Apache-2.0 attribution
-  already covered by the Material icon license. No icon API changes expected.
-- **Plan:** create one console-local icon module, copy only the used paths,
-  replace imports, then remove `@mui/icons-material`.
-- **Acceptance:**
-  - [ ] `rg "@mui/icons-material" src` returns nothing.
-  - [ ] Console builds in all three color modes with visual parity.
-  - [ ] `THIRD_PARTY_NOTICES.md` records the icon source and license.
-  - [ ] Installed size and CI install time are measured before and after.
-- **Verdict:** proceed only if the measured install-time reduction justifies
-  owning the icon set. Otherwise keep the package and close this item.
+An item leaves this table when its issue closes. The resolution is then recorded
+in section 7.
 
-### [ ] DEP-2 — Evaluate replacing `debug` with `node:util.debuglog`
+## 4. Retained dependencies
+
+### DEP-2 — Keep `debug`
 
 - **Evidence:** 22 `debugFor` call sites; `src/core/logging/debug.ts` is the only
   module importing the package. `DEBUG` is documented as authoritative for MCP
   and ad-hoc runs.
-- **Gain:** one runtime dependency and one `@types` package removed.
-- **Cost:** `util.debuglog` reads `NODE_DEBUG`, not `DEBUG`; channel naming and
+- **Reason:** `util.debuglog` reads `NODE_DEBUG`, not `DEBUG`; channel naming and
   output format differ. Reproducing the current contract needs a wrapper that
   reimplements the behavior the package already provides.
-- **Acceptance:** either the documented `DEBUG=codeindex:*` contract is kept
-  unchanged, or the change is rejected.
-- **Verdict:** likely close as won't do. Revisit only if the tracing contract is
-  redesigned for another reason.
+- **Reconsider only if** the tracing contract is redesigned for another reason.
 
-### [ ] DEP-3 — Record why `jsonc-parser` stays
+### DEP-3 — Keep `jsonc-parser`
 
 - **Evidence:** `src/transports/cli/mcpCommand.ts` uses `parse`, `modify`, and
   `applyEdits`. TypeScript's `parseConfigFileTextToJson` can read JSONC but
   cannot preserve formatting while editing.
-- **Conclusion:** removal requires a project-owned JSONC editor, which is larger
-  and less correct than the dependency.
-- **Action:** close as won't do; keep the reason here so it is not re-proposed.
+- **Reason:** removal requires a project-owned JSONC editor, which is larger and
+  less correct than the dependency.
 
-### [ ] DEP-4 — Decide whether `typescript` becomes an optional peer
-
-- **Evidence:** 24 MB runtime dependency used by the default extractor.
-- **Gain:** smaller default install for Oracle-only consumers.
-- **Cost:** moves a hard failure from install time to first TypeScript scan;
-  complicates the documented configuration and support matrix. `pnpm` and `npm`
-  resolve optional peers differently.
-- **Acceptance:** a documented Oracle-only installation path exists and is
-  exercised in CI before this changes.
-- **Verdict:** keep as a regular dependency until Oracle-only deployment is a
-  stated requirement.
-
-### [ ] DEP-5 — Record why `@tanstack/react-query` stays
+### DEP-5 — Keep `@tanstack/react-query`
 
 - **Evidence:** two polling queries plus one mutation with cache invalidation in
   `src/ui/console/api.ts`, and a shared client in `main.tsx`.
-- **Conclusion:** a custom hook would be comparable in size while reimplementing
+- **Reason:** a custom hook would be comparable in size while reimplementing
   retry, deduplication, invalidation, and teardown behavior.
-- **Action:** close as won't do. Reopen only if the console keeps a single query.
+- **Reconsider only if** the console keeps a single query.
 
-### [ ] DEP-6 — Keep the ANTLR toolchain
+### DEP-6 — Keep the ANTLR toolchain
 
 - **Evidence:** `antlr4ng` is the runtime for the generated Oracle lexer;
   `antlr-ng` regenerates it from the pinned grammar.
-- **Conclusion:** both are required while the Oracle adapter uses an ANTLR
-  lexer. Replacing them is an Oracle-adapter redesign, not a dependency cleanup.
-- **Action:** no removal. Track any parser replacement separately.
+- **Reason:** both are required while the Oracle adapter uses an ANTLR lexer.
+  Replacing them is an Oracle-adapter redesign, not a dependency cleanup.
 
-### [ ] DEP-7 — Revisit `eslint-plugin-regexp` when Oxlint ships regexp rules
-
-- **Evidence:** Oxlint 1.88 has no built-in `regexp` plugin; the package is loaded
-  as a JS plugin in `oxc.config.ts`.
-- **Cost:** JS plugins are slower than native rules.
-- **Action:** keep today. Remove when an equivalent native plugin is available
-  and enabled, then re-run lint timing.
-
-### [ ] DEP-8 — Guard optional Oracle dependencies
-
-- **Evidence:** `oracledb` is already an `optionalDependencies` entry and
-  `@types/oracledb` a development dependency.
-- **Action:** verify release packaging still installs without Oracle client
-  libraries and that missing `oracledb` produces the documented error.
-
-## 4. Rejected additions
+## 5. Rejected additions
 
 Libraries considered and not adopted. These are not removals from
 `package.json`; they are decisions that keep the dependency surface from growing.
 Each entry is closed unless its reconsider trigger fires.
 
-### [x] ADD-1 — Fastify / Hono for the console server
+### ADD-1 — Fastify / Hono for the console server
 
 Target: `src/transports/console/server.ts`.
 
@@ -163,7 +126,7 @@ Reconsider when the console gains a substantial JSON API, schema validation,
 authentication or sessions, many plugins, or roughly 15–20 routes. Prefer Hono
 only if runtime portability becomes a real requirement.
 
-### [x] ADD-2 — MUI X Charts
+### ADD-2 — MUI X Charts
 
 The existing SVG chart is about 100 lines and presents a narrow, stable dataset.
 A chart suite adds theming, accessibility, tooltip, layout, and bundle upgrade
@@ -176,7 +139,7 @@ becomes complex.
 Reconsider when multiple chart types, zoom/brush selection, complex axes, or
 shared interactive scales appear.
 
-### [x] ADD-3 — Execa
+### ADD-3 — Execa
 
 Target: `src/core/benchmark/suiteCommand.ts`. The current wrapper enforces
 bounded output, environment sanitization, progress forwarding, controlled
@@ -191,7 +154,7 @@ than security-sensitive core paths.
 Reconsider when subprocess orchestration spreads across modules and needs shared
 piping, cancellation, concurrency, or cross-platform command handling.
 
-### [x] ADD-4 — `simple-statistics`
+### ADD-4 — `simple-statistics`
 
 Percentile semantics are the contract, not the arithmetic. A general statistics
 package adds a broad API and does not pin interpolation, empty-input, `NaN`, or
@@ -204,7 +167,7 @@ mean, finite-input validation, documented interpolation, and fixed-vector tests.
 Reconsider when several non-trivial operations appear: variance, regression,
 distributions, or clustering.
 
-### [x] ADD-5 — `p-queue`
+### ADD-5 — `p-queue`
 
 The console queue encodes domain policy: which operations overlap, whether
 requests coalesce, cancellation, progress exposure, and shutdown. `p-queue`
@@ -219,7 +182,7 @@ rate limiting.
 Reconsider when scheduling becomes generic infrastructure rather than console
 policy.
 
-### [x] ADD-6 — Glob libraries
+### ADD-6 — Glob libraries
 
 Node 26 provides `fs.glob`, `fs.globSync`, and `path.matchesGlob`. Adding `glob`,
 `fast-glob`, or `micromatch` duplicates platform behavior and adds pattern-dialect
@@ -232,7 +195,7 @@ inclusion, and generated-file exclusions remain project-owned.
 Reconsider only for semantics native Node lacks, especially Gitignore
 compatibility, complex brace/extglob matching, or measured traversal gains.
 
-### [x] ADD-7 — ORM / query builder
+### ADD-7 — ORM / query builder
 
 The schema and transactions express core invariants: immutable published
 generations, build leases, reader isolation, exclusion of `building` rows,
@@ -253,9 +216,9 @@ option but adds build complexity.
 Reconsider when row-shape mismatches recur, dynamic queries multiply, schema
 types can be generated reliably, and benchmarks show no regression.
 
-## 5. Verification checklist
+## 6. Verification checklist
 
-For any removal that is approved:
+Applicable to any dependency removal when its issue is implemented:
 
 - [ ] `pnpm knip` reports no new unused files, exports, or dependencies.
 - [ ] `pnpm verify` passes.
@@ -266,10 +229,11 @@ For any removal that is approved:
 - [ ] Any change to configuration files or `package.json` scripts has explicit
       approval, per `AGENTS.md`.
 
-## 6. Closed decisions
+## 7. Closed decisions
 
 | ID | Decision | Reason |
 | --- | --- | --- |
+| DEP-2 | Keep `debug` | `DEBUG` channel contract differs from `NODE_DEBUG` |
 | DEP-3 | Keep `jsonc-parser` | `modify`/`applyEdits` preserve JSONC formatting |
 | DEP-5 | Keep `@tanstack/react-query` | Polling, invalidation, and cache reuse |
 | DEP-6 | Keep ANTLR toolchain | Required by the Oracle lexer |
