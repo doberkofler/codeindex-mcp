@@ -61,8 +61,10 @@ allowBuilds:
 ```
 
 Use the commit SHA recorded in `pnpm-lock.yaml`, or the exact key pnpm prints when it
-refuses the install. The key is commit-specific; a tag without the key fails before
-`prepare` runs.
+refuses the install. For an annotated tag, pnpm prints the dereferenced commit SHA,
+not the tag object SHA. The key is commit-specific; a tag without the key fails
+before `prepare` runs. Retained [fresh-consumer installation evidence](./fresh-consumer-installation.md)
+covers artifact startup, a second checkout, analytics opt-out, and rollback.
 
 ## Configure
 

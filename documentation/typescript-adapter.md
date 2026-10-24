@@ -355,7 +355,7 @@ plan. Status meanings:
 | WP4 — compiler/reference alignment | Implemented | Declared compiler identity, drift, TypeScript API extraction, and the ≥200-symbol, ≥99.5%-recall, 100%-precision gate with construct stratification and a checked-in corpus exist. |
 | WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, worker builds, a resumable per-run evidence suite, and the deterministic model-free E3 operational soak exist. Retained reference-machine measurements, Code Mode comparison, contention evidence, and four-hour soak evidence remain incomplete. Incremental compiler state remains conditional. |
 | WP6 — build separation | Superseded/partial | MCP, CLI, console server, and browser bundles are separate. The evaluation harness and public cases live under `evaluation/` and are not bundled; private corpora and restricted results remain outside this repository. |
-| WP7 — OpenCode installation | Implemented | CLI install/uninstall, explicit MCP bundle/configuration paths, preservation of unrelated JSONC, external project configuration, and user documentation exist. |
+| WP7 — OpenCode installation | Implemented | CLI install/uninstall, explicit MCP bundle/configuration paths, preservation of unrelated JSONC, external project configuration, and user documentation exist. A fresh consumer installed the released tag, started the CLI, MCP, and console, kept a second checkout on a separate database, opted out of analytics, and rolled back through configuration and cleanup; see [Fresh-consumer installation and rollback](./fresh-consumer-installation.md). |
 | WP8 — interactive pilot | Open | No retained public evidence proves the required representative-session count, adoption denominator, all latency/resource gates, or soak completion. |
 
 Cross-cutting contracts and performance targets live in
@@ -387,9 +387,12 @@ Cross-cutting contracts and performance targets live in
 - **WP6:** keep private evaluation orchestration outside the production bundle and
   verify that it launches the released `codeindex-mcp` artifact. Reintroducing a
   public evaluation bundle requires a separate scope decision.
-- **WP7:** retain a fresh-consumer installation smoke test, separate-database check
-  for another checkout, analytics opt-out check, and configuration-only rollback
-  test.
+- **WP7:** fresh-consumer installation, artifact startup, a second checkout on a
+  separate database, analytics opt-out, and configuration-only rollback are
+  retained in
+  [Fresh-consumer installation and rollback](./fresh-consumer-installation.md).
+  The residual `$schema` asymmetry and the shared-cache scope of `clean` are
+  recorded there.
 - **WP8:** run at least 20 representative normal sessions; retain qualitative
   failures, freshness/resource results, and correctly measured index-first
   adoption; obtain explicit user acceptance before default enablement.
