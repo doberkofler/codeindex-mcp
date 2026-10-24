@@ -170,21 +170,21 @@ that is classified with the system or qualification tests, so heavy checks move 
 instead of stretching the fast path. The budgets are reference-machine measurements; a
 runner that is not the reference machine sets `CODE_INDEX_TEST_BUDGET_MS` to declare its
 own wall-clock budget. The hosted pull-request runner uses 5 min because the same suite
-takes 217 s there against 32.4 s on the reference machine.
+takes 217 s there against 37.3 s on the reference machine.
 
 | Workflow | Script | Contents | Budget | Measured |
 |---|---|---|---:|---:|
-| `test:fast` | `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP tests; no coverage | <=10 s | 6.3 s, exit 0 |
-| `test:typescript` | `pnpm test:typescript` | All TypeScript adapter and reference-corpus tests | <=15 s | 2.8 s, exit 0 |
-| `test:mcp` | `pnpm test:mcp` | MCP protocol contracts and one vertical smoke | <=15 s | 0.7 s, exit 0 |
-| `test:system` | `pnpm test:system` | Built-process deterministic system tests | <=60 s | 11.8 s, exit 0 |
-| `qualify:typescript:fixture` | `pnpm qualify:typescript:fixture` | Self-contained compiler differential gate | <=60 s | 1.5 s, exit 0 |
-| `verify:pr` | `pnpm verify:pr` | Static checks, coverage, all deterministic tests, build, qualification | <=2 min | 32.4 s, exit 0 |
+| `test:fast` | `pnpm test:fast` | Module, adapter micro-fixture, core, and fake-index MCP tests; no coverage | <=10 s | 6.7 s, exit 0 |
+| `test:typescript` | `pnpm test:typescript` | All TypeScript adapter and reference-corpus tests | <=15 s | 2.9 s, exit 0 |
+| `test:mcp` | `pnpm test:mcp` | MCP protocol contracts and one vertical smoke | <=15 s | 0.8 s, exit 0 |
+| `test:system` | `pnpm test:system` | Built-process deterministic system tests | <=60 s | 19.0 s, exit 0 |
+| `qualify:typescript:fixture` | `pnpm qualify:typescript:fixture` | Self-contained compiler differential gate | <=60 s | 1.6 s, exit 0 |
+| `verify:pr` | `pnpm verify:pr` | Static checks, coverage, all deterministic tests, build, qualification | <=2 min | 37.3 s, exit 0 |
 
-Measured on 2026-10-22 on the reference machine (Apple M5 Max, macOS 27.0.1,
-Node 26.10.0, pnpm 12.14.0). `qualify:typescript:fixture` also passes with
-`env -i PATH HOME` and exits 0 in 1.5 s. The 60 s system budget includes its build.
-The `verify:pr` measurement includes its single build and the fixture qualification.
+Measured on 2026-10-24 on the reference machine (Apple M5 Max, macOS 27.0.1,
+Node 26.10.0, pnpm 12.15.0). `qualify:typescript:fixture` also passes with
+`env -i PATH HOME`. The 60 s system budget includes its build. The `verify:pr`
+measurement includes its single build and the fixture qualification.
 
 Nightly workflows run generated and pinned-public-corpus performance and compatibility
 checks. Stable-machine or release workflows run retained-reference comparisons, soak,

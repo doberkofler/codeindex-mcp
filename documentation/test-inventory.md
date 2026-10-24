@@ -49,11 +49,11 @@ class table.
 
 | Class | `test/` | `evaluation/harness/src/` | Total |
 |---|---:|---:|---:|
-| Module test | 61 | 38 | 99 |
+| Module test | 61 | 36 | 97 |
 | Adapter contract | 24 | 0 | 24 |
 | Core integration | 11 | 0 | 11 |
 | MCP protocol contract | 5 | 0 | 5 |
-| Deterministic system test | 3 | 2 | 5 |
+| Deterministic system test | 3 | 4 | 7 |
 | Semantic qualification | 4 | 2 | 6 |
 | Performance test | 2 | 0 | 2 |
 | **Total** | **110** | **42** | **152** |
@@ -159,8 +159,8 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/version.test.ts` | Module test | `PROGRAM_VERSION` | Inline values | The compiled version equals the package manifest. |
 | `test/workspaceWatcher.test.ts` | Module test | `WorkspaceWatcher` | Temporary workspace | Changed files, project-wide invalidation, atomic writes, deletion, recreation, and ignored segments are reported. |
 | `test/consoleApi.test.tsx` | Module test | `readToken`, `storeToken`, `clearToken`, `useSnapshot`, `useAnalytics`, `useRunOperation` | Stub boundary | URL-fragment tokens are stored and stripped, request errors map to stable messages, analytics stays disabled until requested, and an operation posts JSON and invalidates the snapshot. |
-| `test/consoleApp.test.tsx` | Module test | `App` composition | Stub boundary | Token entry, every page route, theme persistence, refresh, operation dispatch, and a rejected connection compose through the console application. |
-| `test/consoleComponents.test.tsx` | Module test | `BarList`, `MetricCard`, `StatusChip`, `TimeSeriesChart`, `ToolDialog`, `createConsoleTheme` | Inline values | Presentational components render empty and populated states, dialogs restore focus, and light and dark themes retain semantic palette tokens. |
+| `test/consoleApp.test.tsx` | Module test | `App` composition | Stub boundary | Token entry, every page route, theme persistence, light, dark, and system color schemes with semantic palette tokens, refresh, operation dispatch, and a rejected connection compose through the console application. |
+| `test/consoleComponents.test.tsx` | Module test | `BarList`, `MetricCard`, `StatusChip`, `TimeSeriesChart`, `ToolDialog`, `createConsoleTheme` | Inline values | Presentational components render empty and populated states, dialog open and close request trigger restoration once, and light and dark themes retain semantic palette tokens. |
 | `test/consoleFormat.test.ts` | Module test | `format.ts` formatters | Inline values | Compact numbers, durations, bytes, percentages, timestamps, clocks, and shortened identities obey their boundaries. |
 | `test/consoleMain.test.tsx` | Module test | Browser entry mounting | Stub boundary | The console mounts under `#root` and rejects a page without it. |
 | `test/consoleOverlayFocus.test.ts` | Module test | `rememberOverlayTrigger`, `restoreOverlayTrigger` | Inline values | Fallback containers, body focus, blur, disconnected triggers, double restore, and non-element fallbacks are safe. |
@@ -201,10 +201,10 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `evaluation/harness/src/routeContractProbe.test.ts` | Module test | Route contract probes | Stub boundary | Pagination, truncation, failure, and stale-file probes accept only the declared contract and restore the workspace. |
 | `evaluation/harness/src/runner.test.ts` | Deterministic system test | Runner execution and restoration | Temporary workspace | Executions isolate sessions and databases, enforce timeouts and process groups, and persist failed results. |
 | `evaluation/harness/src/runnerRecovery.test.ts` | Deterministic system test | `withRestoration`, `terminateActiveAttempts` | Temporary workspace | Restoration preserves outcomes, retries start from restored workspaces, and signals reach detached groups. |
-| `evaluation/harness/src/schema.test.ts` | Module test | Case and suite schema, hashing, selection | Synthetic artifacts | Schema versions, frozen hashes, canonical hashing, deterministic selection, and resume hold. |
+| `evaluation/harness/src/schema.test.ts` | Deterministic system test | Case and suite schema, hashing, selection | Synthetic artifacts | Schema versions, frozen hashes, canonical hashing, deterministic selection, and resume hold. |
 | `evaluation/harness/src/semantic.test.ts` | Semantic qualification | Semantic suite cases and TypeScript compiler | Reference corpus | The controlled semantic fixture compiles and six semantic cases agree with the compiler. |
 | `evaluation/harness/src/surface.test.ts` | Module test | Surface permission and presentation | Synthetic artifacts | Declared surfaces deny unnamed actions, the last rule wins, and differences and captures are exact. |
-| `evaluation/harness/src/surfaceProbe.test.ts` | Module test | Surface probe | Stub boundary | Title-only requests differ from tools, captures union tool-bearing requests, and empty surfaces fail. |
+| `evaluation/harness/src/surfaceProbe.test.ts` | Deterministic system test | Surface probe | Stub boundary | Title-only requests differ from tools, captures union tool-bearing requests, and empty surfaces fail. |
 | `evaluation/harness/src/treatment.test.ts` | Module test | Treatment definitions, equivalence, catalog, identity | Synthetic artifacts | Treatment hashing, equivalence, surface capture, catalog lookup, and run identity are exact. |
 | `evaluation/harness/src/workflow.test.ts` | Module test | `workflowOf` | Synthetic artifacts | Call, byte, and token budgets, required and forbidden tools, first retrieval, duplicate reads, and fallback classify exactly. |
 | `evaluation/harness/src/workspace.test.ts` | Module test | Workspace context and restoration | Temporary workspace | Checkouts are pinned, clean, and restorable, authored and ignored changes are rejected, and the manifest fallback holds. |

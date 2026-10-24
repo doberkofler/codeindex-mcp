@@ -83,9 +83,7 @@ const MODULE_TESTS = [
 	'evaluation/harness/src/result.test.ts',
 	'evaluation/harness/src/route.test.ts',
 	'evaluation/harness/src/routeContractProbe.test.ts',
-	'evaluation/harness/src/schema.test.ts',
 	'evaluation/harness/src/surface.test.ts',
-	'evaluation/harness/src/surfaceProbe.test.ts',
 	'evaluation/harness/src/treatment.test.ts',
 	'evaluation/harness/src/workflow.test.ts',
 	'evaluation/harness/src/workspace.test.ts',
@@ -157,6 +155,10 @@ const DETERMINISTIC_SYSTEM_TESTS = [
 	'test/soak.test.ts',
 	'evaluation/harness/src/runner.test.ts',
 	'evaluation/harness/src/runnerRecovery.test.ts',
+	// Both spawn the evaluation CLI or cold MCP processes per case; their wall-clock
+	// cost belongs to the system budget, not the fast path.
+	'evaluation/harness/src/schema.test.ts',
+	'evaluation/harness/src/surfaceProbe.test.ts',
 ];
 
 const WORKFLOWS = {
