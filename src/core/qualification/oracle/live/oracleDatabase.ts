@@ -21,12 +21,8 @@ export type OracleLiveDependenciesType = Readonly<{
 }>;
 
 const loadDriver = async (): Promise<typeof OracleDB> => {
-	try {
-		const imported = await import('oracledb');
-		return imported.default;
-	} catch (error) {
-		throw new Error('Oracle live qualification requires the optional oracledb package', {cause: error});
-	}
+	const imported = await import('oracledb');
+	return imported.default;
 };
 
 const databaseOf = (connection: OracleDB.Connection): OracleDatabaseType => ({
@@ -45,8 +41,8 @@ const databaseOf = (connection: OracleDB.Connection): OracleDatabaseType => ({
 /**
  * Opens one Oracle driver session for qualification evidence queries.
  *
- * The optional dependency is loaded dynamically so normal indexing never
- * requires the driver or its native bindings.
+ * The driver is loaded lazily so normal indexing never loads it or its native
+ * bindings.
  *
  * @param connection - Validated Oracle credentials.
  * @param timeoutMs - Per-call driver timeout.

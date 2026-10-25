@@ -8,12 +8,8 @@ const SOURCE_TYPES = ['PACKAGE', 'PACKAGE BODY', 'FUNCTION', 'PROCEDURE'] as con
 type SourceLineType = {line: number; text: string};
 
 const loadDriver = async (): Promise<typeof OracleDB> => {
-	try {
-		const imported = await import('oracledb');
-		return imported.default;
-	} catch (error) {
-		throw new Error('Oracle live qualification requires the optional oracledb package', {cause: error});
-	}
+	const imported = await import('oracledb');
+	return imported.default;
 };
 
 const isWrapped = (text: string): boolean => /^\s*(?:PACKAGE(?:\s+BODY)?|FUNCTION|PROCEDURE)\b.+\bwrapped\s*$/iu.test(text);
@@ -30,7 +26,7 @@ const sourceTextOf = (lines: readonly SourceLineType[]): string => lines.map((li
  *
  * @param connection - Validated Oracle credentials.
  * @returns Installed objects keyed by canonical object key.
- * @throws {Error} When the optional Oracle driver is unavailable or a row is malformed.
+ * @throws {Error} When the Oracle driver is unavailable or a row is malformed.
  */
 export const readInstalledOracleSources = async (connection: OracleConnectionType): Promise<ReadonlyMap<string, OracleInstalledSourceType>> => {
 	const driver = await loadDriver();
@@ -89,7 +85,7 @@ export const readInstalledOracleSources = async (connection: OracleConnectionTyp
  *
  * @param connection - Validated Oracle credentials.
  * @returns Dependency edges in the connected schema.
- * @throws {Error} When the optional Oracle driver is unavailable or a row is malformed.
+ * @throws {Error} When the Oracle driver is unavailable or a row is malformed.
  */
 export const readInstalledOracleDependencies = async (connection: OracleConnectionType): Promise<readonly OracleDependencyRowType[]> => {
 	const driver = await loadDriver();

@@ -40,6 +40,7 @@ into the store, so treat them as relative indicators.
 | `csv-stringify` | 1.0 MB | Oracle CSV export | Retain (adopted in `2a9efda`) |
 | `debug` | 60 KB | Namespaced trace output | Retain (`DEP-2`) |
 | `jsonc-parser` | 252 KB | OpenCode JSONC read and edit | Retain (`DEP-3`) |
+| `oracledb` | 4.2 MB | Oracle live qualification driver | Retain; required, loaded lazily (`DEP-8`) |
 | `typescript` | 24 MB | TypeScript extractor and compiler API | Retain; packaging tracked in `ENH-002` |
 | `zod` | 8.1 MB | Runtime boundary validation | Retain |
 
@@ -64,7 +65,6 @@ into the store, so treat them as relative indicators.
 | `ENH-001` / `DEP-1` | [#74](https://github.com/doberkofler/codeindex-mcp/issues/74) | Remove `@mui/icons-material` |
 | `ENH-002` / `DEP-4` | [#76](https://github.com/doberkofler/codeindex-mcp/issues/76) | Decide whether `typescript` becomes an optional peer |
 | `ENH-003` / `DEP-7` | [#75](https://github.com/doberkofler/codeindex-mcp/issues/75) | Revisit `eslint-plugin-regexp` when Oxlint ships native regexp rules |
-| `ENH-004` / `DEP-8` | [#70](https://github.com/doberkofler/codeindex-mcp/issues/70) | Guard optional Oracle dependencies |
 
 An item leaves this table when its issue closes. The resolution is then recorded
 in section 7.
@@ -237,6 +237,7 @@ Applicable to any dependency removal when its issue is implemented:
 | DEP-3 | Keep `jsonc-parser` | `modify`/`applyEdits` preserve JSONC formatting |
 | DEP-5 | Keep `@tanstack/react-query` | Polling, invalidation, and cache reuse |
 | DEP-6 | Keep ANTLR toolchain | Required by the Oracle lexer |
+| DEP-8 | Require `oracledb` | Qualification-only use; missing-driver guard removed |
 | ADD-1 | No HTTP framework | Native loopback server is smaller and stricter |
 | ADD-2 | No chart suite | One small SVG chart |
 | ADD-3 | No Execa | Domain-specific bounded subprocess policy |

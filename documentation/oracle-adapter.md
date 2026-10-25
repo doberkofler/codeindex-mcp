@@ -424,7 +424,7 @@ dependent objects and discard package state (`ORA-04068`). The command prints
 this warning before applying. Plan version 6 invalidates earlier plans that
 ordered dependent restoration by discovery depth instead of dependency order.
 
-`oracledb` is an optional dependency used only by live qualification; normal
+`oracledb` is a runtime dependency loaded only by live qualification; normal
 indexing and MCP operation never load it. All database work, including the
 `ALTER ... COMPILE` statements, uses one `oracledb` session. Set
 `CODE_INDEX_ORACLE_TIMEOUT_MS` to override the default 600-second per-call
