@@ -80,6 +80,8 @@ const runOf = (overrides: Partial<RunResultType> = {}): RunResultType => ({
 	rawEventCount: 2,
 	malformedEventCount: 0,
 	streamTruncated: false,
+	streamComplete: true,
+	streamIncompleteReasons: [],
 	indexCalls: 0,
 	surface: {
 		treatmentId: 'no-index',

@@ -10,6 +10,12 @@ import {openMcpSession} from './routeClient.ts';
 /** Declared warm-startup p95 budget from the maintainer guide. */
 export const STARTUP_P95_BUDGET_MS = 500;
 
+/** Declared local MCP call p95 budget from the maintainer guide. */
+export const MCP_CALL_P95_BUDGET_MS = 100;
+
+/** Tool measured for the local MCP call budget; it has no workspace scan. */
+const MCP_CALL_TOOL = 'index_status';
+
 /** Pause between sessions so a closed server can release its process. */
 const SETTLE_MS = 50;
 
@@ -22,7 +28,7 @@ export type StartupPercentilesType = Readonly<{
 }>;
 
 export type StartupBaselineType = Readonly<{
-	schemaVersion: 1;
+	schemaVersion: 2;
 	kind: 'mcp-warm-startup';
 	generatedAt: string;
 	definition: string;
@@ -39,6 +45,14 @@ export type StartupBaselineType = Readonly<{
 	samplesMs: readonly number[];
 	percentiles: StartupPercentilesType;
 	gate: Readonly<{metric: 'p95Ms'; budgetMs: number; status: 'pass' | 'fail'}>;
+	/** Local MCP call latency measured after each handshake. */
+	calls: Readonly<{
+		tool: string;
+		iterations: number;
+		samplesMs: readonly number[];
+		percentiles: StartupPercentilesType;
+		gate: Readonly<{metric: 'p95Ms'; budgetMs: number; status: 'pass' | 'fail'}>;
+	}>;
 }>;
 
 const round1 = (value: number): number => Math.round(value * 10) / 10;
@@ -64,6 +78,14 @@ export const summarizeStartup = (samples: readonly number[]): StartupPercentiles
  * @returns `pass` only when the p95 is within the budget.
  */
 export const startupGateStatusOf = (p95Ms: number | null): 'pass' | 'fail' => (p95Ms !== null && p95Ms <= STARTUP_P95_BUDGET_MS ? 'pass' : 'fail');
+
+/**
+ * Applies the declared local MCP call gate.
+ *
+ * @param p95Ms - Observed p95, or null when no call was measured.
+ * @returns `pass` only when the p95 is within the budget.
+ */
+export const mcpCallGateStatusOf = (p95Ms: number | null): 'pass' | 'fail' => (p95Ms !== null && p95Ms <= MCP_CALL_P95_BUDGET_MS ? 'pass' : 'fail');
 
 const commitOf = (repositoryRoot: string): string => {
 	const result = spawnSync('git', ['-C', repositoryRoot, 'rev-parse', 'HEAD'], {encoding: 'utf8'});
@@ -124,21 +146,31 @@ export const measureStartup = async (
 		CODE_INDEX_DATABASE: database,
 	};
 	const samples: number[] = [];
+	const callSamples: number[] = [];
 
 	for (let iteration = 1; iteration <= input.iterations; iteration += 1) {
 		const session = await openMcpSession({entryPoint, cwd: root, env: environment});
 		samples.push(round1(session.startupMs));
+
+		const call = await session.callTool(MCP_CALL_TOOL, {});
+
+		if (call.status === 'ok') {
+			callSamples.push(round1(call.elapsedMs));
+		}
+
 		await session.close();
 		await delay(SETTLE_MS);
 	}
 
 	const percentiles = summarizeStartup(samples);
+	const callPercentiles = summarizeStartup(callSamples);
 
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		kind: 'mcp-warm-startup',
 		generatedAt: new Date().toISOString(),
-		definition: 'spawn the MCP entry point and complete the MCP initialize handshake against a reusable index database',
+		definition:
+			'spawn the MCP entry point, complete the MCP initialize handshake against a reusable index database, and time one index_status call in the same session',
 		artifact: {entryPoint: path.basename(entryPoint), sha256: sha256Of(entryPoint), commit: commitOf(input.repositoryRoot)},
 		machine: {
 			nodeVersion: process.version,
@@ -152,5 +184,12 @@ export const measureStartup = async (
 		samplesMs: samples,
 		percentiles,
 		gate: {metric: 'p95Ms', budgetMs: STARTUP_P95_BUDGET_MS, status: startupGateStatusOf(percentiles.p95Ms)},
+		calls: {
+			tool: MCP_CALL_TOOL,
+			iterations: callSamples.length,
+			samplesMs: callSamples,
+			percentiles: callPercentiles,
+			gate: {metric: 'p95Ms', budgetMs: MCP_CALL_P95_BUDGET_MS, status: mcpCallGateStatusOf(callPercentiles.p95Ms)},
+		},
 	};
 };

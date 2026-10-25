@@ -3,6 +3,9 @@ import {type SoakGateType, type SoakReportType} from './soakTypes.ts';
 
 export type SoakReportBaseType = Omit<SoakReportType, 'gates' | 'passed' | 'blocking'>;
 
+/** Declared idle-CPU budget from the maintainer guide. */
+export const IDLE_CPU_BUDGET_PERCENT = 1;
+
 const editGateOf = (report: SoakReportBaseType): SoakGateType => {
 	const edits = report.events.flatMap((event) => event.edits);
 
@@ -71,6 +74,34 @@ const publicationGateOf = (report: SoakReportBaseType): SoakGateType => ({
 });
 
 /**
+ * Evaluates the declared minimum edit-phase duration.
+ *
+ * @param elapsedMs - Measured edit-phase duration.
+ * @param durationMs - Declared minimum, where `0` disables the requirement.
+ * @returns The duration gate.
+ */
+export const durationGate = (elapsedMs: number, durationMs: number): SoakGateType => ({
+	id: 'soak.duration-completed',
+	result: durationMs === 0 || elapsedMs >= durationMs ? 'pass' : 'fail',
+	detail: `${String(elapsedMs)} ms measured against ${String(durationMs)} ms declared`,
+});
+
+/**
+ * Evaluates the declared idle-CPU budget after reconciliation.
+ *
+ * @param idle - Measured idle sample, or null when the measurement was disabled.
+ * @returns The idle-CPU gate.
+ */
+export const idleGate = (idle: SoakReportBaseType['idle']): SoakGateType => ({
+	id: 'soak.idle-cpu',
+	result: idle === null ? 'pass' : idle.averagePercent < IDLE_CPU_BUDGET_PERCENT ? 'pass' : 'fail',
+	detail:
+		idle === null
+			? 'idle sampling not requested'
+			: `${String(idle.averagePercent)}% over ${String(idle.windowMs)} ms (budget <${String(IDLE_CPU_BUDGET_PERCENT)}%)`,
+});
+
+/**
  * Evaluates every model-free operational gate.
  *
  * @param report - Report without gates and verdict fields.
@@ -87,4 +118,6 @@ export const gatesOf = (report: SoakReportBaseType, requireBuildOverlap: boolean
 	restartGateOf(report),
 	retentionGateOf(report),
 	publicationGateOf(report),
+	durationGate(report.elapsedMs, report.plan.durationMs),
+	idleGate(report.idle),
 ];

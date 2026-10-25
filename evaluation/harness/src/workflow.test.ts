@@ -44,6 +44,7 @@ const eventsOf = (calls: readonly ToolCallType[]): RunEventsType => {
 		events: [],
 		malformed: [],
 		truncated: false,
+		stream: {complete: true, reasons: [], stepsStarted: 1, stepsFinished: 1, terminalEvent: null},
 		rawEventCount: calls.length,
 		steps: 1,
 		finalText: '',

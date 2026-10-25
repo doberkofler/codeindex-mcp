@@ -396,6 +396,7 @@ a required field, or carrying a wrong type, is not a result
 | `isolation` | object | yes | `{mode, checkoutClean, revisionMatch, restored, clientStore}`; `clientStore` is `ephemeral` or `campaign-local` ([§5.1](#51-opencode-client-state)). |
 | `process` | object | yes | `{exitCode, signal, stderrPath, errorClass}`; stderr is bounded, `stderrPath` is result-directory-relative, and `exitCode` and `signal` may be `null` only with `outcome` `timed-out` or `aborted`. |
 | `events` | object | yes | `{path, count, digest}` for the raw event stream; `path` is relative to the result directory ([7.9](#79-redaction-retention-and-public-evidence)). |
+| `streamComplete` | boolean | yes | Structural proof that the captured stream is complete ([7.10](#710-event-stream-completeness)); `streamIncompleteReasons` lists the closed causes when it is `false`. |
 | `telemetry` | object of metric entries | yes | One entry per metric in [7.5](#75-telemetry-availability-states): `{value, state, unit, source}`. |
 | `tools` | object | yes | `{path, count, normalizerVersion}` for the normalized call sequence. |
 | `output` | object | yes | `{path, digest, finalMessageCount}` for the agent's final answer material. |
@@ -854,6 +855,31 @@ transcripts, answer prose, absolute paths, hostnames, or operator identifiers. A
 public claim remains bounded by the claim class of the evidence it cites
 ([strategy §1.2](./mcp-evaluation-strategy.md#12-claim-authority)); identity and
 retention never widen it.
+
+### 7.10 Event-stream completeness
+
+Adoption may be measured only from a complete client event stream, never from MCP
+analytics ([strategy §E2](./mcp-evaluation-strategy.md#e2-controlled-agent-evaluation)).
+"Complete" is a structural proof about the capture, not a claim about which
+envelope the client chose to emit.
+
+A capture is complete when every one of the following holds:
+
+1. the final non-empty line parsed as a JSON event;
+2. no line was malformed;
+3. at least one step finished;
+4. when the client reported step starts, starts and finishes are balanced;
+5. no tool call is left `pending` or `running`.
+
+The reasons are retained verbatim in `streamIncompleteReasons`, and
+`streamComplete` is the conjunction of the five conditions. The last
+execution-scoped terminal lifecycle type observed (`session.execution.*` that ends
+in `succeeded`, `failed`, `completed`, `aborted`, or `cancelled`) is recorded as
+`terminalEvent`; its absence is reported but never substitutes for condition 3.
+
+A development-pilot trajectory is valid only when its capture is complete, so an
+incomplete stream reduces the valid population instead of silently shrinking the
+adoption denominator.
 
 ## 8. Metrics
 

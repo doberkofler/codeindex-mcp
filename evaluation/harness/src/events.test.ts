@@ -300,6 +300,44 @@ describe('events', () => {
 		assert.equal(events.truncated, false);
 		assert.equal(events.malformed.length, 1);
 		assert.equal(events.finalText, 'before\nafter');
+		assert.equal(events.stream.complete, false);
+		assert.deepEqual(events.stream.reasons, ['1 malformed line(s) retained', 'no completed step was reported']);
+	});
+
+	it('proves a complete capture and records the terminal lifecycle event', () => {
+		const events = parseEvents(
+			lines(
+				{type: 'step_start'},
+				{
+					type: 'tool_use',
+					part: {type: 'tool', tool: 'read', state: {status: 'completed', input: {filePath: 'src/a.ts'}, output: 'x'}},
+					id: 'call-1',
+				},
+				{type: 'step_finish', part: {tokens: {input: 1, output: 1}, cost: 0}},
+				{type: 'session.execution.succeeded'},
+			),
+		);
+
+		assert.equal(events.stream.complete, true);
+		assert.deepEqual(events.stream.reasons, []);
+		assert.equal(events.stream.stepsStarted, 1);
+		assert.equal(events.stream.stepsFinished, 1);
+		assert.equal(events.stream.terminalEvent, 'session.execution.succeeded');
+	});
+
+	it('an unterminated step or tool call is not a complete capture', () => {
+		const unterminatedTool = parseEvents(
+			lines({
+				type: 'tool_use',
+				part: {type: 'tool', tool: 'read', state: {status: 'running', input: {filePath: 'src/a.ts'}}},
+				id: 'call-1',
+			}),
+		);
+		const balanced = parseEvents(lines({type: 'step_start'}, {type: 'step_finish', part: {tokens: {input: 1, output: 1}}}));
+
+		assert.deepEqual(unterminatedTool.stream.reasons, ['no completed step was reported', '1 tool call(s) have no terminal status']);
+		assert.equal(unterminatedTool.stream.complete, false);
+		assert.equal(balanced.stream.complete, true);
 	});
 
 	it('session errors and nested text events are parsed', () => {

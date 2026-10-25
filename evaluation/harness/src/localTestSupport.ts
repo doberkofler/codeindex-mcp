@@ -209,6 +209,8 @@ export const runOf = (overrides: RunOverridesType = {}): RunResultType => {
 		rawEventCount: 4,
 		malformedEventCount: 0,
 		streamTruncated: false,
+		streamComplete: true,
+		streamIncompleteReasons: [],
 		indexCalls: indexCallCountOf(treatment),
 		surface: surfaceOf(treatment),
 		routing: routingOf(treatment, callCount),

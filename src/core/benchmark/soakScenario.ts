@@ -53,6 +53,9 @@ export type SoakRunOptionsType = Readonly<{
 
 type SoakRunResultType = Readonly<{report: SoakReportType; workspace: string; databaseDirectory: string; temporaryWorkspace: boolean}>;
 
+/** Hard bound so a misconfigured duration can never run without end. */
+const DURATION_EVENT_LIMIT = 100_000;
+
 const reportOf = (
 	input: Readonly<{
 		state: SoakStateType;
@@ -61,6 +64,8 @@ const reportOf = (
 		overall: SoakResourceType;
 		cold: SoakReportType['coldBuild'];
 		events: readonly SoakEventType[];
+		elapsedMs: number;
+		idle: SoakReportType['idle'];
 		failures: readonly SoakFailureType[];
 		staleRefusal: SoakStaleRefusalType | null;
 		restarts: readonly SoakRestartType[];
@@ -93,6 +98,7 @@ const reportOf = (
 		plan: {...input.plan, targetPaths: [...EDIT_TARGETS, STALE_TARGET, FAILURE_TARGET]},
 		coldBuild: input.cold,
 		events: input.events,
+		elapsedMs: input.elapsedMs,
 		latency: summarize(input.events.map((event) => event.eventToFreshMs)),
 		failures: input.failures,
 		buildFailures: input.state.observedFailures,
@@ -106,6 +112,7 @@ const reportOf = (
 		staleRefusal: input.staleRefusal,
 		restarts: input.restarts,
 		retention: retentionOf({observations: input.observations, fileCount: status.counts.files}),
+		idle: input.idle,
 		resources: input.overall,
 		freshness: status.freshness,
 	};
@@ -139,20 +146,53 @@ const runEventsOf = async (
 ): Promise<readonly SoakEventType[]> => {
 	const events: SoakEventType[] = [];
 	const total = state.plan.rounds + 2;
-	const singleEvents = await runSequential(state.plan.rounds, async (index) => {
-		const event = await runSingleEvent(state, index + 1);
-		return event;
-	});
+	const deadline = state.plan.durationMs > 0 ? performance.now() + state.plan.durationMs : null;
 
-	for (const event of singleEvents) {
+	// Recursion rather than a loop: every edit must publish before the next one
+	// starts, so the sequence is a chain of dependent awaits.
+	const singleEvent = async (): Promise<void> => {
+		const event = await runSingleEvent(state, events.length + 1);
 		pushEvent({events, observations, event, total, state, onProgress});
-	}
 
-	const burst = await runBurstEvent(state, state.plan.rounds + 1);
+		const belowMinimum = events.length < state.plan.rounds;
+		const insideDuration = deadline !== null && performance.now() < deadline && events.length < DURATION_EVENT_LIMIT;
+
+		if (belowMinimum || insideDuration) {
+			await singleEvent();
+		}
+	};
+
+	await singleEvent();
+
+	const burst = await runBurstEvent(state, events.length + 1);
 
 	pushEvent({events, observations, event: burst, total, state, onProgress});
 
 	return events;
+};
+
+const idleOf = async (state: SoakStateType, windowMs: number): Promise<SoakReportType['idle']> => {
+	if (windowMs === 0) {
+		return null;
+	}
+
+	await waitFor({
+		attempt: () => {
+			const status = state.index.getStatus();
+			return status.refresh === 'current' && !status.building && status.lastError === null ? true : null;
+		},
+		timeoutMs: state.plan.timeoutMs,
+		label: 'idle reconciliation',
+	});
+
+	const cpuStart = process.cpuUsage();
+	await delay(windowMs);
+	const cpu = process.cpuUsage(cpuStart);
+	const cpuUserMs = Math.round(cpu.user / 1000);
+	const cpuSystemMs = Math.round(cpu.system / 1000);
+	const averagePercent = Math.round(((cpu.user + cpu.system) / 1000 / windowMs) * 100 * 1000) / 1000;
+
+	return {windowMs, cpuUserMs, cpuSystemMs, averagePercent};
 };
 
 const initialWorkspaceOf = (options: SoakRunOptionsType): Readonly<{rootDir: string; temporary: boolean}> => {
@@ -230,8 +270,10 @@ export const runSoak = async (options: SoakRunOptionsType): Promise<SoakRunResul
 		});
 		observations.push(observationOf(0, state.database, config.databasePath));
 
+		const eventsStartedAt = performance.now();
 		const events = [...(await runEventsOf(state, observations, options.onProgress))];
-		const stale = await staleProbeOf(state, options.plan.rounds + 2);
+		const elapsedMs = Math.round(performance.now() - eventsStartedAt);
+		const stale = await staleProbeOf(state, events.length + 1);
 		events.push(stale.event);
 		observations.push(observationOf(events.length, state.database, config.databasePath));
 
@@ -248,6 +290,8 @@ export const runSoak = async (options: SoakRunOptionsType): Promise<SoakRunResul
 			return restart;
 		});
 
+		const idle = await idleOf(state, options.plan.idleSampleMs);
+
 		const report = reportOf({
 			state,
 			plan: options.plan,
@@ -255,6 +299,8 @@ export const runSoak = async (options: SoakRunOptionsType): Promise<SoakRunResul
 			overall: overall.stop(),
 			cold,
 			events,
+			elapsedMs,
+			idle,
 			failures,
 			staleRefusal: stale.stale,
 			restarts,

@@ -99,6 +99,10 @@ export type RunResultType = Readonly<{
 	malformedEventCount: number;
 	/** True when the captured stream ended in a truncated or malformed line. */
 	streamTruncated: boolean;
+	/** Structural proof that the client event stream was captured completely. */
+	streamComplete: boolean;
+	/** Closed reasons the capture is not complete; empty when it is. */
+	streamIncompleteReasons: readonly string[];
 	indexCalls: number;
 	/** Exact tool-name surface captured before this execution. */
 	surface: ToolSurfaceType;

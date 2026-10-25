@@ -18,6 +18,8 @@ export type SoakCommandOptionsType = Readonly<{
 	restarts: string;
 	debounceMs: string;
 	timeoutMs: string;
+	durationMs: string;
+	idleSampleMs: string;
 	workspace?: string | undefined;
 	output: string;
 	markdown?: string | undefined;
@@ -53,6 +55,8 @@ export const planOf = (options: SoakCommandOptionsType): SoakPlanType => ({
 	restarts: integerOf('--restarts', options.restarts, 0, 10),
 	debounceMs: integerOf('--debounce-ms', options.debounceMs, 10, 5000),
 	timeoutMs: integerOf('--timeout-ms', options.timeoutMs, 1000, 600_000),
+	durationMs: integerOf('--duration-ms', options.durationMs, 0, 86_400_000),
+	idleSampleMs: integerOf('--idle-sample-ms', options.idleSampleMs, 0, 600_000),
 });
 
 export const outputPathsOf = (options: SoakCommandOptionsType): Readonly<{report: string; markdown: string}> => {
@@ -77,9 +81,10 @@ export const runOptionsOf = (
 		...(options.workspace === undefined ? {} : {workspace: path.resolve(options.workspace)}),
 		...(workerEntry === undefined ? {} : {workerEntry}),
 		onProgress: (progress): void => {
-			io.stderr(
-				`[soak] event ${String(progress.iteration)}/${String(progress.rounds)}: ${String(progress.latencyMs)} ms${progress.iteration < progress.rounds ? ', continuing' : ''}`,
-			);
+			const position =
+				progress.iteration <= progress.rounds ? `event ${String(progress.iteration)}/${String(progress.rounds)}` : `event ${String(progress.iteration)}`;
+
+			io.stderr(`[soak] ${position}: ${String(progress.latencyMs)} ms${progress.iteration < progress.rounds ? ', continuing' : ''}`);
 		},
 	};
 };
@@ -118,6 +123,8 @@ export const addSoakCommand = (
 		.option('--restarts <n>', 'clean index restarts', '1')
 		.option('--debounce-ms <n>', 'watcher debounce in milliseconds', '500')
 		.option('--timeout-ms <n>', 'per-event freshness timeout in milliseconds', '60000')
+		.option('--duration-ms <n>', 'minimum edit-phase duration; 0 stops after --rounds', '0')
+		.option('--idle-sample-ms <n>', 'idle CPU sampling window after reconciliation; 0 disables it', '10000')
 		.option('--workspace <path>', 'empty directory or existing generated corpus')
 		.option('--output <path>', 'JSON report path', path.join('benchmark', 'results', 'soak.json'))
 		.option('--markdown <path>', 'Markdown summary path; defaults beside --output')

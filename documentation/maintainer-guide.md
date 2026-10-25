@@ -314,9 +314,13 @@ Reference-machine targets:
 | Idle CPU | average <1% after reconciliation |
 | Reliability | four-hour edit/restart soak without manual repair |
 
+The `startup` command measures two of these gates: transport availability after
+spawn, and one `index_status` MCP call per session through the official client. It
+records both percentile sets, exits non-zero when either p95 misses its budget, and
+keeps call latency separate from core query time.
+
 Hardware-sensitive gates may be recalibrated only with the prior baseline,
-replacement value, machine identity, and reason recorded. CI may use broader
-regression bounds but must detect order-of-magnitude regressions. The current
+replacement value, machine identity, and reason recorded. CI may use broaderregression bounds but must detect order-of-magnitude regressions. The current
 retained reference-machine record, its bundle digest, and its reproduction
 commands are in [Reference-workstation baseline](./reference-baseline.md). The
 post-publication `find_symbol` and `outline` regression, its measured cause, the
@@ -336,6 +340,23 @@ build, and requires both to recover without a manual command.
 codeindex-cli soak --profile small --rounds 8 --burst-edits 3 \
   --failures 1 --restarts 1 --output benchmark/results/soak.json
 ```
+
+`--duration-ms` declares a minimum edit-phase duration: the command keeps editing
+after `--rounds` until that deadline, then runs the burst, stale probe, failure,
+restart, and idle sample. The four-hour reliability gate is:
+
+```bash
+codeindex-cli soak --profile small --rounds 8 --burst-edits 3 \
+  --failures 1 --restarts 2 --duration-ms 14400000 --idle-sample-ms 10000 \
+  --output benchmark/results/soak-4h.json
+```
+
+`--idle-sample-ms` waits for the watcher to reconcile, then samples process CPU
+over that window; `0` disables the measurement and the report states that the
+sample was not requested. The `soak.duration-completed` gate requires the declared
+duration, and `soak.idle-cpu` requires the measured average to stay below the
+declared 1% budget. Both are reported beside the freshness, recovery, restart, and
+retention gates.
 
 Every event appends deterministic source text and verifies that the file hash
 changed. The report records the plan hash and edit-script hash, so the same

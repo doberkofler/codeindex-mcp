@@ -355,7 +355,7 @@ plan. Status meanings:
 | WP2 — continuous freshness | Implemented | Coordinator, recursive watcher, 500 ms debounce, 60 s reconciliation, one follow-up build, query freshness, dirty-source rejection, and shutdown ownership are implemented and tested. |
 | WP3 — persistence and writer coordination | Implemented | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, bounded generation cleanup, and checkout move/copy/delete semantics exist. Multi-process contention, owner termination, reader isolation, and expired-lease takeover are evidenced by `test/leaseContention.test.ts`; move, copy, and delete are stated and verified in [Checkout move, copy, and delete semantics](./checkout-lifecycle.md). |
 | WP4 — compiler/reference alignment | Implemented | Declared compiler identity, drift, TypeScript API extraction, and the ≥200-symbol, ≥99.5%-recall, 100%-precision gate with construct stratification and a checked-in corpus exist. |
-| WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, worker builds, a resumable per-run evidence suite, the deterministic model-free E3 operational soak, the paired direct/Code-Mode exposure comparison, and retained reference-machine measurements exist; multi-process contention, owner termination, reader isolation, and expired-lease takeover are evidenced by `test/leaseContention.test.ts`. Four-hour soak evidence remains incomplete. Incremental compiler state remains conditional. |
+| WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, worker builds, a resumable per-run evidence suite, the deterministic model-free E3 operational soak with declared-duration and idle-CPU gates, the paired direct/Code-Mode exposure comparison, and retained reference-machine measurements exist; multi-process contention, owner termination, reader isolation, and expired-lease takeover are evidenced by `test/leaseContention.test.ts`. Four-hour soak evidence remains incomplete. Incremental compiler state remains conditional. |
 | WP6 — build separation | Superseded/partial | MCP, CLI, console server, and browser bundles are separate. The evaluation harness and public cases live under `evaluation/` and are not bundled; private corpora and restricted results remain outside this repository. |
 | WP7 — OpenCode installation | Implemented | CLI install/uninstall, explicit MCP bundle/configuration paths, preservation of unrelated JSONC, external project configuration, and user documentation exist. A fresh consumer installed the released tag, started the CLI, MCP, and console, kept a second checkout on a separate database, opted out of analytics, and rolled back through configuration and cleanup; see [Fresh-consumer installation and rollback](./fresh-consumer-installation.md). |
 | WP8 — interactive pilot | Open | No retained public evidence proves the required representative-session count, adoption denominator, all latency/resource gates, or soak completion. |
@@ -372,7 +372,9 @@ Cross-cutting contracts and performance targets live in
   suite remains directional and VS Code is currently blocked by an unrepresentable
   empty-string member name.
 - **WP1:** record a disposable normal OpenCode session invoking every tool without
-  a bridge; the paired Code Mode and direct exposure comparison is retained in
+  a bridge; the smoke needs no hosted-model call, so it can run against a local
+  model or a deterministic client probe. The paired Code Mode and direct exposure
+  comparison is retained in
   [Exposure evidence](../evaluation/audits/exposure-eval-050.md).
 - **WP2:** no known feature TODO; retain regression coverage for add/change/delete,
   rename, configuration changes, events during builds, failure recovery, and
@@ -385,8 +387,11 @@ Cross-cutting contracts and performance targets live in
 - **WP4:** no known feature TODO; keep the corpus representative when adding new
   syntax constructs and retain a focused fixture for every mismatch class.
 - **WP5:** complete MCP call and idle CPU measurements and the four-hour
-  edit/restart soak on the reference machine. Add incremental compiler state only
-  if a measured gate fails.
+  edit/restart soak on the reference machine. `startup` now records the local MCP
+  call p95 beside warm startup, and `soak` accepts `--duration-ms` and
+  `--idle-sample-ms` with `soak.duration-completed` and `soak.idle-cpu` gates; the
+  retained release-machine runs remain outstanding. Add incremental compiler
+  state only if a measured gate fails.
 - **WP6:** keep private evaluation orchestration outside the production bundle and
   verify that it launches the released `codeindex-mcp` artifact. Reintroducing a
   public evaluation bundle requires a separate scope decision.
@@ -499,7 +504,9 @@ artifacts. Tracked in [#72](https://github.com/doberkofler/codeindex-mcp/issues/
   binding-aware façades, and fallback behavior; façade cases are part of
   [#71](https://github.com/doberkofler/codeindex-mcp/issues/71)
 - measure index-first adoption only from an approved complete client event stream;
-  tracked in [#53](https://github.com/doberkofler/codeindex-mcp/issues/53)
+  every attempt now carries a structural `streamComplete` proof, and a pilot
+  trajectory is valid only when that proof holds; tracked in
+  [#53](https://github.com/doberkofler/codeindex-mcp/issues/53)
 
 Do not infer adoption from MCP analytics; MCP cannot observe repository search and
 file-read tools.

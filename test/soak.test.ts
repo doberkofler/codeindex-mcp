@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest';
 import {BUILD_FAILURE_CAUSES, buildFailureCauseOf, isBuildFailureCause} from '../src/core/generation/buildFailureCause.ts';
 import {removeSoakWorkspace, runSoak} from '../src/core/benchmark/soakScenario.ts';
+import {durationGate, IDLE_CPU_BUDGET_PERCENT, idleGate} from '../src/core/benchmark/soakGates.ts';
 import {soakMarkdown} from '../src/core/benchmark/soakReport.ts';
 import {type SoakPlanType} from '../src/core/benchmark/soakTypes.ts';
 import {createFixtureConfig, silentLogger} from './helpers/fixture.ts';
@@ -13,6 +14,8 @@ const PLAN: SoakPlanType = {
 	restarts: 1,
 	debounceMs: 20,
 	timeoutMs: 30_000,
+	durationMs: 0,
+	idleSampleMs: 0,
 };
 
 describe('build failure causes', () => {
@@ -25,6 +28,21 @@ describe('build failure causes', () => {
 		expect(buildFailureCauseOf(new Error('unrecognised failure'))).toBe('unknown');
 		expect(BUILD_FAILURE_CAUSES.every((cause) => isBuildFailureCause(cause))).toBe(true);
 		expect(isBuildFailureCause('not-a-cause')).toBe(false);
+	});
+});
+
+describe('operational soak gates', () => {
+	it('fails a declared duration that was not measured and accepts a completed one', () => {
+		expect(durationGate(14_400_000, 14_400_000).result).toBe('pass');
+		expect(durationGate(14_399_999, 14_400_000).result).toBe('fail');
+		expect(durationGate(10, 0).result).toBe('pass');
+	});
+
+	it('gates idle CPU against the declared budget and states a skipped measurement', () => {
+		expect(idleGate({windowMs: 10_000, cpuUserMs: 40, cpuSystemMs: 0, averagePercent: 0.4}).result).toBe('pass');
+		expect(idleGate({windowMs: 10_000, cpuUserMs: 200, cpuSystemMs: 0, averagePercent: 2}).result).toBe('fail');
+		expect(idleGate({windowMs: 10_000, cpuUserMs: 0, cpuSystemMs: 0, averagePercent: IDLE_CPU_BUDGET_PERCENT}).result).toBe('fail');
+		expect(idleGate(null)).toStrictEqual({id: 'soak.idle-cpu', result: 'pass', detail: 'idle sampling not requested'});
 	});
 });
 
@@ -55,6 +73,9 @@ describe('operational soak', () => {
 		expect(report.recordType).toBe('operational-soak');
 		expect(report.planHash).toMatch(/^[a-f\d]{64}$/u);
 		expect(report.editScriptHash).toMatch(/^[a-f\d]{64}$/u);
+		expect(report.idle).toBeNull();
+		expect(report.gates.map((gate) => gate.id)).toContain('soak.duration-completed');
+		expect(report.gates.map((gate) => gate.id)).toContain('soak.idle-cpu');
 		expect(report.events).toHaveLength(PLAN.rounds + 2);
 		expect(report.events.flatMap((event) => event.edits).every((edit) => edit.contentChanged)).toBe(true);
 		expect(report.staleRefusal).toMatchObject({refused: true, errorCode: 'stale_file', contentChanged: true});

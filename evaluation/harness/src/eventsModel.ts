@@ -91,6 +91,18 @@ export type UsageType = Readonly<{
 	available: boolean;
 }>;
 
+/** Structural proof that the captured client event stream is complete. */
+export type StreamCompletenessType = Readonly<{
+	/** True when nothing in the captured stream is missing or unterminated. */
+	complete: boolean;
+	/** Closed reasons; empty only when `complete` is true. */
+	reasons: readonly string[];
+	stepsStarted: number;
+	stepsFinished: number;
+	/** Last execution-level lifecycle event type seen, or null when none was emitted. */
+	terminalEvent: string | null;
+}>;
+
 /** Everything the harness derives from one agent event stream. */
 export type RunEventsType = Readonly<{
 	/** Normalized calls in stream order, including nested, unknown, and failed calls. */
@@ -101,6 +113,8 @@ export type RunEventsType = Readonly<{
 	malformed: readonly MalformedEventType[];
 	/** True when the final non-empty line was truncated or otherwise malformed. */
 	truncated: boolean;
+	/** Structural completeness evidence for this capture. */
+	stream: StreamCompletenessType;
 	/** Number of non-empty raw lines examined. */
 	rawEventCount: number;
 	/** Number of recognized step_finish events. */

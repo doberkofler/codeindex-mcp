@@ -51,6 +51,10 @@ export type PilotTrajectoryType = Readonly<{
 	repetition: number;
 	attempt: number;
 	valid: boolean;
+	/** Structural proof that the client event stream was captured completely. */
+	streamComplete: boolean;
+	/** Closed reasons the stream is incomplete; empty when it is complete. */
+	streamIncompleteReasons: readonly string[];
 	correct: boolean;
 	falseAbsence: boolean;
 	outcome: string;
@@ -71,6 +75,7 @@ export type PilotTrajectorySummaryType = Readonly<{
 	treatment: string;
 	executions: number;
 	valid: number;
+	streamsComplete: number;
 	requestOnePresent: number;
 	requestOneMismatch: number;
 	indexUsed: number;

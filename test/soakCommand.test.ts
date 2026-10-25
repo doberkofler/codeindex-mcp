@@ -37,6 +37,8 @@ const optionsOf = (overrides: Partial<SoakCommandOptionsType> = {}): SoakCommand
 	restarts: '1',
 	debounceMs: '500',
 	timeoutMs: '60000',
+	durationMs: '0',
+	idleSampleMs: '10000',
 	output: join('benchmark', 'results', 'soak.json'),
 	keepWorkspace: false,
 	debug: false,
@@ -66,7 +68,7 @@ const latency = (p95Ms: number | null = 12): SoakReportType['latency'] => ({coun
 
 const reportOf = (overrides: Partial<SoakReportType> = {}): SoakReportType => ({
 	recordType: 'operational-soak',
-	schemaVersion: 1,
+	schemaVersion: 2,
 	planHash: 'a'.repeat(64),
 	editScriptHash: 'b'.repeat(64),
 	generatedAt: '2026-10-24T00:00:00.000Z',
@@ -83,6 +85,7 @@ const reportOf = (overrides: Partial<SoakReportType> = {}): SoakReportType => ({
 		storage: {generations: 1, contentVersions: 1, extractionArtifacts: 1, databaseBytes: 1, walBytes: 0, shmBytes: 0, totalBytes: 1},
 	},
 	events: [],
+	elapsedMs: 0,
 	latency: latency(),
 	failures: [],
 	buildFailures: [],
@@ -97,6 +100,7 @@ const reportOf = (overrides: Partial<SoakReportType> = {}): SoakReportType => ({
 		bounds: {generations: 2, contentVersions: 3, extractionArtifacts: 6},
 		satisfied: true,
 	},
+	idle: {windowMs: 1000, cpuUserMs: 1, cpuSystemMs: 0, averagePercent: 0.1},
 	resources: {cpuUserMs: 1, cpuSystemMs: 1, rssStartBytes: 1, rssPeakBytes: 1, rssEndBytes: 1},
 	freshness: {state: 'current', dirtyFileCount: 0, checkedAt: '2026-10-24T00:00:00.000Z', staleFiles: 0, sourceChanged: false},
 	gates: [{id: 'soak.gate', result: 'pass', detail: 'ok'}],
@@ -161,6 +165,8 @@ describe('soak command options', () => {
 			['restarts', '0', '10'],
 			['debounceMs', '10', '5000'],
 			['timeoutMs', '1000', '600000'],
+			['durationMs', '0', '86400000'],
+			['idleSampleMs', '0', '600000'],
 		] as const;
 
 		for (const [name, minimum, maximum] of cases) {
@@ -181,6 +187,8 @@ describe('soak command options', () => {
 			['restarts', '-1', '--restarts must be an integer between 0 and 10'],
 			['debounceMs', '9', '--debounce-ms must be an integer between 10 and 5000'],
 			['timeoutMs', '999', '--timeout-ms must be an integer between 1000 and 600000'],
+			['durationMs', '86400001', '--duration-ms must be an integer between 0 and 86400000'],
+			['idleSampleMs', '-1', '--idle-sample-ms must be an integer between 0 and 600000'],
 		];
 
 		for (const [name, value, message] of cases) {

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import {flagOf, primaryCheckout} from './cliSupport.ts';
 import {writeJsonAtomic} from './result.ts';
-import {STARTUP_P95_BUDGET_MS, measureStartup} from './startupBaseline.ts';
+import {MCP_CALL_P95_BUDGET_MS, STARTUP_P95_BUDGET_MS, measureStartup} from './startupBaseline.ts';
 
 /**
  * Executes the warm-startup baseline command.
@@ -35,8 +35,12 @@ export const startupCommand = async (flags: Map<string, string[]>): Promise<void
 		`p50 ${String(record.percentiles.p50Ms)} ms, p95 ${String(record.percentiles.p95Ms)} ms, p99 ${String(record.percentiles.p99Ms)} ms, max ${String(record.percentiles.maxMs)} ms\n`,
 	);
 	process.stdout.write(`gate ${record.gate.status} (p95 <= ${String(STARTUP_P95_BUDGET_MS)} ms)\n`);
+	process.stdout.write(
+		`${record.calls.tool} calls ${String(record.calls.iterations)}: p50 ${String(record.calls.percentiles.p50Ms)} ms, p95 ${String(record.calls.percentiles.p95Ms)} ms, max ${String(record.calls.percentiles.maxMs)} ms\n`,
+	);
+	process.stdout.write(`gate ${record.calls.gate.status} (p95 <= ${String(MCP_CALL_P95_BUDGET_MS)} ms)\n`);
 
-	if (record.gate.status === 'fail') {
+	if (record.gate.status === 'fail' || record.calls.gate.status === 'fail') {
 		process.exitCode = 1;
 	}
 };

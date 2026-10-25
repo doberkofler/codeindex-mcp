@@ -4,7 +4,7 @@ import {type BenchmarkPercentilesType, type BenchmarkProfileType} from './benchT
 import {type BenchmarkCorpusCountsType} from './corpus.ts';
 
 /** Version of the operational soak report. */
-export const SOAK_SCHEMA_VERSION = 1 as const;
+export const SOAK_SCHEMA_VERSION = 2 as const;
 
 /** One real file write in a soak event. */
 export type SoakEditType = Readonly<{
@@ -109,6 +109,15 @@ export type SoakRetentionObservationType = Readonly<{
 	totalBytes: number;
 }>;
 
+/** CPU consumed by an otherwise idle index after reconciliation. */
+type SoakIdleType = Readonly<{
+	windowMs: number;
+	cpuUserMs: number;
+	cpuSystemMs: number;
+	/** Average CPU usage across all cores expressed as a percentage. */
+	averagePercent: number;
+}>;
+
 /** Declared retention policy and the observations it bounds. */
 export type SoakRetentionType = Readonly<{
 	policy: Readonly<{
@@ -148,6 +157,13 @@ export type SoakPlanType = Readonly<{
 	restarts: number;
 	debounceMs: number;
 	timeoutMs: number;
+	/**
+	 * Minimum wall-clock duration of the edit phase. `0` stops after `rounds`
+	 * single edits; a positive value keeps editing until the deadline elapses.
+	 */
+	durationMs: number;
+	/** CPU sampling window after reconciliation; `0` disables the measurement. */
+	idleSampleMs: number;
 }>;
 
 /** Complete sanitized operational soak report. */
@@ -182,6 +198,8 @@ export type SoakReportType = Readonly<{
 		storage: SoakStorageType;
 	}>;
 	events: readonly SoakEventType[];
+	/** Wall-clock duration of the edit phase, after the watcher became ready. */
+	elapsedMs: number;
 	latency: BenchmarkPercentilesType;
 	failures: readonly SoakFailureType[];
 	buildFailures: readonly SoakBuildFailureType[];
@@ -195,6 +213,8 @@ export type SoakReportType = Readonly<{
 	staleRefusal: SoakStaleRefusalType | null;
 	restarts: readonly SoakRestartType[];
 	retention: SoakRetentionType;
+	/** Idle CPU sample taken after the watcher reconciled; null when disabled. */
+	idle: SoakIdleType | null;
 	resources: SoakResourceType;
 	freshness: IndexStatusType['freshness'] | null;
 	gates: readonly SoakGateType[];

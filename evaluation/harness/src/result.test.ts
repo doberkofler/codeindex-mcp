@@ -97,6 +97,8 @@ const resultOf = (overrides: Partial<RunResultType> = {}, promptHash?: string): 
 		rawEventCount: 0,
 		malformedEventCount: 0,
 		streamTruncated: false,
+		streamComplete: true,
+		streamIncompleteReasons: [],
 		indexCalls: 0,
 		surface: toolSurfaceOf(treatment),
 		routing: {ordinaryCalls: 0, codeIndexCalls: 0, executeCalls: 0, unknownTools: [], native: true},

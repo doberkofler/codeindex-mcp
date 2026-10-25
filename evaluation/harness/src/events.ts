@@ -3,6 +3,7 @@ import {
 	type MalformedEventType,
 	type ParseEventsOptionsType,
 	type RunEventsType,
+	type StreamCompletenessType,
 	type TelemetryEntryType,
 	type TelemetryType,
 	type ToolCallType,
@@ -91,6 +92,8 @@ type EventsStateType = {
 	cacheWrite: TelemetryAccumulatorType;
 	cost: TelemetryAccumulatorType;
 	steps: number;
+	stepsStarted: number;
+	terminalEvent: string | null;
 	rawEventCount: number;
 	lastNonEmptyFailed: boolean;
 };
@@ -112,9 +115,22 @@ const stateOf = (): EventsStateType => ({
 	cacheWrite: emptyAccumulator(),
 	cost: emptyAccumulator(),
 	steps: 0,
+	stepsStarted: 0,
+	terminalEvent: null,
 	rawEventCount: 0,
 	lastNonEmptyFailed: false,
 });
+
+/** Terminal lifecycle types are execution-scoped; step and part events are not. */
+const TERMINAL_LIFECYCLE_PATTERN = /^session\.[a-z.]*(?:succeeded|failed|completed|aborted|cancelled)$/u;
+
+const terminalTypeOf = (eventType: string | null, partType: string | null): string | null => {
+	if (eventType === null || partType !== null || !eventType.startsWith('session.') || !TERMINAL_LIFECYCLE_PATTERN.test(eventType)) {
+		return null;
+	}
+
+	return eventType;
+};
 
 type LineContextType = Readonly<{part: Record<string, unknown>; rawIndex: number; timestamp: number | null}>;
 
@@ -219,7 +235,14 @@ const applyEventOf = (state: EventsStateType, input: Readonly<{event: Record<str
 	applyToolsOf(state, {...context, event, eventType, partType});
 
 	if (isStepStart) {
+		state.stepsStarted += 1;
 		state.events.push({index: state.events.length + 1, rawIndex, type: 'step_start', timestamp});
+	}
+
+	const terminal = terminalTypeOf(eventType, partType);
+
+	if (terminal !== null) {
+		state.terminalEvent = terminal;
 	}
 
 	if (isStepFinish) {
@@ -254,6 +277,40 @@ const telemetryOf = (state: EventsStateType, options: ParseEventsOptionsType): T
 				cacheWriteTokens: entryOf(options, state.cacheWrite, 'tokens', 'step_finish.cache.write'),
 				reportedCost: entryOf(options, state.cost, 'usd', 'step_finish.cost'),
 			};
+
+const UNTERMINATED_TOOL_STATUSES = new Set(['pending', 'running']);
+
+/**
+ * Derives structural completeness evidence from one capture.
+ *
+ * The proof is source-agnostic: it never assumes a specific terminal envelope.
+ * It requires a parsed final line, no malformed line, at least one finished
+ * step, a balanced step lifecycle when starts are reported, and no tool call
+ * left pending or running.
+ *
+ * @param state - Mutable parse accumulator.
+ * @returns Completeness facts and every closed reason that prevents `complete`.
+ */
+const streamCompletenessOf = (state: EventsStateType): StreamCompletenessType => {
+	const unterminated = state.toolCalls.filter((call) => UNTERMINATED_TOOL_STATUSES.has(call.status)).length;
+	const reasons = [
+		...(state.lastNonEmptyFailed ? ['the stream ended in a truncated or malformed line'] : []),
+		...(state.malformed.length > 0 ? [`${String(state.malformed.length)} malformed line(s) retained`] : []),
+		...(state.steps === 0 ? ['no completed step was reported'] : []),
+		...(state.stepsStarted > 0 && state.stepsStarted !== state.steps
+			? [`step lifecycle is unbalanced: ${String(state.stepsStarted)} started, ${String(state.steps)} finished`]
+			: []),
+		...(unterminated > 0 ? [`${String(unterminated)} tool call(s) have no terminal status`] : []),
+	];
+
+	return {
+		complete: reasons.length === 0,
+		reasons,
+		stepsStarted: state.stepsStarted,
+		stepsFinished: state.steps,
+		terminalEvent: state.terminalEvent,
+	};
+};
 
 /**
  * Parses the line-delimited JSON event stream of `opencode run --format json`.
@@ -304,6 +361,7 @@ export const parseEvents = (stdout: string, options: ParseEventsOptionsType = {}
 		events: state.events,
 		malformed: state.malformed,
 		truncated: state.lastNonEmptyFailed,
+		stream: streamCompletenessOf(state),
 		rawEventCount: state.rawEventCount,
 		steps: state.steps,
 		finalText: state.texts.join('\n').trim(),

@@ -776,6 +776,14 @@ one ordered event model from it:
 Tool families are `index`, `search`, `read`, `list`, `write`, `execute`, `task`,
 and `other`. CodeIndex names keep their native `codeindex_` prefix.
 
+Every attempt also retains a structural completeness proof. A capture is complete
+only when the final line parsed, no line was malformed, at least one step finished,
+reported step starts and finishes balance, and no tool call is left pending or
+running. `streamComplete` carries the verdict and `streamIncompleteReasons` the
+closed causes; the last execution-scoped terminal lifecycle type is recorded as
+`terminalEvent`. A development-pilot trajectory is valid only when its capture is
+complete, so adoption always has a complete denominator.
+
 ## Telemetry validity
 
 A run is invalid, not failed, when it timed out, exited non-zero, called a tool

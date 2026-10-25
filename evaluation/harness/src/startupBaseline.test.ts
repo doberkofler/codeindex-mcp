@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'vitest';
-import {startupGateStatusOf, summarizeStartup} from './startupBaseline.ts';
+import {mcpCallGateStatusOf, startupGateStatusOf, summarizeStartup} from './startupBaseline.ts';
 
 describe('warm startup baseline', () => {
 	it('summarizes nearest-rank percentiles', () => {
@@ -22,5 +22,12 @@ describe('warm startup baseline', () => {
 		assert.equal(startupGateStatusOf(500), 'pass');
 		assert.equal(startupGateStatusOf(500.1), 'fail');
 		assert.equal(startupGateStatusOf(null), 'fail');
+	});
+
+	it('gates local MCP call latency independently of startup', () => {
+		assert.equal(mcpCallGateStatusOf(99.9), 'pass');
+		assert.equal(mcpCallGateStatusOf(100), 'pass');
+		assert.equal(mcpCallGateStatusOf(100.1), 'fail');
+		assert.equal(mcpCallGateStatusOf(null), 'fail');
 	});
 });

@@ -119,6 +119,8 @@ export const attemptResultOf = (
 		rawEventCount: context.events.rawEventCount,
 		malformedEventCount: context.events.malformed.length,
 		streamTruncated: context.events.truncated,
+		streamComplete: context.events.stream.complete,
+		streamIncompleteReasons: context.events.stream.reasons,
 		indexCalls: context.routing.codeIndexCalls,
 		surface: input.surface,
 		routing: context.routing,

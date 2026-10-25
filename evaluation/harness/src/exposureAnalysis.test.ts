@@ -221,6 +221,8 @@ const runOf = (
 		rawEventCount: 2,
 		malformedEventCount: 0,
 		streamTruncated: false,
+		streamComplete: true,
+		streamIncompleteReasons: [],
 		indexCalls: input.treatment === 'direct-mcp' ? input.toolCalls : 0,
 		surface,
 		routing: {
