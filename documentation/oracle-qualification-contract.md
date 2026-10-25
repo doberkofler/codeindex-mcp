@@ -221,7 +221,15 @@ replay, not a contract run.
 
 ## 8. Execution
 
-Build first, then run the gate:
+Verify the evidence bundle before any replay; preflight is DB-free and fails
+before a DDL-capable session can be opened:
+
+```bash
+pnpm build
+node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-phase0/corpus.json
+```
+
+Then build and run the gate:
 
 ```bash
 pnpm build

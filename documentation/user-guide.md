@@ -298,6 +298,8 @@ for invalid arguments.
 ### Semantic qualification
 
 ```bash
+codeindex-cli oracle-preflight --bundle benchmark/oracle-phase0/corpus.json
+
 codeindex-cli qualify --extractor typescript --config ./codeindex.config.json
 
 codeindex-cli qualify --extractor oracle \
@@ -327,6 +329,13 @@ truth policy `v3`, which filters unsupported truth types, applies the exact
 ambiguity rule, and reports classified extras, strata, contract identity, truth
 hashes, and per-reason exclusion counts. Pass `--truth-policy v1` or
 `--truth-policy v2` only to reproduce retained historical evidence.
+
+`oracle-preflight` verifies a retained evidence bundle — descriptor, snapshot
+checksums, truth exports, plan approval, and contract identity — without opening
+a database session. It exits non-zero while the bundle is absent or
+inconsistent, so a replay cannot start from incomplete evidence. Bundle
+contents and retention rules are documented in
+[`oracle-evidence-bundle.md`](./oracle-evidence-bundle.md).
 
 ### Cache cleanup
 

@@ -45,6 +45,13 @@ The external evidence root is
 `${CODEINDEX_EVIDENCE_ROOT:-~/.local/share/codeindex-mcp}/oracle-live/2eb1e36f6ecdada4`.
 It contains `workspace/`, `plan.json`, `run.json`, and the PL/Scope exports.
 
+**Status 2026-10-25: NOT READY.** That root is absent and exact recovery failed.
+The retained descriptor, checksums, and unit map are unchanged; no replacement
+corpus is frozen. Verify with
+`node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-phase0/corpus.json`.
+The recovery record and replacement route are in
+[`documentation/oracle-evidence-bundle.md`](../../documentation/oracle-evidence-bundle.md).
+
 The broader 1,632-file `.pks`/`.pkb` feasibility corpus has no matching
 PL/Scope export. It is not the Phase 0 qualification corpus.
 

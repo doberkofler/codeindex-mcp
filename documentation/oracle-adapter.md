@@ -269,7 +269,10 @@ The latest retained aggregate reference evidence is Phase 6, dated 2026-10-21:
 external ambiguity-removal step. Contract `v3` executes that rule and reports
 it as `omitted_ambiguous_overload`. The Phase 6 artifact remains historical
 evidence; no current PASS is claimed until the contract is replayed against a
-retained bundle. That replay is tracked by ORA-004.
+retained bundle. That replay is tracked by ORA-004. The bundle itself is
+**NOT READY**: the external evidence root is absent, exact recovery failed, and
+a replacement corpus is not frozen
+([`oracle-evidence-bundle.md`](./oracle-evidence-bundle.md)).
 
 Run the comparison without connecting to Oracle:
 
@@ -308,7 +311,17 @@ baseline and are not the current production verdict.
 | Package dependency recall | 98.1734% | 99.5% |
 | Package dependency precision | 100% | 100% |
 
-To replay the frozen baseline without a database connection:
+To replay the frozen baseline without a database connection, verify the bundle
+first:
+
+```bash
+node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-phase0/corpus.json
+```
+
+Preflight fails as **NOT READY** while the external root is absent; it opens no
+Oracle session. Bundle contents, the recovery record, and the replacement route
+are documented in [`oracle-evidence-bundle.md`](./oracle-evidence-bundle.md).
+Once it passes, replay with:
 
 ```bash
 node dist/cli.mjs qualify --extractor oracle \
