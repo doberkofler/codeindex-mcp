@@ -12,6 +12,7 @@ Phase 6, and Phase 8 remain historical evidence and are not rewritten.
 | Item | Value |
 |---|---|
 | Runtime commit | `204af165a822314f688ab1cfde6fff956ebd7581` |
+| Evidence commit | `671e00001b5944c82ad424d200679bb180d24578` (bundle, replay command, and reconciled documentation) |
 | Package | `codeindex-mcp@0.7.0` |
 | Node | `v26.10.0` |
 | Oracle | 19c Enterprise Edition 19.0.0.0.0, version 19.19.0.0.0 |
