@@ -279,7 +279,7 @@ const publish = (prepared: PreparedType, measured: MeasuredType): number => {
 		totalMemoryBytes: os.totalmem(),
 	};
 	const summary = summaryOf({prepared, measured, code: prepared.identity, machine, metrics, evaluation});
-	const summaryJson = `${JSON.stringify(summary, null, 2)}\n`;
+	const summaryJson = `${JSON.stringify(summary, null, '\t')}\n`;
 
 	mkdirSync(path.dirname(options.summaryPath), {recursive: true});
 	writeFileSync(options.summaryPath, summaryJson, {encoding: 'utf8'});
@@ -305,7 +305,7 @@ const publish = (prepared: PreparedType, measured: MeasuredType): number => {
 				summarySha256: createHash('sha256').update(summaryJson).digest('hex'),
 			},
 			null,
-			2,
+			'\t',
 		)}\n`,
 		{encoding: 'utf8'},
 	);
