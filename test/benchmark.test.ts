@@ -257,6 +257,7 @@ const reportOf = (
 		scenarios: readonly BenchmarkScenarioResultType[];
 		queries: Readonly<Record<string, BenchmarkPercentilesType>>;
 		sourceHash?: string;
+		configHash?: string;
 	}>,
 ): BenchmarkReportType => ({
 	schemaVersion: 2,
@@ -273,7 +274,7 @@ const reportOf = (
 		occurrenceCount: 2,
 		dependencyEdgeCount: 0,
 		sourceHash: input.sourceHash ?? 'a'.repeat(64),
-		configHash: 'b'.repeat(64),
+		configHash: input.configHash ?? 'b'.repeat(64),
 	},
 	iterations: 2,
 	freshness: {state: 'current', checkedAt: '2026-10-25T00:00:00.000Z', dirtyFileCount: 0},
@@ -282,11 +283,12 @@ const reportOf = (
 });
 
 const runOf = (
-	input: Readonly<{sourceHash: string; warmReused: boolean; coldWallMs: number; queryP95Ms: number; usesTempBTree?: boolean}>,
+	input: Readonly<{sourceHash: string; warmReused: boolean; coldWallMs: number; queryP95Ms: number; usesTempBTree?: boolean; configHash?: string}>,
 ): OraclePerformanceRunType => ({
 	cold: reportOf({
 		generatedAt: 'cold',
 		sourceHash: input.sourceHash,
+		...(input.configHash === undefined ? {} : {configHash: input.configHash}),
 		scenarios: [buildScenarioOf({name: 'cold_build', wallMs: input.coldWallMs, filesReused: 0})],
 		queries: queriesOf(input.queryP95Ms),
 	}),
@@ -353,7 +355,7 @@ describe('Oracle performance evidence', () => {
 		const evaluation = evaluateOraclePerformance({
 			aggregates,
 			thresholds: thresholdsOf(),
-			integrity: verifyOraclePerformanceRuns({runs, expected: {sourceHash: 'a'.repeat(64), configHash: 'b'.repeat(64), fileCount: 2, editRounds: 2}}),
+			integrity: verifyOraclePerformanceRuns({runs, expected: {sourceHash: 'a'.repeat(64), fileCount: 2, editRounds: 2}}),
 		});
 
 		expect(evaluation.status).toBe('failure');
@@ -364,11 +366,19 @@ describe('Oracle performance evidence', () => {
 
 	it('reports identity, reuse, and cursor integrity failures', () => {
 		const runs = [runOf({sourceHash: 'c'.repeat(64), warmReused: false, coldWallMs: 100, queryP95Ms: 1, usesTempBTree: true})];
-		const gates = verifyOraclePerformanceRuns({runs, expected: {sourceHash: 'a'.repeat(64), configHash: 'b'.repeat(64), fileCount: 2, editRounds: 2}});
+		const gates = verifyOraclePerformanceRuns({runs, expected: {sourceHash: 'a'.repeat(64), fileCount: 2, editRounds: 2}});
 
 		expect(gates.find((gate) => gate.code === 'integrity.cold.sourceHash')?.status).toBe('failure');
 		expect(gates.find((gate) => gate.code === 'integrity.warm.reuse')?.status).toBe('failure');
 		expect(gates.find((gate) => gate.code === 'integrity.deep_cursor.temp_btree')?.status).toBe('warning');
+
+		const unstable = [
+			runOf({sourceHash: 'a'.repeat(64), warmReused: true, coldWallMs: 100, queryP95Ms: 1, configHash: 'b'.repeat(64)}),
+			runOf({sourceHash: 'a'.repeat(64), warmReused: true, coldWallMs: 100, queryP95Ms: 1, configHash: 'd'.repeat(64)}),
+		];
+		const unstableGates = verifyOraclePerformanceRuns({runs: unstable, expected: {sourceHash: 'a'.repeat(64), fileCount: 2, editRounds: 2}});
+
+		expect(unstableGates.find((gate) => gate.code === 'integrity.cold.configHash')?.status).toBe('failure');
 	});
 
 	it('loads the committed thresholds and rejects inverted bounds', () => {

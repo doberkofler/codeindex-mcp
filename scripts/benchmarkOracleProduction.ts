@@ -78,10 +78,11 @@ type SummaryType = Readonly<{
 		corpus: Readonly<{
 			bundleSha256: string;
 			sourceHash: string;
-			configHash: string;
 			fileCount: number;
 			unitCount: number;
 			databaseSchemaVersion: string;
+			planConfigHash: string;
+			benchmarkConfigHash: string;
 		}>;
 		thresholds: Readonly<{sha256: string}>;
 		editTarget: Readonly<{label: string; bytes: number; sha256: string}>;
@@ -242,10 +243,11 @@ const summaryOf = (
 		corpus: {
 			bundleSha256: input.prepared.bundleSha256,
 			sourceHash: input.prepared.bundle.snapshot.sourceHash,
-			configHash: input.prepared.bundle.snapshot.configHash,
 			fileCount: input.prepared.bundle.snapshot.fileCount,
 			unitCount: input.prepared.bundle.snapshot.unitCount,
 			databaseSchemaVersion: input.measured.databaseSchemaVersion,
+			planConfigHash: input.prepared.bundle.snapshot.configHash,
+			benchmarkConfigHash: input.measured.runs[0]?.cold.workspace.configHash ?? '',
 		},
 		thresholds: {sha256: input.prepared.thresholdsSha256},
 		editTarget: {label: 'median-size source file', bytes: input.prepared.editTarget.bytes, sha256: input.prepared.editTarget.sha256},
@@ -265,7 +267,6 @@ const publish = (prepared: PreparedType, measured: MeasuredType): number => {
 			runs: measured.runs,
 			expected: {
 				sourceHash: prepared.bundle.snapshot.sourceHash,
-				configHash: prepared.bundle.snapshot.configHash,
 				fileCount: prepared.bundle.snapshot.fileCount,
 				editRounds: options.editRounds,
 			},
@@ -295,6 +296,7 @@ const publish = (prepared: PreparedType, measured: MeasuredType): number => {
 					configHash: prepared.bundle.snapshot.configHash,
 					fileCount: prepared.bundle.snapshot.fileCount,
 				},
+				benchmarkConfigHash: summary.identities.corpus.benchmarkConfigHash,
 				thresholds: {sha256: prepared.thresholdsSha256, declaredAt: prepared.thresholds.declaredAt},
 				code: summary.identities.code,
 				machine,

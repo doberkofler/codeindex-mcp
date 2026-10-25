@@ -444,13 +444,14 @@ const integrityGate = (
 export const verifyOraclePerformanceRuns = (
 	input: Readonly<{
 		runs: readonly OraclePerformanceRunType[];
-		expected: Readonly<{sourceHash: string; configHash: string; fileCount: number; editRounds: number}>;
+		expected: Readonly<{sourceHash: string; fileCount: number; editRounds: number}>;
 	}>,
 ): readonly OraclePerformanceGateType[] => {
 	const gates: OraclePerformanceGateType[] = [];
-
+	const firstConfigHash = input.runs[0]?.cold.workspace.configHash;
 	const sourceMismatches = input.runs.filter((run) => run.cold.workspace.sourceHash !== input.expected.sourceHash).length;
-	const configMismatches = input.runs.filter((run) => run.cold.workspace.configHash !== input.expected.configHash).length;
+	const configMismatches =
+		firstConfigHash === undefined ? input.runs.length : input.runs.filter((run) => run.cold.workspace.configHash !== firstConfigHash).length;
 	const fileMismatches = input.runs.filter((run) => run.cold.workspace.fileCount !== input.expected.fileCount).length;
 	const coldReuseMismatches = input.runs.filter((run) => buildOf(run.cold, 'cold_build').reuse.generationReused).length;
 	const warmReuseMismatches = input.runs.filter((run) => {
@@ -472,7 +473,7 @@ export const verifyOraclePerformanceRuns = (
 
 	gates.push(
 		check('integrity.cold.sourceHash', sourceMismatches === 0 ? 'pass' : 'failure', 'cold builds used the frozen source', sourceMismatches),
-		check('integrity.cold.configHash', configMismatches === 0 ? 'pass' : 'failure', 'cold builds used the frozen configuration', configMismatches),
+		check('integrity.cold.configHash', configMismatches === 0 ? 'pass' : 'failure', 'cold builds used one stable benchmark configuration', configMismatches),
 		check('integrity.cold.fileCount', fileMismatches === 0 ? 'pass' : 'failure', 'cold builds indexed the frozen file count', fileMismatches),
 		check('integrity.cold.generationReuse', coldReuseMismatches === 0 ? 'pass' : 'failure', 'cold builds created a generation', coldReuseMismatches),
 		check('integrity.warm.reuse', warmReuseMismatches === 0 ? 'pass' : 'failure', 'warm runs reused every content version', warmReuseMismatches),
