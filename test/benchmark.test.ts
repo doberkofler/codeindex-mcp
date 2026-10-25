@@ -333,7 +333,6 @@ describe('Oracle performance evidence', () => {
 		expect(aggregate.p95).toBe(50);
 		expect(aggregate.max).toBe(50);
 		expect(aggregate.cvPercent).toBeCloseTo(47.14, 2);
-		expect(aggregate.samples).toStrictEqual([10, 20, 30, 40, 50]);
 		expect(() => aggregateOraclePerformance([])).toThrow(/empty/u);
 	});
 

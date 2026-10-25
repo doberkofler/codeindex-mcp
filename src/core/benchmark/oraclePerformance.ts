@@ -71,7 +71,6 @@ export type OraclePerformanceAggregateType = Readonly<{
 	readonly max: number;
 	readonly mean: number;
 	readonly cvPercent: number;
-	readonly samples: readonly number[];
 }>;
 
 export type OraclePerformanceBundlesType = Readonly<Record<'mcp' | 'cli', Readonly<{rawBytes: number; gzipBytes: number}>>>;
@@ -254,7 +253,7 @@ const standardDeviationOf = (values: readonly number[], mean: number): number =>
  * Summarizes one named sample set with median, tail, and variance.
  *
  * @param values - Observed values.
- * @returns Aggregate with the retained samples.
+ * @returns Aggregate for the sample.
  * @throws {@link Error} When the sample is empty.
  */
 export const aggregateOraclePerformance = (values: readonly number[]): OraclePerformanceAggregateType => {
@@ -274,7 +273,6 @@ export const aggregateOraclePerformance = (values: readonly number[]): OraclePer
 		max: summary.maxMs ?? 0,
 		mean,
 		cvPercent,
-		samples: [...values],
 	};
 };
 
