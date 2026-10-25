@@ -322,8 +322,11 @@ For Oracle, it compares the published index with exported `USER_IDENTIFIERS` and
 preparation and export remain separate, approved operations. Pass
 `--units <plan.json>` to reuse the explicit snapshot object mapping from an
 approved live plan when source filenames differ from PL/Scope object names.
-Pass `--truth-policy v1` to reproduce the frozen Phase 0 policy; the default
-`v2` filters unsupported truth types and reports classified extras and strata.
+The default is contract [`oracle-o1@1`](./oracle-qualification-contract.md) with
+truth policy `v3`, which filters unsupported truth types, applies the exact
+ambiguity rule, and reports classified extras, strata, contract identity, truth
+hashes, and per-reason exclusion counts. Pass `--truth-policy v1` or
+`--truth-policy v2` only to reproduce retained historical evidence.
 
 ### Cache cleanup
 

@@ -149,6 +149,8 @@ const writeRunMetadata = (plan: LivePlanType, applied: OracleLiveApplyResultType
 				driver: 'oracledb',
 				completedAt: new Date().toISOString(),
 				generationId: result.report.generationId,
+				contract: result.report.contract,
+				truth: result.report.truth,
 				gates: result.report.gates,
 				invalidObjects: {
 					baseline: applied.baselineInvalid.length,

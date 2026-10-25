@@ -175,13 +175,22 @@ describe('Oracle qualification report', () => {
 			const report = JSON.parse(captured.stdout.join('\n')) as {
 				extractor: string;
 				generationId: string;
-				corpus: {files: number; objects: number};
+				contract: {id: string; version: string; hash: string; truthPolicy: string; emptyTruth: string};
+				corpus: {files: number; objects: number; sourceHash: string; configHash: string};
 				policy: {version: string};
 				truth: {
 					rows: number;
 					invalidDeclarationRows: number;
 					excludedPackageReferences: number;
 					excludedByReason: Record<string, number>;
+					malformedRows: number;
+					outOfScopeObjectRows: number;
+					includedDeclarations: number;
+					includedReferences: number;
+					excludedTotal: number;
+					identifiersSha256: string;
+					dependenciesSha256: string;
+					ambiguousOverloadDiagnostics: number;
 				};
 				declarations: {truth: number; actual: number; recall: number; precision: number};
 				referenceStrata: Record<string, {truth: number; actual: number}>;
@@ -192,20 +201,35 @@ describe('Oracle qualification report', () => {
 			expect(code).toBe(1);
 			expect(report.extractor).toBe('oracle');
 			expect(report.generationId.length).toBeGreaterThan(0);
+			expect(report.contract).toMatchObject({id: 'oracle-o1', version: '1', truthPolicy: 'v3', emptyTruth: 'fail'});
+			expect(report.contract.hash).toMatch(/^[a-f0-9]{64}$/u);
 			expect(report.corpus.files).toBeGreaterThan(5);
 			expect(report.corpus.objects).toBeGreaterThan(5);
-			expect(report.policy.version).toBe('v2');
+			expect(report.corpus.sourceHash).toMatch(/^[a-f0-9]+$/u);
+			expect(report.corpus.configHash).toMatch(/^[a-f0-9]+$/u);
+			expect(report.policy.version).toBe('v3');
 			expect(report.truth).toStrictEqual({
 				rows: 0,
 				invalidDeclarationRows: 0,
 				excludedPackageReferences: 0,
 				excludedByReason: {
+					declaration_initializer: 0,
+					duplicate_fact: 0,
 					invalid_declaration: 0,
 					missing_group_declaration: 0,
+					omitted_ambiguous_overload: 0,
 					package_reference: 0,
 					unmapped_usage: 0,
 					unsupported_identifier_type: 0,
 				},
+				malformedRows: 0,
+				outOfScopeObjectRows: 0,
+				includedDeclarations: 0,
+				includedReferences: 0,
+				excludedTotal: 0,
+				identifiersSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+				dependenciesSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+				ambiguousOverloadDiagnostics: 0,
 			});
 			expect(report.declarations).toMatchObject({truth: 0, recall: 1});
 			expect(report.declarations.actual).toBeGreaterThan(0);

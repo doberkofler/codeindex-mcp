@@ -1,8 +1,12 @@
 # Oracle SQL and PL/SQL Adapter
 
-**Status:** static O1 adapter implemented. An Oracle-backed qualification run on
-2026-10-19 did not meet the promotion gates. Performance qualification and
-live-database indexing remain pending.
+**Status:** static O1 adapter implemented and bound to the structural parser
+(`structural@5`). The semantic release gate is contract `oracle-o1@1`
+([Oracle O1 qualification contract](./oracle-qualification-contract.md)); the
+qualification command executes it directly. The 2026-10-19 Oracle-backed run
+predates `structural@5` and truth policy `v3`, so it is historical evidence, not
+the current verdict. Requalification under the contract and production
+performance baselines remain open in the O1 readiness package.
 
 ## 1. Scope
 
@@ -160,7 +164,10 @@ Wrapped units provide no PL/Scope data and are reported as a limitation.
   package has exactly one full body definition, and full normalized headings must
   match.
 - **G-C/G-D (usage and references):** zero `call` and `write` mismatches against
-  PL/Scope; 100% reference precision and recall over policy-visible symbols.
+  PL/Scope; recall and precision over the policy-visible population must satisfy
+  the [qualification contract](./oracle-qualification-contract.md). The contract,
+  not this summary, owns the denominators, exclusion reasons, ambiguity rule, and
+  thresholds.
 
 Omission categories are persisted as aggregate build statistics or explicit
 limitations; none is silently reclassified as complete.
@@ -240,21 +247,29 @@ pnpm grammar:oracle:generate
 
 ## 7. Qualification status
 
-The frozen Phase 0 baseline used a production sample project and Oracle
-19.0.0.0.0 with a session-scoped `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`. The
-qualification corpus contained 1,237 files: 609 package specifications, 605
-package bodies, 14 SQL files, and 9 standalone functions. The frozen evidence,
-corpus checksums, truth-export hashes, and both reports are recorded in
-[`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
+### 7.1 Current contract
 
-| Gate | Result | Required |
-| --- | ---: | ---: |
-| Declaration recall | 98.3956% | 99.5% |
-| Declaration precision | 99.9662% | 100% |
-| Reference recall | 58.5206% | 99.5% |
-| Reference precision | 99.4259% | 100% |
-| Package dependency recall | 98.1734% | 99.5% |
-| Package dependency precision | 100% | 100% |
+The authoritative semantic gate is contract `oracle-o1@1` with truth policy
+`v3`; see the
+[Oracle O1 qualification contract](./oracle-qualification-contract.md). The
+contract owns the truth population, supported identifier types, usage mapping,
+every exclusion reason, the ambiguity rule, the thresholds, empty-truth
+behavior, the sample bound, and the identities a report must carry.
+`qualify:oracle` executes it directly; no post-processing step is part of the
+gate.
+
+Each report records `contract.id`, `contract.version`, and `contract.hash`, the
+parser identity, the corpus source and configuration hashes, the truth-export
+SHA-256 values, and per-reason exclusion counts. The denominators can be
+reconstructed from the report alone.
+
+The latest retained aggregate reference evidence is Phase 6, dated 2026-10-21:
+186,742 matched references from 186,877 policy-visible truth references
+(99.9278% recall) and 100% precision. It was produced under policy `v2` with an
+external ambiguity-removal step. Contract `v3` executes that rule and reports
+it as `omitted_ambiguous_overload`. The Phase 6 artifact remains historical
+evidence; no current PASS is claimed until the contract is replayed against a
+retained bundle. That replay is tracked by ORA-004.
 
 Run the comparison without connecting to Oracle:
 
@@ -265,11 +280,33 @@ pnpm qualify:oracle
 The command reads `CODE_INDEX_ROOT`, `CODE_INDEX_PROJECT_FILE`,
 `CODE_INDEX_ORACLE_IDENTIFIERS`, and `CODE_INDEX_ORACLE_DEPENDENCIES`, or accepts
 the corresponding `--root`, `--project-file`, `--identifiers`, and
-`--dependencies` options. Qualification uses truth policy `v2` by default; pass
-`--truth-policy v1` to reproduce the frozen Phase 0 comparison. Pass
-`--units <plan.json>` to reuse the explicit snapshot object mapping from an approved live plan; this is required when a
-source filename differs from the PL/Scope object name. It exits non-zero when
-any gate fails.
+`--dependencies` options. Qualification uses truth policy `v3` by default. Pass
+`--truth-policy v1` or `--truth-policy v2` only to replay retained historical
+evidence; those policies are not the release contract. Pass
+`--units <plan.json>` to reuse the explicit snapshot object mapping from an
+approved live plan; this is required when a source filename differs from the
+PL/Scope object name. It exits non-zero when any gate fails.
+
+### 7.2 Historical Phase 0 baseline
+
+The frozen Phase 0 baseline used a production sample project and Oracle
+19.0.0.0.0 with a session-scoped `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`. The
+qualification corpus contained 1,237 files: 609 package specifications, 605
+package bodies, 14 SQL files, and 9 standalone functions. The frozen evidence,
+corpus checksums, truth-export hashes, and both reports are recorded in
+[`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
+
+These results are a policy `v1` measurement. They are retained as the adoption
+baseline and are not the current production verdict.
+
+| Gate | Result | Required |
+| --- | ---: | ---: |
+| Declaration recall | 98.3956% | 99.5% |
+| Declaration precision | 99.9662% | 100% |
+| Reference recall | 58.5206% | 99.5% |
+| Reference precision | 99.4259% | 100% |
+| Package dependency recall | 98.1734% | 99.5% |
+| Package dependency precision | 100% | 100% |
 
 To replay the frozen baseline without a database connection:
 
@@ -280,19 +317,11 @@ node dist/cli.mjs qualify --extractor oracle \
   --identifiers /path/to/oracle-live/2eb1e36f6ecdada4/user-identifiers.csv \
   --dependencies /path/to/oracle-live/2eb1e36f6ecdada4/user-dependencies.csv \
   --units /path/to/oracle-live/2eb1e36f6ecdada4/plan.json \
+  --truth-policy v1 \
   --output /tmp/oracle-qualification.json
 ```
 
-Performance measurement is separate:
-
-```bash
-CODE_INDEX_ROOT=/path/to/oracle/workspace \
-CODE_INDEX_PROJECT_FILE=/path/to/oracle/workspace/oracle-index.json \
-pnpm benchmark:oracle:corpus
-```
-
-It runs the normal `benchmark` command with the Oracle extractor and never
-connects to Oracle.
+### 7.3 Historical Phase 0 comparison detail
 
 Excluded from the frozen Phase 0 snapshot:
 
@@ -300,15 +329,14 @@ Excluded from the frozen Phase 0 snapshot:
 - source-only objects that were not installed in the database (not selected);
 - wrapped source, which remains outside O1 scope.
 
-The comparison excluded 63,076 PL/Scope references to package qualifiers because
-O1 represents those as dependency edges, not symbol occurrences. It also
+The Phase 0 comparison excluded 63,076 PL/Scope references to package qualifiers
+because O1 represents those as dependency edges, not symbol occurrences. It also
 rejected PL/Scope rows whose declaration position did not contain the declared
 identifier; this removes `SELECT *` column pseudo-declarations and same-line
-`CREATE OR REPLACE` column offsets. The remaining reference extras are
-zero in the frozen qualification. PL/Scope references whose `ITERATOR` type is
-outside the supported set are excluded by policy; pragma names, implicit loop
-iterators, type positions, static SQL, and savepoint names are not emitted as
-references. They are not removed merely to raise precision.
+`CREATE OR REPLACE` column offsets. PL/Scope references whose `ITERATOR` type is
+outside the policy `v1` supported set are excluded by that policy; pragma names,
+implicit loop iterators, type positions, static SQL, and savepoint names are not
+emitted as references. They are not removed merely to raise precision.
 
 Literal `$IF TRUE` and `$IF FALSE` branches are evaluated during tokenization.
 Non-literal conditions keep both branches because O1 does not evaluate session
@@ -322,9 +350,19 @@ formatting noise.
 Qualification evidence is split by size. The frozen corpus manifest, per-file
 checksums, unit mapping, benchmark, qualification report, and replay commands
 are checked in under [`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
-The source snapshot and CSV exports remain external. The adapter is not
-promoted, and the gates must be re-run after the reference scope is extended or
-explicitly redefined.
+The source snapshot and CSV exports remain external.
+
+Performance measurement is separate:
+
+```bash
+CODE_INDEX_ROOT=/path/to/oracle/workspace \
+CODE_INDEX_PROJECT_FILE=/path/to/oracle/workspace/oracle-index.json \
+pnpm benchmark:oracle:corpus
+```
+
+It runs the normal `benchmark` command with the Oracle extractor and never
+connects to Oracle. The structural@5 production performance baseline is tracked
+by ORA-005; the Phase 7 ANTLR measurement is not a production baseline.
 
 ### Live qualification
 

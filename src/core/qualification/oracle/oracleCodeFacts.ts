@@ -1,6 +1,8 @@
 import {type DatabaseSync} from 'node:sqlite';
+import {ORACLE_DIAGNOSTIC} from '../../../adapters/oracle/diagnostics.ts';
 import {asNumber, asString} from '../../storage/databaseRows.ts';
 import {type CodeOccurrenceType} from './oracleTruth.ts';
+import {positionKeyOf} from './oracleTruthExclusions.ts';
 
 export type CodeFactsType = Readonly<{
 	definitions: ReadonlyMap<string, CodeOccurrenceType>;
@@ -50,6 +52,33 @@ export const loadCodeFacts = (database: DatabaseSync, generationId: string): Cod
 	}
 
 	return {definitions, references};
+};
+
+/**
+ * Loads the authored positions of emitted ambiguous-overload diagnostics.
+ *
+ * Each site is a `CALL` whose target the adapter deliberately leaves
+ * unresolved. The contract pairs such a site with its exact PL/Scope row and
+ * omits that row from the truth denominator with a counted reason.
+ *
+ * @param database - Read-only index connection.
+ * @param generationId - Published generation.
+ * @returns Position-only keys for every ambiguous-overload diagnostic.
+ */
+export const loadAmbiguousOverloadSites = (database: DatabaseSync, generationId: string): ReadonlySet<string> => {
+	const rows = database
+		.prepare(
+			`select path, start_line, start_column
+			 from diagnostic
+			 where generation_id = ?
+			 and code = ?
+			 and path is not null
+			 and start_line is not null
+			 and start_column is not null`,
+		)
+		.all(generationId, ORACLE_DIAGNOSTIC.ambiguousOverload);
+
+	return new Set(rows.map((row) => positionKeyOf({path: asString(row, 'path'), line: asNumber(row, 'start_line'), column: asNumber(row, 'start_column')})));
 };
 
 /**

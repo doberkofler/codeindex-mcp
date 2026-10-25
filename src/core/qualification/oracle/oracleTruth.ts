@@ -1,5 +1,21 @@
 import {objectKey, positionOf, sourceTokenMatches, type ObjectMappingType} from './oracleMapping.ts';
-import {ORACLE_TRUTH_POLICY_V2, oracleTruthPolicyOf, type OracleTruthPolicyType, type OracleTruthPolicyVersionType} from './oracleTruthPolicy.ts';
+import {
+	emptyTruthExclusionCounts,
+	positionKeyOf,
+	type ExcludedTruthFactType,
+	type OracleTruthExclusionReasonType,
+	type TruthExclusionCountsType,
+} from './oracleTruthExclusions.ts';
+import {
+	ORACLE_TRUTH_OBJECT_TYPES,
+	ORACLE_TRUTH_POLICY_V3,
+	oracleTruthPolicyOf,
+	type OracleTruthPolicyType,
+	type OracleTruthPolicyVersionType,
+} from './oracleTruthPolicy.ts';
+
+/** Upper bound on disagreement samples retained in a qualification report. */
+export const ORACLE_COMPARISON_SAMPLE_LIMIT = 20;
 
 export type PositionedTruthType = Readonly<{
 	path: string;
@@ -18,25 +34,6 @@ export type CodeOccurrenceType = Readonly<{
 	symbolPath?: string | undefined;
 	symbolLine?: number | undefined;
 	symbolColumn?: number | undefined;
-}>;
-
-type OracleTruthExclusionReasonType =
-	| 'unsupported_identifier_type'
-	| 'unmapped_usage'
-	| 'invalid_declaration'
-	| 'package_reference'
-	| 'missing_group_declaration';
-
-type OracleTruthExclusionRoleType = 'declaration' | 'reference' | 'none';
-
-export type ExcludedTruthFactType = Readonly<{
-	path: string;
-	line: number;
-	column: number;
-	name: string;
-	type: string;
-	role: OracleTruthExclusionRoleType;
-	reason: OracleTruthExclusionReasonType;
 }>;
 
 type OracleExtraClassType = 'omitted_by_policy' | 'location_mismatch' | 'outside_plscope' | 'false_positive';
@@ -62,7 +59,7 @@ export type ComparisonType = Readonly<{
 	extraClasses: Readonly<Record<OracleExtraClassType, ExtraClassType>>;
 }>;
 
-export type TruthExclusionCountsType = Readonly<Record<OracleTruthExclusionReasonType, number>>;
+type OracleTruthExclusionRoleType = 'declaration' | 'reference' | 'none';
 
 export type TruthFactsType = Readonly<{
 	policy: OracleTruthPolicyType;
@@ -74,6 +71,8 @@ export type TruthFactsType = Readonly<{
 	identifierRows: number;
 	invalidDeclarationRows: number;
 	excludedPackageReferences: number;
+	malformedRows: number;
+	outOfScopeObjectRows: number;
 }>;
 
 export type CompareOptionsType = Readonly<{
@@ -106,14 +105,6 @@ const declarationTypeOf = (policy: OracleTruthPolicyType, status: string, identi
 	return null;
 };
 
-const emptyExclusionCounts = (): Record<OracleTruthExclusionReasonType, number> => ({
-	unsupported_identifier_type: 0,
-	unmapped_usage: 0,
-	invalid_declaration: 0,
-	package_reference: 0,
-	missing_group_declaration: 0,
-});
-
 type TruthStateType = {
 	policy: OracleTruthPolicyType;
 	groups: Map<string, GroupType>;
@@ -124,6 +115,9 @@ type TruthStateType = {
 	identifierRows: number;
 	invalidDeclarationRows: number;
 	excludedPackageReferences: number;
+	malformedRows: number;
+	outOfScopeObjectRows: number;
+	ambiguousOverloadPositions: ReadonlySet<string>;
 };
 
 type ParsedRowType = Readonly<{
@@ -137,18 +131,20 @@ type ParsedRowType = Readonly<{
 	column: number;
 }>;
 
-const parsedRowOf = (row: readonly string[]): ParsedRowType | null => {
+type ParsedRowResultType = Readonly<{kind: 'row'; value: ParsedRowType} | {kind: 'malformed'} | {kind: 'out_of_scope'}>;
+
+const parsedRowOf = (row: readonly string[]): ParsedRowResultType => {
 	if (row.length < 10) {
-		return null;
+		return {kind: 'malformed'};
 	}
 
 	const [objectName = '', objectType = '', name = '', signature = '', identifierType = '', usage = '', , line, column] = row;
 
-	if (!['PACKAGE', 'PACKAGE BODY', 'FUNCTION', 'PROCEDURE'].includes(objectType)) {
-		return null;
+	if (!ORACLE_TRUTH_OBJECT_TYPES.has(objectType)) {
+		return {kind: 'out_of_scope'};
 	}
 
-	return {objectName, objectType, name, signature, identifierType, usage, line: Number(line), column: Number(column)};
+	return {kind: 'row', value: {objectName, objectType, name, signature, identifierType, usage, line: Number(line), column: Number(column)}};
 };
 
 const identityOf = (parsed: ParsedRowType): Readonly<{name: string; type: string}> => ({name: parsed.name, type: parsed.identifierType});
@@ -179,6 +175,19 @@ const exclusionFor = (
 		return {role: 'none', reason: 'unmapped_usage'};
 	}
 
+	if (input.kind === 'reference' && input.state.policy.filterReferenceTypes && input.supportedKind === undefined) {
+		return {role: 'reference', reason: 'unsupported_identifier_type'};
+	}
+
+	if (
+		input.kind === 'reference' &&
+		input.state.policy.omitAmbiguousOverloadInCalls &&
+		input.parsed.usage === 'CALL' &&
+		input.state.ambiguousOverloadPositions.has(positionKeyOf(input.position))
+	) {
+		return {role: 'reference', reason: 'omitted_ambiguous_overload'};
+	}
+
 	if (input.kind === 'reference' && typeKeyOf(input.parsed.identifierType) === 'PACKAGE') {
 		input.state.excludedPackageReferences += 1;
 		return {role: 'reference', reason: 'package_reference'};
@@ -192,20 +201,23 @@ const exclusionFor = (
 		};
 	}
 
-	if (input.kind === 'reference' && input.state.policy.filterReferenceTypes && input.supportedKind === undefined) {
-		return {role: 'reference', reason: 'unsupported_identifier_type'};
-	}
-
 	return null;
 };
 
 const applyTruthRow = (state: TruthStateType, row: readonly string[]): void => {
-	const parsed = parsedRowOf(row);
+	const result = parsedRowOf(row);
 
-	if (parsed === null) {
+	if (result.kind === 'malformed') {
+		state.malformedRows += 1;
 		return;
 	}
 
+	if (result.kind === 'out_of_scope') {
+		state.outOfScopeObjectRows += 1;
+		return;
+	}
+
+	const parsed = result.value;
 	const mapping = state.mappings.get(objectKey(parsed.objectType, parsed.objectName));
 
 	if (mapping === undefined) {
@@ -256,6 +268,12 @@ const factsOf = (state: TruthStateType): TruthFactsType => {
 			const key = keyOf(declaration, declaration.name);
 
 			declarationKeys.add(key);
+
+			if (definitions.has(key)) {
+				exclude(state, declaration, declaration, {role: 'declaration', reason: 'duplicate_fact'});
+				continue;
+			}
+
 			definitions.set(key, declaration);
 		}
 
@@ -265,9 +283,17 @@ const factsOf = (state: TruthStateType): TruthFactsType => {
 			// PL/Scope reports a constant or field initializer as both a
 			// declaration and an assignment at the same location. That assignment is
 			// the initializer, not a reference to an existing symbol.
-			if (!declarationKeys.has(key)) {
-				references.set(key, reference);
+			if (declarationKeys.has(key)) {
+				exclude(state, reference, reference, {role: 'reference', reason: 'declaration_initializer'});
+				continue;
 			}
+
+			if (references.has(key)) {
+				exclude(state, reference, reference, {role: 'reference', reason: 'duplicate_fact'});
+				continue;
+			}
+
+			references.set(key, reference);
 		}
 	}
 
@@ -281,13 +307,20 @@ const factsOf = (state: TruthStateType): TruthFactsType => {
 		identifierRows: state.identifierRows,
 		invalidDeclarationRows: state.invalidDeclarationRows,
 		excludedPackageReferences: state.excludedPackageReferences,
+		malformedRows: state.malformedRows,
+		outOfScopeObjectRows: state.outOfScopeObjectRows,
 	};
 };
 
 /**
  * Reads supported PL/Scope declarations and references from exported rows.
  *
- * @param input - CSV rows, indexed object mappings, and the truth policy.
+ * `ambiguousOverloadPositions` holds authored positions of emitted
+ * `ambiguous-overload` diagnostics. Under the authoritative policy a `CALL`
+ * truth row at exactly one of those positions is omitted with a counted
+ * reason; no other fact is affected.
+ *
+ * @param input - CSV rows, indexed object mappings, truth policy, and emitted ambiguity positions.
  * @returns Normalized truth, excluded fact classes, and normalization counters.
  */
 export const readOracleTruth = (
@@ -295,18 +328,22 @@ export const readOracleTruth = (
 		rows: readonly (readonly string[])[];
 		mappings: ReadonlyMap<string, ObjectMappingType>;
 		policy?: OracleTruthPolicyType | OracleTruthPolicyVersionType;
+		ambiguousOverloadPositions?: ReadonlySet<string> | undefined;
 	}>,
 ): TruthFactsType => {
 	const state: TruthStateType = {
-		policy: typeof input.policy === 'string' ? oracleTruthPolicyOf(input.policy) : (input.policy ?? ORACLE_TRUTH_POLICY_V2),
+		policy: typeof input.policy === 'string' ? oracleTruthPolicyOf(input.policy) : (input.policy ?? ORACLE_TRUTH_POLICY_V3),
 		groups: new Map(),
 		mappings: input.mappings,
 		excluded: [],
-		excludedByReason: emptyExclusionCounts(),
+		excludedByReason: emptyTruthExclusionCounts(),
 		rowsByPath: new Map(),
 		identifierRows: 0,
 		invalidDeclarationRows: 0,
 		excludedPackageReferences: 0,
+		malformedRows: 0,
+		outOfScopeObjectRows: 0,
+		ambiguousOverloadPositions: input.ambiguousOverloadPositions ?? new Set(),
 	};
 
 	for (const row of input.rows) {
@@ -391,7 +428,7 @@ export const compareFacts = (
 	actual: ReadonlyMap<string, CodeOccurrenceType>,
 	options: CompareOptionsType = {},
 ): ComparisonType => {
-	const policy = typeof options.policy === 'string' ? oracleTruthPolicyOf(options.policy) : (options.policy ?? ORACLE_TRUTH_POLICY_V2);
+	const policy = typeof options.policy === 'string' ? oracleTruthPolicyOf(options.policy) : (options.policy ?? ORACLE_TRUTH_POLICY_V3);
 	const truthKeys = new Set(truth.keys());
 	const actualKeys = new Set([...actual.entries()].filter(([, value]) => policy.supportedKinds.has(value.kind)).map(([key]) => key));
 	const matched = [...truthKeys].filter((key) => actualKeys.has(key)).length;
@@ -417,7 +454,7 @@ export const compareFacts = (
 
 		extraClasses[extraClass] = {
 			count: group.count + 1,
-			samples: group.samples.length >= 20 ? group.samples : [...group.samples, fact],
+			samples: group.samples.length >= ORACLE_COMPARISON_SAMPLE_LIMIT ? group.samples : [...group.samples, fact],
 		};
 	}
 
@@ -434,11 +471,11 @@ export const compareFacts = (
 		recall: truthKeys.size === 0 ? 1 : matched / truthKeys.size,
 		precision: scoredActual === 0 ? 1 : matched / scoredActual,
 		samplesMissing: missingKeys
-			.slice(0, 20)
+			.slice(0, ORACLE_COMPARISON_SAMPLE_LIMIT)
 			.map((key) => truth.get(key))
 			.filter((value): value is PositionedTruthType => value !== undefined),
 		samplesExtra: extraKeys
-			.slice(0, 20)
+			.slice(0, ORACLE_COMPARISON_SAMPLE_LIMIT)
 			.map((key) => actual.get(key))
 			.filter((value): value is CodeOccurrenceType => value !== undefined),
 		extraClasses,

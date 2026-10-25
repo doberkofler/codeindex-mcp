@@ -1,13 +1,7 @@
 import {type CodeFactsType} from './oracleCodeFacts.ts';
 import {type ObjectMappingType} from './oracleMapping.ts';
-import {
-	compareFacts,
-	type CodeOccurrenceType,
-	type ComparisonType,
-	type ExcludedTruthFactType,
-	type ExtraClassifierType,
-	type PositionedTruthType,
-} from './oracleTruth.ts';
+import {compareFacts, type CodeOccurrenceType, type ComparisonType, type ExtraClassifierType, type PositionedTruthType} from './oracleTruth.ts';
+import {type ExcludedTruthFactType} from './oracleTruthExclusions.ts';
 import {type OracleTruthPolicyType} from './oracleTruthPolicy.ts';
 
 type OracleReferenceStratumType = 'procedural' | 'static_sql' | 'member_chain' | 'iterator' | 'pragma' | 'type_anchor';

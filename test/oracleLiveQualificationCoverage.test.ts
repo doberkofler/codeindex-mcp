@@ -195,6 +195,8 @@ describe('Oracle live qualification apply reporting', () => {
 				{databaseFactory: databaseFactoryOf(plan, [['VIEW', 'LEGACY_VIEW', 'INVALID']], [])},
 			);
 			const metadata = JSON.parse(readFileSync(plan.output.run, 'utf8')) as {
+				contract: {id: string; version: string; truthPolicy: string};
+				truth: {rows: number; excludedByReason: Record<string, number>};
 				invalidObjects: {baseline: number; remainingBaseline: string[]; restoredBaseline: string[]};
 				artifacts: {report: string};
 			};
@@ -203,6 +205,9 @@ describe('Oracle live qualification apply reporting', () => {
 			expect(captured.stdout.join('\n')).toContain('Baseline invalid objects: 1');
 			expect(captured.stdout.join('\n')).toContain('Restored: 1');
 			expect(captured.stdout.join('\n')).not.toContain('Still invalid');
+			expect(metadata.contract).toMatchObject({id: 'oracle-o1', version: '1', truthPolicy: 'v3'});
+			expect(metadata.truth.rows).toBe(0);
+			expect(metadata.truth.excludedByReason).toMatchObject({omitted_ambiguous_overload: 0});
 			expect(metadata.invalidObjects).toStrictEqual({baseline: 1, remainingBaseline: [], restoredBaseline: ['VIEW LEGACY_VIEW']});
 			expect(existsSync(metadata.artifacts.report)).toBe(true);
 		} finally {

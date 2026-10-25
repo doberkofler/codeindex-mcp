@@ -1,4 +1,5 @@
-import {writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {type ExtractorType} from '../../../adapters/types.ts';
@@ -13,10 +14,12 @@ import {loadConfig, type ConfigType} from '../../config/config.ts';
 import {readVcsProvenance} from '../../../adapters/vcs/vcsProvenance.ts';
 import {readCsv} from './oracleCsv.ts';
 import {objectKey, objectMapping, objectTypeOfPath, type ObjectMappingType} from './oracleMapping.ts';
-import {compareFacts, gateOf, readOracleTruth, type ComparisonType, type TruthExclusionCountsType} from './oracleTruth.ts';
-import {loadCodeDependencies, loadCodeFacts} from './oracleCodeFacts.ts';
+import {compareFacts, readOracleTruth, type ComparisonType} from './oracleTruth.ts';
+import {type TruthExclusionCountsType} from './oracleTruthExclusions.ts';
+import {loadAmbiguousOverloadSites, loadCodeDependencies, loadCodeFacts} from './oracleCodeFacts.ts';
 import {readTruthDependencies} from './oracleDependencies.ts';
 import {createExtraClassifier} from './oracleExtras.ts';
+import {oracleGatesOf, oracleQualificationContractIdentityOf, type OracleQualificationContractIdentityType} from './oracleQualificationContract.ts';
 import {compareOracleStrata} from './oracleStratification.ts';
 import {oracleTruthPolicyOf, type OracleTruthPolicyVersionType} from './oracleTruthPolicy.ts';
 
@@ -54,29 +57,30 @@ type ReportType = Readonly<{
 	extractor: 'oracle';
 	generationId: string;
 	parser: OracleParserIdentityType;
-	corpus: Readonly<{files: number; objects: number}>;
+	contract: OracleQualificationContractIdentityType;
+	corpus: Readonly<{files: number; objects: number; sourceHash: string; configHash: string}>;
 	policy: Readonly<{version: OracleTruthPolicyVersionType; supportedTypes: readonly string[]; supportedKinds: readonly string[]}>;
 	truth: Readonly<{
 		rows: number;
 		invalidDeclarationRows: number;
 		excludedPackageReferences: number;
 		excludedByReason: TruthExclusionCountsType;
+		malformedRows: number;
+		outOfScopeObjectRows: number;
+		includedDeclarations: number;
+		includedReferences: number;
+		excludedTotal: number;
+		identifiersSha256: string;
+		dependenciesSha256: string;
+		ambiguousOverloadDiagnostics: number;
 	}>;
 	declarations: ComparisonType;
 	references: ComparisonType;
 	declarationStrata: Readonly<Record<string, ComparisonType>>;
 	referenceStrata: Readonly<Record<string, ComparisonType>>;
 	dependencies: DependencyMetricsType;
-	gates: Readonly<{
-		declarations: Readonly<{ok: boolean; recall: boolean; precision: boolean}>;
-		references: Readonly<{ok: boolean; recall: boolean; precision: boolean}>;
-		dependencies: Readonly<{ok: boolean; recall: boolean; precision: boolean}>;
-		ok: boolean;
-	}>;
+	gates: ReturnType<typeof oracleGatesOf>;
 }>;
-
-const DECLARATION_RECALL_GATE = 0.995;
-const REFERENCE_RECALL_GATE = 0.995;
 
 const buildIndex = async (config: ConfigType, extractor: ExtractorType): Promise<void> => {
 	const database = IndexDatabase.open(config.databasePath, {
@@ -194,15 +198,23 @@ const dependencyMetricsOf = (truth: ReadonlySet<string>, actual: ReadonlySet<str
 	};
 };
 
-const publishedGeneration = (reader: DatabaseSync): string => {
-	const generation = reader.prepare("select id from generation where state = 'published' order by completed_at desc limit 1").get();
+const publishedGenerationOf = (reader: DatabaseSync): Readonly<{id: string; sourceHash: string; configHash: string}> => {
+	const generation = reader.prepare("select id, source_hash, config_hash from generation where state = 'published' order by completed_at desc limit 1").get();
 
 	if (generation === undefined) {
 		throw new Error('Oracle qualification requires a published generation');
 	}
 
-	return asString(generation, 'id');
+	return {
+		id: asString(generation, 'id'),
+		sourceHash: asString(generation, 'source_hash'),
+		configHash: asString(generation, 'config_hash'),
+	};
 };
+
+const fileSha256Of = (filePath: string): string => createHash('sha256').update(readFileSync(filePath)).digest('hex');
+
+const excludedTotalOf = (counts: TruthExclusionCountsType): number => Object.values(counts).reduce((total, count) => total + count, 0);
 
 const filesOf = (reader: DatabaseSync, generationId: string): readonly string[] =>
 	reader
@@ -213,6 +225,8 @@ const filesOf = (reader: DatabaseSync, generationId: string): readonly string[] 
 const reportOf = (
 	input: Readonly<{
 		generationId: string;
+		sourceHash: string;
+		configHash: string;
 		parser: OracleParserIdentityType;
 		files: number;
 		objects: number;
@@ -221,42 +235,47 @@ const reportOf = (
 		references: ComparisonType;
 		strata: ReturnType<typeof compareOracleStrata>;
 		dependencies: DependencyMetricsType;
+		identifiersSha256: string;
+		dependenciesSha256: string;
+		ambiguousOverloadDiagnostics: number;
 	}>,
-): ReportType => {
-	const emptyTruth = input.truth.identifierRows === 0;
-	const declarationGate = emptyTruth ? {ok: false, recall: false, precision: false} : gateOf(input.declarations, DECLARATION_RECALL_GATE);
-	const referenceGate = emptyTruth ? {ok: false, recall: false, precision: false} : gateOf(input.references, REFERENCE_RECALL_GATE);
-	const dependencyGate = emptyTruth ? {ok: false, recall: false, precision: false} : gateOf(input.dependencies, REFERENCE_RECALL_GATE);
-
-	return {
-		extractor: 'oracle',
-		generationId: input.generationId,
-		parser: input.parser,
-		corpus: {files: input.files, objects: input.objects},
-		policy: {
-			version: input.truth.policy.version,
-			supportedTypes: Object.keys(input.truth.policy.supportedTypes).sort(),
-			supportedKinds: [...input.truth.policy.supportedKinds].sort(),
-		},
-		truth: {
-			rows: input.truth.identifierRows,
-			invalidDeclarationRows: input.truth.invalidDeclarationRows,
-			excludedPackageReferences: input.truth.excludedPackageReferences,
-			excludedByReason: input.truth.excludedByReason,
-		},
+): ReportType => ({
+	extractor: 'oracle',
+	generationId: input.generationId,
+	parser: input.parser,
+	contract: oracleQualificationContractIdentityOf(),
+	corpus: {files: input.files, objects: input.objects, sourceHash: input.sourceHash, configHash: input.configHash},
+	policy: {
+		version: input.truth.policy.version,
+		supportedTypes: Object.keys(input.truth.policy.supportedTypes).sort(),
+		supportedKinds: [...input.truth.policy.supportedKinds].sort(),
+	},
+	truth: {
+		rows: input.truth.identifierRows,
+		invalidDeclarationRows: input.truth.invalidDeclarationRows,
+		excludedPackageReferences: input.truth.excludedPackageReferences,
+		excludedByReason: input.truth.excludedByReason,
+		malformedRows: input.truth.malformedRows,
+		outOfScopeObjectRows: input.truth.outOfScopeObjectRows,
+		includedDeclarations: input.truth.definitions.size,
+		includedReferences: input.truth.references.size,
+		excludedTotal: excludedTotalOf(input.truth.excludedByReason),
+		identifiersSha256: input.identifiersSha256,
+		dependenciesSha256: input.dependenciesSha256,
+		ambiguousOverloadDiagnostics: input.ambiguousOverloadDiagnostics,
+	},
+	declarations: input.declarations,
+	references: input.references,
+	declarationStrata: input.strata.declarations,
+	referenceStrata: input.strata.references,
+	dependencies: input.dependencies,
+	gates: oracleGatesOf({
 		declarations: input.declarations,
 		references: input.references,
-		declarationStrata: input.strata.declarations,
-		referenceStrata: input.strata.references,
 		dependencies: input.dependencies,
-		gates: {
-			declarations: declarationGate,
-			references: referenceGate,
-			dependencies: dependencyGate,
-			ok: declarationGate.ok && referenceGate.ok && dependencyGate.ok,
-		},
-	};
-};
+		identifierRows: input.truth.identifierRows,
+	}),
+});
 
 /**
  * Qualifies one resolved Oracle workspace against already-exported truth.
@@ -284,23 +303,26 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 	const reader = new DatabaseSync(pinnedConfig.databasePath, {readOnly: true});
 
 	try {
-		const generationId = publishedGeneration(reader);
-		const files = filesOf(reader, generationId);
+		const generation = publishedGenerationOf(reader);
+		const files = filesOf(reader, generation.id);
 		const mappings = mappingsOf(pinnedConfig.rootDir, files, options.units);
 		const mappingsByPath = mappingsByPathOf(mappings);
 		const policy = oracleTruthPolicyOf(options.truthPolicy);
-		const truth = readOracleTruth({rows: readCsv(identifiers), mappings, policy});
-		const code = loadCodeFacts(reader, generationId);
+		const ambiguousOverloadPositions = loadAmbiguousOverloadSites(reader, generation.id);
+		const truth = readOracleTruth({rows: readCsv(identifiers), mappings, policy, ambiguousOverloadPositions});
+		const code = loadCodeFacts(reader, generation.id);
 		const packageNames = packageNamesOf(mappings);
 		const truthDependencies = readTruthDependencies(readCsv(dependencies), mappings, packageNames);
-		const codeDependencies = loadCodeDependencies(reader, generationId, packageNames, packageByPathOf(mappings));
+		const codeDependencies = loadCodeDependencies(reader, generation.id, packageNames, packageByPathOf(mappings));
 		const classifyExtra = createExtraClassifier({mappings: mappingsByPath, rowsByPath: truth.rowsByPath});
 		const compareOptions = {policy, excluded: truth.excluded, classifyExtra};
 		const declarations = compareFacts(truth.definitions, code.definitions, {...compareOptions, role: 'declaration'});
 		const references = compareFacts(truth.references, code.references, {...compareOptions, role: 'reference'});
 		const strata = compareOracleStrata({truth, actual: code, mappings: mappingsByPath, policy, classifyExtra});
 		const report = reportOf({
-			generationId,
+			generationId: generation.id,
+			sourceHash: generation.sourceHash,
+			configHash: generation.configHash,
 			parser: identity,
 			files: files.length,
 			objects: mappings.size,
@@ -309,6 +331,9 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 			references,
 			strata,
 			dependencies: dependencyMetricsOf(truthDependencies, codeDependencies),
+			identifiersSha256: fileSha256Of(identifiers),
+			dependenciesSha256: fileSha256Of(dependencies),
+			ambiguousOverloadDiagnostics: ambiguousOverloadPositions.size,
 		});
 		const serialized = `${JSON.stringify(report, null, 2)}\n`;
 

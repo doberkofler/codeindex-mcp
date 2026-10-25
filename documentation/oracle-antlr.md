@@ -390,13 +390,16 @@ The baseline does not pass the adoption gates.
 
 ### 6.4 Qualification policy v2
 
-Policy `v2` is the current comparison contract; `--truth-policy v1` preserves
-the frozen Phase 0 behavior. V2 applies the supported-type map to truth
-references as well as actual occurrences, so columns, tables, views, sequences,
-datatypes, and labels no longer inflate reference truth. Supported `DEFINITION`
-rows are declarations, and `ITERATOR`/`RECORD ITERATOR` map to the extractor's
-variable kind. Package references remain excluded because they are dependency
-edges.
+Policy `v2` is the historical Phase 8 comparison policy; `--truth-policy v1`
+preserves the frozen Phase 0 behavior. The authoritative production gate is
+contract `oracle-o1@1` with truth policy `v3`
+([Oracle O1 qualification contract](./oracle-qualification-contract.md)), which
+is `v2` plus the executable ambiguity rule. V2 applies the supported-type map to
+truth references as well as actual occurrences, so columns, tables, views,
+sequences, datatypes, and labels no longer inflate reference truth. Supported
+`DEFINITION` rows are declarations, and `ITERATOR`/`RECORD ITERATOR` map to the
+extractor's variable kind. Package references remain excluded because they are
+dependency edges.
 
 Every extra fact is classified:
 
@@ -414,7 +417,7 @@ anchor. Checked-in golden facts under
 cannot confirm.
 
 The frozen Phase 0 report remains a `v1` measurement. To reproduce it, pass
-`--truth-policy v1`; a default run uses `v2`.
+`--truth-policy v1`. A default run executes contract `oracle-o1@1` with `v3`.
 
 ### 6.5 Phase 7 performance
 

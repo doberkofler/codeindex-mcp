@@ -11,10 +11,10 @@ selected tests and records the MCP protocol split.
 Scope is every Vitest test module selected by `vitest.config.ts`:
 
 ```text
-test/**/*.test.ts(x)                  110 files
+test/**/*.test.ts(x)                  111 files
 evaluation/harness/src/**/*.test.ts    42 files
                                       ---------
-                                      152 files
+                                      153 files
 ```
 
 Support files under `test/helpers/`, fixture trees under `test/fixtures/`, and non-test harness
@@ -54,9 +54,9 @@ class table.
 | Core integration | 11 | 0 | 11 |
 | MCP protocol contract | 5 | 0 | 5 |
 | Deterministic system test | 3 | 4 | 7 |
-| Semantic qualification | 4 | 2 | 6 |
+| Semantic qualification | 5 | 2 | 7 |
 | Performance test | 2 | 0 | 2 |
-| **Total** | **110** | **42** | **152** |
+| **Total** | **111** | **42** | **153** |
 
 `referenceGrouping.test.ts` is classed as core integration rather than MCP protocol because its
 claim is reference-grouping semantics; it calls `CodeIndex` directly.
@@ -130,6 +130,7 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/oracleParserBinding.test.ts` | Adapter contract | Parser binding and identity, `buildGeneration` | Micro fixture | Parser selection is pinned and validated and the bound parser is injected into extraction. |
 | `test/oracleProgress.test.ts` | Module test | `formatDuration`, `phaseProgressLine` | Inline values | Progress lines format durations and ETAs without object names. |
 | `test/oracleQualification.test.ts` | Semantic qualification | Truth mapping, policy, and comparison | Handcrafted facts | PL/Scope truth maps to supported facts, policies classify exclusions, and comparisons are stratified. |
+| `test/oracleQualificationContract.test.ts` | Semantic qualification | Contract identity, truth population, exclusions, ambiguity, gates | Handcrafted facts | Every contract field, supported class, exclusion reason, ambiguity scope, gate, and denominator identity is pinned and reconstructible. |
 | `test/oracleQualificationRun.test.ts` | Semantic qualification | `runOracleQualification` | Vertical fixture | Qualification selects the ANTLR parser, requires both truth exports, and writes a failing report for empty truth. |
 | `test/oracleRecompile.test.ts` | Module test | `recompileOracleObjects`, `recompileOracleDependents` | Stub boundary | Targets and dependents recompile with counted progress and dependent failures are logged without aborting all work. |
 | `test/oracleSymbolIdentity.test.ts` | Module test | `createOracleId` | Inline values | Identity is stable, 32 characters, discriminator-aware, and field-sensitive. |

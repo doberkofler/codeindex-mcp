@@ -116,6 +116,7 @@ const ORACLE_ADAPTER_TESTS = [
 	'test/oracleOverloadResolution.test.ts',
 	'test/oracleParserBinding.test.ts',
 	'test/oraclePublicationSurface.test.ts',
+	'test/oracleQualificationContract.test.ts',
 ];
 
 const REFERENCE_CORPUS_TESTS = [

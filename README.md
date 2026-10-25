@@ -310,6 +310,7 @@ verify, benchmark, and qualification operations.
 - [Architecture](./documentation/architecture.md)
 - [TypeScript/JavaScript adapter](./documentation/typescript-adapter.md)
 - [Oracle adapter](./documentation/oracle-adapter.md)
+- [Oracle O1 qualification contract](./documentation/oracle-qualification-contract.md)
 - [Oracle ANTLR usage](./documentation/oracle-antlr.md)
 - [Oracle ANTLR implementation plan](./documentation/oracle-antlr-plan.md)
 - [ORDS and cross-language design](./documentation/ords-cross-language.md)
