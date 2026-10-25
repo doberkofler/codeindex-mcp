@@ -358,7 +358,7 @@ plan. Status meanings:
 | WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, worker builds, a resumable per-run evidence suite, the deterministic model-free E3 operational soak with declared-duration and idle-CPU gates, the paired direct/Code-Mode exposure comparison, and retained reference-machine measurements exist; multi-process contention, owner termination, reader isolation, and expired-lease takeover are evidenced by `test/leaseContention.test.ts`. Four-hour soak evidence remains incomplete. Incremental compiler state remains conditional. |
 | WP6 — build separation | Superseded/partial | MCP, CLI, console server, and browser bundles are separate. The evaluation harness and public cases live under `evaluation/` and are not bundled; private corpora and restricted results remain outside this repository. |
 | WP7 — OpenCode installation | Implemented | CLI install/uninstall, explicit MCP bundle/configuration paths, preservation of unrelated JSONC, external project configuration, and user documentation exist. A fresh consumer installed the released tag, started the CLI, MCP, and console, kept a second checkout on a separate database, opted out of analytics, and rolled back through configuration and cleanup; see [Fresh-consumer installation and rollback](./fresh-consumer-installation.md). |
-| WP8 — interactive pilot | Open | No retained public evidence proves the required representative-session count, adoption denominator, all latency/resource gates, or soak completion. |
+| WP8 — interactive pilot | Superseded | The pilot was designed as a prospective gate before default enablement. The slice shipped in `v0.7.0` on 2026-10-24 and runs in a production consumer, so that decision no longer exists and a retrospective hosted campaign would not inform it. The model-free soak, startup-latency, and stream-integrity tooling remains available for ongoing operational assurance. |
 
 Cross-cutting contracts and performance targets live in
 [Maintainer guide](./maintainer-guide.md). Evaluation methodology lives in
@@ -403,9 +403,12 @@ Cross-cutting contracts and performance targets live in
   install` no longer writes a `$schema` hint that uninstall would have to
   guess, and `clean` no longer scans the shared OpenCode temporary root or
   another workspace's database.
-- **WP8:** run at least 20 representative normal sessions; retain qualitative
-  failures, freshness/resource results, and correctly measured index-first
-  adoption; obtain explicit user acceptance before default enablement.
+- **WP8:** superseded. The slice is released and deployed, so there is no pending
+  enablement decision for a prospective pilot to inform, and no retrospective
+  hosted campaign is planned. Operational assurance instead uses the model-free
+  four-hour soak, the warm-startup and MCP call gates, and the complete
+  event-stream contract; production monitoring of the shipped release is tracked
+  in [#84](https://github.com/doberkofler/codeindex-mcp/issues/84).
 
 ## 10. Implemented dependency-query enhancements
 
@@ -505,8 +508,8 @@ artifacts. Tracked in [#72](https://github.com/doberkofler/codeindex-mcp/issues/
   [#71](https://github.com/doberkofler/codeindex-mcp/issues/71)
 - measure index-first adoption only from an approved complete client event stream;
   every attempt now carries a structural `streamComplete` proof, and a pilot
-  trajectory is valid only when that proof holds; tracked in
-  [#53](https://github.com/doberkofler/codeindex-mcp/issues/53)
+  trajectory is valid only when that proof holds. This contract is retained; it
+  has no pending campaign behind it
 
 Do not infer adoption from MCP analytics; MCP cannot observe repository search and
 file-read tools.

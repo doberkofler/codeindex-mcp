@@ -756,14 +756,19 @@ Completed:
 3. The paired direct-MCP/Code-Mode exposure comparison measured Code Mode at
    `1.307` direct cost (upper `1.473`); native direct MCP remains recommended.
    Evidence is [Exposure evidence](../evaluation/audits/exposure-eval-050.md).
+4. Production readiness #47–#52: retained reference baselines, deep-cursor plans at
+   production cardinality, multi-process lease proof, fresh-consumer installation,
+   and checkout lifecycle semantics.
+5. The representative normal-session pilot (#53) was superseded. It was framed as a
+   prospective gate before default enablement, and the slice shipped in `v0.7.0`,
+   so that decision no longer exists. No retrospective hosted campaign is planned;
+   ongoing assurance uses the model-free soak, startup-latency, and complete
+   event-stream tooling.
 
 Open:
 
-1. Production readiness #47–#53: retained reference baselines, deep-cursor plans at
-   production cardinality, multi-process lease proof, fresh-consumer installation,
-   checkout lifecycle semantics, and a representative normal-session pilot.
-2. Holdout diagnosis #67; do not re-grade EVAL-037 or treat the holdout as release
+1. Holdout diagnosis #67; do not re-grade EVAL-037 or treat the holdout as release
    evidence.
-3. Preserve E3 and the completed v1 local regression as historical `NOT PASSED`
+2. Preserve E3 and the completed v1 local regression as historical `NOT PASSED`
    evidence; never reinterpret their valid failures or incomplete E3 usage as a
    total-cost result.
