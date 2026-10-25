@@ -12,6 +12,9 @@ pnpm build               # dist/mcp.mjs, dist/cli.mjs, dist/console.mjs, dist/co
 pnpm verify              # tsc, Oxlint, Knip, Oxfmt, Vitest
 pnpm verify:references   # TypeScript language-service comparison
 pnpm test
+pnpm test:oracle         # every Oracle module + generic Oracle contracts (no database)
+pnpm test:oracle:bundle  # controlled evidence preflight and offline replay
+pnpm test:oracle:live    # read-only Oracle preflight; requires CODE_INDEX_ORACLE_LIVE=1
 pnpm knip
 ```
 

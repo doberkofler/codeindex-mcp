@@ -284,6 +284,19 @@ Run the comparison without connecting to Oracle:
 pnpm qualify:oracle
 ```
 
+The deterministic verification tiers are:
+
+| Command | Scope | Database |
+|---|---|---|
+| `pnpm test:oracle` | Every `test/oracle*.test.ts` module discovered from disk plus the generic contracts Oracle depends on | none |
+| `pnpm test:oracle:bundle` | Preflight and offline replay of the controlled bundle | none |
+| `pnpm test:oracle:live` | Read-only catalogue inventory and DDL-refusal preflight; skipped unless `CODE_INDEX_ORACLE_LIVE=1` | read-only |
+
+A module named `oracle*.test.ts` must stay database-free; discovery selects it
+unconditionally, so a live-database check uses a different module name. The live
+tier never applies DDL: an apply still requires a retained plan and its exact
+approval hash.
+
 The command reads `CODE_INDEX_ROOT`, `CODE_INDEX_PROJECT_FILE`,
 `CODE_INDEX_ORACLE_IDENTIFIERS`, and `CODE_INDEX_ORACLE_DEPENDENCIES`, or accepts
 the corresponding `--root`, `--project-file`, `--identifiers`, and

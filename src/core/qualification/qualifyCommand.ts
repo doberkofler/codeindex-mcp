@@ -50,7 +50,7 @@ const addQualifyOptions = (command: Command): Command =>
 		.option('--identifiers <path>', 'Oracle USER_IDENTIFIERS CSV export')
 		.option('--dependencies <path>', 'Oracle USER_DEPENDENCIES CSV export')
 		.option('--units <path>', 'Oracle qualification snapshot units JSON')
-		.option('--truth-policy <version>', 'Oracle truth policy: v1, v2, or v3 (default v3; v1/v2 replay only)')
+		.option('--truth-policy <version>', 'Oracle truth policy: v1, v2, v3, or v4 (default v4; v1-v3 replay only)')
 		.option('--parser <parser>', 'Oracle parser for qualification: structural or antlr (default structural)')
 		.option('--output <path>', 'write the JSON report to a file')
 		.option('--json', 'emit machine-readable JSON', false);

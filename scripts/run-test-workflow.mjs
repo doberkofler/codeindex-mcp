@@ -16,9 +16,17 @@ const budgetOverrideVariable = 'CODE_INDEX_TEST_BUDGET_MS';
  */
 
 /**
+ * @typedef {object} WorkflowRequirement
+ * @property {string} variable - Environment variable that must be set.
+ * @property {string} value - Required value.
+ * @property {string} message - Action the caller must take before the workflow can run.
+ */
+
+/**
  * @typedef {object} Workflow
  * @property {number} budgetMs - Wall-clock budget for the complete workflow.
  * @property {readonly WorkflowStep[]} steps - Ordered commands that make up the workflow.
+ * @property {WorkflowRequirement} [requires] - Opt-in gate, such as live database access.
  */
 
 /** @type {Readonly<Record<string, Workflow>>} */
@@ -42,6 +50,33 @@ const workflows = {
 	'verify:pr': {
 		budgetMs: 120_000,
 		steps: [{arguments: ['run', 'build']}, {arguments: ['run', 'verify']}, {arguments: ['run', 'qualify:typescript:fixture:built']}],
+	},
+	oracle: {
+		budgetMs: 60_000,
+		steps: [{arguments: ['run', 'build']}, {arguments: vitestArguments, environment: {CODE_INDEX_TEST_WORKFLOW: 'oracle'}}],
+	},
+	'oracle:bundle': {
+		budgetMs: 120_000,
+		steps: [
+			{arguments: ['run', 'build']},
+			{arguments: ['exec', 'node', 'dist/cli.mjs', 'oracle-preflight']},
+			{
+				arguments: ['exec', 'vitest', 'run', 'test/oracleEvidenceBundleReplay.test.ts', '--coverage.enabled=false'],
+				environment: {CODE_INDEX_ORACLE_BUNDLE_REQUIRED: '1'},
+			},
+		],
+	},
+	'oracle:live': {
+		budgetMs: 180_000,
+		requires: {
+			variable: 'CODE_INDEX_ORACLE_LIVE',
+			value: '1',
+			message: 'Set CODE_INDEX_ORACLE_LIVE=1 with read-only Oracle credentials to run the live preflight tier.',
+		},
+		steps: [
+			{arguments: ['run', 'build']},
+			{arguments: ['exec', 'vitest', 'run', 'test/liveOraclePreflight.test.ts', '--coverage.enabled=false'], environment: {CODE_INDEX_ORACLE_LIVE: '1'}},
+		],
 	},
 };
 
@@ -103,6 +138,12 @@ const main = () => {
 
 	const budgetMs = budgetOf(workflow.budgetMs);
 	const budgetSeconds = (budgetMs / 1000).toFixed(0);
+
+	if (workflow.requires !== undefined && process.env[workflow.requires.variable] !== workflow.requires.value) {
+		process.stderr.write(`[skip] ${name} requires ${workflow.requires.variable}=${workflow.requires.value}. ${workflow.requires.message}\n`);
+		return;
+	}
+
 	const startedAt = performance.now();
 	let exitCode = 0;
 

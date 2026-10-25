@@ -11,10 +11,10 @@ selected tests and records the MCP protocol split.
 Scope is every Vitest test module selected by `vitest.config.ts`:
 
 ```text
-test/**/*.test.ts(x)                  111 files
-evaluation/harness/src/**/*.test.ts    42 files
+test/**/*.test.ts(x)                  115 files
+evaluation/harness/src/**/*.test.ts    46 files
                                       ---------
-                                      153 files
+                                      161 files
 ```
 
 Support files under `test/helpers/`, fixture trees under `test/fixtures/`, and non-test harness
@@ -49,14 +49,14 @@ class table.
 
 | Class | `test/` | `evaluation/harness/src/` | Total |
 |---|---:|---:|---:|
-| Module test | 61 | 36 | 97 |
+| Module test | 63 | 40 | 103 |
 | Adapter contract | 24 | 0 | 24 |
 | Core integration | 11 | 0 | 11 |
 | MCP protocol contract | 5 | 0 | 5 |
-| Deterministic system test | 3 | 4 | 7 |
-| Semantic qualification | 5 | 2 | 7 |
+| Deterministic system test | 4 | 4 | 8 |
+| Semantic qualification | 6 | 2 | 8 |
 | Performance test | 2 | 0 | 2 |
-| **Total** | **111** | **42** | **153** |
+| **Total** | **115** | **46** | **161** |
 
 `referenceGrouping.test.ts` is classed as core integration rather than MCP protocol because its
 claim is reference-grouping semantics; it calls `CodeIndex` directly.
@@ -83,6 +83,7 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/builtProcess.test.ts` | Deterministic system test | Built `dist/mcp.mjs` over stdio | Temporary workspace | Initial publication, every tool, stream isolation, edits, stale refusal, watcher rebuilds, add/delete/rename, failed-build isolation, restart reuse, and clean shutdown hold in the built process. |
 | `test/checkoutLifecycle.test.ts` | Core integration | `runCli`, `loadConfig`, `collectCleanupTargets` | Temporary workspaces + temporary SQLite | A copy or move gets its own database and generation, an explicitly shared database is rejected, and a deleted checkout stays cleanable. |
 | `test/leaseContention.test.ts` | Deterministic system test | Two built `dist/mcp.mjs` processes over one database | Temporary workspace | One owner holds the lease, the reader serves the published generation, a killed owner never publishes, its heartbeat stops, and an expired lease is taken over. |
+| `test/liveOraclePreflight.test.ts` | Deterministic system test | `readInstalledOracleSources`, `readInstalledOracleDependencies`, `runOracleLiveQualification` | Live Oracle schema, read-only | Skipped unless `CODE_INDEX_ORACLE_LIVE=1`. The preflight requires credentials, inventories the catalogue without DDL, and refuses an apply that has no retained approved plan. |
 | `test/cleanup.test.ts` | Module test | `collectCleanupTargets`, `removeCleanupTargets`, `formatSize`, `executeCleanup`, `runCleanup` | Temporary workspace | Cleanup defaults to the current project's database, scopes `--all` to managed databases, enforces ownership, symlink, and root safety, presents empty/dry-run/removal summaries through injected sinks, continues after failure, and tolerates targets that deny listing or inspection while sizing. |
 | `test/cli.test.ts` | Core integration | `runCli` | Vertical fixture + temporary SQLite | Update, status, verify, reuse, and force-rebuild operate one real index and map failures to exit codes. |
 | `test/codeIndex.test.ts` | Core integration | `CodeIndex` queries | Vertical fixtures | Symbol search, outline, paging, references, dependencies, impact, and freshness obey the core query contract. |
@@ -125,6 +126,7 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/oracleLiveApply.test.ts` | Module test | `applyOracleLivePlan` | Stub boundary | Backup, compile, validate, export, dependent restoration, and baseline comparison report counted progress. |
 | `test/oracleLiveCommand.test.ts` | Module test | `runOracleLiveQualification`, `runCli` | Stub boundary | An approved plan applies from the frozen snapshot and output must stay outside the indexed workspace. |
 | `test/oracleEvidenceBundle.test.ts` | Module test | `preflightOracleEvidenceBundle`, `runOraclePreflight` | Temporary workspace | Complete bundles pass; missing exports, changed snapshot files, approval drift, contract drift, truth-hash drift, and unit-map drift fail before any database work. |
+| `test/oracleEvidenceBundleReplay.test.ts` | Semantic qualification | `preflightOracleEvidenceBundle`, `runQualifyCommand` | Retained external bundle + temporary SQLite | The frozen controlled bundle replays every `oracle-o1@2` gate from retained truth without a database; the bundle tier fails when the evidence root is absent. |
 | `test/oracleLivePlan.test.ts` | Module test | `createOracleLivePlan`, `readOracleLivePlan` | Vertical fixture | Plans freeze source, order SQL, bind dependents, require exact approval, and detect source drift. |
 | `test/oracleLiveSource.test.ts` | Module test | `oracleSourceUnitsOf`, snapshot assertion | Stub boundary | Unit selection falls back to the file on header-only recovery and rejects missing or malformed sources. |
 | `test/oracleOverloadResolution.test.ts` | Adapter contract | `resolveOracleReferences` | Inline values | Member chains, overloads, writes, SQL calls, and package initialization resolve to the correct declaration. |
@@ -135,6 +137,7 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/oracleQualificationRun.test.ts` | Semantic qualification | `runOracleQualification` | Vertical fixture | Qualification selects the ANTLR parser, requires both truth exports, and writes a failing report for empty truth. |
 | `test/oracleRecompile.test.ts` | Module test | `recompileOracleObjects`, `recompileOracleDependents` | Stub boundary | Targets and dependents recompile with counted progress and dependent failures are logged without aborting all work. |
 | `test/oracleSymbolIdentity.test.ts` | Module test | `createOracleId` | Inline values | Identity is stable, 32 characters, discriminator-aware, and field-sensitive. |
+| `test/oracleTestWorkflow.test.ts` | Module test | Oracle tier discovery and membership | Temporary workspace | Every `oracle*.test.ts` module joins the tier without a config edit, pinned generic contracts resolve, and an empty or incomplete tier is rejected. |
 | `test/publicationFacts.test.ts` | Core integration | `finalizeFacts`, `collectBindings`, adapter bundles | Handcrafted facts | Finalization derives canonical addresses, identities, and exposure, enforces invariants, and rejects collisions. |
 | `test/typescriptPublicationSurface.test.ts` | Adapter contract | TypeScript adapter through finalization and queries | Vertical fixture | Public constructor properties, namespace and alias re-exports, usage bits, and ESM JavaScript publish correctly. |
 | `test/oraclePublicationSurface.test.ts` | Adapter contract | Oracle adapter through finalization and queries | Vertical fixture | Specification and body pairing, declaration forms, usage bits, and cross-file targets publish correctly. |
@@ -226,6 +229,10 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `evaluation/harness/src/startupBaseline.test.ts` | Module test | Warm startup baseline | Inline values | Nearest-rank percentiles, empty samples, and the declared p95 budget are computed. |
 | `evaluation/harness/src/stateRoot.test.ts` | Module test | State root and path disclosure | Temporary workspace | Defaults stay outside the checkout, configured unsafe roots are rejected, and literal checkout paths are counted without echoing unrelated text. |
 | `evaluation/harness/src/validityCalibration.test.ts` | Module test | Validity calibration | Synthetic artifacts | The randomized A/A plan, labels, cost vectors, and calibration validity remain deterministic. |
+| `evaluation/harness/src/exposureAnalysis.test.ts` | Module test | `exposureReportOf`, provider meter ledger | Synthetic artifacts | Exposure comparisons reconcile metered cost, cache tiers, and task vectors against the frozen design. |
+| `evaluation/harness/src/exposureDesign.test.ts` | Module test | `exposureDesignOf`, `exposurePlanOf` | Synthetic artifacts | The frozen exposure design, weights, and contract pin reject drift and stay hash-stable. |
+| `evaluation/harness/src/providerUsage.test.ts` | Module test | `providerUsageOf` | Inline values | Cached, non-cached, and cache-write token components derive without double counting. |
+| `evaluation/harness/src/qualificationValidity.test.ts` | Module test | `qualificationReportOf`, validity controls | Synthetic artifacts | Inexact metering or a missing request-1 surface disqualifies a qualification run. |
 
 ## 4. Behaviour ownership and duplicate register
 
@@ -298,10 +305,10 @@ with their module and core integration tests.
 The inventory contains one row per test module selected by the Vitest include patterns.
 
 ```text
-test/**/*.test.ts(x)                  110
-evaluation/harness/src/**/*.test.ts    42
+test/**/*.test.ts(x)                  115
+evaluation/harness/src/**/*.test.ts    46
                                      ----
-inventory rows                        152
+inventory rows                        161
 ```
 
 Verification commands:
@@ -313,11 +320,24 @@ find evaluation/harness/src -type f -name '*.test.ts' | wc -l
 
 Checks:
 
-- [x] Every one of the 152 test files has exactly one class and one primary claim.
+- [x] Every one of the 161 test files has exactly one class and one primary claim.
 - [x] No file is unclassified.
+- [x] Every `test/oracle*.test.ts` module belongs to the Oracle tier; discovery makes a new module a member without a config edit.
 - [x] No test file is listed in more than one inventory row.
 - [x] Every duplicate has a named owner; the remaining overlaps state their wiring reason.
 - [x] One duplicate is not intentional and is assigned to `test/suitePrepare.test.ts` for the
       later cleanup sequence.
 - [x] The MCP protocol split is recorded here without changing production response shapes.
 - [x] The console UI tests are selected by the `fast` workflow and the coverage report includes `src/ui/**`.
+
+### 6.1 Oracle verification tiers
+
+| Command | Scope | Database | Budget |
+|---|---|---|---:|
+| `pnpm test:oracle` | Every `test/oracle*.test.ts` module, discovered from disk, plus the pinned generic contracts Oracle depends on | none | 60 s |
+| `pnpm test:oracle:bundle` | Preflight plus offline replay of `benchmark/oracle-controlled/` | none | 120 s |
+| `pnpm test:oracle:live` | Read-only catalogue inventory and DDL-refusal preflight; skipped unless `CODE_INDEX_ORACLE_LIVE=1` | read-only Oracle | 180 s |
+
+A module named `oracle*.test.ts` must stay database-free and evidence-root-free; discovery
+selects it unconditionally. Live-database checks therefore use a non-matching name
+(`test/liveOraclePreflight.test.ts`) and run only through `pnpm test:oracle:live`.

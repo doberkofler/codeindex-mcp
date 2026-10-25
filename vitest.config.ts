@@ -1,5 +1,6 @@
 import {defineConfig} from 'vitest/config';
 import packageManifest from './package.json' with {type: 'json'};
+import {oracleWorkflowTests} from './test/helpers/oracleWorkflow.ts';
 
 // Class membership follows documentation/test-inventory.md. Keep these lists in
 // sync with the inventory when a test is added or reclassified. The complete
@@ -168,6 +169,9 @@ const WORKFLOWS = {
 	typescript: [...TYPESCRIPT_ADAPTER_TESTS, ...REFERENCE_CORPUS_TESTS],
 	mcp: MCP_PROTOCOL_TESTS,
 	system: DETERMINISTIC_SYSTEM_TESTS,
+	// Oracle modules are discovered, not listed: a new `oracle*.test.ts` joins
+	// this tier automatically and cannot be silently omitted.
+	oracle: oracleWorkflowTests(import.meta.dirname),
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 // A fast-class test that needs the built process or the reference corpus has grown

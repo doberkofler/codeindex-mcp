@@ -37,8 +37,9 @@ node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-controlled/corpus.j
 
 Preflight is database-free and exits non-zero on a missing or mismatched
 artifact. Replay qualification offline with `qualify --extractor oracle` against
-the snapshot, identifiers, dependencies, and `units.json` under the external
-root.
+the snapshot, identifiers, dependencies, and the `snapshot.units` mapping in
+`<root>/plan.json` (pass it as `--units`; `units.json` is the committed digest
+map, not the `--units` input).
 
 ## Scope
 

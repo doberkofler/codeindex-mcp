@@ -167,7 +167,9 @@ collapsed path is one `pnpm build`, one `pnpm verify`, and one
 `scripts/run-test-workflow.mjs` enforces every budget and prints the measured wall-clock
 time. A budget breach fails the command. `vitest.config.ts` also rejects a fast-class test
 that is classified with the system or qualification tests, so heavy checks move class
-instead of stretching the fast path. The budgets are reference-machine measurements; a
+instead of stretching the fast path. The Oracle tier is the exception to static membership:
+`oracle*.test.ts` modules are discovered from disk, so a new Oracle module joins `test:oracle`
+without a config edit and cannot be silently omitted. The budgets are reference-machine measurements; a
 runner that is not the reference machine sets `CODE_INDEX_TEST_BUDGET_MS` to declare its
 own wall-clock budget. The hosted pull-request runner uses 5 min because the same suite
 takes 217 s there against 37.3 s on the reference machine.
@@ -178,6 +180,9 @@ takes 217 s there against 37.3 s on the reference machine.
 | `test:typescript` | `pnpm test:typescript` | All TypeScript adapter and reference-corpus tests | <=15 s | 2.9 s, exit 0 |
 | `test:mcp` | `pnpm test:mcp` | MCP protocol contracts and one vertical smoke | <=15 s | 0.8 s, exit 0 |
 | `test:system` | `pnpm test:system` | Built-process deterministic system tests | <=60 s | 19.0 s, exit 0 |
+| `test:oracle` | `pnpm test:oracle` | Every `oracle*.test.ts` module discovered from disk plus the pinned generic Oracle contracts | <=60 s | 5.0 s, exit 0 |
+| `test:oracle:bundle` | `pnpm test:oracle:bundle` | Controlled-bundle preflight and offline replay | <=120 s | 2.2 s, exit 0 |
+| `test:oracle:live` | `pnpm test:oracle:live` | Read-only catalogue inventory and DDL-refusal preflight; skipped without `CODE_INDEX_ORACLE_LIVE=1` | <=180 s | 5.6 s, exit 0 |
 | `qualify:typescript:fixture` | `pnpm qualify:typescript:fixture` | Self-contained compiler differential gate | <=60 s | 1.6 s, exit 0 |
 | `verify:pr` | `pnpm verify:pr` | Static checks, coverage, all deterministic tests, build, qualification | <=2 min | 37.3 s, exit 0 |
 

@@ -332,7 +332,9 @@ pnpm test:fast           # module, adapter, core, and fake-index MCP classes
 pnpm test:typescript     # TypeScript adapter and reference-corpus classes
 pnpm test:mcp            # MCP protocol class
 pnpm test:system         # built-process deterministic system class
-pnpm test:oracle         # Oracle adapter tests
+pnpm test:oracle         # every Oracle module + generic Oracle contracts
+pnpm test:oracle:bundle  # controlled evidence preflight and offline replay
+pnpm test:oracle:live    # read-only Oracle preflight; opt in with CODE_INDEX_ORACLE_LIVE=1
 pnpm qualify:typescript:fixture  # self-contained TypeScript language-service gate
 pnpm build
 ```
