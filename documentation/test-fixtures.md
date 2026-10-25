@@ -66,7 +66,7 @@ indexer, parser, or publication pipeline as its expected result.
 | F13 | `test/fixtures/multi-project/` | Three project contexts in one generation | `test/multiProject.test.ts`, `test/multiProjectConfig.test.ts`, `test/referenceGrouping.test.ts` |
 | F14 | `test/fixtures/oracle-project/` | Oracle parsing, references, dependencies, freshness, and live-plan inputs | `test/oracle.test.ts`, `test/oracleAntlr.test.ts`, `test/oracleAntlrDeclarations.test.ts`, `test/oracleAntlrDependencies.test.ts`, `test/oracleAntlrReferences.test.ts`, `test/oracleParserBinding.test.ts`, `test/oracleLiveSource.test.ts`, `test/oracleLivePlan.test.ts`, `test/oracleLiveApply.test.ts`, `test/oracleLiveCommand.test.ts`, `test/oracleRecompile.test.ts`, `test/oracleQualificationRun.test.ts`, `test/publicationFacts.test.ts` |
 | F15 | `test/fixtures/oracle-publication-project/` | Oracle publication forms, pairing, diagnostics, and usage bits | `test/oraclePublicationSurface.test.ts`, `test/publicationReport.test.ts` |
-| F16 | `test/fixtures/oracle-qualification-v2/` | Golden facts for constructs PL/Scope cannot confirm | `test/oracleGoldenFacts.test.ts` |
+| F16 | `test/fixtures/oracle-qualification-golden/` | Golden facts for constructs PL/Scope cannot confirm | `test/oracleGoldenFacts.test.ts` |
 | F17 | `test/fixtures/oracle-grammar-gaps/` | Known grammar gaps report a diagnostic instead of succeeding silently | `test/oracleGrammarGaps.test.ts` |
 | F22 | `test/fixtures/oracle-qualification-corpus/` | Controlled Oracle O1 semantic corpus and replayable evidence | `benchmark/oracle-controlled/corpus.json`, `test/oracleQualificationContract.test.ts` |
 
@@ -534,7 +534,7 @@ test/fixtures/oracle-publication-project/database/sales_api.pks
 test/fixtures/oracle-publication-project/oracle-index.json
 ```
 
-### F16 `test/fixtures/oracle-qualification-v2/`
+### F16 `test/fixtures/oracle-qualification-golden/`
 
 | Field | Value |
 |---|---|
@@ -550,8 +550,8 @@ test/fixtures/oracle-publication-project/oracle-index.json
 | Files (2) | See the manifest below. |
 
 ```text
-test/fixtures/oracle-qualification-v2/golden-facts.json
-test/fixtures/oracle-qualification-v2/golden.pkb
+test/fixtures/oracle-qualification-golden/golden-facts.json
+test/fixtures/oracle-qualification-golden/golden.pkb
 ```
 
 ### F17 `test/fixtures/oracle-grammar-gaps/`
@@ -724,7 +724,7 @@ Per-directory counts:
 | F13 | `test/fixtures/multi-project/` | 6 |
 | F14 | `test/fixtures/oracle-project/` | 7 |
 | F15 | `test/fixtures/oracle-publication-project/` | 10 |
-| F16 | `test/fixtures/oracle-qualification-v2/` | 2 |
+| F16 | `test/fixtures/oracle-qualification-golden/` | 2 |
 | F17 | `test/fixtures/oracle-grammar-gaps/` | 10 |
 | F18 | `test/fixtures/typescript-extends/` | 6 |
 | F19 | `test/fixtures/typescript-files/` | 5 |

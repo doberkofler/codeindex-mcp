@@ -22,7 +22,7 @@ const GoldenFactsSchema = z.object({
 	),
 });
 
-const fixtureDirectory = path.join(import.meta.dirname, 'fixtures', 'oracle-qualification-v2');
+const fixtureDirectory = path.join(import.meta.dirname, 'fixtures', 'oracle-qualification-golden');
 
 /**
  * Loads the checked-in golden facts for constructs PL/Scope does not record.

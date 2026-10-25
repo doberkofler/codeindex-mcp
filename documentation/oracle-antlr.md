@@ -413,7 +413,7 @@ Only false positives count against precision; the other classes explain the
 disagreement. Metrics are also reported by declaration kind and by reference
 construct: procedural, static SQL, member chain, iterator, pragma, and type
 anchor. Checked-in golden facts under
-`test/fixtures/oracle-qualification-v2/` validate pragma facts that PL/Scope
+`test/fixtures/oracle-qualification-golden/` validate pragma facts that PL/Scope
 cannot confirm.
 
 The frozen Phase 0 report remains a `v1` measurement. To reproduce it, pass
