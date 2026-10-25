@@ -59,7 +59,12 @@ pass on the controlled corpus, but the production replacement corpus fails the
 `oracle-o1@2` reference-precision, reference-recall, and dependency-recall
 gates. The current evidence and defects are in
 [`benchmark/oracle-production-20261025`](../benchmark/oracle-production-20261025/README.md).
-Historical Phase 0/6/8 reports are comparisons, not the current verdict.
+Historical Phase 0/6/8 reports are comparisons, not the current verdict. The
+production `structural@5` performance baseline is retained in
+[`benchmark/oracle-performance`](../benchmark/oracle-performance/README.md);
+cold build, reuse, rebuild, queries, resources, storage, and bundles pass their
+declared gates, while one-file edit-to-fresh fails at a 22.1 s median against a
+15 s failure threshold.
 
 ## 5. Phase O2 — Oracle dictionary
 
