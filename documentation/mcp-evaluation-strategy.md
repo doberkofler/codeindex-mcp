@@ -765,10 +765,10 @@ Completed:
    ongoing assurance uses the model-free soak, startup-latency, and complete
    event-stream tooling.
 
-Open:
+Standing constraints:
 
-1. Holdout diagnosis #67; do not re-grade EVAL-037 or treat the holdout as release
-   evidence.
+1. Do not re-grade EVAL-037 or treat the holdout as release evidence. Its release
+   decision is final, and no broader claim requires the holdout diagnosis.
 2. Preserve E3 and the completed v1 local regression as historical `NOT PASSED`
    evidence; never reinterpret their valid failures or incomplete E3 usage as a
    total-cost result.

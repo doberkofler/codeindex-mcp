@@ -449,17 +449,17 @@ mismatch becomes a fixture before extraction changes.
 
 ### 11.2 Binding-aware façade analysis
 
-Tracked in [#71](https://github.com/doberkofler/codeindex-mcp/issues/71).
+Not scheduled. Implementation requires a measured trigger: module reachability
+must be shown insufficient for a real dependency-impact question, and compact
+impact behavior must already be measured. No such failure exists today.
 
-The contract: trace binding identity through named imports, aliases, named
-re-exports, and authored façade exports. Distinguish “imports a façade module”
-from “uses the façade binding backed by this package.” Namespace access,
-`export *`, computed exports, dynamic properties, and CommonJS interoperability
-require explicit confidence or unknown states. Uncertain paths remain
-module-impact evidence.
-
-This enhancement starts only after compact impact behavior is measured. It must
-use the existing TypeScript program/checker and preserve 100% reviewed precision.
+If the trigger fires, the contract is: trace binding identity through named
+imports, aliases, named re-exports, and authored façade exports, distinguishing
+“imports a façade module” from “uses the façade binding backed by this package.”
+Namespace access, `export *`, computed exports, dynamic properties, and CommonJS
+interoperability require explicit confidence or unknown states. Uncertain paths
+remain module-impact evidence. Any implementation must use the existing TypeScript
+program and checker and preserve 100% reviewed precision.
 
 ### 11.3 Information depth
 
@@ -486,7 +486,9 @@ not merged merely because paths match.
 
 Remaining work: per-context extraction-artifact reuse is currently keyed by the
 combined configuration digest, so one changed project invalidates all per-file
-artifacts. Tracked in [#72](https://github.com/doberkofler/codeindex-mcp/issues/72).
+artifacts. Artifacts are persisted but never consumed, so reuse buys nothing
+today. Not scheduled: implement consumption and per-context keys only after a
+measured rebuild or retention gate fails.
 
 ### 11.5 Performance and evaluation
 
@@ -504,8 +506,8 @@ artifacts. Tracked in [#72](https://github.com/doberkofler/codeindex-mcp/issues/
   [Exposure evidence](../evaluation/audits/exposure-eval-050.md)**
 - complete two-process, lease takeover, and four-hour soak runs; **deterministic restart, unattended recovery, and retention evidence implemented by `soak`**;
 - implement private controlled cases for direct dependency usage, grouped impact,
-  binding-aware façades, and fallback behavior; façade cases are part of
-  [#71](https://github.com/doberkofler/codeindex-mcp/issues/71)
+  binding-aware façades, and fallback behavior; façade cases wait on the §11.2
+  trigger
 - measure index-first adoption only from an approved complete client event stream;
   every attempt now carries a structural `streamComplete` proof, and a pilot
   trajectory is valid only when that proof holds. This contract is retained; it

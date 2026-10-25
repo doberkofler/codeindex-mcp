@@ -1,9 +1,9 @@
 # Oracle ANTLR Implementation Plan
 
-**Status:** proposed. Phase 0 is frozen, and Phases 1–8 are implemented behind a
-qualification-only adapter seam. No production switch is approved. The structural
-parser remains authoritative until every adoption gate in
-[`oracle-antlr.md`](./oracle-antlr.md) passes.
+**Status:** closed. Phase 0 is frozen, Phases 1–8 are implemented behind a
+qualification-only adapter seam, and the disposition is decided: no production
+switch. The structural parser remains authoritative, and reconsideration requires
+a new measured trigger rather than a repeat comparison.
 
 ## Progress
 
@@ -375,8 +375,8 @@ not removed.
 - The old parser can be restored by reverting one binding.
 
 The first three tasks, parser identity, and the qualification selector are done.
-The structural binding is still the production binding. Tasks 6 and 7 remain
-closed until every quality and performance gate passes.
+The structural binding is the production binding. Tasks 6 and 7 are declined: the
+quality gates were not met, so the switch and the removal never start.
 
 ## 4. Test Matrix
 
@@ -455,9 +455,12 @@ tail work are the technical risks.
 3. Approve truth policy v2 and its exclusions.
 4. Decide whether static SQL references may be emitted without catalogue
    metadata, or only when identity is proven from source.
-5. Decide whether the performance target is cold-build parity, bounded
-   regression, or incremental-only adoption.
-6. Decide whether a Go/Rust/C++ port is justified after Phase 7 profiling.
+5. ~~Decide whether the performance target is cold-build parity, bounded
+   regression, or incremental-only adoption.~~ Decided: no ANTLR adoption,
+   including incremental-only.
+6. ~~Decide whether a Go/Rust/C++ port is justified after Phase 7 profiling.~~
+   Decided: not justified. The measured gap is algorithmic, and a port changes
+   only a constant factor.
 
 ## 9. Definition of Done
 
@@ -465,5 +468,6 @@ tail work are the technical risks.
 - All repository checks pass.
 - Qualification v2 gates pass with unrounded values.
 - Performance and memory are measured on standalone builds.
-- Production binding is switched in one explicit commit.
-- Documentation records the adopted architecture, limitations, and evidence.
+- The production binding stays on the structural parser; the single-commit switch
+  is explicitly declined with the Phase 7 and Phase 8 evidence recorded above.
+- Documentation records the retained architecture, limitations, and evidence.

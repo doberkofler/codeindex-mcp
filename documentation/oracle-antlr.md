@@ -1,19 +1,13 @@
 # Oracle ANTLR Usage
 
-**Status:** production uses the pinned ANTLR lexer plus a tolerant structural
-scanner. Phases 1–8 of the implementation plan are now in the repository: the
-pinned parser grammar, generated parser and visitor, parser base, an internal
-ANTLR parser adapter with conditional-compilation handling and segment
-recovery, the declaration visitor, the reference visitor with lexical scope
-resolution, the dependency visitor, qualification policy v2, opt-in performance
-instrumentation with an SLL-first parse strategy, and the Phase 8 parser seam.
-The adapter is not wired into production; the structural parser remains
-authoritative. Phase 8 quality evidence shows ANTLR improves declaration and
-reference recall but fails the precision gates and regresses dependency recall,
-so no adoption commit was made.
+**Status:** closed. Production uses the pinned ANTLR lexer plus a tolerant
+structural scanner; the full ANTLR parser remains qualification-only. Phases 1–8
+of the implementation plan are in the repository, and Phase 8 measured that the
+full parser fails the precision gates and regresses dependency recall, so the
+adoption decision is recorded as **retain structural**.
 
-See the [implementation plan](./oracle-antlr-plan.md) for the phased path from
-the current adapter to a production decision.
+See the [implementation plan](./oracle-antlr-plan.md) for the completed phases and
+the recorded reconsideration trigger.
 
 ## 1. Why ANTLR Is Used
 
@@ -607,15 +601,19 @@ declaration recall by 1.4009 pp (95.5394% → 96.9403%) and reference recall by
 - no category reached exactly 100% precision.
 
 The ANTLR dependency set is a strict subset of the structural set. The losses
-cluster in 16 files with 298 ANTLR parse diagnostics, so the next work is grammar
-and recovery fixes, not a parser switch. Incremental-only adoption remains an
-open decision but is blocked by the same quality gates; Phase 7 edit-to-fresh
-evidence is not a substitute for them.
+cluster in 16 files with 298 ANTLR parse diagnostics, so the next work would be
+grammar and recovery fixes, not a parser switch. Incremental-only adoption is
+rejected on the same quality gates; Phase 7 edit-to-fresh evidence is not a
+substitute for them.
 
-Until those gates pass, the ANTLR adapter remains non-production. The structural
-parser stays in production.
+The ANTLR production disposition is therefore closed: the ANTLR adapter remains
+qualification-only and the structural parser stays in production. Reconsider only
+when a measured structural-parser failure appears, or when an upstream grammar,
+recovery, or prediction change materially alters these numbers; reopening the
+investigation requires new evidence against the gates above, not a repeat of the
+same comparison.
 
-## 12. Open Questions
+## 12. Known Limits and Reconsideration Triggers
 
 - SLL prediction with LL fallback resolves 1,106 of 1,237 files and costs
   28.27 s in failed probes. It reduces work on the common case but does not
@@ -624,8 +622,9 @@ parser stays in production.
   core name and expression rules, not unused DDL surface.
 - Per-file parsing scales to 3.2× with 8 workers, but peak RSS reaches 11.47 GB
   and wall time remains 46.2 s. More workers do not close the full-build gap.
-- Which grammar gaps are fixed upstream, and which require a local fork?
-- Should conditional directives be filtered, grammar-supported, or handled by a
-  preprocessing phase that reports unbalanced blocks?
 - Full cold-rebuild adoption is not viable on this grammar. Incremental-only
-  reconciliation remains the only open performance path.
+  reconciliation was the remaining performance path and is now rejected on the
+  unchanged quality gates.
+- Grammar-fix hypotheses remain unimplemented: upstream gaps versus a local fork,
+  and directive filtering versus grammar support. They reopen only together with
+  new measured evidence, not on their own.

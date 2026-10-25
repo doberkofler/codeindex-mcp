@@ -41,18 +41,18 @@ into the store, so treat them as relative indicators.
 | `debug` | 60 KB | Namespaced trace output | Retain (`DEP-2`) |
 | `jsonc-parser` | 252 KB | OpenCode JSONC read and edit | Retain (`DEP-3`) |
 | `oracledb` | 4.2 MB | Oracle live qualification driver | Retain; required, loaded lazily (`DEP-8`) |
-| `typescript` | 24 MB | TypeScript extractor and compiler API | Retain; packaging tracked in `ENH-002` |
+| `typescript` | 24 MB | TypeScript extractor and compiler API | Retain in `dependencies` (`ENH-002` declined) |
 | `zod` | 8.1 MB | Runtime boundary validation | Retain |
 
 ### Development dependencies in scope
 
 | Dependency | Installed | Role | Disposition |
 | --- | --- | --- | --- |
-| `@mui/icons-material` | 172 MB | 24 icons in 7 console files | Tracked in `ENH-001` |
+| `@mui/icons-material` | 172 MB | 24 icons in 7 console files | Retain (`ENH-001` declined) |
 | `@mui/material` | 16 MB | Console component library | Retain |
 | `@emotion/react`, `@emotion/styled` | peer | Required by MUI | Retain; not directly imported |
 | `@tanstack/react-query` | 2.6 MB | Console polling and invalidation | Retain (`DEP-5`) |
-| `eslint-plugin-regexp` | 556 KB | Regexp rules for Oxlint | Tracked in `ENH-003` |
+| `eslint-plugin-regexp` | 556 KB | Regexp rules for Oxlint | Retain (`ENH-003`); reopen only when Oxlint ships native rules |
 | `antlr-ng` | 5.0 MB | Regenerates the Oracle lexer | Retain |
 | `vite`, `vitest`, `@vitest/coverage-v8` | 2.4–3.0 MB each | Build and tests | Retain |
 
@@ -60,14 +60,9 @@ into the store, so treat them as relative indicators.
 
 ## 3. Open work
 
-| ID | Issue | Scope |
-| --- | --- | --- |
-| `ENH-001` / `DEP-1` | [#74](https://github.com/doberkofler/codeindex-mcp/issues/74) | Remove `@mui/icons-material` |
-| `ENH-002` / `DEP-4` | [#76](https://github.com/doberkofler/codeindex-mcp/issues/76) | Decide whether `typescript` becomes an optional peer |
-| `ENH-003` / `DEP-7` | [#75](https://github.com/doberkofler/codeindex-mcp/issues/75) | Revisit `eslint-plugin-regexp` when Oxlint ships native regexp rules |
-
-An item leaves this table when its issue closes. The resolution is then recorded
-in section 7.
+None. All three dependency candidates were reviewed and declined; their reasons
+and reconsideration triggers are recorded in section 7. A new candidate enters
+this section only with measured evidence, not as a standing backlog item.
 
 ## 4. Retained dependencies
 
@@ -235,8 +230,11 @@ Applicable to any dependency removal when its issue is implemented:
 | --- | --- | --- |
 | DEP-2 | Keep `debug` | `DEBUG` channel contract differs from `NODE_DEBUG` |
 | DEP-3 | Keep `jsonc-parser` | `modify`/`applyEdits` preserve JSONC formatting |
+| DEP-4 | Keep `typescript` in `dependencies` | Default production extractor; an optional peer would move a hard failure from install to first scan |
 | DEP-5 | Keep `@tanstack/react-query` | Polling, invalidation, and cache reuse |
 | DEP-6 | Keep ANTLR toolchain | Required by the Oracle lexer |
+| DEP-1 | Keep `@mui/icons-material` | Dev dependency, so consumers pay nothing; owning 24 SVGs adds maintenance without product benefit. Reconsider only if install time becomes a measured problem |
+| DEP-7 | Keep `eslint-plugin-regexp` | Oxlint has no native regexp plugin; reopen only when native rules cover the current set |
 | DEP-8 | Require `oracledb` | Qualification-only use; missing-driver guard removed |
 | ADD-1 | No HTTP framework | Native loopback server is smaller and stricter |
 | ADD-2 | No chart suite | One small SVG chart |
