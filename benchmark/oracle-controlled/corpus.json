@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"evidence": {
+		"externalRoot": "oracle-live/ljs-ciq-20261025",
+		"snapshotDir": "workspace",
+		"plan": "plan.json",
+		"run": "run.json",
+		"approval": "a6f2a5c78f10b5292fa7d3ad6bc8aadd0b93123addc638da7bc9925f31453adb"
+	},
+	"source": {
+		"kind": "controlled-fixture",
+		"revision": "20261025",
+		"relativeRoot": "test/fixtures/oracle-qualification-corpus",
+		"defaultSchema": "LJ_UNITTEST"
+	},
+	"snapshot": {
+		"projectFile": "oracle-index.json",
+		"sourceHash": "5f99d15512b790bb692f2e5687728b6f7c388c06a9350d3a155110a6a1c80531",
+		"configHash": "b5105837b17669ce40ed24ec5baf1a6d70b131c1d41958c8ff47e636e9247dce",
+		"fileCount": 10,
+		"unitCount": 10
+	},
+	"files": {
+		"checksums": "corpus.sha256",
+		"units": "units.json"
+	}
+}

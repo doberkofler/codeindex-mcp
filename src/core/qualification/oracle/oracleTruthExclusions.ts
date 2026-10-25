@@ -13,6 +13,7 @@ export const ORACLE_TRUTH_EXCLUSION_REASONS = [
 	'declaration_initializer',
 	'duplicate_fact',
 	'omitted_ambiguous_overload',
+	'ephemeral_declaration',
 ] as const;
 
 export type OracleTruthExclusionReasonType = (typeof ORACLE_TRUTH_EXCLUSION_REASONS)[number];
@@ -45,6 +46,7 @@ export const emptyTruthExclusionCounts = (): Record<OracleTruthExclusionReasonTy
 	declaration_initializer: 0,
 	duplicate_fact: 0,
 	omitted_ambiguous_overload: 0,
+	ephemeral_declaration: 0,
 });
 
 /**

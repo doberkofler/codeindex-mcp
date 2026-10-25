@@ -1,4 +1,4 @@
-export type OracleTruthPolicyVersionType = 'v1' | 'v2' | 'v3';
+export type OracleTruthPolicyVersionType = 'v1' | 'v2' | 'v3' | 'v4';
 
 export type OracleTruthPolicyType = Readonly<{
 	version: OracleTruthPolicyVersionType;
@@ -9,6 +9,8 @@ export type OracleTruthPolicyType = Readonly<{
 	filterReferenceTypes: boolean;
 	/** True when a CALL row without an emitted occurrence is omitted from truth. */
 	omitAmbiguousOverloadInCalls: boolean;
+	/** True when parameters and routine-local declarations are omitted from truth. */
+	excludeEphemeralDeclarations: boolean;
 }>;
 
 /**
@@ -65,6 +67,7 @@ export const ORACLE_TRUTH_POLICY_V1: OracleTruthPolicyType = {
 	supportedKinds: kindsOf(V1_SUPPORTED_TYPES),
 	filterReferenceTypes: false,
 	omitAmbiguousOverloadInCalls: false,
+	excludeEphemeralDeclarations: false,
 };
 
 /**
@@ -83,6 +86,7 @@ export const ORACLE_TRUTH_POLICY_V2: OracleTruthPolicyType = {
 	supportedKinds: kindsOf(V2_SUPPORTED_TYPES),
 	filterReferenceTypes: true,
 	omitAmbiguousOverloadInCalls: false,
+	excludeEphemeralDeclarations: false,
 };
 
 /**
@@ -99,6 +103,22 @@ export const ORACLE_TRUTH_POLICY_V3: OracleTruthPolicyType = {
 	...ORACLE_TRUTH_POLICY_V2,
 	version: 'v3',
 	omitAmbiguousOverloadInCalls: true,
+	excludeEphemeralDeclarations: false,
+};
+
+/**
+ * Authoritative O1 qualification policy.
+ *
+ * V4 aligns truth with the persisted publication surface: parameters and
+ * declarations local to a routine are intentionally ephemeral, so they are
+ * omitted with a counted reason instead of being counted as recall failures.
+ * Package-level declarations, nested named routines, and every other supported
+ * declaration remain in the denominators.
+ */
+export const ORACLE_TRUTH_POLICY_V4: OracleTruthPolicyType = {
+	...ORACLE_TRUTH_POLICY_V3,
+	version: 'v4',
+	excludeEphemeralDeclarations: true,
 };
 
 /**
@@ -109,8 +129,8 @@ export const ORACLE_TRUTH_POLICY_V3: OracleTruthPolicyType = {
  * @throws {Error} When the version is unknown.
  */
 export const oracleTruthPolicyOf = (version?: string): OracleTruthPolicyType => {
-	if (version === undefined || version === 'v3') {
-		return ORACLE_TRUTH_POLICY_V3;
+	if (version === undefined || version === 'v4') {
+		return ORACLE_TRUTH_POLICY_V4;
 	}
 
 	if (version === 'v1') {
@@ -119,6 +139,10 @@ export const oracleTruthPolicyOf = (version?: string): OracleTruthPolicyType => 
 
 	if (version === 'v2') {
 		return ORACLE_TRUTH_POLICY_V2;
+	}
+
+	if (version === 'v3') {
+		return ORACLE_TRUTH_POLICY_V3;
 	}
 
 	throw new Error(`Unknown Oracle truth policy: ${version}`);

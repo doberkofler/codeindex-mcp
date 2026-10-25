@@ -6,13 +6,8 @@ import {
 	type OracleTruthExclusionReasonType,
 	type TruthExclusionCountsType,
 } from './oracleTruthExclusions.ts';
-import {
-	ORACLE_TRUTH_OBJECT_TYPES,
-	ORACLE_TRUTH_POLICY_V3,
-	oracleTruthPolicyOf,
-	type OracleTruthPolicyType,
-	type OracleTruthPolicyVersionType,
-} from './oracleTruthPolicy.ts';
+import {ORACLE_TRUTH_POLICY_V4, oracleTruthPolicyOf, type OracleTruthPolicyType, type OracleTruthPolicyVersionType} from './oracleTruthPolicy.ts';
+import {isEphemeralDeclaration, parsedRowOf, usageContextIndex, type OracleParsedTruthRowType, type OracleUsageContextIndexType} from './oracleTruthRows.ts';
 
 /** Upper bound on disagreement samples retained in a qualification report. */
 export const ORACLE_COMPARISON_SAMPLE_LIMIT = 20;
@@ -118,36 +113,10 @@ type TruthStateType = {
 	malformedRows: number;
 	outOfScopeObjectRows: number;
 	ambiguousOverloadPositions: ReadonlySet<string>;
+	usageById: OracleUsageContextIndexType;
 };
 
-type ParsedRowType = Readonly<{
-	objectName: string;
-	objectType: string;
-	name: string;
-	signature: string;
-	identifierType: string;
-	usage: string;
-	line: number;
-	column: number;
-}>;
-
-type ParsedRowResultType = Readonly<{kind: 'row'; value: ParsedRowType} | {kind: 'malformed'} | {kind: 'out_of_scope'}>;
-
-const parsedRowOf = (row: readonly string[]): ParsedRowResultType => {
-	if (row.length < 10) {
-		return {kind: 'malformed'};
-	}
-
-	const [objectName = '', objectType = '', name = '', signature = '', identifierType = '', usage = '', , line, column] = row;
-
-	if (!ORACLE_TRUTH_OBJECT_TYPES.has(objectType)) {
-		return {kind: 'out_of_scope'};
-	}
-
-	return {kind: 'row', value: {objectName, objectType, name, signature, identifierType, usage, line: Number(line), column: Number(column)}};
-};
-
-const identityOf = (parsed: ParsedRowType): Readonly<{name: string; type: string}> => ({name: parsed.name, type: parsed.identifierType});
+const identityOf = (parsed: OracleParsedTruthRowType): Readonly<{name: string; type: string}> => ({name: parsed.name, type: parsed.identifierType});
 
 type ExclusionDecisionType = Readonly<{role: OracleTruthExclusionRoleType; reason: OracleTruthExclusionReasonType}>;
 
@@ -161,10 +130,19 @@ const exclude = (
 	state.excludedByReason[decision.reason] += 1;
 };
 
+const ephemeralDecisionOf = (
+	state: TruthStateType,
+	parsed: OracleParsedTruthRowType,
+	kind: 'declaration' | 'reference' | null,
+): ExclusionDecisionType | null =>
+	kind === 'declaration' && state.policy.excludeEphemeralDeclarations && isEphemeralDeclaration(state.usageById, parsed)
+		? {role: 'declaration', reason: 'ephemeral_declaration'}
+		: null;
+
 const exclusionFor = (
 	input: Readonly<{
 		state: TruthStateType;
-		parsed: ParsedRowType;
+		parsed: OracleParsedTruthRowType;
 		mapping: ObjectMappingType;
 		position: Readonly<{path: string; line: number; column: number}>;
 		kind: 'declaration' | 'reference' | null;
@@ -230,7 +208,7 @@ const applyTruthRow = (state: TruthStateType, row: readonly string[]): void => {
 	const position = positionOf(mapping, parsed.line, parsed.column);
 	const kind = declarationTypeOf(state.policy, parsed.usage, parsed.identifierType);
 	const supportedKind = state.policy.supportedTypes[typeKeyOf(parsed.identifierType)];
-	const decision = exclusionFor({state, parsed, mapping, position, kind, supportedKind});
+	const decision = ephemeralDecisionOf(state, parsed, kind) ?? exclusionFor({state, parsed, mapping, position, kind, supportedKind});
 
 	if (decision !== null) {
 		exclude(state, position, identityOf(parsed), decision);
@@ -332,7 +310,7 @@ export const readOracleTruth = (
 	}>,
 ): TruthFactsType => {
 	const state: TruthStateType = {
-		policy: typeof input.policy === 'string' ? oracleTruthPolicyOf(input.policy) : (input.policy ?? ORACLE_TRUTH_POLICY_V3),
+		policy: typeof input.policy === 'string' ? oracleTruthPolicyOf(input.policy) : (input.policy ?? ORACLE_TRUTH_POLICY_V4),
 		groups: new Map(),
 		mappings: input.mappings,
 		excluded: [],
@@ -344,6 +322,7 @@ export const readOracleTruth = (
 		malformedRows: 0,
 		outOfScopeObjectRows: 0,
 		ambiguousOverloadPositions: input.ambiguousOverloadPositions ?? new Set(),
+		usageById: usageContextIndex(input.rows),
 	};
 
 	for (const row of input.rows) {
@@ -428,7 +407,7 @@ export const compareFacts = (
 	actual: ReadonlyMap<string, CodeOccurrenceType>,
 	options: CompareOptionsType = {},
 ): ComparisonType => {
-	const policy = typeof options.policy === 'string' ? oracleTruthPolicyOf(options.policy) : (options.policy ?? ORACLE_TRUTH_POLICY_V3);
+	const policy = typeof options.policy === 'string' ? oracleTruthPolicyOf(options.policy) : (options.policy ?? ORACLE_TRUTH_POLICY_V4);
 	const truthKeys = new Set(truth.keys());
 	const actualKeys = new Set([...actual.entries()].filter(([, value]) => policy.supportedKinds.has(value.kind)).map(([key]) => key));
 	const matched = [...truthKeys].filter((key) => actualKeys.has(key)).length;

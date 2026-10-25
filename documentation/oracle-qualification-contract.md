@@ -1,9 +1,9 @@
 # Oracle O1 Qualification Contract
 
 **Contract:** `oracle-o1`
-**Version:** `1`
-**Contract hash:** `fb5928c65d334d52f4a8fb7146ebbd426f817e63a71cc6525bacb1b52a4b716e`
-**Truth policy:** `v3`
+**Version:** `2`
+**Contract hash:** `77c0f1c462a298ded547230e8e85d3bc36dbedb84999160273663d03e62b1913`
+**Truth policy:** `v4`
 **Status:** authoritative. This document and
 [`oracleQualificationContract.ts`](../src/core/qualification/oracle/oracleQualificationContract.ts)
 are the single release contract for Oracle O1 semantic production readiness.
@@ -20,10 +20,13 @@ additional, external rule: a `CALL` row whose site the adapter classifies as
 qualification. `qualify:oracle` could therefore not reproduce the published
 population.
 
-Contract `oracle-o1@1` removes that split. Truth normalization, every exclusion
-reason, ambiguity handling, and every threshold are one executable object.
-`qualify:oracle` runs it directly and produces every denominator in its report.
-No post-processing step is part of the gate.
+Contract `oracle-o1@2` removes that split. It also aligns truth with the
+publication surface: parameters and routine-local declarations are intentionally
+ephemeral and never persisted, so they are omitted with the counted reason
+`ephemeral_declaration` instead of being counted as recall failures. Truth
+normalization, every exclusion reason, ambiguity handling, and every threshold
+are one executable object. `qualify:oracle` runs it directly and produces every
+denominator in its report. No post-processing step is part of the gate.
 
 Agent usefulness and hosted-model cost are outside this contract.
 
@@ -31,11 +34,12 @@ Agent usefulness and hosted-model cost are outside this contract.
 
 | Policy / contract | Status | Use |
 |---|---|---|
-| `oracle-o1@1` with truth policy `v3` | **authoritative** | Every current production qualification |
+| `oracle-o1@2` with truth policy `v4` | **authoritative** | Every current production qualification |
+| truth policy `v3` | replay only | Contract `oracle-o1@1` evidence |
 | truth policy `v2` | replay only | Phase 8 evidence and historical comparisons |
 | truth policy `v1` | replay only | Phase 0 evidence and historical comparisons |
 
-`qualify:oracle` selects `v3` unless `--truth-policy` names a historical
+`qualify:oracle` selects `v4` unless `--truth-policy` names a historical
 policy. A historical policy can never satisfy the release gate on its own: it is
 not the contract, and its result is evidence about a past comparison.
 
@@ -122,6 +126,7 @@ Counts are reported per reason.
 | `declaration_initializer` | PL/Scope assignment in the same signature group at the exact key of an included declaration |
 | `duplicate_fact` | Repeated identical key in one signature group; the first row is kept |
 | `omitted_ambiguous_overload` | `CALL` row at the exact position of an emitted `ambiguous-overload` diagnostic |
+| `ephemeral_declaration` | Parameter or routine-local declaration that the publication surface intentionally never stores |
 
 The reason list is frozen in the code and the contract identity. Adding,
 removing, or reinterpreting a reason requires a contract version bump.
@@ -155,7 +160,7 @@ required to be equal: a diagnostic may describe a call that PL/Scope does not
 record, and that call then contributes no truth row.
 
 Retained Phase 6 evidence performed this removal outside the gate and reported
-1,420 omitted rows out of 188,297 raw CALL rows. Contract `oracle-o1@1` makes
+1,420 omitted rows out of 188,297 raw CALL rows. Contract `oracle-o1@2` makes
 the same rule executable and auditable. The historical artifact is not rewritten
 and remains historical evidence.
 
@@ -251,6 +256,7 @@ To replay historical evidence, name its policy explicitly:
 ```bash
 --truth-policy v1   # Phase 0
 --truth-policy v2   # Phase 8
+--truth-policy v3   # Contract oracle-o1@1
 ```
 
 ## 9. Verification

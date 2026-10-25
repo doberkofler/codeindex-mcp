@@ -234,7 +234,7 @@ describe('Oracle evidence bundle preflight', () => {
 		const report = await preflight(context);
 
 		expect(statusOf(report, 'run.contract')).toBe('mismatch');
-		expect(report.identities.find((identity) => identity.name === 'run.contract')?.expected).toContain('oracle-o1@1');
+		expect(report.identities.find((identity) => identity.name === 'run.contract')?.expected).toContain('oracle-o1@2');
 		expect(report.ok).toBe(false);
 	});
 

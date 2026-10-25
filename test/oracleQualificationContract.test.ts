@@ -5,6 +5,7 @@ import {
 	oracleGatesOf,
 	oracleQualificationContractIdentityOf,
 } from '../src/core/qualification/oracle/oracleQualificationContract.ts';
+import {DEPENDENCIES_SQL, IDENTIFIERS_SQL} from '../src/core/qualification/oracle/live/oracleLiveSql.ts';
 import {readOracleTruth} from '../src/core/qualification/oracle/oracleTruth.ts';
 import {ORACLE_TRUTH_EXCLUSION_REASONS, positionKeyOf, type OracleTruthExclusionReasonType} from '../src/core/qualification/oracle/oracleTruthExclusions.ts';
 import {
@@ -12,6 +13,7 @@ import {
 	ORACLE_TRUTH_POLICY_V1,
 	ORACLE_TRUTH_POLICY_V2,
 	ORACLE_TRUTH_POLICY_V3,
+	ORACLE_TRUTH_POLICY_V4,
 	oracleTruthPolicyOf,
 } from '../src/core/qualification/oracle/oracleTruthPolicy.ts';
 
@@ -27,6 +29,8 @@ const truthRow = (
 		signature?: string;
 		objectType?: string;
 		objectName?: string;
+		usageId?: number;
+		contextId?: number;
 	}>,
 ): readonly string[] => [
 	input.objectName ?? 'demo',
@@ -35,16 +39,16 @@ const truthRow = (
 	input.signature ?? 'demo',
 	input.type,
 	input.usage,
-	'',
+	String(input.usageId ?? 0),
 	String(input.line),
 	String(input.column),
-	'',
+	String(input.contextId ?? 0),
 ];
 
 const mappingsOf = (lines: readonly string[]): ReadonlyMap<string, ObjectMappingType> => new Map([[objectKey('PACKAGE', 'demo'), mappingOf(lines)]]);
 
 const emptyByReason = (): Readonly<Record<OracleTruthExclusionReasonType, number>> =>
-	readOracleTruth({rows: [], mappings: new Map(), policy: ORACLE_TRUTH_POLICY_V3}).excludedByReason;
+	readOracleTruth({rows: [], mappings: new Map(), policy: ORACLE_TRUTH_POLICY_V4}).excludedByReason;
 
 describe('Oracle O1 qualification contract identity', () => {
 	it('freezes exactly one authoritative contract', () => {
@@ -52,9 +56,9 @@ describe('Oracle O1 qualification contract identity', () => {
 
 		expect(identity).toStrictEqual({
 			id: 'oracle-o1',
-			version: '1',
-			hash: 'fb5928c65d334d52f4a8fb7146ebbd426f817e63a71cc6525bacb1b52a4b716e',
-			truthPolicy: 'v3',
+			version: '2',
+			hash: '77c0f1c462a298ded547230e8e85d3bc36dbedb84999160273663d03e62b1913',
+			truthPolicy: 'v4',
 			thresholds: {declarations: 0.995, references: 0.995, dependencies: 0.995, precision: 1},
 			emptyTruth: 'fail',
 			sampleLimit: 20,
@@ -63,12 +67,23 @@ describe('Oracle O1 qualification contract identity', () => {
 			ambiguity: {diagnosticCode: 9105, usage: 'CALL', positionMatch: 'exact path/line/column'},
 			unmappedObject: 'abort',
 		});
-		expect(oracleTruthPolicyOf()).toBe(ORACLE_TRUTH_POLICY_V3);
+		expect(oracleTruthPolicyOf()).toBe(ORACLE_TRUTH_POLICY_V4);
+		expect(oracleTruthPolicyOf('v4')).toBe(ORACLE_TRUTH_POLICY_V4);
 		expect(oracleTruthPolicyOf('v3')).toBe(ORACLE_TRUTH_POLICY_V3);
 		expect(oracleTruthPolicyOf('v2')).toBe(ORACLE_TRUTH_POLICY_V2);
 		expect(oracleTruthPolicyOf('v1')).toBe(ORACLE_TRUTH_POLICY_V1);
-		expect(ORACLE_TRUTH_POLICY_V3.omitAmbiguousOverloadInCalls).toBe(true);
+		expect(ORACLE_TRUTH_POLICY_V4.omitAmbiguousOverloadInCalls).toBe(true);
+		expect(ORACLE_TRUTH_POLICY_V4.excludeEphemeralDeclarations).toBe(true);
+		expect(ORACLE_TRUTH_POLICY_V3.excludeEphemeralDeclarations).toBe(false);
 		expect(ORACLE_TRUTH_POLICY_V2.omitAmbiguousOverloadInCalls).toBe(false);
+	});
+
+	it('exports every contract object type, including procedures', () => {
+		for (const sql of [IDENTIFIERS_SQL, DEPENDENCIES_SQL]) {
+			for (const type of ORACLE_QUALIFICATION_CONTRACT.objectTypes) {
+				expect(sql).toContain(`'${type}'`);
+			}
+		}
 	});
 
 	it('declares every runtime exclusion reason', () => {
@@ -174,6 +189,7 @@ describe('Oracle O1 exclusion audit', () => {
 			declaration_initializer: 1,
 			duplicate_fact: 3,
 			omitted_ambiguous_overload: 1,
+			ephemeral_declaration: 0,
 		});
 		expect(facts.malformedRows).toBe(1);
 		expect(facts.outOfScopeObjectRows).toBe(1);
@@ -183,6 +199,38 @@ describe('Oracle O1 exclusion audit', () => {
 		expect(facts.definitions.size + facts.references.size + Object.values(facts.excludedByReason).reduce((total, count) => total + count, 0)).toBe(
 			facts.identifierRows,
 		);
+	});
+});
+
+describe('Oracle O1 ephemeral declarations', () => {
+	it('omits parameters and routine-local declarations under the publication policy', () => {
+		const lines = ['demo', 'run', 'p_value', 'l_value', 'g_value', 'inner'];
+		const facts = readOracleTruth({
+			rows: [
+				truthRow({name: 'demo', type: 'PACKAGE', usage: 'DECLARATION', line: 1, column: 1, signature: 's1', usageId: 1, contextId: 0}),
+				truthRow({name: 'run', type: 'PROCEDURE', usage: 'DECLARATION', line: 2, column: 1, signature: 's2', usageId: 2, contextId: 1}),
+				truthRow({name: 'p_value', type: 'FORMAL IN', usage: 'DECLARATION', line: 3, column: 1, signature: 's3', usageId: 3, contextId: 2}),
+				truthRow({name: 'l_value', type: 'VARIABLE', usage: 'DECLARATION', line: 4, column: 1, signature: 's4', usageId: 4, contextId: 2}),
+				truthRow({name: 'g_value', type: 'VARIABLE', usage: 'DECLARATION', line: 5, column: 1, signature: 's5', usageId: 5, contextId: 1}),
+				truthRow({name: 'inner', type: 'PROCEDURE', usage: 'DECLARATION', line: 6, column: 1, signature: 's6', usageId: 6, contextId: 2}),
+			],
+			mappings: mappingsOf(lines),
+			policy: ORACLE_TRUTH_POLICY_V4,
+		});
+
+		expect([...facts.definitions.values()].map((fact) => fact.name).sort()).toStrictEqual(['demo', 'g_value', 'inner', 'run']);
+		expect(facts.excludedByReason.ephemeral_declaration).toBe(2);
+	});
+
+	it('keeps ephemeral rows under the historical policy', () => {
+		const facts = readOracleTruth({
+			rows: [truthRow({name: 'p_value', type: 'FORMAL IN', usage: 'DECLARATION', line: 1, column: 1, usageId: 1, contextId: 0})],
+			mappings: mappingsOf(['p_value']),
+			policy: ORACLE_TRUTH_POLICY_V3,
+		});
+
+		expect(facts.definitions.size).toBe(1);
+		expect(facts.excludedByReason.ephemeral_declaration).toBe(0);
 	});
 });
 

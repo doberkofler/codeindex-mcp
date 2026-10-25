@@ -1,12 +1,13 @@
 # Oracle SQL and PL/SQL Adapter
 
 **Status:** static O1 adapter implemented and bound to the structural parser
-(`structural@5`). The semantic release gate is contract `oracle-o1@1`
+(`structural@5`). The semantic release gate is contract `oracle-o1@2`
 ([Oracle O1 qualification contract](./oracle-qualification-contract.md)); the
 qualification command executes it directly. The 2026-10-19 Oracle-backed run
-predates `structural@5` and truth policy `v3`, so it is historical evidence, not
-the current verdict. Requalification under the contract and production
-performance baselines remain open in the O1 readiness package.
+predates `structural@5` and truth policy `v4`, so it is historical evidence, not
+the current verdict. A controlled 10-case corpus passes under `oracle-o1@2`
+([controlled evidence](../benchmark/oracle-controlled/README.md)); a replay
+against a retained production-scale bundle remains open in O1 readiness.
 
 ## 1. Scope
 
@@ -249,14 +250,15 @@ pnpm grammar:oracle:generate
 
 ### 7.1 Current contract
 
-The authoritative semantic gate is contract `oracle-o1@1` with truth policy
-`v3`; see the
+The authoritative semantic gate is contract `oracle-o1@2` with truth policy
+`v4`; see the
 [Oracle O1 qualification contract](./oracle-qualification-contract.md). The
 contract owns the truth population, supported identifier types, usage mapping,
 every exclusion reason, the ambiguity rule, the thresholds, empty-truth
 behavior, the sample bound, and the identities a report must carry.
 `qualify:oracle` executes it directly; no post-processing step is part of the
-gate.
+gate. Policy `v4` omits parameters and routine-local declarations as
+`ephemeral_declaration`, matching the publication surface.
 
 Each report records `contract.id`, `contract.version`, and `contract.hash`, the
 parser identity, the corpus source and configuration hashes, the truth-export
@@ -266,12 +268,14 @@ reconstructed from the report alone.
 The latest retained aggregate reference evidence is Phase 6, dated 2026-10-21:
 186,742 matched references from 186,877 policy-visible truth references
 (99.9278% recall) and 100% precision. It was produced under policy `v2` with an
-external ambiguity-removal step. Contract `v3` executes that rule and reports
-it as `omitted_ambiguous_overload`. The Phase 6 artifact remains historical
-evidence; no current PASS is claimed until the contract is replayed against a
-retained bundle. That replay is tracked by ORA-004. The bundle itself is
-**NOT READY**: the external evidence root is absent, exact recovery failed, and
-a replacement corpus is not frozen
+external ambiguity-removal step. Contract `oracle-o1@2` executes that rule and
+reports it as `omitted_ambiguous_overload`. The Phase 6 artifact remains
+historical evidence. The controlled 10-case corpus passes under `oracle-o1@2`
+with 41/41 declarations, 35/35 references, and 7/7 dependencies
+([controlled evidence](../benchmark/oracle-controlled/README.md)); no
+production-scale PASS is claimed. The production bundle remains not ready: the
+external evidence root is absent, exact recovery failed, and a production
+replacement corpus is not frozen
 ([`oracle-evidence-bundle.md`](./oracle-evidence-bundle.md)).
 
 Run the comparison without connecting to Oracle:
@@ -283,9 +287,9 @@ pnpm qualify:oracle
 The command reads `CODE_INDEX_ROOT`, `CODE_INDEX_PROJECT_FILE`,
 `CODE_INDEX_ORACLE_IDENTIFIERS`, and `CODE_INDEX_ORACLE_DEPENDENCIES`, or accepts
 the corresponding `--root`, `--project-file`, `--identifiers`, and
-`--dependencies` options. Qualification uses truth policy `v3` by default. Pass
-`--truth-policy v1` or `--truth-policy v2` only to replay retained historical
-evidence; those policies are not the release contract. Pass
+`--dependencies` options. Qualification uses truth policy `v4` by default. Pass
+`--truth-policy v1`, `--truth-policy v2`, or `--truth-policy v3` only to replay
+retained historical evidence; those policies are not the release contract. Pass
 `--units <plan.json>` to reuse the explicit snapshot object mapping from an
 approved live plan; this is required when a source filename differs from the
 PL/Scope object name. It exits non-zero when any gate fails.

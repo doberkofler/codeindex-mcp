@@ -107,7 +107,8 @@ const configOf = (rootDir: string, manifestPath: string, outputDir: string, proj
 
 const snapshotConfig = (plan: LivePlanType): ConfigType => {
 	const rootDir = realpathSync(plan.snapshot.dir);
-	const projectFilePath = path.join(rootDir, plan.snapshot.projectFile);
+	const projectFilePath = path.join(rootDir, plan.project.projectFile);
+	const projectName = 'qualification';
 
 	return {
 		projectName: plan.project.name,
@@ -115,7 +116,7 @@ const snapshotConfig = (plan: LivePlanType): ConfigType => {
 		extractorId: 'oracle',
 		extractorOptions: {},
 		projectFilePath,
-		projects: [{name: 'qualification', projectFilePath}],
+		projects: [{name: projectName, projectFilePath}],
 		storageDirectory: plan.output.dir,
 		databasePath: plan.output.databasePath,
 		analyticsEnabled: false,

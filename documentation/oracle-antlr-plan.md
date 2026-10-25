@@ -248,7 +248,7 @@ the qualification command.
 
 ### Phase 6 — Qualification policy v2
 
-**Status:** implemented and superseded by contract `oracle-o1@1` (truth policy
+**Status:** implemented and superseded by contract `oracle-o1@2` (truth policy
 `v3`). `v1` and `v2` remain selectable for historical comparison only.
 Unsupported PL/Scope reference types are filtered from truth and actual facts,
 supported `DEFINITION` rows are declarations, iterators map to variables,

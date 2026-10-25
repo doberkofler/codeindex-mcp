@@ -1,0 +1,742 @@
+{
+	"extractor": "oracle",
+	"generationId": "81a3da01-ea88-46c6-9557-8e7e2d220932",
+	"parser": {
+		"id": "structural",
+		"revision": "structural@5;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd",
+		"compilerVersion": "oracle19c;parser@structural;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd"
+	},
+	"contract": {
+		"id": "oracle-o1",
+		"version": "2",
+		"hash": "77c0f1c462a298ded547230e8e85d3bc36dbedb84999160273663d03e62b1913",
+		"truthPolicy": "v4",
+		"thresholds": {
+			"declarations": 0.995,
+			"references": 0.995,
+			"dependencies": 0.995,
+			"precision": 1
+		},
+		"emptyTruth": "fail",
+		"sampleLimit": 20,
+		"objectTypes": ["FUNCTION", "PACKAGE", "PACKAGE BODY", "PROCEDURE"],
+		"exclusionReasons": [
+			"unsupported_identifier_type",
+			"unmapped_usage",
+			"invalid_declaration",
+			"package_reference",
+			"missing_group_declaration",
+			"declaration_initializer",
+			"duplicate_fact",
+			"omitted_ambiguous_overload",
+			"ephemeral_declaration"
+		],
+		"ambiguity": {
+			"diagnosticCode": 9105,
+			"usage": "CALL",
+			"positionMatch": "exact path/line/column"
+		},
+		"unmappedObject": "abort"
+	},
+	"corpus": {
+		"files": 10,
+		"objects": 10,
+		"sourceHash": "5f99d15512b790bb692f2e5687728b6f7c388c06a9350d3a155110a6a1c80531",
+		"configHash": "e482b167d1d7b9617e51a7174686901570608c57ebf2bc850c863c40986f2556"
+	},
+	"policy": {
+		"version": "v4",
+		"supportedTypes": [
+			"ASSOCIATIVE ARRAY",
+			"CONSTANT",
+			"CURSOR",
+			"EXCEPTION",
+			"FORMAL IN",
+			"FORMAL IN OUT",
+			"FORMAL OUT",
+			"FUNCTION",
+			"INDEX TABLE",
+			"ITERATOR",
+			"NESTED TABLE",
+			"PACKAGE",
+			"PROCEDURE",
+			"RECORD",
+			"RECORD FIELD",
+			"RECORD ITERATOR",
+			"REFCURSOR",
+			"SUBTYPE",
+			"VARIABLE",
+			"VARRAY"
+		],
+		"supportedKinds": [
+			"collection_type",
+			"constant",
+			"cursor",
+			"exception",
+			"field",
+			"function",
+			"package",
+			"parameter",
+			"procedure",
+			"record_type",
+			"ref_cursor_type",
+			"subtype",
+			"variable"
+		]
+	},
+	"truth": {
+		"rows": 234,
+		"invalidDeclarationRows": 0,
+		"excludedPackageReferences": 12,
+		"excludedByReason": {
+			"unsupported_identifier_type": 47,
+			"unmapped_usage": 0,
+			"invalid_declaration": 0,
+			"package_reference": 12,
+			"missing_group_declaration": 60,
+			"declaration_initializer": 2,
+			"duplicate_fact": 4,
+			"omitted_ambiguous_overload": 0,
+			"ephemeral_declaration": 33
+		},
+		"malformedRows": 0,
+		"outOfScopeObjectRows": 0,
+		"includedDeclarations": 41,
+		"includedReferences": 35,
+		"excludedTotal": 158,
+		"identifiersSha256": "fb729780033fe5689f6ff04596c70863de61d1079a628a9a0beaf72a2da52493",
+		"dependenciesSha256": "45d981fa1586e3228b01855fa1f6bd71b067b38b2d28f562bcb2572ad397fa3c",
+		"ambiguousOverloadDiagnostics": 0
+	},
+	"declarations": {
+		"truth": 41,
+		"actual": 41,
+		"matched": 41,
+		"missing": 0,
+		"extra": 0,
+		"ignoredExtra": 0,
+		"recall": 1,
+		"precision": 1,
+		"samplesMissing": [],
+		"samplesExtra": [],
+		"extraClasses": {
+			"omitted_by_policy": {
+				"count": 0,
+				"samples": []
+			},
+			"location_mismatch": {
+				"count": 0,
+				"samples": []
+			},
+			"outside_plscope": {
+				"count": 0,
+				"samples": []
+			},
+			"false_positive": {
+				"count": 0,
+				"samples": []
+			}
+		}
+	},
+	"references": {
+		"truth": 35,
+		"actual": 35,
+		"matched": 35,
+		"missing": 0,
+		"extra": 0,
+		"ignoredExtra": 0,
+		"recall": 1,
+		"precision": 1,
+		"samplesMissing": [],
+		"samplesExtra": [],
+		"extraClasses": {
+			"omitted_by_policy": {
+				"count": 0,
+				"samples": []
+			},
+			"location_mismatch": {
+				"count": 0,
+				"samples": []
+			},
+			"outside_plscope": {
+				"count": 0,
+				"samples": []
+			},
+			"false_positive": {
+				"count": 0,
+				"samples": []
+			}
+		}
+	},
+	"declarationStrata": {
+		"collection_type": {
+			"truth": 2,
+			"actual": 2,
+			"matched": 2,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"constant": {
+			"truth": 2,
+			"actual": 2,
+			"matched": 2,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"cursor": {
+			"truth": 1,
+			"actual": 1,
+			"matched": 1,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"exception": {
+			"truth": 1,
+			"actual": 1,
+			"matched": 1,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"field": {
+			"truth": 3,
+			"actual": 3,
+			"matched": 3,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"function": {
+			"truth": 9,
+			"actual": 9,
+			"matched": 9,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"package": {
+			"truth": 8,
+			"actual": 8,
+			"matched": 8,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"procedure": {
+			"truth": 11,
+			"actual": 11,
+			"matched": 11,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"record_type": {
+			"truth": 1,
+			"actual": 1,
+			"matched": 1,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"ref_cursor_type": {
+			"truth": 1,
+			"actual": 1,
+			"matched": 1,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"subtype": {
+			"truth": 1,
+			"actual": 1,
+			"matched": 1,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"variable": {
+			"truth": 1,
+			"actual": 1,
+			"matched": 1,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		}
+	},
+	"referenceStrata": {
+		"procedural": {
+			"truth": 15,
+			"actual": 15,
+			"matched": 15,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"static_sql": {
+			"truth": 0,
+			"actual": 0,
+			"matched": 0,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"member_chain": {
+			"truth": 20,
+			"actual": 20,
+			"matched": 20,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"iterator": {
+			"truth": 0,
+			"actual": 0,
+			"matched": 0,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"pragma": {
+			"truth": 0,
+			"actual": 0,
+			"matched": 0,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		},
+		"type_anchor": {
+			"truth": 0,
+			"actual": 0,
+			"matched": 0,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0,
+					"samples": []
+				},
+				"location_mismatch": {
+					"count": 0,
+					"samples": []
+				},
+				"outside_plscope": {
+					"count": 0,
+					"samples": []
+				},
+				"false_positive": {
+					"count": 0,
+					"samples": []
+				}
+			}
+		}
+	},
+	"dependencies": {
+		"truth": 7,
+		"actual": 7,
+		"matched": 7,
+		"missing": 0,
+		"extra": 0,
+		"recall": 1,
+		"precision": 1
+	},
+	"gates": {
+		"declarations": {
+			"recall": true,
+			"precision": true,
+			"ok": true
+		},
+		"references": {
+			"recall": true,
+			"precision": true,
+			"ok": true
+		},
+		"dependencies": {
+			"recall": true,
+			"precision": true,
+			"ok": true
+		},
+		"ok": true
+	}
+}

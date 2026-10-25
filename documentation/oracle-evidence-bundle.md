@@ -2,22 +2,31 @@
 
 ## 1. Status
 
-**NOT READY.** No replayable bundle exists at the documented external root.
-Exact recovery failed on 2026-10-25 (section 4) and no replacement corpus has
-been frozen. Contract [`oracle-o1@1`](./oracle-qualification-contract.md) is
-authoritative and executable, but its evidence cannot be replayed until a
-bundle passes preflight. No current Oracle semantic PASS is claimed.
+**READY for the controlled corpus.** `benchmark/oracle-controlled/` binds a
+replayable 10-case synthetic Oracle corpus to contract
+[`oracle-o1@2`](./oracle-qualification-contract.md) and passes preflight and
+qualification. It proves the semantic contract end to end; it is not a
+production-scale population claim.
+
+**NOT READY for the historical Phase 0 corpus.** Exact recovery failed on
+2026-10-25 (section 4). Its source snapshot and truth exports remain unavailable,
+and no production replacement corpus has been frozen. No production-scale
+Oracle semantic PASS is claimed.
 
 ## 2. Bundle definition
 
 A bundle is one external directory plus the identity files that stay in Git.
 
+The controlled bundle is `benchmark/oracle-controlled/`; the historical Phase 0
+identity remains `benchmark/oracle-phase0/`.
+
 | Component | Location | Committed |
 | --- | --- | --- |
-| Bundle descriptor | `benchmark/oracle-phase0/corpus.json` | yes |
-| Source checksums | `benchmark/oracle-phase0/corpus.sha256` | yes |
-| Unit map | `benchmark/oracle-phase0/units.json` | yes |
-| Artifact checksums | `benchmark/oracle-phase0/plscope.sha256` | yes |
+| Bundle descriptor | `benchmark/oracle-controlled/corpus.json` | yes |
+| Source checksums | `benchmark/oracle-controlled/corpus.sha256` | yes |
+| Unit map | `benchmark/oracle-controlled/units.json` | yes |
+| Artifact checksums | `benchmark/oracle-controlled/plscope.sha256` | yes |
+| Qualification report | `benchmark/oracle-controlled/qualification.json` | yes |
 | Source snapshot | `<root>/workspace/` | no |
 | Recompile plan | `<root>/plan.json` | no |
 | Run metadata | `<root>/run.json` | no |
@@ -41,13 +50,13 @@ contract, or no contract, is not a contract run.
 ```bash
 pnpm build
 node dist/cli.mjs oracle-preflight \
-  --bundle benchmark/oracle-phase0/corpus.json \
+  --bundle benchmark/oracle-controlled/corpus.json \
   --output /tmp/oracle-preflight.json
 ```
 
 | Option | Meaning |
 | --- | --- |
-| `--bundle <path>` | Descriptor to verify; defaults to `benchmark/oracle-phase0/corpus.json` |
+| `--bundle <path>` | Descriptor to verify; defaults to `benchmark/oracle-controlled/corpus.json` |
 | `--evidence-root <path>` | Overrides the resolved external root |
 | `--output <path>` | Writes the full JSON report |
 | `--json` | Emits the report on stdout |
@@ -113,7 +122,16 @@ still lack a frozen source baseline.
 
 ## 5. Replacement route
 
-Blocked prerequisites, in order:
+The controlled substitute was chosen instead of recompiling the deployed
+application schema: `test/fixtures/oracle-qualification-corpus/` supplies ten
+synthetic cases, compiled only as `CIQ_`-prefixed objects in an isolated
+namespace. It covers package specification/body mapping, types, parameters,
+constants, cursors, records, fields, subtypes, exceptions, collections,
+standalone routines, overloads, nested scopes, dependencies, and counted
+exclusions. The resulting bundle passes `oracle-o1@2` with 41/41 declarations,
+35/35 references, and 7/7 dependencies.
+
+The production replacement route remains blocked, in order:
 
 1. Read access to the SVN repository and revision `78950` of
    `^/ljs_app/trunk/ljs_db/LJS_DB`, or an approved substitute corpus with its own
@@ -126,7 +144,7 @@ Blocked prerequisites, in order:
 
 A replacement freezes: repository revision, manifest, normalized source hashes,
 Oracle version, NLS and schema settings, object inventory, contract version, and
-parser identity. It reuses contract `oracle-o1@1`; the contract hash does not
+parser identity. It reuses contract `oracle-o1@2`; the contract hash does not
 change because the corpus version is report data, not contract semantics. The
 replacement is a new descriptor and a new external root — not a mutation of
 `benchmark/oracle-phase0/`.
@@ -150,7 +168,7 @@ fails preflight is not a valid backup.
   descriptor and external root.
 - Exercise the approved PL/Scope recompile window only after the source baseline
   is frozen.
-- Replay contract `oracle-o1@1` against the replacement bundle and record the
-  verdict; that replay belongs to ORA-004.
-- Wire `oracle-preflight` as a mandatory step in the Oracle verification
-  workflow (ORA-003).
+- Replay contract `oracle-o1@2` against the production replacement bundle and
+  record the verdict; that replay belongs to ORA-004.
+- Verify with `oracle-preflight`; wire it as a mandatory step in the Oracle
+  verification workflow (ORA-003).

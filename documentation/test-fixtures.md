@@ -68,6 +68,7 @@ indexer, parser, or publication pipeline as its expected result.
 | F15 | `test/fixtures/oracle-publication-project/` | Oracle publication forms, pairing, diagnostics, and usage bits | `test/oraclePublicationSurface.test.ts`, `test/publicationReport.test.ts` |
 | F16 | `test/fixtures/oracle-qualification-v2/` | Golden facts for constructs PL/Scope cannot confirm | `test/oracleGoldenFacts.test.ts` |
 | F17 | `test/fixtures/oracle-grammar-gaps/` | Known grammar gaps report a diagnostic instead of succeeding silently | `test/oracleGrammarGaps.test.ts` |
+| F22 | `test/fixtures/oracle-qualification-corpus/` | Controlled Oracle O1 semantic corpus and replayable evidence | `benchmark/oracle-controlled/corpus.json`, `test/oracleQualificationContract.test.ts` |
 
 ## 4. Entries
 
@@ -671,6 +672,21 @@ test/fixtures/typescript-require/src/requirer.ts
 test/fixtures/typescript-require/tsconfig.json
 ```
 
+### F22 `test/fixtures/oracle-qualification-corpus/`
+
+| Field | Value |
+|---|---|
+| Claim | Ten synthetic Oracle PL/SQL cases exercise every supported O1 declaration class, usage mapping, internal dependency, and live exclusion under contract `oracle-o1@2`. |
+| Constructs | Package specifications and bodies; public/private routines and variables; parameters; constants; cursors; records and fields; subtypes; exceptions; associative and varray collections; ref cursors; overloads; named arguments; nested routines and block scopes; standalone function/procedure; cross-package calls; ambiguity, unsupported types, and ephemeral declarations. |
+| Failure classes | Missing `PROCEDURE` truth, truth-column misalignment, ephemeral declarations entering recall, missing internal package dependency, ambiguous-overload omission, unsupported-type classification, and any gate below its threshold. |
+| Authority | Oracle 19c PL/Scope exports from `CIQ_`-prefixed objects, with truth policy `v4`. The checked-in report and bundle are the authority; expected counts are never regenerated from the index. |
+| Expected result | 41/41 declarations, 35/35 references, and 7/7 dependencies; 100% precision in each section; contract `oracle-o1@2`, truth policy `v4`. |
+| Consuming tests | `test/oracleQualificationContract.test.ts`; replay via `benchmark/oracle-controlled/`. |
+| Mutation policy | Ground truth. A source change requires a new external bundle, report, manifests, and approval hash; never mutate an existing bundle in place. |
+| Known limitations | Synthetic and small. It does not establish production-corpus recall or representativeness; the historical Phase 0 corpus and ORA-004 own that claim. |
+| Update procedure | Change source, recompile only `CIQ_` objects with PL/SCOPE, regenerate the plan and approval, rerun apply, refresh `benchmark/oracle-controlled/`, run preflight, then `pnpm verify`. |
+| Files (12) | See the fixture. |
+
 ## 5. Orphan register
 
 No fixture directory is orphaned: all twenty-one directories are consumed by at least
@@ -714,7 +730,8 @@ Per-directory counts:
 | F19 | `test/fixtures/typescript-files/` | 5 |
 | F20 | `test/fixtures/typescript-invalid/` | 3 |
 | F21 | `test/fixtures/typescript-require/` | 4 |
-| **Total** | **21 directories** | **222** |
+| F22 | `test/fixtures/oracle-qualification-corpus/` | 12 |
+| **Total** | **22 directories** | **234** |
 
 Every fixture path appears in exactly one manifest. Verify the set and the
 uniqueness:

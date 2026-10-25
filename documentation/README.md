@@ -9,6 +9,7 @@ Operational and design documentation for CodeIndex MCP.
 | [Oracle adapter](./oracle-adapter.md) | Static Oracle 19c SQL/PL/SQL extraction, manifest configuration, symbols, references, and package dependencies |
 | [Oracle O1 qualification contract](./oracle-qualification-contract.md) | Authoritative truth population, exclusions, ambiguity rule, gates, report identity, and change control |
 | [Oracle O1 evidence bundle](./oracle-evidence-bundle.md) | Bundle contents, preflight, recovery record, retention, and replacement route |
+| [Oracle controlled evidence](../benchmark/oracle-controlled/README.md) | Ten-case controlled PASS under `oracle-o1@2`, with replayable bundle and scope limits |
 | [ORDS and cross-language resolution](./ords-cross-language.md) | Planned HTTP, ORDS, and PL/SQL route evidence and cross-language graph construction |
 | [Roadmap](./roadmap.md) | Ordered delivery phases, acceptance gates, stop rules, and open decisions |
 | [Maintainer guide](./maintainer-guide.md) | Runtime contracts, verification, performance, security, and release discipline |
