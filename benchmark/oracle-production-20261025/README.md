@@ -71,6 +71,16 @@ The run emitted 931 ambiguity diagnostics. Declarations lose 19 `variable` and
 1 `field`; references lose 1,269 `member_chain`, 157 `procedural`, 49
 `static_sql`, 21 `iterator`, and 7 `pragma` rows.
 
+## Performance
+
+The production `structural@5` performance baseline for this frozen corpus is
+retained in [`benchmark/oracle-performance`](../oracle-performance/README.md).
+It measures the built CLI and worker path over one warmup and five measured
+repetitions and records cold build, warm reuse, one-file edit-to-fresh, full
+rebuild, queries, peak RSS, CPU, storage, and bundle size. Thresholds were
+declared before measurement. This semantic result is not conditioned on the
+performance verdict.
+
 ## Defects for follow-up
 
 1. **Reference precision.** 507 false positives are reads of package-body

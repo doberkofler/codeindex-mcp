@@ -19,6 +19,8 @@ export const addBenchmarkOptions = (command: Command): Command =>
 		.option('--scenarios <list>', 'comma-separated: cold, warm, rebuild, edit, deep, queries')
 		.option('--iterations <n>', 'query iterations', '20')
 		.option('--edit-rounds <n>', 'one-file edits measured', '5')
+		.option('--edit-target <path>', 'workspace-relative source file changed by edit-to-fresh')
+		.option('--disposable', 'acknowledge that --root, the database, and edited source are disposable')
 		.option('--max-depth <n>', 'deep cursor maximum offset', '10000')
 		.option('--page-limit <n>', 'deep cursor page size', '200')
 		.option('--rebuild', 'alias for the warm rebuild scenario')
@@ -77,6 +79,8 @@ export type BenchmarkOptionValuesType = Readonly<{
 	scenarios?: string | undefined;
 	iterations: string;
 	editRounds: string;
+	editTarget?: string | undefined;
+	disposable: boolean;
 	maxDepth: string;
 	pageLimit: string;
 	rebuild: boolean;
@@ -129,6 +133,7 @@ export type BenchmarkOptionsType = Readonly<{
 	scenarios: readonly BenchmarkScenarioNameType[];
 	iterations: number;
 	editRounds: number;
+	editTarget: string | null;
 	maxDepth: number;
 	pageLimit: number;
 }>;
@@ -155,18 +160,57 @@ const numericOptions = (values: BenchmarkOptionValuesType): Readonly<{iterations
 	return options;
 };
 
+const parseEditTarget = (value: string | undefined): string | null => {
+	if (value === undefined) {
+		return null;
+	}
+
+	const normalized = path.posix.normalize(value.replaceAll('\\', '/'));
+
+	if (normalized === '.' || normalized === '..' || normalized.startsWith('../') || path.posix.isAbsolute(normalized) || /^[A-Za-z]:/u.test(normalized)) {
+		throw new Error('--edit-target must be a workspace-relative source path');
+	}
+
+	return normalized;
+};
+
+const validateEditScenario = (
+	profile: BenchmarkProfileType | null,
+	scenarios: readonly BenchmarkScenarioNameType[],
+	values: BenchmarkOptionValuesType,
+): void => {
+	if (profile !== null || !scenarios.includes('edit_to_fresh')) {
+		return;
+	}
+
+	if (values.root === undefined) {
+		throw new Error('edit-to-fresh requires a generated corpus or --root');
+	}
+
+	if (values.editTarget === undefined) {
+		throw new Error('edit-to-fresh with --root requires --edit-target');
+	}
+
+	if (!values.disposable) {
+		throw new Error('edit-to-fresh mutates its workspace; pass --disposable only for a disposable --root copy');
+	}
+};
+
+const validateDatabase = (scenarios: readonly BenchmarkScenarioNameType[], values: BenchmarkOptionValuesType): void => {
+	const requiresDisposableDatabase = scenarios.includes('cold_build') || scenarios.includes('warm_rebuild');
+
+	if (values.database !== undefined && requiresDisposableDatabase && !values.disposable) {
+		throw new Error('cold and rebuild scenarios require a disposable database; omit --database or pass --disposable');
+	}
+};
+
 const validateScenarios = (profile: BenchmarkProfileType | null, scenarios: readonly BenchmarkScenarioNameType[], values: BenchmarkOptionValuesType): void => {
 	if (profile === null && values.workspace !== undefined) {
 		throw new Error('--workspace requires --profile');
 	}
 
-	if (profile === null && scenarios.includes('edit_to_fresh')) {
-		throw new Error('edit-to-fresh requires a generated corpus; pass --profile');
-	}
-
-	if (values.database !== undefined && (scenarios.includes('cold_build') || scenarios.includes('warm_rebuild'))) {
-		throw new Error('cold and rebuild scenarios require a disposable database; omit --database');
-	}
+	validateEditScenario(profile, scenarios, values);
+	validateDatabase(scenarios, values);
 
 	if (values.reference !== undefined && values.baseline === undefined) {
 		throw new Error('--reference requires --baseline');
@@ -189,5 +233,5 @@ export const parseBenchmarkOptions = (values: BenchmarkOptionValuesType): Benchm
 	const numbers = numericOptions(values);
 	validateScenarios(profile, scenarios, values);
 
-	return {profile, scenarios, ...numbers};
+	return {profile, scenarios, editTarget: parseEditTarget(values.editTarget), ...numbers};
 };

@@ -125,6 +125,7 @@ export type BenchmarkReportInputType = Readonly<{
 	readonly scenarios?: readonly BenchmarkScenarioNameType[];
 	readonly profile?: BenchmarkProfileType | null;
 	readonly editRounds?: number;
+	readonly editTarget?: string | null;
 	readonly maxDepth?: number;
 	readonly pageLimit?: number;
 	readonly workerEntry?: string | undefined;
@@ -163,8 +164,19 @@ const runOptionalScenarios = async (
 	}
 
 	if (selected.has('edit_to_fresh')) {
+		const editTarget = input.editTarget ?? null;
+
 		results.push(
-			await phaseOf('edit_to_fresh', runEditScenario({config: input.config, rounds: input.editRounds ?? 5, workerEntry, onProgress: input.onProgress})),
+			await phaseOf(
+				'edit_to_fresh',
+				runEditScenario({
+					config: input.config,
+					rounds: input.editRounds ?? 5,
+					...(editTarget === null ? {} : {targetPath: editTarget}),
+					workerEntry,
+					onProgress: input.onProgress,
+				}),
+			),
 		);
 	}
 

@@ -375,6 +375,32 @@ workspaces and databases are removed after the report is written unless
 `--keep-workspace` is supplied. Operational results are never pooled with agent
 task latency.
 
+### 7.5 Oracle production performance
+
+The Oracle `structural@5` production baseline is measured by a dedicated harness
+rather than by direct parser calls:
+
+```bash
+pnpm benchmark:oracle:production
+```
+
+The harness verifies the frozen evidence bundle without a database connection,
+copies the frozen workspace for every repetition, and drives the built
+`dist/cli.mjs` benchmark command. Cold build, warm reuse, one-file
+edit-to-fresh, full rebuild, representative queries, peak RSS, CPU, database
+size, and bundle size are measured through the production worker path. One
+warmup is discarded; five measured repetitions supply the median, p95, maximum,
+and coefficient of variation.
+
+`benchmark/oracle-performance/thresholds.json` declares absolute warning and
+failure thresholds before measurement. `summary.json` retains the bounded
+aggregate, samples, identity hashes, and every gate result. Raw reports, source
+copies, and databases stay in the external evidence root selected by
+`CODEINDEX_EVIDENCE_ROOT`; they are never committed. A failed gate exits
+non-zero but still writes the summary. Do not revise a declared threshold after
+inspecting results. Edit-to-fresh mutates only the disposable copy, never a
+checkout.
+
 ## 8. Analytics and privacy
 
 Analytics are local, versioned, bounded, and optional. Record tool, duration,

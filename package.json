@@ -40,6 +40,7 @@
 		"benchmark:typescript:public": "pnpm run build && node dist/cli.mjs benchmark-suite --suite benchmark/suites/typescript-public.json",
 		"benchmark:typescript:generated": "pnpm run build && node dist/cli.mjs benchmark-suite --suite benchmark/suites/typescript-generated.json",
 		"benchmark:oracle:corpus": "pnpm run build && node dist/cli.mjs benchmark --extractor oracle",
+		"benchmark:oracle:production": "pnpm run build && node --experimental-strip-types scripts/benchmarkOracleProduction.ts",
 		"eval:check": "node evaluation/harness/src/cli.ts check --suite suites/q2.json",
 		"eval:list": "node evaluation/harness/src/cli.ts list --suite suites/q2.json",
 		"eval:evaluate": "node evaluation/harness/src/cli.ts evaluate --suite suites/q2.json",

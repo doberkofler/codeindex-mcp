@@ -1,4 +1,4 @@
-import {appendFileSync} from 'node:fs';
+import {appendFileSync, existsSync} from 'node:fs';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {type ConfigType} from '../config/config.ts';
@@ -58,18 +58,39 @@ const waitFor = async <ValueType>(
 const buildOf = (build: IndexStatusType['build']): BenchmarkBuildType | null =>
 	build.durationMs === null ? null : {reused: false, durationMs: build.durationMs, stages: build.stages};
 
-const targetPathOf = (input: Readonly<{index: ReturnType<typeof createCodeIndex>; explicit: string | undefined}>): string => {
+const targetPathOf = (
+	input: Readonly<{
+		database: IndexDatabase;
+		generationId: string;
+		explicit: string | undefined;
+	}>,
+): string => {
 	if (input.explicit !== undefined) {
 		return input.explicit;
 	}
 
-	const symbol = input.index.findSymbols({query: 'feature', limit: 100}).items.find((item) => item.path.endsWith('.ts'));
+	const targetPath = input.database.busiestSymbolPath(input.generationId) ?? input.database.listFiles(input.generationId).at(0)?.path;
 
-	if (symbol === undefined) {
-		throw new Error('Edit-to-fresh benchmark requires at least one indexed TypeScript symbol');
+	if (targetPath === undefined) {
+		throw new Error('Edit-to-fresh benchmark requires at least one indexed source file');
 	}
 
-	return symbol.path;
+	return targetPath;
+};
+
+const absoluteTargetPath = (rootDir: string, targetPath: string): string => {
+	const absolutePath = path.resolve(rootDir, targetPath);
+	const relativePath = path.relative(rootDir, absolutePath);
+
+	if (relativePath === '' || relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+		throw new Error(`Edit target escapes the benchmark workspace: ${targetPath}`);
+	}
+
+	if (!existsSync(absolutePath)) {
+		throw new Error(`Edit target does not exist: ${targetPath}`);
+	}
+
+	return absolutePath;
 };
 
 /**
@@ -110,12 +131,13 @@ export const runEditScenario = async (
 	});
 
 	try {
-		await index.ensureReady();
+		const initial = await index.ensureReady();
 		index.start();
 		await delay(debounceMs + 200);
 		await waitFor({attempt: () => (index.getStatus().refresh === 'current' ? true : null), timeoutMs, label: 'initial watcher refresh'});
-		const targetPath = targetPathOf({index, explicit: input.targetPath});
-		const absolutePath = path.resolve(input.config.rootDir, targetPath);
+		const generationId = index.getStatus().generationId ?? initial.generationId;
+		const targetPath = targetPathOf({database, generationId, explicit: input.targetPath});
+		const absolutePath = absoluteTargetPath(input.config.rootDir, targetPath);
 		const samples: BenchmarkEditSampleType[] = [];
 		const runRound = async (iteration: number): Promise<void> => {
 			if (iteration > input.rounds) {
@@ -123,7 +145,7 @@ export const runEditScenario = async (
 			}
 
 			const previous = index.getStatus().generationId;
-			appendFileSync(absolutePath, `\nexport const benchmarkEdit${String(process.pid)}_${String(iteration)} = ${String(iteration)};\n`, {encoding: 'utf8'});
+			appendFileSync(absolutePath, '\n', {encoding: 'utf8'});
 			const startedAt = performance.now();
 			const status = await waitFor({
 				attempt: () => {

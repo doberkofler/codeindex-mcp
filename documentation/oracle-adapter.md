@@ -424,8 +424,23 @@ pnpm benchmark:oracle:corpus
 ```
 
 It runs the normal `benchmark` command with the Oracle extractor and never
-connects to Oracle. The structural@5 production performance baseline is tracked
-by ORA-005; the Phase 7 ANTLR measurement is not a production baseline.
+connects to Oracle.
+
+[`benchmark/oracle-performance`](../benchmark/oracle-performance/README.md)
+retains the structural@5 production baseline for the frozen 2026-10-25 corpus:
+cold build, warm reuse, one-file edit-to-fresh, full rebuild, representative
+queries, peak RSS, CPU, storage, and bundle size. Thresholds were declared
+before the first measurement and are committed with the aggregate summary.
+
+```bash
+pnpm benchmark:oracle:production
+```
+
+The harness verifies the frozen bundle first, copies it per repetition so no
+checkout is mutated, discards one warmup, and runs five measured repetitions of
+the built CLI and worker path. Raw reports stay in the external evidence root;
+only the bounded aggregate and hashes are committed. The Phase 7 ANTLR
+measurement is not a production baseline.
 
 ### Live qualification
 
