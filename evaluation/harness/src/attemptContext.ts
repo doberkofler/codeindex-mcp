@@ -94,6 +94,7 @@ export const attemptContextOf = async (
 			timedOut: input.timedOut,
 			exitCode: input.exitCode,
 			routing,
+			executePresent: input.surface.execute === 'present',
 			externalPathAttemptCount: externalPathAttempts.reduce((total, attempt) => total + attempt.count, 0),
 			providerMeter: input.providerMeter,
 		}) ?? surfaceReason;

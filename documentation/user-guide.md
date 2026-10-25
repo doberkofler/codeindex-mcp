@@ -198,6 +198,12 @@ entries in the model request's `tools` array. This is expected and does not mean
 the tools are unavailable. Set `codemode` to `false` on the server configuration
 only when direct exposure is specifically required.
 
+The pinned evaluation compared both exposures on the EVAL-037 artifact: Code Mode
+cost `1.307` direct with a one-sided upper bound of `1.473`, so native direct MCP
+remains the measured recommendation for that configuration. See
+[Exposure evidence](../evaluation/audits/exposure-eval-050.md). The result is
+scoped to the pinned model, client, artifact, and task set.
+
 Ask navigation questions normally. Examples:
 
 - `Find the UserCard declaration and show its implementation.`

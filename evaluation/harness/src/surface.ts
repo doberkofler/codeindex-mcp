@@ -86,9 +86,11 @@ const matchesRule = (rule: PermissionRuleType, action: string, resource: string)
  * @param surface - Exact tool names presented for one treatment.
  * @returns Ordered permission rules written into the treatment configuration.
  */
-export const permissionRulesOf = (surface: Pick<ToolSurfaceType, 'tools'>): readonly PermissionRuleType[] => [
+export const permissionRulesOf = (surface: Pick<ToolSurfaceType, 'tools'> & Partial<Pick<ToolSurfaceType, 'permitted'>>): readonly PermissionRuleType[] => [
 	{action: '*', resource: '*', effect: 'deny'},
-	...[...new Set(surface.tools.map(permissionActionOf))].sort().map((action) => ({action, resource: '*', effect: 'allow' as const})),
+	...[...new Set((surface.permitted ?? surface.tools).map((tool) => permissionActionOf(tool)))]
+		.sort()
+		.map((action) => ({action, resource: '*', effect: 'allow' as const})),
 ];
 
 /**
@@ -128,11 +130,11 @@ export const callableToolsOf = (declared: readonly string[]): readonly string[] 
  * @param surface - Captured surface.
  * @returns Sorted unique presented names, excluding retired tools.
  */
-export const presentedToolsOf = (surface: Pick<ToolSurfaceType, 'ordinary' | 'codeIndex'>): readonly string[] =>
+export const presentedToolsOf = (surface: Pick<ToolSurfaceType, 'ordinary' | 'codeIndex' | 'execute'>): readonly string[] =>
 	[
 		...new Set([
 			...surface.ordinary.filter((name) => !(RETIRED_TOOLS as readonly string[]).includes(name)).flatMap((name) => PRESENTED_TOOL_ALIASES[name] ?? [name]),
-			...surface.codeIndex,
+			...(surface.execute === 'present' ? ['execute'] : surface.codeIndex),
 		]),
 	].sort();
 

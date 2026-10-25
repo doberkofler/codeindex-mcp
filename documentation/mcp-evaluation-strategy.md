@@ -740,13 +740,15 @@ Completed:
 2. EVAL-037 recorded **RELEASE** for the pinned impact-class primary population
    with native direct MCP. The holdout remains descriptive and the primary sample
    is underpowered at the frozen alternative.
+3. The paired direct-MCP/Code-Mode exposure comparison measured Code Mode at
+   `1.307` direct cost (upper `1.473`); native direct MCP remains recommended.
+   Evidence is [Exposure evidence](../evaluation/audits/exposure-eval-050.md).
 
 Open:
 
 1. Production readiness #47–#53: retained reference baselines, deep-cursor plans at
-   production cardinality, multi-process lease proof, direct-MCP versus Code Mode
-   cost, fresh-consumer installation, checkout lifecycle semantics, and a
-   representative normal-session pilot.
+   production cardinality, multi-process lease proof, fresh-consumer installation,
+   checkout lifecycle semantics, and a representative normal-session pilot.
 2. Holdout diagnosis #67; do not re-grade EVAL-037 or treat the holdout as release
    evidence.
 3. Preserve E3 and the completed v1 local regression as historical `NOT PASSED`

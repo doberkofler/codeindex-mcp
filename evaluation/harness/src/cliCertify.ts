@@ -2,7 +2,7 @@ import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import {certificationDesignOf, type CertificationBlockType, type CertificationDesignType} from './certificationDesign.ts';
 import {certificationPlanOf} from './certificationPlan.ts';
-import {certificationReportOf, type CertificationGateType} from './certificationAnalysis.ts';
+import {certificationReportOf, type CertificationGateType} from './certificationReport.ts';
 import {runCertificationCampaignOf} from './certificationCampaign.ts';
 import {preflightGatesOf, readJson, writeCertificationRecordOf} from './certificationGates.ts';
 import {evaluationRoot, evaluationStateRoot, flagOf, manifestPathOf, primaryCheckout} from './cliSupport.ts';

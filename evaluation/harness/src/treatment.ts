@@ -1,5 +1,5 @@
+import {exposureDifferencesOf} from './exposureEquivalence.ts';
 import {hashOf} from './hash.ts';
-import {callableToolsOf} from './surface.ts';
 
 /** The accepted three-treatment frontier model. Order defines plan order. */
 export const TREATMENT_IDS = ['no-index', 'accepted', 'candidate'] as const;
@@ -10,8 +10,14 @@ export const TREATMENT_IDS = ['no-index', 'accepted', 'candidate'] as const;
  */
 export const QUALIFICATION_TREATMENT_IDS = ['no-index', 'canonical'] as const;
 
+/**
+ * The paired exposure comparison model: one artifact presented natively and
+ * the same artifact reached through OpenCode's Code Mode `execute` boundary.
+ */
+export const EXPOSURE_TREATMENT_IDS = ['direct-mcp', 'code-mode'] as const;
+
 /** Every treatment id the harness understands, in canonical plan order. */
-export const ALL_TREATMENT_IDS = [...TREATMENT_IDS, 'canonical'] as const;
+export const ALL_TREATMENT_IDS = [...TREATMENT_IDS, 'canonical', ...EXPOSURE_TREATMENT_IDS] as const;
 
 export type TreatmentIdType = (typeof ALL_TREATMENT_IDS)[number];
 
@@ -21,14 +27,13 @@ export const TREATMENT_KINDS = ['no-index', 'codeindex'] as const;
 export type TreatmentKindType = (typeof TREATMENT_KINDS)[number];
 
 /**
- * Generic `execute` is removed from every treatment.
- *
- * Keeping it identical would require recording every unknown-tool outcome and
- * would route native MCP tools through a second interface, so v1 removes it.
+ * Native MCP tools are presented directly, or reached through the generic
+ * Code Mode `execute` tool. The standard frontier and qualification models stay
+ * direct only.
  */
-export const CODE_MODE_POLICY = 'absent' as const;
+export const CODE_MODE_POLICIES = ['absent', 'present'] as const;
 
-export type CodeModePolicyType = typeof CODE_MODE_POLICY;
+export type CodeModePolicyType = (typeof CODE_MODE_POLICIES)[number];
 
 /** One CodeIndex artifact presented by a treatment. */
 export type ArtifactType = Readonly<{
@@ -44,7 +49,8 @@ export type ArtifactType = Readonly<{
 /** The MCP surface a CodeIndex treatment presents. */
 export type McpType = Readonly<{
 	server: string;
-	codemode: false;
+	/** Native tool presentation when true; Code Mode wrapping when false. */
+	codemode: boolean;
 }>;
 
 /** A fully validated treatment definition. */
@@ -64,10 +70,13 @@ export type ToolSurfaceType = Readonly<{
 	treatmentId: TreatmentIdType;
 	/** Declared ordinary tool names, sorted. */
 	ordinary: readonly string[];
+	/** Native MCP names the artifact presents, with the OpenCode server prefix. */
 	codeIndex: readonly string[];
-	execute: 'absent';
-	/** Declared ordinary and CodeIndex names in one sorted list. */
+	execute: CodeModePolicyType;
+	/** Names presented on agent request 1, sorted. */
 	tools: readonly string[];
+	/** Every name the treatment's permission rules admit, sorted. */
+	permitted?: readonly string[];
 	/**
 	 * Every name the model can call for the declared ordinary tools.
 	 *
@@ -181,13 +190,13 @@ const mcpOf = (value: unknown, context: string): McpType => {
 	const record = requireObject(value, `${context} field "mcp"`);
 	rejectUnknownKeys(record, MCP_KEYS, `${context} field "mcp"`);
 
-	if (record['codemode'] !== false) {
-		throw new Error(`${context} field "mcp.codemode" must be false; evaluation uses native MCP tools only`);
+	if (typeof record['codemode'] !== 'boolean') {
+		throw new TypeError(`${context} field "mcp.codemode" must be a boolean`);
 	}
 
 	return {
 		server: requireString(record['server'], 'mcp.server', context),
-		codemode: false,
+		codemode: record['codemode'],
 	};
 };
 
@@ -206,18 +215,22 @@ export const treatmentHashOf = (definition: unknown): string => hashOf(definitio
 /**
  * Rejects a treatment whose kind, artifact, and MCP declaration disagree.
  *
- * The no-index arm must withhold CodeIndex entirely; both CodeIndex arms must
- * declare the artifact and MCP server they load.
- *
- * @param id - Validated treatment id.
- * @param kind - Declared treatment kind.
- * @param artifact - Declared artifact, if any.
- * @param mcp - Declared MCP configuration, if any.
+ * @param input - Validated treatment facts.
  */
-const assertTreatmentShapeOf = (id: TreatmentIdType, kind: string, artifact: unknown, mcp: unknown): void => {
+const assertTreatmentShapeOf = (
+	input: Readonly<{
+		id: TreatmentIdType;
+		kind: string;
+		codeMode: CodeModePolicyType;
+		artifact: ArtifactType | null;
+		mcp: McpType | null;
+	}>,
+): void => {
+	const {id, kind, codeMode, artifact, mcp} = input;
+
 	if (id === 'no-index') {
-		if (kind !== 'no-index' || artifact !== null || mcp !== null) {
-			throw new Error('no-index treatment must use kind "no-index" and declare neither artifact nor mcp');
+		if (kind !== 'no-index' || codeMode !== 'absent' || artifact !== null || mcp !== null) {
+			throw new Error('no-index treatment must use kind "no-index", codeMode "absent", and declare neither artifact nor mcp');
 		}
 
 		return;
@@ -225,6 +238,18 @@ const assertTreatmentShapeOf = (id: TreatmentIdType, kind: string, artifact: unk
 
 	if (kind !== 'codeindex' || artifact === null || mcp === null) {
 		throw new Error(`${id} treatment must use kind "codeindex" and declare both artifact and mcp`);
+	}
+
+	if (id === 'code-mode') {
+		if (codeMode !== 'present' || !mcp.codemode) {
+			throw new Error('code-mode treatment must declare codeMode "present" and mcp.codemode true');
+		}
+
+		return;
+	}
+
+	if (codeMode !== 'absent' || mcp.codemode) {
+		throw new Error(`${id} treatment must declare codeMode "absent" and mcp.codemode false`);
 	}
 };
 
@@ -252,20 +277,26 @@ export const treatmentOf = (value: unknown, context = 'treatment'): TreatmentDef
 		throw new Error(`${context} field "kind" must be one of ${TREATMENT_KINDS.join(', ')}`);
 	}
 
-	if (record['codeMode'] !== CODE_MODE_POLICY) {
-		throw new Error(`${context} field "codeMode" must be "${CODE_MODE_POLICY}"`);
+	if (record['codeMode'] === undefined) {
+		throw new TypeError(`${context} field "codeMode" is required`);
+	}
+
+	const codeMode = CODE_MODE_POLICIES.find((candidate) => candidate === record['codeMode']);
+
+	if (codeMode === undefined) {
+		throw new Error(`${context} field "codeMode" must be one of ${CODE_MODE_POLICIES.join(', ')}`);
 	}
 
 	const artifact = record['artifact'] === null || record['artifact'] === undefined ? null : artifactOf(record['artifact'], context);
 	const mcp = record['mcp'] === null || record['mcp'] === undefined ? null : mcpOf(record['mcp'], context);
 
-	assertTreatmentShapeOf(treatmentId, kind, artifact, mcp);
+	assertTreatmentShapeOf({id: treatmentId, kind, codeMode, artifact, mcp});
 
 	const normalized = {
 		id: treatmentId,
 		kind,
 		ordinaryTools: requireToolNames(record['ordinaryTools'], 'ordinaryTools', context),
-		codeMode: CODE_MODE_POLICY,
+		codeMode,
 		artifact,
 		mcp,
 	} as const;
@@ -284,8 +315,27 @@ export const treatmentOf = (value: unknown, context = 'treatment'): TreatmentDef
  * @param ids - Declared treatment ids.
  * @returns The one complete set the list must match.
  */
-const expectedTreatmentIdsOf = (ids: readonly TreatmentIdType[]): readonly TreatmentIdType[] =>
-	ids.includes('canonical') ? QUALIFICATION_TREATMENT_IDS : TREATMENT_IDS;
+/**
+ * Returns the complete treatment set a declared list must equal.
+ *
+ * The canonical arm selects the independent two-arm qualification model, the
+ * exposure arms select the paired direct/Code-Mode model, and every other set
+ * is the three-arm frontier model. The models are never mixed.
+ *
+ * @param ids - Declared treatment ids.
+ * @returns The one complete set the list must match.
+ */
+const expectedTreatmentIdsOf = (ids: readonly TreatmentIdType[]): readonly TreatmentIdType[] => {
+	if (ids.includes('canonical')) {
+		return QUALIFICATION_TREATMENT_IDS;
+	}
+
+	if (ids.includes('direct-mcp') || ids.includes('code-mode')) {
+		return EXPOSURE_TREATMENT_IDS;
+	}
+
+	return TREATMENT_IDS;
+};
 
 const identityDifferencesOf = (ids: readonly TreatmentIdType[]): readonly string[] => {
 	const differences: string[] = [];
@@ -339,7 +389,9 @@ const sharedMcpDifferencesOf = (indexed: readonly TreatmentDefinitionType[]): re
  *
  * Accepted and candidate may differ only by artifact and the resulting
  * CodeIndex interface. Ordinary tools, the generic `execute` policy, and the
- * MCP configuration must be identical across every treatment.
+ * MCP configuration must be identical across every treatment. The exposure
+ * pair is the one deliberate exception: its MCP Code Mode policy is the
+ * measured variable, so only that policy may differ.
  *
  * @param treatments - Validated treatment definitions.
  * @returns Human-readable differences; empty when the set is equivalent.
@@ -359,7 +411,13 @@ export const treatmentDifferencesOf = (treatments: readonly TreatmentDefinitionT
 		}
 	}
 
-	differences.push(...sharedMcpDifferencesOf(treatments.filter((treatment) => treatment.kind === 'codeindex')));
+	const exposure = ids.includes('direct-mcp') || ids.includes('code-mode');
+
+	if (exposure) {
+		differences.push(...exposureDifferencesOf(treatments));
+	} else {
+		differences.push(...sharedMcpDifferencesOf(treatments.filter((treatment) => treatment.kind === 'codeindex')));
+	}
 
 	return differences;
 };
@@ -402,55 +460,4 @@ export const treatmentSetHashOf = (treatments: readonly TreatmentDefinitionType[
 			definitionHash: treatment.definitionHash,
 		})),
 	);
-
-/**
- * Captures the exact tool-name list presented to the model.
- *
- * Native MCP catalog names are prefixed with the configured server name, which
- * is the name OpenCode presents and the model must call.
- *
- * @param treatment - Treatment definition.
- * @param catalog - CodeIndex tool names reported by the artifact's MCP catalog.
- * @returns The sorted surface and its digest.
- */
-export const toolSurfaceOf = (treatment: TreatmentDefinitionType, catalog: readonly string[] = []): ToolSurfaceType => {
-	const codeIndex =
-		treatment.kind === 'codeindex' && treatment.mcp !== null ? [...new Set(catalog.map((name) => `${treatment.mcp?.server}_${name}`))].sort() : [];
-	const ordinary = [...treatment.ordinaryTools];
-	const tools = [...new Set([...ordinary, ...codeIndex])].sort();
-	const callable = [...new Set([...callableToolsOf(ordinary), ...codeIndex])].sort();
-	const native = treatment.kind === 'no-index' || codeIndex.every((name) => name.startsWith(`${treatment.mcp?.server}_`));
-
-	return {
-		treatmentId: treatment.id,
-		ordinary,
-		codeIndex,
-		execute: CODE_MODE_POLICY,
-		tools,
-		callable,
-		native,
-		digest: hashOf({id: treatment.id, ordinary, codeIndex, execute: CODE_MODE_POLICY}),
-	};
-};
-
-/**
- * Derives observed routing and every unknown-tool outcome.
- *
- * @param surface - Tool surface captured before execution.
- * @param calls - Normalized tool names observed in the event stream.
- * @returns Counts and the sorted list of names outside the captured surface.
- */
-export const routingOf = (surface: ToolSurfaceType, calls: readonly string[]): RoutingType => {
-	const ordinary = new Set(surface.callable);
-	const codeIndex = new Set(surface.codeIndex);
-	const known = new Set([...surface.callable, ...surface.codeIndex]);
-	const unknown = [...new Set(calls.filter((name) => !known.has(name)))].sort();
-
-	return {
-		ordinaryCalls: calls.filter((name) => ordinary.has(name)).length,
-		codeIndexCalls: calls.filter((name) => codeIndex.has(name)).length,
-		executeCalls: calls.filter((name) => name === 'execute').length,
-		unknownTools: unknown,
-		native: calls.every((name) => name !== 'execute'),
-	};
-};
+export {routingOf, toolSurfaceOf} from './surfaceCapture.ts';

@@ -1,0 +1,6097 @@
+{
+	"recordType": "exposure-comparison-report",
+	"schemaVersion": 1,
+	"claimClass": "hosted-model-scoped",
+	"generatedAt": "2026-10-25T07:17:18.224Z",
+	"design": {
+		"id": "direct-vs-code-mode-v1",
+		"digest": "eb70afcc07b37e0a981416499f8893c0c1b6c4b4736684985b2c7035231714d7",
+		"frozenAt": "2026-10-25T00:00:00.000Z"
+	},
+	"campaign": {
+		"id": "codeindex-exposure-f132f7921764a511",
+		"slotIdentityDigest": "65845e19ce9394977a0bbe16a348ad4edbefb63fa6612495dcce6b042677f448"
+	},
+	"contract": {
+		"id": "evaluation-validity-v2",
+		"version": 2,
+		"digest": "179bb5df1bc96ee86c54da20f26034a59fe50671dfc9912d805ed4588204a22f"
+	},
+	"suite": {
+		"id": "codeindex-exposure",
+		"path": "suites/exposure.json",
+		"version": 1,
+		"hash": "e3f2e0814d2e791c29890b27517b6d0fda5d3a670ccc93a734982d02cdd64452",
+		"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516"
+	},
+	"model": {
+		"provider": "deepseek",
+		"modelId": "deepseek-flash",
+		"reference": "deepseek/deepseek-flash",
+		"runtime": "2.1.4",
+		"generation": {
+			"temperature": null,
+			"topP": null,
+			"topK": null,
+			"repeatPenalty": null,
+			"stop": []
+		}
+	},
+	"artifact": {
+		"id": "codeindex-mcp-candidate",
+		"digest": "ac846e44cf7c527f9d361ff7ca266e5e2bbdae4d2dd80f9c1e111ac124d4e205"
+	},
+	"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+	"tariff": {
+		"id": "deepseek-flash-2026-10-23",
+		"source": "https://api-docs.deepseek.com/quick_start/pricing",
+		"retrievedAt": "2026-10-23T00:00:00.000Z",
+		"digest": "593634d1954e4ccd8303d71b68db15ba6f266e154a5f7f2e3da1f9db0fd16712"
+	},
+	"frozenProduction": {
+		"exposure": "direct-mcp",
+		"certification": "reports/certification-eval-037.json",
+		"certificationDigest": "828ae7e4525ddaf85b118dae077fec96f983092c9d573ff7c3de312cd26e4d1f"
+	},
+	"plan": {
+		"seed": "exposure-comparison-2026-10-25",
+		"sourceDigest": "314db8481569abdd48fb9f3b9a1ee6410e3b1367fc9b7c040ebd2b3e023bdafd",
+		"plannedExecutions": 60,
+		"pairs": [
+			{
+				"caseId": "impact-build-generation-references",
+				"pair": 1,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-build-generation-references",
+				"pair": 2,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-build-generation-references",
+				"pair": 3,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-build-generation-references",
+				"pair": 4,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-build-generation-references",
+				"pair": 5,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-hash-content-references",
+				"pair": 1,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-hash-content-references",
+				"pair": 2,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-hash-content-references",
+				"pair": 3,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-hash-content-references",
+				"pair": 4,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-hash-content-references",
+				"pair": 5,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-bounded-paged-result-references",
+				"pair": 1,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-bounded-paged-result-references",
+				"pair": 2,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-bounded-paged-result-references",
+				"pair": 3,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-bounded-paged-result-references",
+				"pair": 4,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-bounded-paged-result-references",
+				"pair": 5,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-schema-version-references",
+				"pair": 1,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-schema-version-references",
+				"pair": 2,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-schema-version-references",
+				"pair": 3,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-schema-version-references",
+				"pair": 4,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-schema-version-references",
+				"pair": 5,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-config-load-references",
+				"pair": 1,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-config-load-references",
+				"pair": 2,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-config-load-references",
+				"pair": 3,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-config-load-references",
+				"pair": 4,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-config-load-references",
+				"pair": 5,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-codeindex-error-references",
+				"pair": 1,
+				"first": "code-mode"
+			},
+			{
+				"caseId": "impact-codeindex-error-references",
+				"pair": 2,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-codeindex-error-references",
+				"pair": 3,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-codeindex-error-references",
+				"pair": 4,
+				"first": "direct-mcp"
+			},
+			{
+				"caseId": "impact-codeindex-error-references",
+				"pair": 5,
+				"first": "code-mode"
+			}
+		]
+	},
+	"coreQuery": {
+		"reportDigest": "25011d2bf6646113a044a5310d4cf3124d449183a81dc506b98ce6951eed137a",
+		"suite": {
+			"id": "codeindex-release",
+			"version": 1,
+			"hash": "073378fe3b9dc71710797a4a31a249d36363802f4347f87b73ff4fe6ae47f110"
+		},
+		"plan": {
+			"id": "codeindex-release-model-free",
+			"hash": "96dee1cb3fd17fcfa66ec0ac6917bffda737119fe019f10570bd66f6c85547e4"
+		},
+		"artifact": {
+			"id": "codeindex-mcp-candidate",
+			"digest": "ac846e44cf7c527f9d361ff7ca266e5e2bbdae4d2dd80f9c1e111ac124d4e205"
+		},
+		"state": "exact",
+		"cases": [
+			{
+				"caseId": "impact-build-generation-references",
+				"coreMs": 6,
+				"state": "exact",
+				"calls": 3,
+				"responseBytes": 3108,
+				"elapsedMs": 7.654416999999967
+			},
+			{
+				"caseId": "impact-hash-content-references",
+				"coreMs": 6,
+				"state": "exact",
+				"calls": 3,
+				"responseBytes": 6007,
+				"elapsedMs": 6.952457999999751
+			},
+			{
+				"caseId": "impact-bounded-paged-result-references",
+				"coreMs": 5,
+				"state": "exact",
+				"calls": 3,
+				"responseBytes": 4956,
+				"elapsedMs": 5.776541000000407
+			},
+			{
+				"caseId": "impact-schema-version-references",
+				"coreMs": 5,
+				"state": "exact",
+				"calls": 3,
+				"responseBytes": 6330,
+				"elapsedMs": 5.637165999999979
+			},
+			{
+				"caseId": "impact-config-load-references",
+				"coreMs": 7,
+				"state": "exact",
+				"calls": 3,
+				"responseBytes": 7526,
+				"elapsedMs": 7.590374999999767
+			},
+			{
+				"caseId": "impact-codeindex-error-references",
+				"coreMs": 8,
+				"state": "exact",
+				"calls": 3,
+				"responseBytes": 18470,
+				"elapsedMs": 8.686125000000175
+			}
+		],
+		"reason": null
+	},
+	"surfaces": {
+		"direct": {
+			"treatment": "direct-mcp",
+			"declared": [
+				"codeindex_find_dependencies",
+				"codeindex_find_references",
+				"codeindex_find_symbol",
+				"codeindex_index_status",
+				"codeindex_outline",
+				"codeindex_read_symbol",
+				"codeindex_symbol_at",
+				"glob",
+				"grep",
+				"read",
+				"shell"
+			],
+			"executions": 30,
+			"exact": 30,
+			"failures": []
+		},
+		"codeMode": {
+			"treatment": "code-mode",
+			"declared": ["execute", "glob", "grep", "read", "shell"],
+			"executions": 30,
+			"exact": 30,
+			"failures": []
+		}
+	},
+	"reliability": {
+		"plannedExecutions": 60,
+		"storedExecutions": 60,
+		"validExecutions": 60,
+		"invalidExecutions": 0,
+		"exactMetering": 60,
+		"pathClean": true,
+		"timedOut": 0,
+		"retriedSlots": 31,
+		"failedAttempts": 72
+	},
+	"trajectories": [
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "direct-mcp",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 204983,
+			"responseBytes": 42425,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 1,
+			"wallTimeMs": 7758,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.00041512799999999996,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["codeindex_find_references", "grep"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "code-mode",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 207499,
+			"responseBytes": 52447,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8058,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.0005425559999999999,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 6,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "direct-mcp",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 208282,
+			"responseBytes": 39154,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 13717,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000482964,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 3,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "code-mode",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 201563,
+			"responseBytes": 48320,
+			"toolCalls": 2,
+			"executeCalls": 1,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8690,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000425136,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 5,
+			"toolSequence": ["execute", "grep"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "code-mode",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 206029,
+			"responseBytes": 102878,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 9705,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000627738,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "direct-mcp",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 4,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 5,
+			"requestBytes": 278824,
+			"responseBytes": 47537,
+			"toolCalls": 3,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 9292,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.0005872500000000001,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references", "grep"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "direct-mcp",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 205008,
+			"responseBytes": 42391,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8145,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000417528,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 3,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "code-mode",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 201668,
+			"responseBytes": 67474,
+			"toolCalls": 2,
+			"executeCalls": 1,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8259,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000463386,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "grep"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "direct-mcp",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 208265,
+			"responseBytes": 53770,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 9165,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.0004958639999999999,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-build-generation-references",
+			"treatment": "code-mode",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 201471,
+			"responseBytes": 38049,
+			"toolCalls": 2,
+			"executeCalls": 1,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8466,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000401436,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 3,
+			"toolSequence": ["execute", "grep"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "direct-mcp",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 204900,
+			"responseBytes": 62505,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8612,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000454128,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "code-mode",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 205782,
+			"responseBytes": 96130,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8707,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000610038,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "code-mode",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 205425,
+			"responseBytes": 79458,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8943,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.0005846040000000001,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 6,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "direct-mcp",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 206592,
+			"responseBytes": 57267,
+			"toolCalls": 3,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8826,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000512112,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 6,
+			"toolSequence": ["codeindex_find_references", "codeindex_find_symbol", "grep"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "direct-mcp",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 204866,
+			"responseBytes": 69872,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8335,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000461928,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 5,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "code-mode",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 207189,
+			"responseBytes": 112431,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8519,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000654756,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 4,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "code-mode",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 202106,
+			"responseBytes": 58258,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8064,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000461886,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "direct-mcp",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 204888,
+			"responseBytes": 48956,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 7628,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000428028,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "code-mode",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 202936,
+			"responseBytes": 57807,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8864,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000453354,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 3,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-hash-content-references",
+			"treatment": "direct-mcp",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 204892,
+			"responseBytes": 79134,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8364,
+			"coreQueryMs": 6,
+			"totalTaskCostUsd": 0.000479778,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "direct-mcp",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 205003,
+			"responseBytes": 49091,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8166,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000446394,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "code-mode",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 207466,
+			"responseBytes": 72439,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8950,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000594156,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 4,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "direct-mcp",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 205542,
+			"responseBytes": 53770,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 1,
+			"wallTimeMs": 8106,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000468678,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 3,
+			"toolSequence": ["codeindex_find_references", "grep"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "code-mode",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 202064,
+			"responseBytes": 42466,
+			"toolCalls": 2,
+			"executeCalls": 1,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8491,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000442836,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "grep"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "code-mode",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 205839,
+			"responseBytes": 63704,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8540,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000573804,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "direct-mcp",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 207146,
+			"responseBytes": 51725,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8239,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000499296,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_references", "codeindex_find_symbol"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "direct-mcp",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 207325,
+			"responseBytes": 69343,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8343,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000522696,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_references", "codeindex_find_symbol"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "code-mode",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 2,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 3,
+			"requestBytes": 139026,
+			"responseBytes": 85866,
+			"toolCalls": 1,
+			"executeCalls": 1,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 7525,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000535524,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "direct-mcp",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 206727,
+			"responseBytes": 47634,
+			"toolCalls": 3,
+			"executeCalls": 0,
+			"codeIndexCalls": 3,
+			"wallTimeMs": 8330,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.00045714599999999996,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 3,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_index_status", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-bounded-paged-result-references",
+			"treatment": "code-mode",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 202181,
+			"responseBytes": 50501,
+			"toolCalls": 2,
+			"executeCalls": 1,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8256,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.00045102,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["execute", "grep"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "direct-mcp",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 207855,
+			"responseBytes": 48968,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 7808,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000489714,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "code-mode",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 207048,
+			"responseBytes": 59713,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 7867,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000555306,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "direct-mcp",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 204801,
+			"responseBytes": 50030,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8848,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.00042247799999999995,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "code-mode",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 206994,
+			"responseBytes": 81839,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 10055,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000594906,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "code-mode",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 203463,
+			"responseBytes": 129066,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 9642,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.0006078539999999999,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "direct-mcp",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 206621,
+			"responseBytes": 74353,
+			"toolCalls": 3,
+			"executeCalls": 0,
+			"codeIndexCalls": 3,
+			"wallTimeMs": 8528,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000503646,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 4,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_index_status", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "direct-mcp",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 204875,
+			"responseBytes": 68597,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 9180,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.000459678,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 5,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "code-mode",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 6,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 7,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 6,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 7,
+			"requestBytes": 427088,
+			"responseBytes": 141520,
+			"toolCalls": 5,
+			"executeCalls": 4,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 13080,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.0011124,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 6,
+			"toolSequence": ["execute", "execute", "execute", "execute", "grep"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "code-mode",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 207179,
+			"responseBytes": 61218,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8389,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.0005617560000000001,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-schema-version-references",
+			"treatment": "direct-mcp",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 204835,
+			"responseBytes": 52133,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 9082,
+			"coreQueryMs": 5,
+			"totalTaskCostUsd": 0.00044377800000000003,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 3,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "direct-mcp",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 4,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 5,
+			"requestBytes": 281129,
+			"responseBytes": 151406,
+			"toolCalls": 3,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 11192,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.0009381659999999998,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references", "grep"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "code-mode",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 6,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 7,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 8,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 9,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 8,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 9,
+			"requestBytes": 614279,
+			"responseBytes": 298328,
+			"toolCalls": 7,
+			"executeCalls": 5,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 18915,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.0024575400000000002,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["execute", "execute", "execute", "execute", "grep", "grep", "execute"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "code-mode",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 209062,
+			"responseBytes": 81294,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 8276,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.000661356,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "direct-mcp",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 209305,
+			"responseBytes": 107942,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8840,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.000657414,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "direct-mcp",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 206035,
+			"responseBytes": 67459,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 7750,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.0005067779999999999,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 5,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "code-mode",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 6,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 5,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 6,
+			"requestBytes": 348276,
+			"responseBytes": 139201,
+			"toolCalls": 4,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 11802,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.001044456,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["execute", "execute", "grep", "grep"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "code-mode",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 4,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 5,
+			"requestBytes": 268832,
+			"responseBytes": 152108,
+			"toolCalls": 3,
+			"executeCalls": 3,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 10552,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.001119534,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute", "execute"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "direct-mcp",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 6,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 5,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 6,
+			"requestBytes": 372152,
+			"responseBytes": 209298,
+			"toolCalls": 5,
+			"executeCalls": 0,
+			"codeIndexCalls": 4,
+			"wallTimeMs": 13698,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.0015665520000000001,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references", "codeindex_find_references", "codeindex_outline", "grep"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "code-mode",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 6,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 5,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 6,
+			"requestBytes": 404476,
+			"responseBytes": 170536,
+			"toolCalls": 4,
+			"executeCalls": 3,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 12429,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.00198126,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute", "execute", "grep"]
+		},
+		{
+			"caseId": "impact-config-load-references",
+			"treatment": "direct-mcp",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 210957,
+			"responseBytes": 122558,
+			"toolCalls": 3,
+			"executeCalls": 0,
+			"codeIndexCalls": 3,
+			"wallTimeMs": 9713,
+			"coreQueryMs": 7,
+			"totalTaskCostUsd": 0.000715032,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_index_status", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "code-mode",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 205430,
+			"responseBytes": 145116,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 9378,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.00073212,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "direct-mcp",
+			"repetition": 1,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 4,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 5,
+			"requestBytes": 286790,
+			"responseBytes": 217752,
+			"toolCalls": 3,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 11146,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.001251534,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references", "grep"]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "direct-mcp",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 230784,
+			"responseBytes": 128783,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8870,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.0017655779999999999,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "code-mode",
+			"repetition": 2,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 6,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 7,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 8,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 9,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 8,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 9,
+			"requestBytes": 636810,
+			"responseBytes": 880146,
+			"toolCalls": 7,
+			"executeCalls": 4,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 28069,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.0032968259999999997,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute", "execute", "execute", "glob", "read", "grep"]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "direct-mcp",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 6,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 7,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 6,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 7,
+			"requestBytes": 454769,
+			"responseBytes": 378618,
+			"toolCalls": 8,
+			"executeCalls": 0,
+			"codeIndexCalls": 5,
+			"wallTimeMs": 17017,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.002012604,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": [
+				"codeindex_find_symbol",
+				"codeindex_index_status",
+				"codeindex_find_references",
+				"codeindex_find_symbol",
+				"read",
+				"codeindex_find_references",
+				"grep",
+				"grep"
+			]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "code-mode",
+			"repetition": 3,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 5,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 6,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 7,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 6,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 7,
+			"requestBytes": 465803,
+			"responseBytes": 343572,
+			"toolCalls": 5,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 15722,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.0017698199999999999,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute", "bash", "bash", "bash"]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "direct-mcp",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": false,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 206756,
+			"responseBytes": 86789,
+			"toolCalls": 2,
+			"executeCalls": 0,
+			"codeIndexCalls": 2,
+			"wallTimeMs": 8732,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.000572262,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_find_references"]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "code-mode",
+			"repetition": 4,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 216879,
+			"responseBytes": 169384,
+			"toolCalls": 2,
+			"executeCalls": 2,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 9543,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.001067274,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["execute", "execute"]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "code-mode",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "code-mode",
+				"declared": ["execute", "glob", "grep", "read", "shell"],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": ["glob", "grep", "read", "shell", "execute"]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": ["glob", "grep", "read", "shell", "execute"]
+				},
+				"agentRequests": 2,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 3,
+			"requestBytes": 142232,
+			"responseBytes": 138457,
+			"toolCalls": 1,
+			"executeCalls": 1,
+			"codeIndexCalls": 0,
+			"wallTimeMs": 7609,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.00076419,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 2,
+			"toolSequence": ["execute"]
+		},
+		{
+			"caseId": "impact-codeindex-error-references",
+			"treatment": "direct-mcp",
+			"repetition": 5,
+			"valid": true,
+			"exactMetering": true,
+			"correct": true,
+			"falseAbsence": false,
+			"requestOne": {
+				"recordType": "surface-request-ledger",
+				"treatmentId": "direct-mcp",
+				"declared": [
+					"codeindex_find_dependencies",
+					"codeindex_find_references",
+					"codeindex_find_symbol",
+					"codeindex_index_status",
+					"codeindex_outline",
+					"codeindex_read_symbol",
+					"codeindex_symbol_at",
+					"glob",
+					"grep",
+					"read",
+					"shell"
+				],
+				"requests": [
+					{
+						"ordinal": 1,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 2,
+						"kind": "other",
+						"toolNames": []
+					},
+					{
+						"ordinal": 3,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					},
+					{
+						"ordinal": 4,
+						"kind": "agent",
+						"toolNames": [
+							"codeindex_find_dependencies",
+							"codeindex_find_references",
+							"codeindex_find_symbol",
+							"codeindex_index_status",
+							"codeindex_outline",
+							"codeindex_read_symbol",
+							"codeindex_symbol_at",
+							"glob",
+							"grep",
+							"read",
+							"shell"
+						]
+					}
+				],
+				"firstAgentRequest": {
+					"ordinal": 1,
+					"kind": "agent",
+					"toolNames": [
+						"codeindex_find_dependencies",
+						"codeindex_find_references",
+						"codeindex_find_symbol",
+						"codeindex_index_status",
+						"codeindex_outline",
+						"codeindex_read_symbol",
+						"codeindex_symbol_at",
+						"glob",
+						"grep",
+						"read",
+						"shell"
+					]
+				},
+				"agentRequests": 3,
+				"titleRequests": 0,
+				"result": "pass",
+				"cause": null,
+				"differences": []
+			},
+			"requestCount": 4,
+			"requestBytes": 208275,
+			"responseBytes": 72430,
+			"toolCalls": 3,
+			"executeCalls": 0,
+			"codeIndexCalls": 3,
+			"wallTimeMs": 11955,
+			"coreQueryMs": 8,
+			"totalTaskCostUsd": 0.0005681460000000001,
+			"pathClean": true,
+			"timedOut": false,
+			"attemptCount": 1,
+			"toolSequence": ["codeindex_find_symbol", "codeindex_index_status", "codeindex_find_references"]
+		}
+	],
+	"metrics": {
+		"totalTaskCostUsd": {
+			"metric": "totalTaskCostUsd",
+			"unit": "usd",
+			"pairCount": 6,
+			"directMean": 0.0006667426,
+			"codeModeMean": 0.0008716276,
+			"delta": 0.00020488500000000003,
+			"ratio": {
+				"state": "finite",
+				"value": 1.3072924993843202
+			},
+			"deltaInterval95": {
+				"low": 0.00006902959999999995,
+				"high": 0.00036526820000000004,
+				"confidence": 0.95
+			},
+			"ratioInterval95": {
+				"low": 1.1257951947640732,
+				"high": 1.5069686825009103,
+				"confidence": 0.95
+			},
+			"oneSidedUpper95": 1.472713770220786,
+			"oneSidedUpperState": "bounded",
+			"state": "exact",
+			"reason": null
+		},
+		"requestBytes": {
+			"metric": "requestBytes",
+			"unit": "bytes",
+			"pairCount": 6,
+			"directMean": 228639.4,
+			"codeModeMean": 258736.5,
+			"delta": 30097.100000000006,
+			"ratio": {
+				"state": "finite",
+				"value": 1.1316356673434238
+			},
+			"deltaInterval95": {
+				"low": -3600.666666666715,
+				"high": 70781.30000000002,
+				"confidence": 0.95
+			},
+			"ratioInterval95": {
+				"low": 0.9834875227808292,
+				"high": 1.2889419982310315,
+				"confidence": 0.95
+			},
+			"oneSidedUpper95": 1.2605651930556183,
+			"oneSidedUpperState": "bounded",
+			"state": "exact",
+			"reason": null
+		},
+		"responseBytes": {
+			"metric": "responseBytes",
+			"unit": "bytes",
+			"pairCount": 6,
+			"directMean": 88389.66666666667,
+			"codeModeMean": 133990.86666666667,
+			"delta": 45601.2,
+			"ratio": {
+				"state": "finite",
+				"value": 1.5159109850698989
+			},
+			"deltaInterval95": {
+				"low": 16109.466666666674,
+				"high": 92629.06666666668,
+				"confidence": 0.95
+			},
+			"ratioInterval95": {
+				"low": 1.255133248712506,
+				"high": 1.75949429010766,
+				"confidence": 0.95
+			},
+			"oneSidedUpper95": 1.7283468912940954,
+			"oneSidedUpperState": "bounded",
+			"state": "exact",
+			"reason": null
+		},
+		"toolCalls": {
+			"metric": "toolCalls",
+			"unit": "calls",
+			"pairCount": 6,
+			"directMean": 2.5666666666666664,
+			"codeModeMean": 2.6333333333333333,
+			"delta": 0.06666666666666687,
+			"ratio": {
+				"state": "finite",
+				"value": 1.025974025974026
+			},
+			"deltaInterval95": {
+				"low": -0.2666666666666666,
+				"high": 0.5,
+				"confidence": 0.95
+			},
+			"ratioInterval95": {
+				"low": 0.8904109589041095,
+				"high": 1.1764705882352942,
+				"confidence": 0.95
+			},
+			"oneSidedUpper95": 1.1538461538461537,
+			"oneSidedUpperState": "bounded",
+			"state": "exact",
+			"reason": null
+		},
+		"wallTimeMs": {
+			"metric": "wallTimeMs",
+			"unit": "ms",
+			"pairCount": 6,
+			"directMean": 9446.166666666666,
+			"codeModeMean": 10312.166666666666,
+			"delta": 866,
+			"ratio": {
+				"state": "finite",
+				"value": 1.0916774000035288
+			},
+			"deltaInterval95": {
+				"low": -98.16666666666788,
+				"high": 1789.4333333333325,
+				"confidence": 0.95
+			},
+			"ratioInterval95": {
+				"low": 0.9891850007528267,
+				"high": 1.1771499849853317,
+				"confidence": 0.95
+			},
+			"oneSidedUpper95": 1.164505570383354,
+			"oneSidedUpperState": "bounded",
+			"state": "exact",
+			"reason": null
+		},
+		"coreQueryMs": {
+			"metric": "coreQueryMs",
+			"unit": "ms",
+			"pairCount": 6,
+			"directMean": 6.166666666666667,
+			"codeModeMean": 6.166666666666667,
+			"delta": 0,
+			"ratio": {
+				"state": "finite",
+				"value": 1
+			},
+			"deltaInterval95": {
+				"low": 0,
+				"high": 0,
+				"confidence": 0.95
+			},
+			"ratioInterval95": {
+				"low": 1,
+				"high": 1,
+				"confidence": 0.95
+			},
+			"oneSidedUpper95": 1,
+			"oneSidedUpperState": "bounded",
+			"state": "exact",
+			"reason": null
+		}
+	},
+	"correctness": {
+		"state": "exact",
+		"directSuccessRate": 0.9666666666666667,
+		"codeModeSuccessRate": 1,
+		"pairedDegradation": -0.033333333333333326,
+		"oneSidedUpper95": 0,
+		"margin": 0.02,
+		"falseAbsenceCount": 0,
+		"gate": {
+			"passed": true,
+			"detail": "paired degradation -0.0333; one-sided upper 0.0000; margin 0.02; false absence 0"
+		},
+		"reason": null
+	},
+	"decision": {
+		"recommendation": "direct-mcp",
+		"action": "retain-frozen-direct",
+		"reason": "the measured Code Mode saving does not clear the predeclared 5% threshold",
+		"scope": "artifact codeindex-mcp-candidate@ac846e44cf7c527f9d361ff7ca266e5e2bbdae4d2dd80f9c1e111ac124d4e205 under deepseek/deepseek-flash (2.1.4) on 6 fixed case(s) x 5 pair(s), subject 3b6b791d148ef6e96bcddd7850e1bc3c43cc4516",
+		"changesCertification": false,
+		"evidence": [
+			"cost-ratio=1.3072924993843202 upper=1.472713770220786",
+			"request-bytes-ratio=1.1316356673434238",
+			"response-bytes-ratio=1.5159109850698989",
+			"tool-calls-ratio=1.025974025974026",
+			"wall-time-ratio=1.0916774000035288",
+			"core-query=exact",
+			"correctness=paired degradation -0.0333; one-sided upper 0.0000; margin 0.02; false absence 0"
+		]
+	},
+	"limitations": [
+		"The claim is scoped to the exact hosted model, client runtime, artifact, fixed cases, ordinary tools, tariff, and exposure definitions pinned by the design.",
+		"Core query time is the artifact-reported handler duration from the pinned model-free route report; it is measured separately from provider cost and exposure overhead.",
+		"This record is post-certification evidence. It does not change, re-grade, or enlarge EVAL-037, and the frozen production exposure stays direct MCP until a reviewer records a new decision.",
+		"Provider cost is static-tariff arithmetic over retained provider components, not invoice-time cost.",
+		"Code Mode overhead is measured only through the OpenCode client version pinned by the design."
+	]
+}

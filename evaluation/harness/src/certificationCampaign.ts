@@ -1,7 +1,7 @@
 import {type CertificationBlockType, type CertificationDesignType} from './certificationDesign.ts';
 import {certificationPlanOf, type CertificationPlanType} from './certificationPlan.ts';
 import {type CertificationBlockInputType} from './certificationBlock.ts';
-import {type CertificationGateType, type CertificationRouteEvidenceType} from './certificationAnalysis.ts';
+import {type CertificationGateType, type CertificationRouteEvidenceType} from './certificationReport.ts';
 import {evaluateCommand, type EvaluationOptionsType, type EvaluationRunType} from './cliEvaluate.ts';
 import {type ExecutionProviderMeterType} from './executionMeter.ts';
 import {type HostedReferenceType} from './hostedReference.ts';

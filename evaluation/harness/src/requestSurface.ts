@@ -18,6 +18,7 @@ export const SURFACE_FAILURE_CAUSES = [
 	'incomplete-surface',
 	'unknown-tools',
 	'codeindex-in-no-index',
+	'native-tools-in-code-mode',
 	'path-disclosure',
 ] as const;
 
@@ -85,6 +86,10 @@ const causeOfIncompleteOf = (
 
 	if (input.surface.codeIndex.length === 0 && input.unexpected.some((name) => name.startsWith('codeindex_'))) {
 		return 'codeindex-in-no-index';
+	}
+
+	if (input.surface.execute === 'present' && input.unexpected.some((name) => name.startsWith('codeindex_'))) {
+		return 'native-tools-in-code-mode';
 	}
 
 	if (input.unexpected.length > 0) {

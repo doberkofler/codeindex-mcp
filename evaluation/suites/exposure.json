@@ -1,0 +1,59 @@
+{
+	"schemaVersion": 2,
+	"id": "codeindex-exposure",
+	"version": 1,
+	"status": "frozen",
+	"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516",
+	"model": "deepseek/deepseek-flash",
+	"repetitions": 5,
+	"treatments": [
+		{
+			"id": "direct-mcp",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "absent",
+			"artifact": {
+				"id": "codeindex-mcp-candidate",
+				"root": "artifacts/candidate",
+				"entryPoint": "mcp.mjs",
+				"digest": "ac846e44cf7c527f9d361ff7ca266e5e2bbdae4d2dd80f9c1e111ac124d4e205"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": false
+			}
+		},
+		{
+			"id": "code-mode",
+			"kind": "codeindex",
+			"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+			"codeMode": "present",
+			"artifact": {
+				"id": "codeindex-mcp-candidate",
+				"root": "artifacts/candidate",
+				"entryPoint": "mcp.mjs",
+				"digest": "ac846e44cf7c527f9d361ff7ca266e5e2bbdae4d2dd80f9c1e111ac124d4e205"
+			},
+			"mcp": {
+				"server": "codeindex",
+				"codemode": true
+			}
+		}
+	],
+	"cases": [
+		"impact-build-generation-references",
+		"impact-hash-content-references",
+		"impact-bounded-paged-result-references",
+		"impact-schema-version-references",
+		"impact-config-load-references",
+		"impact-codeindex-error-references"
+	],
+	"caseHashes": {
+		"impact-build-generation-references": "d64bff67a6371e942796dbec670385bade280248a4a1f6ffcbdbf08d2776053c",
+		"impact-hash-content-references": "4a1ba04f44f7105bba70b14ad4eca346e41dea1779eaf9ca08e5bcd863ed0211",
+		"impact-bounded-paged-result-references": "6548d0ae03406a5d20bc977d91f53524d407f087b7f1150352f25bd50d95df05",
+		"impact-schema-version-references": "e298f45bb6b51d554d15c84e550c1adf6e3e2c356d8b7a9c774e8f1da9a52505",
+		"impact-config-load-references": "c76024549fc8c2c77f41b1acc66b70a5886f893b0f33ce294e27a63929daf7a5",
+		"impact-codeindex-error-references": "6daca9f9b73d09a986d4e7ecf7567b4deee714fadf9e66b07cedac493e80ad26"
+	}
+}

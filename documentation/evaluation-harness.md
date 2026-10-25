@@ -15,6 +15,9 @@ CodeIndex artifact, and with a candidate artifact
 > [`../evaluation/contracts/evaluation-validity-v2.json`](../evaluation/contracts/evaluation-validity-v2.json);
 > the certification record is
 > [`../evaluation/audits/certification-eval-037.md`](../evaluation/audits/certification-eval-037.md).
+> The post-certification exposure comparison measured Code Mode at `1.307` direct
+> cost (upper `1.473`), so native direct MCP remains recommended; see
+> [`../evaluation/audits/exposure-eval-050.md`](../evaluation/audits/exposure-eval-050.md).
 > Do not cite a new economic result outside the frozen contract and pinned
 > configuration. See the [E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md)
 > and the [request-1 evidence](../evaluation/audits/request-1-surface-eval-032.md).
@@ -1061,6 +1064,7 @@ only; it neither defines nor reinterprets a gate.
 | Historical local diagnostic and regression | `local-diagnostic` and `local-regression` retain the old candidate-comparison mechanics and historical verdicts. They are not the model-qualification gate ([§7.2](#72-run-manifest)) |
 | Local-model qualification | `qualification` runs the fixed 18 × 2 × 3 plan with `no-index`, the digest-pinned canonical artifact, and predeclared criteria. It fails closed on an identity or canonical-artifact mismatch, changes only the model environment across comparable campaigns, and writes a local-model-scoped record with no release authority ([§7.2](#72-run-manifest)) |
 | Hosted release stage | Policy requires a passing same-suite, same-revision, same-artifact model-free report, the pinned hosted reference and runtime, the fixed 18 × 3 × 5 plan, and `release-campaign.json` with hosted authority. Local qualification is not a precondition ([§7.2](#72-run-manifest)) |
+| Exposure comparison | The `exposure` command pins one artifact, model, client, tariff, ordinary tools, fixed cases, and core-query route; proves both request-1 surfaces; reconciles every provider request; and records a paired direct/Code-Mode decision without re-grading certification ([PROD-004 evidence](../evaluation/audits/exposure-eval-050.md)) |
 | Telemetry validity | Exact token extraction with availability status; missing usage invalidates the affected metric, never estimated from bytes ([§2](#2-goals), [§7.5](#75-telemetry-availability-states)) |
 | Failed-slot-only retry | One immutable result per execution identity; `--resume` neither repeats nor skips a completed slot; failed and invalid executions stay inspectable ([§6](#6-cli-shape), [§7.6](#76-execution-outcome-and-validity), [§7.7](#77-atomic-persistence-and-partial-writes)) |
 | Stop rules | The harness records pass, fail, or invalid per execution with raw evidence. Applying a stop rule is a reviewer decision, not a harness verdict |

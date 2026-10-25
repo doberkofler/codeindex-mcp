@@ -4,12 +4,19 @@ import {type EnvironmentManifestType} from './environment.ts';
 import {hashOf} from './hash.ts';
 import {hostedReferenceHashOf, type HostedReferenceType} from './hostedReference.ts';
 import {SUITE_SCHEMA_VERSION, caseHashOf, type CaseType, type SuiteType} from './schema.ts';
-import {canonicalTreatmentsOf, treatmentSetHashOf, type ToolSurfaceType, type TreatmentDefinitionType, type TreatmentKindType} from './treatment.ts';
+import {
+	canonicalTreatmentsOf,
+	treatmentSetHashOf,
+	type CodeModePolicyType,
+	type ToolSurfaceType,
+	type TreatmentDefinitionType,
+	type TreatmentKindType,
+} from './treatment.ts';
 
 /** Shared execution fields that must be identical for every treatment. */
 export type SharedConfigurationType = Readonly<{
 	ordinaryTools: readonly string[];
-	codeMode: 'absent';
+	codeMode: CodeModePolicyType;
 }>;
 
 /** Pinned model identity, independent of whether the model is local or hosted. */

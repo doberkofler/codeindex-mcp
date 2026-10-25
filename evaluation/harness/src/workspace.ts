@@ -137,7 +137,7 @@ export type TreatmentConfigType = Readonly<{
 	/** Exact ordered allowlist; every undeclared tool is denied. */
 	permissions: readonly PermissionRuleType[];
 	mcp: Readonly<{
-		servers: Readonly<Record<string, Readonly<{type: 'local'; command: readonly string[]; codemode: false; environment?: Readonly<Record<string, string>>}>>>;
+		servers: Readonly<Record<string, Readonly<{type: 'local'; command: readonly string[]; codemode: boolean; environment?: Readonly<Record<string, string>>}>>>;
 	}>;
 }>;
 
@@ -434,7 +434,7 @@ export const treatmentConfigOf = (
 					[treatment.mcp.server]: {
 						type: 'local' as const,
 						command: ['node', context.artifactPath(treatment)] as const,
-						codemode: false as const,
+						codemode: treatment.mcp.codemode,
 						environment: context.codeIndexEnvironment(treatment),
 					},
 				};

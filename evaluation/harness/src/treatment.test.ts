@@ -134,6 +134,57 @@ describe('treatment', () => {
 		assert.deepEqual(noIndex.tools, [...ORDINARY].sort());
 	});
 
+	it('Code Mode presents execute while keeping the native catalog callable', () => {
+		const direct = treatmentOf({
+			id: 'direct-mcp',
+			kind: 'codeindex',
+			ordinaryTools: ORDINARY,
+			codeMode: 'absent',
+			artifact: {id: 'candidate', root: 'artifacts/candidate', entryPoint: 'mcp.mjs', digest: null},
+			mcp: {server: 'codeindex', codemode: false},
+		});
+		const wrapped = treatmentOf({
+			id: 'code-mode',
+			kind: 'codeindex',
+			ordinaryTools: ORDINARY,
+			codeMode: 'present',
+			artifact: {id: 'candidate', root: 'artifacts/candidate', entryPoint: 'mcp.mjs', digest: null},
+			mcp: {server: 'codeindex', codemode: true},
+		});
+
+		assert.deepEqual(treatmentDifferencesOf([direct, wrapped]), []);
+
+		const surface = toolSurfaceOf(wrapped, ['find_symbol', 'read_symbol']);
+
+		assert.deepEqual(surface.codeIndex, ['codeindex_find_symbol', 'codeindex_read_symbol']);
+		assert.deepEqual(surface.tools, ['bash', 'execute', 'glob', 'grep', 'list', 'read']);
+		assert.deepEqual(surface.permitted, ['bash', 'codeindex_find_symbol', 'codeindex_read_symbol', 'execute', 'glob', 'grep', 'list', 'read']);
+		assert.equal(routingOf(surface, ['execute', 'codeindex_find_symbol']).unknownTools.length, 0);
+		assert.equal(routingOf(surface, ['codeindex_find_symbol']).unknownTools.length, 0);
+	});
+
+	it('exposure equivalence rejects a different artifact or a non-Code-Mode arm', () => {
+		const direct = treatmentOf({
+			id: 'direct-mcp',
+			kind: 'codeindex',
+			ordinaryTools: ORDINARY,
+			codeMode: 'absent',
+			artifact: {id: 'candidate', root: 'artifacts/candidate', entryPoint: 'mcp.mjs', digest: null},
+			mcp: {server: 'codeindex', codemode: false},
+		});
+		const otherArtifact = treatmentOf({
+			id: 'code-mode',
+			kind: 'codeindex',
+			ordinaryTools: ORDINARY,
+			codeMode: 'present',
+			artifact: {id: 'accepted', root: 'artifacts/accepted', entryPoint: 'mcp.mjs', digest: null},
+			mcp: {server: 'codeindex', codemode: true},
+		});
+
+		assert.match(treatmentDifferencesOf([direct, otherArtifact]).join('\n'), /same artifact/u);
+		assert.throws(() => treatmentOf({...rawTreatments()[0], codeMode: 'present'}), /codeMode/u);
+	});
+
 	it('catalog query returns the native tool names and rejects mismatches', async (testContext: TestContext) => {
 		const root = mkdtempSync(path.join(tmpdir(), 'codeindex-evaluation-mcp-'));
 		const server = path.join(root, 'server.mjs');

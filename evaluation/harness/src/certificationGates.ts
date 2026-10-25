@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {artifactEntriesOf} from './artifact.ts';
 import {type CertificationBlockType, type CertificationDesignType} from './certificationDesign.ts';
-import {type CertificationGateType, type CertificationRouteEvidenceType} from './certificationAnalysis.ts';
+import {type CertificationGateType, type CertificationRouteEvidenceType} from './certificationReport.ts';
 import {evaluationRoot, evaluationStateRoot, settingsOf} from './cliSupport.ts';
 import {EVALUATION_CONTRACT, EVALUATION_CONTRACT_PIN, TARIFF_SNAPSHOT} from './economicContract.ts';
 import {hashOf} from './hash.ts';

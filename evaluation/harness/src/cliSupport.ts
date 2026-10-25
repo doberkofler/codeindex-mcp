@@ -225,7 +225,7 @@ export const surfacesOf = async (
 
 		const surface = toolSurfaceOf(treatment, catalog.tools);
 
-		if (!surface.native || surface.tools.includes('execute')) {
+		if (!surface.native || (treatment.codeMode === 'absent' && surface.tools.includes('execute'))) {
 			throw new Error(`treatment ${treatment.id} did not present a native MCP tool surface`);
 		}
 

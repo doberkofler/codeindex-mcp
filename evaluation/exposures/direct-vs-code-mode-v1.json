@@ -1,0 +1,106 @@
+{
+	"recordType": "exposure-comparison-design",
+	"schemaVersion": 1,
+	"id": "direct-vs-code-mode-v1",
+	"status": "frozen",
+	"frozenAt": "2026-10-25T00:00:00.000Z",
+	"contract": {
+		"id": "evaluation-validity-v2",
+		"version": 2,
+		"digest": "179bb5df1bc96ee86c54da20f26034a59fe50671dfc9912d805ed4588204a22f"
+	},
+	"suite": {
+		"id": "codeindex-exposure",
+		"path": "suites/exposure.json",
+		"version": 1,
+		"hash": "e3f2e0814d2e791c29890b27517b6d0fda5d3a670ccc93a734982d02cdd64452",
+		"revision": "3b6b791d148ef6e96bcddd7850e1bc3c43cc4516"
+	},
+	"exposure": {
+		"baseline": "direct-mcp",
+		"treatment": "code-mode",
+		"rationale": "Both arms load the same artifact, ordinary tools, fixed cases, model, and client runtime. Only the OpenCode MCP presentation changes: native tools versus the generic Code Mode execute boundary."
+	},
+	"model": {
+		"provider": "deepseek",
+		"modelId": "deepseek-flash",
+		"reference": "deepseek/deepseek-flash",
+		"runtime": "2.1.4",
+		"generation": {
+			"temperature": null,
+			"topP": null,
+			"topK": null,
+			"repeatPenalty": null,
+			"stop": []
+		}
+	},
+	"artifact": {
+		"id": "codeindex-mcp-candidate",
+		"digest": "ac846e44cf7c527f9d361ff7ca266e5e2bbdae4d2dd80f9c1e111ac124d4e205"
+	},
+	"ordinaryTools": ["bash", "glob", "grep", "list", "read"],
+	"cases": [
+		{
+			"id": "impact-build-generation-references",
+			"class": "impact"
+		},
+		{
+			"id": "impact-hash-content-references",
+			"class": "impact"
+		},
+		{
+			"id": "impact-bounded-paged-result-references",
+			"class": "impact"
+		},
+		{
+			"id": "impact-schema-version-references",
+			"class": "impact"
+		},
+		{
+			"id": "impact-config-load-references",
+			"class": "impact"
+		},
+		{
+			"id": "impact-codeindex-error-references",
+			"class": "impact"
+		}
+	],
+	"repetitions": 5,
+	"seed": "exposure-comparison-2026-10-25",
+	"tariff": {
+		"id": "deepseek-flash-2026-10-23",
+		"source": "https://api-docs.deepseek.com/quick_start/pricing",
+		"retrievedAt": "2026-10-23T00:00:00.000Z",
+		"digest": "593634d1954e4ccd8303d71b68db15ba6f266e154a5f7f2e3da1f9db0fd16712"
+	},
+	"route": {
+		"suiteId": "codeindex-release",
+		"path": "routes/codeindex-release.json",
+		"version": 1,
+		"hash": "073378fe3b9dc71710797a4a31a249d36363802f4347f87b73ff4fe6ae47f110",
+		"plan": "routes/codeindex-release.json",
+		"planHash": "96dee1cb3fd17fcfa66ec0ac6917bffda737119fe019f10570bd66f6c85547e4"
+	},
+	"frozenProduction": {
+		"exposure": "direct-mcp",
+		"certification": "reports/certification-eval-037.json",
+		"certificationDigest": "828ae7e4525ddaf85b118dae077fec96f983092c9d573ff7c3de312cd26e4d1f"
+	},
+	"budget": {
+		"maxExecutions": 60,
+		"maxWallClockMs": 10800000,
+		"maxProviderCostUsd": 1
+	},
+	"thresholds": {
+		"confidence": 0.95,
+		"minimumCostSaving": 0.05,
+		"nonInferiorityMargin": 0.02,
+		"falseAbsenceTolerance": 0
+	},
+	"decisionPolicy": {
+		"retainDirect": "Keep direct MCP when the Code Mode upper cost ratio does not clear the predeclared minimum saving or correctness is not non-inferior.",
+		"adoptCodeMode": "Reopen the frozen exposure only when Code Mode's upper cost ratio clears the minimum saving with non-inferior correctness, zero false absence, exact metering, and exact request-1 surfaces in both arms.",
+		"inconclusive": "Retain direct MCP and record a blocked comparison when any execution, provider request, request-1 surface, or separated core query time is missing or invalid."
+	},
+	"digest": "eb70afcc07b37e0a981416499f8893c0c1b6c4b4736684985b2c7035231714d7"
+}

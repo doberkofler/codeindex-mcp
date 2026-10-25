@@ -36,7 +36,9 @@ Remaining work is evidence-driven:
   stratified sample of at least 200 symbols;
 - retain compiler-version drift detection;
 - verify hot SQLite query plans and deep pagination;
-- measure direct MCP and Code Mode overhead separately;
+- ~~measure direct MCP and Code Mode overhead separately~~ — done; direct MCP
+  remains recommended at `1.307` Code Mode cost (upper `1.473`), see
+  [Exposure evidence](../evaluation/audits/exposure-eval-050.md);
 - add incremental compiler state only if full-generation refresh misses its gate;
 - add binding-aware façade analysis only when module reachability is insufficient;
 - create controlled cases for dependency usage and impact.

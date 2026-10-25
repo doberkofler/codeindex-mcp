@@ -11,10 +11,12 @@ The method is specified in
 > development pilot, and the holdout block are all recorded. The holdout is
 > descriptive only: its cost ratio was `1.119`, it does not enlarge the release
 > population, and `holdout-baseline-payload` failed for both treatments. The
-> primary sample is underpowered at the frozen design alternative, and Code Mode
-> overhead remains open under PROD-004. Read the
+> primary sample is underpowered at the frozen design alternative. PROD-004
+> measured the exposure pair: Code Mode cost `1.307` direct (upper `1.473`) on
+> the pinned artifact, so native direct MCP remains recommended. Read the
 > [certification record](audits/certification-eval-037.md), the
-> [E3 erratum](audits/hosted-release-e3-erratum.md), the
+> [E3 erratum](audits/hosted-release-e3-erratum.md),
+> [exposure evidence](audits/exposure-eval-050.md), the
 > [frozen contract](contracts/evaluation-validity-v2.json), the
 > [frozen contract evidence](audits/economic-contract-eval-034.md), the
 > [validity/A/A evidence](audits/validity-aa-eval-035.md), and the
@@ -30,6 +32,7 @@ The method is specified in
 | `routes/` | Declared complete-route plans for model-free E1 comparison |
 | `references/` | Pinned hosted-model identities for release campaigns |
 | `pilots/` | Frozen development-pilot designs and breadth-selection records |
+| `exposures/` | Frozen paired direct-MCP/Code-Mode exposure-comparison designs |
 | `audits/` | Recorded E0 case and truth review notes |
 | `reports/` | Reviewed aggregate reports safe for publication |
 
@@ -127,6 +130,24 @@ The pinned holdout suite is validated without a model call:
 ```bash
 node evaluation/harness/src/cli.ts preflight --suite suites/holdout.json
 ```
+
+The post-certification exposure comparison loads the same artifact through
+native direct MCP and through OpenCode Code Mode. It pins the model, client
+runtime, tariff, ordinary tools, fixed cases, and model-free core-query route:
+
+```bash
+EVALUATION_STATE_ROOT=<external-root> DEEPSEEK_API_KEY=<key> \
+  node evaluation/harness/src/cli.ts exposure \
+  --suite suites/exposure.json \
+  --design exposures/direct-vs-code-mode-v1.json \
+  --hosted-reference references/deepseek-flash-exposure-2026-10-25.json \
+  --route-report <results/route/.../report.json> \
+  --provider-auth-env DEEPSEEK_API_KEY
+```
+
+The report compares cost, request and response bytes, tool calls, wall time,
+and separated core query time, then records one closed recommendation. It does
+not re-grade EVAL-037.
 
 The hosted validity calibration runs every zero-spend gate, one hosted smoke,
 and two identical no-index A/A arms in randomized paired order. The record is

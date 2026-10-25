@@ -9,8 +9,11 @@ method in
 > request-1 surface proof, external-state workspace isolation, corpus preflight,
 > and the frozen economic/statistical contract are implemented. EVAL-037 recorded
 > **RELEASE** for the pinned impact-class primary population with native direct
-> MCP; the holdout is descriptive only. Read the
+> MCP; the holdout is descriptive only. PROD-004 measured the paired exposure
+> comparison: Code Mode cost `1.307` direct with upper `1.473`, so direct MCP
+> remains recommended. Read the
 > [E3 erratum](../audits/hosted-release-e3-erratum.md), the
+> [exposure evidence](../audits/exposure-eval-050.md), the
 > [frozen contract](../contracts/evaluation-validity-v2.json), and the
 > [certification record](../audits/certification-eval-037.md). Do not cite a new
 > economic result outside the frozen contract and pinned configuration.
@@ -40,6 +43,13 @@ canonical CodeIndex artifact. Across comparable qualification campaigns, only th
 pinned model environment changes. The `qualification` command implements this
 18 × 2 × 3 plan; `local-diagnostic` and `local-regression` remain the historical
 candidate-comparison commands and keep their original records.
+
+The exposure comparison is a separate two-arm model over the same artifact:
+`direct-mcp` presents the native tools and `code-mode` presents the generic
+`execute` tool while the artifact's native catalog stays callable underneath.
+Both arms declare the same ordinary tools. The `exposure` command validates the
+frozen design before it starts a model, proves each arm's agent request-1
+surface, and writes a paired recommendation that never re-grades EVAL-037.
 
 All treatments run in isolated workspaces of the same pinned subject: detached
 worktrees when the subject is a version-control checkout, and disposable content-
@@ -108,14 +118,10 @@ so suites may keep it declared while the expected surface omits it.
 The manifest and every result record the surface. Every observed tool call is
 classified as ordinary, native CodeIndex, generic `execute`, or unknown. Any
 tool outside the callable surface is recorded and makes the execution invalid.
-Generic `execute` and `search` are disabled in every treatment; a call to either
-is recorded and fails the report.
-
-The manifest and every result record the surface. Every observed tool call is
-classified as ordinary, native CodeIndex, generic `execute`, or unknown. Any
-tool outside the callable surface is recorded and makes the execution invalid.
-Generic `execute` and `search` are disabled in every treatment; a call to either
-is recorded and fails the report.
+Generic `execute` and `search` are disabled in the standard frontier and
+qualification models. The exposure comparison deliberately presents `execute`
+in its `code-mode` arm and asserts that exact surface; a call in the
+`direct-mcp` arm still fails the report.
 
 ## Repository layout
 
@@ -347,6 +353,40 @@ calibration selected 7 repetitions (378 executions), above the frozen
 270-execution budget. The smoke and A/A records carry
 `claimClass: "validity-only"`, `efficacyClaim: false`, and
 `releaseAuthority: false`.
+
+### Paired exposure comparison
+
+`exposure` measures what OpenCode Code Mode adds on top of the same native MCP
+artifact. It is post-certification evidence for PROD-004 (#50): the frozen
+production exposure remains `direct-mcp`, and this command never changes the
+EVAL-037 record.
+
+The frozen design pins the artifact digest, model, client runtime, tariff,
+ordinary tools, fixed cases, paired repetitions, randomization seed, budget,
+thresholds, and the model-free route report used for separated core query time.
+Both arms must present their exact agent request-1 surface after MCP readiness:
+
+- `direct-mcp` presents the ordinary tools plus the native `codeindex_*` tools;
+- `code-mode` presents the ordinary tools plus `execute`, with the native
+  catalog callable only through that boundary.
+
+Every provider request must reconcile with exact usage. The report compares
+total task cost, request bytes, response bytes, tool calls, wall time, and
+separated core query time with paired per-case intervals. It records one closed
+recommendation: retain the frozen direct exposure, reopen it, or block the
+comparison. A missing or invalid arm never produces a recommendation.
+
+```bash
+node src/cli.ts route --suite suites/release.json --treatment candidate
+node src/cli.ts exposure --suite suites/exposure.json \
+  --design exposures/direct-vs-code-mode-v1.json \
+  --hosted-reference references/deepseek-flash-exposure-2026-10-25.json \
+  --route-report <results/route/.../report.json> \
+  --provider-auth-env DEEPSEEK_API_KEY
+```
+
+`--dry-run` validates every pin and prints the randomized plan without a model
+call.
 
 ### Budgeted A/B development pilot
 
@@ -1088,9 +1128,10 @@ roughly 16 hours), so the suite moved to the paid endpoint.
 
 ## Native routing
 
-The CodeIndex server is configured with `codemode: false`, so its tools are
-presented directly as `codeindex_*` provider tools. Generic `execute` and
-`search` are disabled in every treatment. The harness verifies the artifact's
-native tool catalog before the first model call and records every observed tool
-name, so a regression to Code Mode routing is visible as a report failure rather
-than an unexplained payload increase.
+The standard frontier and qualification campaigns configure the CodeIndex server
+with `codemode: false`, so its tools are presented directly as `codeindex_*`
+provider tools and generic `execute` is disabled. The exposure comparison opts
+into `codemode: true` only for its `code-mode` arm. The harness verifies the
+artifact's native tool catalog before the first model call and records every
+observed tool name, so a regression to Code Mode routing is visible as a report
+failure rather than an unexplained payload increase.

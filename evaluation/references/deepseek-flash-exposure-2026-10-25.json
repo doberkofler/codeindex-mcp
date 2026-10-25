@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"id": "deepseek-flash-exposure-2026-10-25",
+	"recordedAt": "2026-10-25T00:00:00.000Z",
+	"provider": "deepseek",
+	"modelId": "deepseek-flash",
+	"reference": "deepseek/deepseek-flash",
+	"releasedAt": "2026-10-17T00:00:00.000Z",
+	"runtime": {
+		"opencode": "2.1.4"
+	},
+	"generation": {
+		"temperature": null,
+		"topP": null,
+		"topK": null,
+		"repeatPenalty": null,
+		"stop": []
+	}
+}

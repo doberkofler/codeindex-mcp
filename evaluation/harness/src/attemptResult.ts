@@ -20,11 +20,13 @@ export const invalidReasonOf = (
 		timedOut: boolean;
 		exitCode: number | null;
 		routing: RoutingType;
+		/** True when the declared surface intentionally exposes generic execute. */
+		executePresent: boolean;
 		externalPathAttemptCount: number;
 		providerMeter: ProviderMeterReconciliationType | null;
 	}>,
 ): string | null => {
-	const {timedOut, exitCode, routing, externalPathAttemptCount, providerMeter} = input;
+	const {timedOut, exitCode, routing, executePresent, externalPathAttemptCount, providerMeter} = input;
 
 	if (timedOut) {
 		return 'timed out';
@@ -42,8 +44,8 @@ export const invalidReasonOf = (
 		return `unknown tool(s) presented or called: ${routing.unknownTools.join(', ')}`;
 	}
 
-	if (routing.executeCalls > 0) {
-		return 'generic execute was called although it is absent from every treatment';
+	if (routing.executeCalls > 0 && !executePresent) {
+		return 'generic execute was called although it is absent from this treatment';
 	}
 
 	if (providerMeter !== null && providerMeter.economicClaim.state !== 'exact') {
