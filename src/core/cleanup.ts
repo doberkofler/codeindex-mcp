@@ -66,45 +66,33 @@ const assertSafeRoot = (root: string, label: string, protectedPaths: readonly st
 };
 
 const directorySize = (directory: string): number => {
-	let total = 0;
-	const pending = [directory];
+	let entries: readonly Dirent[];
 
-	while (pending.length > 0) {
-		const current = pending.pop();
-
-		if (current === undefined) {
-			continue;
-		}
-
-		let entries: readonly Dirent[];
-
-		try {
-			entries = readdirSync(current, {withFileTypes: true});
-		} catch {
-			continue;
-		}
-
-		for (const entry of entries) {
-			const entryPath = join(current, entry.name);
-
-			if (entry.isSymbolicLink()) {
-				continue;
-			}
-
-			if (entry.isDirectory()) {
-				pending.push(entryPath);
-				continue;
-			}
-
-			try {
-				total += lstatSync(entryPath).size;
-			} catch {
-				continue;
-			}
-		}
+	try {
+		entries = readdirSync(directory, {withFileTypes: true});
+	} catch {
+		// A directory that disappears or denies listing contributes no bytes.
+		return 0;
 	}
 
-	return total;
+	return entries.reduce((total, entry) => {
+		const entryPath = join(directory, entry.name);
+
+		if (entry.isSymbolicLink()) {
+			return total;
+		}
+
+		if (entry.isDirectory()) {
+			return total + directorySize(entryPath);
+		}
+
+		try {
+			return total + lstatSync(entryPath).size;
+		} catch {
+			// A file that disappears between listing and stat contributes no bytes.
+			return total;
+		}
+	}, 0);
 };
 
 const protectedTarget = (target: string, protectedPaths: readonly string[]): boolean => protectedPaths.some((protectedPath) => isWithin(target, protectedPath));
@@ -211,15 +199,10 @@ const currentTargets = (roots: CleanupRootsType): readonly CleanupTargetType[] =
 };
 
 const assertNoActiveProcesses = (targets: readonly CleanupTargetType[]): void => {
-	const directories = new Set(
-		targets.map((target) => {
-			try {
-				return existsSync(target.path) && lstatSync(target.path).isDirectory() ? target.path : dirname(target.path);
-			} catch {
-				return dirname(target.path);
-			}
-		}),
-	);
+	// Owner markers live beside the database, so both the target itself and its
+	// parent directory are checked. A file target denies directory listing and
+	// therefore contributes no owners.
+	const directories = new Set(targets.flatMap((target) => [target.path, dirname(target.path)]));
 	const active = [...directories].flatMap((directory) => activeProcessOwnersInDirectory(directory));
 
 	if (active.length > 0) {
@@ -316,8 +299,10 @@ const cleanupCommand = (rootsOf: CleanupRootsResolverType, io: CommandIoType): C
 			.allowExcessArguments(true),
 		io,
 	).action((options: Readonly<{yes?: boolean | undefined; all?: boolean | undefined}>) => {
-		if (command.args.length > 0) {
-			throw new Error(`Unexpected argument: ${command.args[0] ?? ''}\n\n${command.helpInformation().trimEnd()}`);
+		const [unexpected] = command.args;
+
+		if (unexpected !== undefined) {
+			throw new Error(`Unexpected argument: ${unexpected}\n\n${command.helpInformation().trimEnd()}`);
 		}
 
 		executeCleanup({yes: options.yes === true, all: options.all === true}, rootsOf, io);

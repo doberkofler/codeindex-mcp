@@ -246,6 +246,48 @@ describe('cleanup safety', () => {
 	});
 });
 
+describe('cleanup filesystem failures', () => {
+	afterEach(removeTemporaryDirectories);
+
+	it('ignores directories and files that deny inspection when sizing a target', () => {
+		const {roots} = fixture();
+		const projectDirectory = join(roots.storage, '0123456789abcdef');
+		const unlistable = join(projectDirectory, 'unlistable');
+		const unstatable = join(projectDirectory, 'unstatable');
+
+		mkdirSync(unlistable, {recursive: true});
+		mkdirSync(unstatable, {recursive: true});
+		writeFileSync(join(unlistable, 'ignored.bin'), 'x'.repeat(2048));
+		writeFileSync(join(unstatable, 'ignored.bin'), 'x'.repeat(2048));
+		chmodSync(unlistable, 0o000);
+		chmodSync(unstatable, 0o400);
+
+		try {
+			const targets = collectCleanupTargets(roots, current);
+			const target = targets.find((candidate) => candidate.path === projectDirectory);
+
+			expect(target?.bytes).toBe(1024);
+		} finally {
+			chmodSync(unlistable, 0o700);
+			chmodSync(unstatable, 0o700);
+		}
+	});
+
+	it('skips database artifacts that deny inspection', () => {
+		const {base, roots} = fixture();
+		const custom = join(base, 'custom');
+		mkdirSync(custom, {recursive: true});
+		writeFileSync(join(custom, 'state.sqlite'), 'x');
+		chmodSync(custom, 0o400);
+
+		try {
+			expect(collectCleanupTargets({...roots, databasePath: join(custom, 'state.sqlite')}, current)).toStrictEqual([]);
+		} finally {
+			chmodSync(custom, 0o700);
+		}
+	});
+});
+
 describe('cleanup safety failures', () => {
 	afterEach(removeTemporaryDirectories);
 
