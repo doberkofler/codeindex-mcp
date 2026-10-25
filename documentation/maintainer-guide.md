@@ -404,6 +404,19 @@ certified artifact or differs only in version metadata. Cost evidence remains sc
 to the artifact that was actually measured; a version-only delta does not create a
 new exact-artifact cost claim.
 
+### 9.3 Hosted-model spend
+
+Hosted-model calls are billable. Approve an effort forecast before the first call:
+executions, provider requests, token range, cost range, duration, confidence,
+completed model-free and local checks, and the stop conditions. Estimate without
+spending; a diagnostic call never sharpens a forecast.
+
+Complete the model-free route, the request-1 surface probe, and every local check
+first. Reuse retained evidence and resume interrupted campaigns. Spend reduction
+removes waste and never shortens the frozen design. The normative rules and the
+forecast fields are in
+[harness §14](./evaluation-harness.md#14-hosted-model-spend-approval).
+
 ## 10. Rollback
 
 Rollback is configuration-only: disconnect or remove the MCP registration and use

@@ -97,6 +97,19 @@ environment changes between comparable qualification campaigns. The moving
 The completed three-treatment local regression remains historical evidence under its
 original policy and verdict. It is not regraded under this split.
 
+### 1.4 Hosted-model spend
+
+Every hosted-model campaign requires explicit approval of an effort forecast before
+its first call: executions, provider requests, token range, cost range, duration,
+confidence, completed model-free and local checks, and stop conditions. The forecast
+is produced without spending.
+
+Reuse retained evidence and resume interrupted campaigns before paying for new
+executions. Rerun only invalid executions with a recorded cause. Spend reduction
+removes waste; it never reduces cases, repetitions, power, or a gate. The normative
+rules and fields are in
+[harness §14](./evaluation-harness.md#14-hosted-model-spend-approval).
+
 ## 2. Non-goals
 
 This evaluation does not:

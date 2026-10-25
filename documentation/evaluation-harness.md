@@ -1071,3 +1071,38 @@ only; it neither defines nor reinterprets a gate.
 
 Harness behaviour that contradicts this table is a harness defect. Fix the harness; do not
 relax the contract.
+
+## 14. Hosted-model spend approval
+
+A hosted-model call is billable. Model-free routes, the request-1 surface probe,
+local qualification, protocol tests, and CI compute are not.
+
+No hosted-model call starts without explicit approval of an effort forecast. The
+forecast is produced before the campaign is admitted and records:
+
+| Field | Content |
+| --- | --- |
+| Decision | Purpose and the claim the evidence supports |
+| Identity | Provider, model, client runtime, harness revision, artifact digest |
+| Executions | Planned model executions and provider requests per treatment and repetition |
+| Tokens | Input and output token range per execution and in total, including cache classes when the provider reports them |
+| Cost | Estimated cost range, tariff identity, and currency |
+| Duration | Estimated wall-clock range |
+| Confidence | Confidence level and the assumptions behind every number |
+| Readiness | Model-free and local checks that already passed |
+| Stops | Stop rule and the conditions that justify a rerun |
+
+Rules:
+
+- Estimate without spending. A diagnostic hosted call never replaces a forecast.
+- Reuse retained valid evidence and resume an interrupted campaign before paying
+  for a new execution.
+- Rerun only invalid or failed executions, and record the cause under the strategy's
+  execution contract ([§13](#13-tier-gate-and-stop-rule-enforcement)).
+- Choose the smallest design that still meets the declared statistical power and
+  acceptance criteria. Spend reduction never justifies fewer cases, fewer
+  repetitions, or a weaker gate.
+- A frozen campaign design, including its execution and spend budget, is unchanged
+  by this approval. Reducing spend means removing waste, not changing the design.
+- The campaign retains the approved forecast beside its run evidence. A campaign
+  whose forecast or approval cannot be identified is not admitted.

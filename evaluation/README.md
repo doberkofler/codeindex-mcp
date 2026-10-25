@@ -63,6 +63,18 @@ The historical 162-slot local regression compared a moving candidate and remains
 `NOT PASSED`. It is retained as evidence but is not the future local-model
 qualification design and is not a hosted precondition.
 
+## Hosted-model spend
+
+Paid provider calls run only after explicit approval of an effort forecast. Every
+`evaluate`, `release`, `exposure`, or `validity` invocation below that starts a
+hosted model requires one. The forecast covers executions, provider requests,
+token range, cost range, duration, confidence, readiness, and stop conditions.
+
+Complete the model-free route, the request-1 surface probe, and every local check
+first. Reuse retained evidence and resume interrupted campaigns before paying for
+new executions. The normative rules are in
+[harness §14](../documentation/evaluation-harness.md#14-hosted-model-spend-approval).
+
 ## Commands
 
 ```bash

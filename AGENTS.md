@@ -67,6 +67,39 @@ Changes to `tsconfig*.json`, `oxlint.config.ts`, `oxc.config.ts`,
 `package.json` lint/build scripts require explicit approval. Fix code before
 weakening a check.
 
+## Hosted-model spend
+
+A hosted-model call is billable. Local models, loopback probes, MCP calls, and CI
+compute are free of this rule.
+
+Every hosted-model call requires explicit approval before it starts. Estimate the
+effort first and report:
+
+- the purpose and the decision the evidence supports;
+- provider, model, client, and harness versions;
+- planned executions and provider requests;
+- input and output token range per execution and in total;
+- estimated cost range, its tariff, and its currency;
+- estimated wall-clock duration;
+- confidence and the assumptions behind every number;
+- the model-free and local checks already passed;
+- the stop rule and the conditions that justify a rerun.
+
+Reuse retained valid evidence and resume an interrupted campaign before paying
+for new executions. Rerun only invalid executions and record the cause. Never run
+a hosted call to tighten a forecast.
+
+Prefer the smallest design that still meets the declared statistical power and
+acceptance criteria. Spend reduction never justifies fewer cases, fewer
+repetitions, or a weaker gate. Frozen per-campaign budgets stay in force.
+
+## Work plans and progress
+
+For work expected to exceed five minutes, state an ETA range, a confidence level,
+and the milestones before starting. At each milestone, on a blocker, or when the
+estimate moves materially, report completed work, the next step, elapsed time,
+and the revised ETA range. An estimate is a forecast, not a commitment.
+
 ## Tests
 
 Tests use temporary fixture workspaces and temporary SQLite files. Do not point
