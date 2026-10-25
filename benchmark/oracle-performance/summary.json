@@ -1,0 +1,885 @@
+{
+	"schemaVersion": 1,
+	"generatedAt": "2026-10-25T17:17:45.822Z",
+	"measurement": {
+		"startedAt": "2026-10-25T17:03:21.967Z",
+		"durationMs": 863853.798041,
+		"warmups": 1,
+		"runs": 5,
+		"iterations": 20,
+		"editRounds": 5,
+		"maxDepth": 10000,
+		"pageLimit": 200
+	},
+	"identities": {
+		"code": {
+			"commit": "30dbed14d8e44339c5fafd4ed9af4c8a39ca1d4f",
+			"dirty": false,
+			"packageVersion": "0.7.0",
+			"nodeVersion": "v26.10.0",
+			"sqliteVersion": "3.53.4",
+			"bundles": {
+				"mcp": {
+					"rawBytes": 2212226,
+					"gzipBytes": 347320,
+					"sha256": "c4c6cfa23a14d6aef650c9ceb296d456905cfce9657e5463c69be31abfc84f71"
+				},
+				"cli": {
+					"rawBytes": 518808,
+					"gzipBytes": 130848,
+					"sha256": "05019a6ef44ee13d38071731ff6e8bec1343ee1126b5d196cbaed77e512105d9"
+				}
+			}
+		},
+		"machine": {
+			"platform": "darwin",
+			"arch": "arm64",
+			"cpuModel": "Apple M5 Max",
+			"totalMemoryBytes": 68719476736
+		},
+		"parser": {
+			"id": "structural",
+			"revision": "structural@5;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd",
+			"compilerVersion": "oracle19c;parser@structural;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd"
+		},
+		"corpus": {
+			"bundleSha256": "a72e1d13db4a93ad5f47a65670fdcc29221036478a462a456691c0504c544f4b",
+			"sourceHash": "2bb0da1e8151410432cfe55d30607ed229976b7ccfd974a97027ebeb220f7f2a",
+			"fileCount": 1244,
+			"unitCount": 1244,
+			"databaseSchemaVersion": "10",
+			"planConfigHash": "8ba026c038fe53224ab378d0e898589f0da818c4e32a3f98cf6957a493e24065",
+			"benchmarkConfigHash": "c297208b69152109b3fa659483cec50dedaaecd2272970bb213d069cf9e2b45e"
+		},
+		"thresholds": {
+			"sha256": "955ffca99c99f74c99b501e3e3e095c24ffb7628d30502e7c6f3d7cf5ab2ce59"
+		},
+		"editTarget": {
+			"label": "median-size source file",
+			"bytes": 5204,
+			"sha256": "4100be68f69545b1a3ed091f6c45fa60b89d831794c41a1db80d2590e60b24a7"
+		}
+	},
+	"metrics": {
+		"cold.wallMs": {
+			"count": 5,
+			"min": 13615,
+			"median": 13650,
+			"p95": 14193,
+			"max": 14193,
+			"mean": 13764.8,
+			"cvPercent": 1.588623839562332
+		},
+		"cold.buildMs": {
+			"count": 5,
+			"min": 13372,
+			"median": 13409,
+			"p95": 13948,
+			"max": 13948,
+			"mean": 13522.4,
+			"cvPercent": 1.6093055027084535
+		},
+		"cold.cpuMs": {
+			"count": 5,
+			"min": 15936,
+			"median": 16018,
+			"p95": 16566,
+			"max": 16566,
+			"mean": 16120.8,
+			"cvPercent": 1.4061054712556678
+		},
+		"cold.rssPeakBytes": {
+			"count": 5,
+			"min": 2692546560,
+			"median": 2711207936,
+			"p95": 2724249600,
+			"max": 2724249600,
+			"mean": 2711755161.6,
+			"cvPercent": 0.40882678752256474
+		},
+		"cold.storageTotalBytes": {
+			"count": 5,
+			"min": 969799128,
+			"median": 969799128,
+			"p95": 969799128,
+			"max": 969799128,
+			"mean": 969799128,
+			"cvPercent": 0
+		},
+		"cold.databaseBytes": {
+			"count": 5,
+			"min": 553168896,
+			"median": 553168896,
+			"p95": 553168896,
+			"max": 553168896,
+			"mean": 553168896,
+			"cvPercent": 0
+		},
+		"warm.wallMs": {
+			"count": 5,
+			"min": 237,
+			"median": 238,
+			"p95": 240,
+			"max": 240,
+			"mean": 238.4,
+			"cvPercent": 0.4277700934222135
+		},
+		"warm.cpuMs": {
+			"count": 5,
+			"min": 319,
+			"median": 324,
+			"p95": 324,
+			"max": 324,
+			"mean": 322.4,
+			"cvPercent": 0.6386867333118487
+		},
+		"warm.rssPeakBytes": {
+			"count": 5,
+			"min": 374374400,
+			"median": 374964224,
+			"p95": 375455744,
+			"max": 375455744,
+			"mean": 374974054.4,
+			"cvPercent": 0.10068907200429301
+		},
+		"warm.storageTotalBytes": {
+			"count": 5,
+			"min": 553230536,
+			"median": 553230536,
+			"p95": 553230536,
+			"max": 553230536,
+			"mean": 553230536,
+			"cvPercent": 0
+		},
+		"rebuild.wallMs": {
+			"count": 5,
+			"min": 14908,
+			"median": 15011,
+			"p95": 15088,
+			"max": 15088,
+			"mean": 15004,
+			"cvPercent": 0.4077474511497526
+		},
+		"rebuild.buildMs": {
+			"count": 5,
+			"min": 14683,
+			"median": 14781,
+			"p95": 14850,
+			"max": 14850,
+			"mean": 14771.6,
+			"cvPercent": 0.39803811734051886
+		},
+		"rebuild.cpuMs": {
+			"count": 5,
+			"min": 17215,
+			"median": 17380,
+			"p95": 17439,
+			"max": 17439,
+			"mean": 17362.6,
+			"cvPercent": 0.4465545289342545
+		},
+		"rebuild.rssPeakBytes": {
+			"count": 5,
+			"min": 3447242752,
+			"median": 3639017472,
+			"p95": 3665149952,
+			"max": 3665149952,
+			"mean": 3608821760,
+			"cvPercent": 2.273655973579448
+		},
+		"rebuild.storageTotalBytes": {
+			"count": 5,
+			"min": 1386010240,
+			"median": 1386010240,
+			"p95": 1386971512,
+			"max": 1386971512,
+			"mean": 1386202494.4,
+			"cvPercent": 0.027738285102886773
+		},
+		"edit.p50Ms": {
+			"count": 5,
+			"min": 22029,
+			"median": 22094,
+			"p95": 22117,
+			"max": 22117,
+			"mean": 22076.4,
+			"cvPercent": 0.1768936988082056
+		},
+		"edit.p95Ms": {
+			"count": 5,
+			"min": 22067,
+			"median": 22168,
+			"p95": 22335,
+			"max": 22335,
+			"mean": 22197.6,
+			"cvPercent": 0.40511472928289205
+		},
+		"edit.maxMs": {
+			"count": 5,
+			"min": 22067,
+			"median": 22168,
+			"p95": 22335,
+			"max": 22335,
+			"mean": 22197.6,
+			"cvPercent": 0.40511472928289205
+		},
+		"edit.latencyMs": {
+			"count": 25,
+			"min": 21878,
+			"median": 22067,
+			"p95": 22296,
+			"max": 22335,
+			"mean": 22072.36,
+			"cvPercent": 0.5435181778247828
+		},
+		"deep.wallMs": {
+			"count": 5,
+			"min": 271,
+			"median": 273,
+			"p95": 276,
+			"max": 276,
+			"mean": 273.4,
+			"cvPercent": 0.6783919894290933
+		},
+		"deep.rssPeakBytes": {
+			"count": 5,
+			"min": 421134336,
+			"median": 422019072,
+			"p95": 423264256,
+			"max": 423264256,
+			"mean": 422094438.4,
+			"cvPercent": 0.17955642924918805
+		},
+		"bundle.mcp.rawBytes": {
+			"count": 1,
+			"min": 2212226,
+			"median": 2212226,
+			"p95": 2212226,
+			"max": 2212226,
+			"mean": 2212226,
+			"cvPercent": 0
+		},
+		"bundle.mcp.gzipBytes": {
+			"count": 1,
+			"min": 347320,
+			"median": 347320,
+			"p95": 347320,
+			"max": 347320,
+			"mean": 347320,
+			"cvPercent": 0
+		},
+		"bundle.cli.rawBytes": {
+			"count": 1,
+			"min": 518808,
+			"median": 518808,
+			"p95": 518808,
+			"max": 518808,
+			"mean": 518808,
+			"cvPercent": 0
+		},
+		"bundle.cli.gzipBytes": {
+			"count": 1,
+			"min": 130848,
+			"median": 130848,
+			"p95": 130848,
+			"max": 130848,
+			"mean": 130848,
+			"cvPercent": 0
+		},
+		"queries.find_references.p95Ms": {
+			"count": 5,
+			"min": 0,
+			"median": 0,
+			"p95": 0,
+			"max": 0,
+			"mean": 0,
+			"cvPercent": 0
+		},
+		"queries.find_symbol.p95Ms": {
+			"count": 5,
+			"min": 1,
+			"median": 1,
+			"p95": 1,
+			"max": 1,
+			"mean": 1,
+			"cvPercent": 0
+		},
+		"queries.outline.p95Ms": {
+			"count": 5,
+			"min": 1,
+			"median": 1,
+			"p95": 1,
+			"max": 1,
+			"mean": 1,
+			"cvPercent": 0
+		},
+		"queries.read_symbol.p95Ms": {
+			"count": 5,
+			"min": 0,
+			"median": 0,
+			"p95": 0,
+			"max": 0,
+			"mean": 0,
+			"cvPercent": 0
+		},
+		"queries.status.p95Ms": {
+			"count": 5,
+			"min": 0,
+			"median": 0,
+			"p95": 0,
+			"max": 0,
+			"mean": 0,
+			"cvPercent": 0
+		}
+	},
+	"evaluation": {
+		"status": "failure",
+		"summary": {
+			"pass": 41,
+			"warning": 1,
+			"failure": 3
+		},
+		"gates": [
+			{
+				"code": "integrity.cold.sourceHash",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "cold builds used the frozen source; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "integrity.cold.configHash",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "cold builds used one stable benchmark configuration; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "integrity.cold.fileCount",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "cold builds indexed the frozen file count; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "integrity.cold.generationReuse",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "cold builds created a generation; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "integrity.warm.reuse",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "warm runs reused every content version; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "integrity.rebuild.reuse",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "full rebuilds reused content and published a generation; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "integrity.edit.samples",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "edits recorded every declared round; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "integrity.deep_cursor.index",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "deep cursor samples used an intended index; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "integrity.deep_cursor.temp_btree",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "deep cursor samples avoided temporary B-trees; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "integrity.queries.iterations",
+				"status": "pass",
+				"category": "integrity",
+				"metric": null,
+				"statistic": null,
+				"actual": 0,
+				"message": "every query recorded the declared iterations; 0 of 5 runs violated the contract",
+				"warning": null,
+				"failure": 0,
+				"unit": "count"
+			},
+			{
+				"code": "metric.cold.wallMs",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "cold.wallMs",
+				"statistic": "median",
+				"actual": 13650,
+				"warning": 15000,
+				"failure": 30000,
+				"unit": "ms",
+				"message": "cold.wallMs median 13650 ms; warning above 15000, failure above 30000"
+			},
+			{
+				"code": "metric.cold.buildMs",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "cold.buildMs",
+				"statistic": "median",
+				"actual": 13409,
+				"warning": 15000,
+				"failure": 30000,
+				"unit": "ms",
+				"message": "cold.buildMs median 13409 ms; warning above 15000, failure above 30000"
+			},
+			{
+				"code": "metric.cold.cpuMs",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "cold.cpuMs",
+				"statistic": "median",
+				"actual": 16018,
+				"warning": 20000,
+				"failure": 40000,
+				"unit": "ms",
+				"message": "cold.cpuMs median 16018 ms; warning above 20000, failure above 40000"
+			},
+			{
+				"code": "metric.cold.rssPeakBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "cold.rssPeakBytes",
+				"statistic": "median",
+				"actual": 2711207936,
+				"warning": 3500000000,
+				"failure": 5000000000,
+				"unit": "bytes",
+				"message": "cold.rssPeakBytes median 2711207936 bytes; warning above 3500000000, failure above 5000000000"
+			},
+			{
+				"code": "metric.cold.storageTotalBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "cold.storageTotalBytes",
+				"statistic": "median",
+				"actual": 969799128,
+				"warning": 1500000000,
+				"failure": 2500000000,
+				"unit": "bytes",
+				"message": "cold.storageTotalBytes median 969799128 bytes; warning above 1500000000, failure above 2500000000"
+			},
+			{
+				"code": "metric.cold.databaseBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "cold.databaseBytes",
+				"statistic": "median",
+				"actual": 553168896,
+				"warning": 1000000000,
+				"failure": 1800000000,
+				"unit": "bytes",
+				"message": "cold.databaseBytes median 553168896 bytes; warning above 1000000000, failure above 1800000000"
+			},
+			{
+				"code": "metric.warm.wallMs",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "warm.wallMs",
+				"statistic": "median",
+				"actual": 238,
+				"warning": 1000,
+				"failure": 3000,
+				"unit": "ms",
+				"message": "warm.wallMs median 238 ms; warning above 1000, failure above 3000"
+			},
+			{
+				"code": "metric.warm.cpuMs",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "warm.cpuMs",
+				"statistic": "median",
+				"actual": 324,
+				"warning": 2000,
+				"failure": 5000,
+				"unit": "ms",
+				"message": "warm.cpuMs median 324 ms; warning above 2000, failure above 5000"
+			},
+			{
+				"code": "metric.warm.rssPeakBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "warm.rssPeakBytes",
+				"statistic": "median",
+				"actual": 374964224,
+				"warning": 3500000000,
+				"failure": 5000000000,
+				"unit": "bytes",
+				"message": "warm.rssPeakBytes median 374964224 bytes; warning above 3500000000, failure above 5000000000"
+			},
+			{
+				"code": "metric.warm.storageTotalBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "warm.storageTotalBytes",
+				"statistic": "median",
+				"actual": 553230536,
+				"warning": 1500000000,
+				"failure": 2500000000,
+				"unit": "bytes",
+				"message": "warm.storageTotalBytes median 553230536 bytes; warning above 1500000000, failure above 2500000000"
+			},
+			{
+				"code": "metric.rebuild.wallMs",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "rebuild.wallMs",
+				"statistic": "median",
+				"actual": 15011,
+				"warning": 20000,
+				"failure": 40000,
+				"unit": "ms",
+				"message": "rebuild.wallMs median 15011 ms; warning above 20000, failure above 40000"
+			},
+			{
+				"code": "metric.rebuild.buildMs",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "rebuild.buildMs",
+				"statistic": "median",
+				"actual": 14781,
+				"warning": 20000,
+				"failure": 40000,
+				"unit": "ms",
+				"message": "rebuild.buildMs median 14781 ms; warning above 20000, failure above 40000"
+			},
+			{
+				"code": "metric.rebuild.cpuMs",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "rebuild.cpuMs",
+				"statistic": "median",
+				"actual": 17380,
+				"warning": 25000,
+				"failure": 50000,
+				"unit": "ms",
+				"message": "rebuild.cpuMs median 17380 ms; warning above 25000, failure above 50000"
+			},
+			{
+				"code": "metric.rebuild.rssPeakBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "rebuild.rssPeakBytes",
+				"statistic": "median",
+				"actual": 3639017472,
+				"warning": 4000000000,
+				"failure": 6000000000,
+				"unit": "bytes",
+				"message": "rebuild.rssPeakBytes median 3639017472 bytes; warning above 4000000000, failure above 6000000000"
+			},
+			{
+				"code": "metric.rebuild.storageTotalBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "rebuild.storageTotalBytes",
+				"statistic": "median",
+				"actual": 1386010240,
+				"warning": 2000000000,
+				"failure": 3500000000,
+				"unit": "bytes",
+				"message": "rebuild.storageTotalBytes median 1386010240 bytes; warning above 2000000000, failure above 3500000000"
+			},
+			{
+				"code": "metric.edit.p50Ms",
+				"status": "failure",
+				"category": "absolute",
+				"metric": "edit.p50Ms",
+				"statistic": "median",
+				"actual": 22094,
+				"warning": 5000,
+				"failure": 15000,
+				"unit": "ms",
+				"message": "edit.p50Ms median 22094 ms; warning above 5000, failure above 15000"
+			},
+			{
+				"code": "metric.edit.p95Ms",
+				"status": "failure",
+				"category": "absolute",
+				"metric": "edit.p95Ms",
+				"statistic": "median",
+				"actual": 22168,
+				"warning": 5000,
+				"failure": 15000,
+				"unit": "ms",
+				"message": "edit.p95Ms median 22168 ms; warning above 5000, failure above 15000"
+			},
+			{
+				"code": "metric.edit.maxMs",
+				"status": "warning",
+				"category": "absolute",
+				"metric": "edit.maxMs",
+				"statistic": "max",
+				"actual": 22335,
+				"warning": 10000,
+				"failure": 30000,
+				"unit": "ms",
+				"message": "edit.maxMs max 22335 ms; warning above 10000, failure above 30000"
+			},
+			{
+				"code": "metric.edit.latencyMs",
+				"status": "failure",
+				"category": "absolute",
+				"metric": "edit.latencyMs",
+				"statistic": "p95",
+				"actual": 22296,
+				"warning": 5000,
+				"failure": 15000,
+				"unit": "ms",
+				"message": "edit.latencyMs p95 22296 ms; warning above 5000, failure above 15000"
+			},
+			{
+				"code": "metric.deep.wallMs",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "deep.wallMs",
+				"statistic": "median",
+				"actual": 273,
+				"warning": 2000,
+				"failure": 5000,
+				"unit": "ms",
+				"message": "deep.wallMs median 273 ms; warning above 2000, failure above 5000"
+			},
+			{
+				"code": "metric.deep.rssPeakBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "deep.rssPeakBytes",
+				"statistic": "median",
+				"actual": 422019072,
+				"warning": 3500000000,
+				"failure": 5000000000,
+				"unit": "bytes",
+				"message": "deep.rssPeakBytes median 422019072 bytes; warning above 3500000000, failure above 5000000000"
+			},
+			{
+				"code": "metric.queries.status.p95Ms",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "queries.status.p95Ms",
+				"statistic": "median",
+				"actual": 0,
+				"warning": 25,
+				"failure": 100,
+				"unit": "ms",
+				"message": "queries.status.p95Ms median 0 ms; warning above 25, failure above 100"
+			},
+			{
+				"code": "metric.queries.find_symbol.p95Ms",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "queries.find_symbol.p95Ms",
+				"statistic": "median",
+				"actual": 1,
+				"warning": 25,
+				"failure": 100,
+				"unit": "ms",
+				"message": "queries.find_symbol.p95Ms median 1 ms; warning above 25, failure above 100"
+			},
+			{
+				"code": "metric.queries.outline.p95Ms",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "queries.outline.p95Ms",
+				"statistic": "median",
+				"actual": 1,
+				"warning": 25,
+				"failure": 100,
+				"unit": "ms",
+				"message": "queries.outline.p95Ms median 1 ms; warning above 25, failure above 100"
+			},
+			{
+				"code": "metric.queries.find_references.p95Ms",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "queries.find_references.p95Ms",
+				"statistic": "median",
+				"actual": 0,
+				"warning": 25,
+				"failure": 100,
+				"unit": "ms",
+				"message": "queries.find_references.p95Ms median 0 ms; warning above 25, failure above 100"
+			},
+			{
+				"code": "metric.queries.read_symbol.p95Ms",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "queries.read_symbol.p95Ms",
+				"statistic": "median",
+				"actual": 0,
+				"warning": 25,
+				"failure": 100,
+				"unit": "ms",
+				"message": "queries.read_symbol.p95Ms median 0 ms; warning above 25, failure above 100"
+			},
+			{
+				"code": "metric.bundle.mcp.rawBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "bundle.mcp.rawBytes",
+				"statistic": "median",
+				"actual": 2212226,
+				"warning": 3000000,
+				"failure": 5000000,
+				"unit": "bytes",
+				"message": "bundle.mcp.rawBytes median 2212226 bytes; warning above 3000000, failure above 5000000"
+			},
+			{
+				"code": "metric.bundle.mcp.gzipBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "bundle.mcp.gzipBytes",
+				"statistic": "median",
+				"actual": 347320,
+				"warning": 500000,
+				"failure": 800000,
+				"unit": "bytes",
+				"message": "bundle.mcp.gzipBytes median 347320 bytes; warning above 500000, failure above 800000"
+			},
+			{
+				"code": "metric.bundle.cli.rawBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "bundle.cli.rawBytes",
+				"statistic": "median",
+				"actual": 518808,
+				"warning": 1000000,
+				"failure": 2000000,
+				"unit": "bytes",
+				"message": "bundle.cli.rawBytes median 518808 bytes; warning above 1000000, failure above 2000000"
+			},
+			{
+				"code": "metric.bundle.cli.gzipBytes",
+				"status": "pass",
+				"category": "absolute",
+				"metric": "bundle.cli.gzipBytes",
+				"statistic": "median",
+				"actual": 130848,
+				"warning": 250000,
+				"failure": 500000,
+				"unit": "bytes",
+				"message": "bundle.cli.gzipBytes median 130848 bytes; warning above 250000, failure above 500000"
+			},
+			{
+				"code": "variance.cold.wallMs",
+				"status": "pass",
+				"category": "variance",
+				"metric": "cold.wallMs",
+				"statistic": null,
+				"actual": 1.588623839562332,
+				"warning": 20,
+				"failure": 40,
+				"unit": "percent",
+				"message": "cold.wallMs coefficient of variation 1.59%; warning above 20, failure above 40"
+			},
+			{
+				"code": "variance.warm.wallMs",
+				"status": "pass",
+				"category": "variance",
+				"metric": "warm.wallMs",
+				"statistic": null,
+				"actual": 0.4277700934222135,
+				"warning": 30,
+				"failure": 60,
+				"unit": "percent",
+				"message": "warm.wallMs coefficient of variation 0.43%; warning above 30, failure above 60"
+			},
+			{
+				"code": "variance.rebuild.wallMs",
+				"status": "pass",
+				"category": "variance",
+				"metric": "rebuild.wallMs",
+				"statistic": null,
+				"actual": 0.4077474511497526,
+				"warning": 20,
+				"failure": 40,
+				"unit": "percent",
+				"message": "rebuild.wallMs coefficient of variation 0.41%; warning above 20, failure above 40"
+			},
+			{
+				"code": "variance.edit.p95Ms",
+				"status": "pass",
+				"category": "variance",
+				"metric": "edit.p95Ms",
+				"statistic": null,
+				"actual": 0.40511472928289205,
+				"warning": 25,
+				"failure": 50,
+				"unit": "percent",
+				"message": "edit.p95Ms coefficient of variation 0.41%; warning above 25, failure above 50"
+			},
+			{
+				"code": "variance.deep.wallMs",
+				"status": "pass",
+				"category": "variance",
+				"metric": "deep.wallMs",
+				"statistic": null,
+				"actual": 0.6783919894290933,
+				"warning": 25,
+				"failure": 50,
+				"unit": "percent",
+				"message": "deep.wallMs coefficient of variation 0.68%; warning above 25, failure above 50"
+			}
+		]
+	}
+}
