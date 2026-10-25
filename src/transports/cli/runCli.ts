@@ -20,6 +20,7 @@ import {addAnalyticsCommand} from './analyticsCommand.ts';
 import {messageOf, parseCommandAsync} from './commanderSupport.ts';
 import {addOracleLiveCommand} from './oracleLiveCommand.ts';
 import {addOraclePreflightCommand} from './oraclePreflightCommand.ts';
+import {addOracleReplayCommand} from './oracleReplayCommand.ts';
 
 const debug = debugFor('cli');
 const BANNER_COMMANDS: ReadonlySet<string> = new Set(['update', 'refresh', 'rebuild', 'status', 'verify']);
@@ -302,6 +303,7 @@ const buildProgram = (context: CliContextType): Command => {
 	addPublicationReportCommand(program, context.environment, context.io);
 	addOracleLiveCommand(program, context.environment, context.io);
 	addOraclePreflightCommand(program, context.environment, context.io);
+	addOracleReplayCommand(program, context.environment, context.io);
 	addVerifyReferencesCommand(program, context.environment, context.io);
 
 	return program;

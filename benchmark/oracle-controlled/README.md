@@ -33,18 +33,22 @@ to contract `oracle-o1@2` and truth policy `v4`.
 ```bash
 pnpm build
 node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-controlled/corpus.json
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-controlled/corpus.json
 ```
 
 Preflight is database-free and exits non-zero on a missing or mismatched
-artifact. Replay qualification offline with `qualify --extractor oracle` against
-the snapshot, identifiers, dependencies, and the `snapshot.units` mapping in
-`<root>/plan.json` (pass it as `--units`; `units.json` is the committed digest
-map, not the `--units` input).
+artifact. Replay reconstructs the live project-context layout and compares every
+aggregate field with `qualification.json`, ignoring only the nondeterministic
+`generationId`. It exits non-zero on any difference.
+
+`units.json` is the committed digest map, not the `--units` input; replay uses
+the retained `plan.json` mapping from the external root.
 
 ## Scope
 
 This is a controlled substitute frozen after exact recovery of the historical
 Phase 0 bundle failed. It proves the contract, parser, publication, exclusions,
 and gates on synthetic cases. It does not prove production-corpus recall or
-representativeness; that remains ORA-004 work against a production replacement
-bundle.
+representativeness. ORA-004 completed against a live installed replacement
+bundle, which is **NOT READY**
+([production evidence](../oracle-production-20261025/README.md)).

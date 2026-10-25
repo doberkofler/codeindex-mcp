@@ -54,6 +54,13 @@ declarations, manifest/include resolution, diagnostics, and unresolved sites.
 Gate: all splitter invariants pass on one-unit, multi-unit, malformed, quoting,
 comment, SQL*Plus, and generated-source fixtures.
 
+**Current status (2026-10-25): NOT READY.** The splitter and declaration surface
+pass on the controlled corpus, but the production replacement corpus fails the
+`oracle-o1@2` reference-precision, reference-recall, and dependency-recall
+gates. The current evidence and defects are in
+[`benchmark/oracle-production-20261025`](../benchmark/oracle-production-20261025/README.md).
+Historical Phase 0/6/8 reports are comparisons, not the current verdict.
+
 ## 5. Phase O2 — Oracle dictionary
 
 Deliver read-only `USER_*`, `ALL_*`, and optionally `DBA_*` modes; objects,
@@ -69,6 +76,11 @@ Run the exact gate in [Oracle adapter](./oracle-adapter.md). Enable PL/Scope fac
 only when semantic coverage, compile behavior, validity, time, and storage pass.
 Otherwise publish explicit unavailable coverage and continue with static and
 dictionary facts.
+
+Current outcome (2026-10-25): PL/Scope truth can be regenerated, but the
+production replacement corpus is **NOT READY** because references and package
+dependencies miss the contract gates. Static and dictionary facts remain the
+shipping surface; PL/Scope stays a qualification input.
 
 ## 7. Phase D — Source/database drift
 

@@ -8,25 +8,37 @@ replayable 10-case synthetic Oracle corpus to contract
 qualification. It proves the semantic contract end to end; it is not a
 production-scale population claim.
 
+**NOT READY for the production replacement corpus.**
+`benchmark/oracle-production-20261025/` freezes the live installed source
+inventory of `LJ_UNITTEST` on 2026-10-25 and replays the authoritative contract
+against regenerated PL/Scope truth. Declarations pass; references and package
+dependencies fail. This is the current production verdict
+([evidence](../benchmark/oracle-production-20261025/README.md)); no
+production-scale semantic PASS is claimed.
+
 **NOT READY for the historical Phase 0 corpus.** Exact recovery failed on
-2026-10-25 (section 4). Its source snapshot and truth exports remain unavailable,
-and no production replacement corpus has been frozen. No production-scale
-Oracle semantic PASS is claimed.
+2026-10-25 (section 4). Its source snapshot and truth exports remain
+unavailable. The Phase 0 identity stays frozen and is never overwritten.
 
 ## 2. Bundle definition
 
 A bundle is one external directory plus the identity files that stay in Git.
 
-The controlled bundle is `benchmark/oracle-controlled/`; the historical Phase 0
-identity remains `benchmark/oracle-phase0/`.
+| Bundle | Descriptor | External root | Verdict |
+| --- | --- | --- | --- |
+| Controlled substitute | `benchmark/oracle-controlled/corpus.json` | `oracle-live/ljs-ciq-20261025` | PASS |
+| Production replacement | `benchmark/oracle-production-20261025/corpus.json` | `oracle-live/ljs-production-20261025` | NOT READY |
+| Historical Phase 0 | `benchmark/oracle-phase0/corpus.json` | `oracle-live/2eb1e36f6ecdada4` | NOT READY; root absent |
+
+Each bundle commits the same bounded identity files:
 
 | Component | Location | Committed |
 | --- | --- | --- |
-| Bundle descriptor | `benchmark/oracle-controlled/corpus.json` | yes |
-| Source checksums | `benchmark/oracle-controlled/corpus.sha256` | yes |
-| Unit map | `benchmark/oracle-controlled/units.json` | yes |
-| Artifact checksums | `benchmark/oracle-controlled/plscope.sha256` | yes |
-| Qualification report | `benchmark/oracle-controlled/qualification.json` | yes |
+| Bundle descriptor | `benchmark/<bundle>/corpus.json` | yes |
+| Source checksums | `benchmark/<bundle>/corpus.sha256` | yes |
+| Unit map | `benchmark/<bundle>/units.json` | yes |
+| Artifact checksums | `benchmark/<bundle>/plscope.sha256` | yes |
+| Qualification report | `benchmark/<bundle>/qualification.json` | yes |
 | Source snapshot | `<root>/workspace/` | no |
 | Recompile plan | `<root>/plan.json` | no |
 | Run metadata | `<root>/run.json` | no |
@@ -37,7 +49,11 @@ identity remains `benchmark/oracle-phase0/`.
 `<root>` resolves to
 `${CODEINDEX_EVIDENCE_ROOT:-~/.local/share/codeindex-mcp}/oracle-live/<id>`,
 where `<id>` is the descriptor's `evidence.externalRoot`. Source text, raw
-database exports, credentials, and absolute private paths are never committed.
+database exports, credentials, extracted declaration/reference facts, and
+absolute private paths are never committed. The object inventory map retains the
+file and object names required to replay the bundle; disagreement samples are
+retained in the external root only, and the committed reports keep their
+aggregate counts.
 
 The descriptor's `evidence.approval` binds the bundle to the exact approved
 recompile plan. `plscope.sha256` binds every external artifact. `run.json` must
@@ -52,6 +68,8 @@ pnpm build
 node dist/cli.mjs oracle-preflight \
   --bundle benchmark/oracle-controlled/corpus.json \
   --output /tmp/oracle-preflight.json
+node dist/cli.mjs oracle-preflight \
+  --bundle benchmark/oracle-production-20261025/corpus.json
 ```
 
 | Option | Meaning |
@@ -79,8 +97,24 @@ Verified:
 Preflight is deliberately DB-free: it imports no Oracle driver, opens no
 session, and touches no index or database file. A missing or mismatched artifact
 therefore fails before any connection capable of DDL exists. Run it first, then
-replay with `qualify --extractor oracle`, then — only with a separate approval —
-apply a plan.
+replay. Applying a plan still requires a separate DDL approval.
+
+### 3.1 Replay
+
+```bash
+pnpm build
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-controlled/corpus.json
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261025/corpus.json
+```
+
+Replay is also DB-free. It copies the retained snapshot, recreates the live
+project-context layout (`qualification`), runs the production qualification path
+against the retained truth exports in a temporary SQLite database, and compares
+the report with the committed `qualification.json`. Only the nondeterministic
+`generationId` and the uncommitted disagreement samples are ignored. Exit code
+is `0` only when every aggregate count, ratio, identity, and exclusion count
+matches. A gate failure is reported but does not fail replay when it matches the
+retained verdict.
 
 Artifact paths in the report are bundle-relative POSIX paths. Only the resolved
 root is absolute, and it is printed once for operator diagnosis.
@@ -116,9 +150,10 @@ schema is not the Phase 0 snapshot (1,367 versus 1,240 valid objects). Any
 regeneration produces a **replacement corpus**, never a restoration. The Phase 0
 identity in `benchmark/oracle-phase0/` stays frozen and is never overwritten.
 
-A PL/Scope recompile window was approved on 2026-10-25, but it was not exercised:
-without SVN access to the original source revision, the replacement corpus would
-still lack a frozen source baseline.
+A PL/Scope recompile window was approved and exercised on 2026-10-25 against the
+live installed source, producing the production replacement bundle. It cannot
+restore the Phase 0 corpus because the original SVN revision is still
+unavailable.
 
 ## 5. Replacement route
 
@@ -131,22 +166,28 @@ standalone routines, overloads, nested scopes, dependencies, and counted
 exclusions. The resulting bundle passes `oracle-o1@2` with 41/41 declarations,
 35/35 references, and 7/7 dependencies.
 
-The production replacement route remains blocked, in order:
+The production replacement was frozen on 2026-10-25 from the live installed
+`USER_SOURCE` inventory of `LJ_UNITTEST`:
 
-1. Read access to the SVN repository and revision `78950` of
-   `^/ljs_app/trunk/ljs_db/LJS_DB`, or an approved substitute corpus with its own
-   frozen revision.
-2. An approved Oracle window for `ALTER SESSION SET PLSCOPE_SETTINGS =
-   'IDENTIFIERS:ALL'` plus the generated recompile statement list, with the
-   approval hash reviewed before execution.
-3. Export of identifiers, dependencies, and the source backup into a new
-   external root named by a new descriptor revision.
+1. The source snapshot was selected from 1,246 installed objects; two objects
+   had no usable source, leaving 1,244 files and units.
+2. A read-only plan froze the source, generated the recompile SQL, and bound it
+   to approval `4bf6d3977cf0a8256f67aab4895f6bef81b24bd8804880bf7f56674240c4d00b`.
+3. The approved apply recompiled 1,244 targets and 189 dependents with
+   `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`, left zero invalid objects, and exported
+   identifiers, dependencies, and the source backup.
+4. Contract `oracle-o1@2` was executed against the regenerated truth.
 
-A replacement freezes: repository revision, manifest, normalized source hashes,
-Oracle version, NLS and schema settings, object inventory, contract version, and
-parser identity. It reuses contract `oracle-o1@2`; the contract hash does not
-change because the corpus version is report data, not contract semantics. The
-replacement is a new descriptor and a new external root — not a mutation of
+The replacement has no SVN revision and is not the historical Phase 0 snapshot.
+Its result is **NOT READY**: declarations pass; references and dependencies
+fail. The defects and the comparison with Phase 6 and Phase 8 are recorded in
+[`benchmark/oracle-production-20261025/README.md`](../benchmark/oracle-production-20261025/README.md).
+
+A replacement freezes: manifest, source hashes, Oracle version, NLS and schema
+settings, object inventory, contract version, parser identity, and the approval
+hash. It reuses contract `oracle-o1@2`; the contract hash does not change because
+the corpus version is report data, not contract semantics. The replacement is a
+new descriptor and a new external root — not a mutation of
 `benchmark/oracle-phase0/`.
 
 ## 6. Retention, backup, access, deletion
@@ -164,11 +205,10 @@ fails preflight is not a valid backup.
 
 ## 7. Follow-ups
 
-- Acquire SVN access or an approved substitute corpus, then freeze a replacement
-  descriptor and external root.
-- Exercise the approved PL/Scope recompile window only after the source baseline
-  is frozen.
-- Replay contract `oracle-o1@2` against the production replacement bundle and
-  record the verdict; that replay belongs to ORA-004.
-- Verify with `oracle-preflight`; wire it as a mandatory step in the Oracle
-  verification workflow (ORA-003).
+- Fix the reference-precision, reference-recall, and dependency-recall defects
+  recorded in the production replacement evidence.
+- Decide the contract policy for compiler-inferred specification dependencies
+  that have no authored reference in indexed source.
+- Acquire SVN access only if a future comparison requires the historical Phase 0
+  corpus; the current production corpus does not depend on it.
+- Keep preflight and replay mandatory before any approved apply.

@@ -3,11 +3,15 @@
 **Status:** static O1 adapter implemented and bound to the structural parser
 (`structural@5`). The semantic release gate is contract `oracle-o1@2`
 ([Oracle O1 qualification contract](./oracle-qualification-contract.md)); the
-qualification command executes it directly. The 2026-10-19 Oracle-backed run
-predates `structural@5` and truth policy `v4`, so it is historical evidence, not
-the current verdict. A controlled 10-case corpus passes under `oracle-o1@2`
-([controlled evidence](../benchmark/oracle-controlled/README.md)); a replay
-against a retained production-scale bundle remains open in O1 readiness.
+qualification command executes it directly. The current production verdict is
+**NOT READY**: the 2026-10-25 replacement corpus passes declarations and fails
+reference precision, reference recall, and dependency recall. The 2026-10-19
+Oracle-backed run and the Phase 6/Phase 8 comparisons predate `structural@5`
+with truth policy `v4` and remain historical evidence, not the current verdict.
+A controlled 10-case corpus passes under `oracle-o1@2`
+([controlled evidence](../benchmark/oracle-controlled/README.md)); the
+production replacement evidence is retained separately
+([production evidence](../benchmark/oracle-production-20261025/README.md)).
 
 ## 1. Scope
 
@@ -248,7 +252,7 @@ pnpm grammar:oracle:generate
 
 ## 7. Qualification status
 
-### 7.1 Current contract
+### 7.1 Current production verdict
 
 The authoritative semantic gate is contract `oracle-o1@2` with truth policy
 `v4`; see the
@@ -260,28 +264,57 @@ behavior, the sample bound, and the identities a report must carry.
 gate. Policy `v4` omits parameters and routine-local declarations as
 `ephemeral_declaration`, matching the publication surface.
 
+The current production replacement bundle was frozen on 2026-10-25 from the live
+installed `LJ_UNITTEST` source: 1,244 files and units, parser `structural@5`,
+contract hash `77c0f1c4…`, approval `4bf6d397…`. It is **NOT READY**:
+
+| Section | Result | Gate |
+|---|---:|---|
+| Declarations | 37,151 / 37,171 recall (99.9462%), 100% precision | PASS |
+| References | 187,145 / 188,648 recall (99.2033%), 99.7298% precision | **FAIL** |
+| Package dependencies | 5,553 / 5,656 recall (98.1789%), 100% precision | **FAIL** |
+
+Reference extras comprise 507 counted false positives and one ignored location
+mismatch. The defects are missing member-chain, iterator, pragma, and procedural
+references; Boolean and record-field condition reads that PL/Scope does not
+record; and 103 missing package edges, 86 of which have no authored reference in
+indexed source. The [production evidence](../benchmark/oracle-production-20261025/README.md)
+records every denominator, exclusion reason, and the comparison with Phase 6
+and Phase 8.
+
 Each report records `contract.id`, `contract.version`, and `contract.hash`, the
 parser identity, the corpus source and configuration hashes, the truth-export
 SHA-256 values, and per-reason exclusion counts. The denominators can be
-reconstructed from the report alone.
+reconstructed from the report alone. Disagreement samples are retained
+externally; committed reports keep aggregate counts only.
 
-The latest retained aggregate reference evidence is Phase 6, dated 2026-10-21:
-186,742 matched references from 186,877 policy-visible truth references
-(99.9278% recall) and 100% precision. It was produced under policy `v2` with an
-external ambiguity-removal step. Contract `oracle-o1@2` executes that rule and
-reports it as `omitted_ambiguous_overload`. The Phase 6 artifact remains
-historical evidence. The controlled 10-case corpus passes under `oracle-o1@2`
-with 41/41 declarations, 35/35 references, and 7/7 dependencies
-([controlled evidence](../benchmark/oracle-controlled/README.md)); no
-production-scale PASS is claimed. The production bundle remains not ready: the
-external evidence root is absent, exact recovery failed, and a production
-replacement corpus is not frozen
-([`oracle-evidence-bundle.md`](./oracle-evidence-bundle.md)).
+The controlled 10-case corpus passes under `oracle-o1@2` with 41/41
+declarations, 35/35 references, and 7/7 dependencies
+([controlled evidence](../benchmark/oracle-controlled/README.md)).
+
+Retained historical comparisons:
+
+- Phase 6 (2026-10-21, policy `v2`, SVN r78950, 1,237 files) reported 186,742 /
+  186,877 references (99.9278%) and 100% precision with an external ambiguity
+  removal step. It is not the current contract, corpus, or policy.
+- Phase 8 (2026-10-20, parser `structural@1`, policy `v2`) reported 95.5394%
+  declaration and 57.4956% reference recall. It is candidate evidence for the
+  ANTLR decision, not a production verdict.
+- Phase 0 (2026-10-19, policy `v1`) is the adoption baseline.
+
+Neither historical artifact is rewritten.
 
 Run the comparison without connecting to Oracle:
 
 ```bash
 pnpm qualify:oracle
+```
+
+Verify and replay a retained bundle without connecting to Oracle:
+
+```bash
+node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261025/corpus.json
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261025/corpus.json
 ```
 
 The deterministic verification tiers are:

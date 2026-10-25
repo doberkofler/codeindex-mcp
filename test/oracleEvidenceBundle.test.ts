@@ -6,6 +6,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {preflightOracleEvidenceBundle, type OracleEvidencePreflightReportType} from '../src/core/qualification/oracle/live/oracleEvidenceBundle.ts';
 import {oracleQualificationContractIdentityOf} from '../src/core/qualification/oracle/oracleQualificationContract.ts';
 import {runOraclePreflight} from '../src/transports/cli/oraclePreflightCommand.ts';
+import {runOracleReplay} from '../src/transports/cli/oracleReplayCommand.ts';
 
 const APPROVAL = '4c82485ae33d80a0c950f0b89a889461ab72092653ee817609eab2cc467b3173';
 const SOURCE_HASH = 'dfae2b41a2595d3e83065b9c5807b596f1b43e7cf8fd634958e89e86cfebf2d7';
@@ -305,5 +306,35 @@ describe('Oracle evidence preflight command', () => {
 		expect(errors).toStrictEqual([]);
 		expect(lines[0]).toBe('Oracle evidence preflight: FAIL');
 		expect(lines.join('\n')).toContain('MISSING plan.json');
+	});
+});
+
+describe('Oracle evidence replay command', () => {
+	afterEach(() => {
+		for (const directory of temporaryDirectories.splice(0)) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+	});
+
+	it('refuses to replay when the retained bundle does not preflight', async () => {
+		const context = bundle();
+		const lines: string[] = [];
+		const errors: string[] = [];
+		const code = await runOracleReplay(
+			{},
+			{
+				stdout: (line) => {
+					lines.push(line);
+				},
+				stderr: (line) => {
+					errors.push(line);
+				},
+			},
+			{bundle: context.descriptor, evidenceRoot: path.join(context.directory, 'absent')},
+		);
+
+		expect(code).toBe(1);
+		expect(lines).toStrictEqual([]);
+		expect(errors.join('\n')).toContain('preflight failed');
 	});
 });

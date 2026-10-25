@@ -231,8 +231,14 @@ before a DDL-capable session can be opened:
 
 ```bash
 pnpm build
-node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-phase0/corpus.json
+node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261025/corpus.json
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261025/corpus.json
 ```
+
+`oracle-replay` is also DB-free. It replays the retained snapshot and truth in a
+temporary SQLite database and compares the report with the committed
+`qualification.json`; only the nondeterministic `generationId` and the
+uncommitted disagreement samples are ignored.
 
 Then build and run the gate:
 

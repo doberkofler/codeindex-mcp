@@ -121,7 +121,7 @@ each paired with one bounded ambiguity diagnostic. Every other PL/Scope row stay
 denominator, and no emitted occurrence is exempted.
 
 That removal was a post-processing step in this historical measurement. Contract
-[`oracle-o1@1`](../../documentation/oracle-qualification-contract.md) makes the same rule
+[`oracle-o1@2`](../../documentation/oracle-qualification-contract.md) makes the same rule
 executable inside `qualify:oracle` and reports it as
 `excludedByReason.omitted_ambiguous_overload`. The counts above are the retained Phase 6
 evidence and are not rewritten by the contract.

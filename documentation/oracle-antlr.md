@@ -609,6 +609,14 @@ grammar and recovery fixes, not a parser switch. Incremental-only adoption is
 rejected on the same quality gates; Phase 7 edit-to-fresh evidence is not a
 substitute for them.
 
+The current production replacement evidence uses `structural@5` with contract
+`oracle-o1@2` and truth policy `v4` on 1,244 live installed objects, not the
+Phase 8 `structural@1`/policy `v2` population. Structural declarations pass
+(99.9462% recall, 100% precision); references (99.2033% / 99.7298%) and
+dependencies (98.1789% / 100%) still fail. No ANTLR measurement exists on that
+corpus and policy. The Phase 8 comparison above remains candidate evidence for
+the parser quality question; it is not the current production verdict.
+
 The ANTLR production disposition is therefore closed: the ANTLR adapter remains
 qualification-only and the structural parser stays in production. Reconsider only
 when a measured structural-parser failure appears, or when an upstream grammar,

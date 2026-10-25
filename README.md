@@ -50,6 +50,14 @@ procedures/functions from an explicit manifest. Triggers, object types, table
 lineage, and live catalogue metadata are outside O1 scope. See the
 [Oracle adapter](./documentation/oracle-adapter.md).
 
+Current Oracle O1 production status is **NOT READY** under contract
+`oracle-o1@2`: the 2026-10-25 replacement corpus passes declarations and fails
+reference precision, reference recall, and dependency recall
+([production evidence](./benchmark/oracle-production-20261025/README.md)). The
+controlled 10-case corpus passes
+([controlled evidence](./benchmark/oracle-controlled/README.md)). Historical
+Phase 0/6/8 results are comparisons, not the current verdict.
+
 ORDS and cross-language edges remain planned; later languages use the same adapter
 seam.
 
@@ -333,7 +341,7 @@ pnpm test:typescript     # TypeScript adapter and reference-corpus classes
 pnpm test:mcp            # MCP protocol class
 pnpm test:system         # built-process deterministic system class
 pnpm test:oracle         # every Oracle module + generic Oracle contracts
-pnpm test:oracle:bundle  # controlled evidence preflight and offline replay
+pnpm test:oracle:bundle  # retained evidence preflight and offline replay
 pnpm test:oracle:live    # read-only Oracle preflight; opt in with CODE_INDEX_ORACLE_LIVE=1
 pnpm qualify:typescript:fixture  # self-contained TypeScript language-service gate
 pnpm build

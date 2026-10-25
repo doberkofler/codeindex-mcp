@@ -1,133 +1,90 @@
 import {existsSync, readFileSync} from 'node:fs';
-import {cp, mkdtemp, readFile, rm} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {afterAll, describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {z} from 'zod';
 import {indexRootDirectory} from '../src/core/config/config.ts';
-import {preflightOracleEvidenceBundle} from '../src/core/qualification/oracle/live/oracleEvidenceBundle.ts';
-import {runQualifyCommand} from '../src/core/qualification/qualifyCommand.ts';
+import {replayOracleEvidenceBundle} from '../src/core/qualification/oracle/live/oracleReplay.ts';
 
-const DESCRIPTOR_PATH = 'benchmark/oracle-controlled/corpus.json';
+type BundleType = Readonly<{
+	descriptorPath: string;
+	required: boolean;
+	/** Expected disposition of the retained run. */
+	gatesOk: boolean;
+	declarations: Readonly<{truth: number; matched: number}>;
+	references: Readonly<{truth: number; matched: number}>;
+	dependencies: Readonly<{truth: number; matched: number}>;
+}>;
 
-const DescriptorSchema = z.object({
-	evidence: z.object({externalRoot: z.string().min(1), snapshotDir: z.string().min(1)}),
-	snapshot: z.object({sourceHash: z.string().min(1), fileCount: z.number().int().positive()}),
-});
+const BUNDLES: readonly BundleType[] = [
+	{
+		descriptorPath: 'benchmark/oracle-controlled/corpus.json',
+		required: true,
+		gatesOk: true,
+		declarations: {truth: 41, matched: 41},
+		references: {truth: 35, matched: 35},
+		dependencies: {truth: 7, matched: 7},
+	},
+	{
+		descriptorPath: 'benchmark/oracle-production-20261025/corpus.json',
+		required: false,
+		gatesOk: false,
+		declarations: {truth: 37_171, matched: 37_151},
+		references: {truth: 188_648, matched: 187_145},
+		dependencies: {truth: 5656, matched: 5553},
+	},
+];
 
+const DescriptorSchema = z.object({evidence: z.object({externalRoot: z.string().min(1)})});
 const ReportSchema = z.object({
-	extractor: z.literal('oracle'),
-	contract: z.object({id: z.literal('oracle-o1'), version: z.string(), truthPolicy: z.string()}),
-	corpus: z.object({files: z.number().int(), sourceHash: z.string()}),
-	truth: z.object({excludedByReason: z.record(z.string(), z.number())}),
+	gates: z.object({ok: z.boolean()}),
 	declarations: z.object({truth: z.number().int(), matched: z.number().int()}),
 	references: z.object({truth: z.number().int(), matched: z.number().int()}),
 	dependencies: z.object({truth: z.number().int(), matched: z.number().int()}),
-	gates: z.object({ok: z.boolean()}),
 });
 
-type DescriptorType = z.infer<typeof DescriptorSchema>;
+const evidenceRootOf = (descriptorPath: string): string => {
+	const descriptor = DescriptorSchema.parse(JSON.parse(readFileSync(descriptorPath, 'utf8')));
+	const evidenceRoot = process.env['CODEINDEX_EVIDENCE_ROOT'] ?? indexRootDirectory();
 
-const descriptorOf = (descriptorPath: string): DescriptorType => DescriptorSchema.parse(JSON.parse(readFileSync(descriptorPath, 'utf8')));
+	return path.join(evidenceRoot, descriptor.evidence.externalRoot);
+};
 
-const evidenceRootOf = (descriptor: DescriptorType): string =>
-	path.join(process.env['CODEINDEX_EVIDENCE_ROOT'] ?? indexRootDirectory(), descriptor.evidence.externalRoot);
+const availableOf = (bundle: BundleType): boolean => existsSync(path.join(evidenceRootOf(bundle.descriptorPath), 'plan.json'));
 
-const descriptor = descriptorOf(DESCRIPTOR_PATH);
-const evidenceRoot = evidenceRootOf(descriptor);
-const snapshotSource = path.join(evidenceRoot, descriptor.evidence.snapshotDir);
-const available = existsSync(path.join(evidenceRoot, 'plan.json')) && existsSync(snapshotSource);
 const required = process.env['CODE_INDEX_ORACLE_BUNDLE_REQUIRED'] === '1';
 
-describe('Oracle controlled bundle availability', () => {
-	it('retains the frozen bundle when the bundle tier is selected', () => {
+describe('Oracle evidence bundle availability', () => {
+	it('retains every required bundle when the bundle tier is selected', () => {
 		if (!required) {
 			return;
 		}
 
-		if (!available) {
-			throw new Error(`The bundle tier requires the retained evidence root at ${evidenceRoot}.`);
-		}
+		const missing = BUNDLES.filter((bundle) => bundle.required && !availableOf(bundle)).map((bundle) => evidenceRootOf(bundle.descriptorPath));
 
-		expect(available).toBe(true);
+		expect(missing).toStrictEqual([]);
 	});
 });
 
-describe.skipIf(!available)('Oracle controlled bundle replay', () => {
-	const workDirectory = {path: ''};
-
-	afterAll(async () => {
-		if (workDirectory.path !== '') {
-			await rm(workDirectory.path, {recursive: true, force: true});
-		}
-	});
-
-	it('reproduces every O1 gate from retained truth without a database', async () => {
-		workDirectory.path = await mkdtemp(path.join(tmpdir(), 'codeindex-oracle-replay-'));
-		const snapshot = path.join(workDirectory.path, 'workspace');
-		const database = path.join(workDirectory.path, 'index.sqlite');
-		const reportPath = path.join(workDirectory.path, 'report.json');
-		const stdout: string[] = [];
-		const stderr: string[] = [];
-		const environment = {HOME: process.env['HOME'] ?? '', PATH: process.env['PATH'] ?? '', CODE_INDEX_LOG_LEVEL: 'error'};
-
-		await cp(snapshotSource, snapshot, {recursive: true});
-
-		const preflight = await preflightOracleEvidenceBundle(environment, {descriptorPath: DESCRIPTOR_PATH});
-
-		if (!preflight.ok) {
-			throw new Error(
-				`Bundle preflight failed: ${preflight.identities
-					.filter((identity) => identity.status !== 'ok')
-					.map((identity) => identity.name)
-					.join(', ')}`,
+describe.each(BUNDLES)('Oracle evidence bundle replay: $descriptorPath', (bundle) => {
+	describe.skipIf(!availableOf(bundle))('retained bundle', () => {
+		it('reproduces the committed report from retained truth without a database', async () => {
+			const result = await replayOracleEvidenceBundle(
+				{HOME: process.env['HOME'] ?? '', PATH: process.env['PATH'] ?? '', CODE_INDEX_LOG_LEVEL: 'error'},
+				{descriptorPath: bundle.descriptorPath},
 			);
-		}
 
-		expect(preflight.ok).toBe(true);
+			expect(result.preflight.ok).toBe(true);
+			expect(result.expectedPath).not.toBeNull();
+			expect(result.diagnostics).toStrictEqual([]);
+			expect(result.differences).toStrictEqual([]);
+			expect(result.matches).toBe(true);
 
-		const code = await runQualifyCommand(
-			[
-				'--extractor',
-				'oracle',
-				'--root',
-				snapshot,
-				'--project-file',
-				path.join(snapshot, 'oracle-index.json'),
-				'--database',
-				database,
-				'--identifiers',
-				path.join(evidenceRoot, 'user-identifiers.csv'),
-				'--dependencies',
-				path.join(evidenceRoot, 'user-dependencies.csv'),
-				'--units',
-				path.join(evidenceRoot, 'plan.json'),
-				'--output',
-				reportPath,
-			],
-			environment,
-			{
-				stdout: (line) => {
-					stdout.push(line);
-				},
-				stderr: (line) => {
-					stderr.push(line);
-				},
-			},
-		);
+			const report = ReportSchema.parse(result.report);
 
-		expect(stderr).toStrictEqual([]);
-		expect(code).toBe(0);
-
-		const report = ReportSchema.parse(JSON.parse(await readFile(reportPath, 'utf8')));
-
-		expect(report.contract).toMatchObject({id: 'oracle-o1', version: '2', truthPolicy: 'v4'});
-		expect(report.corpus.files).toBe(descriptor.snapshot.fileCount);
-		expect(report.corpus.sourceHash).toBe(descriptor.snapshot.sourceHash);
-		expect(report.declarations).toMatchObject({truth: 41, matched: 41});
-		expect(report.references).toMatchObject({truth: 35, matched: 35});
-		expect(report.dependencies).toMatchObject({truth: 7, matched: 7});
-		expect(report.gates.ok).toBe(true);
-		expect(report.truth.excludedByReason['ephemeral_declaration']).toBeGreaterThan(0);
+			expect(report.gates.ok).toBe(bundle.gatesOk);
+			expect(report.declarations).toMatchObject(bundle.declarations);
+			expect(report.references).toMatchObject(bundle.references);
+			expect(report.dependencies).toMatchObject(bundle.dependencies);
+		});
 	});
 });
