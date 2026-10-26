@@ -41,7 +41,7 @@ export const soakMarkdown = (report: SoakReportType): string => {
 		'',
 		`- ${latencyLine(report)}`,
 		`- edit phase: ${String(report.elapsedMs)} ms measured against ${String(report.plan.durationMs)} ms declared`,
-		`- idle CPU: ${report.idle === null ? 'not measured' : `${String(report.idle.averagePercent)}% over ${String(report.idle.windowMs)} ms`}`,
+		`- idle CPU: ${report.idle === null ? 'not measured' : `${String(report.idle.averagePercent)}% mean, ${String(report.idle.medianPercent)}% median over ${String(report.idle.windowMs)} ms; buckets ${report.idle.samplesPercent.join(', ')}`}`,
 		`- cold build: ${String(report.coldBuild.durationMs)} ms; final freshness: ${report.freshness?.state ?? 'unknown'}`,
 		`- burst overlap observed: ${report.events.some((event) => event.kind === 'burst' && event.overlappedBuild) ? 'yes' : 'no'}`,
 		`- restart reuse: ${report.restarts.map((restart) => `${String(restart.reused)}/${String(restart.sameGeneration)}`).join(', ') || 'none'}`,

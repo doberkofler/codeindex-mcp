@@ -100,7 +100,7 @@ const reportOf = (overrides: Partial<SoakReportType> = {}): SoakReportType => ({
 		bounds: {generations: 2, contentVersions: 3, extractionArtifacts: 6},
 		satisfied: true,
 	},
-	idle: {windowMs: 1000, cpuUserMs: 1, cpuSystemMs: 0, averagePercent: 0.1},
+	idle: {windowMs: 1000, cpuUserMs: 1, cpuSystemMs: 0, averagePercent: 0.1, medianPercent: 0.1, samplesPercent: [0.1]},
 	resources: {cpuUserMs: 1, cpuSystemMs: 1, rssStartBytes: 1, rssPeakBytes: 1, rssEndBytes: 1},
 	freshness: {state: 'current', dirtyFileCount: 0, checkedAt: '2026-10-24T00:00:00.000Z', staleFiles: 0, sourceChanged: false},
 	gates: [{id: 'soak.gate', result: 'pass', detail: 'ok'}],

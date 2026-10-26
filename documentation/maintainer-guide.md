@@ -354,11 +354,13 @@ codeindex-cli soak --profile small --rounds 8 --burst-edits 3 \
 ```
 
 `--idle-sample-ms` waits for the watcher to reconcile, then samples process CPU
-over that window; `0` disables the measurement and the report states that the
-sample was not requested. The `soak.duration-completed` gate requires the declared
-duration, and `soak.idle-cpu` requires the measured average to stay below the
-declared 1% budget. Both are reported beside the freshness, recovery, restart, and
-retention gates.
+in one-second buckets over that window; `0` disables the measurement and the
+report states that the sample was not requested. The `soak.duration-completed`
+gate requires the declared duration. `soak.idle-cpu` requires the median bucket
+to stay below the declared 1% budget, so a post-build settling spike does not
+fail a quiet index; the mean must also stay below three times the budget, so a
+periodic burn cannot hide in a quiet median. Both are reported beside the
+freshness, recovery, restart, and retention gates.
 
 Every event appends deterministic source text and verifies that the file hash
 changed. The report records the plan hash and edit-script hash, so the same

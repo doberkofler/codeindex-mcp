@@ -185,14 +185,35 @@ const idleOf = async (state: SoakStateType, windowMs: number): Promise<SoakRepor
 		label: 'idle reconciliation',
 	});
 
+	const bucketMs = 1000;
+	const buckets = Math.max(1, Math.floor(windowMs / bucketMs));
 	const cpuStart = process.cpuUsage();
-	await delay(windowMs);
-	const cpu = process.cpuUsage(cpuStart);
-	const cpuUserMs = Math.round(cpu.user / 1000);
-	const cpuSystemMs = Math.round(cpu.system / 1000);
-	const averagePercent = Math.round(((cpu.user + cpu.system) / 1000 / windowMs) * 100 * 1000) / 1000;
+	const samplesPercent: number[] = [];
+	let lastUser = 0;
+	let lastSystem = 0;
 
-	return {windowMs, cpuUserMs, cpuSystemMs, averagePercent};
+	const recordBucket = async (): Promise<void> => {
+		await delay(bucketMs);
+		const cpu = process.cpuUsage(cpuStart);
+		samplesPercent.push(Math.round(((cpu.user - lastUser + (cpu.system - lastSystem)) / 1000 / bucketMs) * 100 * 1000) / 1000);
+		lastUser = cpu.user;
+		lastSystem = cpu.system;
+	};
+
+	await Array.from({length: buckets}).reduce<Promise<void>>(async (previous) => {
+		await previous;
+		await recordBucket();
+	}, Promise.resolve());
+
+	const cpuUserMs = Math.round(lastUser / 1000);
+	const cpuSystemMs = Math.round(lastSystem / 1000);
+	const measuredMs = buckets * bucketMs;
+	const averagePercent = Math.round(((lastUser + lastSystem) / 1000 / measuredMs) * 100 * 1000) / 1000;
+	const sorted = [...samplesPercent].sort((left, right) => left - right);
+	const middle = Math.floor(sorted.length / 2);
+	const medianPercent = sorted.length % 2 === 1 ? (sorted[middle] ?? 0) : Math.round((((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2) * 1000) / 1000;
+
+	return {windowMs: measuredMs, cpuUserMs, cpuSystemMs, averagePercent, medianPercent, samplesPercent};
 };
 
 const initialWorkspaceOf = (options: SoakRunOptionsType): Readonly<{rootDir: string; temporary: boolean}> => {

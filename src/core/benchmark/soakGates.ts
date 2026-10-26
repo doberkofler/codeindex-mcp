@@ -6,6 +6,9 @@ export type SoakReportBaseType = Omit<SoakReportType, 'gates' | 'passed' | 'bloc
 /** Declared idle-CPU budget from the maintainer guide. */
 export const IDLE_CPU_BUDGET_PERCENT = 1;
 
+/** Mean-to-budget allowance that keeps a periodic burn detectable. */
+const IDLE_CPU_MEAN_GUARD = 3;
+
 const editGateOf = (report: SoakReportBaseType): SoakGateType => {
 	const edits = report.events.flatMap((event) => event.edits);
 
@@ -92,14 +95,22 @@ export const durationGate = (elapsedMs: number, durationMs: number): SoakGateTyp
  * @param idle - Measured idle sample, or null when the measurement was disabled.
  * @returns The idle-CPU gate.
  */
-export const idleGate = (idle: SoakReportBaseType['idle']): SoakGateType => ({
-	id: 'soak.idle-cpu',
-	result: idle === null ? 'pass' : idle.averagePercent < IDLE_CPU_BUDGET_PERCENT ? 'pass' : 'fail',
-	detail:
-		idle === null
-			? 'idle sampling not requested'
-			: `${String(idle.averagePercent)}% over ${String(idle.windowMs)} ms (budget <${String(IDLE_CPU_BUDGET_PERCENT)}%)`,
-});
+export const idleGate = (idle: SoakReportBaseType['idle']): SoakGateType => {
+	if (idle === null) {
+		return {id: 'soak.idle-cpu', result: 'pass', detail: 'idle sampling not requested'};
+	}
+
+	// The median ignores a post-build settling spike; the mean guard keeps a
+	// periodic burn visible even when a majority of buckets are quiet.
+	const steady = idle.medianPercent < IDLE_CPU_BUDGET_PERCENT;
+	const mean = idle.averagePercent < IDLE_CPU_BUDGET_PERCENT * IDLE_CPU_MEAN_GUARD;
+
+	return {
+		id: 'soak.idle-cpu',
+		result: steady && mean ? 'pass' : 'fail',
+		detail: `${String(idle.averagePercent)}% mean, ${String(idle.medianPercent)}% median over ${String(idle.windowMs)} ms (budget <${String(IDLE_CPU_BUDGET_PERCENT)}% median)`,
+	};
+};
 
 /**
  * Evaluates every model-free operational gate.

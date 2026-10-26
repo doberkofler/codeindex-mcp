@@ -3,8 +3,17 @@ import {BUILD_FAILURE_CAUSES, buildFailureCauseOf, isBuildFailureCause} from '..
 import {removeSoakWorkspace, runSoak} from '../src/core/benchmark/soakScenario.ts';
 import {durationGate, IDLE_CPU_BUDGET_PERCENT, idleGate} from '../src/core/benchmark/soakGates.ts';
 import {soakMarkdown} from '../src/core/benchmark/soakReport.ts';
-import {type SoakPlanType} from '../src/core/benchmark/soakTypes.ts';
+import {type SoakIdleType, type SoakPlanType} from '../src/core/benchmark/soakTypes.ts';
 import {createFixtureConfig, silentLogger} from './helpers/fixture.ts';
+
+const idle = (averagePercent: number, medianPercent: number): SoakIdleType => ({
+	windowMs: 10_000,
+	cpuUserMs: 0,
+	cpuSystemMs: 0,
+	averagePercent,
+	medianPercent,
+	samplesPercent: [medianPercent],
+});
 
 const PLAN: SoakPlanType = {
 	profile: 'small',
@@ -39,9 +48,13 @@ describe('operational soak gates', () => {
 	});
 
 	it('gates idle CPU against the declared budget and states a skipped measurement', () => {
-		expect(idleGate({windowMs: 10_000, cpuUserMs: 40, cpuSystemMs: 0, averagePercent: 0.4}).result).toBe('pass');
-		expect(idleGate({windowMs: 10_000, cpuUserMs: 200, cpuSystemMs: 0, averagePercent: 2}).result).toBe('fail');
-		expect(idleGate({windowMs: 10_000, cpuUserMs: 0, cpuSystemMs: 0, averagePercent: IDLE_CPU_BUDGET_PERCENT}).result).toBe('fail');
+		expect(idleGate(idle(0.4, 0.4)).result).toBe('pass');
+		expect(idleGate(idle(2, 2)).result).toBe('fail');
+		expect(idleGate(idle(IDLE_CPU_BUDGET_PERCENT, IDLE_CPU_BUDGET_PERCENT)).result).toBe('fail');
+		// A settling spike raises the mean but not the steady median.
+		expect(idleGate(idle(1.4, 0.2)).result).toBe('pass');
+		// A periodic burn that leaves most buckets quiet still fails the mean guard.
+		expect(idleGate(idle(IDLE_CPU_BUDGET_PERCENT * 3, 0.2)).result).toBe('fail');
 		expect(idleGate(null)).toStrictEqual({id: 'soak.idle-cpu', result: 'pass', detail: 'idle sampling not requested'});
 	});
 });

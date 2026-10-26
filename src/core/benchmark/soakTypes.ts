@@ -110,12 +110,16 @@ export type SoakRetentionObservationType = Readonly<{
 }>;
 
 /** CPU consumed by an otherwise idle index after reconciliation. */
-type SoakIdleType = Readonly<{
+export type SoakIdleType = Readonly<{
 	windowMs: number;
 	cpuUserMs: number;
 	cpuSystemMs: number;
 	/** Average CPU usage across all cores expressed as a percentage. */
 	averagePercent: number;
+	/** Median of the one-second buckets, which ignores a settling spike. */
+	medianPercent: number;
+	/** CPU percentage of each one-second bucket, in order. */
+	samplesPercent: readonly number[];
 }>;
 
 /** Declared retention policy and the observations it bounds. */
