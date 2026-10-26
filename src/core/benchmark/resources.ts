@@ -6,6 +6,10 @@ const RSS_SAMPLE_INTERVAL_MS = 25;
 const BYTES_PER_KILOBYTE = 1024;
 
 export type ResourceSamplerType = Readonly<{
+	/** Stops RSS polling without ending the CPU and peak-RSS measurement. */
+	pause: () => void;
+	/** Resumes RSS polling after {@link pause}. */
+	resume: () => void;
 	stop: () => BenchmarkResourceType;
 }>;
 
@@ -30,15 +34,38 @@ export const startResourceSampler = (): ResourceSamplerType => {
 	const cpuStart = process.cpuUsage();
 	const rssStart = process.memoryUsage().rss;
 	let rssPeak = rssStart;
-	const timer = setInterval(() => {
+	let timer: ReturnType<typeof setInterval> | null = null;
+	const sample = (): void => {
 		rssPeak = Math.max(rssPeak, process.memoryUsage().rss);
-	}, RSS_SAMPLE_INTERVAL_MS);
+	};
 
-	timer.unref();
+	// The poll itself costs CPU: reading resident memory is a syscall. A caller
+	// that measures an idle process must suspend polling or it measures itself.
+	const resume = (): void => {
+		if (timer !== null) {
+			return;
+		}
+
+		sample();
+		timer = setInterval(sample, RSS_SAMPLE_INTERVAL_MS);
+		timer.unref();
+	};
+	const pause = (): void => {
+		if (timer === null) {
+			return;
+		}
+
+		clearInterval(timer);
+		timer = null;
+	};
+
+	resume();
 
 	return {
+		pause,
+		resume,
 		stop: () => {
-			clearInterval(timer);
+			pause();
 			const cpu = process.cpuUsage(cpuStart);
 			const rssEnd = process.memoryUsage().rss;
 			const usage = process.resourceUsage();

@@ -290,7 +290,11 @@ export const runSoak = async (options: SoakRunOptionsType): Promise<SoakRunResul
 			return restart;
 		});
 
+		// Suspend RSS polling: its resident-memory syscall is CPU work and would be
+		// charged to an otherwise idle index.
+		overall.pause();
 		const idle = await idleOf(state, options.plan.idleSampleMs);
+		overall.resume();
 
 		const report = reportOf({
 			state,

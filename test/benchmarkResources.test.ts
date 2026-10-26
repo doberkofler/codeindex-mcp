@@ -38,4 +38,18 @@ describe('benchmark resources', () => {
 		expect(resources.cpuUserMs).toBeGreaterThanOrEqual(0);
 		expect(resources.lifetimeMaxRssBytes).toBeGreaterThan(0);
 	});
+
+	it('survives repeated pause, resume, and stop calls', () => {
+		const sampler = startResourceSampler();
+
+		sampler.pause();
+		sampler.pause();
+		sampler.resume();
+		sampler.resume();
+		const resources = sampler.stop();
+		sampler.pause();
+
+		expect(resources.rssPeakBytes).toBeGreaterThanOrEqual(resources.rssStartBytes);
+		expect(resources.cpuUserMs).toBeGreaterThanOrEqual(0);
+	});
 });
