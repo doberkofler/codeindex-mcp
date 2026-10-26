@@ -17,8 +17,8 @@ rewritten.
 
 | Item | Value |
 |---|---|
-| Runtime commit | uncommitted working tree based on `39d1fa1` |
-| Evidence commit | uncommitted working tree based on `39d1fa1` (bundle, replay command, and reconciled documentation) |
+| Runtime commit | `b926b3e09a012abcef05f9980c0f59342d1f5d48` |
+| Evidence commit | `b926b3e09a012abcef05f9980c0f59342d1f5d48` (bundle, replay command, and reconciled documentation) |
 | Package | `codeindex-mcp@0.7.0` |
 | Node | `v26.10.0` |
 | Oracle | 19c Enterprise Edition 19.0.0.0.0, version 19.19.0.0.0 |
