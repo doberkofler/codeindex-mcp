@@ -43,11 +43,8 @@ different identities. The former belongs to the live qualification plan; the
 latter is the benchmark manifest plus production parser binding. Both are
 recorded, and the benchmark hash was stable across all five measured runs.
 
-The frozen 2026-10-25 descriptor still carries the superseded `oracle-o1@2`
-contract and no longer passes `oracle-preflight` at this commit. The 2026-10-27
-descriptor was regenerated from the byte-identical snapshot and carries
-`oracle-o1@4`; its source hash, configuration hash, and file count match the
-declared corpus exactly.
+The corpus descriptor carries `oracle-o1@4`; its source hash, configuration
+hash, and file count match the declared corpus exactly.
 
 ## Method
 
@@ -226,24 +223,6 @@ re-keyed every artifact and every edit rewrote the complete fact set.
 A fact-changing edit still re-extracts the complete corpus; the forced-rebuild
 scenario measures that path at **9.2 s median**, down from 15.0 s because the
 fact write is now a per-path delta instead of a full generation copy.
-
-## Comparison with the Phase 0 baseline
-
-Phase 0 measured 1,237 files at a different commit and an earlier structural
-parser revision. It is context, not a gate.
-
-| Metric | Phase 0 | This baseline | Change |
-|---|---:|---:|---:|
-| Cold wall | 9,109 ms | 14,998 ms | +64.6% |
-| Warm reuse | 208 ms | 236 ms | +13.5% |
-| Warm rebuild | 10,037 ms | 9,216 ms | −8.2% |
-| Cold peak RSS | 2.50 GB | 1.88 GB | −24.6% |
-| Cold storage | 915,822,048 B | 998,046,384 B | +9.0% |
-
-The corpus grew by seven files and the structural parser gained declaration and
-reference precision, so cold build is not directly comparable across revisions.
-The warm rebuild comparison is like-for-like: both perform full extraction, and
-the revision delta removes the generation-copy cost.
 
 ## Integrity
 

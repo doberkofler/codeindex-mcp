@@ -116,7 +116,7 @@ export type OracleEvidencePreflightReportType = Readonly<{
 }>;
 
 type PreflightInputType = Readonly<{
-	/** Path to the committed bundle descriptor, for example `benchmark/oracle-phase0/corpus.json`. */
+	/** Path to the committed bundle descriptor, for example `benchmark/oracle-production-20261027/corpus.json`. */
 	descriptorPath: string;
 	/** Overrides the resolved external evidence root. */
 	evidenceRoot?: string | undefined;

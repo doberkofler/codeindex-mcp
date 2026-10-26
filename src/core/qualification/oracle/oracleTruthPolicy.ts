@@ -55,9 +55,9 @@ const kindsOf = (types: Readonly<Record<string, string>>): ReadonlySet<string> =
 /**
  * Historical qualification policy.
  *
- * V1 preserves the Phase 0 contract: references are not filtered by supported
+ * V1 is the adoption-baseline policy: references are not filtered by supported
  * identifier type, and only program-unit `DEFINITION` rows are declarations.
- * It exists only to replay retained historical evidence.
+ * It exists only to replay earlier evidence.
  */
 export const ORACLE_TRUTH_POLICY_V1: OracleTruthPolicyType = {
 	version: 'v1',
@@ -75,8 +75,8 @@ export const ORACLE_TRUTH_POLICY_V1: OracleTruthPolicyType = {
  *
  * V2 filters truth and indexed facts through the same supported-type map,
  * treats every supported `DEFINITION` row as a declaration, and maps loop
- * iterators to the extractor's variable kind. Retained Phase 8 evidence was
- * produced with this policy. It exists only to replay that evidence.
+ * iterators to the extractor's variable kind. It exists only to replay earlier
+ * evidence.
  */
 export const ORACLE_TRUTH_POLICY_V2: OracleTruthPolicyType = {
 	version: 'v2',

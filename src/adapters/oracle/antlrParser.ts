@@ -374,7 +374,7 @@ export const parseWithAntlrProfiled = (input: OracleParseInputType): OracleAntlr
 export const parseWithAntlr = (input: OracleParseInputType): OracleParseResultType => parseInternal(input);
 
 /**
- * Production parser seam; Phase 8 binds this to the structural parser.
+ * Production parser seam; production binds this to the structural parser.
  *
  * @param input - Source text, workspace-relative path, and default schema.
  * @returns Serializable parse facts and bounded diagnostics.

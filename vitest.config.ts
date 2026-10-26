@@ -2,10 +2,10 @@ import {defineConfig} from 'vitest/config';
 import packageManifest from './package.json' with {type: 'json'};
 import {oracleWorkflowTests} from './test/helpers/oracleWorkflow.ts';
 
-// Class membership follows documentation/test-inventory.md. Keep these lists in
-// sync with the inventory when a test is added or reclassified. The complete
-// gate (`pnpm test`) keeps the directory patterns so an unclassified test can
-// never be skipped silently.
+// These lists define the focused workflow classes. When a test is added or
+// reclassified, update the matching list here. The complete gate (`pnpm test`)
+// keeps the directory patterns so an unclassified test can never be skipped
+// silently.
 const MODULE_TESTS = [
 	'test/analytics.test.ts',
 	'test/analyticsCommand.test.ts',

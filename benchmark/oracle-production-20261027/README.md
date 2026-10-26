@@ -6,12 +6,10 @@ package-dependency recall and precision pass. This bundle resolves the
 dependency-truth decision owned by
 [#101](https://github.com/doberkofler/codeindex-mcp/issues/101).
 
-This is a contract recomputation, not a new Oracle session. The source snapshot
-and truth exports are byte-identical to the 2026-10-26 bundle; only the contract
-and the report were regenerated. Replaying the retained snapshot is DB-free and
-reproduces every number below. The 2026-10-26 bundle (`oracle-o1@3`) and the
-2026-10-25 bundle (`oracle-o1@2`) remain historical evidence and are not
-rewritten.
+This is a contract recomputation, not a new Oracle session. The retained source
+snapshot and truth exports are unchanged; only the contract and the report were
+regenerated. Replaying the retained snapshot is DB-free and reproduces every
+number below.
 
 ## Identities
 
@@ -42,8 +40,8 @@ The retained plan recompiled 1,244 target objects with
 `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'` and 189 dependents; it started with zero
 invalid objects and left zero invalid objects. The plan records only
 `ALTER SESSION` and `ALTER … COMPILE` statements; it replaces no source. Those
-facts are inherited from the 2026-10-26 live run because this bundle does not
-open a database.
+facts come from the retained live run because this bundle does not open a
+database.
 
 ## Result
 
@@ -92,9 +90,8 @@ truth row.
 
 ## Dependency decision
 
-The 103 rows omitted in this bundle are the same 103 rows that failed the gate
-under `oracle-o1@3`. Every one has the same cause: the authored file does not
-mention the target package. Oracle recorded the edge because the compiler
+All 103 omitted rows share one cause: the authored file does not mention the
+target package. Oracle recorded the edge because the compiler
 expanded a referenced type, default expression, or nested record field whose
 definition names that package. A static adapter that only reads authored source
 cannot recover it.
@@ -182,19 +179,20 @@ node dist/cli.mjs qualify --extractor oracle \
 
 No Oracle session, DDL, or recompilation was performed.
 
-## Comparison with retained evidence
+## Contract identity
 
-| Evidence | Parser | Contract | Policy | Corpus | Declarations | References | Dependencies |
-|---|---|---|---|---|---|---:|---:|
-| Phase 0 (2026-10-19) | structural | `@1` | `v1` | SVN 78950, 1,237 files | 98.3956% / 99.9662% | 58.5206% / 99.4259% | 98.1734% / 100% |
-| Phase 6 (2026-10-21) | `structural@5` | historical | `v2` | SVN 78950, 1,237 files | 99.9647% / 99.9973% | 99.9278% / 100% | not published |
-| Phase 8 (2026-10-20) | `structural@1` | historical | `v2` | SVN 78950, 1,237 files | 95.5394% / 99.9711% | 57.4956% / 99.3464% | 98.1734% / 100% |
-| Production 2026-10-25 | `structural@5` | `@2` | `v4` | live installed, 1,244 files | 99.9462% / 100% | 99.2033% / 99.7298% | 98.1789% / 100% |
-| Production 2026-10-26 | `structural@5` | `@3` | `v5` | live installed, 1,244 files | 99.9489% / 100% | 99.6697% / 100% | 98.1789% / 100% |
-| **This run** | `structural@5` | `@4` | `v5` | live installed, 1,244 files | **99.9489% / 100%** | **99.6697% / 100%** | **100% / 100%** |
+| Item | Value |
+|---|---|
+| Parser | `structural@5` |
+| Contract | `@4` |
+| Policy | `v5` |
+| Corpus | Live installed, 1,244 files |
+| Declarations | 99.9489% recall / 100% precision |
+| References | 99.6697% recall / 100% precision |
+| Dependencies | 100% recall / 100% precision |
 
-The 2026-10-25 and 2026-10-26 bundles are not comparable with this one: the
-contract hash and dependency denominator differ. The document
+A report under a different contract hash or dependency denominator is not
+comparable with this one. The document
 [`documentation/oracle-qualification-contract.md`](../../documentation/oracle-qualification-contract.md)
 records the change control.
 

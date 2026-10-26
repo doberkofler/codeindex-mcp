@@ -22,11 +22,11 @@ Codebase tests should answer:
 
 ## 2. Current state
 
-The repository currently has 113 test files: 87 under `test/` and 26 under
-`evaluation/harness/src/`. The file-level classification and ownership register is the
-[Test inventory](./test-inventory.md). The complete suite takes about eleven seconds without
-coverage and about fifteen seconds with coverage. Classification and ownership were the main
-problems:
+The repository currently has 161 test files: 115 under `test/` and 46 under
+`evaluation/harness/src/`. Workflow class membership is declared in
+`vitest.config.ts`, which is the single register. The complete suite takes about
+eleven seconds without coverage and about fifteen seconds with coverage.
+Classification and ownership were the main problems:
 
 - module, adapter, storage, MCP, lifecycle, benchmark-harness, and Oracle tests share one
   directory, although the focused workflows in section 6 now select them by class;

@@ -8,9 +8,8 @@ Operational and design documentation for CodeIndex MCP.
 | [TypeScript/JavaScript adapter](./typescript-adapter.md) | Shipped extractor behavior, publication classification, production-pilot status, validation, limitations, and enhancement decisions |
 | [Oracle adapter](./oracle-adapter.md) | Static Oracle 19c SQL/PL/SQL extraction, manifest configuration, symbols, references, and package dependencies |
 | [Oracle O1 qualification contract](./oracle-qualification-contract.md) | Authoritative truth population, exclusions, ambiguity rule, gates, report identity, and change control |
-| [Oracle O1 evidence bundle](./oracle-evidence-bundle.md) | Bundle contents, preflight, replay, recovery record, retention, and the production replacement |
-| [Oracle controlled evidence](../benchmark/oracle-controlled/README.md) | Ten-case controlled PASS under the superseded `oracle-o1@2`, retained as historical evidence with scope limits |
-| [Oracle production replacement evidence](../benchmark/oracle-production-20261027/README.md) | Current production verdict under `oracle-o1@4`: every gate passes |
+| [Oracle O1 evidence bundle](./oracle-evidence-bundle.md) | Bundle contents, preflight, replay, and retention |
+| [Oracle production evidence](../benchmark/oracle-production-20261027/README.md) | Production verdict under `oracle-o1@4`: every gate passes |
 | [ORDS and cross-language resolution](./ords-cross-language.md) | Planned HTTP, ORDS, and PL/SQL route evidence and cross-language graph construction |
 | [Roadmap](./roadmap.md) | Ordered delivery phases, acceptance gates, stop rules, and open decisions |
 | [Maintainer guide](./maintainer-guide.md) | Runtime contracts, verification, performance, security, and release discipline |
@@ -18,7 +17,6 @@ Operational and design documentation for CodeIndex MCP.
 | [MCP evaluation strategy](./mcp-evaluation-strategy.md) | Product usefulness, performance, test data, agent A/B gates, and local-model evaluation |
 | [Codebase testing strategy](./codebase-testing-strategy.md) | Test classes, module seams, ownership, fixture policy, and workflow targets |
 | [Evaluation harness](./evaluation-harness.md) | Implemented methodology for controlled index-versus-baseline comparisons |
-| [Migration coverage](./migration-coverage.md) | Audit of preserved, generalized, deferred, and intentionally excluded design knowledge |
 | [Enhancements: dependency decisions](./enhancements.md) | Dependency retention decisions, rejected library additions, and links to open dependency work |
 | [Source-line counter](./tools/countSourceLines.py) | Local measurement helper for repository size |
 

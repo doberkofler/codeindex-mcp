@@ -2,28 +2,14 @@
 
 ## 1. Status
 
-**PASS for the production replacement corpus.**
-`benchmark/oracle-production-20261027/` requalifies the live installed source
-inventory of `LJ_UNITTEST` under contract
+**PASS.** `benchmark/oracle-production-20261027/` qualifies the live installed
+source inventory of `LJ_UNITTEST` under contract
 [`oracle-o1@4`](./oracle-qualification-contract.md): declarations, reference
 precision and recall, and package dependency precision and recall all pass. The
 103 compiler-inferred dependency rows decided in
 [#101](https://github.com/doberkofler/codeindex-mcp/issues/101) are counted as
-`compiler_inferred_dependency`; the source snapshot is byte-identical to
-2026-10-25. This is the current production verdict
+`compiler_inferred_dependency`
 ([evidence](../benchmark/oracle-production-20261027/README.md)).
-
-**Historical PASS for the controlled corpus.**
-`benchmark/oracle-controlled/` binds a replayable 10-case synthetic Oracle
-corpus to contract `oracle-o1@2` and passes preflight and qualification under
-that contract. It is retained unchanged as historical evidence; its run record
-is rejected by the authoritative contract, and a rerun under `@3` failed because
-the live export selects every object of the four PL/Scope types in a shared
-schema.
-
-**NOT READY for the historical Phase 0 corpus.** Exact recovery failed on
-2026-10-25 (section 4). Its source snapshot and truth exports remain
-unavailable. The Phase 0 identity stays frozen and is never overwritten.
 
 ## 2. Bundle definition
 
@@ -31,11 +17,7 @@ A bundle is one external directory plus the identity files that stay in Git.
 
 | Bundle | Descriptor | External root | Verdict |
 | --- | --- | --- | --- |
-| Production replacement | `benchmark/oracle-production-20261027/corpus.json` | `oracle-live/ljs-production-20261027` | PASS under `oracle-o1@4` |
-| Production historical | `benchmark/oracle-production-20261026/corpus.json` | `oracle-live/ljs-production-20261026` | REFERENCES PASS; DEPENDENCIES FAIL; superseded contract `@3` |
-| Production historical | `benchmark/oracle-production-20261025/corpus.json` | `oracle-live/ljs-production-20261025` | NOT READY; superseded contract `@2` |
-| Controlled substitute | `benchmark/oracle-controlled/corpus.json` | `oracle-live/ljs-ciq-20261025` | historical PASS under `oracle-o1@2` |
-| Historical Phase 0 | `benchmark/oracle-phase0/corpus.json` | `oracle-live/2eb1e36f6ecdada4` | NOT READY; root absent |
+| Production | `benchmark/oracle-production-20261027/corpus.json` | `oracle-live/ljs-production-20261027` | PASS under `oracle-o1@4` |
 
 Each bundle commits the same bounded identity files:
 
@@ -134,54 +116,10 @@ Report statuses:
 | `mismatch` | Present but contradicts the retained identity |
 | `unverified` | Present but not checksum-pinned by any retained manifest |
 
-## 4. Recovery attempt (2026-10-25)
+## 4. Bundle origin
 
-One bounded, read-only attempt. Stop rule: no further search after a negative
-result, then freeze a replacement or record NOT READY.
-
-| Check | Result |
-| --- | --- |
-| `${CODEINDEX_EVIDENCE_ROOT:-~/.local/share/codeindex-mcp}/oracle-live/2eb1e36f6ecdada4` | absent |
-| `CODEINDEX_EVIDENCE_ROOT` | unset |
-| Spotlight (`mdfind`) for `user-identifiers.csv`, `user-dependencies.csv`, `2eb1e36f6ecdada4` | no hits |
-| Depth-6 scan of `$HOME` for the same names and `oracle-live*` | no hits |
-| Live `USER_IDENTIFIERS` | 0 rows; PL/Scope `IDENTIFIERS:NONE` |
-| Live valid PL/SQL objects | 1,367 |
-| Frozen corpus | 1,237 files, 1,240 installed objects, SVN r78950 |
-| SVN source recovery | not possible from retained data: only the repo-relative root `^/ljs_app/trunk/ljs_db/LJS_DB` is recorded, with no repository URL and no working copy |
-
-Conclusion: exact recovery is unattainable on two independent axes. The truth
-exports are gone and require a PL/Scope recompile to regenerate, and the live
-schema is not the Phase 0 snapshot (1,367 versus 1,240 valid objects). Any
-regeneration produces a **replacement corpus**, never a restoration. The Phase 0
-identity in `benchmark/oracle-phase0/` stays frozen and is never overwritten.
-
-A PL/Scope recompile window was approved and exercised on 2026-10-25 against the
-live installed source, producing the production replacement bundle. It cannot
-restore the Phase 0 corpus because the original SVN revision is still
-unavailable.
-
-## 5. Replacement route
-
-The controlled substitute was chosen instead of recompiling the deployed
-application schema: `test/fixtures/oracle-qualification-corpus/` supplies ten
-synthetic cases, compiled only as `CIQ_`-prefixed objects. It covered package
-specification/body mapping, types, parameters, constants, cursors, records,
-fields, subtypes, exceptions, collections, standalone routines, overloads,
-nested scopes, dependencies, and counted exclusions. The resulting bundle passes
-`oracle-o1@2` with 41/41 declarations, 35/35 references, and 7/7 dependencies
-and is retained as historical evidence.
-
-Its `oracle-o1@3` requalification failed on 2026-10-26. The live export selects
-every `PACKAGE`, `PACKAGE BODY`, `FUNCTION`, and `PROCEDURE` row in the schema,
-and `LJ_UNITTEST` now also holds the 1,246 production objects, so qualification
-aborts on an unmapped object after the 10 target objects recompiled. The `CIQ_`
-objects and table were dropped afterwards. A controlled rerun requires an
-isolated schema or an export scoped to the plan's object list.
-
-The production replacement was first frozen on 2026-10-25 from the live
-installed `USER_SOURCE` inventory of `LJ_UNITTEST` and requalified on 2026-10-26
-against the same byte-identical source snapshot:
+The production bundle was produced from the installed `USER_SOURCE` inventory of
+`LJ_UNITTEST`:
 
 1. The source snapshot was selected from 1,246 installed objects; two objects
    had no usable source, leaving 1,244 files and units.
@@ -190,22 +128,20 @@ against the same byte-identical source snapshot:
 3. The approved apply recompiled 1,244 targets and 189 dependents with
    `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`, left zero invalid objects, and exported
    identifiers, dependencies, and the source backup.
-4. Contract `oracle-o1@3` was executed against the regenerated truth.
-5. Contract `oracle-o1@4` was executed against the same source snapshot and
-   truth without a database session, adding the counted
-   `compiler_inferred_dependency` exclusion decided in #101.
+4. Contract `oracle-o1@4` was executed against the retained source and truth,
+   including the counted `compiler_inferred_dependency` exclusion decided in
+   #101.
 
-The replacement has no SVN revision and is not the historical Phase 0 snapshot.
-Its current result is **PASS** under `@4`. The 2026-10-25 run, the 2026-10-26
-`@3` run, and the comparisons with Phase 6 and Phase 8 are recorded in
-[`benchmark/oracle-production-20261027/README.md`](../benchmark/oracle-production-20261027/README.md).
-
-A replacement freezes: manifest, source hashes, Oracle version, NLS and schema
+A new bundle freezes: manifest, source hashes, Oracle version, NLS and schema
 settings, object inventory, contract version, parser identity, and the approval
-hash. The replacement is a new descriptor and a new external root — not a
-mutation of `benchmark/oracle-phase0/` or of the superseded 2026-10-25 bundle.
+hash. It is a new descriptor and a new external root, never a mutation of the
+published bundle.
 
-## 6. Retention, backup, access, deletion
+The synthetic corpus under `test/fixtures/oracle-qualification-corpus/` remains
+available for semantic-contract tests. It compiles only `CIQ_`-prefixed objects
+in an isolated schema and is not an evidence bundle.
+
+## 5. Retention, backup, access, deletion
 
 | Concern | Owner | Rule |
 | --- | --- | --- |
@@ -218,12 +154,8 @@ mutation of `benchmark/oracle-phase0/` or of the superseded 2026-10-25 bundle.
 Verification after any restore or move is `oracle-preflight`; a bundle that
 fails preflight is not a valid backup.
 
-## 7. Follow-ups
+## 6. Follow-ups
 
-- Fix the reference-precision, reference-recall, and dependency-recall defects
-  recorded in the production replacement evidence.
-- Decide the contract policy for compiler-inferred specification dependencies
-  that have no authored reference in indexed source.
-- Acquire SVN access only if a future comparison requires the historical Phase 0
-  corpus; the current production corpus does not depend on it.
 - Keep preflight and replay mandatory before any approved apply.
+- Recompute the bundle whenever the contract or parser identity changes; a
+  superseded bundle is retired rather than edited.

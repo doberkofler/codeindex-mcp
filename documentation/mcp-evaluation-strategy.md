@@ -757,7 +757,7 @@ Completed:
    `1.307` direct cost (upper `1.473`); native direct MCP remains recommended.
    Evidence is [Exposure evidence](../evaluation/audits/exposure-eval-050.md).
 4. Production readiness #47–#52: retained reference baselines, deep-cursor plans at
-   production cardinality, multi-process lease proof, fresh-consumer installation,
+   production cardinality, multi-process lease proof, installation and rollback,
    and checkout lifecycle semantics.
 5. The representative normal-session pilot (#53) was superseded. It was framed as a
    prospective gate before default enablement, and the slice shipped in `v0.7.0`,

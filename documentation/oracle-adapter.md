@@ -3,19 +3,10 @@
 **Status:** static O1 adapter implemented and bound to the structural parser
 (`structural@5`). The semantic release gate is contract `oracle-o1@4`
 ([Oracle O1 qualification contract](./oracle-qualification-contract.md)); the
-qualification command executes it directly. The current production verdict is
-**PASS**: the 2026-10-27 contract recomputation of the 2026-10-25 source
-snapshot passes declarations, reference precision and recall, and package
-dependency precision and recall. Contract `@4` records the 103
-`compiler_inferred_dependency` exclusions decided in
-[#101](https://github.com/doberkofler/codeindex-mcp/issues/101). The 2026-10-26
-bundle (`oracle-o1@3`), the 2026-10-25 bundle (`oracle-o1@2`, truth policy `v4`),
-the 2026-10-19 Oracle-backed run, and the Phase 6/Phase 8 comparisons are
-historical evidence, not the current verdict. The controlled 10-case corpus
-passed under `oracle-o1@2` and is retained as historical evidence
-([controlled evidence](../benchmark/oracle-controlled/README.md)); the
-production replacement evidence is the current bundle
+qualification command executes it directly. The production verdict is **PASS**
 ([production evidence](../benchmark/oracle-production-20261027/README.md)).
+Contract `@4` records the 103 `compiler_inferred_dependency` exclusions decided
+in [#101](https://github.com/doberkofler/codeindex-mcp/issues/101).
 
 ## 1. Scope
 
@@ -269,8 +260,7 @@ gate. Policy `v5` omits parameters and routine-local declarations as
 `ephemeral_declaration`, matching the publication surface, and maps a scalar
 `DEFINITION` row to a reference use.
 
-The current production bundle was recomputed on 2026-10-27 from the source
-snapshot installed on 2026-10-25: 1,244 files and units, parser `structural@5`,
+The production bundle covers 1,244 files and units, parser `structural@5`,
 contract hash `ee83f2ec…`, approval `97c796a2…`. Every gate passes:
 
 | Section | Result | Gate |
@@ -283,46 +273,20 @@ No reference extra of any class was emitted. The 622 missing references are
 classified: 475 routine calls in 14 files whose per-file ambiguity diagnostic
 bound was reached, 49 `SELECT … INTO <record>` field writes, 18 member chains on
 function results or collection elements, 59 routine-local references inside
-anonymous blocks, and 21 routine-local loop iterators. The 103 dependency rows
-that failed under `@3` are all compiler-inferred: the authored file never
+anonymous blocks, and 21 routine-local loop iterators. The 103 excluded
+dependency rows are all compiler-inferred: the authored file never
 mentions the target package, and Oracle recorded the edge from a referenced
 type, default expression, or nested record field. `@4` omits exactly those rows
 with a lexical, adapter-independent test, so dependency recall measures the
 edges the source can name. The
 [production evidence](../benchmark/oracle-production-20261027/README.md)
-records every denominator, exclusion reason, and the comparison with 2026-10-26,
-2026-10-25, Phase 6, and Phase 8.
+records every denominator and exclusion reason.
 
 Each report records `contract.id`, `contract.version`, and `contract.hash`, the
 parser identity, the corpus source and configuration hashes, the truth-export
 SHA-256 values, and per-reason exclusion counts. The denominators can be
 reconstructed from the report alone. Disagreement samples are retained
 externally; committed reports keep aggregate counts only.
-
-The controlled 10-case corpus passed under `oracle-o1@2` with 41/41
-declarations, 35/35 references, and 7/7 dependencies
-([controlled evidence](../benchmark/oracle-controlled/README.md)). A rerun
-under `@3` failed because the live export selects every object of the four
-PL/Scope types in the schema; the bundle is retained as historical evidence and
-was not requalified under `@4`.
-
-Retained historical comparisons:
-
-- Production 2026-10-26 (`@3`, policy `v5`, live installed, 1,244 files)
-  reported 99.9489% declaration recall, 99.6697% / 100% reference recall and
-  precision, and 98.1789% dependency recall. It is superseded by `@4`.
-- Production 2026-10-25 (policy `v4`, live installed, 1,244 files) reported
-  99.9462% declaration recall, 99.2033% / 99.7298% reference recall and
-  precision, and 98.1789% dependency recall. It is not the current contract.
-- Phase 6 (2026-10-21, policy `v2`, SVN r78950, 1,237 files) reported 186,742 /
-  186,877 references (99.9278%) and 100% precision with an external ambiguity
-  removal step. It is not the current contract, corpus, or policy.
-- Phase 8 (2026-10-20, parser `structural@1`, policy `v2`) reported 95.5394%
-  declaration and 57.4956% reference recall. It is candidate evidence for the
-  ANTLR decision, not a production verdict.
-- Phase 0 (2026-10-19, policy `v1`) is the adoption baseline.
-
-No historical artifact is rewritten.
 
 Run the comparison without connecting to Oracle:
 
@@ -361,80 +325,14 @@ retained historical evidence; those policies are not the release contract. Pass
 approved live plan; this is required when a source filename differs from the
 PL/Scope object name. It exits non-zero when any gate fails.
 
-### 7.2 Historical Phase 0 baseline
-
-The frozen Phase 0 baseline used a production sample project and Oracle
-19.0.0.0.0 with a session-scoped `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`. The
-qualification corpus contained 1,237 files: 609 package specifications, 605
-package bodies, 14 SQL files, and 9 standalone functions. The frozen evidence,
-corpus checksums, truth-export hashes, and both reports are recorded in
-[`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
-
-These results are a policy `v1` measurement. They are retained as the adoption
-baseline and are not the current production verdict.
-
-| Gate | Result | Required |
-| --- | ---: | ---: |
-| Declaration recall | 98.3956% | 99.5% |
-| Declaration precision | 99.9662% | 100% |
-| Reference recall | 58.5206% | 99.5% |
-| Reference precision | 99.4259% | 100% |
-| Package dependency recall | 98.1734% | 99.5% |
-| Package dependency precision | 100% | 100% |
-
-To replay the frozen baseline without a database connection, verify the bundle
-first:
-
-```bash
-node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-phase0/corpus.json
-```
-
-Preflight fails as **NOT READY** while the external root is absent; it opens no
-Oracle session. Bundle contents, the recovery record, and the replacement route
-are documented in [`oracle-evidence-bundle.md`](./oracle-evidence-bundle.md).
-Once it passes, replay with:
-
-```bash
-node dist/cli.mjs qualify --extractor oracle \
-  --root /path/to/oracle-live/2eb1e36f6ecdada4/workspace \
-  --project-file /path/to/oracle-live/2eb1e36f6ecdada4/workspace/manifests/qualification-index.json \
-  --identifiers /path/to/oracle-live/2eb1e36f6ecdada4/user-identifiers.csv \
-  --dependencies /path/to/oracle-live/2eb1e36f6ecdada4/user-dependencies.csv \
-  --units /path/to/oracle-live/2eb1e36f6ecdada4/plan.json \
-  --truth-policy v1 \
-  --output /tmp/oracle-qualification.json
-```
-
-### 7.3 Historical Phase 0 comparison detail
-
-Excluded from the frozen Phase 0 snapshot:
-
-- 3 installed objects without usable source in the snapshot;
-- source-only objects that were not installed in the database (not selected);
-- wrapped source, which remains outside O1 scope.
-
-The Phase 0 comparison excluded 63,076 PL/Scope references to package qualifiers
-because O1 represents those as dependency edges, not symbol occurrences. It also
-rejected PL/Scope rows whose declaration position did not contain the declared
-identifier; this removes `SELECT *` column pseudo-declarations and same-line
-`CREATE OR REPLACE` column offsets. PL/Scope references whose `ITERATOR` type is
-outside the policy `v1` supported set are excluded by that policy; pragma names,
-implicit loop iterators, type positions, static SQL, and savepoint names are not
-emitted as references. They are not removed merely to raise precision.
-
 Literal `$IF TRUE` and `$IF FALSE` branches are evaluated during tokenization.
 Non-literal conditions keep both branches because O1 does not evaluate session
 or compilation parameters.
 
-Remaining reference gaps are concentrated in identifiers inside static SQL,
-record/object-type member chains whose final member is not indexed, and
-parameters or locals used only in those contexts. These are scope gaps, not
-formatting noise.
-
-Qualification evidence is split by size. The frozen corpus manifest, per-file
-checksums, unit mapping, benchmark, qualification report, and replay commands
-are checked in under [`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
-The source snapshot and CSV exports remain external.
+Known reference gaps are confined to scope-limited constructs: static SQL
+identifiers, record and object-type member chains whose final member is not
+indexed, and parameters or locals used only in those contexts. Wrapped source
+and triggers remain outside O1 scope.
 
 Performance measurement is separate:
 
@@ -448,7 +346,7 @@ It runs the normal `benchmark` command with the Oracle extractor and never
 connects to Oracle.
 
 [`benchmark/oracle-performance`](../benchmark/oracle-performance/README.md)
-retains the structural@5 production baseline for the frozen 2026-10-25 corpus:
+retains the structural@5 production baseline:
 cold build, warm reuse, one-file edit-to-fresh, full rebuild, representative
 queries, peak RSS, CPU, storage, and bundle size. Thresholds were declared
 before the first measurement and are committed with the aggregate summary.
@@ -460,8 +358,7 @@ pnpm benchmark:oracle:production
 The harness verifies the frozen bundle first, copies it per repetition so no
 checkout is mutated, discards one warmup, and runs five measured repetitions of
 the built CLI and worker path. Raw reports stay in the external evidence root;
-only the bounded aggregate and hashes are committed. The Phase 7 ANTLR
-measurement is not a production baseline.
+only the bounded aggregate and hashes are committed.
 
 ### Live qualification
 

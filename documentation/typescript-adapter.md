@@ -221,8 +221,8 @@ TypeScript exposure gates run independently per project context:
   [Architecture §7.4](./architecture.md#74-fact-finalization-and-validation)
   passes before publication.
 
-Gate evidence is retained under `benchmark/publication-phase2/` and
-`benchmark/publication-phase6/`.
+The gates are enforced by the publication tests and the fixture qualification
+run in `pnpm verify:pr`.
 
 ### 4.5 Context-dependent classification
 
@@ -338,78 +338,18 @@ pnpm qualify:typescript:fixture
 Benchmark storage execution, core calls, MCP transport, client wrapping, and full
 agent tasks separately. See [Maintainer guide](./maintainer-guide.md).
 
-## 9. Production-pilot migration ledger
-
-This ledger replaces the stale progress table in the original production-pilot
-plan. Status meanings:
-
-- **implemented:** code and automated tests exist in this repository;
-- **partial:** useful implementation exists but one or more stated gates lack
-  implementation or retained evidence;
-- **superseded:** the standalone/public split changed the original deliverable;
-- **open:** no sufficient implementation or evidence exists.
-
-| Package | Status | Current implementation or remaining work |
-| --- | --- | --- |
-| WP0 — baselines and pilot gates | Implemented | Build stages, local analytics, offline reports, the version-2 model-free benchmark, deterministic large-project profiles, a versioned baseline, explicit gates, an evaluation sidecar, Markdown summaries, the final reference corpus, declarative suites for generated and pinned public-project benchmark runs, and retained reference-machine measurements exist. The retained record is [Reference-workstation baseline](./reference-baseline.md). |
-| WP1 — native OpenCode exposure | Partial | MCP installation and current Code Mode behavior are documented and protocol-tested. Direct native MCP and Code Mode were compared with the same artifact, model, cases, tools, client, and tariff; Code Mode cost `1.307` direct with upper `1.473`, so direct MCP remains recommended; see [Exposure evidence](../evaluation/audits/exposure-eval-050.md). A formal normal-session smoke remains open. |
-| WP2 — continuous freshness | Implemented | Coordinator, recursive watcher, 500 ms debounce, 60 s reconciliation, one follow-up build, query freshness, dirty-source rejection, and shutdown ownership are implemented and tested. |
-| WP3 — persistence and writer coordination | Implemented | Persistent working-copy UUID, immutable content, extraction artifacts, renewable build lease, schema backup/recreation, bounded generation cleanup, and checkout move/copy/delete semantics exist. Multi-process contention, owner termination, reader isolation, and expired-lease takeover are evidenced by `test/leaseContention.test.ts`; move, copy, and delete are stated and verified in [Checkout move, copy, and delete semantics](./checkout-lifecycle.md). |
-| WP4 — compiler/reference alignment | Implemented | Declared compiler identity, drift, TypeScript API extraction, and the ≥200-symbol, ≥99.5%-recall, 100%-precision gate with construct stratification and a checked-in corpus exist. |
-| WP5 — edit-to-fresh and resources | Partial | Cached status, version-2 benchmark, build-stage timings, RSS/CPU/storage sampling, artifact-reuse reporting, deep-cursor plans, explicit gates, evaluation/report artifacts, analytics, worker builds, a resumable per-run evidence suite, the deterministic model-free E3 operational soak with declared-duration and idle-CPU gates, the paired direct/Code-Mode exposure comparison, and retained reference-machine measurements exist; multi-process contention, owner termination, reader isolation, and expired-lease takeover are evidenced by `test/leaseContention.test.ts`. Four-hour soak evidence remains incomplete. Incremental compiler state remains conditional. |
-| WP6 — build separation | Superseded/partial | MCP, CLI, console server, and browser bundles are separate. The evaluation harness and public cases live under `evaluation/` and are not bundled; private corpora and restricted results remain outside this repository. |
-| WP7 — OpenCode installation | Implemented | CLI install/uninstall, explicit MCP bundle/configuration paths, preservation of unrelated JSONC, external project configuration, and user documentation exist. A fresh consumer installed the released tag, started the CLI, MCP, and console, kept a second checkout on a separate database, opted out of analytics, and rolled back through configuration and cleanup; see [Fresh-consumer installation and rollback](./fresh-consumer-installation.md). |
-| WP8 — interactive pilot | Superseded | The pilot was designed as a prospective gate before default enablement. The slice shipped in `v0.7.0` on 2026-10-24 and runs in a production consumer, so that decision no longer exists and a retrospective hosted campaign would not inform it. The model-free soak, startup-latency, and stream-integrity tooling remains available for ongoing operational assurance. |
+## 9. Operational assurance
 
 Cross-cutting contracts and performance targets live in
 [Maintainer guide](./maintainer-guide.md). Evaluation methodology lives in
 [Evaluation harness](./evaluation-harness.md).
 
-### 9.1 Remaining pilot TODOs by work package
+Known open work, tracked rather than described here:
 
-- **WP0:** retain a new baseline when the reference machine, runtime, corpus, or
-  artifact identity changes; the current record is
-  [Reference-workstation baseline](./reference-baseline.md). The pinned public
-  suite remains directional and VS Code is currently blocked by an unrepresentable
-  empty-string member name.
-- **WP1:** record a disposable normal OpenCode session invoking every tool without
-  a bridge; the smoke needs no hosted-model call, so it can run against a local
-  model or a deterministic client probe. The paired Code Mode and direct exposure
-  comparison is retained in
-  [Exposure evidence](../evaluation/audits/exposure-eval-050.md).
-- **WP2:** no known feature TODO; retain regression coverage for add/change/delete,
-  rename, configuration changes, events during builds, failure recovery, and
-  shutdown on every supported platform.
-- **WP3:** multi-process contention, owner termination, reader isolation, and
-  expired-lease takeover are covered by `test/leaseContention.test.ts`; move, copy, and
-  deletion semantics are covered by `test/checkoutLifecycle.test.ts` and
-  [Checkout move, copy, and delete semantics](./checkout-lifecycle.md); prove later
-  adapter contexts do not replace core identity concepts.
-- **WP4:** no known feature TODO; keep the corpus representative when adding new
-  syntax constructs and retain a focused fixture for every mismatch class.
-- **WP5:** complete MCP call and idle CPU measurements and the four-hour
-  edit/restart soak on the reference machine. `startup` now records the local MCP
-  call p95 beside warm startup, and `soak` accepts `--duration-ms` and
-  `--idle-sample-ms` with `soak.duration-completed` and `soak.idle-cpu` gates; the
-  retained release-machine runs remain outstanding. Add incremental compiler
-  state only if a measured gate fails.
-- **WP6:** keep private evaluation orchestration outside the production bundle and
-  verify that it launches the released `codeindex-mcp` artifact. Reintroducing a
-  public evaluation bundle requires a separate scope decision.
-- **WP7:** fresh-consumer installation, artifact startup, a second checkout on a
-  separate database, analytics opt-out, and configuration-only rollback are
-  retained in
-  [Fresh-consumer installation and rollback](./fresh-consumer-installation.md).
-  Both residual observations from that verification are resolved: `mcp
-  install` no longer writes a `$schema` hint that uninstall would have to
-  guess, and `clean` no longer scans the shared OpenCode temporary root or
-  another workspace's database.
-- **WP8:** superseded. The slice is released and deployed, so there is no pending
-  enablement decision for a prospective pilot to inform, and no retrospective
-  hosted campaign is planned. Operational assurance instead uses the model-free
-  four-hour soak, the warm-startup and MCP call gates, and the complete
-  event-stream contract; production monitoring of the shipped release is tracked
-  in [#84](https://github.com/doberkofler/codeindex-mcp/issues/84).
+- a four-hour edit/restart soak on the reference machine;
+- a formal normal OpenCode session invoking every tool with no bridge;
+- a new retained baseline whenever the reference machine, runtime, corpus, or
+  artifact identity changes.
 
 ## 10. Implemented dependency-query enhancements
 

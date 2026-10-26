@@ -68,7 +68,7 @@ indexer, parser, or publication pipeline as its expected result.
 | F15 | `test/fixtures/oracle-publication-project/` | Oracle publication forms, pairing, diagnostics, and usage bits | `test/oraclePublicationSurface.test.ts`, `test/publicationReport.test.ts` |
 | F16 | `test/fixtures/oracle-qualification-golden/` | Golden facts for constructs PL/Scope cannot confirm | `test/oracleGoldenFacts.test.ts` |
 | F17 | `test/fixtures/oracle-grammar-gaps/` | Known grammar gaps report a diagnostic instead of succeeding silently | `test/oracleGrammarGaps.test.ts` |
-| F22 | `test/fixtures/oracle-qualification-corpus/` | Controlled Oracle O1 semantic corpus and replayable evidence | `benchmark/oracle-controlled/corpus.json`, `test/oracleQualificationContract.test.ts` |
+| F22 | `test/fixtures/oracle-qualification-corpus/` | Controlled Oracle O1 semantic corpus | `test/oracleQualificationContract.test.ts`, `test/liveOraclePreflight.test.ts` |
 
 ## 4. Entries
 
@@ -676,15 +676,15 @@ test/fixtures/typescript-require/tsconfig.json
 
 | Field | Value |
 |---|---|
-| Claim | Ten synthetic Oracle PL/SQL cases exercise every supported O1 declaration class, usage mapping, internal dependency, and live exclusion under contract `oracle-o1@2`. |
+| Claim | Ten synthetic Oracle PL/SQL cases exercise every supported O1 declaration class, usage mapping, internal dependency, and live exclusion under contract `oracle-o1@4`. |
 | Constructs | Package specifications and bodies; public/private routines and variables; parameters; constants; cursors; records and fields; subtypes; exceptions; associative and varray collections; ref cursors; overloads; named arguments; nested routines and block scopes; standalone function/procedure; cross-package calls; ambiguity, unsupported types, and ephemeral declarations. |
 | Failure classes | Missing `PROCEDURE` truth, truth-column misalignment, ephemeral declarations entering recall, missing internal package dependency, ambiguous-overload omission, unsupported-type classification, and any gate below its threshold. |
-| Authority | Oracle 19c PL/Scope exports from `CIQ_`-prefixed objects. The retained bundle records contract `oracle-o1@2` with truth policy `v4` and is historical under the authoritative `oracle-o1@4`. The checked-in report and bundle are the authority for that contract; expected counts are never regenerated from the index. |
-| Expected result | Historical `oracle-o1@2` result: 41/41 declarations, 35/35 references, and 7/7 dependencies; 100% precision in each section. A 2026-10-26 rerun under `oracle-o1@3` failed because the live export selects every object of the four PL/Scope types in the shared schema; the fixture objects were dropped afterwards. |
+| Authority | The fixture source plus the semantic contract `oracle-o1@4` in [the qualification contract](./oracle-qualification-contract.md). Expected counts are never regenerated from the index. |
+| Expected result | The fixture compiles only `CIQ_`-prefixed objects in an isolated schema; the contract gates are exercised by `test/oracleQualificationContract.test.ts` over synthetic truth rows, so no live export is required. |
 | Consuming tests | `test/oracleQualificationContract.test.ts`; the replayable current bundle is `benchmark/oracle-production-20261027/`. |
-| Mutation policy | Ground truth. A source change requires a new external bundle, report, manifests, and approval hash; never mutate an existing bundle in place. |
-| Known limitations | Synthetic and small. It does not establish production-corpus recall or representativeness; the historical Phase 0 corpus and ORA-004 own that claim. |
-| Update procedure | Change source, compile the `CIQ_` objects with PL/SCOPE in an isolated schema, regenerate the plan and approval, reapply, refresh `benchmark/oracle-controlled/`, run preflight, then `pnpm verify`. A shared schema requires the export to be scoped to the plan's object list first. |
+| Mutation policy | Ground truth for the semantic-contract tests. A source change requires recompiling the `CIQ_` objects and rerunning `pnpm verify`. |
+| Known limitations | Synthetic and small. It does not establish production-corpus recall or representativeness; the production bundle owns that claim. |
+| Update procedure | Change source, compile the `CIQ_` objects with PL/SCOPE in an isolated schema, then run `pnpm verify`. A shared schema requires the export to be scoped to the plan's object list first. |
 | Files (12) | See the fixture. |
 
 ## 5. Orphan register

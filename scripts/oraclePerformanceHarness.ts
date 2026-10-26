@@ -177,7 +177,7 @@ export const cleanEnvironment = (environment: NodeJS.ProcessEnv): NodeJS.Process
 		}
 	}
 
-	return {...cleaned, CODE_INDEX_ANALYTICS: 'false', CODE_INDEX_PROJECT_ID: 'oracle-production-20261025', NO_COLOR: '1'};
+	return {...cleaned, CODE_INDEX_ANALYTICS: 'false', CODE_INDEX_PROJECT_ID: 'oracle-production', NO_COLOR: '1'};
 };
 
 const appendBounded = (current: string, chunk: string): string => (current.length >= LOG_LIMIT ? current : (current + chunk).slice(0, LOG_LIMIT));

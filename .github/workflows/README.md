@@ -14,8 +14,8 @@ weakens a local or reference-machine check; it records that the measurement does
 transfer.
 
 The test classes and failure interpretation are owned by
-[Codebase testing strategy §6–§7](../documentation/codebase-testing-strategy.md#6-target-workflows)
-and the [maintainer guide](../documentation/maintainer-guide.md#7-performance-verification).
+[Codebase testing strategy §6–§7](../../documentation/codebase-testing-strategy.md#6-target-workflows)
+and the [maintainer guide](../../documentation/maintainer-guide.md#7-performance-verification).
 This page records the operational contract beside the workflow definitions.
 
 ## Runner profile

@@ -65,8 +65,7 @@ allowBuilds:
 Use the commit SHA recorded in `pnpm-lock.yaml`, or the exact key pnpm prints when it
 refuses the install. For an annotated tag, pnpm prints the dereferenced commit SHA,
 not the tag object SHA. The key is commit-specific; a tag without the key fails
-before `prepare` runs. Retained [fresh-consumer installation evidence](./fresh-consumer-installation.md)
-covers artifact startup, a second checkout, analytics opt-out, and rollback.
+before `prepare` runs.
 
 ## Configure
 
@@ -331,9 +330,8 @@ truth policy `v5`, which filters unsupported truth types, omits ephemeral
 parameters and routine-local declarations, maps scalar `DEFINITION` rows to
 reference uses, applies the exact ambiguity rule at the callee token, and
 reports classified extras, strata, contract identity, truth hashes, and
-per-reason exclusion counts. Pass `--truth-policy v1`, `--truth-policy v2`,
-`--truth-policy v3`, or `--truth-policy v4` only to reproduce retained historical
-evidence.
+per-reason exclusion counts. Pass another `--truth-policy` only to replay earlier
+evidence; it is not the release contract.
 
 `oracle-preflight` verifies a retained evidence bundle — descriptor, snapshot
 checksums, truth exports, plan approval, and contract identity — without opening

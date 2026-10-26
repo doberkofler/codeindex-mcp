@@ -50,17 +50,13 @@ procedures/functions from an explicit manifest. Triggers, object types, table
 lineage, and live catalogue metadata are outside O1 scope. See the
 [Oracle adapter](./documentation/oracle-adapter.md).
 
-Current Oracle O1 production status under contract `oracle-o1@4` is **PASS**:
-the replacement corpus passes declarations (99.9489% recall, 100% precision),
-references (99.6697% recall, 100% precision), and package dependencies (100%
-recall and precision after 103 counted `compiler_inferred_dependency`
-exclusions) ([production evidence](./benchmark/oracle-production-20261027/README.md)).
+Oracle O1 status under contract `oracle-o1@4` is **PASS**: declarations
+(99.9489% recall, 100% precision), references (99.6697% recall, 100% precision),
+and package dependencies (100% recall and precision after 103 counted
+`compiler_inferred_dependency` exclusions)
+([production evidence](./benchmark/oracle-production-20261027/README.md)).
 Dependency truth was decided in
-[#101](https://github.com/doberkofler/codeindex-mcp/issues/101). The controlled
-10-case corpus passed under a previous contract
-([controlled evidence](./benchmark/oracle-controlled/README.md)) and is retained
-as historical evidence. Historical Phase 0/6/8 results are comparisons, not the
-current verdict.
+[#101](https://github.com/doberkofler/codeindex-mcp/issues/101).
 
 The production performance baseline is retained at
 [`benchmark/oracle-performance`](./benchmark/oracle-performance/README.md). All 45
@@ -329,7 +325,6 @@ verify, benchmark, and qualification operations.
 - [Oracle adapter](./documentation/oracle-adapter.md)
 - [Oracle O1 qualification contract](./documentation/oracle-qualification-contract.md)
 - [Oracle ANTLR usage](./documentation/oracle-antlr.md)
-- [Oracle ANTLR implementation plan](./documentation/oracle-antlr-plan.md)
 - [ORDS and cross-language design](./documentation/ords-cross-language.md)
 - [Roadmap](./documentation/roadmap.md)
 - [Maintainer guide](./documentation/maintainer-guide.md)

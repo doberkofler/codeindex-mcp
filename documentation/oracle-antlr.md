@@ -1,13 +1,9 @@
 # Oracle ANTLR Usage
 
-**Status:** closed. Production uses the pinned ANTLR lexer plus a tolerant
-structural scanner; the full ANTLR parser remains qualification-only. Phases 1–8
-of the implementation plan are in the repository, and Phase 8 measured that the
-full parser fails the precision gates and regresses dependency recall, so the
-adoption decision is recorded as **retain structural**.
-
-See the [implementation plan](./oracle-antlr-plan.md) for the completed phases and
-the recorded reconsideration trigger.
+**Status:** settled. Production uses the pinned ANTLR lexer plus a tolerant
+structural scanner; the full ANTLR parser remains qualification-only. The full
+parser fails the precision gates and regresses dependency recall, so the adoption
+decision is **retain structural**.
 
 ## 1. Why ANTLR Is Used
 
@@ -130,13 +126,12 @@ session values or compilation parameters.
 
 The ANTLR parser adapter parses each file with the pinned `PlSqlParser.g4`,
 converts recovered top-level contexts into `OracleParseResultType`, and keeps
-ANTLR parser and tree objects private. Phase 2 emits package and routine units;
-Phase 3 adds package and routine members, parameters, variables, constants,
-cursors, exceptions, subtypes, record and collection types, fields, and nested
-routine scopes. Phase 4 adds reference sites, lexical scopes, nested block and
-loop declarations, `%TYPE`/`%ROWTYPE` anchors, static SQL names, overload
-arguments, and member chains. Phase 5 adds package dependency sites derived from
-qualified references.
+ANTLR parser and tree objects private. It emits package and routine units,
+package and routine members, parameters, variables, constants, cursors,
+exceptions, subtypes, record and collection types, fields, and nested routine
+scopes. It also emits reference sites, lexical scopes, nested block and loop
+declarations, `%TYPE`/`%ROWTYPE` anchors, static SQL names, overload arguments,
+member chains, and package dependency sites derived from qualified references.
 
 The adapter lives in `src/adapters/oracle/antlrParser.ts`; declaration traversal
 is owned by `src/adapters/oracle/antlrDeclarations.ts`, reference traversal by
@@ -317,158 +312,21 @@ token stream sees `%TYPE` as one token; qualification compares dependency target
 rather than dependency-site kinds. Normal and recovery parses offset dependency
 indexes alongside declaration and reference indexes.
 
-## 6. LJS Feasibility Results
+## 6. Adoption decision
 
-> Phase 0 is recorded in [`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
-> The measurements below are historical feasibility results from the earlier
-> prototype; the adoption gates remain unverified.
+Production keeps the structural scanner. The full ANTLR parser remains
+qualification-only: it fails the precision gates on conditional-compilation and
+grammar-gap inputs, regresses dependency recall, and costs substantially more
+than the structural path. Decision profiling attributes that cost to core name
+and expression rules, so trimming unused DDL surface would not recover it.
 
-Corpus: `ljs_app` Oracle source, 1,632 `.pks` and `.pkb` files, 24.5 MB.
+Two consequences follow:
 
-### 6.1 Raw source
-
-| Metric | Result |
-| --- | ---: |
-| Files | 1,632 |
-| Files with parser errors | 44 (2.7%) |
-| Parser errors | 494 |
-| Files with lexer errors | 0 |
-| Parser crashes | 0 |
-| Incomplete parses | 0 |
-| p50 parse time | 15 ms |
-| p95 parse time | 684 ms |
-| p99 parse time | 1,567 ms |
-| Max parse time | 5.2 s |
-
-Of the 44 failing files, 24 failed only because of conditional-compilation
-directives.
-
-### 6.2 Filtered source
-
-| Metric | Result |
-| --- | ---: |
-| Files | 1,632 |
-| Files parsed cleanly | 1,612 (98.8%) |
-| Files with parser errors | 20 (1.2%) |
-| Parser errors | 194 |
-| Parser crashes | 0 |
-| Incomplete parses | 0 |
-| p50 parse time | 16 ms |
-| p95 parse time | 697 ms |
-| p99 parse time | 1,707 ms |
-| Max parse time | 5.0 s |
-| Total ANTLR parse time | 252.3 s |
-| Total structural time | 3.8 s |
-
-The historical ANTLR prototype was approximately **66× slower** than the
-structural scanner for this corpus. Peak RSS under Vitest was approximately
-**4.1 GB**; that figure includes test-runner and transform overhead and must be
-re-measured standalone against the current adapter.
-
-### 6.3 Frozen Phase 0 baseline
-
-The Phase 0 baseline is the 1,237-file LJS snapshot at SVN revision `78950`
-with exported PL/Scope truth. It is independent of the historical prototype
-numbers above.
-
-| Metric | Structural baseline |
-| --- | ---: |
-| Declaration recall | 98.3956% |
-| Declaration precision | 99.9662% |
-| Reference recall | 58.5206% |
-| Reference precision | 99.4259% |
-| Package dependency recall | 98.1734% |
-| Package dependency precision | 100% |
-| Cold build | 9,109 ms |
-| Warm reuse | 208 ms |
-| Warm rebuild | 10,037 ms |
-| Peak RSS (cold build) | 2.50 GB |
-
-The corpus manifest, per-file hashes, truth-export hashes, reports, and replay
-commands are in [`benchmark/oracle-phase0`](../benchmark/oracle-phase0/README.md).
-The baseline does not pass the adoption gates.
-
-### 6.4 Qualification policy v2
-
-Policy `v2` is the historical Phase 8 comparison policy; `--truth-policy v1`
-preserves the frozen Phase 0 behavior. The authoritative production gate is
-contract `oracle-o1@4` with truth policy `v5`
-([Oracle O1 qualification contract](./oracle-qualification-contract.md)), which
-is `v4` plus the corrected `DEFINITION` mapping. V2 applies the supported-type map to
-truth references as well as actual occurrences, so columns, tables, views,
-sequences, datatypes, and labels no longer inflate reference truth. Program-unit
-`DEFINITION` rows are declarations, scalar `DEFINITION` rows are reference uses,
-and `ITERATOR`/`RECORD ITERATOR` map to the extractor's variable kind. Package
-references remain excluded because they are dependency edges.
-
-Every extra fact is classified:
-
-- `omitted_by_policy`: a truth row excluded by the selected policy;
-- `location_mismatch`: the same fact at a normalized nearby position;
-- `outside_plscope`: a legitimate fact PL/Scope does not record, such as a
-  pragma argument;
-- `false_positive`: an indexed fact with no truth basis.
-
-Only false positives count against precision; the other classes explain the
-disagreement. Metrics are also reported by declaration kind and by reference
-construct: procedural, static SQL, member chain, iterator, pragma, and type
-anchor. Checked-in golden facts under
-`test/fixtures/oracle-qualification-golden/` validate pragma facts that PL/Scope
-cannot confirm.
-
-The frozen Phase 0 report remains a `v1` measurement. To reproduce it, pass
-`--truth-policy v1`. A default run executes contract `oracle-o1@4` with `v5`.
-
-### 6.5 Phase 7 performance
-
-The Phase 7 harness is `scripts/benchmarkOracleAntlr.mjs`; the checked-in report
-is [`benchmark/oracle-phase7/report.json`](../benchmark/oracle-phase7/report.json).
-It bundles only the ANTLR adapter, parses the frozen 1,237-file corpus, and
-measures sequential and 4/8-worker runs on an Apple M5 Max with 64 GB and Node
-`v26.10.0`.
-
-| Metric | Sequential | 4 workers | 8 workers |
-| --- | ---: | ---: | ---: |
-| Wall time | 148.0 s | 61.8 s | 46.2 s |
-| Peak RSS | 4.67 GB | 8.27 GB | 11.47 GB |
-| p50 file | 3.32 ms | 3.92 ms | 5.46 ms |
-| p95 file | 539.7 ms | 830.4 ms | 1,192.8 ms |
-| p99 file | 1,794 ms | 2,734 ms | 4,255 ms |
-| Max file | 6,461 ms | 9,830 ms | 11,888 ms |
-
-Prediction dominates. Sequential phase totals are 1.24 s tokenization, 0.71 s
-lexer fill, 60.85 s SLL prediction, 81.18 s LL prediction, 2.60 s total visitor
-work, and a 4.01 s recovery span that overlaps the child SLL/LL phases. Warm LL
-parses with and without parse-tree construction differ by about 1%, so visitors
-and tree construction are not the bottleneck; full-context prediction is.
-
-The SLL-first strategy succeeds on 1,106 files and falls back to LL on 131. The
-131 failed probes consume 28.27 s; that overhead is accepted because the 1,106
-successful SLL parses avoid full LL prediction.
-
-Warm one-file reconciliation is 0.95 ms for the median-size file and 1.89 s for
-the largest 370 KB file. The sequential p95 of 540 ms fits the edit-to-fresh
-warning gate, but the 6.46 s maximum exceeds the 5 s warning threshold and
-remains below the 15 s failure threshold. This supports evaluating an
-incremental-only rollout, not a full-build rollout.
-
-Against the frozen Phase 0 baseline:
-
-| Comparison | Ratio |
-| --- | ---: |
-| Parser-only time / structural compiler stage (2,893 ms) | 50.86× |
-| Sequential wall / cold build wall (9,109 ms) | 16.25× |
-| Sequential wall / warm rebuild wall (10,037 ms) | 14.75× |
-
-The candidate bundle is 9.54 MB raw and 1.50 MB gzip. The baseline MCP bundle is
-2.04 MB raw and 0.31 MB gzip; the CLI bundle is 2.21 MB raw and 0.35 MB gzip.
-The candidate contains only the ANTLR adapter, so no measurement in this report
-mixes both parsers.
-
-A PL/SQL-focused grammar subset was evaluated and rejected for this phase.
-Decision profiling attributes the tail to core name and expression decisions
-(`general_element_part`, `routine_name`, and `general_element`), not to unused
-DDL rules. Removing DDL surface would not address the measured cost.
+- The pinned ANTLR lexer stays in the production path because tokenization is
+  the part the grammar solves well.
+- Parser facts are never mixed into a published generation. `--parser antlr`
+  exists for comparison runs only, and `pnpm test:oracle` covers both parsers as
+  separate implementations.
 
 ## 7. Known Grammar Gaps
 
@@ -492,11 +350,11 @@ fixed locally or tracked against a newer pinned grammar commit.
 
 ## 8. Semantic Work Still Required
 
-Phase 4 emits procedural and static-SQL sites, anchors, iterator scopes, and
+The adapter emits procedural and static-SQL sites, anchors, iterator scopes, and
 member chains; the shared resolver performs overload selection, shadowing, and
-package versus record versus collection binding. Phase 5 derives package
-dependency sites from qualified references and reuses the structural dependency
-extractor for workspace and external targets.
+package versus record versus collection binding. Package dependency sites are
+derived from qualified references and reuse the structural dependency extractor
+for workspace and external targets.
 
 The remaining semantic work is:
 
@@ -552,14 +410,13 @@ For authoritative performance measurements, build separate binaries:
 - candidate imports only the ANTLR parser.
 
 A runtime switch that bundles both parsers distorts bundle size, startup, and
-memory results. Phase 8 quality comparison uses separate databases and the same
-truth policy; it does not use bundle or startup numbers.
+memory results. A quality comparison uses separate databases and the same truth
+policy; it does not use bundle or startup numbers.
 
 ## 10. Runtime Alternatives
 
-The TypeScript runtime is not the only variable. The prototype's cost is
-dominated by the full grammar, adaptive prediction, parse-tree construction, and
-error recovery.
+The TypeScript runtime is not the only variable. The cost is dominated by the
+full grammar, adaptive prediction, parse-tree construction, and error recovery.
 
 | Option | Status | Assessment |
 | --- | --- | --- |
@@ -573,7 +430,8 @@ The grammar contains embedded actions and predicates, so a port is not just a
 code-generation switch. Each target needs its own base implementation.
 
 Do not port before profiling the TypeScript parser. A Go or Rust runtime changes
-a constant factor; it does not remove the 66× algorithmic gap by itself.
+a constant factor; it does not remove the algorithmic cost of full-context
+prediction by itself.
 
 ## 11. Adoption Gates
 
@@ -590,50 +448,26 @@ Adopt the full ANTLR parser only when all of the following hold:
 - `pnpm verify` passes;
 - source provenance and live-qualification object matching remain unchanged.
 
-Phase 7 does not change this decision. Full-build ANTLR parsing is 50.86× the
-structural compiler stage, and 8-worker parsing still takes 46.2 s with
-11.47 GB peak RSS. Full-build adoption is rejected on the measured evidence.
-
-Phase 8 measured quality under policy v2 with separate databases. ANTLR improved
-declaration recall by 1.4009 pp (95.5394% → 96.9403%) and reference recall by
-11.6358 pp (57.4956% → 69.1314%), but:
-
-- declaration precision fell from 99.9711% to 99.9659%;
-- dependency recall fell from 98.1734% to 97.9784%;
-- neither parser reached 99.5% declaration or reference recall;
-- no category reached exactly 100% precision.
-
-The ANTLR dependency set is a strict subset of the structural set. The losses
-cluster in 16 files with 298 ANTLR parse diagnostics, so the next work would be
-grammar and recovery fixes, not a parser switch. Incremental-only adoption is
-rejected on the same quality gates; Phase 7 edit-to-fresh evidence is not a
-substitute for them.
-
-The current production replacement evidence uses `structural@5` with contract
-`oracle-o1@4` and truth policy `v5` on 1,244 live installed objects, not the
-Phase 8 `structural@1`/policy `v2` population. Structural declarations
-(99.9489% recall, 100% precision) and references (99.6697% / 100%) pass;
-dependencies (98.1789% / 100%) still fail and are owned by #101. No ANTLR
-measurement exists on that corpus and policy. The Phase 8 comparison above
-remains candidate evidence for the parser quality question; it is not the
-current production verdict.
+The full parser fails these gates on quality and cost. Its dependency set is a
+strict subset of the structural set, its losses cluster in files with parse
+diagnostics, and full-build parsing costs an order of magnitude more than the
+structural compiler stage. Grammar and recovery fixes would be the prerequisite
+for reconsideration, not a parser switch.
 
 The ANTLR production disposition is therefore closed: the ANTLR adapter remains
 qualification-only and the structural parser stays in production. Reconsider only
 when a measured structural-parser failure appears, or when an upstream grammar,
-recovery, or prediction change materially alters these numbers; reopening the
-investigation requires new evidence against the gates above, not a repeat of the
-same comparison.
+recovery, or prediction change materially alters the cost or quality result;
+reopening the investigation requires new evidence against the gates above.
 
 ## 12. Known Limits and Reconsideration Triggers
 
-- SLL prediction with LL fallback resolves 1,106 of 1,237 files and costs
-  28.27 s in failed probes. It reduces work on the common case but does not
-  remove the LL tail.
-- A PL/SQL-focused grammar subset was rejected: the measured decisions are in
-  core name and expression rules, not unused DDL surface.
-- Per-file parsing scales to 3.2× with 8 workers, but peak RSS reaches 11.47 GB
-  and wall time remains 46.2 s. More workers do not close the full-build gap.
+- SLL prediction with LL fallback resolves most files but does not remove the
+  LL tail; failed probes remain a material share of parse time.
+- A PL/SQL-focused grammar subset was rejected: the costly decisions are in core
+  name and expression rules, not unused DDL surface.
+- Per-file parsing parallelizes but memory grows with worker count. More workers
+  do not close the full-build gap.
 - Full cold-rebuild adoption is not viable on this grammar. Incremental-only
   reconciliation was the remaining performance path and is now rejected on the
   unchanged quality gates.

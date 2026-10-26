@@ -1,9 +1,8 @@
 # Oracle controlled qualification corpus
 
 Ten synthetic Oracle 19c PL/SQL cases exercise the O1 semantic contract end to
-end. They are versioned source, not production source. The retained bundle was
-qualified against contract `oracle-o1@2` and is historical evidence; the fixture
-sources are contract-agnostic.
+end. They are versioned source, not production source, and they are
+contract-agnostic.
 
 | Case | Files | Contract coverage |
 | --- | --- | --- |
@@ -55,12 +54,11 @@ pnpm qualify:oracle:live --root test/fixtures/oracle-qualification-corpus \
   --approval <hash>
 ```
 
-The retained bundle is [benchmark/oracle-controlled](../../benchmark/oracle-controlled/README.md).
 After qualification, drop the `CIQ_` objects and `CIQ_EMPLOYEE` table when they
-are no longer needed; the bundle replays without a database.
+are no longer needed.
 
 ## Scope
 
 This corpus proves selected semantic contracts with exhaustive counted facts.
 It does not establish production-corpus recall, representativeness, or a
-population claim. Those remain with the historical Phase 0 corpus and ORA-004.
+population claim; the production bundle owns that evidence.

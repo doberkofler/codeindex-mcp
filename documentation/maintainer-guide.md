@@ -205,9 +205,11 @@ marker is present and matches `--profile`; a directory that merely contains a
 `tsconfig.json` is rejected so measurements cannot be attributed to an unrelated
 project.
 
-Artifact reuse is currently measured as zero because extraction artifacts are
-persisted but never consumed. This produces a warning, not a failure; implement
-artifact consumption only when a measured gate requires it.
+Extraction artifacts are persisted and deduplicated, but the TypeScript path
+never reads them back, so the benchmark reports `hygiene.artifact_consumption`
+as a warning. Oracle instead reuses published per-file facts when a
+parser-output digest proves the file produced no new facts. Each report declares
+which mechanism it used, `none` or `parse_digest`.
 
 Generated profiles are deterministic and disposable: `small`, `medium`, `large`,
 and `xl`. Real-project runs use a pinned public checkout, recorded revision,
