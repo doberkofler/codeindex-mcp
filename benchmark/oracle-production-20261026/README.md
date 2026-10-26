@@ -11,7 +11,8 @@ The 2026-10-25 bundle is retained as historical evidence for contract
 
 | Item | Value |
 |---|---|
-| Runtime commit | uncommitted working tree based on `885fdaa` |
+| Runtime commit | `ccd35c8545f5d82c1431f9ec6b1de9d6b78fdae8` |
+| Evidence commit | `ccd35c8545f5d82c1431f9ec6b1de9d6b78fdae8` (bundle, replay command, and reconciled documentation) |
 | Package | `codeindex-mcp@0.7.0` |
 | Node | `v26.10.0` |
 | Oracle | 19c Enterprise Edition 19.0.0.0.0, version 19.19.0.0.0 |
