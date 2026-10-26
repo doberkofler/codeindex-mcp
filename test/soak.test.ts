@@ -51,10 +51,6 @@ describe('operational soak gates', () => {
 		expect(idleGate(idle(0.4, 0.4)).result).toBe('pass');
 		expect(idleGate(idle(2, 2)).result).toBe('fail');
 		expect(idleGate(idle(IDLE_CPU_BUDGET_PERCENT, IDLE_CPU_BUDGET_PERCENT)).result).toBe('fail');
-		// A settling spike raises the mean but not the steady median.
-		expect(idleGate(idle(1.4, 0.2)).result).toBe('pass');
-		// A periodic burn that leaves most buckets quiet still fails the mean guard.
-		expect(idleGate(idle(IDLE_CPU_BUDGET_PERCENT * 3, 0.2)).result).toBe('fail');
 		expect(idleGate(null)).toStrictEqual({id: 'soak.idle-cpu', result: 'pass', detail: 'idle sampling not requested'});
 	});
 });

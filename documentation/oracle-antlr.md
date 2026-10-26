@@ -337,21 +337,22 @@ probe. This distinction matters because accepting undocumented compatibility
 syntax can increase ambiguity and prediction cost in an already ambiguous
 grammar.
 
-The upstream inspection below was performed on 2026-10-26 against
+The upstream reproduction below was performed on 2026-10-26 against
 `antlr/grammars-v4` master commit
 [`8714404279b53fb9856ac6162f468667b0b853bb`](https://github.com/antlr/grammars-v4/commit/8714404279b53fb9856ac6162f468667b0b853bb).
-It is a source inspection, not a generated-parser qualification run. “No focused
-issue found” means repository issue search found no issue dedicated to that
-construct; it is not proof that no related discussion exists.
+Each case and its control were executed through `sql_script` using a parser
+generated from that commit with the repository's Antlr4ng target transform.
+This establishes the current-master parser behavior; it is not a full upstream
+multi-target qualification run.
 
 ### 7.1 Confirmed upstream candidates
 
 | Fixture | Layer and rule | Oracle evidence | Upstream status | Contribution action |
 | --- | --- | --- | --- | --- |
-| `rem-comment.sql` | Lexer, `REMARK_COMMENT` | SQL*Plus permits spaces or tabs between command words and defines `REM[ARK]` as a line comment: [SQL*Plus Basics](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/SQL-Plus-basics.html), [REMARK](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/REMARK.html) | Current master still requires a literal space before comment text. No focused issue found. | Reproduce with the upstream harness, accept horizontal whitespace without consuming the newline, and add the fixture as an upstream example. |
-| `keyword-identifier.pks` | Parser, `regular_id` | Oracle distinguishes reserved words from non-reserved keywords: [Database Object Names and Qualifiers](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Database-Object-Names-and-Qualifiers.html), [Oracle SQL Keywords](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Oracle-SQL-Keywords.html) | General defect tracked by [`grammars-v4#720`](https://github.com/antlr/grammars-v4/issues/720). Current master does not admit `DATE`, `DETECTED`, or `ENCLOSED` through `regular_id`. | Split the fixture into one case per token, confirm each token is non-reserved in Oracle 19c, then add the minimum safe alternatives and regression examples. A generic “all keywords are identifiers” change requires ambiguity and performance measurements. |
-| `xmltable-returning-sequence.sql` | Parser, `xmltable` | Oracle 19c documents optional `RETURNING SEQUENCE BY REF`: [XMLTABLE](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/XMLTABLE.html) | Current master lacks the clause in `xmltable`. No focused issue found. | Add the optional clause in its documented position and upstream the reduced query as an example. |
-| `sqlplus-exec.sql` | Parser, `sql_plus_command` | SQL*Plus 19c defines `EXEC[UTE] statement`: [SQL*Plus Quick Reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpqr/index.html) | Current master omits `EXECUTE` from `sql_plus_command`. No focused issue found. | Add a line-bounded SQL*Plus command alternative and tests for both `EXEC` and `EXECUTE`, without weakening PL/SQL `EXECUTE IMMEDIATE` parsing. |
+| `rem-comment.sql` | Lexer, `REMARK_COMMENT` | SQL*Plus permits spaces or tabs between command words and defines `REM[ARK]` as a line comment: [SQL*Plus Basics](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/SQL-Plus-basics.html), [REMARK](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/REMARK.html) | Current master still requires a literal space before comment text. Tracked by [`grammars-v4#5124`](https://github.com/antlr/grammars-v4/issues/5124). | Accept horizontal whitespace without consuming the newline and add space- and tab-separated upstream examples. |
+| `keyword-identifier.pks` | Parser, `regular_id` | PL/SQL permits keywords as ordinary identifiers and lists `DATE` as a keyword rather than a reserved word: [Lexical Units](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/lexical-units.html#GUID-53E09662-5AD4-4530-8C6B-FF3F7C7430D5), [PL/SQL Reserved Words and Keywords](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/plsql-reserved-words-keywords.html) | General defect tracked by [`grammars-v4#720`](https://github.com/antlr/grammars-v4/issues/720); current-master evidence is recorded in [this comment](https://github.com/antlr/grammars-v4/issues/720#issuecomment-6410839042). Current master does not admit `DATE`, `DETECTED`, or `ENCLOSED` through `regular_id`. | Split the fixture into one case per token, add the minimum safe alternatives, and measure ambiguity and prediction cost. A generic “all keywords are identifiers” change is not justified. |
+| `xmltable-returning-sequence.sql` | Parser, `xmltable` | Oracle 19c documents `RETURNING SEQUENCE BY REF` after the optional passing clause and before `COLUMNS`: [XMLTABLE](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/XMLTABLE.html), [`XMLTABLE_options`](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/img_text/xmltable_options.html) | Current master fails the valid reduced form `XMLTABLE('/x' RETURNING SEQUENCE BY REF)`. Tracked by [`grammars-v4#5125`](https://github.com/antlr/grammars-v4/issues/5125). | Correct the local fixture, which currently places the clause after `COLUMNS`; add the clause in its documented position and test combinations with `PASSING` and `COLUMNS`. |
+| `sqlplus-exec.sql` | Parser, `sql_plus_command` | SQL*Plus 19c defines `EXEC[UTE] statement`: [SQL*Plus Quick Reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpqr/index.html) | Current master fails both `EXEC` and `EXECUTE`. Tracked by [`grammars-v4#5126`](https://github.com/antlr/grammars-v4/issues/5126); broader SQL*Plus boundaries remain in [`#1635`](https://github.com/antlr/grammars-v4/issues/1635) and [`#3658`](https://github.com/antlr/grammars-v4/issues/3658). | Add a line-bounded SQL*Plus command alternative without weakening PL/SQL `EXECUTE IMMEDIATE` parsing. |
 
 The lexer’s former alternative-quote limitation is the model for this work:
 [`grammars-v4#5029`](https://github.com/antlr/grammars-v4/issues/5029) records a
@@ -379,8 +380,9 @@ is recorded. They are not part of the qualification corpus.
 
 For each confirmed candidate:
 
-1. Reduce it to one construct and preserve the corresponding fixture under
-   `test/fixtures/oracle-grammar-gaps/`.
+1. Reduce it to one documented construct and preserve the corresponding fixture
+   under `test/fixtures/oracle-grammar-gaps/`. Correct a fixture before using it
+   as evidence when its syntax differs from the authoritative grammar.
 2. Cite Oracle 19c documentation. If the syntax is undocumented compatibility
    behavior, capture a read-only or rollback-safe Oracle 19c probe and its
    compatibility settings instead.
@@ -461,25 +463,89 @@ A runtime switch that bundles both parsers distorts bundle size, startup, and
 memory results. A quality comparison uses separate databases and the same truth
 policy; it does not use bundle or startup numbers.
 
-## 10. Runtime Alternatives
+## 10. Performance Diagnosis and Improvement Options
 
-The TypeScript runtime is not the only variable. The cost is dominated by the
-full grammar, adaptive prediction, parse-tree construction, and error recovery.
+“Parser cost” here means executing the generated parser, not the infrequent
+build-time generation of TypeScript from the `.g4` files. Generated artifacts
+are pinned and checked in, so generation is not on the indexing path.
+
+### 10.1 Measured cause
+
+The retained runtime benchmark sampled 15 files and 835,953 bytes from the
+1,237-file corpus. In one shared-DFA pass, the TypeScript parser core took
+10,448.687 ms and the complete adapter took 10,707.186 ms. All non-core phases
+therefore added about 258.5 ms; the parser core accounts for 97.6% of elapsed
+time. Peak TypeScript RSS was 913.2 MB. See
+[`benchmark/oracle-antlr-runtime/reference-results.md`](../benchmark/oracle-antlr-runtime/reference-results.md).
+
+Separate qualification profiling attributes the large-file tail to the core
+`general_element_part`, `routine_name`, and `general_element` decisions. Warm LL
+runs with and without parse-tree construction differed by about 1%. Adaptive
+prediction, not semantic collection or tree construction, is the demonstrated
+latency bottleneck.
+
+The relevant prediction costs are:
+
+- adaptive prediction across a large, ambiguous SQL and PL/SQL grammar;
+- broad name and expression rules, including keywords that are also legal
+  identifiers;
+- a failed SLL probe followed by a second full-context LL parse on difficult
+  files;
+- error recovery and solidus-segment reparsing when a grammar gap produces
+  diagnostics.
+
+Token streams, parse trees, parser contexts, and shared DFA state remain part of
+the measured memory footprint. Disabling tree construction is therefore a
+memory experiment, not a leading latency optimization. Grammar fixes can remove
+recovery work for affected files, but they are not automatically performance
+wins. In particular, broadening `regular_id` can increase prediction ambiguity
+and must be measured.
+
+### 10.2 Runtime alternatives
+
+Changing the runtime affects constants, not the grammar's prediction problem.
+The same retained sample produced these build-shaped one-pass results:
 
 | Option | Status | Assessment |
 | --- | --- | --- |
-| Go target | Official ANTLR target | Cross-compiles cleanly; likely modest constant-factor gain |
+| Go target | Official ANTLR target | 9,003.584 ms, only 1.16× faster than TypeScript core; peak RSS 1,431.8 MB |
 | C++ target | Official ANTLR target | Fastest official option; heavy build and distribution cost |
 | Rust `antlr4rust` | Community, WIP | Unofficial runtime; grammar actions and conformance need validation |
-| Rust `antlr-rust-runtime` | Community | Requires a separate Rust generator; unofficial |
+| Rust `antlr-rust-runtime` | Community | LL-only benchmark took 150,591.181 ms; not prediction-equivalent and not viable |
 | tree-sitter | Different grammar model | Fast and error-tolerant; requires an Oracle grammar and new visitors |
 
 The grammar contains embedded actions and predicates, so a port is not just a
 code-generation switch. Each target needs its own base implementation.
 
-Do not port before profiling the TypeScript parser. A Go or Rust runtime changes
-a constant factor; it does not remove the algorithmic cost of full-context
-prediction by itself.
+The current TypeScript profile and runtime comparison do not justify a port. A
+Go, Rust, or C++ runtime changes a constant factor; it does not remove the
+algorithmic cost of full-context prediction by itself.
+
+### 10.3 Prioritized experiments
+
+Run these as isolated experiments, in order, against the quality and performance
+gates in section 11:
+
+1. Re-run and extend decision-level prediction profiling after each grammar
+   change, ranking decisions by elapsed time, ATN transitions, ambiguity, and LL
+   fallback. Refactor only measured hot name and expression decisions through
+   left-factoring or narrower alternatives.
+2. Compare always parsing SQL*Plus solidus-delimited units with the current
+   whole-file-first strategy. Smaller prediction contexts may cap the worst
+   cases, but repeated parser setup can regress small files.
+3. If memory is the target, prototype parse listeners with parse-tree
+   construction disabled. This requires redesigning semantic extraction and the
+   existing timing evidence predicts little latency improvement.
+4. Retain changed-file-only reconciliation for edit latency. It does not improve
+   cold builds and therefore cannot justify full-parser production adoption by
+   itself.
+5. Use bounded file-level parallelism only for throughput measurements. Memory
+   grows with worker count, so parallelism is not a per-file latency fix.
+
+SLL-only parsing, indiscriminate keyword acceptance, more workers, and removal
+of unused DDL surface are not acceptable shortcuts: they respectively regress
+valid-source coverage, can worsen ambiguity, increase memory, or leave the
+measured hot rules untouched.
 
 ## 11. Adoption Gates
 
@@ -519,6 +585,6 @@ reopening the investigation requires new evidence against the gates above.
 - Full cold-rebuild adoption is not viable on this grammar. Incremental-only
   reconciliation was the remaining performance path and is now rejected on the
   unchanged quality gates.
-- Grammar-fix hypotheses remain unimplemented: upstream gaps versus a local fork,
-  and directive filtering versus grammar support. They reopen only together with
-  new measured evidence, not on their own.
+- Upstream grammar gaps are now tracked by `grammars-v4#5124`, `#720`, `#5125`,
+  and `#5126`; fixes remain unimplemented. An upstream fix or local fork reopens
+  adoption only with new quality and performance evidence, not by itself.
