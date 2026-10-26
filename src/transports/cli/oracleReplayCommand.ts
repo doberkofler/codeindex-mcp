@@ -5,7 +5,7 @@ import {replayOracleEvidenceBundle} from '../../core/qualification/oracle/live/o
 import {type CommandIoType, CommandExitError, configureCommand} from './commanderSupport.ts';
 
 const FAILURE_LIMIT = 20;
-const DEFAULT_DESCRIPTOR = 'benchmark/oracle-production-20261026/corpus.json';
+const DEFAULT_DESCRIPTOR = 'benchmark/oracle-production-20261027/corpus.json';
 
 type OracleReplayOptionsType = Readonly<{
 	bundle?: string | undefined;

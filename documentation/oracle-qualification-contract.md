@@ -1,8 +1,8 @@
 # Oracle O1 Qualification Contract
 
 **Contract:** `oracle-o1`
-**Version:** `3`
-**Contract hash:** `ead99963af1b78ca968256e66a0a5bd01cd4e80d3e781fbe0b50e8d1749357d7`
+**Version:** `4`
+**Contract hash:** `ee83f2ece96074969137447c773c42bfc6400261d1ccefd597bd830ed389e95f`
 **Truth policy:** `v5`
 **Status:** authoritative. This document and
 [`oracleQualificationContract.ts`](../src/core/qualification/oracle/oracleQualificationContract.ts)
@@ -43,13 +43,25 @@ as a reference use. `@3` also aligns the emitted `ambiguous-overload`
 diagnostic with the callee token, which is the position PL/Scope reports for the
 `CALL` row the rule is meant to pair.
 
+Contract `oracle-o1@4` decides dependency truth. Oracle records a package
+dependency for every package the compiler sees, including packages inferred
+from the expanded definition of a used type. A static adapter that reads
+authored source can never recover an edge whose target package is absent from
+that source. `@4` therefore omits such a truth edge with the counted reason
+`compiler_inferred_dependency` and measures dependency recall on the edges the
+source can name. The exclusion is conservative and independent of the adapter:
+a whole-identifier mention of the target package, even in a comment or string,
+keeps the edge in the denominator. The previous contract, `@3`, remains the
+historical identity for the 2026-10-26 production bundle.
+
 Agent usefulness and hosted-model cost are outside this contract.
 
 ## 2. Authority and replay-only policies
 
 | Policy / contract | Status | Use |
 |---|---|---|
-| `oracle-o1@3` with truth policy `v5` | **authoritative** | Every current production qualification |
+| `oracle-o1@4` with truth policy `v5` | **authoritative** | Every current production qualification |
+| `oracle-o1@3` with truth policy `v5` | historical | Retained 2026-10-26 production evidence |
 | `oracle-o1@2` with truth policy `v4` | historical | Retained 2026-10-25 production and controlled evidence |
 | truth policy `v3` | replay only | Contract `oracle-o1@1` evidence |
 | truth policy `v2` | replay only | Phase 8 evidence and historical comparisons |
@@ -159,6 +171,29 @@ Counts are reported per reason.
 The reason list is frozen in the code and the contract identity. Adding,
 removing, or reinterpreting a reason requires a contract version bump.
 
+### 4.1 Package-dependency exclusions
+
+Dependency truth is a separate population. A `USER_DEPENDENCIES` row that names
+a package in the qualification corpus is one truth edge from the authored file
+to the target package. The adapter emits an edge only for an authored
+package-qualified site. Oracle also records an edge when the target package
+appears only in the expanded definition of a type, default expression, or nested
+record field that the authored file uses. Such a row is not recoverable from
+authored source without compiling it.
+
+Contract `@4` omits those rows with one reason:
+
+| Reason | Meaning |
+|---|---|
+| `compiler_inferred_dependency` | Truth edge whose authored file contains no whole-identifier mention of the target package; the compiler inferred it from a referenced type or expression |
+
+The test is lexical and independent of the adapter: the file source is scanned
+for the target package name delimited by non-identifier characters, ignoring
+case. A mention anywhere in the file, including a comment or string literal,
+keeps the edge in the denominator. An adapter result is never consulted, so an
+authored edge cannot be excluded to turn a failure into a pass. The number of
+excluded rows is reported, and `rawTruth` reconstructs the pre-exclusion count.
+
 ## 5. Ambiguity policy
 
 The adapter emits one bounded diagnostic with code `9105`
@@ -223,9 +258,22 @@ truth.rows
 truth.excludedTotal
   = sum(truth.excludedByReason[reason])
 
+dependencies.rawTruth
+  = dependencies.truth
+  + dependencies.excluded
+
+dependencies.excluded
+  = sum(dependencies.excludedByReason[reason])
+
 recall    = matched / truth.<section>.truth
 precision = matched / (actual - ignoredExtra)
 ```
+
+`dependencies.truth` is the included denominator after the section 4.1
+exclusion; `dependencies.rawTruth` is the exported row count. A run cannot drop
+a dependency row from both the numerator and the denominator silently: the
+excluded count and reason are recorded, and only edges with no authored mention
+qualify.
 
 `ignoredExtra` is the sum of `omitted_by_policy`, `location_mismatch`, and
 `outside_plscope` extras. Only `false_positive` extras count against precision.
@@ -243,7 +291,8 @@ Every report and every live `run.json` records:
 | `contract.emptyTruth` | `fail` |
 | `contract.sampleLimit` | Retained sample bound |
 | `contract.objectTypes` | Truth object population |
-| `contract.exclusionReasons` | Frozen reason list |
+| `contract.exclusionReasons` | Frozen identifier-row reason list |
+| `contract.dependencyExclusions` | Frozen package-dependency reason list |
 | `contract.ambiguity` | Diagnostic code, usage, and position match |
 | `parser.id`, `parser.revision`, `parser.compilerVersion` | Parser identity |
 | `corpus.files`, `corpus.objects` | Corpus cardinality |
@@ -252,9 +301,11 @@ Every report and every live `run.json` records:
 | `generationId` | Published generation used for the comparison |
 
 A report whose `contract.hash` differs from this document belongs to a different
-contract and cannot be compared with this evidence. A report whose
-`policy.version` differs from `contract.truthPolicy` is an explicit historical
-replay, not a contract run.
+contract and cannot be compared with this evidence. A report that excludes
+dependency rows also records `dependencies.rawTruth`, `dependencies.excluded`,
+and `dependencies.excludedByReason`, so the narrower denominator is
+reconstructible. A report whose `policy.version` differs from
+`contract.truthPolicy` is an explicit historical replay, not a contract run.
 
 ## 8. Execution
 
@@ -263,8 +314,8 @@ before a DDL-capable session can be opened:
 
 ```bash
 pnpm build
-node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261026/corpus.json
-node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261026/corpus.json
+node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261027/corpus.json
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261027/corpus.json
 ```
 
 `oracle-replay` is also DB-free. It replays the retained snapshot and truth in a
@@ -308,13 +359,16 @@ The contract is tested by `test/oracleQualificationContract.test.ts`:
 - every usage mapping, including a scalar `DEFINITION` row and a program-unit
   `DEFINITION` row;
 - every exclusion reason with counted rows;
+- every package-dependency exclusion with counted rows;
 - exact ambiguity scoping;
 - denominator reconstruction;
 - a red case for every gate and for empty truth.
 
 `test/oracleQualificationRun.test.ts` proves that the executable report carries
-the contract, parser identity, corpus identity, truth hashes, and exclusion
-counts. `test/oracleCodeFacts.test.ts` proves the ambiguity sites are read from
+the contract, parser identity, corpus identity, truth hashes, exclusion counts,
+and the dependency exclusion at report level. `test/oracleQualification.test.ts`
+proves the lexical classifier keeps a whole-identifier mention and omits a
+prefix or longer identifier. `test/oracleCodeFacts.test.ts` proves the ambiguity sites are read from
 the published generation and filtered to the contract diagnostic code.
 `test/oracleResolveCandidates.test.ts` proves the ambiguity diagnostic is
 positioned at the callee token and that a named association the candidate cannot

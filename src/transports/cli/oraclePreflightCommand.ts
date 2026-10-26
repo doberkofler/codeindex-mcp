@@ -6,7 +6,7 @@ import {type CommandIoType, CommandExitError, configureCommand} from './commande
 
 const FAILURE_LIMIT = 20;
 
-const DEFAULT_DESCRIPTOR = 'benchmark/oracle-production-20261026/corpus.json';
+const DEFAULT_DESCRIPTOR = 'benchmark/oracle-production-20261027/corpus.json';
 
 type OraclePreflightOptionsType = Readonly<{
 	bundle?: string | undefined;

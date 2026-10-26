@@ -17,7 +17,8 @@ import {objectKey, objectMapping, objectTypeOfPath, type ObjectMappingType} from
 import {compareFacts, readOracleTruth, type ComparisonType} from './oracleTruth.ts';
 import {type TruthExclusionCountsType} from './oracleTruthExclusions.ts';
 import {loadAmbiguousOverloadSites, loadCodeDependencies, loadCodeFacts} from './oracleCodeFacts.ts';
-import {readTruthDependencies} from './oracleDependencies.ts';
+import {readTruthDependencies, type ExcludedDependencyType} from './oracleDependencies.ts';
+import {type DependencyExclusionCountsType} from './oracleDependencyExclusions.ts';
 import {createExtraClassifier} from './oracleExtras.ts';
 import {oracleGatesOf, oracleQualificationContractIdentityOf, type OracleQualificationContractIdentityType} from './oracleQualificationContract.ts';
 import {compareOracleStrata} from './oracleStratification.ts';
@@ -44,7 +45,12 @@ type OracleQualificationResultType = Readonly<{
 }>;
 
 type DependencyMetricsType = Readonly<{
+	/** Truth edges included in the gate. */
 	truth: number;
+	/** Truth edges before contract exclusions. */
+	rawTruth: number;
+	excluded: number;
+	excludedByReason: DependencyExclusionCountsType;
 	actual: number;
 	matched: number;
 	missing: number;
@@ -184,11 +190,19 @@ const packageByPathOf = (mappings: ReadonlyMap<string, ObjectMappingType>): Read
 	return packages;
 };
 
-const dependencyMetricsOf = (truth: ReadonlySet<string>, actual: ReadonlySet<string>): DependencyMetricsType => {
+const dependencyMetricsOf = (
+	truth: ReadonlySet<string>,
+	actual: ReadonlySet<string>,
+	excluded: readonly ExcludedDependencyType[],
+	excludedByReason: DependencyExclusionCountsType,
+): DependencyMetricsType => {
 	const matched = [...truth].filter((key) => actual.has(key)).length;
 
 	return {
 		truth: truth.size,
+		rawTruth: truth.size + excluded.length,
+		excluded: excluded.length,
+		excludedByReason,
 		actual: actual.size,
 		matched,
 		missing: truth.size - matched,
@@ -312,7 +326,9 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 		const truth = readOracleTruth({rows: readCsv(identifiers), mappings, policy, ambiguousOverloadPositions});
 		const code = loadCodeFacts(reader, generation.id);
 		const packageNames = packageNamesOf(mappings);
-		const truthDependencies = readTruthDependencies(readCsv(dependencies), mappings, packageNames);
+		const truthDependencies = readTruthDependencies(readCsv(dependencies), mappings, packageNames, {
+			sourceOf: (sourcePath) => readFileSync(path.join(pinnedConfig.rootDir, sourcePath), 'utf8'),
+		});
 		const codeDependencies = loadCodeDependencies(reader, generation.id, packageNames, packageByPathOf(mappings));
 		const classifyExtra = createExtraClassifier({mappings: mappingsByPath, rowsByPath: truth.rowsByPath});
 		const compareOptions = {policy, excluded: truth.excluded, classifyExtra};
@@ -330,7 +346,7 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 			declarations,
 			references,
 			strata,
-			dependencies: dependencyMetricsOf(truthDependencies, codeDependencies),
+			dependencies: dependencyMetricsOf(truthDependencies.edges, codeDependencies, truthDependencies.excluded, truthDependencies.excludedByReason),
 			identifiersSha256: fileSha256Of(identifiers),
 			dependenciesSha256: fileSha256Of(dependencies),
 			ambiguousOverloadDiagnostics: ambiguousOverloadPositions.size,

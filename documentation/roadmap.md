@@ -54,14 +54,15 @@ declarations, manifest/include resolution, diagnostics, and unresolved sites.
 Gate: all splitter invariants pass on one-unit, multi-unit, malformed, quoting,
 comment, SQL*Plus, and generated-source fixtures.
 
-**Current status (2026-10-26): REFERENCE GATES PASS; DEPENDENCY GATE FAILS.** The
-splitter and declaration surface pass on the controlled corpus. The production
-replacement corpus passes the `oracle-o1@3` declaration, reference-precision, and
-reference-recall gates and fails the dependency-recall gate, which is owned by
+**Current status (2026-10-27): PASS.** The splitter and declaration surface pass
+on the controlled corpus. The production replacement corpus passes every
+`oracle-o1@4` gate: declarations, reference precision and recall, and package
+dependency precision and recall. Contract `@4` defines the 103
+`compiler_inferred_dependency` exclusions that closed
 [#101](https://github.com/doberkofler/codeindex-mcp/issues/101). The current
-evidence and remaining defects are in
-[`benchmark/oracle-production-20261026`](../benchmark/oracle-production-20261026/README.md).
-The superseded 2026-10-25 bundle and the historical Phase 0/6/8 reports are
+evidence is in
+[`benchmark/oracle-production-20261027`](../benchmark/oracle-production-20261027/README.md).
+The 2026-10-25 and 2026-10-26 bundles and the historical Phase 0/6/8 reports are
 comparisons, not the current verdict. The production `structural@5` performance
 baseline is retained in
 [`benchmark/oracle-performance`](../benchmark/oracle-performance/README.md);

@@ -392,7 +392,7 @@ The baseline does not pass the adoption gates.
 
 Policy `v2` is the historical Phase 8 comparison policy; `--truth-policy v1`
 preserves the frozen Phase 0 behavior. The authoritative production gate is
-contract `oracle-o1@3` with truth policy `v5`
+contract `oracle-o1@4` with truth policy `v5`
 ([Oracle O1 qualification contract](./oracle-qualification-contract.md)), which
 is `v4` plus the corrected `DEFINITION` mapping. V2 applies the supported-type map to
 truth references as well as actual occurrences, so columns, tables, views,
@@ -417,7 +417,7 @@ anchor. Checked-in golden facts under
 cannot confirm.
 
 The frozen Phase 0 report remains a `v1` measurement. To reproduce it, pass
-`--truth-policy v1`. A default run executes contract `oracle-o1@3` with `v5`.
+`--truth-policy v1`. A default run executes contract `oracle-o1@4` with `v5`.
 
 ### 6.5 Phase 7 performance
 
@@ -610,7 +610,7 @@ rejected on the same quality gates; Phase 7 edit-to-fresh evidence is not a
 substitute for them.
 
 The current production replacement evidence uses `structural@5` with contract
-`oracle-o1@3` and truth policy `v5` on 1,244 live installed objects, not the
+`oracle-o1@4` and truth policy `v5` on 1,244 live installed objects, not the
 Phase 8 `structural@1`/policy `v2` population. Structural declarations
 (99.9489% recall, 100% precision) and references (99.6697% / 100%) pass;
 dependencies (98.1789% / 100%) still fail and are owned by #101. No ANTLR

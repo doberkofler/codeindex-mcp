@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"evidence": {
+		"externalRoot": "oracle-live/ljs-production-20261027",
+		"snapshotDir": "workspace",
+		"plan": "plan.json",
+		"run": "run.json",
+		"approval": "97c796a2f6a3b228e8a5f34af1c0b6c3087a908deba7f2d14a513299cbdf7ce0"
+	},
+	"source": {
+		"kind": "installed-live",
+		"revision": "live-2026-10-26-contract-4",
+		"relativeRoot": "USER_SOURCE",
+		"defaultSchema": "LJ_UNITTEST"
+	},
+	"snapshot": {
+		"projectFile": "manifests/qualification-index.json",
+		"sourceHash": "2bb0da1e8151410432cfe55d30607ed229976b7ccfd974a97027ebeb220f7f2a",
+		"configHash": "8ba026c038fe53224ab378d0e898589f0da818c4e32a3f98cf6957a493e24065",
+		"fileCount": 1244,
+		"unitCount": 1244
+	},
+	"files": {
+		"checksums": "corpus.sha256",
+		"units": "units.json"
+	}
+}

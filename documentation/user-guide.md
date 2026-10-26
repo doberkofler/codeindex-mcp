@@ -298,7 +298,7 @@ for invalid arguments.
 ### Semantic qualification
 
 ```bash
-codeindex-cli oracle-preflight --bundle benchmark/oracle-production-20261026/corpus.json
+codeindex-cli oracle-preflight --bundle benchmark/oracle-production-20261027/corpus.json
 
 codeindex-cli qualify --extractor typescript --config ./codeindex.config.json
 
@@ -324,7 +324,7 @@ For Oracle, it compares the published index with exported `USER_IDENTIFIERS` and
 preparation and export remain separate, approved operations. Pass
 `--units <plan.json>` to reuse the explicit snapshot object mapping from an
 approved live plan when source filenames differ from PL/Scope object names.
-The default is contract [`oracle-o1@3`](./oracle-qualification-contract.md) with
+The default is contract [`oracle-o1@4`](./oracle-qualification-contract.md) with
 truth policy `v5`, which filters unsupported truth types, omits ephemeral
 parameters and routine-local declarations, maps scalar `DEFINITION` rows to
 reference uses, applies the exact ambiguity rule at the callee token, and

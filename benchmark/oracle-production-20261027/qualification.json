@@ -1,0 +1,628 @@
+{
+	"extractor": "oracle",
+	"generationId": "f7bcf467-8727-42be-bf4b-297b07531591",
+	"parser": {
+		"id": "structural",
+		"revision": "structural@5;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd",
+		"compilerVersion": "oracle19c;parser@structural;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd"
+	},
+	"contract": {
+		"id": "oracle-o1",
+		"version": "4",
+		"hash": "ee83f2ece96074969137447c773c42bfc6400261d1ccefd597bd830ed389e95f",
+		"truthPolicy": "v5",
+		"thresholds": {
+			"declarations": 0.995,
+			"references": 0.995,
+			"dependencies": 0.995,
+			"precision": 1
+		},
+		"emptyTruth": "fail",
+		"sampleLimit": 20,
+		"objectTypes": ["FUNCTION", "PACKAGE", "PACKAGE BODY", "PROCEDURE"],
+		"exclusionReasons": [
+			"unsupported_identifier_type",
+			"unmapped_usage",
+			"invalid_declaration",
+			"package_reference",
+			"missing_group_declaration",
+			"declaration_initializer",
+			"duplicate_fact",
+			"omitted_ambiguous_overload",
+			"ephemeral_declaration"
+		],
+		"dependencyExclusions": ["compiler_inferred_dependency"],
+		"ambiguity": {
+			"diagnosticCode": 9105,
+			"usage": "CALL",
+			"positionMatch": "exact path/line/column"
+		},
+		"unmappedObject": "abort"
+	},
+	"corpus": {
+		"files": 1244,
+		"objects": 1244,
+		"sourceHash": "2bb0da1e8151410432cfe55d30607ed229976b7ccfd974a97027ebeb220f7f2a",
+		"configHash": "b51a445cc2c6577116a19fb1614d79411fc8944cc2a161ef1df44a25b399e4ec"
+	},
+	"policy": {
+		"version": "v5",
+		"supportedTypes": [
+			"ASSOCIATIVE ARRAY",
+			"CONSTANT",
+			"CURSOR",
+			"EXCEPTION",
+			"FORMAL IN",
+			"FORMAL IN OUT",
+			"FORMAL OUT",
+			"FUNCTION",
+			"INDEX TABLE",
+			"ITERATOR",
+			"NESTED TABLE",
+			"PACKAGE",
+			"PROCEDURE",
+			"RECORD",
+			"RECORD FIELD",
+			"RECORD ITERATOR",
+			"REFCURSOR",
+			"SUBTYPE",
+			"VARIABLE",
+			"VARRAY"
+		],
+		"supportedKinds": [
+			"collection_type",
+			"constant",
+			"cursor",
+			"exception",
+			"field",
+			"function",
+			"package",
+			"parameter",
+			"procedure",
+			"record_type",
+			"ref_cursor_type",
+			"subtype",
+			"variable"
+		]
+	},
+	"truth": {
+		"rows": 931686,
+		"invalidDeclarationRows": 0,
+		"excludedPackageReferences": 63270,
+		"excludedByReason": {
+			"unsupported_identifier_type": 165684,
+			"unmapped_usage": 0,
+			"invalid_declaration": 0,
+			"package_reference": 63270,
+			"missing_group_declaration": 360973,
+			"declaration_initializer": 13125,
+			"duplicate_fact": 3548,
+			"omitted_ambiguous_overload": 942,
+			"ephemeral_declaration": 98687
+		},
+		"malformedRows": 0,
+		"outOfScopeObjectRows": 0,
+		"includedDeclarations": 37170,
+		"includedReferences": 188287,
+		"excludedTotal": 706229,
+		"identifiersSha256": "4a980106361b7a336071a4265be22d512549c56b9af3475f2d7ed9b89ab9bc09",
+		"dependenciesSha256": "c6783fb689113c668f7075ffbf358f6f9f8a040bfe26fd1df060e146fd891ce8",
+		"ambiguousOverloadDiagnostics": 944
+	},
+	"declarations": {
+		"truth": 37170,
+		"actual": 37151,
+		"matched": 37151,
+		"missing": 19,
+		"extra": 0,
+		"ignoredExtra": 0,
+		"recall": 0.9994888350820554,
+		"precision": 1,
+		"extraClasses": {
+			"omitted_by_policy": {
+				"count": 0
+			},
+			"location_mismatch": {
+				"count": 0
+			},
+			"outside_plscope": {
+				"count": 0
+			},
+			"false_positive": {
+				"count": 0
+			}
+		}
+	},
+	"references": {
+		"truth": 188287,
+		"actual": 187665,
+		"matched": 187665,
+		"missing": 622,
+		"extra": 0,
+		"ignoredExtra": 0,
+		"recall": 0.9966965324212506,
+		"precision": 1,
+		"extraClasses": {
+			"omitted_by_policy": {
+				"count": 0
+			},
+			"location_mismatch": {
+				"count": 0
+			},
+			"outside_plscope": {
+				"count": 0
+			},
+			"false_positive": {
+				"count": 0
+			}
+		}
+	},
+	"declarationStrata": {
+		"collection_type": {
+			"truth": 398,
+			"actual": 398,
+			"matched": 398,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"constant": {
+			"truth": 10487,
+			"actual": 10487,
+			"matched": 10487,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"cursor": {
+			"truth": 6,
+			"actual": 6,
+			"matched": 6,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"exception": {
+			"truth": 8,
+			"actual": 8,
+			"matched": 8,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"field": {
+			"truth": 6050,
+			"actual": 6050,
+			"matched": 6050,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"function": {
+			"truth": 8929,
+			"actual": 8929,
+			"matched": 8929,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"package": {
+			"truth": 1222,
+			"actual": 1222,
+			"matched": 1222,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"procedure": {
+			"truth": 8355,
+			"actual": 8355,
+			"matched": 8355,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"record_type": {
+			"truth": 638,
+			"actual": 638,
+			"matched": 638,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"ref_cursor_type": {
+			"truth": 22,
+			"actual": 22,
+			"matched": 22,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"subtype": {
+			"truth": 280,
+			"actual": 280,
+			"matched": 280,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"variable": {
+			"truth": 775,
+			"actual": 756,
+			"matched": 756,
+			"missing": 19,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 0.9754838709677419,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		}
+	},
+	"referenceStrata": {
+		"procedural": {
+			"truth": 50698,
+			"actual": 50555,
+			"matched": 50555,
+			"missing": 143,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 0.9971793759122648,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"static_sql": {
+			"truth": 2201,
+			"actual": 2152,
+			"matched": 2152,
+			"missing": 49,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 0.9777373920945025,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"member_chain": {
+			"truth": 135353,
+			"actual": 134944,
+			"matched": 134944,
+			"missing": 409,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 0.9969782716304774,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"iterator": {
+			"truth": 21,
+			"actual": 0,
+			"matched": 0,
+			"missing": 21,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 0,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"pragma": {
+			"truth": 7,
+			"actual": 7,
+			"matched": 7,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		},
+		"type_anchor": {
+			"truth": 7,
+			"actual": 7,
+			"matched": 7,
+			"missing": 0,
+			"extra": 0,
+			"ignoredExtra": 0,
+			"recall": 1,
+			"precision": 1,
+			"extraClasses": {
+				"omitted_by_policy": {
+					"count": 0
+				},
+				"location_mismatch": {
+					"count": 0
+				},
+				"outside_plscope": {
+					"count": 0
+				},
+				"false_positive": {
+					"count": 0
+				}
+			}
+		}
+	},
+	"dependencies": {
+		"truth": 5553,
+		"rawTruth": 5656,
+		"excluded": 103,
+		"excludedByReason": {
+			"compiler_inferred_dependency": 103
+		},
+		"actual": 5553,
+		"matched": 5553,
+		"missing": 0,
+		"extra": 0,
+		"recall": 1,
+		"precision": 1
+	},
+	"gates": {
+		"declarations": {
+			"recall": true,
+			"precision": true,
+			"ok": true
+		},
+		"references": {
+			"recall": true,
+			"precision": true,
+			"ok": true
+		},
+		"dependencies": {
+			"recall": true,
+			"precision": true,
+			"ok": true
+		},
+		"ok": true
+	}
+}

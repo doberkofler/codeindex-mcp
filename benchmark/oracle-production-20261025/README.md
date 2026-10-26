@@ -2,10 +2,10 @@
 
 **Status:** historical. This bundle records contract `oracle-o1@2` (truth policy
 `v4`) and is retained unchanged. The authoritative evidence is
-[`benchmark/oracle-production-20261026`](../oracle-production-20261026/README.md),
-which requalifies the same source snapshot under contract `oracle-o1@3` (truth
-policy `v5`): reference precision and recall now pass, and the dependency gate
-remains owned by [#101](https://github.com/doberkofler/codeindex-mcp/issues/101).
+[`benchmark/oracle-production-20261027`](../oracle-production-20261027/README.md),
+which recomputes the same source snapshot under contract `oracle-o1@4` (truth
+policy `v5`): every gate passes. The intermediate 2026-10-26 bundle remains
+historical evidence for contract `oracle-o1@3`.
 
 Original verdict: **NOT READY.** Contract `oracle-o1@2` fails the
 reference-precision, reference-recall, and dependency-recall gates on the

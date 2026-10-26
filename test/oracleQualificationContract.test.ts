@@ -7,6 +7,7 @@ import {
 } from '../src/core/qualification/oracle/oracleQualificationContract.ts';
 import {DEPENDENCIES_SQL, IDENTIFIERS_SQL} from '../src/core/qualification/oracle/live/oracleLiveSql.ts';
 import {readOracleTruth} from '../src/core/qualification/oracle/oracleTruth.ts';
+import {ORACLE_DEPENDENCY_EXCLUSION_REASONS} from '../src/core/qualification/oracle/oracleDependencyExclusions.ts';
 import {ORACLE_TRUTH_EXCLUSION_REASONS, positionKeyOf, type OracleTruthExclusionReasonType} from '../src/core/qualification/oracle/oracleTruthExclusions.ts';
 import {
 	ORACLE_TRUTH_OBJECT_TYPES,
@@ -57,14 +58,15 @@ describe('Oracle O1 qualification contract identity', () => {
 
 		expect(identity).toStrictEqual({
 			id: 'oracle-o1',
-			version: '3',
-			hash: 'ead99963af1b78ca968256e66a0a5bd01cd4e80d3e781fbe0b50e8d1749357d7',
+			version: '4',
+			hash: 'ee83f2ece96074969137447c773c42bfc6400261d1ccefd597bd830ed389e95f',
 			truthPolicy: 'v5',
 			thresholds: {declarations: 0.995, references: 0.995, dependencies: 0.995, precision: 1},
 			emptyTruth: 'fail',
 			sampleLimit: 20,
 			objectTypes: ['FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'PROCEDURE'],
 			exclusionReasons: [...ORACLE_TRUTH_EXCLUSION_REASONS],
+			dependencyExclusions: [...ORACLE_DEPENDENCY_EXCLUSION_REASONS],
 			ambiguity: {diagnosticCode: 9105, usage: 'CALL', positionMatch: 'exact path/line/column'},
 			unmappedObject: 'abort',
 		});
@@ -92,6 +94,7 @@ describe('Oracle O1 qualification contract identity', () => {
 
 	it('declares every runtime exclusion reason', () => {
 		expect(ORACLE_QUALIFICATION_CONTRACT.exclusionReasons).toStrictEqual([...ORACLE_TRUTH_EXCLUSION_REASONS]);
+		expect(ORACLE_QUALIFICATION_CONTRACT.dependencyExclusions).toStrictEqual([...ORACLE_DEPENDENCY_EXCLUSION_REASONS]);
 		expect(Object.keys(emptyByReason()).sort()).toStrictEqual([...ORACLE_TRUTH_EXCLUSION_REASONS].sort());
 		expect([...ORACLE_QUALIFICATION_CONTRACT.objectTypes].sort()).toStrictEqual([...ORACLE_TRUTH_OBJECT_TYPES].sort());
 	});
