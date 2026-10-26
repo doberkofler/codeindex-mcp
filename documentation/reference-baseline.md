@@ -148,8 +148,17 @@ type HHTMLElementTagNameMap = HTMLElementTagNameMap & { '': HTMLDivElement };
 
 The empty-string member name is valid TypeScript but the persisted binding model
 rejects it. This is a corpus/model limitation, not a performance regression.
-The sanitized failure log is retained. VS Code is therefore excluded from the
-baseline until the adapter can represent that member.
+The sanitized failure log is retained. VS Code is therefore excluded from this
+baseline measurement.
+
+Both causes are fixed in schema version 12: `symbol_name.name` no longer rejects
+an empty terminal name, and the nightly pinned-public step declares an 8 GiB
+heap. The pinned VS Code project now indexes end to end. Its local measurement on
+a 64 GiB Apple M5 Max at `072586267e68` over 4,935 files was a 125 s cold build
+with 5.8 GiB peak RSS, a 68 s rebuild with 7.4 GiB peak RSS, and a 3.4 GiB
+database. No VS Code numbers are added to the table above because the table
+remains the `0.6.0` Linux-hosted record and these values come from another
+platform.
 
 ## 6. Retained evidence
 

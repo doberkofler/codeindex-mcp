@@ -201,11 +201,13 @@ than the generated corpora.
 | `material-ui` `28eadba9` | 1,063 | 6,942 | `Com` | 9 | 0.67 ms | 0.025 | 45 | 1.66 ms |
 | `vscode` `07258626` | - | - | - | - | - | - | - | - |
 
-VS Code still fails before measurement with the known worker heap limit; with
-an enlarged heap it fails the persisted `length(name) > 0` constraint on the
-empty-string member documented in
-[Reference-workstation baseline §5](./reference-baseline.md#vscode-failure). That
-is a corpus/model limitation, not this regression.
+VS Code produced no measurement in this retained run. The two causes were the
+default worker heap limit and the persisted `length(name) > 0` constraint on an
+empty-string member; both are fixed, and the pinned project now indexes end to
+end. See
+[Reference-workstation baseline §5](./reference-baseline.md#vscode-failure). Its
+public-project query figures are not retained here because they come from a
+different run and platform.
 
 The retained baseline recorded `find_symbol` p95 of 10 ms for `typescript` and
 7–9 ms for `material-ui`; `outline` was not separately retained for the public
