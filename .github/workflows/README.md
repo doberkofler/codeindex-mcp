@@ -24,19 +24,18 @@ This page records the operational contract beside the workflow definitions.
 | --- | --- | --- |
 | `ci.yml` | `ubuntu-latest` | none; `CODE_INDEX_TEST_BUDGET_MS` declares a hosted budget |
 | `stable.yml` | `ubuntu-24.04` | pinned GitHub-hosted image |
-| `nightly.yml` | `self-hosted`, `macOS`, `ARM64`, `codeindex-reference` | Apple M5 Max, 64 GB, macOS 27.0.1 |
+| `nightly.yml` | `ubuntu-24.04` | pinned GitHub-hosted image |
 | `release.yml` | `ubuntu-latest` publish job; `stable.yml` for verification | as `stable.yml` |
 
-Node.js 26 and pnpm 12 are installed by the workflow, not by the runner image.
+Node.js 26 and pnpm 12 are installed by the workflow, not by the runner image. No
+self-hosted runner is required.
 
-`stable.yml` is pinned to `ubuntu-24.04` so a hosted image update cannot silently change
-the reference platform. Absolute latency, memory, storage, plan, and correctness gates
-always apply. Relative regression gates are capped to warnings whenever the retained
-reference was produced on another platform or architecture, so the first Linux run
-establishes the Linux reference and later runs compare Linux against Linux.
-
-The nightly performance claims remain bounded to the declared self-hosted profile. Moving
-that reference to other hardware requires new retained evidence.
+`stable.yml` and `nightly.yml` are pinned to `ubuntu-24.04` so a hosted image update
+cannot silently change the reference platform. Absolute latency, memory, storage, plan,
+and correctness gates always apply. Relative regression gates are capped to warnings
+whenever the retained reference was produced on another platform or architecture, so the
+first run on a new platform establishes that platform's reference and later runs compare
+like against like.
 
 ## `nightly.yml`
 

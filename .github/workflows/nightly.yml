@@ -1,8 +1,8 @@
 name: Nightly
 
 # Trigger: daily at 03:17 UTC and manual dispatch.
-# Runner profile: self-hosted Apple M5 Max reference machine
-# (labels: self-hosted, macOS, ARM64, codeindex-reference).
+# Runner profile: GitHub-hosted ubuntu-24.04. The label is pinned so the
+# reference platform cannot drift with a hosted image update.
 # Budget: 480 min total; generated job 120 min, pinned-public job 360 min.
 # A job timeout fails the workflow when its budget is exceeded.
 # Artifact retention: 30 days; curated reports only, no logs, credentials,
@@ -35,7 +35,7 @@ concurrency:
 jobs:
   generated:
     name: Generated corpus performance
-    runs-on: [self-hosted, macOS, ARM64, codeindex-reference]
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       PROFILE: ${{ inputs.profile || 'large' }}
@@ -176,7 +176,7 @@ jobs:
 
   public:
     name: Pinned public corpus performance and compatibility
-    runs-on: [self-hosted, macOS, ARM64, codeindex-reference]
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
       - name: Check out repository

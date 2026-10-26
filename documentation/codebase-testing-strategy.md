@@ -197,7 +197,7 @@ and multi-process lifecycle tests.
 
 ### 6.1 Scheduled and release workflows
 
-`nightly.yml` runs on the declared reference runner every day and on manual dispatch. It
+`nightly.yml` runs on the pinned `ubuntu-24.04` image every day and on manual dispatch. It
 runs the generated benchmark, the pinned public suite, and the TypeScript compiler
 differential. The generated job reuses the newest successful run of the same profile as
 its reference when one exists; the public suite uses its committed baseline and retained

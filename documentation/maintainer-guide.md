@@ -234,13 +234,12 @@ hash, and Node identity. Checkouts and dependency setup happen outside the measu
 scenario. Do not commit checkouts, installed dependencies, or derived databases.
 
 The scheduled [nightly workflow](../.github/workflows/nightly.yml) runs the generated corpus
-and the pinned public suite on the reference runner, selects the baseline for the dispatched
-generated profile, and downloads the newest successful run of the same profile as its
-reference, so a manual run of another profile never becomes the nightly reference. It also
-runs the compiler differential. It enforces the committed gates, uploads bounded reports,
-and publishes the Markdown summary. Relative build, RSS, CPU, storage, and query gates are
-therefore active on scheduled runs; reference-machine gates remain authoritative when a
-retained report is supplied explicitly.
+and the pinned public suite on the pinned `ubuntu-24.04` image, selects the baseline for the
+dispatched generated profile, and downloads the newest successful run of the same profile as
+its reference, so a manual run of another profile never becomes the nightly reference. It
+also runs the compiler differential. It enforces the committed gates, uploads bounded
+reports, and publishes the Markdown summary. Relative build, RSS, CPU, storage, and query
+gates activate once a same-platform reference exists.
 
 The [stable workflow](../.github/workflows/stable.yml) runs retained-reference comparisons,
 the operational soak, and the deterministic system class on the pinned GitHub-hosted
@@ -296,10 +295,9 @@ bundle, and machine identity are unchanged. `--allow-dirty` is required for an
 uncommitted checkout. Generated corpora and databases are removed after a
 successful run unless `--keep-workspace` is supplied.
 
-The nightly workflow keeps its generated-`large` regression job on the self-hosted
-reference runner. Reported numbers are bounded to the platform that produced them:
-the stable workflow compares Linux against Linux, and a reference from another platform
-caps relative regression gates to warnings instead of failing the release. Absolute gates
+Both release and nightly verification run on the pinned `ubuntu-24.04` image. Reported
+numbers are bounded to the platform that produced them: a reference from another platform
+caps relative regression gates to warnings instead of failing the run, and absolute gates
 always apply. Both workflows retain only sanitized, bounded evidence.
 
 Reference-machine targets:
