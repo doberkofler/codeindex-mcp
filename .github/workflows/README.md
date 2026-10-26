@@ -52,6 +52,12 @@ existing commands; the workflow adds no second harness.
 job at 360 min. Each job and long step declares `timeout-minutes`; an overrun fails the
 workflow.
 
+The pinned-public measurement step declares an 8 GiB `NODE_OPTIONS` heap. The build
+worker inherits the parent heap limit, and the pinned VS Code project needs more than the
+default limit before it reaches persistence. The value is a declared budget for the
+largest pinned project on a 16 GiB runner; it is not a product default and does not
+change the generated-corpus job.
+
 **Reference:** the generated job downloads the newest successful run of the same profile
 as `--reference` when one exists. The pinned-public suite uses the committed external
 baseline and its retained first run. A missing previous artifact is a warning, not a

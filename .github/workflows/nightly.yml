@@ -81,7 +81,7 @@ jobs:
       - name: Download previous reference
         if: steps.reference.outputs.run-id != ''
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nightly-generated-${{ steps.reference.outputs.run-id }}
           path: ${{ runner.temp }}/codeindex-evidence/nightly/reference
@@ -167,7 +167,7 @@ jobs:
 
       - name: Upload bounded evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nightly-generated-${{ github.run_id }}
           path: ${{ runner.temp }}/publish/nightly-generated
@@ -208,6 +208,11 @@ jobs:
       - name: Measure pinned public corpus
         id: measure
         timeout-minutes: 180
+        # The pinned VS Code project exceeds the default worker heap. The build
+        # worker inherits this limit from the parent process; 8 GiB is the
+        # declared budget for the largest pinned project, not a product default.
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
         run: |
           evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
           node dist/cli.mjs benchmark-suite \
@@ -291,7 +296,7 @@ jobs:
 
       - name: Upload bounded evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nightly-public-${{ github.run_id }}
           path: ${{ runner.temp }}/publish/nightly-public
