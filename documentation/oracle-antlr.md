@@ -1,9 +1,13 @@
 # Oracle ANTLR Usage
 
-**Status:** settled. Production uses the pinned ANTLR lexer plus a tolerant
-structural scanner; the full ANTLR parser remains qualification-only. The full
-parser fails the precision gates and regresses dependency recall, so the adoption
-decision is **retain structural**.
+**Status:** settled for production. Production uses the pinned ANTLR lexer plus
+a tolerant structural scanner; the full ANTLR parser remains
+qualification-only. Current `structural@5` evidence passes `oracle-o1@4` with
+truth policy `v5`. The comparative decision evidence is historical
+(`structural@1` versus `antlr@1`, policy `v2`); current `antlr@2` has not been
+qualified against the current contract. The adoption decision remains **retain
+structural** until a new full-parser campaign passes every current quality and
+performance gate.
 
 ## 1. Why ANTLR Is Used
 
@@ -16,8 +20,9 @@ line-based splitter alone. The adapter needs to distinguish:
 - conditional-compilation directives;
 - SQL and PL/SQL keywords from ordinary identifiers.
 
-The upstream `antlr/grammars-v4` Oracle lexer already solves tokenization for
-those cases. The production adapter therefore uses ANTLR for lexing and a
+The upstream `antlr/grammars-v4` Oracle lexer provides the tokenization baseline
+for those cases, with pinned local adaptations and the known `REM<TAB>` defect
+in section 4. The production adapter therefore uses ANTLR for lexing and a
 separate structural scanner for declarations and reference sites.
 
 The full parser is a candidate for extending reference and dependency coverage,
@@ -118,9 +123,26 @@ Rules:
 - The token text concatenation must reconstruct the original source.
 - Strings and comments must never become visible tokens.
 
-Literal `$IF TRUE` and `$IF FALSE` branches are evaluated during tokenization.
-Non-literal conditions keep both branches because the adapter does not evaluate
-session values or compilation parameters.
+Tokenization itself does not evaluate conditional compilation. The structural
+path applies literal-branch filtering in `TokenCursor`; the full-parser path
+blanks the same source ranges in `prepareConditionalSource` before reparsing.
+Both paths keep every branch of a non-literal condition because the adapter does
+not evaluate session values or compilation parameters.
+
+### 4.1 Known production lexer defect
+
+The pinned `REMARK_COMMENT` rule accepts an ASCII space, but not a tab, between
+`REM[ARK]` and comment text. A `REM<TAB>` line is therefore emitted as visible
+tokens. This is a production defect because the structural scanner consumes the
+same lexer output: declaration-shaped text on such a comment line can become a
+phantom declaration without a diagnostic. The minimal fixture does not expose
+that consequence because it contains only punctuation and a `SELECT`.
+
+The upstream defect is open as
+[`antlr/grammars-v4#5124`](https://github.com/antlr/grammars-v4/issues/5124).
+Treat it as a production lexer issue, not only as full-parser qualification
+evidence. The token contract above is not satisfied for this input until the
+rule is fixed locally or upstream.
 
 ## 5. Parser Adapter
 
@@ -181,8 +203,12 @@ Generated artifacts:
 | `PlSqlParserVisitor.ts` | 348 KB |
 | Parser gzip | ~1.4 MB |
 
-These sizes are not yet acceptable as a production decision. Bundle and startup
-cost must be measured on the actual CLI and MCP builds.
+These artifacts are retained deliberately for reproducible qualification and
+upstream grammar work. They participate in TypeScript compilation and the
+deterministic regeneration test, but the generated parser is absent from the MCP
+bundle and is loaded by the CLI only when `--parser antlr` is selected. The
+historical isolated-bundle measurements in section 10 account for its production
+cost; source size alone is not the adoption gate.
 
 ### 5.2 Parsing contract
 
@@ -236,6 +262,15 @@ literal-disabled branches before parsing:
   diagnostics rather than truncating the file;
 - `$ERROR` is reported and removed.
 
+This logic intentionally duplicates the structural filtering in `TokenCursor`
+because the full parser needs offset-preserving source, while the structural
+parser needs only a visible-token view. The two implementations must remain
+behaviorally aligned. Keeping both branches of a non-literal condition can emit
+duplicate declarations when both branches declare the same name; this behavior
+exists in both parsers and is a known production limitation, not an upstream
+grammar defect. No retained evidence attributes a quantified share of the
+historical ANTLR precision loss to this preprocessing.
+
 ### 5.4 Declaration facts
 
 `antlrDeclarations.ts` converts the parse tree into the declaration portion of
@@ -245,19 +280,14 @@ constants, cursors, exceptions, subtypes, record and collection types, and
 record fields. Parent indexes, unit indexes, export flags, overload identity, and
 declaration ranges follow the structural parser.
 
-Declaration facts match the structural parser on the committed fixture corpus
-apart from symbolic type references. Known intentional differences:
-
-- ANTLR populates declaration and parameter `typeReferences` for symbolic type
-  names and `%TYPE`/`%ROWTYPE` anchors. The structural scanner currently emits
-  none because `%TYPE` is one lexer token.
-- Nested block variables and numeric/cursor loop iterators are emitted as
-  `variable` declarations so their uses can resolve. The structural parser does
-  not model those scopes.
-- `EXTERNAL` and `call_spec` routine tails are not emitted as local
-  declarations. The structural scanner can misread those tokens as a variable.
-- ANTLR routine ranges cover the complete declaration; the structural parser
-  can stop at the token before `IS` or `AS` when it finds no `BEGIN` block.
+The committed fixtures compare the two implementations where their contracts
+overlap. Earlier comparisons listed structural limitations that no longer apply
+to `structural@5`: the structural parser now emits symbolic and
+`%TYPE`/`%ROWTYPE` type references, parses nested `DECLARE` locals, recognizes
+`EXTERNAL` and Java call specs, and covers complete routine ranges. ANTLR still
+materializes numeric and cursor loop iterators as `variable` declarations;
+structural scanning recognizes iterator-based reference chains but does not
+materialize those iterator declarations.
 
 ### 5.5 Reference facts
 
@@ -306,19 +336,54 @@ Package calls, package references, and type references carry the existing
 - drops unresolved non-call references so table, view, column, and alias chains
   do not become package edges.
 
-`%TYPE` and `%ROWTYPE` anchors produce `type-reference` sites. The structural
-scanner currently emits `package-reference` for the same anchor because its
-token stream sees `%TYPE` as one token; qualification compares dependency targets
-rather than dependency-site kinds. Normal and recovery parses offset dependency
-indexes alongside declaration and reference indexes.
+`%TYPE` and `%ROWTYPE` anchors produce `type-reference` sites in both current
+parsers. Qualification compares dependency targets rather than dependency-site
+kinds because `USER_DEPENDENCIES` does not contain those site kinds.
+
+Target slicing is syntactic and has one known ambiguity: a three-part call such
+as `pkg.coll.exists(1)` has the same shape as `schema.package.member(1)`. Both
+parsers currently derive `package-call:PKG.COLL`; the shared extractor preserves
+that unresolved call as an external edge. This is a downstream dependency
+classification defect, not an upstream grammar defect. Catalogue-backed synonym
+and schema/package collision resolution remains outside O1 scope. Normal and
+recovery parses offset dependency indexes alongside declaration and reference
+indexes.
 
 ## 6. Adoption decision
 
-Production keeps the structural scanner. The full ANTLR parser remains
-qualification-only: it fails the precision gates on conditional-compilation and
-grammar-gap inputs, regresses dependency recall, and costs substantially more
-than the structural path. Decision profiling attributes that cost to core name
-and expression rules, so trimming unused DDL surface would not recover it.
+Production keeps the structural scanner. That decision rests on two distinct
+evidence generations which must not be presented as one current comparison.
+
+The authoritative production result is
+[`structural@5` under `oracle-o1@4` and truth policy `v5`](../benchmark/oracle-production-20261027/README.md).
+Its truth comes from exported PL/Scope `USER_IDENTIFIERS` rows and
+`USER_DEPENDENCIES`, normalized by the executable contract. It does not use
+`ALL_IDENTIFIERS` or `ALL_DEPENDENCIES`.
+
+The full-parser comparison was committed in
+[`76961feb140504e9f5d79143d0aa4b090954c8e8`](https://github.com/doberkofler/codeindex-mcp/tree/76961feb140504e9f5d79143d0aa4b090954c8e8/benchmark/oracle-phase8).
+It compared `structural@1` with `antlr@1` on 1,237 files under superseded truth
+policy `v2`:
+
+| Evidence | Declarations recall / precision | References recall / precision | Dependencies recall / precision |
+| --- | ---: | ---: | ---: |
+| Current `structural@5`, contract `@4` / policy `v5` | 99.9489% / 100% | 99.6697% / 100% | 100% / 100% |
+| Historical `structural@1`, policy `v2` | 95.5394% / 99.9711% | 57.4956% / 99.3464% | 98.1734% / 100% |
+| Historical `antlr@1`, policy `v2` | 96.9403% / 99.9659% | 69.1314% / 99.3900% | 97.9784% / 100% |
+
+The historical ANTLR parser improved declaration and reference recall but missed
+every recall gate, missed exact declaration and reference precision, and
+regressed dependency recall by 0.1951 percentage points. Its losses clustered in
+16 files with 298 parse diagnostics. The retained report does not attribute a
+quantified share of those losses or the precision extras to conditional
+compilation or to the nine reduced grammar-gap fixtures.
+
+Current code identifies the full parser as `antlr@2`. There is no committed
+`antlr@2` qualification report under contract `oracle-o1@4` and policy `v5`, so
+the historical failures are decision provenance, not present-tense current-gate
+results. Reconsideration requires a new comparable report. Historical
+full-corpus performance evidence independently supported the retained decision
+and is recorded in section 10.
 
 Two consequences follow:
 
@@ -328,7 +393,7 @@ Two consequences follow:
   exists for comparison runs only, and `pnpm test:oracle` covers both parsers as
   separate implementations.
 
-## 7. Grammar-Gap Triage and Upstream Candidates
+## 7. Known Grammar Gaps
 
 A parse diagnostic proves incompatibility with the pinned parser; it does not
 by itself prove a defect in the upstream grammar. An upstream candidate must
@@ -345,7 +410,32 @@ generated from that commit with the repository's Antlr4ng target transform.
 This establishes the current-master parser behavior; it is not a full upstream
 multi-target qualification run.
 
-### 7.1 Confirmed upstream candidates
+### 7.1 Fixture provenance
+
+The reduced fixtures were committed without source-path provenance. The retained
+SVN r78950 production-source snapshot contains the corresponding constructs
+below. Source presence establishes origin, not successful deployment or Oracle
+compilation: scripts can be inactive, compatibility-dependent, or transformed,
+and reduction can change validity.
+
+| Fixture | Retained source origin | Reduction caveat |
+| --- | --- | --- |
+| `rem-comment.sql` | `OTHER/c_views.sql` and other scripts contain `REM<TAB>` lines. | The fixture keeps the tab but replaces the comment text. |
+| `keyword-identifier.pks` | `PACKAGES/las_rep_sijournal.pkb` uses `detected`; `UnitTest/unittests/ods_uti_parsecsv_ut.pkb` uses `enclosed`. | The fixture combines independent names; `DATE` is supported by Oracle documentation rather than traced to the same source. |
+| `constant-size-type.pks` | `PACKAGES/las_mod_storedreport_run.pkb` uses `VARCHAR2(kMaxLen CHAR)`. | Source presence does not establish the compatibility setting under which it compiles. |
+| `xmltable-returning-sequence.sql` | `PACKAGES/las_mod_importeinvoice_xml.pkb` places `RETURNING SEQUENCE BY REF` before `COLUMNS`. | The local fixture moved the clause after `COLUMNS` and is invalid; the upstream issue uses the documented order. |
+| `json-strict.pkb` | `PACKAGES/las_sql_aiassistant.pkb` uses `IS JSON(STRICT)`. | Oracle documents the unparenthesized form, so a compile probe remains required for the reduced form. |
+| `sqlplus-exec.sql` | `FILL/f_reportsettings.sql` and other scripts use SQL*Plus `EXEC`. | This is a SQL*Plus command, not stored PL/SQL source. |
+| `nullable-field.pks` | `PACKAGES/las_sub_reportform.pks` contains a `DATE NULL` field. | Oracle documentation exposes only explicit `NOT NULL`; a compile probe remains required. |
+| `record-insert.sql` | `PACKAGES/las_mod_storedreport_data.pkb` contains `INSERT ... VALUES theData.report`. | The fixture changes the surrounding declaration and target table. |
+| `wrapped.pkb` | `PACKAGES/ods_sys_encryption.pkb` is wrapped. | Wrapped source is intentionally outside static indexing scope. |
+
+The fixtures are not part of the qualification corpus. Their tests prove only
+that the pinned parser reports a diagnostic. No retained report maps them to a
+share of historical recall loss, so fixing all nine cannot be claimed to close a
+known percentage of the gate gap.
+
+### 7.2 Confirmed upstream candidates
 
 | Fixture | Layer and rule | Oracle evidence | Upstream status | Contribution action |
 | --- | --- | --- | --- | --- |
@@ -362,7 +452,17 @@ affected rule. Its fix was merged as
 grammar predates that merge and still carries the local adaptation described in
 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
 
-### 7.2 Observed incompatibilities that are not yet upstream candidates
+The open service requests remain valid. Issue #5124 also has downstream
+production impact through the shared lexer. Issue #5125 already uses a valid
+reproducer in the documented clause order; only the local fixture needs
+correction. Issue #5126 remains qualification-only for this adapter. The comment
+on #720 is supported by Oracle documentation; a successful Oracle 19c compile
+would strengthen, but is not required to retract, the report. The use of the
+independent Antlr4ng target does not invalidate these target-neutral grammar
+omissions, although reproduction with an official ANTLR target would strengthen
+the submissions.
+
+### 7.3 Observed incompatibilities that are not yet upstream candidates
 
 | Fixture | Why it is not yet an upstream candidate | Required evidence |
 | --- | --- | --- |
@@ -376,7 +476,7 @@ These fixtures remain useful regression evidence for the pinned parser, but
 must not be presented upstream as valid Oracle syntax until the missing evidence
 is recorded. They are not part of the qualification corpus.
 
-### 7.3 Contribution procedure
+### 7.4 Contribution procedure
 
 For each confirmed candidate:
 
@@ -408,8 +508,16 @@ for workspace and external targets.
 
 The remaining semantic work is:
 
-- differential dependency qualification against the structural parser;
-- residual SQL and PL/SQL constructs that the pinned grammar does not parse.
+- qualify current `antlr@2` and `structural@5` outputs under the same
+  `oracle-o1@4` / `v5` contract before making a new comparative claim;
+- resolve package/member versus schema/package slicing for three-part dependency
+  chains such as `pkg.coll.exists`;
+- define one behavior contract for non-literal conditional compilation and
+  prevent duplicate facts when both retained branches declare the same name;
+- measure which production losses, if any, each reduced grammar-gap class
+  explains;
+- address residual SQL and PL/SQL constructs that the pinned grammar does not
+  parse.
 
 Parser selection is implemented in the qualification command (`--parser
 structural|antlr`). It is qualification-only; production stays structural.
@@ -472,11 +580,17 @@ are pinned and checked in, so generation is not on the indexing path.
 ### 10.1 Measured cause
 
 The retained runtime benchmark sampled 15 files and 835,953 bytes from the
-1,237-file corpus. In one shared-DFA pass, the TypeScript parser core took
-10,448.687 ms and the complete adapter took 10,707.186 ms. All non-core phases
-therefore added about 258.5 ms; the parser core accounts for 97.6% of elapsed
-time. Peak TypeScript RSS was 913.2 MB. See
+1,237-file corpus by size quantile. It ran three isolated cold processes per
+file, one warmup plus five warm samples per file, and one shared-DFA corpus pass.
+That corpus pass has no repetition or variance estimate. In the shared pass, the
+TypeScript parser core took 10,448.687 ms and the complete adapter took
+10,707.186 ms. All non-core phases therefore added about 258.5 ms; the parser
+core accounts for 97.6% of elapsed time. Peak TypeScript RSS was 913.2 MB. See
 [`benchmark/oracle-antlr-runtime/reference-results.md`](../benchmark/oracle-antlr-runtime/reference-results.md).
+
+The 15-file pass is useful for phase attribution and runtime comparison. It has
+no structural-parser timing and is not the source of the full-build
+order-of-magnitude claim.
 
 Separate qualification profiling attributes the large-file tail to the core
 `general_element_part`, `routine_name`, and `general_element` decisions. Warm LL
@@ -501,18 +615,41 @@ recovery work for affected files, but they are not automatically performance
 wins. In particular, broadening `regular_id` can increase prediction ambiguity
 and must be measured.
 
-### 10.2 Runtime alternatives
+### 10.2 Historical full-corpus decision evidence
+
+Phase 7 parsed all 1,237 files and 20,817,931 bytes with an isolated ANTLR
+candidate bundle. The immutable report is committed at
+[`7573a8bb5e69eceb14f9eed0912185cbd5b77505`](https://github.com/doberkofler/codeindex-mcp/blob/7573a8bb5e69eceb14f9eed0912185cbd5b77505/benchmark/oracle-phase7/report.json):
+
+| Metric | Structural baseline | ANTLR candidate | Ratio |
+| --- | ---: | ---: | ---: |
+| Cold-build wall time | 9,109 ms | 148,041.474 ms | 16.25× |
+| Structural compiler / ANTLR parser time | 2,893 ms | 147,133.566 ms | 50.86× |
+| Single-worker ANTLR peak RSS | — | 5,018,288,128 bytes | — |
+
+This is the source of the claim that full parsing cost an order of magnitude
+more than the structural path. It is historical decision evidence, not a current
+`antlr@2` benchmark. The current `structural@5` production baseline is retained
+separately in
+[`benchmark/oracle-performance`](../benchmark/oracle-performance/README.md).
+
+### 10.3 Runtime alternatives
 
 Changing the runtime affects constants, not the grammar's prediction problem.
 The same retained sample produced these build-shaped one-pass results:
 
-| Option | Status | Assessment |
-| --- | --- | --- |
-| Go target | Official ANTLR target | 9,003.584 ms, only 1.16× faster than TypeScript core; peak RSS 1,431.8 MB |
-| C++ target | Official ANTLR target | Fastest official option; heavy build and distribution cost |
-| Rust `antlr4rust` | Community, WIP | Unofficial runtime; grammar actions and conformance need validation |
-| Rust `antlr-rust-runtime` | Community | LL-only benchmark took 150,591.181 ms; not prediction-equivalent and not viable |
-| tree-sitter | Different grammar model | Fast and error-tolerant; requires an Oracle grammar and new visitors |
+| Option | Ownership | Evidence here | Assessment |
+| --- | --- | --- | --- |
+| Go target | Official ANTLR target | Measured | 9,003.584 ms, only 1.16× faster than TypeScript core; peak RSS 1,431.8 MB |
+| C++ target | Official ANTLR target | Unmeasured | Requires a new base implementation plus build and distribution support |
+| Rust `antlr4rust` | Community, WIP | Unmeasured | Grammar actions and conformance need validation |
+| Rust `antlr-rust-runtime` | Community | Measured, LL-only | 150,591.181 ms; not prediction-equivalent and not viable |
+| tree-sitter | Different grammar model | Unmeasured | Requires an Oracle grammar and new visitors |
+
+The TypeScript baseline uses `antlr4ng`, which belongs to the independent ANTLR
+Next Generation project; it is not the official `antlr/antlr4` TypeScript
+runtime. Go and C++ are official ANTLR targets. Runtime ownership does not alter
+the measured result, but it is part of the portability and maintenance decision.
 
 The grammar contains embedded actions and predicates, so a port is not just a
 code-generation switch. Each target needs its own base implementation.
@@ -521,7 +658,7 @@ The current TypeScript profile and runtime comparison do not justify a port. A
 Go, Rust, or C++ runtime changes a constant factor; it does not remove the
 algorithmic cost of full-context prediction by itself.
 
-### 10.3 Prioritized experiments
+### 10.4 Prioritized experiments
 
 Run these as isolated experiments, in order, against the quality and performance
 gates in section 11:
@@ -549,7 +686,16 @@ measured hot rules untouched.
 
 ## 11. Adoption Gates
 
-Adopt the full ANTLR parser only when all of the following hold:
+The semantic thresholds come from the authoritative
+[`oracle-o1@4` qualification contract](./oracle-qualification-contract.md), not
+from this parser decision document. Exact precision is deliberately
+non-compensable: an incorrect symbol or package edge can misdirect navigation and
+impact analysis, while a bounded miss remains unresolved rather than asserting a
+false fact. The precision gate is directly falsifiable by one scored extra;
+current `structural@5` meets it.
+
+Adopt the full ANTLR parser only when one current, comparable campaign shows all
+of the following:
 
 - declarations: at least 99.5% recall and exactly 100% precision;
 - references: at least 99.5% recall and exactly 100% precision;
@@ -562,29 +708,43 @@ Adopt the full ANTLR parser only when all of the following hold:
 - `pnpm verify` passes;
 - source provenance and live-qualification object matching remain unchanged.
 
-The full parser fails these gates on quality and cost. Its dependency set is a
-strict subset of the structural set, its losses cluster in files with parse
-diagnostics, and full-build parsing costs an order of magnitude more than the
-structural compiler stage. Grammar and recovery fixes would be the prerequisite
-for reconsideration, not a parser switch.
+Current `structural@5` passes the semantic gates. Current `antlr@2` has no report
+under the current contract. Historically, `antlr@1` failed the quality gates,
+its dependency set was a strict subset of the `structural@1` set, and its losses
+clustered in files with parse diagnostics. Historical full-build parsing also
+cost 16.25× the structural cold build and 50.86× the structural compiler stage.
+Grammar and recovery fixes are necessary for another campaign, but cannot by
+themselves satisfy the performance gates.
 
 The ANTLR production disposition is therefore closed: the ANTLR adapter remains
-qualification-only and the structural parser stays in production. Reconsider only
-when a measured structural-parser failure appears, or when an upstream grammar,
-recovery, or prediction change materially alters the cost or quality result;
-reopening the investigation requires new evidence against the gates above.
+qualification-only and the structural parser stays in production. Known
+structural and lexer defects require direct fixes; their existence does not make
+the full parser viable. Reconsider a parser switch only when the candidate
+materially improves a measured production failure and a new campaign passes
+every gate above.
 
 ## 12. Known Limits and Reconsideration Triggers
 
+- The shared production lexer does not hide `REM<TAB>` comments. This is tracked
+  by `grammars-v4#5124` and requires a production fix independently of parser
+  adoption.
+- Both parsers retain all branches of non-literal conditional compilation and
+  can emit duplicate declarations for equivalent branch APIs.
+- Both parsers can misclassify `pkg.coll.exists` as an unresolved call to package
+  `PKG.COLL` because dependency target slicing is syntactic.
+- Structural scanning does not materialize numeric and cursor loop iterators as
+  declarations, although it recognizes iterator-based reference chains.
 - SLL prediction with LL fallback resolves most files but does not remove the
   LL tail; failed probes remain a material share of parse time.
 - A PL/SQL-focused grammar subset was rejected: the costly decisions are in core
   name and expression rules, not unused DDL surface.
 - Per-file parsing parallelizes but memory grows with worker count. More workers
   do not close the full-build gap.
-- Full cold-rebuild adoption is not viable on this grammar. Incremental-only
-  reconciliation was the remaining performance path and is now rejected on the
-  unchanged quality gates.
+- Full cold-rebuild adoption was not viable in the retained campaign.
+  Changed-file-only reconciliation remains the production edit-latency strategy,
+  but incremental-only operation cannot justify adopting a parser that misses
+  the unchanged quality gates.
 - Upstream grammar gaps are now tracked by `grammars-v4#5124`, `#720`, `#5125`,
-  and `#5126`; fixes remain unimplemented. An upstream fix or local fork reopens
-  adoption only with new quality and performance evidence, not by itself.
+  and `#5126`; fixes remain unimplemented. Apply each fix according to its
+  production or qualification impact. No individual fix reopens full-parser
+  adoption without current quality and performance evidence.
