@@ -328,25 +328,73 @@ Two consequences follow:
   exists for comparison runs only, and `pnpm test:oracle` covers both parsers as
   separate implementations.
 
-## 7. Known Grammar Gaps
+## 7. Grammar-Gap Triage and Upstream Candidates
 
-The remaining failures are concentrated in identifiable grammar and lexing
-gaps, not arbitrary corruption:
+A parse diagnostic proves incompatibility with the pinned parser; it does not
+by itself prove a defect in the upstream grammar. An upstream candidate must
+also have authoritative Oracle syntax evidence or a successful Oracle 19c
+probe. This distinction matters because accepting undocumented compatibility
+syntax can increase ambiguity and prediction cost in an already ambiguous
+grammar.
 
-| Construct | Example | Affected area |
+The upstream inspection below was performed on 2026-10-26 against
+`antlr/grammars-v4` master commit
+[`8714404279b53fb9856ac6162f468667b0b853bb`](https://github.com/antlr/grammars-v4/commit/8714404279b53fb9856ac6162f468667b0b853bb).
+It is a source inspection, not a generated-parser qualification run. “No focused
+issue found” means repository issue search found no issue dedicated to that
+construct; it is not proof that no related discussion exists.
+
+### 7.1 Confirmed upstream candidates
+
+| Fixture | Layer and rule | Oracle evidence | Upstream status | Contribution action |
+| --- | --- | --- | --- | --- |
+| `rem-comment.sql` | Lexer, `REMARK_COMMENT` | SQL*Plus permits spaces or tabs between command words and defines `REM[ARK]` as a line comment: [SQL*Plus Basics](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/SQL-Plus-basics.html), [REMARK](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/REMARK.html) | Current master still requires a literal space before comment text. No focused issue found. | Reproduce with the upstream harness, accept horizontal whitespace without consuming the newline, and add the fixture as an upstream example. |
+| `keyword-identifier.pks` | Parser, `regular_id` | Oracle distinguishes reserved words from non-reserved keywords: [Database Object Names and Qualifiers](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Database-Object-Names-and-Qualifiers.html), [Oracle SQL Keywords](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Oracle-SQL-Keywords.html) | General defect tracked by [`grammars-v4#720`](https://github.com/antlr/grammars-v4/issues/720). Current master does not admit `DATE`, `DETECTED`, or `ENCLOSED` through `regular_id`. | Split the fixture into one case per token, confirm each token is non-reserved in Oracle 19c, then add the minimum safe alternatives and regression examples. A generic “all keywords are identifiers” change requires ambiguity and performance measurements. |
+| `xmltable-returning-sequence.sql` | Parser, `xmltable` | Oracle 19c documents optional `RETURNING SEQUENCE BY REF`: [XMLTABLE](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/XMLTABLE.html) | Current master lacks the clause in `xmltable`. No focused issue found. | Add the optional clause in its documented position and upstream the reduced query as an example. |
+| `sqlplus-exec.sql` | Parser, `sql_plus_command` | SQL*Plus 19c defines `EXEC[UTE] statement`: [SQL*Plus Quick Reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpqr/index.html) | Current master omits `EXECUTE` from `sql_plus_command`. No focused issue found. | Add a line-bounded SQL*Plus command alternative and tests for both `EXEC` and `EXECUTE`, without weakening PL/SQL `EXECUTE IMMEDIATE` parsing. |
+
+The lexer’s former alternative-quote limitation is the model for this work:
+[`grammars-v4#5029`](https://github.com/antlr/grammars-v4/issues/5029) records a
+minimal reproducer, Oracle documentation, expected and actual behavior, and the
+affected rule. Its fix was merged as
+[`grammars-v4#5030`](https://github.com/antlr/grammars-v4/pull/5030); the pinned
+grammar predates that merge and still carries the local adaptation described in
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+
+### 7.2 Observed incompatibilities that are not yet upstream candidates
+
+| Fixture | Why it is not yet an upstream candidate | Required evidence |
 | --- | --- | --- |
-| `REM` comment with tab | `rem\t***` | SQL*Plus comments |
-| Non-reserved keyword as identifier | `date IN VARCHAR2`, `detected BOOLEAN`, `enclosed VARCHAR2` | `regular_id` |
-| Constant size in type | `VARCHAR2(kMaxLen CHAR)` | `precision_part` |
-| XMLTABLE returning sequence | `RETURNING SEQUENCE BY REF` | XMLTABLE |
-| JSON strictness | `IS JSON(STRICT)` | JSON condition |
-| SQL*Plus `EXEC` | `EXEC ODS_SYS_InstUtil.DropType(...)` | SQL*Plus command |
-| Nullable field marker | `acontoDate DATE NULL` | `field_spec` |
-| Record insert | `INSERT INTO ... VALUES theData.report` | DML |
-| Wrapped source | `... wrapped` | Out of scope |
+| `constant-size-type.pks` | Oracle 19c documents a `CHAR` or `VARCHAR2` maximum size as an integer literal, explicitly not a constant or variable: [SQL Data Types](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/sql-data-types.html). | A successful Oracle 19c compile of the reduced source, plus the applicable compatibility setting, before proposing an `expression` in `precision_part`. |
+| `json-strict.pkb` | The documented form is `IS JSON STRICT`, without parentheses: [SQL/JSON Conditions](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/SQL-JSON-Conditions.html). | A successful Oracle 19c compile showing that `IS JSON(STRICT)` is accepted compatibility syntax and is not produced by preprocessing. |
+| `nullable-field.pks` | Oracle documents fields as nullable by default and exposes only an explicit `NOT NULL` field constraint: [Record Variables](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/record-variables.html), [Record Variable Declaration](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/record-variable-declaration.html). | A successful Oracle 19c compile proving explicit `DATE NULL` is accepted in a record field. |
+| `record-insert.sql` | Oracle’s PL/SQL extension permits a whole record variable after `VALUES`; it does not document the fixture’s unparenthesized scalar field expression: [INSERT Statement Extension](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/INSERT-statement-extension.html), [Restrictions on Record Inserts and Updates](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/restrictions-record-inserts-and-updates.html). | Replace the fixture with the exact valid production construct or obtain a successful Oracle 19c compile of the reduced form. Then identify whether `values_clause` needs a record, member-chain, or ordinary-expression alternative. |
+| `wrapped.pkb` | Wrapped source intentionally hides the source grammar and is outside static indexing scope. | None; do not submit this as a grammar defect. |
 
-Wrapped source is already excluded from qualification. The other gaps should be
-fixed locally or tracked against a newer pinned grammar commit.
+These fixtures remain useful regression evidence for the pinned parser, but
+must not be presented upstream as valid Oracle syntax until the missing evidence
+is recorded. They are not part of the qualification corpus.
+
+### 7.3 Contribution procedure
+
+For each confirmed candidate:
+
+1. Reduce it to one construct and preserve the corresponding fixture under
+   `test/fixtures/oracle-grammar-gaps/`.
+2. Cite Oracle 19c documentation. If the syntax is undocumented compatibility
+   behavior, capture a read-only or rollback-safe Oracle 19c probe and its
+   compatibility settings instead.
+3. Reproduce against the pinned grammar and the current upstream master with
+   the upstream test harness. Record lexer tokens, the first parser diagnostic,
+   and the affected rule.
+4. Search upstream issues and pull requests. Add to an existing issue when its
+   scope matches; otherwise file one issue per independent rule change.
+5. Include the reduced input as an upstream example and run the PL/SQL grammar
+   suite. For `regular_id` or expression changes, also measure prediction time
+   because those rules dominate parser cost.
+6. After an upstream fix is merged, update the pinned commit and digests, remove
+   any redundant local adaptation, regenerate deterministically, and change the
+   local fixture from an expected diagnostic to an expected successful parse.
 
 ## 8. Semantic Work Still Required
 
