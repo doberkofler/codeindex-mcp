@@ -6,7 +6,7 @@ import {
 	type OracleTruthExclusionReasonType,
 	type TruthExclusionCountsType,
 } from './oracleTruthExclusions.ts';
-import {ORACLE_TRUTH_POLICY_V4, oracleTruthPolicyOf, type OracleTruthPolicyType, type OracleTruthPolicyVersionType} from './oracleTruthPolicy.ts';
+import {ORACLE_TRUTH_POLICY_V5, oracleTruthPolicyOf, type OracleTruthPolicyType, type OracleTruthPolicyVersionType} from './oracleTruthPolicy.ts';
 import {isEphemeralDeclaration, parsedRowOf, usageContextIndex, type OracleParsedTruthRowType, type OracleUsageContextIndexType} from './oracleTruthRows.ts';
 
 /** Upper bound on disagreement samples retained in a qualification report. */
@@ -310,7 +310,7 @@ export const readOracleTruth = (
 	}>,
 ): TruthFactsType => {
 	const state: TruthStateType = {
-		policy: typeof input.policy === 'string' ? oracleTruthPolicyOf(input.policy) : (input.policy ?? ORACLE_TRUTH_POLICY_V4),
+		policy: typeof input.policy === 'string' ? oracleTruthPolicyOf(input.policy) : (input.policy ?? ORACLE_TRUTH_POLICY_V5),
 		groups: new Map(),
 		mappings: input.mappings,
 		excluded: [],
@@ -407,7 +407,7 @@ export const compareFacts = (
 	actual: ReadonlyMap<string, CodeOccurrenceType>,
 	options: CompareOptionsType = {},
 ): ComparisonType => {
-	const policy = typeof options.policy === 'string' ? oracleTruthPolicyOf(options.policy) : (options.policy ?? ORACLE_TRUTH_POLICY_V4);
+	const policy = typeof options.policy === 'string' ? oracleTruthPolicyOf(options.policy) : (options.policy ?? ORACLE_TRUTH_POLICY_V5);
 	const truthKeys = new Set(truth.keys());
 	const actualKeys = new Set([...actual.entries()].filter(([, value]) => policy.supportedKinds.has(value.kind)).map(([key]) => key));
 	const matched = [...truthKeys].filter((key) => actualKeys.has(key)).length;
