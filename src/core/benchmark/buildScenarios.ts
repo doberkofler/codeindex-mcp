@@ -27,7 +27,7 @@ export const reuseOf = (
 		artifactRowsAfter: input.artifactRowsAfter,
 		artifactRowsRead: 0,
 		artifactReuseRatio: 0,
-		artifactConsumption: 'not_implemented',
+		artifactConsumption: 'parse_digest',
 	};
 };
 

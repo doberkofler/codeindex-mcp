@@ -53,7 +53,7 @@ const ReuseSchema = z.object({
 	artifactRowsAfter: z.number().int(),
 	artifactRowsRead: z.number().int(),
 	artifactReuseRatio: z.number(),
-	artifactConsumption: z.literal('not_implemented'),
+	artifactConsumption: z.enum(['not_implemented', 'none', 'parse_digest']),
 });
 
 const StagesSchema = z.object({

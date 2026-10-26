@@ -39,9 +39,17 @@ export type BenchmarkReuseType = Readonly<{
 	readonly contentReuseRatio: number;
 	readonly artifactRowsBefore: number;
 	readonly artifactRowsAfter: number;
+	/** Symbol and dependency fact rows read back from persisted artifacts. */
 	readonly artifactRowsRead: number;
 	readonly artifactReuseRatio: number;
-	readonly artifactConsumption: 'not_implemented';
+	/**
+	 * Persisted artifacts the extractor consumed for this scenario.
+	 *
+	 * `parse_digest` proves unchanged parser output for a changed file; the
+	 * symbol and dependency artifacts remain write-only. `not_implemented`
+	 * identifies retained reports produced before that proof existed.
+	 */
+	readonly artifactConsumption: 'not_implemented' | 'none' | 'parse_digest';
 }>;
 
 export type BenchmarkBuildScenarioType = Readonly<{

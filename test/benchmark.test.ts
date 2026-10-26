@@ -196,7 +196,7 @@ const reuseOf = (generationReused: boolean, filesReused: number): BenchmarkReuse
 	artifactRowsAfter: 0,
 	artifactRowsRead: 0,
 	artifactReuseRatio: 0,
-	artifactConsumption: 'not_implemented',
+	artifactConsumption: 'parse_digest',
 });
 
 const buildScenarioOf = (
