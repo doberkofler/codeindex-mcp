@@ -1,4 +1,4 @@
-import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterAll, describe, expect, it} from 'vitest';
@@ -327,6 +327,52 @@ describe('Oracle manifest scanning and freshness', () => {
 			expect(scanned.files.map((file) => file.path)).toContain('database/script.sql');
 		} finally {
 			cleanup();
+		}
+	});
+});
+
+describe('Oracle incremental revision', () => {
+	it('reuses facts for a content-only edit and stays reusable afterwards', async () => {
+		const local = createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+
+		try {
+			const before = local.index.getStatus();
+			appendFileSync(path.join(local.config.rootDir, 'database', 'hr_api.pks'), '\n', 'utf8');
+			const revised = await local.index.ensureReady();
+
+			expect(revised.reused).toBe(false);
+			expect(revised.revision).toBe((before.revision ?? 0) + 1);
+			expect(revised.symbolCount).toBe(before.counts.symbols);
+			expect(local.index.getStatus().generationId).toBe(before.generationId);
+
+			const unchanged = await local.index.ensureReady();
+
+			expect(unchanged.reused).toBe(true);
+			expect(local.index.getStatus().revision).toBe(revised.revision);
+		} finally {
+			local.cleanup();
+		}
+	});
+
+	it('applies a fact-changing edit as an in-place revision', async () => {
+		const local = createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+
+		try {
+			const before = local.index.getStatus();
+			const target = path.join(local.config.rootDir, 'database', 'hr_api.pkb');
+
+			writeFileSync(target, `\n${readFileSync(target, 'utf8')}`);
+			const revised = await local.index.ensureReady();
+			const after = local.index.getStatus();
+
+			expect(revised.reused).toBe(false);
+			expect(after.generationId).toBe(before.generationId);
+			expect(after.revision).toBe((before.revision ?? 0) + 1);
+			expect(after.counts).toStrictEqual(before.counts);
+			expect(revised.occurrenceCount).toBe(before.counts.occurrences);
+			expect(local.index.findSymbols({query: 'SAVE_EMPLOYEE', limit: 1}).items.length).toBeGreaterThan(0);
+		} finally {
+			local.cleanup();
 		}
 	});
 });

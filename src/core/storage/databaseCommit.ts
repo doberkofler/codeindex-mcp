@@ -128,7 +128,7 @@ const publishPhase = (
 	writer
 		.prepare(
 			`update generation
-			 set state = 'published', completed_at = ?, revision = revision + 1, config_hash = ?,
+			 set state = 'published', completed_at = ?, revision = revision + 1, config_hash = ?, source_hash = ?,
 			     file_count = ?, symbol_count = ?, occurrence_count = ?,
 			     dependency_edge_count = ?, dependency_binding_count = ?, diagnostic_count = ?,
 			     scan_ms = ?, compiler_ms = ?, extraction_ms = ?, insertion_ms = ?, verification_ms = ?, publication_ms = ?
@@ -137,6 +137,7 @@ const publishPhase = (
 		.run(
 			new Date().toISOString(),
 			input.configHash,
+			input.sourceHash,
 			countsFor.files,
 			countsFor.symbols,
 			countsFor.occurrences,

@@ -148,6 +148,15 @@ const logBuild = (
 	});
 };
 
+const persistCachesSafely = (action: () => void): void => {
+	try {
+		action();
+	} catch (error) {
+		// Artifacts are derived and rebuildable; losing them costs work, never correctness.
+		debug('artifact cache persistence failed', {message: error instanceof Error ? error.message : String(error)});
+	}
+};
+
 const commitReuse = (context: CommitContextType): BuildReportType => {
 	const commit = context.database.commitGeneration({
 		mode: context.mode,
@@ -205,16 +214,18 @@ const commitExtraction = (context: CommitContextType): BuildReportType => {
 		},
 		...(context.ownerId === undefined ? {} : {ownerId: context.ownerId}),
 	});
-	cache.flush();
-	persistArtifactCaches({
-		database: context.database,
-		generationId: context.generationId,
-		files: extracted.files,
-		facts: artifactFacts,
-		dependencies: extracted.dependencies,
-		contextHash: context.scan.artifactContextHash ?? context.scan.configHash,
-		extractorId: context.scan.extractorId,
-		extractorVersion: context.scan.extractorVersion,
+	persistCachesSafely(() => {
+		cache.flush();
+		persistArtifactCaches({
+			database: context.database,
+			generationId: context.generationId,
+			files: extracted.files,
+			facts: artifactFacts,
+			dependencies: extracted.dependencies,
+			contextHash: context.scan.artifactContextHash ?? context.scan.configHash,
+			extractorId: context.scan.extractorId,
+			extractorVersion: context.scan.extractorVersion,
+		});
 	});
 	const durationMs = Math.round(performance.now() - context.startedAt);
 
@@ -351,7 +362,9 @@ export const buildGeneration = (input: BuildInputType): BuildReportType => {
 		const report = reuseFacts ? commitReuse(context) : commitExtraction(context);
 
 		if (reuseFacts) {
-			cache.flush();
+			persistCachesSafely(() => {
+				cache.flush();
+			});
 		}
 
 		return report;
