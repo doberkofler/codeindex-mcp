@@ -25,6 +25,7 @@ const runWorkerScript = async (script: string): Promise<unknown> => {
 
 const report = {
 	generationId: 'generation',
+	revision: 1,
 	state: 'published',
 	reused: false,
 	durationMs: 12,

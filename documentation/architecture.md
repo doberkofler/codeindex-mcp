@@ -193,7 +193,8 @@ Core tables:
 | `evidence` (planned) | Independent observations supporting an edge, with confidence and provenance |
 | `unresolved_site` (planned) | Dynamic, ambiguous, unsupported, or failed resolution sites |
 | `diagnostic` | Bounded extractor diagnostics |
-| `extraction_artifact` | Per-file reusable facts keyed by content, extractor, and context |
+| `extraction_artifact` | Per-file reusable facts and parser digests keyed by content, extractor, and context |
+| `generation_file_digest` | Per-path fact digest driving incremental revision writes |
 | `build_lease` | Single-writer ownership |
 
 Persisted paths are workspace-relative POSIX paths. Absolute paths appear only in the
@@ -201,12 +202,16 @@ full `index_status.scope` payload for the configured root and project files; the
 summary omits the absolute root.
 
 The fact tables implement the symbol, binding, exposure, and definition-site model in
-§7.3. Schema version 9 is current; §7.4 defines the invariants validated before
+§7.3. Schema version 11 is current; §7.4 defines the invariants validated before
 publication.
 
-Previous generations are retained as `superseded` for one generation so in-flight
-queries holding a generation identifier can complete. Unreferenced content and
-artifacts are removed on publication.
+One generation is published at a time. A successful refresh revises it in place
+inside one write transaction and increments `generation.revision`; readers keep the
+previous WAL snapshot until commit and pin one snapshot per multi-statement query.
+Only path groups whose per-path fact digest changed are rewritten, so a no-fact edit
+writes version metadata alone. A failed refresh rolls back and leaves the previous
+revision serving queries. Unreferenced content and artifacts are removed on
+publication.
 
 ### 7.1 Identity invariants
 
@@ -738,6 +743,7 @@ See [Oracle adapter](./oracle-adapter.md),
   database links, wrapped source, and live catalogue metadata.
 - Cross-language edges and ORDS are designed but not shipped.
 - No lexical search or embeddings.
-- Generation-granular reuse; no incremental compiler state.
+- Per-file parse-digest fact reuse and per-path fact deltas; no long-lived compiler
+  object state.
 - The core stores dependency facts but does not interpret language-specific
   semantics; the adapter supplies bounded kinds and canonical target identifiers.

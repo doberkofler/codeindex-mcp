@@ -73,6 +73,13 @@ export type ScanResultType = Readonly<{
 	readonly files: readonly SourceFileType[];
 	readonly sourceHash: string;
 	readonly configHash: string;
+	/**
+	 * Configuration identity for per-file extraction artifacts.
+	 *
+	 * Adapters set this when artifact validity does not depend on source content.
+	 * It defaults to `configHash` when absent.
+	 */
+	readonly artifactContextHash?: string;
 	readonly projects: readonly ScanProjectResultType[];
 	readonly projectFileCount: number;
 	readonly excludedFileCount: number;
@@ -254,6 +261,8 @@ export type GenerationRowType = Readonly<{
 	readonly configHash: string;
 	readonly startedAt: string;
 	readonly completedAt: string | null;
+	/** Monotonic publication counter; increments on every successful revision. */
+	readonly revision: number;
 	readonly fileCount: number;
 	readonly symbolCount: number;
 	readonly occurrenceCount: number;
@@ -266,6 +275,7 @@ export type GenerationRowType = Readonly<{
 
 export type BuildReportType = Readonly<{
 	readonly generationId: string;
+	readonly revision: number;
 	readonly state: GenerationStateType;
 	readonly reused: boolean;
 	readonly durationMs: number;
@@ -306,6 +316,8 @@ export type IndexStatusType = Readonly<{
 	readonly state: GenerationStateType | 'absent';
 	readonly refresh: RefreshStateType;
 	readonly generationId: string | null;
+	/** Publication revision of the stable generation identifier. */
+	readonly revision: number | null;
 	readonly building: boolean;
 	readonly scope: Readonly<{
 		readonly root: string;
@@ -355,6 +367,7 @@ export type IndexStatusSummaryType = Readonly<{
 	readonly state: IndexStatusType['state'];
 	readonly refresh: IndexStatusType['refresh'];
 	readonly generationId: string | null;
+	readonly revision: number | null;
 	readonly building: boolean;
 	readonly scope: Readonly<{
 		readonly projectName: string;

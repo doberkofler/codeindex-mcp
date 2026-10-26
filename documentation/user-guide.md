@@ -32,7 +32,9 @@ Current constraints:
 - one local workspace per configuration; one or more TypeScript project contexts;
 - every configured project must build successfully before the generation is
   published;
-- full-generation rebuilds rather than incremental compiler state;
+- a stable published generation revised in place (`generation.revision`), with
+  per-file parse-digest fact reuse and per-path fact deltas rather than long-lived
+  compiler object state;
 - path/range-based symbol identity;
 - exact and prefix symbol search only;
 - definition/reference roles only;
@@ -265,7 +267,7 @@ limit is an upper bound; pages shorten automatically to fit the byte budget.
 
 ```bash
 codeindex-cli update      # build only when source or configuration changed
-codeindex-cli rebuild     # force a new generation
+codeindex-cli rebuild     # force a full re-extraction and a new revision
 codeindex-cli status      # generation, counts, freshness, scope
 codeindex-cli verify      # SQLite integrity and persisted counts
 codeindex-cli analytics   # offline analytics report

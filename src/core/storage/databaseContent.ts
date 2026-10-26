@@ -20,6 +20,37 @@ const lineStartsOf = (content: string): readonly number[] => {
 };
 
 /**
+ * Inserts immutable content versions inside the caller's transaction.
+ *
+ * @param writer - Writer connection inside an open transaction.
+ * @param files - Authored files to read and store.
+ * @returns The number of content rows inserted.
+ * @throws {Error} When a file changed between scan and insertion.
+ */
+export const writeContents = (writer: DatabaseSync, files: readonly SourceFileType[]): number => {
+	let inserted = 0;
+	const statement = writer.prepare(
+		`insert or ignore into content (sha256, byte_count, line_count, encoding, line_starts, bytes)
+		 values (?, ?, ?, 'utf8', ?, ?)`,
+	);
+
+	for (const file of files) {
+		const bytes = readFileSync(file.absolutePath);
+		const digest = sha256Of(bytes);
+
+		if (digest !== file.sha256) {
+			throw new Error(`Source changed during index build: ${file.path}`);
+		}
+
+		const content = bytes.toString('utf8');
+		const result = statement.run(digest, bytes.byteLength, file.lineCount, JSON.stringify(lineStartsOf(content)), bytes);
+		inserted += Number(result.changes);
+	}
+
+	return inserted;
+};
+
+/**
  * Inserts immutable content versions keyed by raw SHA-256.
  *
  * Identical bytes are stored once even when several paths reference them.
@@ -31,24 +62,9 @@ const lineStartsOf = (content: string): readonly number[] => {
  */
 export const insertContents = (writer: DatabaseSync, files: readonly SourceFileType[]): number => {
 	let inserted = 0;
-	const statement = writer.prepare(
-		`insert or ignore into content (sha256, byte_count, line_count, encoding, line_starts, bytes)
-		 values (?, ?, ?, 'utf8', ?, ?)`,
-	);
 
 	transaction(writer, () => {
-		for (const file of files) {
-			const bytes = readFileSync(file.absolutePath);
-			const digest = sha256Of(bytes);
-
-			if (digest !== file.sha256) {
-				throw new Error(`Source changed during index build: ${file.path}`);
-			}
-
-			const content = bytes.toString('utf8');
-			const result = statement.run(digest, bytes.byteLength, file.lineCount, JSON.stringify(lineStartsOf(content)), bytes);
-			inserted += Number(result.changes);
-		}
+		inserted = writeContents(writer, files);
 	});
 
 	return inserted;
@@ -63,22 +79,45 @@ export type ExtractionArtifactKeyType = Readonly<{
 }>;
 
 /**
+ * Stores several extraction artifacts in one transaction.
+ *
+ * @param writer - Writer connection.
+ * @param entries - Artifact identities and serialized payloads.
+ */
+export const putExtractionArtifacts = (writer: DatabaseSync, entries: readonly (ExtractionArtifactKeyType & Readonly<{artifactJson: string}>)[]): void => {
+	if (entries.length === 0) {
+		return;
+	}
+
+	const now = new Date().toISOString();
+	const statement = writer.prepare(
+		`insert into extraction_artifact (content_sha256, artifact_kind, extractor_id, extractor_version, context_hash, artifact_json, created_at, last_used_at)
+		 values (?, ?, ?, ?, ?, ?, ?, ?)
+		 on conflict(content_sha256, artifact_kind, extractor_id, extractor_version, context_hash)
+		 do nothing`,
+	);
+
+	transaction(writer, () => {
+		for (const entry of entries) {
+			try {
+				statement.run(entry.contentSha256, entry.artifactKind, entry.extractorId, entry.extractorVersion, entry.contextHash, entry.artifactJson, now, now);
+			} catch (error) {
+				throw new Error(`Artifact insert failed for ${entry.artifactKind} ${entry.contentSha256}: ${error instanceof Error ? error.message : String(error)}`, {
+					cause: error,
+				});
+			}
+		}
+	});
+};
+
+/**
  * Stores one extraction artifact keyed by content and extractor context.
  *
  * @param writer - Writer connection.
  * @param input - Artifact identity and serialized payload.
  */
 export const putExtractionArtifact = (writer: DatabaseSync, input: ExtractionArtifactKeyType & Readonly<{artifactJson: string}>): void => {
-	const now = new Date().toISOString();
-
-	writer
-		.prepare(
-			`insert into extraction_artifact (content_sha256, artifact_kind, extractor_id, extractor_version, context_hash, artifact_json, created_at, last_used_at)
-			 values (?, ?, ?, ?, ?, ?, ?, ?)
-			 on conflict(content_sha256, artifact_kind, extractor_id, extractor_version, context_hash)
-			 do nothing`,
-		)
-		.run(input.contentSha256, input.artifactKind, input.extractorId, input.extractorVersion, input.contextHash, input.artifactJson, now, now);
+	putExtractionArtifacts(writer, [input]);
 };
 
 /**

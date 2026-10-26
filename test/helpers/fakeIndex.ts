@@ -40,6 +40,7 @@ const FAKE_STATUS: IndexStatusType = {
 	state: 'published',
 	refresh: 'current',
 	generationId: FAKE_GENERATION_ID,
+	revision: 1,
 	building: false,
 	scope: {
 		root: '/workspace',

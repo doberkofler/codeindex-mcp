@@ -47,6 +47,7 @@ import {
 import {publishedFiles} from './publishedFiles.ts';
 import {startProcessSample} from '../resources/processSample.ts';
 import {queryOutline} from '../query/outlineQuery.ts';
+import {verifyPublishedIndex} from './verifyIndex.ts';
 import {queryReadSymbol} from '../query/readSymbolQuery.ts';
 import {querySymbolAt} from '../query/symbolAtQuery.ts';
 import {RefreshCoordinator, type RefreshReasonType} from '../freshness/refreshCoordinator.ts';
@@ -264,19 +265,21 @@ export class CodeIndex {
 	}
 
 	public getStatus(): IndexStatusType {
-		const published = this.#database.getPublishedGeneration();
-		this.#published = published;
-		const status = collectStatus({
-			config: this.#config,
-			database: this.#database,
-			published,
-			refresh: this.#coordinator.getSnapshot(),
-			workingCopyId: this.#database.getWorkingCopy()?.id ?? null,
-			lastError: null,
-		});
-		debug('status', {state: status.state, refresh: status.refresh, published: published?.id ?? null, dirtyFiles: status.freshness.dirtyFileCount});
+		return this.#database.readSnapshot(() => {
+			const published = this.#database.getPublishedGeneration();
+			this.#published = published;
+			const status = collectStatus({
+				config: this.#config,
+				database: this.#database,
+				published,
+				refresh: this.#coordinator.getSnapshot(),
+				workingCopyId: this.#database.getWorkingCopy()?.id ?? null,
+				lastError: null,
+			});
+			debug('status', {state: status.state, refresh: status.refresh, published: published?.id ?? null, dirtyFiles: status.freshness.dirtyFileCount});
 
-		return status;
+			return status;
+		});
 	}
 
 	public getFreshness(): QueryFreshnessType {
@@ -291,43 +294,24 @@ export class CodeIndex {
 	 * @throws {@link Error} When SQLite reports an integrity, foreign-key, or count problem.
 	 */
 	public verify(): IndexVerificationType {
-		const generation = this.#generation();
-		this.#database.verifyIntegrity();
+		return this.#database.readSnapshot(() => this.#verifySnapshot());
+	}
 
-		const counts = {
-			files: this.#database.countRows(generation.id, 'file'),
-			symbols: this.#database.countRows(generation.id, 'symbol'),
-			occurrences: this.#database.countRows(generation.id, 'occurrence'),
-			dependencyEdges: this.#database.countRows(generation.id, 'dependency_edge'),
-			dependencyBindings: this.#database.countRows(generation.id, 'dependency_binding'),
-			diagnostics: this.#database.countRows(generation.id, 'diagnostic'),
-		};
-		const metadataMatches =
-			counts.files === generation.fileCount &&
-			counts.symbols === generation.symbolCount &&
-			counts.occurrences === generation.occurrenceCount &&
-			counts.dependencyEdges === generation.dependencyEdgeCount &&
-			counts.dependencyBindings === generation.dependencyBindingCount &&
-			counts.diagnostics === generation.diagnosticCount;
-
-		if (!metadataMatches) {
-			throw new Error(
-				`Index metadata counts do not match stored rows: files ${counts.files}/${generation.fileCount}, symbols ${counts.symbols}/${generation.symbolCount}, occurrences ${counts.occurrences}/${generation.occurrenceCount}, dependency edges ${counts.dependencyEdges}/${generation.dependencyEdgeCount}, dependency bindings ${counts.dependencyBindings}/${generation.dependencyBindingCount}, diagnostics ${counts.diagnostics}/${generation.diagnosticCount}`,
-			);
-		}
-
-		return {generationId: generation.id, integrity: 'ok', metadataMatches, counts};
+	#verifySnapshot(): IndexVerificationType {
+		return verifyPublishedIndex(this.#database, this.#generation());
 	}
 
 	public getOutline(input: OutlineInputType, maxResultBytes = this.#config.maxResultBytes): OutlineResultType {
-		const generation = this.#generation();
+		return this.#database.readSnapshot(() => {
+			const generation = this.#generation();
 
-		return queryOutline({
-			database: this.#database,
-			generationId: generation.id,
-			freshness: this.getFreshness(),
-			input,
-			maxResultBytes,
+			return queryOutline({
+				database: this.#database,
+				generationId: generation.id,
+				freshness: this.getFreshness(),
+				input,
+				maxResultBytes,
+			});
 		});
 	}
 
@@ -340,14 +324,16 @@ export class CodeIndex {
 	 * @throws {@link CodeIndexError} When the path is invalid or not indexed.
 	 */
 	public symbolAt(input: SymbolAtInputType, maxResultBytes = this.#config.maxResultBytes): SymbolAtResultType {
-		const generation = this.#generation();
+		return this.#database.readSnapshot(() => {
+			const generation = this.#generation();
 
-		return querySymbolAt({
-			database: this.#database,
-			generationId: generation.id,
-			freshness: this.getFreshness(),
-			selector: input,
-			maxResultBytes,
+			return querySymbolAt({
+				database: this.#database,
+				generationId: generation.id,
+				freshness: this.getFreshness(),
+				selector: input,
+				maxResultBytes,
+			});
 		});
 	}
 
@@ -359,20 +345,22 @@ export class CodeIndex {
 	 * @returns Paginated symbol matches with explicit freshness.
 	 */
 	public findSymbols(input: FindSymbolInputType, maxResultBytes = this.#config.maxResultBytes): FindSymbolResultType {
-		const context = {
-			database: this.#database,
-			generationId: this.#generation().id,
-			freshness: this.getFreshness(),
-			...(this.#analytics === null
-				? {}
-				: {
-						exactNameTelemetry: (presence: ExactNamePresenceType): void => {
-							this.#analytics?.record('find_symbol_outcome', {presence});
-						},
-					}),
-		};
+		return this.#database.readSnapshot(() => {
+			const context = {
+				database: this.#database,
+				generationId: this.#generation().id,
+				freshness: this.getFreshness(),
+				...(this.#analytics === null
+					? {}
+					: {
+							exactNameTelemetry: (presence: ExactNamePresenceType): void => {
+								this.#analytics?.record('find_symbol_outcome', {presence});
+							},
+						}),
+			};
 
-		return querySymbols(context, input, maxResultBytes);
+			return querySymbols(context, input, maxResultBytes);
+		});
 	}
 
 	/** Finds occurrences for one symbol identifier or resolves one symbol query in the same call. */
@@ -381,8 +369,10 @@ export class CodeIndex {
 	public findReferences(input: QueryFindReferencesInputType, maxResultBytes?: number): QueryFindReferencesResultType;
 	public findReferences(input: FindReferencesInputType, maxResultBytes?: number): FindReferencesResultType;
 	public findReferences(input: FindReferencesInputType, maxResultBytes = this.#config.maxResultBytes): FindReferencesResultType {
-		const context = {database: this.#database, generationId: this.#generation().id, freshness: this.getFreshness()};
-		return queryReferences(context, input, maxResultBytes);
+		return this.#database.readSnapshot(() => {
+			const context = {database: this.#database, generationId: this.#generation().id, freshness: this.getFreshness()};
+			return queryReferences(context, input, maxResultBytes);
+		});
 	}
 
 	/**
@@ -397,8 +387,10 @@ export class CodeIndex {
 	 * @returns Paginated dependency consumers with complete-set counts.
 	 */
 	public findDependencies(input: FindDependenciesInputType, maxResultBytes = this.#config.maxResultBytes): FindDependenciesResultType {
-		const context = {database: this.#database, generationId: this.#generation().id, freshness: this.getFreshness()};
-		return queryDependencies(context, input, maxResultBytes);
+		return this.#database.readSnapshot(() => {
+			const context = {database: this.#database, generationId: this.#generation().id, freshness: this.getFreshness()};
+			return queryDependencies(context, input, maxResultBytes);
+		});
 	}
 
 	/**
@@ -411,31 +403,33 @@ export class CodeIndex {
 	 * @throws {@link StaleFileError} When the source changed or is still pending a rebuild.
 	 */
 	public readSymbol(input: ReadSymbolInputType, maxResultBytes = this.#config.maxResultBytes): ReadSymbolResultType {
-		const generation = this.#generation();
-		const symbol = this.#database.getSymbol(generation.id, input.symbolId);
+		return this.#database.readSnapshot(() => {
+			const generation = this.#generation();
+			const symbol = this.#database.getSymbol(generation.id, input.symbolId);
 
-		if (symbol === null) {
-			throw new CodeIndexError(
-				'symbol_not_found',
-				`Unknown symbol: ${input.symbolId}. Symbol IDs are opaque; copy one from find_symbol or outline instead of constructing it.`,
+			if (symbol === null) {
+				throw new CodeIndexError(
+					'symbol_not_found',
+					`Unknown symbol: ${input.symbolId}. Symbol IDs are opaque; copy one from find_symbol or outline instead of constructing it.`,
+				);
+			}
+
+			assertKnownContext(this.#database, generation.id, input.context);
+
+			return queryReadSymbol(
+				{
+					database: this.#database,
+					rootDir: this.#config.rootDir,
+					generationId: generation.id,
+					freshness: this.getFreshness(),
+					symbol,
+					isPathDirty: (pathName) => this.#coordinator.isPathDirty(pathName),
+					maxReadLines: this.#config.maxReadLines,
+					maxResultBytes,
+				},
+				input,
 			);
-		}
-
-		assertKnownContext(this.#database, generation.id, input.context);
-
-		return queryReadSymbol(
-			{
-				database: this.#database,
-				rootDir: this.#config.rootDir,
-				generationId: generation.id,
-				freshness: this.getFreshness(),
-				symbol,
-				isPathDirty: (pathName) => this.#coordinator.isPathDirty(pathName),
-				maxReadLines: this.#config.maxReadLines,
-				maxResultBytes,
-			},
-			input,
-		);
+		});
 	}
 
 	public async close(): Promise<void> {

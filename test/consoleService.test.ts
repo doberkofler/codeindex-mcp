@@ -89,6 +89,7 @@ const status: IndexStatusType = {
 	state: 'published',
 	refresh: 'current',
 	generationId: 'generation-1',
+	revision: 1,
 	building: false,
 	scope: {
 		root: '/workspace',

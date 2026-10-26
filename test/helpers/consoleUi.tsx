@@ -37,6 +37,7 @@ export const statusOf = (overrides: Partial<ConsoleSnapshotType['status']> = {})
 	state: 'published',
 	refresh: 'current',
 	generationId: '0123456789abcdef',
+	revision: 1,
 	building: false,
 	scope: {
 		root: '/workspace',

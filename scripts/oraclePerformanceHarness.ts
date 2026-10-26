@@ -143,7 +143,7 @@ const buildOptions = (
 		.replace(/\.\d{3}Z$/u, 'Z');
 
 	return {
-		bundlePath: resolve(repositoryRoot, input.values['bundle'] ?? 'benchmark/oracle-production-20261025/corpus.json'),
+		bundlePath: resolve(repositoryRoot, input.values['bundle'] ?? 'benchmark/oracle-production-20261027/corpus.json'),
 		thresholdsPath: resolve(repositoryRoot, input.values['thresholds'] ?? 'benchmark/oracle-performance/thresholds.json'),
 		summaryPath: resolve(repositoryRoot, input.values['summary'] ?? 'benchmark/oracle-performance/summary.json'),
 		outputPath: resolve(repositoryRoot, input.values['output'] ?? join(evidenceRoot, 'oracle-performance', timestamp)),

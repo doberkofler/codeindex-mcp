@@ -239,7 +239,7 @@ the installed `codeindex-mcp/mcp` entry.
 
 ```bash
 codeindex-cli update     # build only when source or configuration changed
-codeindex-cli rebuild    # force a new generation
+codeindex-cli rebuild    # force a full re-extraction and a new revision
 codeindex-cli status     # generation, counts, freshness, scope
 codeindex-cli verify     # SQLite integrity and stored counts
 codeindex-cli analytics  # offline analytics report (text, json, html)
@@ -371,7 +371,8 @@ in [Verification workflows](.github/workflows/README.md).
   compilation branch evaluation.
 - ORDS and cross-language edges are planned but not shipped.
 - No embeddings, fuzzy search, or full-text search.
-- No incremental delta storage; reuse is generation-granular.
+- Per-path fact deltas and per-file parse-digest fact reuse; the published
+  generation identifier is stable and every refresh increments its revision.
 - Console and MCP trust the local loopback boundary.
 
 ## License

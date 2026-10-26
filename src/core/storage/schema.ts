@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '10';
+export const SCHEMA_VERSION = '11';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -49,6 +49,7 @@ create table if not exists generation (
 	config_hash text not null,
 	started_at text not null,
 	completed_at text,
+	revision integer not null default 0,
 	file_count integer not null default 0,
 	symbol_count integer not null default 0,
 	occurrence_count integer not null default 0,
@@ -82,6 +83,16 @@ create table if not exists file (
 );
 
 create index if not exists file_by_content on file (content_sha256);
+
+-- One digest per path group of persisted fact rows. Revisions rewrite only
+-- path groups whose digest changed, so an unchanged file costs no fact writes.
+create table if not exists generation_file_digest (
+	generation_id text not null,
+	path text not null,
+	digest text not null,
+	primary key (generation_id, path),
+	foreign key (generation_id, path) references file(generation_id, path) on delete cascade
+);
 
 create table if not exists symbol (
 	generation_id text not null references generation(id) on delete cascade,

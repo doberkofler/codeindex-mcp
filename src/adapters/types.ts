@@ -32,6 +32,39 @@ export type ExtractorBuildType = ExtractedFactSetType;
 export const extractorSourceExtensions = (extractor: ExtractorType, config: ConfigType): readonly string[] =>
 	extractor.sourceExtensionsFor?.(config) ?? extractor.sourceExtensions;
 
+/**
+ * One adapter-owned cache artifact written under a content hash.
+ *
+ * Artifacts are derived data: losing them costs work, never correctness.
+ */
+type ExtractorArtifactType = Readonly<{
+	readonly contentSha256: string;
+	readonly kind: string;
+}>;
+
+/** One adapter-owned cache artifact payload. */
+type ExtractorArtifactEntryType = ExtractorArtifactType & Readonly<{readonly payload: string}>;
+
+/** Persisted artifact cache handed to an extractor for the duration of one build. */
+export type ExtractorArtifactCacheType = Readonly<{
+	/** Reports whether the identical artifact is already persisted. */
+	readonly has: (artifact: ExtractorArtifactType) => boolean;
+	/** Buffers one artifact payload for persistence after the build. */
+	readonly write: (artifact: ExtractorArtifactEntryType) => void;
+}>;
+
+/** Evidence available to an extractor that wants to reuse the published facts. */
+export type ExtractorFactReuseInputType = Readonly<{
+	readonly config: ConfigType;
+	readonly scan: ScanResultType;
+	/** Files and content hashes of the published generation. */
+	readonly publishedFiles: readonly Readonly<{readonly path: string; readonly sha256: string}>[];
+	/** Reads one persisted artifact under its content hash, or null when absent. */
+	readonly read: (artifact: ExtractorArtifactType) => string | null;
+	/** Buffers an artifact that the proof itself produced, such as a new digest. */
+	readonly write: (artifact: ExtractorArtifactEntryType) => void;
+}>;
+
 export type ExtractorType = Readonly<{
 	/** Stable adapter identifier persisted with every generation. */
 	readonly id: string;
@@ -56,7 +89,14 @@ export type ExtractorType = Readonly<{
 	 */
 	scan: (config: ConfigType, knownPaths: readonly string[]) => ScanResultType;
 	/** Extracts declarations, occurrences, dependencies, and diagnostics. */
-	build: (config: ConfigType, scan: ScanResultType) => ExtractorBuildType;
+	build: (config: ConfigType, scan: ScanResultType, cache?: ExtractorArtifactCacheType) => ExtractorBuildType;
+	/**
+	 * Proves that the published facts remain valid for a changed source manifest.
+	 *
+	 * Returning true lets the core revise version metadata without extraction.
+	 * The proof must be conservative: any doubt returns false.
+	 */
+	canReusePublishedFacts?: (input: ExtractorFactReuseInputType) => boolean;
 	/** Absolute configuration files that affect extraction. */
 	configFiles: (config: ConfigType) => readonly string[];
 	/** Reports whether a path is publishable authored source. */

@@ -67,6 +67,7 @@ export const toGeneration = (row: SqlRowType): GenerationRowType => ({
 	configHash: asString(row, 'config_hash'),
 	startedAt: asString(row, 'started_at'),
 	completedAt: asNullableString(row, 'completed_at'),
+	revision: asNumber(row, 'revision'),
 	fileCount: asNumber(row, 'file_count'),
 	symbolCount: asNumber(row, 'symbol_count'),
 	occurrenceCount: asNumber(row, 'occurrence_count'),

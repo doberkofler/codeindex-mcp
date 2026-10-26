@@ -144,13 +144,15 @@ export const runEditScenario = async (
 				return;
 			}
 
-			const previous = index.getStatus().generationId;
+			const previous = index.getStatus().revision;
 			appendFileSync(absolutePath, '\n', {encoding: 'utf8'});
 			const startedAt = performance.now();
 			const status = await waitFor({
 				attempt: () => {
 					const current = index.getStatus();
-					return current.generationId !== previous && current.refresh === 'current' ? current : null;
+					// Publication revises the stable generation; the revision is the
+					// observable freshness boundary.
+					return current.refresh === 'current' && current.revision !== previous ? current : null;
 				},
 				timeoutMs,
 				label: `edit ${String(iteration)} publication`,

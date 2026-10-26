@@ -20,7 +20,7 @@
 		"src/core/query/referenceQuery.ts",
 		"src/core/query/referenceResolution.ts",
 		"src/core/query/symbolAtQuery.ts",
-		"src/core/storage/database.ts"
+		"src/core/storage/databaseCommit.ts"
 	],
 	"contextFiles": [],
 	"forbiddenFiles": ["src/core/errors/codeIndexError.ts"],

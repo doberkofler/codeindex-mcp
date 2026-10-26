@@ -366,9 +366,10 @@ command reproduces the same content sequence. Build failures carry a closed
 or `unknown`); the same value is written to the `build_failed` analytics event
 and summarized by `analytics summary`.
 
-The declared retention policy is one published plus one superseded generation.
-Every observation must stay within two generations, twice the indexed file count
-for content versions, and two extraction artifacts per content version.
+The declared retention policy is one published generation and no superseded rows;
+every refresh revises that generation in place. Every observation must stay within
+one generation, twice the indexed file count for content versions, and two
+extraction artifacts per content version.
 Database bytes are reported but not gated by an arbitrary threshold; row counts
 prove the policy bound. A report that fails any gate exits non-zero. Generated
 workspaces and databases are removed after the report is written unless

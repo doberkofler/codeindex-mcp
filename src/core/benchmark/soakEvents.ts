@@ -34,12 +34,12 @@ const FAILURE_BACKUP = '.soak-failure-backup';
 const FAILURE_TRIGGER_SEQUENCE = 0;
 
 const runSingleEvent = async (state: SoakStateType, sequence: number): Promise<SoakEventType> => {
-	const previousGeneration = state.index.getStatus().generationId;
+	const previousRevision = state.index.getStatus().revision;
 	const sampler = startResourceSampler();
 	const startedAt = performance.now();
 	const target = EDIT_TARGETS[(sequence - 1) % EDIT_TARGETS.length] ?? EDIT_TARGETS[0];
 	const edit = appendEdit(state.config.rootDir, target, sequence, 1);
-	const status = await freshStatusOf(state, previousGeneration, state.plan.timeoutMs, `single event ${String(sequence)}`);
+	const status = await freshStatusOf(state, previousRevision, state.plan.timeoutMs, `single event ${String(sequence)}`);
 
 	return eventOf({
 		sequence,
@@ -54,7 +54,7 @@ const runSingleEvent = async (state: SoakStateType, sequence: number): Promise<S
 };
 
 const runBurstEvent = async (state: SoakStateType, sequence: number): Promise<SoakEventType> => {
-	const previousGeneration = state.index.getStatus().generationId;
+	const previousRevision = state.index.getStatus().revision;
 	const sampler = startResourceSampler();
 	const startedAt = performance.now();
 	const firstTarget = EDIT_TARGETS[(sequence - 1) % EDIT_TARGETS.length] ?? EDIT_TARGETS[0];
@@ -66,7 +66,7 @@ const runBurstEvent = async (state: SoakStateType, sequence: number): Promise<So
 		edits.push(appendEdit(state.config.rootDir, target, sequence, slot));
 	}
 
-	const status = await freshStatusOf(state, previousGeneration, state.plan.timeoutMs, `burst event ${String(sequence)}`);
+	const status = await freshStatusOf(state, previousRevision, state.plan.timeoutMs, `burst event ${String(sequence)}`);
 
 	return eventOf({
 		sequence,
@@ -81,7 +81,7 @@ const runBurstEvent = async (state: SoakStateType, sequence: number): Promise<So
 };
 
 const staleProbeOf = async (state: SoakStateType, sequence: number): Promise<Readonly<{event: SoakEventType; stale: SoakStaleRefusalType}>> => {
-	const previousGeneration = state.index.getStatus().generationId;
+	const previousRevision = state.index.getStatus().revision;
 	const sampler = startResourceSampler();
 	const startedAt = performance.now();
 	const symbol = state.index.getOutline({path: STALE_TARGET, limit: 1}).items.at(0);
@@ -98,7 +98,7 @@ const staleProbeOf = async (state: SoakStateType, sequence: number): Promise<Rea
 		}
 	}
 
-	const status = await freshStatusOf(state, previousGeneration, state.plan.timeoutMs, `stale event ${String(sequence)}`);
+	const status = await freshStatusOf(state, previousRevision, state.plan.timeoutMs, `stale event ${String(sequence)}`);
 
 	return {
 		event: eventOf({
@@ -185,7 +185,7 @@ const injectFailureOf = async (state: SoakStateType): Promise<SoakFailureType> =
 		detail: failureDetailOf(failed.lastError ?? 'unknown build failure', state.config.rootDir),
 		publishedGenerationBefore: before.generationId,
 		publishedGenerationAfter: afterFailure.generationId,
-		publicationPreserved: before.generationId === afterFailure.generationId,
+		publicationPreserved: before.revision === afterFailure.revision,
 		queriesServedWhileFailed: servedWhileFailed,
 		recovered: recovered.refresh === 'current',
 		recoveryMs: Math.round(performance.now() - startedAt),

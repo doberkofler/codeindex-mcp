@@ -9,6 +9,7 @@ const POLL_INTERVAL_MS = 150;
 
 const reusedReport = (generation: GenerationRowType): BuildReportType => ({
 	generationId: generation.id,
+	revision: generation.revision,
 	state: 'published',
 	reused: true,
 	durationMs: 0,

@@ -30,6 +30,7 @@ type StatusType = Readonly<{
 	state: string;
 	refresh: string;
 	generationId: string | null;
+	revision: number | null;
 	counts: Readonly<{files: number; symbols: number}>;
 	lease: LeaseType | null;
 }>;
@@ -48,7 +49,7 @@ type ProcessType = Readonly<{
 
 type GenerationStateType = Readonly<{id: string; state: string}>;
 
-type LiveBuildType = Readonly<{owner: ProcessType; pid: number; lease: LeaseType; buildingId: string}>;
+type LiveBuildType = Readonly<{owner: ProcessType; pid: number; lease: LeaseType}>;
 
 const envelopeOf = (result: Readonly<{content: readonly {type: string; text?: string}[]}>): EnvelopeType => JSON.parse(textOf(result)) as EnvelopeType;
 
@@ -232,7 +233,7 @@ const writeContentionSources = (workspace: WorkspaceType): void => {
 	}
 };
 
-const seedPublication = async (workspace: WorkspaceType): Promise<Readonly<{generationId: string; symbolId: string}>> => {
+const seedPublication = async (workspace: WorkspaceType): Promise<Readonly<{generationId: string; revision: number; symbolId: string}>> => {
 	const process = await openProcess(workspace);
 
 	try {
@@ -240,11 +241,11 @@ const seedPublication = async (workspace: WorkspaceType): Promise<Readonly<{gene
 		const symbols = await symbolsOf(process.client, 'formatUser');
 		const symbol = symbols.at(0);
 
-		if (status.generationId === null || symbol === undefined) {
+		if (status.generationId === null || status.revision === null || symbol === undefined) {
 			throw new Error('Seed publication did not expose the anchor generation and symbol');
 		}
 
-		return {generationId: status.generationId, symbolId: symbol.symbolId};
+		return {generationId: status.generationId, revision: status.revision, symbolId: symbol.symbolId};
 	} finally {
 		await process.stop();
 	}
@@ -259,23 +260,26 @@ const startFrozenOwner = async (workspace: WorkspaceType, inspector: DatabaseSyn
 			throw new Error('Owner process did not start');
 		}
 
-		const build = await waitFor('owner build', () => {
+		const lease = await waitFor('owner build', () => {
 			const leases = leaseRows(inspector);
-			const lease = leases.at(0);
-			const building = generationRows(inspector).find((row) => row.state === 'building');
+			const current = leases.at(0);
 
-			if (leases.length !== 1 || lease === undefined || lease.processId !== pid || building === undefined) {
+			if (leases.length !== 1 || current === undefined || current.processId !== pid) {
 				return null;
 			}
 
-			return {lease, building};
+			return current;
 		});
+
+		// Revisions are applied in one transaction, so there is no partial
+		// generation to observe. Freeze the owner while it is still extracting.
+		await delay(300);
 
 		if (!owner.transport.signal('SIGSTOP')) {
 			throw new Error('Could not stop the owner process');
 		}
 
-		return {owner, pid, lease: build.lease, buildingId: build.building.id};
+		return {owner, pid, lease};
 	} catch (error) {
 		owner.transport.signal('SIGKILL');
 		await owner.stop();
@@ -297,7 +301,7 @@ const assertReaderServesPublishedGeneration = async (
 	const anchorSymbols = await symbolsOf(reader.client, 'formatUser');
 	const unpublishedSymbols = await symbolsOf(reader.client, CONTENTION_SYMBOL);
 
-	expect(status).toMatchObject({ready: true, state: 'building', generationId, counts: {files: SOURCE_FILES}});
+	expect(status).toMatchObject({ready: true, generationId, counts: {files: SOURCE_FILES}});
 	expect(status.lease).toMatchObject({ownerId: live.lease.ownerId, processId: live.pid});
 	expect(anchorSymbols.map((item) => item.name)).toContain('formatUser');
 	expect(unpublishedSymbols).toStrictEqual([]);
@@ -318,7 +322,7 @@ const killOwnerAndAssertNoPublication = async (live: LiveBuildType, inspector: D
 	}
 
 	expect(publishedRows(inspector)).toStrictEqual([{id: generationId, state: 'published'}]);
-	expect(generationRows(inspector).find((row) => row.id === live.buildingId)?.state).toBe('building');
+	expect(generationRows(inspector)).toStrictEqual([{id: generationId, state: 'published'}]);
 	assertIntegrity(inspector);
 	assertPublishedGenerationConsistent(inspector, generationId);
 
@@ -348,26 +352,33 @@ const expireLease = (inspector: DatabaseSync, ownerId: string): void => {
 	inspector.prepare('update build_lease set expires_at = ? where owner_id = ?').run(new Date(Date.now() - 1).toISOString(), ownerId);
 };
 
-const assertTakeoverPublication = async (reader: ProcessType, inspector: DatabaseSync, live: LiveBuildType, previousGenerationId: string): Promise<void> => {
+const assertTakeoverPublication = async (
+	reader: ProcessType,
+	inspector: DatabaseSync,
+	previousRevision: number,
+	previousGenerationId: string,
+): Promise<void> => {
 	const takeover = await waitForStatus(
 		reader.client,
 		(status) =>
 			status.ready &&
 			status.refresh === 'current' &&
 			status.generationId !== null &&
-			status.generationId !== previousGenerationId &&
+			status.revision !== null &&
+			status.revision > previousRevision &&
 			status.counts.files === SOURCE_FILES + FIXTURE_FILE_COUNT,
 		'waiting reader takeover publication',
 	);
 	const takeoverSymbols = await symbolsOf(reader.client, CONTENTION_SYMBOL);
 	const retainedSymbols = await symbolsOf(reader.client, 'formatUser');
-	const finalRows = generationRows(inspector);
 	const takeoverGeneration = takeover.generationId ?? '';
 
+	// Publication revises the stable generation identifier instead of replacing it.
+	expect(takeoverGeneration).toBe(previousGenerationId);
 	expect([...new Set(takeoverSymbols.map((item) => item.path))]).toStrictEqual(['src/lease-contention-1199.ts']);
 	expect(retainedSymbols.map((item) => item.name)).toContain('formatUser');
 	expect(publishedRows(inspector)).toStrictEqual([{id: takeoverGeneration, state: 'published'}]);
-	expect(finalRows.find((row) => row.id === live.buildingId)?.state).toBe('building');
+	expect(generationRows(inspector)).toStrictEqual([{id: takeoverGeneration, state: 'published'}]);
 	expect(leaseRows(inspector)).toStrictEqual([]);
 	assertIntegrity(inspector);
 	assertPublishedGenerationConsistent(inspector, takeoverGeneration);
@@ -403,7 +414,7 @@ describe('build lease contention', () => {
 		({owner} = live);
 
 		expect(publishedRows(database)).toStrictEqual([{id: seed.generationId, state: 'published'}]);
-		expect(generationRows(database).find((row) => row.id === live.buildingId)?.state).toBe('building');
+		expect(generationRows(database)).toStrictEqual([{id: seed.generationId, state: 'published'}]);
 
 		reader = await openProcess(workspace);
 		await assertReaderServesPublishedGeneration(reader, database, live, seed.generationId);
@@ -413,6 +424,6 @@ describe('build lease contention', () => {
 
 		await assertStaleLeaseIsNotRenewed(database, deadLease);
 		expireLease(database, deadLease.ownerId);
-		await assertTakeoverPublication(reader, database, live, seed.generationId);
+		await assertTakeoverPublication(reader, database, seed.revision, seed.generationId);
 	});
 });

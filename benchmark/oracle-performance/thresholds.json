@@ -3,7 +3,7 @@
 	"declaredAt": "2026-10-25T16:03:38Z",
 	"declaration": "Declared before the first production measurement. Warning and failure values are absolute and are not revised after results are observed.",
 	"corpus": {
-		"bundle": "benchmark/oracle-production-20261025/corpus.json",
+		"bundle": "benchmark/oracle-production-20261027/corpus.json",
 		"sourceHash": "2bb0da1e8151410432cfe55d30607ed229976b7ccfd974a97027ebeb220f7f2a",
 		"configHash": "8ba026c038fe53224ab378d0e898589f0da818c4e32a3f98cf6957a493e24065",
 		"fileCount": 1244

@@ -18,6 +18,7 @@ type StatusType = Readonly<{
 	state: string;
 	refresh: string;
 	generationId: string | null;
+	revision: number | null;
 	counts: Readonly<{files: number; symbols: number}>;
 	lastError: string | null;
 }>;
@@ -78,14 +79,14 @@ const waitForStatus = async (client: Client, predicate: (status: StatusType) => 
 	return status;
 };
 
-const waitForFreshGeneration = async (client: Client, previous: string, label: string): Promise<StatusType> => {
+const waitForFreshGeneration = async (client: Client, previous: number | null, label: string): Promise<StatusType> => {
 	const status = await waitForStatus(
 		client,
-		(current) => current.ready && current.refresh === 'current' && current.generationId !== null && current.generationId !== previous,
+		(current) => current.ready && current.refresh === 'current' && current.revision !== null && current.revision !== previous,
 		label,
 	);
 
-	expect(status.generationId).not.toBe(previous);
+	expect(status.revision).not.toBe(previous);
 	return status;
 };
 
@@ -104,7 +105,7 @@ const symbolsOf = async (client: Client, query: string): Promise<readonly Symbol
 
 const waitForFileState = async (
 	client: Client,
-	previous: string,
+	previous: number | null,
 	expected: Readonly<{label: string; files: number; symbol: string; path: string | null}>,
 ): Promise<StatusType> => {
 	let observed = 'no observation';
@@ -116,7 +117,7 @@ const waitForFileState = async (
 
 			observed = JSON.stringify({ready: status.ready, refresh: status.refresh, files: status.counts.files, paths: items.map((item) => item.path)});
 
-			if (!status.ready || status.refresh !== 'current' || status.generationId === previous || status.counts.files !== expected.files) {
+			if (!status.ready || status.refresh !== 'current' || status.revision === previous || status.counts.files !== expected.files) {
 				return null;
 			}
 
@@ -255,7 +256,7 @@ const assertInitialPublication = async (client: Client): Promise<AnchorType> => 
 };
 
 const assertWatcherRebuild = async (client: Client, workspace: WorkspaceType, initial: AnchorType): Promise<StatusType> => {
-	const previous = initial.status.generationId ?? '';
+	const previous = initial.status.revision;
 	const models = path.join(workspace.root, 'src', 'models.ts');
 
 	appendFileSync(models, "\nexport const systemEdit = 'edited';\n");
@@ -278,7 +279,7 @@ const assertFileLifecycle = async (client: Client, workspace: WorkspaceType, ini
 	const added = path.join(workspace.root, 'src', 'system-added.ts');
 	const original = path.join(workspace.root, 'src', 'system-original.ts');
 	const renamed = path.join(workspace.root, 'src', 'system-renamed.ts');
-	let previous = initial.generationId ?? '';
+	let previous = initial.revision;
 
 	writeFileSync(added, "export const systemAdded = 'added';\n");
 	let current = await waitForFileState(client, previous, {
@@ -288,11 +289,11 @@ const assertFileLifecycle = async (client: Client, workspace: WorkspaceType, ini
 		path: 'src/system-added.ts',
 	});
 
-	previous = current.generationId ?? '';
+	previous = current.revision;
 	rmSync(added);
 	current = await waitForFileState(client, previous, {label: 'watcher rebuild after delete', files: SOURCE_FILES, symbol: 'systemAdded', path: null});
 
-	previous = current.generationId ?? '';
+	previous = current.revision;
 	writeFileSync(original, "export const systemRenamed = 'renamed';\n");
 	current = await waitForFileState(client, previous, {
 		label: 'watcher rebuild after rename source add',
@@ -301,7 +302,7 @@ const assertFileLifecycle = async (client: Client, workspace: WorkspaceType, ini
 		path: 'src/system-original.ts',
 	});
 
-	previous = current.generationId ?? '';
+	previous = current.revision;
 	renameSync(original, renamed);
 	current = await waitForFileState(client, previous, {
 		label: 'watcher rebuild after rename',
@@ -335,7 +336,7 @@ const assertFailedBuildIsolation = async (client: Client, workspace: WorkspaceTy
 	renameSync(backup, target);
 	appendFileSync(trigger, '\nexport const recoveryTrigger = 1;\n');
 
-	const recovered = await waitForFreshGeneration(client, published, 'failed-build recovery');
+	const recovered = await waitForFreshGeneration(client, initial.revision, 'failed-build recovery');
 	const recoveredSymbols = await symbolsOf(client, 'formatUser');
 
 	expect(recovered.counts.files).toBe(initial.counts.files);
@@ -355,7 +356,7 @@ const assertRestartReuse = async (connection: ProcessType, initial: StatusType):
 };
 
 const assertOfflineReconciliation = async (connection: ProcessType, initial: StatusType): Promise<StatusType> => {
-	const status = await waitForFreshGeneration(connection.client, initial.generationId ?? '', 'offline change reconciliation');
+	const status = await waitForFreshGeneration(connection.client, initial.revision, 'offline change reconciliation');
 	const offlineSymbols = await symbolsOf(connection.client, 'systemOffline');
 
 	expect(offlineSymbols).toMatchObject([{path: 'src/system-offline.ts'}]);

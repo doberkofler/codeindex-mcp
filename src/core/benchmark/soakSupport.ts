@@ -196,12 +196,12 @@ export const markInjectedFailure = (state: SoakStateType, failure: SoakFailureTy
 	existing.recovered = failure.recovered;
 };
 
-export const freshStatusOf = async (state: SoakStateType, previousGeneration: string | null, timeoutMs: number, label: string): Promise<IndexStatusType> => {
+export const freshStatusOf = async (state: SoakStateType, previousRevision: number | null, timeoutMs: number, label: string): Promise<IndexStatusType> => {
 	const status = await waitFor({
 		attempt: () => {
 			const current = state.index.getStatus();
 			noteStatus(state, current);
-			return current.refresh === 'current' && current.generationId !== previousGeneration ? current : null;
+			return current.refresh === 'current' && current.revision !== previousRevision ? current : null;
 		},
 		timeoutMs,
 		label,

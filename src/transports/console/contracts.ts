@@ -110,6 +110,7 @@ const indexStatusSchema = z.object({
 	state: z.enum(['building', 'published', 'superseded', 'failed', 'absent']),
 	refresh: z.enum(['current', 'dirty', 'building', 'failed', 'unknown', 'stopping']),
 	generationId: z.string().nullable(),
+	revision: z.number().nullable(),
 	building: z.boolean(),
 	scope: z.object({
 		root: z.string(),

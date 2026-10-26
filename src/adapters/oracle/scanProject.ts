@@ -4,7 +4,7 @@ import path from 'node:path';
 import {type ConfigType, toRepositoryPath} from '../../core/config/config.ts';
 import {createSourceFileRecord, computeSourceHash} from '../../core/generation/sourceFiles.ts';
 import {type ScanProjectResultType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
-import {discoverOracleFiles, isOracleSourcePath, oracleManifestHash, readOracleManifest} from './manifest.ts';
+import {discoverOracleFiles, isOracleSourcePath, oracleArtifactContextHash, oracleManifestHash, readOracleManifest} from './manifest.ts';
 import {oracleParserIdOfConfig} from './parserBinding.ts';
 import {oracleParserIdentityOf} from './parserIdentity.ts';
 
@@ -56,6 +56,7 @@ type ContextScanType = Readonly<{
 	project: ScanProjectResultType;
 	files: readonly SourceFileType[];
 	excludedFileCount: number;
+	artifactContextHash: string;
 }>;
 
 const scanContext = (config: ConfigType, context: ConfigType['projects'][number]): ContextScanType => {
@@ -63,17 +64,19 @@ const scanContext = (config: ConfigType, context: ConfigType['projects'][number]
 	const discovery = discoverOracleFiles(config.rootDir, manifest.manifest);
 	const files = discovery.files.map((file) => createSourceFileRecord(file.absolutePath, config.rootDir));
 	const identity = oracleParserIdentityOf(oracleParserIdOfConfig(config));
-	const configHash = oracleManifestHash({
+	const hashInput = {
 		manifestBytes: manifest.manifestBytes,
 		canonicalSchema: manifest.canonicalSchema,
 		include: manifest.manifest.include,
 		exclude: manifest.manifest.exclude,
 		extensions: manifest.manifest.extensions,
 		parserRevision: identity.revision,
-		files,
-	});
+	};
+	const configHash = oracleManifestHash({...hashInput, files});
+	const artifactContextHash = oracleArtifactContextHash(hashInput);
 
 	return {
+		artifactContextHash,
 		project: {
 			name: context.name,
 			projectFile: isInside(config.rootDir, context.projectFilePath)
@@ -112,6 +115,12 @@ export const scanOracleProject = (config: ConfigType, _knownPaths: readonly stri
 	const configHash = hash(
 		[...projects.map((project) => `${project.name}:${project.configHash}`), `extractor:${ORACLE_EXTRACTOR_ID}@${ORACLE_EXTRACTOR_VERSION}`].join('\n'),
 	);
+	const artifactContextHash = hash(
+		[
+			...contexts.map((context) => `${context.project.name}:${context.artifactContextHash}`).sort(),
+			`extractor:${ORACLE_EXTRACTOR_ID}@${ORACLE_EXTRACTOR_VERSION}`,
+		].join('\n'),
+	);
 	const projectFileCount = projects.reduce((total, project) => total + project.projectFileCount, 0);
 	const excludedFileCount = contexts.reduce((total, context) => total + context.excludedFileCount, 0);
 	const sourceHash = computeSourceHash(files);
@@ -127,6 +136,7 @@ export const scanOracleProject = (config: ConfigType, _knownPaths: readonly stri
 		files,
 		sourceHash,
 		configHash,
+		artifactContextHash,
 		projects,
 		projectFileCount,
 		excludedFileCount,

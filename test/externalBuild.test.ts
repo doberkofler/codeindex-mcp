@@ -13,6 +13,7 @@ const generation = (id: string): GenerationRowType => ({
 	configHash: 'config',
 	startedAt: '2026-01-01T00:00:00.000Z',
 	completedAt: '2026-01-01T00:00:01.000Z',
+	revision: 1,
 	fileCount: 1,
 	symbolCount: 2,
 	occurrenceCount: 3,
@@ -63,6 +64,7 @@ describe('external build observation', () => {
 			state: 'published',
 			report: {
 				generationId: 'external',
+				revision: 1,
 				state: 'published',
 				reused: true,
 				durationMs: 0,

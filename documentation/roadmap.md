@@ -40,6 +40,8 @@ Remaining work is evidence-driven:
   remains recommended at `1.307` Code Mode cost (upper `1.473`), see
   [Exposure evidence](../evaluation/audits/exposure-eval-050.md);
 - add incremental compiler state only if full-generation refresh misses its gate;
+  **done** — per-file parse-digest fact reuse and per-path revision deltas closed
+  the one-file edit-to-fresh gate (see below);
 - add binding-aware façade analysis only when module reachability is insufficient;
 - create controlled cases for dependency usage and impact.
 

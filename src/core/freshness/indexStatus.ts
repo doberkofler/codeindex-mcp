@@ -77,6 +77,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 		state: refresh.state === 'building' ? 'building' : (published?.state ?? 'absent'),
 		refresh: refresh.state,
 		generationId: published?.id ?? null,
+		revision: published?.revision ?? null,
 		building: refresh.state === 'building',
 		scope: {
 			root: input.config.rootDir,
@@ -118,6 +119,7 @@ export const summaryStatusOf = (status: IndexStatusType): IndexStatusSummaryType
 	state: status.state,
 	refresh: status.refresh,
 	generationId: status.generationId,
+	revision: status.revision,
 	building: status.building,
 	scope: {
 		projectName: status.scope.projectName,

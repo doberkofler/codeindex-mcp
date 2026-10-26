@@ -10,7 +10,6 @@ import {
 	type WorkingCopyIdentityType,
 } from '../model.ts';
 import {debugFor} from '../logging/debug.ts';
-import {CodeIndexError} from '../errors/codeIndexError.ts';
 import {
 	countContentVersions,
 	countExtractionArtifacts as countStoredExtractionArtifacts,
@@ -22,6 +21,7 @@ import {
 	listContentHashes as listStoredContentHashes,
 	listFiles as listStoredFiles,
 	putExtractionArtifact,
+	putExtractionArtifacts,
 	readFile,
 	type ExtractionArtifactKeyType,
 } from './databaseContent.ts';
@@ -31,14 +31,15 @@ import {
 	listDependencyBindings as listStoredDependencyBindings,
 } from './databaseDependency.ts';
 import {countGenerationRows, insertGenerationFacts, type GenerationFactCountsType, type GenerationFactsInputType} from './databaseFacts.ts';
+import {commitGeneration, publishNewGeneration, type GenerationCommitInputType, type GenerationCommitType} from './databaseCommit.ts';
 import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContextType} from './databaseIdentity.ts';
-import {acquireLease, BUILD_LEASE_TTL_MS, readLease, releaseLease, renewLease, renewLeaseStrict} from './databaseLease.ts';
+import {acquireLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
 import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
 import {asNumber, asString} from './databaseRows.ts';
 import {verifyDatabaseIntegrity} from './databaseIntegrity.ts';
-import {analyzeDatabase, ensureStatistics} from './databaseStatistics.ts';
+import {ensureStatistics} from './databaseStatistics.ts';
 import {listProjectContextNames as listStoredProjectContextNames} from './databaseContextQueries.ts';
 import {
 	bindingBelongsToSymbol,
@@ -64,11 +65,12 @@ import {
 	symbolSummaryById,
 	symbolsAtPosition,
 } from './databasePublicationQueries.ts';
-import {transaction} from './databaseTransaction.ts';
+import {readSnapshot} from './databaseSnapshot.ts';
 
 const debug = debugFor('database');
 
 export type {DatabaseOpenContextType} from './databaseIdentity.ts';
+export type {GenerationCommitInputType, GenerationCommitType} from './databaseCommit.ts';
 export {BUILD_LEASE_TTL_MS} from './databaseLease.ts';
 
 /**
@@ -188,6 +190,10 @@ export class IndexDatabase {
 		putExtractionArtifact(this.#writer, input);
 	}
 
+	public putExtractionArtifacts(entries: readonly (ExtractionArtifactKeyType & Readonly<{artifactJson: string}>)[]): void {
+		putExtractionArtifacts(this.#writer, entries);
+	}
+
 	public getExtractionArtifact(input: ExtractionArtifactKeyType): string | null {
 		return getExtractionArtifact(this.#reader, input);
 	}
@@ -232,81 +238,30 @@ export class IndexDatabase {
 	}
 
 	/**
-	 * Publishes one complete generation and supersedes the previous publication.
+	 * Applies one refresh to the published generation in a single transaction.
 	 *
-	 * Previous rows are retained as `superseded` for one generation so in-flight
-	 * queries with a cached generation identifier can still complete. Unreferenced
-	 * content and artifacts are removed.
-	 *
-	 * @param generationId - Completed generation identifier.
-	 * @param diagnosticCount - Persisted diagnostic count; defaults to a count query.
-	 * @param stages - Optional measured build-stage durations.
-	 * @param ownerId - Lease owner that must still own the build lease.
-	 * @returns Measured publication duration.
-	 * @throws {@link CodeIndexError} When the lease was lost or expired before publication.
+	 * @param input - Scan manifest, facts, stages, and optional lease owner.
+	 * @returns Measured stages, persisted counts, and written row groups.
 	 */
+	public commitGeneration(input: GenerationCommitInputType): GenerationCommitType {
+		return commitGeneration({writer: this.#writer, projectId: this.#projectId}, input);
+	}
+
 	public publish(
 		generationId: string,
 		diagnosticCount?: number,
 		stages?: Readonly<{scanMs: number; compilerMs: number; extractionMs: number; insertionMs: number; verificationMs: number}>,
 		ownerId?: string,
 	): number {
-		const counts = {
-			files: this.countRows(generationId, 'file'),
-			symbols: this.countRows(generationId, 'symbol'),
-			occurrences: this.countRows(generationId, 'occurrence'),
-			dependencyEdges: this.countRows(generationId, 'dependency_edge'),
-			dependencyBindings: this.countRows(generationId, 'dependency_binding'),
-			diagnostics: diagnosticCount ?? this.countRows(generationId, 'diagnostic'),
-		};
-		debug('publish generation', {generationId, counts});
-		const publicationStartedAt = performance.now();
-
-		this.#transaction(() => {
-			if (ownerId !== undefined && !renewLeaseStrict(this.#writer, {projectId: this.#projectId, ownerId, ttlMs: BUILD_LEASE_TTL_MS})) {
-				throw new CodeIndexError('index_build_failed', 'Build lease was lost or taken over before publication');
-			}
-
-			this.#writer.exec("delete from generation where state in ('superseded', 'failed')");
-
-			this.#writer
-				.prepare(
-					`update generation
-					 set state = 'published', completed_at = ?, file_count = ?, symbol_count = ?, occurrence_count = ?,
-					     dependency_edge_count = ?, dependency_binding_count = ?, diagnostic_count = ?,
-					     scan_ms = ?, compiler_ms = ?, extraction_ms = ?, insertion_ms = ?, verification_ms = ?, publication_ms = ?
-					 where id = ?`,
-				)
-				.run(
-					new Date().toISOString(),
-					counts.files,
-					counts.symbols,
-					counts.occurrences,
-					counts.dependencyEdges,
-					counts.dependencyBindings,
-					counts.diagnostics,
-					stages?.scanMs ?? null,
-					stages?.compilerMs ?? null,
-					stages?.extractionMs ?? null,
-					stages?.insertionMs ?? null,
-					stages?.verificationMs ?? null,
-					null,
-					generationId,
-				);
-
-			this.#writer.prepare("update generation set state = 'superseded' where state = 'published' and id <> ?").run(generationId);
-			this.#writer
-				.prepare("insert into metadata (key, value) values ('current_generation', ?) on conflict(key) do update set value = excluded.value")
-				.run(generationId);
-			this.#writer.exec('delete from content where not exists (select 1 from file where file.content_sha256 = content.sha256)');
-			// Refresh planner statistics inside the publication transaction so every
-			// reader plans against the published row counts.
-			analyzeDatabase(this.#writer);
-		});
-		const publicationMs = Math.round(performance.now() - publicationStartedAt);
-		this.#writer.prepare('update generation set publication_ms = ? where id = ?').run(publicationMs, generationId);
-		debug('generation published', {generationId, counts, publicationMs});
-		return publicationMs;
+		return publishNewGeneration(
+			{writer: this.#writer, projectId: this.#projectId},
+			{
+				generationId,
+				...(diagnosticCount === undefined ? {} : {diagnosticCount}),
+				...(stages === undefined ? {} : {stages}),
+				...(ownerId === undefined ? {} : {ownerId}),
+			},
+		);
 	}
 
 	public markFailed(generationId: string, message: string): void {
@@ -317,6 +272,22 @@ export class IndexDatabase {
 
 	public verifyIntegrity(): void {
 		verifyDatabaseIntegrity(this.#reader);
+	}
+
+	/**
+	 * Runs one read against a single WAL snapshot.
+	 *
+	 * A revision commits atomically, but a multi-statement query that reads the
+	 * reader connection without a transaction could observe rows from two
+	 * revisions. Starting one deferred read transaction pins every statement in
+	 * the action to the same snapshot.
+	 *
+	 * @param action - Read-only work over the reader connection.
+	 * @returns The action's value.
+	 * @throws {Error} Whatever the action throws; the snapshot is rolled back.
+	 */
+	public readSnapshot<ValueType>(action: () => ValueType): ValueType {
+		return readSnapshot(this.#reader, this.#writer, action);
 	}
 
 	public listBuildStats(generationId: string): readonly BuildStatType[] {
@@ -492,9 +463,5 @@ export class IndexDatabase {
 		} finally {
 			this.#owner?.release();
 		}
-	}
-
-	#transaction(action: () => void): void {
-		transaction(this.#writer, action);
 	}
 }

@@ -285,15 +285,16 @@ The watcher observes adapter source extensions, effective configuration files, a
 directories containing known authored imports. Events are hints; deterministic
 scanning is authoritative.
 
-The current adapter performs full-program, full-generation extraction. Immutable
-per-file artifacts may be reused, but there is no long-lived incremental TypeScript
-builder program or affected-file delta publication. A changed path is marked dirty
-immediately, and `read_symbol` rejects it until matching content is published.
+The current adapter performs full-program extraction and does not implement
+fact-reuse proof, so every TypeScript refresh re-extracts. The core still applies
+its per-path fact delta: unchanged paths are not rewritten, and the published
+generation identifier is stable with a monotonic revision. There is no long-lived
+incremental TypeScript builder program. A changed path is marked dirty immediately,
+and `read_symbol` rejects it until matching content is published.
 
-Incremental compiler state is permitted only if measurements show that the current
-full-generation approach misses the edit-to-fresh or resource gates. Any
-incremental implementation must still publish an internally complete immutable
-generation.
+Incremental compiler state for this adapter is permitted only if measurements show
+that full-program extraction misses the edit-to-fresh or resource gates. Any
+incremental implementation must still publish an internally consistent revision.
 
 ## 8. Validation commands
 

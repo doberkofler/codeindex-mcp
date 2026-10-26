@@ -173,23 +173,22 @@ export const discoverOracleFiles = (rootDir: string, manifest: OracleManifestTyp
 	return {files: files.sort((left, right) => left.relativePath.localeCompare(right.relativePath)), excludedFileCount};
 };
 
+type ManifestHashInputType = Readonly<{
+	manifestBytes: string;
+	canonicalSchema: string;
+	include: readonly string[];
+	exclude: readonly string[];
+	extensions: readonly string[];
+	parserRevision: string;
+}>;
+
 /**
  * Hashes the manifest and every input that affects parsing.
  *
  * @param input - Manifest bytes, schema, pattern set, parser identity, and file records.
  * @returns A deterministic configuration hash.
  */
-export const oracleManifestHash = (
-	input: Readonly<{
-		manifestBytes: string;
-		canonicalSchema: string;
-		include: readonly string[];
-		exclude: readonly string[];
-		extensions: readonly string[];
-		parserRevision: string;
-		files: readonly Readonly<{path: string; sha256: string}>[];
-	}>,
-): string =>
+export const oracleManifestHash = (input: ManifestHashInputType & Readonly<{files: readonly Readonly<{path: string; sha256: string}>[]}>): string =>
 	createHash('sha256')
 		.update(
 			[
@@ -200,6 +199,31 @@ export const oracleManifestHash = (
 				`extensions:${input.extensions.join(',')}`,
 				`parser:${input.parserRevision}`,
 				...input.files.map((file) => `${file.path}\u0000${file.sha256}`),
+			].join('\n'),
+		)
+		.digest('hex');
+
+/**
+ * Hashes only the configuration inputs that affect parsing.
+ *
+ * Source content is deliberately excluded: this hash keys per-file extraction
+ * artifacts, so including file hashes would invalidate every artifact on every
+ * edit and defeat reuse. The generation configuration hash keeps the content
+ * dependency and the published identity unchanged.
+ *
+ * @param input - Manifest bytes, schema, pattern set, and parser identity.
+ * @returns A content-independent artifact context hash.
+ */
+export const oracleArtifactContextHash = (input: ManifestHashInputType): string =>
+	createHash('sha256')
+		.update(
+			[
+				input.manifestBytes,
+				input.canonicalSchema,
+				`include:${input.include.join(',')}`,
+				`exclude:${input.exclude.join(',')}`,
+				`extensions:${input.extensions.join(',')}`,
+				`parser:${input.parserRevision}`,
 			].join('\n'),
 		)
 		.digest('hex');

@@ -15,6 +15,7 @@ const generation = (overrides: Partial<GenerationRowType> = {}): GenerationRowTy
 	configHash: 'config',
 	startedAt: '2026-01-01T00:00:00.000Z',
 	completedAt: '2026-01-01T00:00:02.000Z',
+	revision: 1,
 	fileCount: 1,
 	symbolCount: 2,
 	occurrenceCount: 3,

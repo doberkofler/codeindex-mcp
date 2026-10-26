@@ -46,10 +46,12 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 		return null;
 	}
 
-	const {generationId, reused, durationMs, fileCount, symbolCount, occurrenceCount, dependencyEdgeCount, dependencyBindingCount, diagnosticCount} = value;
+	const {generationId, revision, reused, durationMs, fileCount, symbolCount, occurrenceCount, dependencyEdgeCount, dependencyBindingCount, diagnosticCount} =
+		value;
 
 	if (
 		typeof generationId !== 'string' ||
+		typeof revision !== 'number' ||
 		typeof reused !== 'boolean' ||
 		typeof durationMs !== 'number' ||
 		typeof fileCount !== 'number' ||
@@ -64,6 +66,7 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 
 	return {
 		generationId,
+		revision,
 		state: value['state'],
 		reused,
 		durationMs,

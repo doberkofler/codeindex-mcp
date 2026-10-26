@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {type ConfigType} from '../../core/config/config.ts';
 import {
@@ -16,7 +17,7 @@ import {
 	type IndexedSymbolType,
 	type ScanResultType,
 } from '../../core/model.ts';
-import {type ExtractorBuildType, type ExtractorType} from '../types.ts';
+import {type ExtractorArtifactCacheType, type ExtractorBuildType, type ExtractorFactReuseInputType, type ExtractorType} from '../types.ts';
 import {extractOracleDependencies} from './extractDependencies.ts';
 import {extractOracleSymbols, type OracleContextSymbolsType, type OracleParsedFileType} from './extractSymbols.ts';
 import {mergeAdapterStats, oraclePublicationStats} from './publicationStats.ts';
@@ -33,6 +34,19 @@ import {
 } from './scanProject.ts';
 
 const debug = debugFor('oracle');
+
+/**
+ * Artifact kind prefix for the digest of one file's parser output.
+ *
+ * The digest proves that a changed file produced identical parser facts, which
+ * lets the published facts survive a content-only edit. The context suffix keeps
+ * per-context parse results (different default schemas) distinct.
+ */
+const PARSE_DIGEST_KIND = 'oracle-parse-digest';
+
+const parseDigestOf = (parse: OracleParsedFileType['parse']): string => createHash('sha256').update(JSON.stringify(parse)).digest('hex');
+
+const parseDigestKindOf = (context: string): string => `${PARSE_DIGEST_KIND}:${context}`;
 
 const LIMITATIONS: readonly string[] = [
 	'Oracle 19c static source only; no live database or catalogue indexing',
@@ -102,27 +116,42 @@ const mergePublicationFacts = (contexts: readonly ContextResultType[]): Extracte
 };
 
 const parseContext = (
-	config: ConfigType,
-	context: ConfigType['projects'][number],
-	scan: ScanResultType,
-	parser: OracleParserBindingType['parser'],
+	input: Readonly<{
+		config: ConfigType;
+		context: ConfigType['projects'][number];
+		scan: ScanResultType;
+		parser: OracleParserBindingType['parser'];
+		cache?: ExtractorArtifactCacheType;
+	}>,
 ): ContextResultType => {
+	const {config, context, scan, parser, cache} = input;
 	const startedAt = performance.now();
 	const manifest = readOracleManifest(context.projectFilePath);
 	const parsed: OracleParsedFileType[] = [];
 	const diagnostics: DiagnosticType[] = [];
 	const sources = new Map<string, string>();
+	const parseStartedAt = performance.now();
+	const digestKind = parseDigestKindOf(context.name);
 
 	for (const file of scan.files.filter((candidate) => matchesOracleManifest(candidate.path, manifest.manifest))) {
 		const source = readFileSync(file.absolutePath, 'utf8');
 		const parse = parser({source, path: file.path, defaultSchema: manifest.canonicalSchema});
+		const artifact = {contentSha256: file.sha256, kind: digestKind};
+
+		if (cache !== undefined && !cache.has(artifact)) {
+			cache.write({...artifact, payload: parseDigestOf(parse)});
+		}
 
 		parsed.push({path: file.path, parse});
 		sources.set(file.path, source);
 		diagnostics.push(...parse.diagnostics);
 	}
 
+	const readParseMs = Math.round(performance.now() - parseStartedAt);
+	const symbolsStartedAt = performance.now();
 	const symbols = extractOracleSymbols({projectId: config.projectId, context: context.name, files: parsed, storedOnly: true});
+	const symbolsMs = Math.round(performance.now() - symbolsStartedAt);
+	const referencesStartedAt = performance.now();
 	const references = resolveOracleReferences({
 		context: context.name,
 		defaultSchema: manifest.canonicalSchema,
@@ -130,6 +159,8 @@ const parseContext = (
 		packages: symbols.packages,
 		storedOnly: true,
 	});
+	const referencesMs = Math.round(performance.now() - referencesStartedAt);
+	const dependenciesStartedAt = performance.now();
 	const dependencies = extractOracleDependencies({
 		projectId: config.projectId,
 		context: context.name,
@@ -137,6 +168,8 @@ const parseContext = (
 		files: symbols.analyses,
 		packages: symbols.packages,
 	});
+	const dependenciesMs = Math.round(performance.now() - dependenciesStartedAt);
+	debug('oracle context phases', {context: context.name, readParseMs, symbolsMs, referencesMs, dependenciesMs});
 	const contextDiagnostics = [...diagnostics, ...symbols.diagnostics, ...references.diagnostics];
 
 	return {
@@ -207,9 +240,17 @@ const mergeDiagnostics = (contexts: readonly ContextResultType[]): readonly Diag
 	return [...merged.values()];
 };
 
-const build = (config: ConfigType, scan: ScanResultType, parser: OracleParserBindingType['parser']): ExtractorBuildType => {
+const build = (config: ConfigType, scan: ScanResultType, parser: OracleParserBindingType['parser'], cache?: ExtractorArtifactCacheType): ExtractorBuildType => {
 	const startedAt = performance.now();
-	const contexts = config.projects.map((context) => parseContext(config, context, scan, parser));
+	const contexts = config.projects.map((context) =>
+		parseContext({
+			config,
+			context,
+			scan,
+			parser,
+			...(cache === undefined ? {} : {cache}),
+		}),
+	);
 	const compilerMs = contexts.reduce((total, context) => total + context.parseMs, 0);
 	const extractionMs = Math.round(performance.now() - startedAt);
 	const result = {
@@ -251,6 +292,73 @@ const build = (config: ConfigType, scan: ScanResultType, parser: OracleParserBin
  * @param binding - Parser implementation and its serializable identity.
  * @returns The adapter bound to that parser.
  */
+/**
+ * Proves that persisted Oracle facts still describe the current sources.
+ *
+ * A file whose parser output is unchanged contributes identical symbols,
+ * occurrences, dependencies, and diagnostics. Cross-file resolution can only
+ * differ when some parser output differs, so every changed file is re-parsed and
+ * compared against the digest captured when its facts were published. Any doubt
+ * returns false and forces a full extraction.
+ *
+ * @param input - Scan, published manifest, artifact reader, and parser binding.
+ * @returns True when every changed file produces its published parser output.
+ */
+const canReusePublishedFacts = (input: ExtractorFactReuseInputType, binding: OracleParserBindingType): boolean => {
+	const previous = new Map(input.publishedFiles.map((file) => [file.path, file.sha256]));
+
+	if (previous.size !== input.scan.files.length) {
+		return false;
+	}
+
+	for (const file of input.scan.files) {
+		const previousSha = previous.get(file.path);
+
+		if (previousSha === undefined) {
+			return false;
+		}
+
+		if (previousSha === file.sha256) {
+			continue;
+		}
+
+		let matched = false;
+
+		for (const context of input.config.projects) {
+			const manifest = readOracleManifest(context.projectFilePath);
+
+			if (!matchesOracleManifest(file.path, manifest.manifest)) {
+				continue;
+			}
+
+			matched = true;
+			const kind = parseDigestKindOf(context.name);
+			const artifact = {contentSha256: previousSha, kind};
+			const stored = input.read(artifact);
+
+			if (stored === null) {
+				return false;
+			}
+
+			const source = readFileSync(file.absolutePath, 'utf8');
+			const parse = binding.parser({source, path: file.path, defaultSchema: manifest.canonicalSchema});
+			const digest = parseDigestOf(parse);
+
+			if (digest !== stored) {
+				return false;
+			}
+
+			input.write({contentSha256: file.sha256, kind, payload: digest});
+		}
+
+		if (!matched) {
+			return false;
+		}
+	}
+
+	return true;
+};
+
 export const createOracleExtractor = (binding: OracleParserBindingType): ExtractorType => ({
 	id: ORACLE_EXTRACTOR_ID,
 	version: ORACLE_EXTRACTOR_VERSION,
@@ -273,9 +381,13 @@ export const createOracleExtractor = (binding: OracleParserBindingType): Extract
 		assertOracleParserBinding(config, binding);
 		return scanOracleProject(config, knownPaths);
 	},
-	build: (config, scan) => {
+	build: (config, scan, cache) => {
 		assertOracleParserBinding(config, binding);
-		return build(config, scan, binding.parser);
+		return build(config, scan, binding.parser, cache);
+	},
+	canReusePublishedFacts: (input) => {
+		assertOracleParserBinding(input.config, binding);
+		return canReusePublishedFacts(input, binding);
 	},
 	configFiles: collectOracleConfigFiles,
 	isSourceFile: isOracleAuthoredSourceFile,
