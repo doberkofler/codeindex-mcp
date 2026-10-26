@@ -4,6 +4,63 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.7.0...v0.8.0) (2026-10-26)
+
+### Added
+
+* **benchmark:** report parse-digest artifact consumption ([cee1cc5](https://github.com/doberkofler/codeindex-mcp/commit/cee1cc5b04ffd58d465211b45c108b10662e9884))
+* **evaluation:** close model-free prerequisites for the production pilot ([bcc1d0a](https://github.com/doberkofler/codeindex-mcp/commit/bcc1d0a5aeaf2646a4abcebe8378d9b77a32e1ab)), references [#53](https://github.com/doberkofler/codeindex-mcp/issues/53) [#53](https://github.com/doberkofler/codeindex-mcp/issues/53)
+* **evaluation:** measure direct MCP and Code Mode exposure ([#50](https://github.com/doberkofler/codeindex-mcp/issues/50)) ([9fb8008](https://github.com/doberkofler/codeindex-mcp/commit/9fb8008bca5e935a831a6968c1b188a54f9efdfa))
+* **evaluation:** revalidate local qualification against validity v2 ([7adb412](https://github.com/doberkofler/codeindex-mcp/commit/7adb4123b1323f565224e5759ece5e6717823691))
+* **oracle:** add evidence-bundle preflight ([#87](https://github.com/doberkofler/codeindex-mcp/issues/87)) ([e2c84d7](https://github.com/doberkofler/codeindex-mcp/commit/e2c84d7258e11b9f628ccac5cf367b5fd80ee23e))
+* **oracle:** add structural@5 production performance harness ([#90](https://github.com/doberkofler/codeindex-mcp/issues/90)) ([b519339](https://github.com/doberkofler/codeindex-mcp/commit/b51933945b99a46431c5e76e4a7ac5e8ab03219a))
+* **oracle:** freeze controlled O1 evidence bundle ([#87](https://github.com/doberkofler/codeindex-mcp/issues/87)) ([bc9a34d](https://github.com/doberkofler/codeindex-mcp/commit/bc9a34d166495783dafd05d7f433b4dcebe1634d)), references [#85](https://github.com/doberkofler/codeindex-mcp/issues/85)
+* **oracle:** freeze the O1 qualification contract ([#86](https://github.com/doberkofler/codeindex-mcp/issues/86)) ([5859431](https://github.com/doberkofler/codeindex-mcp/commit/58594310c21c9bb4eda4a7e49ffadd31f9671fad))
+* **oracle:** make the Oracle verification tier authoritative ([#88](https://github.com/doberkofler/codeindex-mcp/issues/88)) ([83fe221](https://github.com/doberkofler/codeindex-mcp/commit/83fe221b8a2e6b370d2067e6241ae1a26a60ac25)), references [#85](https://github.com/doberkofler/codeindex-mcp/issues/85)
+* **oracle:** requalify production structural@5 against oracle-o1@2 ([#89](https://github.com/doberkofler/codeindex-mcp/issues/89)) ([671e000](https://github.com/doberkofler/codeindex-mcp/commit/671e00001b5944c82ad424d200679bb180d24578))
+* **soak:** record idle CPU in one-second buckets ([b7477f6](https://github.com/doberkofler/codeindex-mcp/commit/b7477f6444748e2af21241fbec0cdbee5055ebce))
+
+### Fixed
+
+* **cli:** make install and clean rollback-safe ([9e86703](https://github.com/doberkofler/codeindex-mcp/commit/9e867038b5d8270c1d3053a936a17f7035fd521e)), references [#51](https://github.com/doberkofler/codeindex-mcp/issues/51)
+* **cli:** scope cleanup and stop owning the config schema ([4a65573](https://github.com/doberkofler/codeindex-mcp/commit/4a655734ecbab87a99d22927e1954129007e1248))
+* **generation:** stop the build resource sampler after every refresh ([6238ddf](https://github.com/doberkofler/codeindex-mcp/commit/6238ddff6a7665eee566094f075d65df68a6daa7))
+* **oracle:** decide compiler-inferred dependency truth ([#101](https://github.com/doberkofler/codeindex-mcp/issues/101)) ([#103](https://github.com/doberkofler/codeindex-mcp/issues/103)) ([37da522](https://github.com/doberkofler/codeindex-mcp/commit/37da5225f850f9cfd53824e14daf990f688dad88))
+* **oracle:** default qualification truth policy to v5 ([b71b276](https://github.com/doberkofler/codeindex-mcp/commit/b71b27657261d1d63c10c2c6abf3e27de7cf6b08))
+* **oracle:** keep raw samples in external evidence only ([#90](https://github.com/doberkofler/codeindex-mcp/issues/90)) ([30dbed1](https://github.com/doberkofler/codeindex-mcp/commit/30dbed14d8e44339c5fafd4ed9af4c8a39ca1d4f))
+* **oracle:** point preflight at the controlled bundle ([4ea3b73](https://github.com/doberkofler/codeindex-mcp/commit/4ea3b738e7ae6de66fb626b7992506efe76ce4fa))
+* **oracle:** raise production reference precision and recall ([#100](https://github.com/doberkofler/codeindex-mcp/issues/100)) ([ccd35c8](https://github.com/doberkofler/codeindex-mcp/commit/ccd35c8545f5d82c1431f9ec6b1de9d6b78fdae8)), references [#101](https://github.com/doberkofler/codeindex-mcp/issues/101)
+* **oracle:** separate plan and benchmark configuration identity ([#90](https://github.com/doberkofler/codeindex-mcp/issues/90)) ([e5a09ab](https://github.com/doberkofler/codeindex-mcp/commit/e5a09ab6d2196c1995af47d79b2893aefaef0b06))
+* **oracle:** write evidence summaries with repository formatting ([#90](https://github.com/doberkofler/codeindex-mcp/issues/90)) ([979b6e3](https://github.com/doberkofler/codeindex-mcp/commit/979b6e385b0bd589e6eaf2b0c3f8a690fdc61e29))
+* **soak:** exclude RSS polling from the idle CPU gate ([8164d7c](https://github.com/doberkofler/codeindex-mcp/commit/8164d7cf91e4f77ca63204f78d944ec5a6f4591b))
+* **soak:** gate idle CPU on steady-state buckets ([524b3ab](https://github.com/doberkofler/codeindex-mcp/commit/524b3ab4debad06e0c1c31740a912f554ff6c52b))
+* **storage:** bind index storage to the checkout ([9054fdf](https://github.com/doberkofler/codeindex-mcp/commit/9054fdfc583388599772d77cce950f2402133f8a))
+* **storage:** record revision source hash and isolate artifact cache failures ([497ca24](https://github.com/doberkofler/codeindex-mcp/commit/497ca241ea0e6349e44e64b89bf5541c184aa65c))
+* **storage:** repair required planner statistics ([5d4adb9](https://github.com/doberkofler/codeindex-mcp/commit/5d4adb9471613d14a5b2736b68ada4e02fb596e6))
+* **storage:** revise the published generation incrementally ([#102](https://github.com/doberkofler/codeindex-mcp/issues/102)) ([9b3e983](https://github.com/doberkofler/codeindex-mcp/commit/9b3e98399b88e4eddfedf829ccd95fb42e2c2d7f))
+* **test:** move spawn-heavy harness tests out of the fast class ([31cb2d7](https://github.com/doberkofler/codeindex-mcp/commit/31cb2d72dc2b34a136309ea14189010727c8de88))
+
+### Changed
+
+* **oracle:** rename stale qualification-v2 fixture ([204af16](https://github.com/doberkofler/codeindex-mcp/commit/204af165a822314f688ab1cfde6fff956ebd7581))
+
+### Documentation
+
+* close dormant enhancements and record the ANTLR disposition ([02d4746](https://github.com/doberkofler/codeindex-mcp/commit/02d47462417f4b4f0111b4713a33706561941492))
+* **install:** pin the install example to v0.7.0 ([a1335df](https://github.com/doberkofler/codeindex-mcp/commit/a1335dfcb2fbae0c94cf8e18736e88c325a5223f))
+* **install:** retain fresh-consumer verification evidence ([10c61ae](https://github.com/doberkofler/codeindex-mcp/commit/10c61aecd853d36a73d7f418c09288189eae5a6c)), references [#51](https://github.com/doberkofler/codeindex-mcp/issues/51)
+* **oracle:** record ORA-004 evidence and runtime commits ([b6d6717](https://github.com/doberkofler/codeindex-mcp/commit/b6d6717bc66c568cab137080f40e63742a9fb103))
+* **oracle:** record ORA-005 edit-to-fresh gate failure ([#90](https://github.com/doberkofler/codeindex-mcp/issues/90)) ([885fdaa](https://github.com/doberkofler/codeindex-mcp/commit/885fdaa4d2f050a1ffc288e87616ec45188d9451))
+* **oracle:** record ORA-006 evidence commit identities ([#100](https://github.com/doberkofler/codeindex-mcp/issues/100)) ([39d1fa1](https://github.com/doberkofler/codeindex-mcp/commit/39d1fa1560686719c6c12bee059430f64e1ddb10))
+* **oracle:** retain ORA-005 performance baseline and failure ([#90](https://github.com/doberkofler/codeindex-mcp/issues/90)) ([b3197e7](https://github.com/doberkofler/codeindex-mcp/commit/b3197e7b20166ae4408e7aaf4c86616cb0df4bec))
+* **oracle:** retain the structural@5 PASS baseline ([#102](https://github.com/doberkofler/codeindex-mcp/issues/102)) ([b299418](https://github.com/doberkofler/codeindex-mcp/commit/b2994188eef8f15f28388a104b40cda6e95d5cce))
+* **oracle:** triage ANTLR grammar gaps ([f304d50](https://github.com/doberkofler/codeindex-mcp/commit/f304d504ac30dc8ee6186360799de9800add4bc0))
+* **release:** retain v0.7.0 stable verification evidence ([dcdba9b](https://github.com/doberkofler/codeindex-mcp/commit/dcdba9b20c7cec43340d8d3613c69067510f384a))
+* remove superseded evidence and document current behaviour ([#104](https://github.com/doberkofler/codeindex-mcp/issues/104)) ([349b2e3](https://github.com/doberkofler/codeindex-mcp/commit/349b2e3da1c31229a08ab8542f2e750cc0da60b2))
+* require an approved forecast before hosted-model spend ([ebf4332](https://github.com/doberkofler/codeindex-mcp/commit/ebf433268ab42b62edad742a501adc7e33d905ce))
+* **typescript:** close the pilot as superseded by the release ([bc2ecb8](https://github.com/doberkofler/codeindex-mcp/commit/bc2ecb8d6b48deccf009a5368d89d1d636e2be12)), references [#53](https://github.com/doberkofler/codeindex-mcp/issues/53) [#53](https://github.com/doberkofler/codeindex-mcp/issues/53)
+* **typescript:** reconcile WP5 evidence status ([24ee6f8](https://github.com/doberkofler/codeindex-mcp/commit/24ee6f8a47ad513e55f3486af4969aa8b7f66827)), references [#38](https://github.com/doberkofler/codeindex-mcp/issues/38)
+
 ## [0.7.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.6.0...v0.7.0) (2026-10-24)
 
 ### Added
