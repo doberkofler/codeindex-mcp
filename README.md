@@ -63,10 +63,9 @@ as historical evidence. Historical Phase 0/6/8 results are comparisons, not the
 current verdict.
 
 The production performance baseline is retained at
-[`benchmark/oracle-performance`](./benchmark/oracle-performance/README.md). Cold
-build, warm reuse, rebuild, queries, memory, storage, and bundles pass their
-declared gates; one-file edit-to-fresh fails at a 22.1 s median against a 15 s
-failure threshold. The failure is recorded, not waived.
+[`benchmark/oracle-performance`](./benchmark/oracle-performance/README.md). All 45
+declared gates pass: cold build, warm reuse, rebuild, one-file edit-to-fresh
+(1.53 s median over 25 rounds), queries, memory, storage, and bundles.
 
 ORDS and cross-language edges remain planned; later languages use the same adapter
 seam.

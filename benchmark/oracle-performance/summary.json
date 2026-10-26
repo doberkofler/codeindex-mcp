@@ -1,9 +1,9 @@
 {
 	"schemaVersion": 1,
-	"generatedAt": "2026-10-25T17:17:45.822Z",
+	"generatedAt": "2026-10-26T07:01:20.024Z",
 	"measurement": {
-		"startedAt": "2026-10-25T17:03:21.967Z",
-		"durationMs": 863853.798041,
+		"startedAt": "2026-10-26T06:57:39.188Z",
+		"durationMs": 220836.40104199998,
 		"warmups": 1,
 		"runs": 5,
 		"iterations": 20,
@@ -13,21 +13,21 @@
 	},
 	"identities": {
 		"code": {
-			"commit": "30dbed14d8e44339c5fafd4ed9af4c8a39ca1d4f",
+			"commit": "cee1cc5b04ffd58d465211b45c108b10662e9884",
 			"dirty": false,
 			"packageVersion": "0.7.0",
 			"nodeVersion": "v26.10.0",
 			"sqliteVersion": "3.53.4",
 			"bundles": {
 				"mcp": {
-					"rawBytes": 2212226,
-					"gzipBytes": 347320,
-					"sha256": "c4c6cfa23a14d6aef650c9ceb296d456905cfce9657e5463c69be31abfc84f71"
+					"rawBytes": 2228621,
+					"gzipBytes": 351149,
+					"sha256": "c9bf23c02c5324970e80168d004f25cdd99bd518b4546f1892454e02624ff8b3"
 				},
 				"cli": {
-					"rawBytes": 518808,
-					"gzipBytes": 130848,
-					"sha256": "05019a6ef44ee13d38071731ff6e8bec1343ee1126b5d196cbaed77e512105d9"
+					"rawBytes": 533285,
+					"gzipBytes": 134208,
+					"sha256": "a726be2c4503de1c9c266bedfbec77a29874209cbd032adc281aa9ac7c8ccc84"
 				}
 			}
 		},
@@ -43,16 +43,16 @@
 			"compilerVersion": "oracle19c;parser@structural;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd"
 		},
 		"corpus": {
-			"bundleSha256": "a72e1d13db4a93ad5f47a65670fdcc29221036478a462a456691c0504c544f4b",
+			"bundleSha256": "602640e416fb231927491b857218b6865654141c2a78167be0a621aa50cbba5e",
 			"sourceHash": "2bb0da1e8151410432cfe55d30607ed229976b7ccfd974a97027ebeb220f7f2a",
 			"fileCount": 1244,
 			"unitCount": 1244,
-			"databaseSchemaVersion": "10",
+			"databaseSchemaVersion": "11",
 			"planConfigHash": "8ba026c038fe53224ab378d0e898589f0da818c4e32a3f98cf6957a493e24065",
-			"benchmarkConfigHash": "c297208b69152109b3fa659483cec50dedaaecd2272970bb213d069cf9e2b45e"
+			"benchmarkConfigHash": "d5433310f45bc69630d04d76b8b47b3cfc70119b0a8cd994d4c7ca8b164f74a1"
 		},
 		"thresholds": {
-			"sha256": "955ffca99c99f74c99b501e3e3e095c24ffb7628d30502e7c6f3d7cf5ab2ce59"
+			"sha256": "56c4d1283c4e8b02155ef3ad3f4022209c9f92aa26379212da735b256fb95f76"
 		},
 		"editTarget": {
 			"label": "median-size source file",
@@ -63,227 +63,227 @@
 	"metrics": {
 		"cold.wallMs": {
 			"count": 5,
-			"min": 13615,
-			"median": 13650,
-			"p95": 14193,
-			"max": 14193,
-			"mean": 13764.8,
-			"cvPercent": 1.588623839562332
+			"min": 14919,
+			"median": 14998,
+			"p95": 15150,
+			"max": 15150,
+			"mean": 15022.6,
+			"cvPercent": 0.6411637695010945
 		},
 		"cold.buildMs": {
 			"count": 5,
-			"min": 13372,
-			"median": 13409,
-			"p95": 13948,
-			"max": 13948,
-			"mean": 13522.4,
-			"cvPercent": 1.6093055027084535
+			"min": 14687,
+			"median": 14766,
+			"p95": 14914,
+			"max": 14914,
+			"mean": 14786.8,
+			"cvPercent": 0.6349736163522687
 		},
 		"cold.cpuMs": {
 			"count": 5,
-			"min": 15936,
-			"median": 16018,
-			"p95": 16566,
-			"max": 16566,
-			"mean": 16120.8,
-			"cvPercent": 1.4061054712556678
+			"min": 17371,
+			"median": 17450,
+			"p95": 17780,
+			"max": 17780,
+			"mean": 17519.4,
+			"cvPercent": 0.8247128307968588
 		},
 		"cold.rssPeakBytes": {
 			"count": 5,
-			"min": 2692546560,
-			"median": 2711207936,
-			"p95": 2724249600,
-			"max": 2724249600,
-			"mean": 2711755161.6,
-			"cvPercent": 0.40882678752256474
+			"min": 1791148032,
+			"median": 1883897856,
+			"p95": 2055897088,
+			"max": 2055897088,
+			"mean": 1923193241.6,
+			"cvPercent": 5.65950995307492
 		},
 		"cold.storageTotalBytes": {
 			"count": 5,
-			"min": 969799128,
-			"median": 969799128,
-			"p95": 969799128,
-			"max": 969799128,
-			"mean": 969799128,
+			"min": 998046384,
+			"median": 998046384,
+			"p95": 998046384,
+			"max": 998046384,
+			"mean": 998046384,
 			"cvPercent": 0
 		},
 		"cold.databaseBytes": {
 			"count": 5,
-			"min": 553168896,
-			"median": 553168896,
-			"p95": 553168896,
-			"max": 553168896,
-			"mean": 553168896,
+			"min": 554418176,
+			"median": 554418176,
+			"p95": 554418176,
+			"max": 554418176,
+			"mean": 554418176,
 			"cvPercent": 0
 		},
 		"warm.wallMs": {
 			"count": 5,
-			"min": 237,
-			"median": 238,
-			"p95": 240,
-			"max": 240,
-			"mean": 238.4,
-			"cvPercent": 0.4277700934222135
+			"min": 234,
+			"median": 236,
+			"p95": 242,
+			"max": 242,
+			"mean": 237,
+			"cvPercent": 1.1321863177214124
 		},
 		"warm.cpuMs": {
 			"count": 5,
-			"min": 319,
-			"median": 324,
-			"p95": 324,
-			"max": 324,
-			"mean": 322.4,
-			"cvPercent": 0.6386867333118487
+			"min": 315,
+			"median": 319,
+			"p95": 328,
+			"max": 328,
+			"mean": 320,
+			"cvPercent": 1.340475661845451
 		},
 		"warm.rssPeakBytes": {
 			"count": 5,
-			"min": 374374400,
-			"median": 374964224,
-			"p95": 375455744,
-			"max": 375455744,
-			"mean": 374974054.4,
-			"cvPercent": 0.10068907200429301
+			"min": 372113408,
+			"median": 372637696,
+			"p95": 374423552,
+			"max": 374423552,
+			"mean": 372912947.2,
+			"cvPercent": 0.21124374092704518
 		},
 		"warm.storageTotalBytes": {
 			"count": 5,
-			"min": 553230536,
-			"median": 553230536,
-			"p95": 553230536,
-			"max": 553230536,
-			"mean": 553230536,
+			"min": 554479816,
+			"median": 554479816,
+			"p95": 554479816,
+			"max": 554479816,
+			"mean": 554479816,
 			"cvPercent": 0
 		},
 		"rebuild.wallMs": {
 			"count": 5,
-			"min": 14908,
-			"median": 15011,
-			"p95": 15088,
-			"max": 15088,
-			"mean": 15004,
-			"cvPercent": 0.4077474511497526
+			"min": 9129,
+			"median": 9216,
+			"p95": 9299,
+			"max": 9299,
+			"mean": 9224.6,
+			"cvPercent": 0.6226154843020327
 		},
 		"rebuild.buildMs": {
 			"count": 5,
-			"min": 14683,
-			"median": 14781,
-			"p95": 14850,
-			"max": 14850,
-			"mean": 14771.6,
-			"cvPercent": 0.39803811734051886
+			"min": 8900,
+			"median": 8994,
+			"p95": 9077,
+			"max": 9077,
+			"mean": 8994.8,
+			"cvPercent": 0.656947526165713
 		},
 		"rebuild.cpuMs": {
 			"count": 5,
-			"min": 17215,
-			"median": 17380,
-			"p95": 17439,
-			"max": 17439,
-			"mean": 17362.6,
-			"cvPercent": 0.4465545289342545
+			"min": 11483,
+			"median": 11660,
+			"p95": 11857,
+			"max": 11857,
+			"mean": 11661.6,
+			"cvPercent": 1.0437000014036273
 		},
 		"rebuild.rssPeakBytes": {
 			"count": 5,
-			"min": 3447242752,
-			"median": 3639017472,
-			"p95": 3665149952,
-			"max": 3665149952,
-			"mean": 3608821760,
-			"cvPercent": 2.273655973579448
+			"min": 2445639680,
+			"median": 2516353024,
+			"p95": 2542698496,
+			"max": 2542698496,
+			"mean": 2511323136,
+			"cvPercent": 1.39633845779005
 		},
 		"rebuild.storageTotalBytes": {
 			"count": 5,
-			"min": 1386010240,
-			"median": 1386010240,
-			"p95": 1386971512,
-			"max": 1386971512,
-			"mean": 1386202494.4,
-			"cvPercent": 0.027738285102886773
+			"min": 554846496,
+			"median": 554846496,
+			"p95": 554846496,
+			"max": 554846496,
+			"mean": 554846496,
+			"cvPercent": 0
 		},
 		"edit.p50Ms": {
 			"count": 5,
-			"min": 22029,
-			"median": 22094,
-			"p95": 22117,
-			"max": 22117,
-			"mean": 22076.4,
-			"cvPercent": 0.1768936988082056
+			"min": 1524,
+			"median": 1530,
+			"p95": 1540,
+			"max": 1540,
+			"mean": 1531.4,
+			"cvPercent": 0.34946031501265906
 		},
 		"edit.p95Ms": {
 			"count": 5,
-			"min": 22067,
-			"median": 22168,
-			"p95": 22335,
-			"max": 22335,
-			"mean": 22197.6,
-			"cvPercent": 0.40511472928289205
+			"min": 1539,
+			"median": 1550,
+			"p95": 1587,
+			"max": 1587,
+			"mean": 1555.4,
+			"cvPercent": 1.0592411123373522
 		},
 		"edit.maxMs": {
 			"count": 5,
-			"min": 22067,
-			"median": 22168,
-			"p95": 22335,
-			"max": 22335,
-			"mean": 22197.6,
-			"cvPercent": 0.40511472928289205
+			"min": 1539,
+			"median": 1550,
+			"p95": 1587,
+			"max": 1587,
+			"mean": 1555.4,
+			"cvPercent": 1.0592411123373522
 		},
 		"edit.latencyMs": {
 			"count": 25,
-			"min": 21878,
-			"median": 22067,
-			"p95": 22296,
-			"max": 22335,
-			"mean": 22072.36,
-			"cvPercent": 0.5435181778247828
+			"min": 1516,
+			"median": 1531,
+			"p95": 1553,
+			"max": 1587,
+			"mean": 1534.28,
+			"cvPercent": 0.9505179781736739
 		},
 		"deep.wallMs": {
 			"count": 5,
-			"min": 271,
-			"median": 273,
-			"p95": 276,
-			"max": 276,
-			"mean": 273.4,
-			"cvPercent": 0.6783919894290933
+			"min": 268,
+			"median": 268,
+			"p95": 277,
+			"max": 277,
+			"mean": 270.4,
+			"cvPercent": 1.2938502725248449
 		},
 		"deep.rssPeakBytes": {
 			"count": 5,
-			"min": 421134336,
-			"median": 422019072,
-			"p95": 423264256,
-			"max": 423264256,
-			"mean": 422094438.4,
-			"cvPercent": 0.17955642924918805
+			"min": 418512896,
+			"median": 418807808,
+			"p95": 419201024,
+			"max": 419201024,
+			"mean": 418856960,
+			"cvPercent": 0.06953408501713741
 		},
 		"bundle.mcp.rawBytes": {
 			"count": 1,
-			"min": 2212226,
-			"median": 2212226,
-			"p95": 2212226,
-			"max": 2212226,
-			"mean": 2212226,
+			"min": 2228621,
+			"median": 2228621,
+			"p95": 2228621,
+			"max": 2228621,
+			"mean": 2228621,
 			"cvPercent": 0
 		},
 		"bundle.mcp.gzipBytes": {
 			"count": 1,
-			"min": 347320,
-			"median": 347320,
-			"p95": 347320,
-			"max": 347320,
-			"mean": 347320,
+			"min": 351149,
+			"median": 351149,
+			"p95": 351149,
+			"max": 351149,
+			"mean": 351149,
 			"cvPercent": 0
 		},
 		"bundle.cli.rawBytes": {
 			"count": 1,
-			"min": 518808,
-			"median": 518808,
-			"p95": 518808,
-			"max": 518808,
-			"mean": 518808,
+			"min": 533285,
+			"median": 533285,
+			"p95": 533285,
+			"max": 533285,
+			"mean": 533285,
 			"cvPercent": 0
 		},
 		"bundle.cli.gzipBytes": {
 			"count": 1,
-			"min": 130848,
-			"median": 130848,
-			"p95": 130848,
-			"max": 130848,
-			"mean": 130848,
+			"min": 134208,
+			"median": 134208,
+			"p95": 134208,
+			"max": 134208,
+			"mean": 134208,
 			"cvPercent": 0
 		},
 		"queries.find_references.p95Ms": {
@@ -333,11 +333,11 @@
 		}
 	},
 	"evaluation": {
-		"status": "failure",
+		"status": "pass",
 		"summary": {
-			"pass": 41,
-			"warning": 1,
-			"failure": 3
+			"pass": 45,
+			"warning": 0,
+			"failure": 0
 		},
 		"gates": [
 			{
@@ -466,11 +466,11 @@
 				"category": "absolute",
 				"metric": "cold.wallMs",
 				"statistic": "median",
-				"actual": 13650,
+				"actual": 14998,
 				"warning": 15000,
 				"failure": 30000,
 				"unit": "ms",
-				"message": "cold.wallMs median 13650 ms; warning above 15000, failure above 30000"
+				"message": "cold.wallMs median 14998 ms; warning above 15000, failure above 30000"
 			},
 			{
 				"code": "metric.cold.buildMs",
@@ -478,11 +478,11 @@
 				"category": "absolute",
 				"metric": "cold.buildMs",
 				"statistic": "median",
-				"actual": 13409,
+				"actual": 14766,
 				"warning": 15000,
 				"failure": 30000,
 				"unit": "ms",
-				"message": "cold.buildMs median 13409 ms; warning above 15000, failure above 30000"
+				"message": "cold.buildMs median 14766 ms; warning above 15000, failure above 30000"
 			},
 			{
 				"code": "metric.cold.cpuMs",
@@ -490,11 +490,11 @@
 				"category": "absolute",
 				"metric": "cold.cpuMs",
 				"statistic": "median",
-				"actual": 16018,
+				"actual": 17450,
 				"warning": 20000,
 				"failure": 40000,
 				"unit": "ms",
-				"message": "cold.cpuMs median 16018 ms; warning above 20000, failure above 40000"
+				"message": "cold.cpuMs median 17450 ms; warning above 20000, failure above 40000"
 			},
 			{
 				"code": "metric.cold.rssPeakBytes",
@@ -502,11 +502,11 @@
 				"category": "absolute",
 				"metric": "cold.rssPeakBytes",
 				"statistic": "median",
-				"actual": 2711207936,
+				"actual": 1883897856,
 				"warning": 3500000000,
 				"failure": 5000000000,
 				"unit": "bytes",
-				"message": "cold.rssPeakBytes median 2711207936 bytes; warning above 3500000000, failure above 5000000000"
+				"message": "cold.rssPeakBytes median 1883897856 bytes; warning above 3500000000, failure above 5000000000"
 			},
 			{
 				"code": "metric.cold.storageTotalBytes",
@@ -514,11 +514,11 @@
 				"category": "absolute",
 				"metric": "cold.storageTotalBytes",
 				"statistic": "median",
-				"actual": 969799128,
+				"actual": 998046384,
 				"warning": 1500000000,
 				"failure": 2500000000,
 				"unit": "bytes",
-				"message": "cold.storageTotalBytes median 969799128 bytes; warning above 1500000000, failure above 2500000000"
+				"message": "cold.storageTotalBytes median 998046384 bytes; warning above 1500000000, failure above 2500000000"
 			},
 			{
 				"code": "metric.cold.databaseBytes",
@@ -526,11 +526,11 @@
 				"category": "absolute",
 				"metric": "cold.databaseBytes",
 				"statistic": "median",
-				"actual": 553168896,
+				"actual": 554418176,
 				"warning": 1000000000,
 				"failure": 1800000000,
 				"unit": "bytes",
-				"message": "cold.databaseBytes median 553168896 bytes; warning above 1000000000, failure above 1800000000"
+				"message": "cold.databaseBytes median 554418176 bytes; warning above 1000000000, failure above 1800000000"
 			},
 			{
 				"code": "metric.warm.wallMs",
@@ -538,11 +538,11 @@
 				"category": "absolute",
 				"metric": "warm.wallMs",
 				"statistic": "median",
-				"actual": 238,
+				"actual": 236,
 				"warning": 1000,
 				"failure": 3000,
 				"unit": "ms",
-				"message": "warm.wallMs median 238 ms; warning above 1000, failure above 3000"
+				"message": "warm.wallMs median 236 ms; warning above 1000, failure above 3000"
 			},
 			{
 				"code": "metric.warm.cpuMs",
@@ -550,11 +550,11 @@
 				"category": "absolute",
 				"metric": "warm.cpuMs",
 				"statistic": "median",
-				"actual": 324,
+				"actual": 319,
 				"warning": 2000,
 				"failure": 5000,
 				"unit": "ms",
-				"message": "warm.cpuMs median 324 ms; warning above 2000, failure above 5000"
+				"message": "warm.cpuMs median 319 ms; warning above 2000, failure above 5000"
 			},
 			{
 				"code": "metric.warm.rssPeakBytes",
@@ -562,11 +562,11 @@
 				"category": "absolute",
 				"metric": "warm.rssPeakBytes",
 				"statistic": "median",
-				"actual": 374964224,
+				"actual": 372637696,
 				"warning": 3500000000,
 				"failure": 5000000000,
 				"unit": "bytes",
-				"message": "warm.rssPeakBytes median 374964224 bytes; warning above 3500000000, failure above 5000000000"
+				"message": "warm.rssPeakBytes median 372637696 bytes; warning above 3500000000, failure above 5000000000"
 			},
 			{
 				"code": "metric.warm.storageTotalBytes",
@@ -574,11 +574,11 @@
 				"category": "absolute",
 				"metric": "warm.storageTotalBytes",
 				"statistic": "median",
-				"actual": 553230536,
+				"actual": 554479816,
 				"warning": 1500000000,
 				"failure": 2500000000,
 				"unit": "bytes",
-				"message": "warm.storageTotalBytes median 553230536 bytes; warning above 1500000000, failure above 2500000000"
+				"message": "warm.storageTotalBytes median 554479816 bytes; warning above 1500000000, failure above 2500000000"
 			},
 			{
 				"code": "metric.rebuild.wallMs",
@@ -586,11 +586,11 @@
 				"category": "absolute",
 				"metric": "rebuild.wallMs",
 				"statistic": "median",
-				"actual": 15011,
+				"actual": 9216,
 				"warning": 20000,
 				"failure": 40000,
 				"unit": "ms",
-				"message": "rebuild.wallMs median 15011 ms; warning above 20000, failure above 40000"
+				"message": "rebuild.wallMs median 9216 ms; warning above 20000, failure above 40000"
 			},
 			{
 				"code": "metric.rebuild.buildMs",
@@ -598,11 +598,11 @@
 				"category": "absolute",
 				"metric": "rebuild.buildMs",
 				"statistic": "median",
-				"actual": 14781,
+				"actual": 8994,
 				"warning": 20000,
 				"failure": 40000,
 				"unit": "ms",
-				"message": "rebuild.buildMs median 14781 ms; warning above 20000, failure above 40000"
+				"message": "rebuild.buildMs median 8994 ms; warning above 20000, failure above 40000"
 			},
 			{
 				"code": "metric.rebuild.cpuMs",
@@ -610,11 +610,11 @@
 				"category": "absolute",
 				"metric": "rebuild.cpuMs",
 				"statistic": "median",
-				"actual": 17380,
+				"actual": 11660,
 				"warning": 25000,
 				"failure": 50000,
 				"unit": "ms",
-				"message": "rebuild.cpuMs median 17380 ms; warning above 25000, failure above 50000"
+				"message": "rebuild.cpuMs median 11660 ms; warning above 25000, failure above 50000"
 			},
 			{
 				"code": "metric.rebuild.rssPeakBytes",
@@ -622,11 +622,11 @@
 				"category": "absolute",
 				"metric": "rebuild.rssPeakBytes",
 				"statistic": "median",
-				"actual": 3639017472,
+				"actual": 2516353024,
 				"warning": 4000000000,
 				"failure": 6000000000,
 				"unit": "bytes",
-				"message": "rebuild.rssPeakBytes median 3639017472 bytes; warning above 4000000000, failure above 6000000000"
+				"message": "rebuild.rssPeakBytes median 2516353024 bytes; warning above 4000000000, failure above 6000000000"
 			},
 			{
 				"code": "metric.rebuild.storageTotalBytes",
@@ -634,59 +634,59 @@
 				"category": "absolute",
 				"metric": "rebuild.storageTotalBytes",
 				"statistic": "median",
-				"actual": 1386010240,
+				"actual": 554846496,
 				"warning": 2000000000,
 				"failure": 3500000000,
 				"unit": "bytes",
-				"message": "rebuild.storageTotalBytes median 1386010240 bytes; warning above 2000000000, failure above 3500000000"
+				"message": "rebuild.storageTotalBytes median 554846496 bytes; warning above 2000000000, failure above 3500000000"
 			},
 			{
 				"code": "metric.edit.p50Ms",
-				"status": "failure",
+				"status": "pass",
 				"category": "absolute",
 				"metric": "edit.p50Ms",
 				"statistic": "median",
-				"actual": 22094,
+				"actual": 1530,
 				"warning": 5000,
 				"failure": 15000,
 				"unit": "ms",
-				"message": "edit.p50Ms median 22094 ms; warning above 5000, failure above 15000"
+				"message": "edit.p50Ms median 1530 ms; warning above 5000, failure above 15000"
 			},
 			{
 				"code": "metric.edit.p95Ms",
-				"status": "failure",
+				"status": "pass",
 				"category": "absolute",
 				"metric": "edit.p95Ms",
 				"statistic": "median",
-				"actual": 22168,
+				"actual": 1550,
 				"warning": 5000,
 				"failure": 15000,
 				"unit": "ms",
-				"message": "edit.p95Ms median 22168 ms; warning above 5000, failure above 15000"
+				"message": "edit.p95Ms median 1550 ms; warning above 5000, failure above 15000"
 			},
 			{
 				"code": "metric.edit.maxMs",
-				"status": "warning",
+				"status": "pass",
 				"category": "absolute",
 				"metric": "edit.maxMs",
 				"statistic": "max",
-				"actual": 22335,
+				"actual": 1587,
 				"warning": 10000,
 				"failure": 30000,
 				"unit": "ms",
-				"message": "edit.maxMs max 22335 ms; warning above 10000, failure above 30000"
+				"message": "edit.maxMs max 1587 ms; warning above 10000, failure above 30000"
 			},
 			{
 				"code": "metric.edit.latencyMs",
-				"status": "failure",
+				"status": "pass",
 				"category": "absolute",
 				"metric": "edit.latencyMs",
 				"statistic": "p95",
-				"actual": 22296,
+				"actual": 1553,
 				"warning": 5000,
 				"failure": 15000,
 				"unit": "ms",
-				"message": "edit.latencyMs p95 22296 ms; warning above 5000, failure above 15000"
+				"message": "edit.latencyMs p95 1553 ms; warning above 5000, failure above 15000"
 			},
 			{
 				"code": "metric.deep.wallMs",
@@ -694,11 +694,11 @@
 				"category": "absolute",
 				"metric": "deep.wallMs",
 				"statistic": "median",
-				"actual": 273,
+				"actual": 268,
 				"warning": 2000,
 				"failure": 5000,
 				"unit": "ms",
-				"message": "deep.wallMs median 273 ms; warning above 2000, failure above 5000"
+				"message": "deep.wallMs median 268 ms; warning above 2000, failure above 5000"
 			},
 			{
 				"code": "metric.deep.rssPeakBytes",
@@ -706,11 +706,11 @@
 				"category": "absolute",
 				"metric": "deep.rssPeakBytes",
 				"statistic": "median",
-				"actual": 422019072,
+				"actual": 418807808,
 				"warning": 3500000000,
 				"failure": 5000000000,
 				"unit": "bytes",
-				"message": "deep.rssPeakBytes median 422019072 bytes; warning above 3500000000, failure above 5000000000"
+				"message": "deep.rssPeakBytes median 418807808 bytes; warning above 3500000000, failure above 5000000000"
 			},
 			{
 				"code": "metric.queries.status.p95Ms",
@@ -778,11 +778,11 @@
 				"category": "absolute",
 				"metric": "bundle.mcp.rawBytes",
 				"statistic": "median",
-				"actual": 2212226,
+				"actual": 2228621,
 				"warning": 3000000,
 				"failure": 5000000,
 				"unit": "bytes",
-				"message": "bundle.mcp.rawBytes median 2212226 bytes; warning above 3000000, failure above 5000000"
+				"message": "bundle.mcp.rawBytes median 2228621 bytes; warning above 3000000, failure above 5000000"
 			},
 			{
 				"code": "metric.bundle.mcp.gzipBytes",
@@ -790,11 +790,11 @@
 				"category": "absolute",
 				"metric": "bundle.mcp.gzipBytes",
 				"statistic": "median",
-				"actual": 347320,
+				"actual": 351149,
 				"warning": 500000,
 				"failure": 800000,
 				"unit": "bytes",
-				"message": "bundle.mcp.gzipBytes median 347320 bytes; warning above 500000, failure above 800000"
+				"message": "bundle.mcp.gzipBytes median 351149 bytes; warning above 500000, failure above 800000"
 			},
 			{
 				"code": "metric.bundle.cli.rawBytes",
@@ -802,11 +802,11 @@
 				"category": "absolute",
 				"metric": "bundle.cli.rawBytes",
 				"statistic": "median",
-				"actual": 518808,
+				"actual": 533285,
 				"warning": 1000000,
 				"failure": 2000000,
 				"unit": "bytes",
-				"message": "bundle.cli.rawBytes median 518808 bytes; warning above 1000000, failure above 2000000"
+				"message": "bundle.cli.rawBytes median 533285 bytes; warning above 1000000, failure above 2000000"
 			},
 			{
 				"code": "metric.bundle.cli.gzipBytes",
@@ -814,11 +814,11 @@
 				"category": "absolute",
 				"metric": "bundle.cli.gzipBytes",
 				"statistic": "median",
-				"actual": 130848,
+				"actual": 134208,
 				"warning": 250000,
 				"failure": 500000,
 				"unit": "bytes",
-				"message": "bundle.cli.gzipBytes median 130848 bytes; warning above 250000, failure above 500000"
+				"message": "bundle.cli.gzipBytes median 134208 bytes; warning above 250000, failure above 500000"
 			},
 			{
 				"code": "variance.cold.wallMs",
@@ -826,11 +826,11 @@
 				"category": "variance",
 				"metric": "cold.wallMs",
 				"statistic": null,
-				"actual": 1.588623839562332,
+				"actual": 0.6411637695010945,
 				"warning": 20,
 				"failure": 40,
 				"unit": "percent",
-				"message": "cold.wallMs coefficient of variation 1.59%; warning above 20, failure above 40"
+				"message": "cold.wallMs coefficient of variation 0.64%; warning above 20, failure above 40"
 			},
 			{
 				"code": "variance.warm.wallMs",
@@ -838,11 +838,11 @@
 				"category": "variance",
 				"metric": "warm.wallMs",
 				"statistic": null,
-				"actual": 0.4277700934222135,
+				"actual": 1.1321863177214124,
 				"warning": 30,
 				"failure": 60,
 				"unit": "percent",
-				"message": "warm.wallMs coefficient of variation 0.43%; warning above 30, failure above 60"
+				"message": "warm.wallMs coefficient of variation 1.13%; warning above 30, failure above 60"
 			},
 			{
 				"code": "variance.rebuild.wallMs",
@@ -850,11 +850,11 @@
 				"category": "variance",
 				"metric": "rebuild.wallMs",
 				"statistic": null,
-				"actual": 0.4077474511497526,
+				"actual": 0.6226154843020327,
 				"warning": 20,
 				"failure": 40,
 				"unit": "percent",
-				"message": "rebuild.wallMs coefficient of variation 0.41%; warning above 20, failure above 40"
+				"message": "rebuild.wallMs coefficient of variation 0.62%; warning above 20, failure above 40"
 			},
 			{
 				"code": "variance.edit.p95Ms",
@@ -862,11 +862,11 @@
 				"category": "variance",
 				"metric": "edit.p95Ms",
 				"statistic": null,
-				"actual": 0.40511472928289205,
+				"actual": 1.0592411123373522,
 				"warning": 25,
 				"failure": 50,
 				"unit": "percent",
-				"message": "edit.p95Ms coefficient of variation 0.41%; warning above 25, failure above 50"
+				"message": "edit.p95Ms coefficient of variation 1.06%; warning above 25, failure above 50"
 			},
 			{
 				"code": "variance.deep.wallMs",
@@ -874,11 +874,11 @@
 				"category": "variance",
 				"metric": "deep.wallMs",
 				"statistic": null,
-				"actual": 0.6783919894290933,
+				"actual": 1.2938502725248449,
 				"warning": 25,
 				"failure": 50,
 				"unit": "percent",
-				"message": "deep.wallMs coefficient of variation 0.68%; warning above 25, failure above 50"
+				"message": "deep.wallMs coefficient of variation 1.29%; warning above 25, failure above 50"
 			}
 		]
 	}

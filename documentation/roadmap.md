@@ -68,9 +68,9 @@ The 2026-10-25 and 2026-10-26 bundles and the historical Phase 0/6/8 reports are
 comparisons, not the current verdict. The production `structural@5` performance
 baseline is retained in
 [`benchmark/oracle-performance`](../benchmark/oracle-performance/README.md);
-cold build, reuse, rebuild, queries, resources, storage, and bundles pass their
-declared gates, while one-file edit-to-fresh fails at a 22.1 s median against a
-15 s failure threshold.
+all 45 declared gates pass, including one-file edit-to-fresh at a 1.53 s median
+over 25 rounds; the stable generation is revised in place from per-path fact
+deltas and per-file parser-output digests.
 
 ## 5. Phase O2 — Oracle dictionary
 
