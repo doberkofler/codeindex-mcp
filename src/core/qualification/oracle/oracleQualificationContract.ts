@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {ORACLE_DIAGNOSTIC} from '../../../adapters/oracle/diagnostics.ts';
 import {ORACLE_COMPARISON_SAMPLE_LIMIT} from './oracleTruth.ts';
 import {ORACLE_TRUTH_EXCLUSION_REASONS} from './oracleTruthExclusions.ts';
-import {ORACLE_TRUTH_POLICY_V4, type OracleTruthPolicyVersionType} from './oracleTruthPolicy.ts';
+import {ORACLE_TRUTH_POLICY_V5, type OracleTruthPolicyVersionType} from './oracleTruthPolicy.ts';
 
 type OracleQualificationThresholdsType = Readonly<{
 	declarations: number;
@@ -51,8 +51,8 @@ export type OracleQualificationContractType = Readonly<{
  */
 export const ORACLE_QUALIFICATION_CONTRACT: OracleQualificationContractType = {
 	id: 'oracle-o1',
-	version: '2',
-	truthPolicy: ORACLE_TRUTH_POLICY_V4.version,
+	version: '3',
+	truthPolicy: ORACLE_TRUTH_POLICY_V5.version,
 	objectTypes: ['FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'PROCEDURE'],
 	thresholds: {declarations: 0.995, references: 0.995, dependencies: 0.995, precision: 1},
 	emptyTruth: 'fail',

@@ -189,6 +189,32 @@ end p;
 		expect(names.has('CREATE_TASK')).toBe(false);
 		expect(names.has('RUN')).toBe(false);
 	});
+
+	it('resolves the exception named by PRAGMA EXCEPTION_INIT', () => {
+		const source = `create package p as
+	broken exception;
+	pragma exception_init(broken, -20001);
+end p;
+/`;
+		const file = parsedFileOf('pragma_exception.pks', source);
+		const symbols = extractOracleSymbols({projectId: 'p', context: 'APP', files: [{path: file.path, parse: file.parse}]});
+		const references = resolveOracleReferences({context: 'APP', defaultSchema: 'APP', files: symbols.analyses, packages: symbols.packages});
+		const resolved: {role: string; name: string | undefined}[] = [];
+
+		for (const occurrence of references.occurrences) {
+			if (occurrence.path !== 'pragma_exception.pks' || occurrence.startLine !== 3) {
+				continue;
+			}
+
+			resolved.push({
+				role: occurrence.role,
+				name: symbols.symbols.find((candidate) => candidate.id === occurrence.symbolId)?.name.toUpperCase(),
+			});
+		}
+
+		expect(resolved).toStrictEqual([{role: 'reference', name: 'BROKEN'}]);
+		expect(references.diagnostics).toStrictEqual([]);
+	});
 });
 
 describe('Oracle parameter-default pairing', () => {

@@ -201,13 +201,13 @@ describe('Oracle qualification report', () => {
 			expect(code).toBe(1);
 			expect(report.extractor).toBe('oracle');
 			expect(report.generationId.length).toBeGreaterThan(0);
-			expect(report.contract).toMatchObject({id: 'oracle-o1', version: '2', truthPolicy: 'v4', emptyTruth: 'fail'});
+			expect(report.contract).toMatchObject({id: 'oracle-o1', version: '3', truthPolicy: 'v5', emptyTruth: 'fail'});
 			expect(report.contract.hash).toMatch(/^[a-f0-9]{64}$/u);
 			expect(report.corpus.files).toBeGreaterThan(5);
 			expect(report.corpus.objects).toBeGreaterThan(5);
 			expect(report.corpus.sourceHash).toMatch(/^[a-f0-9]+$/u);
 			expect(report.corpus.configHash).toMatch(/^[a-f0-9]+$/u);
-			expect(report.policy.version).toBe('v4');
+			expect(report.policy.version).toBe('v5');
 			expect(report.truth).toStrictEqual({
 				rows: 0,
 				invalidDeclarationRows: 0,

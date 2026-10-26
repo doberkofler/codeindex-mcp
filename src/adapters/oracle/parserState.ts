@@ -3,6 +3,7 @@ import {namePartOf, oracleNameOf, type OracleNameType} from './name.ts';
 import {addChainPrefixes, nameWithChain} from './referenceChains.ts';
 import {
 	addLoopIterator,
+	addPragmaReference,
 	isDeclarationName,
 	isIgnoredIdentifier,
 	isNamedAssociation,
@@ -439,6 +440,15 @@ export const collectReferences = (input: Readonly<{state: OracleParserStateType;
 		const pragmaEnd = pragmaArgumentEnd(state, index);
 
 		if (pragmaEnd !== null) {
+			addPragmaReference({
+				state,
+				index,
+				unit,
+				enclosing,
+				emit: (site) => {
+					addReference(state, {...site, kind: 'reference', argumentCount: null, argumentNames: [], rowType: false});
+				},
+			});
 			index = pragmaEnd;
 			continue;
 		}

@@ -140,7 +140,7 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/oracleTestWorkflow.test.ts` | Module test | Oracle tier discovery and membership | Temporary workspace | Every `oracle*.test.ts` module joins the tier without a config edit, pinned generic contracts resolve, and an empty or incomplete tier is rejected. |
 | `test/publicationFacts.test.ts` | Core integration | `finalizeFacts`, `collectBindings`, adapter bundles | Handcrafted facts | Finalization derives canonical addresses, identities, and exposure, enforces invariants, and rejects collisions. |
 | `test/typescriptPublicationSurface.test.ts` | Adapter contract | TypeScript adapter through finalization and queries | Vertical fixture | Public constructor properties, namespace and alias re-exports, usage bits, and ESM JavaScript publish correctly. |
-| `test/oraclePublicationSurface.test.ts` | Adapter contract | Oracle adapter through finalization and queries | Vertical fixture | Specification and body pairing, declaration forms, usage bits, and cross-file targets publish correctly. |
+| `test/oraclePublicationSurface.test.ts` | Adapter contract | Oracle adapter through finalization and queries | Vertical fixture | Specification and body pairing, declaration forms, usage bits, `PRAGMA EXCEPTION_INIT` references, and cross-file targets publish correctly. |
 | `test/publicationDefaultsAndEnforcement.test.ts` | Core integration | Finalization defaults, analytics, query | Vertical fixture | `find_symbol` defaults to visible exposure, exact-name analytics aggregate, and measured invariants enforce candidates. |
 | `test/publicationReport.test.ts` | Semantic qualification | `runPublicationReportCommand`, independent prototypes | Vertical fixture | Report-only qualification measures facts and independent prototypes without creating an index database. |
 | `test/publishedFiles.test.ts` | Module test | `publishedFiles` | Temporary SQLite | No files resolve before publication and published paths resolve against the workspace root. |
@@ -175,7 +175,7 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/oracleNestedBlocks.test.ts` | Adapter contract | `parseNestedBlockDeclarations` | Micro fixture | Nested declarations, directives, pragmas, empty statements, missing `BEGIN`, and cursor bounds are parsed. |
 | `test/oracleParserBase.test.ts` | Adapter contract | `PlSqlParserBase` | Inline values | Solidus placement, version toggles, unit flags, numeric-function tokens, and join keywords follow the parser predicates. |
 | `test/oracleReferenceArguments.test.ts` | Adapter contract | Argument shapes, predicates, type references, BULK markers | Micro fixture | Literal and named arguments, index chains, statement and assignment positions, numeric ranges, type anchors, and BULK COLLECT markers are classified. |
-| `test/oracleResolveCandidates.test.ts` | Adapter contract | `chooseCandidateOf` | Inline values | Candidate deduplication, arity, ambiguity diagnostics, callable fallback, same-file proximity, statement calls, and type filtering are exercised. |
+| `test/oracleResolveCandidates.test.ts` | Adapter contract | `chooseCandidateOf` | Inline values | Candidate deduplication, arity, named-association rejection, ambiguity diagnostics at the callee token, callable fallback, same-file proximity, statement calls, and type filtering are exercised. |
 | `test/oracleResolveTypes.test.ts` | Adapter contract | `filterByTypes` | Inline values | Literal, exact, family, JSON, alias, collection-element, recursive, anchored, OUT, and unresolved type paths are exercised. |
 | `test/oracleScanProject.test.ts` | Adapter contract | `scanOracleProject`, `isOracleAuthoredSourceFile`, `collectOracleConfigFiles` | Temporary workspace | Include/exclude, extensions, ignored segments, duplicate contexts, snapshot manifest paths, and invalid manifests are handled. |
 | `test/oracleSqlNames.test.ts` | Adapter contract | `collectAntlrSqlNames` | Micro fixture | Tables, aliases, column aliases, query names, qualified names, and identifier-less aliases are collected without leaking unrelated names. |
@@ -335,7 +335,7 @@ Checks:
 | Command | Scope | Database | Budget |
 |---|---|---|---:|
 | `pnpm test:oracle` | Every `test/oracle*.test.ts` module, discovered from disk, plus the pinned generic contracts Oracle depends on | none | 60 s |
-| `pnpm test:oracle:bundle` | Preflight plus offline replay of `benchmark/oracle-controlled/` | none | 120 s |
+| `pnpm test:oracle:bundle` | Preflight plus offline replay of `benchmark/oracle-production-20261026/` | none | 120 s |
 | `pnpm test:oracle:live` | Read-only catalogue inventory and DDL-refusal preflight; skipped unless `CODE_INDEX_ORACLE_LIVE=1` | read-only Oracle | 180 s |
 
 A module named `oracle*.test.ts` must stay database-free and evidence-root-free; discovery

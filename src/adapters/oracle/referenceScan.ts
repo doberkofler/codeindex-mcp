@@ -100,6 +100,43 @@ const isSavepointName = (state: OracleParserStateType, index: number): boolean =
 };
 
 /**
+ * Adds the exception reference named by `PRAGMA EXCEPTION_INIT`.
+ *
+ * PL/Scope records the first pragma argument as a `REFERENCE` to the declared
+ * exception, so the scanner cannot skip every identifier inside a pragma.
+ *
+ * @param input - Parser state, first token after the `PRAGMA` keyword, unit and
+ * enclosing declaration indexes, and the reference emitter.
+ */
+export const addPragmaReference = (
+	input: Readonly<{
+		state: OracleParserStateType;
+		index: number;
+		unit: number;
+		enclosing: number;
+		emit: (site: Readonly<{name: OracleNameReadType; start: number; end: number; unit: number; enclosing: number}>) => void;
+	}>,
+): void => {
+	const {state, index} = input;
+
+	if (state.cursor.upper(index) !== 'EXCEPTION_INIT') {
+		return;
+	}
+
+	const open = state.cursor.next(index);
+
+	if (state.cursor.text(open) !== '(') {
+		return;
+	}
+
+	const name = state.cursor.readQualifiedName(state.cursor.next(open));
+
+	if (name !== null) {
+		input.emit({name, start: name.startIndex, end: name.endIndex, unit: input.unit, enclosing: input.enclosing});
+	}
+};
+
+/**
  * Returns whether the scanner must ignore this token as a reference.
  *
  * @param state - Parser state.

@@ -255,7 +255,13 @@ class OracleDeclarationParser {
 		}
 
 		if (this.#state.cursor.word(start, 'PRAGMA')) {
-			return this.#state.cursor.next(this.#state.cursor.findDeclarationEnd(start));
+			const end = this.#state.cursor.findDeclarationEnd(start);
+
+			// A pragma names identifiers (an exception in `EXCEPTION_INIT`), so its
+			// range must be scanned even though it declares nothing.
+			collectReferences({state: this.#state, start, end, enclosing: parent, unit});
+
+			return this.#state.cursor.next(end);
 		}
 
 		if (this.#state.cursor.word(start, 'TYPE')) {

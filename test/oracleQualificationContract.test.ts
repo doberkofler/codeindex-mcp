@@ -14,6 +14,7 @@ import {
 	ORACLE_TRUTH_POLICY_V2,
 	ORACLE_TRUTH_POLICY_V3,
 	ORACLE_TRUTH_POLICY_V4,
+	ORACLE_TRUTH_POLICY_V5,
 	oracleTruthPolicyOf,
 } from '../src/core/qualification/oracle/oracleTruthPolicy.ts';
 
@@ -56,9 +57,9 @@ describe('Oracle O1 qualification contract identity', () => {
 
 		expect(identity).toStrictEqual({
 			id: 'oracle-o1',
-			version: '2',
-			hash: '77c0f1c462a298ded547230e8e85d3bc36dbedb84999160273663d03e62b1913',
-			truthPolicy: 'v4',
+			version: '3',
+			hash: 'ead99963af1b78ca968256e66a0a5bd01cd4e80d3e781fbe0b50e8d1749357d7',
+			truthPolicy: 'v5',
 			thresholds: {declarations: 0.995, references: 0.995, dependencies: 0.995, precision: 1},
 			emptyTruth: 'fail',
 			sampleLimit: 20,
@@ -67,11 +68,14 @@ describe('Oracle O1 qualification contract identity', () => {
 			ambiguity: {diagnosticCode: 9105, usage: 'CALL', positionMatch: 'exact path/line/column'},
 			unmappedObject: 'abort',
 		});
-		expect(oracleTruthPolicyOf()).toBe(ORACLE_TRUTH_POLICY_V4);
+		expect(oracleTruthPolicyOf()).toBe(ORACLE_TRUTH_POLICY_V5);
+		expect(oracleTruthPolicyOf('v5')).toBe(ORACLE_TRUTH_POLICY_V5);
 		expect(oracleTruthPolicyOf('v4')).toBe(ORACLE_TRUTH_POLICY_V4);
 		expect(oracleTruthPolicyOf('v3')).toBe(ORACLE_TRUTH_POLICY_V3);
 		expect(oracleTruthPolicyOf('v2')).toBe(ORACLE_TRUTH_POLICY_V2);
 		expect(oracleTruthPolicyOf('v1')).toBe(ORACLE_TRUTH_POLICY_V1);
+		expect(ORACLE_TRUTH_POLICY_V5.omitAmbiguousOverloadInCalls).toBe(true);
+		expect(ORACLE_TRUTH_POLICY_V5.excludeEphemeralDeclarations).toBe(true);
 		expect(ORACLE_TRUTH_POLICY_V4.omitAmbiguousOverloadInCalls).toBe(true);
 		expect(ORACLE_TRUTH_POLICY_V4.excludeEphemeralDeclarations).toBe(true);
 		expect(ORACLE_TRUTH_POLICY_V3.excludeEphemeralDeclarations).toBe(false);
@@ -142,6 +146,41 @@ describe('Oracle O1 truth population', () => {
 		expect([...facts.references.values()].map((fact) => fact.name).sort()).toStrictEqual(['u2', 'u3', 'u4']);
 		expect(facts.excludedByReason.unmapped_usage).toBe(1);
 		expect(facts.excludedByReason.unsupported_identifier_type).toBe(2);
+	});
+});
+
+describe('Oracle O1 definition mapping', () => {
+	const lines = ['demo', 'flag', 'run', 'if flag then', 'body'];
+
+	const rows = [
+		truthRow({name: 'demo', type: 'PACKAGE', usage: 'DECLARATION', line: 1, column: 1, signature: 's1', usageId: 1, contextId: 0}),
+		truthRow({name: 'flag', type: 'VARIABLE', usage: 'DECLARATION', line: 2, column: 1, signature: 's2', usageId: 2, contextId: 1}),
+		truthRow({name: 'run', type: 'PROCEDURE', usage: 'DECLARATION', line: 3, column: 1, signature: 's3', usageId: 3, contextId: 1}),
+		truthRow({name: 'run', type: 'PROCEDURE', usage: 'DEFINITION', line: 3, column: 1, signature: 's3', usageId: 4, contextId: 1}),
+		truthRow({name: 'flag', type: 'VARIABLE', usage: 'DEFINITION', line: 4, column: 4, signature: 's2', usageId: 5, contextId: 3}),
+	];
+
+	it('treats a program-unit DEFINITION as the declaration point', () => {
+		const facts = readOracleTruth({rows, mappings: mappingsOf(lines), policy: ORACLE_TRUTH_POLICY_V5});
+
+		expect([...facts.definitions.values()].map((fact) => fact.name).sort()).toStrictEqual(['demo', 'flag', 'run']);
+		expect(facts.excludedByReason.duplicate_fact).toBe(1);
+	});
+
+	it('treats a scalar predicate DEFINITION as a reference use under the authoritative policy', () => {
+		const facts = readOracleTruth({rows, mappings: mappingsOf(lines), policy: ORACLE_TRUTH_POLICY_V5});
+
+		expect([...facts.references.values()].map((fact) => `${fact.name}:${String(fact.line)}:${String(fact.column)}`)).toStrictEqual(['flag:4:4']);
+		expect(facts.excludedByReason.ephemeral_declaration).toBe(0);
+		expect(facts.excludedByReason.declaration_initializer).toBe(0);
+	});
+
+	it('kept the widened declaration mapping under the replayed policy', () => {
+		const facts = readOracleTruth({rows, mappings: mappingsOf(lines), policy: ORACLE_TRUTH_POLICY_V4});
+
+		expect(facts.definitions.size).toBe(3);
+		expect(facts.references.size).toBe(0);
+		expect(facts.excludedByReason.ephemeral_declaration).toBe(1);
 	});
 });
 

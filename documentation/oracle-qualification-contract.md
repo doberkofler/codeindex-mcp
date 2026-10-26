@@ -1,14 +1,14 @@
 # Oracle O1 Qualification Contract
 
 **Contract:** `oracle-o1`
-**Version:** `2`
-**Contract hash:** `77c0f1c462a298ded547230e8e85d3bc36dbedb84999160273663d03e62b1913`
-**Truth policy:** `v4`
+**Version:** `3`
+**Contract hash:** `ead99963af1b78ca968256e66a0a5bd01cd4e80d3e781fbe0b50e8d1749357d7`
+**Truth policy:** `v5`
 **Status:** authoritative. This document and
 [`oracleQualificationContract.ts`](../src/core/qualification/oracle/oracleQualificationContract.ts)
 are the single release contract for Oracle O1 semantic production readiness.
 
-Date: 2026-10-25
+Date: 2026-10-26
 
 ## 1. Purpose
 
@@ -20,7 +20,7 @@ additional, external rule: a `CALL` row whose site the adapter classifies as
 qualification. `qualify:oracle` could therefore not reproduce the published
 population.
 
-Contract `oracle-o1@2` removes that split. It also aligns truth with the
+Contract `oracle-o1@2` removed that split. It also aligned truth with the
 publication surface: parameters and routine-local declarations are intentionally
 ephemeral and never persisted, so they are omitted with the counted reason
 `ephemeral_declaration` instead of being counted as recall failures. Truth
@@ -28,20 +28,39 @@ normalization, every exclusion reason, ambiguity handling, and every threshold
 are one executable object. `qualify:oracle` runs it directly and produces every
 denominator in its report. No post-processing step is part of the gate.
 
+Contract `oracle-o1@3` corrects the `DEFINITION` usage mapping that `v2`
+widened to every supported identifier type. Oracle documents `DEFINITION` for
+exceptions and program units only: "a `DEFINITION` tells the compiler how to
+implement or use a previously declared identifier", and "for a top-level
+identifier only, the `DEFINITION` and `DECLARATION` are in the same place"
+(Oracle Database *Using PL/Scope*, identifier usages). Oracle 19c nevertheless
+reports a bare Boolean predicate read (`IF flag THEN`) as a `DEFINITION` of the
+scalar. Under `v4` each such row became an invented declaration at the read
+site, was dropped as ephemeral, and left the adapter's legitimate reference at
+the same position counted as a false positive. Policy `v5` keeps the documented
+declaration meaning for program units and treats every scalar `DEFINITION` row
+as a reference use. `@3` also aligns the emitted `ambiguous-overload`
+diagnostic with the callee token, which is the position PL/Scope reports for the
+`CALL` row the rule is meant to pair.
+
 Agent usefulness and hosted-model cost are outside this contract.
 
 ## 2. Authority and replay-only policies
 
 | Policy / contract | Status | Use |
 |---|---|---|
-| `oracle-o1@2` with truth policy `v4` | **authoritative** | Every current production qualification |
+| `oracle-o1@3` with truth policy `v5` | **authoritative** | Every current production qualification |
+| `oracle-o1@2` with truth policy `v4` | historical | Retained 2026-10-25 production and controlled evidence |
 | truth policy `v3` | replay only | Contract `oracle-o1@1` evidence |
 | truth policy `v2` | replay only | Phase 8 evidence and historical comparisons |
 | truth policy `v1` | replay only | Phase 0 evidence and historical comparisons |
 
-`qualify:oracle` selects `v4` unless `--truth-policy` names a historical
+`qualify:oracle` selects `v5` unless `--truth-policy` names a historical
 policy. A historical policy can never satisfy the release gate on its own: it is
-not the contract, and its result is evidence about a past comparison.
+not the contract, and its result is evidence about a past comparison. Evidence
+produced under a superseded contract is retained as historical; its run record
+no longer matches the authoritative contract identity, so preflight rejects it
+and it cannot be replayed as current evidence.
 
 ## 3. Truth population
 
@@ -93,16 +112,25 @@ kinds is not scored.
 | PL/Scope usage | Role |
 |---|---|
 | `DECLARATION` | declaration |
-| `DEFINITION` of a supported identifier type | declaration |
-| `DEFINITION` of an unsupported identifier type | reference, then filtered by type |
+| `DEFINITION` of a program-unit type (`PACKAGE`, `FUNCTION`, `PROCEDURE`) or `EXCEPTION` | declaration |
+| `DEFINITION` of any other supported identifier type | reference |
 | `REFERENCE` | reference |
 | `ASSIGNMENT` | reference |
 | `CALL` | reference |
 | anything else | omitted as `unmapped_usage` |
 
-A signature group is the PL/Scope `SIGNATURE`. A group with no included
-declaration cannot anchor a reference; each such reference is omitted as
-`missing_group_declaration`.
+A reference at the exact key of an included declaration in the same signature
+group is omitted as `declaration_initializer`; it is the declaration's
+initializer, not a use. A signature group is the PL/Scope `SIGNATURE`. A group
+with no included declaration cannot anchor a reference; each such reference is
+omitted as `missing_group_declaration`.
+
+`DEFINITION` is documented for exceptions and program units, where it is the
+point at which the declared identifier is implemented. A scalar identifier has
+no `DEFINITION`; Oracle 19c reports one only for a bare Boolean predicate read,
+which is a use of the already-declared identifier. Policy `v5` therefore maps a
+scalar `DEFINITION` row to a reference instead of inventing a declaration at
+the read site.
 
 ### 3.4 Package and body mapping
 
@@ -123,7 +151,7 @@ Counts are reported per reason.
 | `invalid_declaration` | Supported declaration whose mapped authored token does not contain the declared name |
 | `package_reference` | Package-qualifier reference owned by a dependency edge |
 | `missing_group_declaration` | Reference whose signature group has no included declaration |
-| `declaration_initializer` | PL/Scope assignment in the same signature group at the exact key of an included declaration |
+| `declaration_initializer` | PL/Scope reference at the exact key of an included declaration in the same signature group |
 | `duplicate_fact` | Repeated identical key in one signature group; the first row is kept |
 | `omitted_ambiguous_overload` | `CALL` row at the exact position of an emitted `ambiguous-overload` diagnostic |
 | `ephemeral_declaration` | Parameter or routine-local declaration that the publication surface intentionally never stores |
@@ -134,10 +162,12 @@ removing, or reinterpreting a reason requires a contract version bump.
 ## 5. Ambiguity policy
 
 The adapter emits one bounded diagnostic with code `9105`
-(`ambiguous-overload`) when an unqualified call has more than one fitting
-overload, and it emits no occurrence for that site. Under `v3`, a `CALL` truth
-row at the **exact** `path`, `line`, and `column` of one such diagnostic is
-omitted as `omitted_ambiguous_overload`.
+(`ambiguous-overload`) when an unqualified or package-qualified call has more
+than one fitting overload, and it emits no occurrence for that site. The
+diagnostic is positioned at the callee token, which is the location PL/Scope
+reports for the `CALL` row. Under the authoritative policy a `CALL` truth row
+at the **exact** `path`, `line`, and `column` of one such diagnostic is omitted
+as `omitted_ambiguous_overload`.
 
 Adapter diagnostics are bounded per file; overflow retains one synthetic
 diagnostic instead of individual sites. A truth row whose ambiguity diagnostic
@@ -160,9 +190,11 @@ required to be equal: a diagnostic may describe a call that PL/Scope does not
 record, and that call then contributes no truth row.
 
 Retained Phase 6 evidence performed this removal outside the gate and reported
-1,420 omitted rows out of 188,297 raw CALL rows. Contract `oracle-o1@2` makes
-the same rule executable and auditable. The historical artifact is not rewritten
-and remains historical evidence.
+1,420 omitted rows out of 188,297 raw CALL rows. Contract `oracle-o1@2` made
+the same rule executable and auditable; `@3` positions each diagnostic at the
+callee token so a qualified call pairs with its PL/Scope `CALL` row instead of
+the statement's first token. The historical artifact is not rewritten and
+remains historical evidence.
 
 ## 6. Gates
 
@@ -231,8 +263,8 @@ before a DDL-capable session can be opened:
 
 ```bash
 pnpm build
-node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261025/corpus.json
-node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261025/corpus.json
+node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261026/corpus.json
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261026/corpus.json
 ```
 
 `oracle-replay` is also DB-free. It replays the retained snapshot and truth in a
@@ -263,6 +295,7 @@ To replay historical evidence, name its policy explicitly:
 --truth-policy v1   # Phase 0
 --truth-policy v2   # Phase 8
 --truth-policy v3   # Contract oracle-o1@1
+--truth-policy v4   # Contract oracle-o1@2 evidence
 ```
 
 ## 9. Verification
@@ -272,7 +305,8 @@ The contract is tested by `test/oracleQualificationContract.test.ts`:
 - the pinned identity and hash;
 - inclusion of every supported identifier type;
 - exclusion of every unsupported class;
-- every usage mapping;
+- every usage mapping, including a scalar `DEFINITION` row and a program-unit
+  `DEFINITION` row;
 - every exclusion reason with counted rows;
 - exact ambiguity scoping;
 - denominator reconstruction;
@@ -282,6 +316,11 @@ The contract is tested by `test/oracleQualificationContract.test.ts`:
 the contract, parser identity, corpus identity, truth hashes, and exclusion
 counts. `test/oracleCodeFacts.test.ts` proves the ambiguity sites are read from
 the published generation and filtered to the contract diagnostic code.
+`test/oracleResolveCandidates.test.ts` proves the ambiguity diagnostic is
+positioned at the callee token and that a named association the candidate cannot
+declare rejects that candidate. `test/oraclePublicationSurface.test.ts` proves a
+`PRAGMA EXCEPTION_INIT` argument is a reference while other pragma arguments are
+not.
 
 ## 10. Change control
 

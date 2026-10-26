@@ -1,7 +1,9 @@
 # Oracle controlled qualification corpus
 
-Ten synthetic Oracle 19c PL/SQL cases exercise the `oracle-o1@2` semantic
-contract end to end. They are versioned source, not production source.
+Ten synthetic Oracle 19c PL/SQL cases exercise the O1 semantic contract end to
+end. They are versioned source, not production source. The retained bundle was
+qualified against contract `oracle-o1@2` and is historical evidence; the fixture
+sources are contract-agnostic.
 
 | Case | Files | Contract coverage |
 | --- | --- | --- |

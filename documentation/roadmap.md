@@ -54,13 +54,16 @@ declarations, manifest/include resolution, diagnostics, and unresolved sites.
 Gate: all splitter invariants pass on one-unit, multi-unit, malformed, quoting,
 comment, SQL*Plus, and generated-source fixtures.
 
-**Current status (2026-10-25): NOT READY.** The splitter and declaration surface
-pass on the controlled corpus, but the production replacement corpus fails the
-`oracle-o1@2` reference-precision, reference-recall, and dependency-recall
-gates. The current evidence and defects are in
-[`benchmark/oracle-production-20261025`](../benchmark/oracle-production-20261025/README.md).
-Historical Phase 0/6/8 reports are comparisons, not the current verdict. The
-production `structural@5` performance baseline is retained in
+**Current status (2026-10-26): REFERENCE GATES PASS; DEPENDENCY GATE FAILS.** The
+splitter and declaration surface pass on the controlled corpus. The production
+replacement corpus passes the `oracle-o1@3` declaration, reference-precision, and
+reference-recall gates and fails the dependency-recall gate, which is owned by
+[#101](https://github.com/doberkofler/codeindex-mcp/issues/101). The current
+evidence and remaining defects are in
+[`benchmark/oracle-production-20261026`](../benchmark/oracle-production-20261026/README.md).
+The superseded 2026-10-25 bundle and the historical Phase 0/6/8 reports are
+comparisons, not the current verdict. The production `structural@5` performance
+baseline is retained in
 [`benchmark/oracle-performance`](../benchmark/oracle-performance/README.md);
 cold build, reuse, rebuild, queries, resources, storage, and bundles pass their
 declared gates, while one-file edit-to-fresh fails at a 22.1 s median against a

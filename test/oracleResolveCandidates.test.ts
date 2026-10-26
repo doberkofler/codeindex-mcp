@@ -148,6 +148,40 @@ describe('Oracle call candidate selection', () => {
 		expect(choose(candidates, siteOf({kind: 'call', argumentCount: 1}), stateOf(), false)).toStrictEqual({choice: null, outcome: 'ambiguous-overload'});
 	});
 
+	it('reports an ambiguous overload at the callee position of a qualified call', () => {
+		const first = candidateOf('a', 'procedure', 'RUN', {parameters: [parameterOf('P_A')]});
+		const second = candidateOf('b', 'procedure', 'RUN', {parameters: [parameterOf('P_B')]});
+		const state = stateOf();
+		const site: OracleReferenceSiteType = {
+			...siteOf({kind: 'call', argumentCount: 1}),
+			range: {startOffset: 0, endOffset: 20, startLine: 4, startColumn: 2, endLine: 4, endColumn: 22},
+			nameRange: {startOffset: 15, endOffset: 18, startLine: 4, startColumn: 17, endLine: 4, endColumn: 20},
+		};
+
+		expect(choose([first, second], site, state)).toStrictEqual({choice: null, outcome: 'ambiguous-overload'});
+		expect(state.diagnostics.finish()).toStrictEqual([
+			{category: 'warning', code: 9105, message: 'Ambiguous overload for run', path: 'a.pkb', startLine: 4, startColumn: 17},
+		]);
+	});
+
+	it('rejects a candidate that cannot accept a named association', () => {
+		const wide = candidateOf('wide', 'procedure', 'RUN', {
+			parameters: [parameterOf('P_A'), parameterOf('P_B'), parameterOf('P_C'), parameterOf('P_D', {hasDefault: true})],
+		});
+		const exact = candidateOf('exact', 'procedure', 'RUN', {
+			parameters: [parameterOf('P_A'), parameterOf('P_FILE'), parameterOf('P_B'), parameterOf('P_C'), parameterOf('P_D', {hasDefault: true})],
+		});
+		const names = ['P_A', 'P_FILE', 'P_B', 'P_C'];
+		const site = siteOf({
+			kind: 'call',
+			argumentCount: names.length,
+			argumentNames: names,
+			arguments: names.map((name) => ({range: range(), name, leadName: undefined, indexed: false})),
+		});
+
+		expect(choose([wide, exact], site)).toStrictEqual({choice: exact, outcome: 'resolved'});
+	});
+
 	it('falls back to a non-routine for collection indexing and then to no declaration', () => {
 		const collection = candidateOf('collection', 'collection_type', 'ITEMS', {type: 'NUMBER'});
 		const routine = candidateOf('routine', 'procedure', 'RUN', {parameters: [parameterOf('P_A'), parameterOf('P_B')]});
@@ -198,6 +232,17 @@ describe('Oracle non-call candidate selection', () => {
 		const alternate = candidateOf('alternate', 'procedure', 'RUN', {parameters: [parameterOf('P_A')]});
 
 		expect(choose([one, alternate], siteOf({kind: 'type-anchor'}))).toStrictEqual({choice: null, outcome: 'ambiguous-overload'});
+	});
+
+	it('reports an ambiguity diagnostic for an unresolvable bare routine reference', () => {
+		const one = candidateOf('one', 'procedure', 'RUN', {parameters: [parameterOf('P_A')]});
+		const two = candidateOf('two', 'procedure', 'RUN', {parameters: [parameterOf('P_B')]});
+		const state = stateOf();
+
+		expect(choose([one, two], siteOf({argumentCount: 1}), state)).toStrictEqual({choice: null, outcome: 'ambiguous-overload'});
+		expect(state.diagnostics.finish()).toStrictEqual([
+			{category: 'warning', code: 9105, message: 'Ambiguous overload for run', path: 'a.pkb', startLine: 1, startColumn: 1},
+		]);
 	});
 
 	it('prefers exact argument types and then the compatible family', () => {

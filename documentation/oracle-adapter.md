@@ -1,17 +1,20 @@
 # Oracle SQL and PL/SQL Adapter
 
 **Status:** static O1 adapter implemented and bound to the structural parser
-(`structural@5`). The semantic release gate is contract `oracle-o1@2`
+(`structural@5`). The semantic release gate is contract `oracle-o1@3`
 ([Oracle O1 qualification contract](./oracle-qualification-contract.md)); the
 qualification command executes it directly. The current production verdict is
-**NOT READY**: the 2026-10-25 replacement corpus passes declarations and fails
-reference precision, reference recall, and dependency recall. The 2026-10-19
-Oracle-backed run and the Phase 6/Phase 8 comparisons predate `structural@5`
-with truth policy `v4` and remain historical evidence, not the current verdict.
-A controlled 10-case corpus passes under `oracle-o1@2`
+**REFERENCE GATES PASS; DEPENDENCY GATE FAILS**: the 2026-10-26 requalification
+of the 2026-10-25 source snapshot passes declarations, reference precision, and
+reference recall, and fails dependency recall, which is decided separately in
+[#101](https://github.com/doberkofler/codeindex-mcp/issues/101). The 2026-10-25
+bundle (`oracle-o1@2`, truth policy `v4`), the 2026-10-19 Oracle-backed run, and
+the Phase 6/Phase 8 comparisons are historical evidence, not the current
+verdict. The controlled 10-case corpus passed under `oracle-o1@2` and is
+retained as historical evidence
 ([controlled evidence](../benchmark/oracle-controlled/README.md)); the
-production replacement evidence is retained separately
-([production evidence](../benchmark/oracle-production-20261025/README.md)).
+production replacement evidence is the current bundle
+([production evidence](../benchmark/oracle-production-20261026/README.md)).
 
 ## 1. Scope
 
@@ -254,33 +257,38 @@ pnpm grammar:oracle:generate
 
 ### 7.1 Current production verdict
 
-The authoritative semantic gate is contract `oracle-o1@2` with truth policy
-`v4`; see the
+The authoritative semantic gate is contract `oracle-o1@3` with truth policy
+`v5`; see the
 [Oracle O1 qualification contract](./oracle-qualification-contract.md). The
 contract owns the truth population, supported identifier types, usage mapping,
 every exclusion reason, the ambiguity rule, the thresholds, empty-truth
 behavior, the sample bound, and the identities a report must carry.
 `qualify:oracle` executes it directly; no post-processing step is part of the
-gate. Policy `v4` omits parameters and routine-local declarations as
-`ephemeral_declaration`, matching the publication surface.
+gate. Policy `v5` omits parameters and routine-local declarations as
+`ephemeral_declaration`, matching the publication surface, and maps a scalar
+`DEFINITION` row to a reference use.
 
-The current production replacement bundle was frozen on 2026-10-25 from the live
-installed `LJ_UNITTEST` source: 1,244 files and units, parser `structural@5`,
-contract hash `77c0f1c4…`, approval `4bf6d397…`. It is **NOT READY**:
+The current production bundle was requalified on 2026-10-26 from the source
+snapshot installed on 2026-10-25: 1,244 files and units, parser `structural@5`,
+contract hash `ead99963…`, approval `97c796a2…`. Declarations, reference
+precision, and reference recall pass; package dependencies fail and are owned by
+[#101](https://github.com/doberkofler/codeindex-mcp/issues/101):
 
 | Section | Result | Gate |
 |---|---:|---|
-| Declarations | 37,151 / 37,171 recall (99.9462%), 100% precision | PASS |
-| References | 187,145 / 188,648 recall (99.2033%), 99.7298% precision | **FAIL** |
+| Declarations | 37,151 / 37,170 recall (99.9489%), 100% precision | PASS |
+| References | 187,665 / 188,287 recall (99.6697%), 100% precision | PASS |
 | Package dependencies | 5,553 / 5,656 recall (98.1789%), 100% precision | **FAIL** |
 
-Reference extras comprise 507 counted false positives and one ignored location
-mismatch. The defects are missing member-chain, iterator, pragma, and procedural
-references; Boolean and record-field condition reads that PL/Scope does not
-record; and 103 missing package edges, 86 of which have no authored reference in
-indexed source. The [production evidence](../benchmark/oracle-production-20261025/README.md)
-records every denominator, exclusion reason, and the comparison with Phase 6
-and Phase 8.
+No reference extra of any class was emitted. The 622 missing references are
+classified: 475 routine calls in 14 files whose per-file ambiguity diagnostic
+bound was reached, 49 `SELECT … INTO <record>` field writes, 18 member chains on
+function results or collection elements, 59 routine-local references inside
+anonymous blocks, and 21 routine-local loop iterators. 103 package edges remain
+missing, 86 of which have no authored reference in indexed source. The
+[production evidence](../benchmark/oracle-production-20261026/README.md)
+records every denominator, exclusion reason, and the comparison with 2026-10-25,
+Phase 6, and Phase 8.
 
 Each report records `contract.id`, `contract.version`, and `contract.hash`, the
 parser identity, the corpus source and configuration hashes, the truth-export
@@ -288,12 +296,18 @@ SHA-256 values, and per-reason exclusion counts. The denominators can be
 reconstructed from the report alone. Disagreement samples are retained
 externally; committed reports keep aggregate counts only.
 
-The controlled 10-case corpus passes under `oracle-o1@2` with 41/41
+The controlled 10-case corpus passed under `oracle-o1@2` with 41/41
 declarations, 35/35 references, and 7/7 dependencies
-([controlled evidence](../benchmark/oracle-controlled/README.md)).
+([controlled evidence](../benchmark/oracle-controlled/README.md)). Its rerun
+under the authoritative contract failed because the live export selects every
+object of the four PL/Scope types in the schema; the bundle is retained as
+historical evidence.
 
 Retained historical comparisons:
 
+- Production 2026-10-25 (policy `v4`, live installed, 1,244 files) reported
+  99.9462% declaration recall, 99.2033% / 99.7298% reference recall and
+  precision, and 98.1789% dependency recall. It is not the current contract.
 - Phase 6 (2026-10-21, policy `v2`, SVN r78950, 1,237 files) reported 186,742 /
   186,877 references (99.9278%) and 100% precision with an external ambiguity
   removal step. It is not the current contract, corpus, or policy.
@@ -302,7 +316,7 @@ Retained historical comparisons:
   ANTLR decision, not a production verdict.
 - Phase 0 (2026-10-19, policy `v1`) is the adoption baseline.
 
-Neither historical artifact is rewritten.
+No historical artifact is rewritten.
 
 Run the comparison without connecting to Oracle:
 
@@ -313,8 +327,8 @@ pnpm qualify:oracle
 Verify and replay a retained bundle without connecting to Oracle:
 
 ```bash
-node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261025/corpus.json
-node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261025/corpus.json
+node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261026/corpus.json
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261026/corpus.json
 ```
 
 The deterministic verification tiers are:
@@ -322,7 +336,7 @@ The deterministic verification tiers are:
 | Command | Scope | Database |
 |---|---|---|
 | `pnpm test:oracle` | Every `test/oracle*.test.ts` module discovered from disk plus the generic contracts Oracle depends on | none |
-| `pnpm test:oracle:bundle` | Preflight and offline replay of the controlled bundle | none |
+| `pnpm test:oracle:bundle` | Preflight and offline replay of the current production bundle | none |
 | `pnpm test:oracle:live` | Read-only catalogue inventory and DDL-refusal preflight; skipped unless `CODE_INDEX_ORACLE_LIVE=1` | read-only |
 
 A module named `oracle*.test.ts` must stay database-free; discovery selects it
@@ -333,8 +347,9 @@ approval hash.
 The command reads `CODE_INDEX_ROOT`, `CODE_INDEX_PROJECT_FILE`,
 `CODE_INDEX_ORACLE_IDENTIFIERS`, and `CODE_INDEX_ORACLE_DEPENDENCIES`, or accepts
 the corresponding `--root`, `--project-file`, `--identifiers`, and
-`--dependencies` options. Qualification uses truth policy `v4` by default. Pass
-`--truth-policy v1`, `--truth-policy v2`, or `--truth-policy v3` only to replay
+`--dependencies` options. Qualification uses truth policy `v5` by default. Pass
+`--truth-policy v1`, `--truth-policy v2`, `--truth-policy v3`, or
+`--truth-policy v4` only to replay
 retained historical evidence; those policies are not the release contract. Pass
 `--units <plan.json>` to reuse the explicit snapshot object mapping from an
 approved live plan; this is required when a source filename differs from the

@@ -1,10 +1,17 @@
 # Oracle production qualification evidence (2026-10-25)
 
-**Status: NOT READY.** Contract `oracle-o1@2` fails the reference-precision,
-reference-recall, and dependency-recall gates on the current production corpus.
-Declarations pass. This is the current production verdict. The controlled
-10-case corpus remains a separate PASS
-([`benchmark/oracle-controlled`](../oracle-controlled/README.md)); Phase 0,
+**Status:** historical. This bundle records contract `oracle-o1@2` (truth policy
+`v4`) and is retained unchanged. The authoritative evidence is
+[`benchmark/oracle-production-20261026`](../oracle-production-20261026/README.md),
+which requalifies the same source snapshot under contract `oracle-o1@3` (truth
+policy `v5`): reference precision and recall now pass, and the dependency gate
+remains owned by [#101](https://github.com/doberkofler/codeindex-mcp/issues/101).
+
+Original verdict: **NOT READY.** Contract `oracle-o1@2` fails the
+reference-precision, reference-recall, and dependency-recall gates on the
+current production corpus. Declarations pass. This is the current production
+verdict at the time of the run. The controlled 10-case corpus remains a separate
+PASS ([`benchmark/oracle-controlled`](../oracle-controlled/README.md)); Phase 0,
 Phase 6, and Phase 8 remain historical evidence and are not rewritten.
 
 ## Identities

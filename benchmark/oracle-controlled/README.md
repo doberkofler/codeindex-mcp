@@ -1,9 +1,24 @@
 # Oracle controlled qualification evidence
 
-**Status:** PASS for the controlled 10-case corpus. No production-scale claim.
+**Status:** historical PASS for the controlled 10-case corpus, under superseded
+contract `oracle-o1@2`. It is retained unchanged and is not the current
+contract. The authoritative evidence is
+[`benchmark/oracle-production-20261026`](../oracle-production-20261026/README.md).
 
 This bundle binds [`test/fixtures/oracle-qualification-corpus`](../../test/fixtures/oracle-qualification-corpus/README.md)
 to contract `oracle-o1@2` and truth policy `v4`.
+
+> **Requalification note (2026-10-26).** A controlled rerun under
+> `oracle-o1@3` was attempted and failed. Recompiling the 10 `CIQ_` objects
+> succeeded, but the live export selects every `PACKAGE`, `PACKAGE BODY`,
+> `FUNCTION`, and `PROCEDURE` row in the schema. `LJ_UNITTEST` now also holds
+> the 1,246 production objects, so qualification aborts on the first unmapped
+> production object before writing `run.json`. The `CIQ_` objects and table were
+> dropped afterwards. A controlled rerun needs an isolated schema or an export
+> scoped to the plan's object list; neither is part of this evidence. Preflight
+> rejects this bundle under the authoritative contract because its run record
+> carries the `oracle-o1@2` identity, so the bundle is retained as historical
+> evidence.
 
 | Item | Value |
 | --- | --- |
@@ -36,6 +51,12 @@ node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-controlled/corpus.j
 node dist/cli.mjs oracle-replay --bundle benchmark/oracle-controlled/corpus.json
 ```
 
+Under the authoritative contract both commands exit non-zero: the retained
+`run.json` records the superseded `oracle-o1@2` identity and the adapter has
+changed since. That rejection is the contract's safeguard against comparing
+evidence from different contracts. The report remains reproducible only at the
+code revision named by its identities.
+
 Preflight is database-free and exits non-zero on a missing or mismatched
 artifact. Replay reconstructs the live project-context layout and compares every
 aggregate field with `qualification.json`, ignoring only the nondeterministic
@@ -50,5 +71,7 @@ This is a controlled substitute frozen after exact recovery of the historical
 Phase 0 bundle failed. It proves the contract, parser, publication, exclusions,
 and gates on synthetic cases. It does not prove production-corpus recall or
 representativeness. ORA-004 completed against a live installed replacement
-bundle, which is **NOT READY**
-([production evidence](../oracle-production-20261025/README.md)).
+bundle; its current verdict is the
+[2026-10-26 production evidence](../oracle-production-20261026/README.md), where
+the reference gates pass and the dependency gate is owned by
+[#101](https://github.com/doberkofler/codeindex-mcp/issues/101).

@@ -59,11 +59,39 @@ const suppliedNames = (candidate: ChoiceCandidateType, site: OracleReferenceSite
 	return supplied;
 };
 
+/**
+ * Reports whether a named association cannot belong to one candidate.
+ *
+ * Oracle matches a named association by parameter name, so a name that the
+ * candidate does not declare rejects the whole candidate. Treating such an
+ * association as positional would let a wider overload fit a call that only
+ * the narrower overload accepts.
+ *
+ * @param candidate - Candidate declaration.
+ * @param site - Authored call site.
+ * @returns Whether any named association is unknown to the candidate.
+ */
+const hasUnknownNamedArgument = (candidate: ChoiceCandidateType, site: OracleReferenceSiteType): boolean => {
+	const args = site.arguments ?? [];
+
+	if (args.length === 0) {
+		return false;
+	}
+
+	const known = new Set(candidate.declaration.parameters.map((parameter) => parameter.name.canonical));
+
+	return args.some((argument) => argument.name !== null && !known.has(argument.name));
+};
+
 const fitsArguments = (candidate: ChoiceCandidateType, site: OracleReferenceSiteType): boolean => {
 	const {parameters} = candidate.declaration;
 	const provided = site.argumentCount ?? 0;
 
 	if (provided > parameters.length) {
+		return false;
+	}
+
+	if (hasUnknownNamedArgument(candidate, site)) {
 		return false;
 	}
 
@@ -137,6 +165,21 @@ const nearestNonRoutine = (candidates: readonly ChoiceCandidateType[], site: Ora
 	);
 };
 
+/**
+ * Reports one ambiguous-overload site at the callee token.
+ *
+ * @param state - Resolution state that owns the diagnostic collector.
+ * @param site - Authored call or reference site.
+ * @param enabled - Whether ambiguity reporting is enabled for this resolution.
+ */
+const reportAmbiguousOverload = (state: ResolveStateType, site: OracleReferenceSiteType, enabled: boolean): void => {
+	if (!enabled) {
+		return;
+	}
+
+	state.diagnostics.add(ORACLE_DIAGNOSTIC.ambiguousOverload, `Ambiguous overload for ${site.name.text}`, site.nameRange.startLine, site.nameRange.startColumn);
+};
+
 export const chooseCandidateOf = (
 	services: ResolutionServicesType,
 	request: Readonly<{candidates: readonly ChoiceCandidateType[]; site: OracleReferenceSiteType}>,
@@ -171,9 +214,9 @@ export const chooseCandidateOf = (
 		}
 
 		if (fitting.length > 1) {
-			if (reportAmbiguity) {
-				state.diagnostics.add(ORACLE_DIAGNOSTIC.ambiguousOverload, `Ambiguous overload for ${site.name.text}`, site.range.startLine, site.range.startColumn);
-			}
+			// A diagnostic marks the callee, matching the position PL/Scope
+			// reports for the CALL row that the contract omits.
+			reportAmbiguousOverload(state, site, reportAmbiguity);
 
 			return {choice: null, outcome: 'ambiguous-overload'};
 		}
@@ -204,6 +247,8 @@ export const chooseCandidateOf = (
 		if (fitting.length === 0) {
 			return {choice: null, outcome: 'no-declaration'};
 		}
+
+		reportAmbiguousOverload(state, site, reportAmbiguity);
 	}
 
 	return {choice: null, outcome: 'ambiguous-overload'};

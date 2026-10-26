@@ -392,14 +392,14 @@ The baseline does not pass the adoption gates.
 
 Policy `v2` is the historical Phase 8 comparison policy; `--truth-policy v1`
 preserves the frozen Phase 0 behavior. The authoritative production gate is
-contract `oracle-o1@2` with truth policy `v4`
+contract `oracle-o1@3` with truth policy `v5`
 ([Oracle O1 qualification contract](./oracle-qualification-contract.md)), which
-is `v3` plus the publication-surface ephemeral rule. V2 applies the supported-type map to
+is `v4` plus the corrected `DEFINITION` mapping. V2 applies the supported-type map to
 truth references as well as actual occurrences, so columns, tables, views,
-sequences, datatypes, and labels no longer inflate reference truth. Supported
-`DEFINITION` rows are declarations, and `ITERATOR`/`RECORD ITERATOR` map to the
-extractor's variable kind. Package references remain excluded because they are
-dependency edges.
+sequences, datatypes, and labels no longer inflate reference truth. Program-unit
+`DEFINITION` rows are declarations, scalar `DEFINITION` rows are reference uses,
+and `ITERATOR`/`RECORD ITERATOR` map to the extractor's variable kind. Package
+references remain excluded because they are dependency edges.
 
 Every extra fact is classified:
 
@@ -417,7 +417,7 @@ anchor. Checked-in golden facts under
 cannot confirm.
 
 The frozen Phase 0 report remains a `v1` measurement. To reproduce it, pass
-`--truth-policy v1`. A default run executes contract `oracle-o1@2` with `v4`.
+`--truth-policy v1`. A default run executes contract `oracle-o1@3` with `v5`.
 
 ### 6.5 Phase 7 performance
 
@@ -610,12 +610,13 @@ rejected on the same quality gates; Phase 7 edit-to-fresh evidence is not a
 substitute for them.
 
 The current production replacement evidence uses `structural@5` with contract
-`oracle-o1@2` and truth policy `v4` on 1,244 live installed objects, not the
-Phase 8 `structural@1`/policy `v2` population. Structural declarations pass
-(99.9462% recall, 100% precision); references (99.2033% / 99.7298%) and
-dependencies (98.1789% / 100%) still fail. No ANTLR measurement exists on that
-corpus and policy. The Phase 8 comparison above remains candidate evidence for
-the parser quality question; it is not the current production verdict.
+`oracle-o1@3` and truth policy `v5` on 1,244 live installed objects, not the
+Phase 8 `structural@1`/policy `v2` population. Structural declarations
+(99.9489% recall, 100% precision) and references (99.6697% / 100%) pass;
+dependencies (98.1789% / 100%) still fail and are owned by #101. No ANTLR
+measurement exists on that corpus and policy. The Phase 8 comparison above
+remains candidate evidence for the parser quality question; it is not the
+current production verdict.
 
 The ANTLR production disposition is therefore closed: the ANTLR adapter remains
 qualification-only and the structural parser stays in production. Reconsider only

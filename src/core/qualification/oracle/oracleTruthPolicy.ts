@@ -1,4 +1,4 @@
-export type OracleTruthPolicyVersionType = 'v1' | 'v2' | 'v3' | 'v4';
+export type OracleTruthPolicyVersionType = 'v1' | 'v2' | 'v3' | 'v4' | 'v5';
 
 export type OracleTruthPolicyType = Readonly<{
 	version: OracleTruthPolicyVersionType;
@@ -122,6 +122,35 @@ export const ORACLE_TRUTH_POLICY_V4: OracleTruthPolicyType = {
 };
 
 /**
+ * Identifier types for which a `DEFINITION` row is the declaration point.
+ *
+ * Oracle documents `DEFINITION` for exceptions and program units only: "a
+ * DEFINITION tells the compiler how to implement or use a previously declared
+ * identifier", and "for a top-level identifier only, the DEFINITION and
+ * DECLARATION are in the same place". A scalar identifier has no `DEFINITION`,
+ * yet Oracle 19c reports a bare Boolean predicate read (`IF flag THEN`) with
+ * usage `DEFINITION`. V5 keeps the documented declaration meaning for program
+ * units and exceptions, and maps every other supported type to a reference use.
+ */
+const DEFINITION_DECLARATION_TYPES = new Set([...PROGRAM_UNIT_TYPES, 'EXCEPTION']);
+
+/**
+ * Authoritative O1 qualification policy.
+ *
+ * V5 corrects the `DEFINITION` mapping that V2 widened to every supported
+ * identifier type. That widening turned each scalar predicate read Oracle 19c
+ * reports as `DEFINITION` into an invented declaration at the read site: the
+ * declaration was then dropped as ephemeral, while the adapter's legitimate
+ * reference at the same position counted as a false positive. V5 maps scalar
+ * `DEFINITION` rows back to references and keeps every V4 rule unchanged.
+ */
+export const ORACLE_TRUTH_POLICY_V5: OracleTruthPolicyType = {
+	...ORACLE_TRUTH_POLICY_V4,
+	version: 'v5',
+	definitionTypes: DEFINITION_DECLARATION_TYPES,
+};
+
+/**
  * Resolves a truth-policy version.
  *
  * @param version - Requested version; omitted selects the authoritative policy.
@@ -129,8 +158,8 @@ export const ORACLE_TRUTH_POLICY_V4: OracleTruthPolicyType = {
  * @throws {Error} When the version is unknown.
  */
 export const oracleTruthPolicyOf = (version?: string): OracleTruthPolicyType => {
-	if (version === undefined || version === 'v4') {
-		return ORACLE_TRUTH_POLICY_V4;
+	if (version === undefined || version === 'v5') {
+		return ORACLE_TRUTH_POLICY_V5;
 	}
 
 	if (version === 'v1') {
@@ -143,6 +172,10 @@ export const oracleTruthPolicyOf = (version?: string): OracleTruthPolicyType => 
 
 	if (version === 'v3') {
 		return ORACLE_TRUTH_POLICY_V3;
+	}
+
+	if (version === 'v4') {
+		return ORACLE_TRUTH_POLICY_V4;
 	}
 
 	throw new Error(`Unknown Oracle truth policy: ${version}`);

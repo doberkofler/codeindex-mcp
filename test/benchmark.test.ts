@@ -316,7 +316,7 @@ const runOf = (
 const thresholdsOf = (): OraclePerformanceThresholdsType => ({
 	schemaVersion: 1 as const,
 	declaredAt: '2026-10-25T00:00:00.000Z',
-	corpus: {bundle: 'benchmark/oracle-production-20261025/corpus.json', sourceHash: 'a'.repeat(64), configHash: 'b'.repeat(64), fileCount: 2},
+	corpus: {bundle: 'benchmark/oracle-production-20261026/corpus.json', sourceHash: 'a'.repeat(64), configHash: 'b'.repeat(64), fileCount: 2},
 	metrics: {
 		'cold.wallMs': {statistic: 'median' as const, warn: 1000, fail: 2000, unit: 'ms' as const},
 		'old.wallMs': {statistic: 'median' as const, warn: 1000, fail: 2000, unit: 'ms' as const},

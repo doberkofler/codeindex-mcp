@@ -249,11 +249,13 @@ the qualification command.
 ### Phase 6 — Qualification policy v2
 
 **Status:** implemented and superseded by contract `oracle-o1@2` (truth policy
-`v3`). `v1` and `v2` remain selectable for historical comparison only.
-Unsupported PL/Scope reference types are filtered from truth and actual facts,
-supported `DEFINITION` rows are declarations, iterators map to variables,
-extras are classified into four reason classes, and declaration/reference
-metrics are stratified. Golden facts cover constructs PL/Scope does not record.
+`v3`); contract `oracle-o1@3` (truth policy `v5`) is current. `v1`–`v4` remain
+selectable for historical comparison only. Unsupported PL/Scope reference types
+are filtered from truth and actual facts, program-unit `DEFINITION` rows are
+declarations while scalar `DEFINITION` rows are reference uses, iterators map to
+variables, extras are classified into four reason classes, and
+declaration/reference metrics are stratified. Golden facts cover constructs
+PL/Scope does not record.
 
 **Tasks**
 
