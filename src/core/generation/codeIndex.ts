@@ -255,6 +255,10 @@ export class CodeIndex {
 			});
 			throw error;
 		} finally {
+			// `resources()` stops the sampler only when analytics records a build.
+			// Stopping it here keeps a disabled-analytics process from polling RSS
+			// every 25 ms for the rest of its life.
+			sample.stop();
 			stopHeartbeat();
 			try {
 				this.#database.releaseBuildLease(this.#ownerId);
