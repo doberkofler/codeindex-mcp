@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import {ORACLE_DIAGNOSTIC} from '../../../adapters/oracle/diagnostics.ts';
+import {ORACLE_DEPENDENCY_EXCLUSION_REASONS} from './oracleDependencyExclusions.ts';
 import {ORACLE_COMPARISON_SAMPLE_LIMIT} from './oracleTruth.ts';
 import {ORACLE_TRUTH_EXCLUSION_REASONS} from './oracleTruthExclusions.ts';
 import {ORACLE_TRUTH_POLICY_V5, type OracleTruthPolicyVersionType} from './oracleTruthPolicy.ts';
@@ -28,6 +29,8 @@ export type OracleQualificationContractType = Readonly<{
 	sampleLimit: number;
 	/** Stable reason codes for every omitted truth row. */
 	exclusionReasons: readonly string[];
+	/** Stable reason codes for every omitted package-dependency truth row. */
+	dependencyExclusions: readonly string[];
 	/** A policy-visible ambiguity diagnostic omits exactly one CALL truth row. */
 	ambiguity: Readonly<{diagnosticCode: number; usage: 'CALL'; positionMatch: 'exact path/line/column'}>;
 	/** An unmapped PL/Scope object aborts the run instead of shrinking truth. */
@@ -51,13 +54,14 @@ export type OracleQualificationContractType = Readonly<{
  */
 export const ORACLE_QUALIFICATION_CONTRACT: OracleQualificationContractType = {
 	id: 'oracle-o1',
-	version: '3',
+	version: '4',
 	truthPolicy: ORACLE_TRUTH_POLICY_V5.version,
 	objectTypes: ['FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'PROCEDURE'],
 	thresholds: {declarations: 0.995, references: 0.995, dependencies: 0.995, precision: 1},
 	emptyTruth: 'fail',
 	sampleLimit: ORACLE_COMPARISON_SAMPLE_LIMIT,
 	exclusionReasons: [...ORACLE_TRUTH_EXCLUSION_REASONS],
+	dependencyExclusions: [...ORACLE_DEPENDENCY_EXCLUSION_REASONS],
 	ambiguity: {diagnosticCode: ORACLE_DIAGNOSTIC.ambiguousOverload, usage: 'CALL', positionMatch: 'exact path/line/column'},
 	unmappedObject: 'abort',
 	identity: {
@@ -77,6 +81,7 @@ const canonicalContract = (contract: OracleQualificationContractType): string =>
 		emptyTruth: contract.emptyTruth,
 		sampleLimit: contract.sampleLimit,
 		exclusionReasons: contract.exclusionReasons,
+		dependencyExclusions: contract.dependencyExclusions,
 		ambiguity: contract.ambiguity,
 		unmappedObject: contract.unmappedObject,
 		identity: contract.identity,
@@ -92,6 +97,7 @@ export type OracleQualificationContractIdentityType = Readonly<{
 	sampleLimit: number;
 	objectTypes: readonly string[];
 	exclusionReasons: readonly string[];
+	dependencyExclusions: readonly string[];
 	ambiguity: OracleQualificationContractType['ambiguity'];
 	unmappedObject: 'abort';
 }>;
@@ -115,6 +121,7 @@ export const oracleQualificationContractIdentityOf = (): OracleQualificationCont
 	sampleLimit: ORACLE_QUALIFICATION_CONTRACT.sampleLimit,
 	objectTypes: ORACLE_QUALIFICATION_CONTRACT.objectTypes,
 	exclusionReasons: ORACLE_QUALIFICATION_CONTRACT.exclusionReasons,
+	dependencyExclusions: ORACLE_QUALIFICATION_CONTRACT.dependencyExclusions,
 	ambiguity: ORACLE_QUALIFICATION_CONTRACT.ambiguity,
 	unmappedObject: ORACLE_QUALIFICATION_CONTRACT.unmappedObject,
 });

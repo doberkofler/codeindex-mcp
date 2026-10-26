@@ -1,20 +1,21 @@
 # Oracle SQL and PL/SQL Adapter
 
 **Status:** static O1 adapter implemented and bound to the structural parser
-(`structural@5`). The semantic release gate is contract `oracle-o1@3`
+(`structural@5`). The semantic release gate is contract `oracle-o1@4`
 ([Oracle O1 qualification contract](./oracle-qualification-contract.md)); the
 qualification command executes it directly. The current production verdict is
-**REFERENCE GATES PASS; DEPENDENCY GATE FAILS**: the 2026-10-26 requalification
-of the 2026-10-25 source snapshot passes declarations, reference precision, and
-reference recall, and fails dependency recall, which is decided separately in
-[#101](https://github.com/doberkofler/codeindex-mcp/issues/101). The 2026-10-25
-bundle (`oracle-o1@2`, truth policy `v4`), the 2026-10-19 Oracle-backed run, and
-the Phase 6/Phase 8 comparisons are historical evidence, not the current
-verdict. The controlled 10-case corpus passed under `oracle-o1@2` and is
-retained as historical evidence
+**PASS**: the 2026-10-27 contract recomputation of the 2026-10-25 source
+snapshot passes declarations, reference precision and recall, and package
+dependency precision and recall. Contract `@4` records the 103
+`compiler_inferred_dependency` exclusions decided in
+[#101](https://github.com/doberkofler/codeindex-mcp/issues/101). The 2026-10-26
+bundle (`oracle-o1@3`), the 2026-10-25 bundle (`oracle-o1@2`, truth policy `v4`),
+the 2026-10-19 Oracle-backed run, and the Phase 6/Phase 8 comparisons are
+historical evidence, not the current verdict. The controlled 10-case corpus
+passed under `oracle-o1@2` and is retained as historical evidence
 ([controlled evidence](../benchmark/oracle-controlled/README.md)); the
 production replacement evidence is the current bundle
-([production evidence](../benchmark/oracle-production-20261026/README.md)).
+([production evidence](../benchmark/oracle-production-20261027/README.md)).
 
 ## 1. Scope
 
@@ -257,7 +258,7 @@ pnpm grammar:oracle:generate
 
 ### 7.1 Current production verdict
 
-The authoritative semantic gate is contract `oracle-o1@3` with truth policy
+The authoritative semantic gate is contract `oracle-o1@4` with truth policy
 `v5`; see the
 [Oracle O1 qualification contract](./oracle-qualification-contract.md). The
 contract owns the truth population, supported identifier types, usage mapping,
@@ -268,27 +269,29 @@ gate. Policy `v5` omits parameters and routine-local declarations as
 `ephemeral_declaration`, matching the publication surface, and maps a scalar
 `DEFINITION` row to a reference use.
 
-The current production bundle was requalified on 2026-10-26 from the source
+The current production bundle was recomputed on 2026-10-27 from the source
 snapshot installed on 2026-10-25: 1,244 files and units, parser `structural@5`,
-contract hash `ead99963…`, approval `97c796a2…`. Declarations, reference
-precision, and reference recall pass; package dependencies fail and are owned by
-[#101](https://github.com/doberkofler/codeindex-mcp/issues/101):
+contract hash `ee83f2ec…`, approval `97c796a2…`. Every gate passes:
 
 | Section | Result | Gate |
 |---|---:|---|
 | Declarations | 37,151 / 37,170 recall (99.9489%), 100% precision | PASS |
 | References | 187,665 / 188,287 recall (99.6697%), 100% precision | PASS |
-| Package dependencies | 5,553 / 5,656 recall (98.1789%), 100% precision | **FAIL** |
+| Package dependencies | 5,553 / 5,553 recall (100%), 100% precision; 103 counted `compiler_inferred_dependency` exclusions from 5,656 raw edges | PASS |
 
 No reference extra of any class was emitted. The 622 missing references are
 classified: 475 routine calls in 14 files whose per-file ambiguity diagnostic
 bound was reached, 49 `SELECT … INTO <record>` field writes, 18 member chains on
 function results or collection elements, 59 routine-local references inside
-anonymous blocks, and 21 routine-local loop iterators. 103 package edges remain
-missing, 86 of which have no authored reference in indexed source. The
-[production evidence](../benchmark/oracle-production-20261026/README.md)
-records every denominator, exclusion reason, and the comparison with 2026-10-25,
-Phase 6, and Phase 8.
+anonymous blocks, and 21 routine-local loop iterators. The 103 dependency rows
+that failed under `@3` are all compiler-inferred: the authored file never
+mentions the target package, and Oracle recorded the edge from a referenced
+type, default expression, or nested record field. `@4` omits exactly those rows
+with a lexical, adapter-independent test, so dependency recall measures the
+edges the source can name. The
+[production evidence](../benchmark/oracle-production-20261027/README.md)
+records every denominator, exclusion reason, and the comparison with 2026-10-26,
+2026-10-25, Phase 6, and Phase 8.
 
 Each report records `contract.id`, `contract.version`, and `contract.hash`, the
 parser identity, the corpus source and configuration hashes, the truth-export
@@ -298,13 +301,16 @@ externally; committed reports keep aggregate counts only.
 
 The controlled 10-case corpus passed under `oracle-o1@2` with 41/41
 declarations, 35/35 references, and 7/7 dependencies
-([controlled evidence](../benchmark/oracle-controlled/README.md)). Its rerun
-under the authoritative contract failed because the live export selects every
-object of the four PL/Scope types in the schema; the bundle is retained as
-historical evidence.
+([controlled evidence](../benchmark/oracle-controlled/README.md)). A rerun
+under `@3` failed because the live export selects every object of the four
+PL/Scope types in the schema; the bundle is retained as historical evidence and
+was not requalified under `@4`.
 
 Retained historical comparisons:
 
+- Production 2026-10-26 (`@3`, policy `v5`, live installed, 1,244 files)
+  reported 99.9489% declaration recall, 99.6697% / 100% reference recall and
+  precision, and 98.1789% dependency recall. It is superseded by `@4`.
 - Production 2026-10-25 (policy `v4`, live installed, 1,244 files) reported
   99.9462% declaration recall, 99.2033% / 99.7298% reference recall and
   precision, and 98.1789% dependency recall. It is not the current contract.
@@ -327,8 +333,8 @@ pnpm qualify:oracle
 Verify and replay a retained bundle without connecting to Oracle:
 
 ```bash
-node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261026/corpus.json
-node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261026/corpus.json
+node dist/cli.mjs oracle-preflight --bundle benchmark/oracle-production-20261027/corpus.json
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261027/corpus.json
 ```
 
 The deterministic verification tiers are:

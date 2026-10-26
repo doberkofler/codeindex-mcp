@@ -10,7 +10,7 @@ Operational and design documentation for CodeIndex MCP.
 | [Oracle O1 qualification contract](./oracle-qualification-contract.md) | Authoritative truth population, exclusions, ambiguity rule, gates, report identity, and change control |
 | [Oracle O1 evidence bundle](./oracle-evidence-bundle.md) | Bundle contents, preflight, replay, recovery record, retention, and the production replacement |
 | [Oracle controlled evidence](../benchmark/oracle-controlled/README.md) | Ten-case controlled PASS under the superseded `oracle-o1@2`, retained as historical evidence with scope limits |
-| [Oracle production replacement evidence](../benchmark/oracle-production-20261026/README.md) | Current production verdict under `oracle-o1@3`: reference gates pass, dependency gate is owned by #101 |
+| [Oracle production replacement evidence](../benchmark/oracle-production-20261027/README.md) | Current production verdict under `oracle-o1@4`: every gate passes |
 | [ORDS and cross-language resolution](./ords-cross-language.md) | Planned HTTP, ORDS, and PL/SQL route evidence and cross-language graph construction |
 | [Roadmap](./roadmap.md) | Ordered delivery phases, acceptance gates, stop rules, and open decisions |
 | [Maintainer guide](./maintainer-guide.md) | Runtime contracts, verification, performance, security, and release discipline |

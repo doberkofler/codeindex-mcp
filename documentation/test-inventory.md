@@ -132,9 +132,9 @@ claim is reference-grouping semantics; it calls `CodeIndex` directly.
 | `test/oracleOverloadResolution.test.ts` | Adapter contract | `resolveOracleReferences` | Inline values | Member chains, overloads, writes, SQL calls, and package initialization resolve to the correct declaration. |
 | `test/oracleParserBinding.test.ts` | Adapter contract | Parser binding and identity, `buildGeneration` | Micro fixture | Parser selection is pinned and validated and the bound parser is injected into extraction. |
 | `test/oracleProgress.test.ts` | Module test | `formatDuration`, `phaseProgressLine` | Inline values | Progress lines format durations and ETAs without object names. |
-| `test/oracleQualification.test.ts` | Semantic qualification | Truth mapping, policy, and comparison | Handcrafted facts | PL/Scope truth maps to supported facts, policies classify exclusions, and comparisons are stratified. |
-| `test/oracleQualificationContract.test.ts` | Semantic qualification | Contract identity, truth population, exclusions, ambiguity, gates | Handcrafted facts | Every contract field, supported class, exclusion reason, ambiguity scope, gate, and denominator identity is pinned and reconstructible. |
-| `test/oracleQualificationRun.test.ts` | Semantic qualification | `runOracleQualification` | Vertical fixture | Qualification selects the ANTLR parser, requires both truth exports, and writes a failing report for empty truth. |
+| `test/oracleQualification.test.ts` | Semantic qualification | Truth mapping, policy, and comparison | Handcrafted facts | PL/Scope truth maps to supported facts, policies classify exclusions, comparisons are stratified, and the dependency classifier keeps a whole-identifier mention while omitting a prefix or longer identifier. |
+| `test/oracleQualificationContract.test.ts` | Semantic qualification | Contract identity, truth population, exclusions, ambiguity, gates | Handcrafted facts | Every contract field, supported class, identifier and dependency exclusion reason, ambiguity scope, gate, and denominator identity is pinned and reconstructible. |
+| `test/oracleQualificationRun.test.ts` | Semantic qualification | `runOracleQualification` | Vertical fixture | Qualification selects the ANTLR parser, requires both truth exports, writes a failing report for empty truth, and records dependency exclusions in the denominator. |
 | `test/oracleRecompile.test.ts` | Module test | `recompileOracleObjects`, `recompileOracleDependents` | Stub boundary | Targets and dependents recompile with counted progress and dependent failures are logged without aborting all work. |
 | `test/oracleSymbolIdentity.test.ts` | Module test | `createOracleId` | Inline values | Identity is stable, 32 characters, discriminator-aware, and field-sensitive. |
 | `test/oracleTestWorkflow.test.ts` | Module test | Oracle tier discovery and membership | Temporary workspace | Every `oracle*.test.ts` module joins the tier without a config edit, pinned generic contracts resolve, and an empty or incomplete tier is rejected. |
@@ -335,7 +335,7 @@ Checks:
 | Command | Scope | Database | Budget |
 |---|---|---|---:|
 | `pnpm test:oracle` | Every `test/oracle*.test.ts` module, discovered from disk, plus the pinned generic contracts Oracle depends on | none | 60 s |
-| `pnpm test:oracle:bundle` | Preflight plus offline replay of `benchmark/oracle-production-20261026/` | none | 120 s |
+| `pnpm test:oracle:bundle` | Preflight plus offline replay of `benchmark/oracle-production-20261027/` | none | 120 s |
 | `pnpm test:oracle:live` | Read-only catalogue inventory and DDL-refusal preflight; skipped unless `CODE_INDEX_ORACLE_LIVE=1` | read-only Oracle | 180 s |
 
 A module named `oracle*.test.ts` must stay database-free and evidence-root-free; discovery

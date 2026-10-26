@@ -3,7 +3,7 @@
 **Status:** historical PASS for the controlled 10-case corpus, under superseded
 contract `oracle-o1@2`. It is retained unchanged and is not the current
 contract. The authoritative evidence is
-[`benchmark/oracle-production-20261026`](../oracle-production-20261026/README.md).
+[`benchmark/oracle-production-20261027`](../oracle-production-20261027/README.md).
 
 This bundle binds [`test/fixtures/oracle-qualification-corpus`](../../test/fixtures/oracle-qualification-corpus/README.md)
 to contract `oracle-o1@2` and truth policy `v4`.
@@ -72,6 +72,5 @@ Phase 0 bundle failed. It proves the contract, parser, publication, exclusions,
 and gates on synthetic cases. It does not prove production-corpus recall or
 representativeness. ORA-004 completed against a live installed replacement
 bundle; its current verdict is the
-[2026-10-26 production evidence](../oracle-production-20261026/README.md), where
-the reference gates pass and the dependency gate is owned by
-[#101](https://github.com/doberkofler/codeindex-mcp/issues/101).
+[2026-10-27 production evidence](../oracle-production-20261027/README.md), where
+every gate passes under `oracle-o1@4`.

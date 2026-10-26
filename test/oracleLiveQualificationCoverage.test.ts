@@ -205,7 +205,7 @@ describe('Oracle live qualification apply reporting', () => {
 			expect(captured.stdout.join('\n')).toContain('Baseline invalid objects: 1');
 			expect(captured.stdout.join('\n')).toContain('Restored: 1');
 			expect(captured.stdout.join('\n')).not.toContain('Still invalid');
-			expect(metadata.contract).toMatchObject({id: 'oracle-o1', version: '3', truthPolicy: 'v5'});
+			expect(metadata.contract).toMatchObject({id: 'oracle-o1', version: '4', truthPolicy: 'v5'});
 			expect(metadata.truth.rows).toBe(0);
 			expect(metadata.truth.excludedByReason).toMatchObject({omitted_ambiguous_overload: 0});
 			expect(metadata.invalidObjects).toStrictEqual({baseline: 1, remainingBaseline: [], restoredBaseline: ['VIEW LEGACY_VIEW']});

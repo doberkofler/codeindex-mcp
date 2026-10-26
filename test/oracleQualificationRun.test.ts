@@ -201,7 +201,7 @@ describe('Oracle qualification report', () => {
 			expect(code).toBe(1);
 			expect(report.extractor).toBe('oracle');
 			expect(report.generationId.length).toBeGreaterThan(0);
-			expect(report.contract).toMatchObject({id: 'oracle-o1', version: '3', truthPolicy: 'v5', emptyTruth: 'fail'});
+			expect(report.contract).toMatchObject({id: 'oracle-o1', version: '4', truthPolicy: 'v5', emptyTruth: 'fail'});
 			expect(report.contract.hash).toMatch(/^[a-f0-9]{64}$/u);
 			expect(report.corpus.files).toBeGreaterThan(5);
 			expect(report.corpus.objects).toBeGreaterThan(5);
@@ -238,6 +238,67 @@ describe('Oracle qualification report', () => {
 			expect(report.gates.declarations.ok).toBe(false);
 			expect(report.gates.ok).toBe(false);
 			expect(readFileSync(output, 'utf8')).toBe(`${captured.stdout.join('\n')}\n`);
+		} finally {
+			fixture.cleanup();
+		}
+	});
+});
+
+describe('Oracle qualification dependency truth', () => {
+	afterEach(() => {
+		for (const directory of temporaryDirectories.splice(0)) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+	});
+
+	it('counts compiler-inferred dependency rows and keeps authored edges in the gate', async () => {
+		const fixture = createFixtureConfig('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+		const outputDirectory = temporaryDirectory();
+		const identifiers = writeCsv(outputDirectory, 'identifiers.csv');
+		const dependencies = path.join(outputDirectory, 'dependencies.csv');
+		writeFileSync(
+			dependencies,
+			[
+				'SALES_API,PACKAGE,APP,HR_API,PACKAGE,HARD',
+				'SALES_API,PACKAGE BODY,APP,HR_API,PACKAGE,HARD',
+				'HR_API,PACKAGE,APP,SALES_API,PACKAGE,HARD',
+				'MAINTENANCE_RUN,PROCEDURE,APP,HR_API,PACKAGE,HARD',
+				'',
+			].join('\n'),
+			{encoding: 'utf8'},
+		);
+		const captured = capture();
+
+		try {
+			await runOracleQualification(
+				environmentOf({
+					rootDir: fixture.config.rootDir,
+					extractorId: 'oracle',
+					projectFilePath: fixture.config.projectFilePath,
+					databasePath: fixture.config.databasePath,
+				}),
+				captured.io,
+				{identifiers, dependencies},
+			);
+			const report = JSON.parse(captured.stdout.join('\n')) as {
+				dependencies: {
+					truth: number;
+					rawTruth: number;
+					excluded: number;
+					excludedByReason: Record<string, number>;
+					matched: number;
+					actual: number;
+				};
+			};
+
+			expect(report.dependencies).toMatchObject({
+				truth: 2,
+				rawTruth: 4,
+				excluded: 2,
+				excludedByReason: {compiler_inferred_dependency: 2},
+				actual: 2,
+				matched: 2,
+			});
 		} finally {
 			fixture.cleanup();
 		}

@@ -1,11 +1,18 @@
 # Oracle production qualification evidence (2026-10-26)
 
-**Status: REFERENCE GATES PASS; DEPENDENCY GATE FAILS.** Contract `oracle-o1@3`
-(truth policy `v5`) passes reference precision and reference recall on the
-production corpus. Declarations pass. Package dependencies remain below the
-gate and are owned by [#101](https://github.com/doberkofler/codeindex-mcp/issues/101).
-The 2026-10-25 bundle is retained as historical evidence for contract
-`oracle-o1@2` and is not rewritten.
+**Status: historical.** This bundle records contract `oracle-o1@3` (truth policy
+`v5`) and is retained unchanged. The authoritative evidence is
+[`benchmark/oracle-production-20261027`](../oracle-production-20261027/README.md),
+which recomputes the same source snapshot and truth under contract `oracle-o1@4`
+(truth policy `v5`): every gate passes after the 103 counted
+`compiler_inferred_dependency` exclusions decided in
+[#101](https://github.com/doberkofler/codeindex-mcp/issues/101).
+
+Original verdict: **REFERENCE GATES PASS; DEPENDENCY GATE FAILS.** Contract
+`oracle-o1@3` passes reference precision and reference recall on the production
+corpus. Declarations pass. Package dependencies remained below the gate. The
+2026-10-25 bundle is retained as historical evidence for contract `oracle-o1@2`
+and is not rewritten.
 
 ## Identities
 

@@ -50,14 +50,14 @@ procedures/functions from an explicit manifest. Triggers, object types, table
 lineage, and live catalogue metadata are outside O1 scope. See the
 [Oracle adapter](./documentation/oracle-adapter.md).
 
-Current Oracle O1 production status under contract `oracle-o1@3` is
-**REFERENCE GATES PASS; DEPENDENCY GATE FAILS**: the 2026-10-26 replacement
-corpus passes declarations (99.9489% recall, 100% precision) and references
-(99.6697% recall, 100% precision), and fails dependency recall (98.1789%)
-([production evidence](./benchmark/oracle-production-20261026/README.md)).
-Dependency truth is decided separately in
+Current Oracle O1 production status under contract `oracle-o1@4` is **PASS**:
+the replacement corpus passes declarations (99.9489% recall, 100% precision),
+references (99.6697% recall, 100% precision), and package dependencies (100%
+recall and precision after 103 counted `compiler_inferred_dependency`
+exclusions) ([production evidence](./benchmark/oracle-production-20261027/README.md)).
+Dependency truth was decided in
 [#101](https://github.com/doberkofler/codeindex-mcp/issues/101). The controlled
-10-case corpus passed under the previous contract
+10-case corpus passed under a previous contract
 ([controlled evidence](./benchmark/oracle-controlled/README.md)) and is retained
 as historical evidence. Historical Phase 0/6/8 results are comparisons, not the
 current verdict.

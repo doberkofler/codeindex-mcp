@@ -2,15 +2,16 @@
 
 ## 1. Status
 
-**REFERENCES PASS; DEPENDENCIES FAIL for the production replacement corpus.**
-`benchmark/oracle-production-20261026/` requalifies the live installed source
+**PASS for the production replacement corpus.**
+`benchmark/oracle-production-20261027/` requalifies the live installed source
 inventory of `LJ_UNITTEST` under contract
-[`oracle-o1@3`](./oracle-qualification-contract.md): declarations, reference
-precision, and reference recall pass; package dependency recall fails and is
-owned by [#101](https://github.com/doberkofler/codeindex-mcp/issues/101). The
-source snapshot is byte-identical to 2026-10-25. This is the current production
-verdict ([evidence](../benchmark/oracle-production-20261026/README.md)); no
-production-scale semantic PASS is claimed.
+[`oracle-o1@4`](./oracle-qualification-contract.md): declarations, reference
+precision and recall, and package dependency precision and recall all pass. The
+103 compiler-inferred dependency rows decided in
+[#101](https://github.com/doberkofler/codeindex-mcp/issues/101) are counted as
+`compiler_inferred_dependency`; the source snapshot is byte-identical to
+2026-10-25. This is the current production verdict
+([evidence](../benchmark/oracle-production-20261027/README.md)).
 
 **Historical PASS for the controlled corpus.**
 `benchmark/oracle-controlled/` binds a replayable 10-case synthetic Oracle
@@ -30,8 +31,9 @@ A bundle is one external directory plus the identity files that stay in Git.
 
 | Bundle | Descriptor | External root | Verdict |
 | --- | --- | --- | --- |
-| Production replacement | `benchmark/oracle-production-20261026/corpus.json` | `oracle-live/ljs-production-20261026` | REFERENCES PASS; DEPENDENCIES FAIL |
-| Production historical | `benchmark/oracle-production-20261025/corpus.json` | `oracle-live/ljs-production-20261025` | NOT READY; superseded contract |
+| Production replacement | `benchmark/oracle-production-20261027/corpus.json` | `oracle-live/ljs-production-20261027` | PASS under `oracle-o1@4` |
+| Production historical | `benchmark/oracle-production-20261026/corpus.json` | `oracle-live/ljs-production-20261026` | REFERENCES PASS; DEPENDENCIES FAIL; superseded contract `@3` |
+| Production historical | `benchmark/oracle-production-20261025/corpus.json` | `oracle-live/ljs-production-20261025` | NOT READY; superseded contract `@2` |
 | Controlled substitute | `benchmark/oracle-controlled/corpus.json` | `oracle-live/ljs-ciq-20261025` | historical PASS under `oracle-o1@2` |
 | Historical Phase 0 | `benchmark/oracle-phase0/corpus.json` | `oracle-live/2eb1e36f6ecdada4` | NOT READY; root absent |
 
@@ -71,15 +73,15 @@ contract, or no contract, is not a contract run.
 ```bash
 pnpm build
 node dist/cli.mjs oracle-preflight \
-  --bundle benchmark/oracle-production-20261026/corpus.json \
+  --bundle benchmark/oracle-production-20261027/corpus.json \
   --output /tmp/oracle-preflight.json
 node dist/cli.mjs oracle-preflight \
-  --bundle benchmark/oracle-production-20261026/corpus.json
+  --bundle benchmark/oracle-production-20261027/corpus.json
 ```
 
 | Option | Meaning |
 | --- | --- |
-| `--bundle <path>` | Descriptor to verify; defaults to `benchmark/oracle-production-20261026/corpus.json` |
+| `--bundle <path>` | Descriptor to verify; defaults to `benchmark/oracle-production-20261027/corpus.json` |
 | `--evidence-root <path>` | Overrides the resolved external root |
 | `--output <path>` | Writes the full JSON report |
 | `--json` | Emits the report on stdout |
@@ -108,7 +110,7 @@ replay. Applying a plan still requires a separate DDL approval.
 
 ```bash
 pnpm build
-node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261026/corpus.json
+node dist/cli.mjs oracle-replay --bundle benchmark/oracle-production-20261027/corpus.json
 ```
 
 Replay is also DB-free. It copies the retained snapshot, recreates the live
@@ -189,11 +191,14 @@ against the same byte-identical source snapshot:
    `PLSCOPE_SETTINGS='IDENTIFIERS:ALL'`, left zero invalid objects, and exported
    identifiers, dependencies, and the source backup.
 4. Contract `oracle-o1@3` was executed against the regenerated truth.
+5. Contract `oracle-o1@4` was executed against the same source snapshot and
+   truth without a database session, adding the counted
+   `compiler_inferred_dependency` exclusion decided in #101.
 
 The replacement has no SVN revision and is not the historical Phase 0 snapshot.
-Its result is **REFERENCES PASS; DEPENDENCIES FAIL**. The 2026-10-25 run and the
-comparisons with Phase 6 and Phase 8 are recorded in
-[`benchmark/oracle-production-20261026/README.md`](../benchmark/oracle-production-20261026/README.md).
+Its current result is **PASS** under `@4`. The 2026-10-25 run, the 2026-10-26
+`@3` run, and the comparisons with Phase 6 and Phase 8 are recorded in
+[`benchmark/oracle-production-20261027/README.md`](../benchmark/oracle-production-20261027/README.md).
 
 A replacement freezes: manifest, source hashes, Oracle version, NLS and schema
 settings, object inventory, contract version, parser identity, and the approval

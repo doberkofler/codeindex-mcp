@@ -351,7 +351,7 @@ describe('Oracle truth dependencies', () => {
 	afterEach(removeTemporaryDirectories);
 
 	it('keeps supported package edges and skips unsupported rows', () => {
-		const mappings = new Map([[objectKey('PACKAGE', 'demo'), mapping()]]);
+		const mappings = new Map([[objectKey('PACKAGE', 'demo'), mapping({lines: ['package demo is', '  procedure run;', '    other.run;', 'end;']})]]);
 		const dependencies = readTruthDependencies(
 			[
 				['demo', 'PACKAGE', '', 'other', 'PACKAGE', ''],
@@ -363,8 +363,53 @@ describe('Oracle truth dependencies', () => {
 			],
 			mappings,
 			new Set(['other']),
+			{sourceOf: () => 'package demo is procedure run; other.run; end;'},
 		);
 
-		expect([...dependencies]).toStrictEqual([`source.pkg\u0000other`]);
+		expect([...dependencies.edges]).toStrictEqual([`source.pkg\u0000other`]);
+		expect(dependencies.rawEdges).toBe(1);
+		expect(dependencies.excluded).toStrictEqual([]);
+		expect(dependencies.excludedByReason).toStrictEqual({compiler_inferred_dependency: 0});
+	});
+
+	it('omits an edge whose target never appears in the authored source', () => {
+		const mappings = new Map([
+			[objectKey('PACKAGE', 'demo'), mapping()],
+			[objectKey('PACKAGE', 'other'), mapping({path: 'other.pkg'})],
+		]);
+		const dependencies = readTruthDependencies(
+			[
+				['demo', 'PACKAGE', '', 'other', 'PACKAGE', ''],
+				['other', 'PACKAGE', '', 'demo', 'PACKAGE', ''],
+			],
+			mappings,
+			new Set(['demo', 'other']),
+			{sourceOf: (sourcePath) => (sourcePath === 'source.pkg' ? 'package demo is end;' : 'package other is demo.run; end;')},
+		);
+
+		expect([...dependencies.edges]).toStrictEqual([`other.pkg\u0000demo`]);
+		expect(dependencies.rawEdges).toBe(2);
+		expect(dependencies.excluded).toStrictEqual([{path: 'source.pkg', target: 'other', reason: 'compiler_inferred_dependency'}]);
+		expect(dependencies.excludedByReason).toStrictEqual({compiler_inferred_dependency: 1});
+	});
+
+	it('does not treat a longer identifier or a package name prefix as a mention', () => {
+		const mappings = new Map([[objectKey('PACKAGE', 'demo'), mapping()]]);
+		const dependencies = readTruthDependencies([['demo', 'PACKAGE', '', 'las_uti_report', 'PACKAGE', '']], mappings, new Set(['las_uti_report']), {
+			sourceOf: () => 'package demo is v las_uti_reportstore.reportrtinfotyp; end;',
+		});
+
+		expect([...dependencies.edges]).toStrictEqual([]);
+		expect(dependencies.excludedByReason).toStrictEqual({compiler_inferred_dependency: 1});
+	});
+
+	it('keeps an edge when the target appears only in a comment or string', () => {
+		const mappings = new Map([[objectKey('PACKAGE', 'demo'), mapping()]]);
+		const dependencies = readTruthDependencies([['demo', 'PACKAGE', '', 'other', 'PACKAGE', '']], mappings, new Set(['other']), {
+			sourceOf: () => "-- see other.run\npackage demo is v 'other'; end;",
+		});
+
+		expect([...dependencies.edges]).toStrictEqual([`source.pkg\u0000other`]);
+		expect(dependencies.excludedByReason).toStrictEqual({compiler_inferred_dependency: 0});
 	});
 });
