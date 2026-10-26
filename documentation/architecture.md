@@ -202,7 +202,7 @@ full `index_status.scope` payload for the configured root and project files; the
 summary omits the absolute root.
 
 The fact tables implement the symbol, binding, exposure, and definition-site model in
-§7.3. Schema version 11 is current; §7.4 defines the invariants validated before
+§7.3. Schema version 12 is current; §7.4 defines the invariants validated before
 publication.
 
 One generation is published at a time. A successful refresh revises it in place

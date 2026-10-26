@@ -62,6 +62,41 @@ describe('TypeScript publication vertical slice', () => {
 		}
 	});
 
+	it('binds an empty-string property key with an empty terminal name', () => {
+		const {facts, cleanup} = buildFacts();
+
+		try {
+			const binding = facts.bindings.find((entry) => entry.name === '' && entry.qualifiedName === 'module["src/property-names.ts"]::EmptyKeyedAttributes[""]');
+
+			expect(binding).toMatchObject({container: 'module["src/property-names.ts"]::EmptyKeyedAttributes', name: ''});
+			expect(facts.symbols.some((symbol) => symbol.name === '' && symbol.path === 'src/property-names.ts')).toBe(true);
+		} finally {
+			cleanup();
+		}
+	});
+
+	it('persists and serves an empty-string binding name', () => {
+		const {facts, cleanup} = buildFacts();
+		const symbol = facts.symbols.find((entry) => entry.name === '' && entry.path === 'src/property-names.ts');
+
+		cleanup();
+
+		if (symbol === undefined) {
+			throw new Error('Missing empty-name symbol');
+		}
+
+		const fixture = createFixtureIndex('publication-project');
+
+		try {
+			const names = fixture.index.readSymbol({symbolId: symbol.id, mode: 'names', contextLines: 0, limit: 20});
+			const item = names.kind === 'names' ? names.items[0] : undefined;
+
+			expect(item).toMatchObject({name: '', qualifiedName: 'module["src/property-names.ts"]::EmptyKeyedAttributes[""]'});
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
 	it('projects surface addresses and alias roots', () => {
 		const {facts, cleanup} = buildFacts();
 

@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '11';
+export const SCHEMA_VERSION = '12';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -131,7 +131,9 @@ create table if not exists symbol_name (
 	symbol_id text not null,
 	binding_key text not null check (length(binding_key) > 0),
 	container text not null,
-	name text not null check (length(name) > 0),
+	-- TypeScript allows an empty string as a property key, so the terminal name
+	-- of a member binding may legitimately be empty.
+	name text not null,
 	qualified_name text not null check (length(qualified_name) > 0),
 	exposure text not null check (exposure in ('published', 'reachable', 'internal')),
 	has_declared_site integer not null check (has_declared_site in (0, 1)),
