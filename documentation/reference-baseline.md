@@ -8,6 +8,10 @@ declared gates, retained evidence digest, and reproduction commands for the
 model-free reference baseline. It answers PROD-001 ([#47]). The baseline is a
 fixed-corpus measurement, not a population or agent-task claim.
 
+The release gate now runs on the pinned GitHub-hosted `ubuntu-24.04` image. This
+page remains the retained Apple M5 Max record for `0.6.0`; it is not the current
+release-gate platform, and its numbers are not comparable with Linux runs.
+
 ## 1. Machine and runtime
 
 | Field | Value |

@@ -18,21 +18,25 @@ The test classes and failure interpretation are owned by
 and the [maintainer guide](../../documentation/maintainer-guide.md#7-performance-verification).
 This page records the operational contract beside the workflow definitions.
 
-## Runner profile
+## Runner profiles
 
-`nightly.yml` and `stable.yml` declare the same reference profile:
+| Workflow | Runner | Reference platform |
+| --- | --- | --- |
+| `ci.yml` | `ubuntu-latest` | none; `CODE_INDEX_TEST_BUDGET_MS` declares a hosted budget |
+| `stable.yml` | `ubuntu-24.04` | pinned GitHub-hosted image |
+| `nightly.yml` | `self-hosted`, `macOS`, `ARM64`, `codeindex-reference` | Apple M5 Max, 64 GB, macOS 27.0.1 |
+| `release.yml` | `ubuntu-latest` publish job; `stable.yml` for verification | as `stable.yml` |
 
-| Field | Value |
-| --- | --- |
-| Runner labels | `self-hosted`, `macOS`, `ARM64`, `codeindex-reference` |
-| Machine | Apple M5 Max, 64 GB |
-| OS | macOS 27.0.1 |
-| Node.js | 26 |
-| pnpm | 12 |
+Node.js 26 and pnpm 12 are installed by the workflow, not by the runner image.
 
-Register a runner with exactly those labels. The claim is bounded by the declared profile:
-moving to another machine changes the reference and requires new retained evidence.
-Hosted-runner numbers are directional and are not used for the stable gate.
+`stable.yml` is pinned to `ubuntu-24.04` so a hosted image update cannot silently change
+the reference platform. Absolute latency, memory, storage, plan, and correctness gates
+always apply. Relative regression gates are capped to warnings whenever the retained
+reference was produced on another platform or architecture, so the first Linux run
+establishes the Linux reference and later runs compare Linux against Linux.
+
+The nightly performance claims remain bounded to the declared self-hosted profile. Moving
+that reference to other hardware requires new retained evidence.
 
 ## `nightly.yml`
 

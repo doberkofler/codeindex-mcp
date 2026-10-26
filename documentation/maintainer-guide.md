@@ -218,7 +218,8 @@ external root so a benchmark never modifies a user checkout.
 
 Run small profiles in ordinary development. Run `large` or `xl` and pinned public
 projects in the nightly job with broad order-of-magnitude bounds. Hard latency and
-resource gates use a stable reference machine; hosted CI numbers are directional.
+resource gates use one declared platform image; a reference produced elsewhere caps
+relative regression gates to warnings.
 
 Nightly public-project set:
 
@@ -242,9 +243,9 @@ therefore active on scheduled runs; reference-machine gates remain authoritative
 retained report is supplied explicitly.
 
 The [stable workflow](../.github/workflows/stable.yml) runs retained-reference comparisons,
-the operational soak, and the deterministic system class on the declared reference runner.
-`release.yml` calls it before publishing a tag. Triggers, budgets, artifact retention, and
-failure classes are recorded beside the workflows in
+the operational soak, and the deterministic system class on the pinned GitHub-hosted
+`ubuntu-24.04` image. `release.yml` calls it before publishing a tag. Triggers, budgets,
+artifact retention, and failure classes are recorded beside the workflows in
 [Verification workflows](../.github/workflows/README.md).
 
 ### 7.3 Benchmark suites and qualification
@@ -295,10 +296,11 @@ bundle, and machine identity are unchanged. `--allow-dirty` is required for an
 uncommitted checkout. Generated corpora and databases are removed after a
 successful run unless `--keep-workspace` is supplied.
 
-The nightly workflow keeps its generated-`large` regression job on the reference runner.
-Authoritative reference-machine evidence is produced by the suite on stable hardware and
-retained explicitly; hosted runner numbers remain directional. The stable and nightly
-workflows declare the reference runner profile and retain only sanitized, bounded evidence.
+The nightly workflow keeps its generated-`large` regression job on the self-hosted
+reference runner. Reported numbers are bounded to the platform that produced them:
+the stable workflow compares Linux against Linux, and a reference from another platform
+caps relative regression gates to warnings instead of failing the release. Absolute gates
+always apply. Both workflows retain only sanitized, bounded evidence.
 
 Reference-machine targets:
 

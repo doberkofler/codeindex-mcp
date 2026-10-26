@@ -205,7 +205,9 @@ first run.
 
 `stable.yml` runs on manual dispatch or from `release.yml` before the release is published.
 It runs `pnpm verify:release`, two retained-reference benchmark runs, the operational soak,
-and the deterministic system class. `release.yml` publishes only after that job passes.
+and the deterministic system class on the pinned GitHub-hosted `ubuntu-24.04` image.
+`release.yml` publishes only after that job passes. A retained reference from another
+platform caps relative regression gates to warnings; absolute gates still fail.
 
 Neither workflow is invoked by `pnpm verify:pr` or `ci.yml`. Their jobs declare budgets
 through `timeout-minutes`, upload only curated reports for a bounded retention period, and

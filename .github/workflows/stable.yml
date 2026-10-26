@@ -1,8 +1,8 @@
 name: Stable verification
 
 # Trigger: manual dispatch and release workflow call.
-# Runner profile: self-hosted Apple M5 Max reference machine
-# (labels: self-hosted, macOS, ARM64, codeindex-reference).
+# Runner profile: GitHub-hosted ubuntu-24.04. The label is pinned so the
+# reference platform cannot drift with a hosted image update.
 # Budget: 360 min; the job timeout fails the workflow when the budget is exceeded.
 # Artifact retention: 90 days; curated reports only, no logs, credentials,
 # absolute paths, or source text.
@@ -27,7 +27,7 @@ concurrency:
 jobs:
   stable:
     name: Retained reference, soak, and lifecycle
-    runs-on: [self-hosted, macOS, ARM64, codeindex-reference]
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
       - name: Check out repository

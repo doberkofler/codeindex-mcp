@@ -1,7 +1,7 @@
 name: Release
 
 # Trigger: immutable version tag.
-# Stable verification runs first on the declared self-hosted reference runner.
+# Stable verification runs first on the declared GitHub-hosted runner.
 # Budget: 375 min total; stable job 360 min, publish job 15 min.
 # Artifact retention: stable evidence 90 days; the release job uploads nothing.
 # Failure meaning: Deterministic system or Performance gate for stable checks;
