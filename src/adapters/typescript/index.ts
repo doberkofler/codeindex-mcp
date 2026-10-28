@@ -33,6 +33,9 @@ const LIMITATIONS: readonly string[] = [
 	'no fuzzy search, embeddings, or full-text search',
 ];
 
+const DISCOVERY_TEXT =
+	'The selected TypeScript / JavaScript extractor indexes declarations and references in .ts, .tsx, .mts, .cts, .js, .jsx, .mjs, and .cjs files reachable from the configured TypeScript projects. Search with natural source names such as UserService.loadUser.';
+
 const mergeProjectFiles = (config: ConfigType, scan: ScanResultType, project: LoadedProjectType): readonly SourceFileType[] => {
 	const mergedFiles = new Map(scan.files.map((file) => [file.path, file]));
 
@@ -287,6 +290,7 @@ export const typeScriptExtractor: ExtractorType = {
 	id: TYPESCRIPT_EXTRACTOR_ID,
 	version: TYPESCRIPT_EXTRACTOR_VERSION,
 	displayName: 'TypeScript / JavaScript',
+	discoveryText: DISCOVERY_TEXT,
 	sourceExtensions: SOURCE_EXTENSIONS,
 	ignoredSegments: TYPESCRIPT_IGNORED_SEGMENTS,
 	limitations: LIMITATIONS,

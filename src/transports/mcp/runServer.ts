@@ -1,4 +1,6 @@
 import {serveStdio} from '@modelcontextprotocol/server/stdio';
+import {extractorFor} from '../../adapters/registry.ts';
+import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
 import {loadConfig} from '../../core/config/config.ts';
 import {createCodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
@@ -7,7 +9,6 @@ import {buildMcpServer} from './buildMcpServer.ts';
 import {SCHEMA_VERSION} from '../../core/storage/schema.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
-import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 
 /**
  * Starts the local stdio MCP server.
@@ -38,6 +39,7 @@ export const run = (options: CodeIndexOptionsType = {}): void => {
 		workingCopyId: workingCopy?.id ?? null,
 	});
 	const index = createCodeIndex(config, database, logger, {...options, analytics});
+	const extractor = extractorFor(config.extractorId);
 
 	logger.info('code_index_starting', {
 		version: PROGRAM_VERSION,
@@ -63,6 +65,7 @@ export const run = (options: CodeIndexOptionsType = {}): void => {
 			logger,
 			analytics,
 			maxResultBytes: config.maxResultBytes,
+			extractorDiscoveryText: extractor.discoveryText,
 		}),
 	);
 

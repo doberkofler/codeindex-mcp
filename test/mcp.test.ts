@@ -1,5 +1,6 @@
 import {type Client} from '@modelcontextprotocol/client';
 import {afterEach, describe, expect, it} from 'vitest';
+import {oracleExtractor} from '../src/adapters/oracle/index.ts';
 import {CodeIndexError, IndexNotReadyError, StaleFileError, type ErrorCodeType} from '../src/core/errors/errors.ts';
 import {createFakeIndex, FAKE_SOURCE, FAKE_SYMBOL_COUNT, type FakeIndexOptionsType} from './helpers/fakeIndex.ts';
 import {openServer, textOf, type ConnectionType, type EnvelopeType} from './helpers/mcpConnection.ts';
@@ -115,6 +116,9 @@ describe('MCP tool surface', () => {
 		expect(instructions).toContain('A current, untruncated direct result is the complete answer');
 		expect(instructions).toContain('When guidance.action is stop and guidance.fallbackRequired is false');
 		expect(instructions).toContain('index_status defaults to a bounded summary');
+		expect(instructions).toContain('TypeScript / JavaScript extractor');
+		expect(instructions).not.toContain('Oracle extractor');
+		expect(instructions).not.toContain('.pks');
 		expect(descriptionOf('index_status')).toContain('bounded summary');
 		expect(descriptionOf('outline')).toContain('in source order');
 		expect(descriptionOf('find_symbol')).toContain('exact qualified name');
@@ -122,6 +126,21 @@ describe('MCP tool surface', () => {
 		expect(descriptionOf('find_dependencies')).toContain('canonical external dependency target');
 		expect(descriptionOf('read_symbol')).toContain('refuses stale files');
 		expect(descriptionOf('symbol_at')).toContain('innermost stored definition');
+	});
+
+	it('publishes Oracle-specific discovery guidance from the selected extractor', async () => {
+		connection = await openServer({
+			index: createFakeIndex(),
+			maxResultBytes: 32_768,
+			extractorDiscoveryText: oracleExtractor.discoveryText,
+		});
+		const instructions = connection.client.getInstructions();
+
+		expect(instructions).toContain('packages, procedures, and functions');
+		expect(instructions).toContain('.pks');
+		expect(instructions).toContain('.pkb');
+		expect(instructions).toContain('LAS_SQL_JPos.reorderPos');
+		expect(instructions).not.toContain('TypeScript / JavaScript extractor');
 	});
 
 	it('rejects invalid arguments before dispatching to the index', async () => {

@@ -46,6 +46,7 @@ const doubles = vi.hoisted(() => {
 		buildMcpServer: vi.fn<(...args: unknown[]) => typeof mcpServer>(() => mcpServer),
 		databaseOpen: vi.fn<(...args: unknown[]) => typeof database>(() => database),
 		readVcsProvenance: vi.fn<(...args: unknown[]) => {available: boolean}>(() => ({available: false})),
+		extractorFor: vi.fn<(id: string) => {discoveryText: string}>(() => ({discoveryText: 'TypeScript discovery'})),
 	};
 });
 
@@ -57,6 +58,7 @@ vi.mock(import('../src/core/logging/logger.ts'), () => ({createLogger: doubles.c
 vi.mock(import('../src/transports/mcp/buildMcpServer.ts'), () => ({buildMcpServer: doubles.buildMcpServer}) as unknown as never);
 vi.mock(import('../src/core/storage/database.ts'), () => ({IndexDatabase: {open: doubles.databaseOpen}}) as unknown as never);
 vi.mock(import('../src/adapters/vcs/vcsProvenance.ts'), () => ({readVcsProvenance: doubles.readVcsProvenance}) as unknown as never);
+vi.mock(import('../src/adapters/registry.ts'), () => ({extractorFor: doubles.extractorFor}) as unknown as never);
 
 const config: ConfigType = {
 	projectName: 'mcp-project',
@@ -125,6 +127,7 @@ const resetRuntime = (): void => {
 	doubles.buildMcpServer.mockReturnValue(doubles.mcpServer);
 	doubles.databaseOpen.mockReturnValue(doubles.database);
 	doubles.readVcsProvenance.mockReturnValue({available: false});
+	doubles.extractorFor.mockReturnValue({discoveryText: 'TypeScript discovery'});
 	doubles.database.getWorkingCopy.mockReturnValue({id: 'working-copy'});
 	doubles.index.close.mockResolvedValue(undefined);
 	doubles.stdio.handle.close.mockResolvedValue(undefined);
@@ -199,7 +202,9 @@ describe('MCP server startup', () => {
 			logger: doubles.logger,
 			analytics: doubles.analytics,
 			maxResultBytes: config.maxResultBytes,
+			extractorDiscoveryText: 'TypeScript discovery',
 		});
+		expect(doubles.extractorFor).toHaveBeenCalledWith(config.extractorId);
 	});
 
 	it('reports a missing working copy', () => {
