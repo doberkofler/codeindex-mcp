@@ -97,24 +97,6 @@ describe('Oracle publication vertical slice', () => {
 		}
 	});
 
-	it('keeps compact specification outline locations in the specification', () => {
-		const fixture = createFixtureIndex('oracle-publication-project', ORACLE_PROJECTS, 'oracle');
-
-		try {
-			const outline = fixture.index.getOutline({path: 'database/feature_api.pks', limit: 100});
-			const fullItem = outline.items.find((item) => item.name === 'WRITE_ITEM');
-			const compactItem = compactOutlineOf(outline).items.find((item) => item.name === 'WRITE_ITEM');
-
-			expect(fullItem?.path).toBe('database/feature_api.pkb');
-			expect(fullItem?.site.path).toBe('database/feature_api.pks');
-			expect(compactItem?.path).toBe('database/feature_api.pks');
-			expect(compactItem?.startLine).toBe(fullItem?.site.startLine);
-			expect(compactItem?.endLine).toBe(fullItem?.site.endLine);
-		} finally {
-			fixture.cleanup();
-		}
-	});
-
 	it('anchors private body forwards on the full implementation', () => {
 		const {facts, cleanup} = buildFacts();
 
@@ -174,6 +156,26 @@ describe('Oracle publication vertical slice', () => {
 				),
 			]),
 		).toStrictEqual([]);
+	});
+});
+
+describe('Oracle compact publication projection', () => {
+	it('keeps compact specification outline locations in the specification', () => {
+		const fixture = createFixtureIndex('oracle-publication-project', ORACLE_PROJECTS, 'oracle');
+
+		try {
+			const outline = fixture.index.getOutline({path: 'database/feature_api.pks', limit: 100});
+			const fullItem = outline.items.find((item) => item.name === 'WRITE_ITEM');
+			const compactItem = compactOutlineOf(outline).items.find((item) => item.name === 'WRITE_ITEM');
+
+			expect(fullItem?.path).toBe('database/feature_api.pkb');
+			expect(fullItem?.site.path).toBe('database/feature_api.pks');
+			expect(compactItem?.path).toBe('database/feature_api.pks');
+			expect(compactItem?.startLine).toBe(fullItem?.site.startLine);
+			expect(compactItem?.endLine).toBe(fullItem?.site.endLine);
+		} finally {
+			fixture.cleanup();
+		}
 	});
 });
 
