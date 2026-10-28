@@ -1,6 +1,7 @@
 import {type QueryFreshnessType, type ReadSymbolInputType, type ReadSymbolResultType} from '../model.ts';
 import {type IndexDatabase} from '../storage/database.ts';
 import {assertKnownContext} from './queryService.ts';
+import {normalizeQueryText, type QueryNameNormalizerType} from './querySupport.ts';
 import {assertReferenceSelector, resolveReferenceQuery} from './referenceResolution.ts';
 import {readSymbolAmbiguousResult, readSymbolNoneResult} from './readSymbolResult.ts';
 
@@ -9,6 +10,7 @@ type SelectionContextType = Readonly<{
 	generationId: string;
 	freshness: QueryFreshnessType;
 	maxResultBytes: number;
+	normalizeQueryName?: QueryNameNormalizerType | undefined;
 }>;
 
 export type ReadSymbolSelectionType = Readonly<{symbolId: string} | {result: ReadSymbolResultType}>;
@@ -30,7 +32,7 @@ export const selectReadSymbol = (context: SelectionContextType, input: ReadSymbo
 	}
 
 	const resolution = resolveReferenceQuery(context.database, context.generationId, {
-		query: input.query,
+		query: input.query === undefined ? undefined : normalizeQueryText(context.normalizeQueryName, input.query),
 		match: input.match,
 		kind: input.kind,
 		container: input.container,

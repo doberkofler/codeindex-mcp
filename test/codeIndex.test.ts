@@ -43,6 +43,18 @@ describe('CodeIndex queries', () => {
 		});
 	});
 
+	it('resolves a natural qualified name without its scope prefix', () => {
+		fixture = createFixtureIndex('simple-project');
+
+		const result = fixture.index.findSymbols({query: 'UserService.find', match: 'qualified', limit: 10});
+
+		expect(result.items[0]).toMatchObject({
+			name: 'find',
+			qualifiedName: 'module["src/models.ts"]::UserService.find',
+			match: 'exact_qualified',
+		});
+	});
+
 	it('lists an outline in source order with kind filtering', () => {
 		fixture = createFixtureIndex('simple-project');
 

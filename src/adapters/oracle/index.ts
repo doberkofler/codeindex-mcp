@@ -23,6 +23,7 @@ import {extractOracleSymbols, type OracleContextSymbolsType, type OracleParsedFi
 import {mergeAdapterStats, oraclePublicationStats} from './publicationStats.ts';
 import {DEFAULT_ORACLE_SOURCE_EXTENSIONS, matchesOracleManifest, readOracleManifest} from './manifest.ts';
 import {assertOracleParserBinding, structuralOracleParserBinding, type OracleParserBindingType} from './parserBinding.ts';
+import {normalizeOracleQueryName} from './queryNames.ts';
 import {resolveOracleReferences} from './resolveReferences.ts';
 import {
 	collectOracleConfigFiles,
@@ -58,7 +59,7 @@ const LIMITATIONS: readonly string[] = [
 ];
 
 const DISCOVERY_TEXT =
-	'The selected Oracle extractor indexes packages, procedures, and functions from package specifications (.pks), package bodies (.pkb), and configured standalone SQL / PL/SQL files. It also indexes tables, table columns, and views from configured SQL files. Search with natural qualified names such as LAS_SQL_JPos.reorderPos or LAS_JPos.POS_ID.';
+	'The selected Oracle extractor indexes packages, procedures, and functions from package specifications (.pks), package bodies (.pkb), and configured standalone SQL / PL/SQL files. It also indexes tables, table columns, and views from configured SQL files. Unquoted names are case-insensitive. For qualified lookup pass match qualified with a natural name such as LAS_SQL_JPos.reorderPos or LAS_JPos.POS_ID; the owner and module display prefixes are optional.';
 
 type ContextResultType = Readonly<{
 	symbols: OracleContextSymbolsType;
@@ -367,6 +368,7 @@ export const createOracleExtractor = (binding: OracleParserBindingType): Extract
 	version: ORACLE_EXTRACTOR_VERSION,
 	displayName: 'Oracle 19c SQL / PL/SQL',
 	discoveryText: DISCOVERY_TEXT,
+	normalizeQueryName: normalizeOracleQueryName,
 	sourceExtensions: DEFAULT_ORACLE_SOURCE_EXTENSIONS,
 	sourceExtensionsFor: (config) => {
 		const extensions = new Set<string>();

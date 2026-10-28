@@ -74,6 +74,15 @@ export type ExtractorType = Readonly<{
 	readonly displayName: string;
 	/** Adapter-specific MCP discovery guidance. */
 	readonly discoveryText: string;
+	/**
+	 * Folds one authored query name to the adapter's canonical published spelling.
+	 *
+	 * Storage compares binding names verbatim, so an adapter whose canonical
+	 * names differ from authored text must supply this to keep queries from
+	 * missing declarations that are already indexed. Omit it when authored and
+	 * published spellings are identical.
+	 */
+	readonly normalizeQueryName?: (text: string) => string;
 	/** File extensions the adapter publishes; used by the watcher. */
 	readonly sourceExtensions: readonly string[];
 	/** Optional configuration-dependent extensions, such as manifest-defined Oracle source. */
