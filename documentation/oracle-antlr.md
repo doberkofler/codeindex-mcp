@@ -21,9 +21,10 @@ line-based splitter alone. The adapter needs to distinguish:
 - SQL and PL/SQL keywords from ordinary identifiers.
 
 The upstream `antlr/grammars-v4` Oracle lexer provides the tokenization baseline
-for those cases, with pinned local adaptations and the known `REM<TAB>` defect
-in section 4. The production adapter therefore uses ANTLR for lexing and a
-separate structural scanner for declarations and reference sites.
+for those cases. The grammar is vendored byte-for-byte at a pinned commit; only
+target-language integration happens at generation time. The production adapter
+uses ANTLR for lexing and a separate structural scanner for declarations and
+reference sites.
 
 The full parser is a candidate for extending reference and dependency coverage,
 especially identifiers inside static SQL, member chains, and package targets.
@@ -70,21 +71,23 @@ dependency extraction.
 | Upstream project | `antlr/grammars-v4` |
 | Lexer path | `sql/plsql/PlSqlLexer.g4` |
 | Parser path | `sql/plsql/PlSqlParser.g4` |
-| Pinned commit | `e199816b3f1a7a49ea1ad84fb6b87c382ea36a33` |
-| Lexer SHA-256 | `fd82384ba3ba2f5a7b070a977cd77a05c01fefbfb52938d35dfaf472a2e6e59e` |
-| Parser SHA-256 | `c57ec1819302de05beb08c44792883e159254e361e8627e981d9a3c99a0b4633` |
-| Parser base SHA-256 | `240545ca222036231d7044ce468e2c4ed0d1a0ef6df190cb71a717b47faccfcb` |
+| Pinned commit | `3f1ca793eb1b72d421a016dd05b1d340dfa1a65e` |
+| Lexer SHA-256 | `aaddaa2f9d40e10ab71e83a402499ae893aa7f03497a631e5c12f2c4cd1d2567` |
+| Parser SHA-256 | `2437508c3e8126d0a09c4cc98fc12741a9d25350b4626350805afdcb74956827` |
+| Lexer base SHA-256 | `60463fb2d8e19ff40b77f1428056f74c7d19bb55263451a0f4a84670e227ae91` |
+| Parser base SHA-256 | `f83c2eab005f3174f2b506c7e553577f96c336fc18e7c456a58c273566c634eb` |
 | Runtime | `antlr4ng@3.0.16` |
 | Generator | `antlr-ng@1.0.10` |
 | License | Apache License 2.0 |
 
-`scripts/downloadOracleGrammar.ts` verifies every digest before applying local
-adaptations. The generated lexer, generated parser and visitor, and the
-upstream-derived base classes are excluded from authored formatting and linting
-but still participate in TypeScript compilation. See
+`scripts/downloadOracleGrammar.ts` verifies every digest and writes the upstream
+files unmodified. `scripts/generateOracleGrammar.ts` performs the target-language
+integration in a temporary build directory. The generated lexer, parser and
+visitor, and the generated base classes are excluded from authored formatting and
+linting but still participate in TypeScript compilation. See
 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
 
-Regenerate the lexer, parser, and visitor:
+Regenerate the lexer, parser, visitor, and base classes:
 
 ```bash
 pnpm grammar:oracle:download
@@ -129,20 +132,14 @@ blanks the same source ranges in `prepareConditionalSource` before reparsing.
 Both paths keep every branch of a non-literal condition because the adapter does
 not evaluate session values or compilation parameters.
 
-### 4.1 Known production lexer defect
+### 4.1 Former production lexer defect
 
-The pinned `REMARK_COMMENT` rule accepts an ASCII space, but not a tab, between
-`REM[ARK]` and comment text. A `REM<TAB>` line is therefore emitted as visible
-tokens. This is a production defect because the structural scanner consumes the
-same lexer output: declaration-shaped text on such a comment line can become a
-phantom declaration without a diagnostic. The minimal fixture does not expose
-that consequence because it contains only punctuation and a `SELECT`.
-
-The upstream defect is open as
-[`antlr/grammars-v4#5124`](https://github.com/antlr/grammars-v4/issues/5124).
-Treat it as a production lexer issue, not only as full-parser qualification
-evidence. The token contract above is not satisfied for this input until the
-rule is fixed locally or upstream.
+The pinned grammar now accepts a space or tab between `REM[ARK]` and comment
+text. The former tab defect, tracked as
+[`antlr/grammars-v4#5124`](https://github.com/antlr/grammars-v4/issues/5124),
+was fixed upstream by
+[`#5127`](https://github.com/antlr/grammars-v4/pull/5127). The `rem-comment.sql`
+fixture remains as a positive regression check.
 
 ## 5. Parser Adapter
 
@@ -168,21 +165,23 @@ antlr` is selected.
 
 ### 5.1 Generation
 
-The parser uses the same pinned grammar commit as the lexer. The parser grammar
-needs a local header because the generated TypeScript parser does not infer the
-base class import:
+The parser uses the same pinned grammar commit as the lexer. The vendored grammar
+keeps the upstream target-language header marker; generation replaces it with
+the local base-class import:
 
 ```antlr
-@header {import {PlSqlParserBase} from "../plSqlParserBase.js";}
+@header {import {PlSqlParserBase} from "./PlSqlParserBase.js";}
 ```
 
-The base class is vendored from the upstream `Antlr4ng` target and provides:
+The base class is vendored unmodified from the upstream `Antlr4ng` target and
+generated beside the parser. It provides:
 
 - `setLastUnitPlsql` / `setLastUnitSql`;
 - `isSolidusSeparator`;
 - `isVersion10` / `isVersion11` / `isVersion12`;
 - `IsNotNumericFunction`;
-- `isNotStartOfJoin`.
+- `isNotStartOfJoin`;
+- `isLineStart`.
 
 Generation is owned by `scripts/generateOracleGrammar.ts`:
 
@@ -376,7 +375,7 @@ every recall gate, missed exact declaration and reference precision, and
 regressed dependency recall by 0.1951 percentage points. Its losses clustered in
 16 files with 298 parse diagnostics. The retained report does not attribute a
 quantified share of those losses or the precision extras to conditional
-compilation or to the nine reduced grammar-gap fixtures.
+compilation or to the reduced grammar-gap fixtures.
 
 Current code identifies the full parser as `antlr@2`. There is no committed
 `antlr@2` qualification report under contract `oracle-o1@4` and policy `v5`, so
@@ -407,8 +406,9 @@ The upstream reproduction below was performed on 2026-10-26 against
 [`8714404279b53fb9856ac6162f468667b0b853bb`](https://github.com/antlr/grammars-v4/commit/8714404279b53fb9856ac6162f468667b0b853bb).
 Each case and its control were executed through `sql_script` using a parser
 generated from that commit with the repository's Antlr4ng target transform.
-This establishes the current-master parser behavior; it is not a full upstream
-multi-target qualification run.
+This establishes the historical parser behavior; it is not a full upstream
+multi-target qualification run. The current pin incorporates the upstream fixes
+listed in section 7.2.
 
 ### 7.1 Fixture provenance
 
@@ -431,38 +431,29 @@ and reduction can change validity.
 | `wrapped.pkb` | `PACKAGES/ods_sys_encryption.pkb` is wrapped. | Wrapped source is intentionally outside static indexing scope. |
 
 The fixtures are not part of the qualification corpus. Their tests prove only
-that the pinned parser reports a diagnostic. No retained report maps them to a
-share of historical recall loss, so fixing all nine cannot be claimed to close a
-known percentage of the gate gap.
+whether the pinned parser reports a diagnostic. No retained report maps them to a
+share of historical recall loss, so fixing all open gaps cannot be claimed to
+close a known percentage of the gate gap.
 
-### 7.2 Confirmed upstream candidates
+### 7.2 Fixed by the current pin
+
+| Fixture | Upstream fix |
+| --- | --- |
+| `rem-comment.sql` | [`#5127`](https://github.com/antlr/grammars-v4/pull/5127) accepts a tab after `REM[ARK]`. |
+| `keyword-identifier.pks` | [`#5131`](https://github.com/antlr/grammars-v4/pull/5131) allows `DATE`, `DETECTED`, and `ENCLOSED` as identifiers. |
+| `sqlplus-exec.sql` | [`#5129`](https://github.com/antlr/grammars-v4/pull/5129) adds line-bounded SQL*Plus `EXEC[UTE]`. |
+
+These fixtures now assert a successful parse. The lexer’s former
+alternative-quote limitation was fixed the same way: [`#5030`](https://github.com/antlr/grammars-v4/pull/5030)
+replaced the local adaptation.
+
+### 7.3 Open upstream candidate
 
 | Fixture | Layer and rule | Oracle evidence | Upstream status | Contribution action |
 | --- | --- | --- | --- | --- |
-| `rem-comment.sql` | Lexer, `REMARK_COMMENT` | SQL*Plus permits spaces or tabs between command words and defines `REM[ARK]` as a line comment: [SQL*Plus Basics](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/SQL-Plus-basics.html), [REMARK](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/REMARK.html) | Current master still requires a literal space before comment text. Tracked by [`grammars-v4#5124`](https://github.com/antlr/grammars-v4/issues/5124). | Accept horizontal whitespace without consuming the newline and add space- and tab-separated upstream examples. |
-| `keyword-identifier.pks` | Parser, `regular_id` | PL/SQL permits keywords as ordinary identifiers and lists `DATE` as a keyword rather than a reserved word: [Lexical Units](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/lexical-units.html#GUID-53E09662-5AD4-4530-8C6B-FF3F7C7430D5), [PL/SQL Reserved Words and Keywords](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/plsql-reserved-words-keywords.html) | General defect tracked by [`grammars-v4#720`](https://github.com/antlr/grammars-v4/issues/720); current-master evidence is recorded in [this comment](https://github.com/antlr/grammars-v4/issues/720#issuecomment-6410839042). Current master does not admit `DATE`, `DETECTED`, or `ENCLOSED` through `regular_id`. | Split the fixture into one case per token, add the minimum safe alternatives, and measure ambiguity and prediction cost. A generic “all keywords are identifiers” change is not justified. |
-| `xmltable-returning-sequence.sql` | Parser, `xmltable` | Oracle 19c documents `RETURNING SEQUENCE BY REF` after the optional passing clause and before `COLUMNS`: [XMLTABLE](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/XMLTABLE.html), [`XMLTABLE_options`](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/img_text/xmltable_options.html) | Current master fails the valid reduced form `XMLTABLE('/x' RETURNING SEQUENCE BY REF)`. Tracked by [`grammars-v4#5125`](https://github.com/antlr/grammars-v4/issues/5125). | Correct the local fixture, which currently places the clause after `COLUMNS`; add the clause in its documented position and test combinations with `PASSING` and `COLUMNS`. |
-| `sqlplus-exec.sql` | Parser, `sql_plus_command` | SQL*Plus 19c defines `EXEC[UTE] statement`: [SQL*Plus Quick Reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpqr/index.html) | Current master fails both `EXEC` and `EXECUTE`. Tracked by [`grammars-v4#5126`](https://github.com/antlr/grammars-v4/issues/5126); broader SQL*Plus boundaries remain in [`#1635`](https://github.com/antlr/grammars-v4/issues/1635) and [`#3658`](https://github.com/antlr/grammars-v4/issues/3658). | Add a line-bounded SQL*Plus command alternative without weakening PL/SQL `EXECUTE IMMEDIATE` parsing. |
+| `xmltable-returning-sequence.sql` | Parser, `xmltable` | Oracle 19c documents `RETURNING SEQUENCE BY REF` after the optional passing clause and before `COLUMNS`: [XMLTABLE](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/XMLTABLE.html), [`XMLTABLE_options`](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/img_text/xmltable_options.html) | Upstream supports the documented position. The local fixture still places the clause after `COLUMNS` and is invalid. | Correct the local fixture and test combinations with `PASSING` and `COLUMNS`. |
 
-The lexer’s former alternative-quote limitation is the model for this work:
-[`grammars-v4#5029`](https://github.com/antlr/grammars-v4/issues/5029) records a
-minimal reproducer, Oracle documentation, expected and actual behavior, and the
-affected rule. Its fix was merged as
-[`grammars-v4#5030`](https://github.com/antlr/grammars-v4/pull/5030); the pinned
-grammar predates that merge and still carries the local adaptation described in
-[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
-
-The open service requests remain valid. Issue #5124 also has downstream
-production impact through the shared lexer. Issue #5125 already uses a valid
-reproducer in the documented clause order; only the local fixture needs
-correction. Issue #5126 remains qualification-only for this adapter. The comment
-on #720 is supported by Oracle documentation; a successful Oracle 19c compile
-would strengthen, but is not required to retract, the report. The use of the
-independent Antlr4ng target does not invalidate these target-neutral grammar
-omissions, although reproduction with an official ANTLR target would strengthen
-the submissions.
-
-### 7.3 Observed incompatibilities that are not yet upstream candidates
+### 7.4 Observed incompatibilities that are not yet upstream candidates
 
 | Fixture | Why it is not yet an upstream candidate | Required evidence |
 | --- | --- | --- |
@@ -476,7 +467,7 @@ These fixtures remain useful regression evidence for the pinned parser, but
 must not be presented upstream as valid Oracle syntax until the missing evidence
 is recorded. They are not part of the qualification corpus.
 
-### 7.4 Contribution procedure
+### 7.5 Contribution procedure
 
 For each confirmed candidate:
 
@@ -725,9 +716,8 @@ every gate above.
 
 ## 12. Known Limits and Reconsideration Triggers
 
-- The shared production lexer does not hide `REM<TAB>` comments. This is tracked
-  by `grammars-v4#5124` and requires a production fix independently of parser
-  adoption.
+- The shared production lexer hides `REM<TAB>` comments; the former defect
+  tracked by `grammars-v4#5124` is fixed by the current pin.
 - Both parsers retain all branches of non-literal conditional compilation and
   can emit duplicate declarations for equivalent branch APIs.
 - Both parsers can misclassify `pkg.coll.exists` as an unresolved call to package

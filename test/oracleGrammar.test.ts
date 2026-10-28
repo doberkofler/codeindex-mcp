@@ -6,7 +6,7 @@ import {afterAll, describe, expect, it} from 'vitest';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 const checkedInDirectory = path.join(repositoryRoot, 'src', 'adapters', 'oracle', 'generated');
-const artifacts = ['PlSqlLexer.ts', 'PlSqlParser.ts', 'PlSqlParserVisitor.ts'] as const;
+const artifacts = ['PlSqlLexer.ts', 'PlSqlParser.ts', 'PlSqlParserVisitor.ts', 'PlSqlLexerBase.ts', 'PlSqlParserBase.ts'] as const;
 const temporaryRoot = mkdtempSync(path.join(tmpdir(), 'oracle-grammar-'));
 
 describe('Oracle grammar generation', () => {
