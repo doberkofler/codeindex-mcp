@@ -9,6 +9,7 @@ import {buildSymbolTable} from '../src/adapters/oracle/symbolTables.ts';
 import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
 import {finalizeFacts, type FinalizedFactSetType} from '../src/core/facts/index.ts';
 import {measureInvariants} from '../src/core/qualification/publication/invariants.ts';
+import {compactOutlineOf} from '../src/transports/mcp/compactResults.ts';
 import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
 
 const ORACLE_PROJECTS = [{name: 'app', project: 'oracle-index.json'}] as const;
@@ -93,6 +94,24 @@ describe('Oracle publication vertical slice', () => {
 			expect(definitionSite?.path).toBe('database/feature_api.pkb');
 		} finally {
 			cleanup();
+		}
+	});
+
+	it('keeps compact specification outline locations in the specification', () => {
+		const fixture = createFixtureIndex('oracle-publication-project', ORACLE_PROJECTS, 'oracle');
+
+		try {
+			const outline = fixture.index.getOutline({path: 'database/feature_api.pks', limit: 100});
+			const fullItem = outline.items.find((item) => item.name === 'WRITE_ITEM');
+			const compactItem = compactOutlineOf(outline).items.find((item) => item.name === 'WRITE_ITEM');
+
+			expect(fullItem?.path).toBe('database/feature_api.pkb');
+			expect(fullItem?.site.path).toBe('database/feature_api.pks');
+			expect(compactItem?.path).toBe('database/feature_api.pks');
+			expect(compactItem?.startLine).toBe(fullItem?.site.startLine);
+			expect(compactItem?.endLine).toBe(fullItem?.site.endLine);
+		} finally {
+			fixture.cleanup();
 		}
 	});
 

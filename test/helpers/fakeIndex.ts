@@ -158,7 +158,13 @@ const pageOf = <ItemType>(items: readonly ItemType[], input: PageInputType): Pag
 	return {items: page, nextCursor, truncated: nextCursor !== null};
 };
 
-const outlineItems = Array.from({length: 3}, (_, index) => ({...summaryOf(index), site: siteOf(index)}));
+const outlineItems = Array.from({length: 3}, (_, index) => ({
+	...summaryOf(index),
+	path: 'src/primary.ts',
+	startLine: index + 101,
+	endLine: index + 102,
+	site: siteOf(index),
+}));
 const symbolItems = Array.from({length: FAKE_SYMBOL_COUNT}, (_, index) => symbolItemOf(index));
 
 const dependencyItemsOf = (input: FindDependenciesInputType): readonly DependencyConsumerItemType[] => {

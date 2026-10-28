@@ -197,7 +197,14 @@ describe('MCP projections', () => {
 			data: {items: readonly Record<string, unknown>[]};
 		};
 
-		expect(compactOutline.data.items[0]).toMatchObject({symbolId: 'symbol-0', name: 'fakeSymbol0', kind: 'const', path: 'src/fake.ts'});
+		expect(compactOutline.data.items[0]).toMatchObject({
+			symbolId: 'symbol-0',
+			name: 'fakeSymbol0',
+			kind: 'const',
+			path: 'src/fake.ts',
+			startLine: 1,
+			endLine: 1,
+		});
 		expect(compactOutline.data.items[0]).not.toHaveProperty('site');
 		expect(fullOutline.data.items[0]).toHaveProperty('site');
 		expect(compactSymbol.data.items[0]).toMatchObject({symbolId: 'symbol-0', qualifiedName: 'fakeSymbol0'});
