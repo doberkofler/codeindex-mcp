@@ -304,7 +304,13 @@ export type FindDependenciesResultType = PagedResultType<DependencyConsumerItemT
 	}>;
 
 export type ReadSymbolInputType = Readonly<{
-	readonly symbolId: string;
+	readonly symbolId?: string | undefined;
+	readonly query?: string | undefined;
+	readonly match?: 'name' | 'qualified' | undefined;
+	readonly kind?: string | undefined;
+	readonly container?: string | undefined;
+	readonly path?: string | undefined;
+	readonly exposure?: 'published' | 'reachable' | 'visible' | 'internal' | 'any' | undefined;
 	readonly siteId?: string | undefined;
 	readonly mode?: 'text' | 'sites' | 'names' | 'binding_sites' | 'binding_contexts' | undefined;
 	readonly bindingId?: string | undefined;
@@ -350,12 +356,35 @@ type ReadSymbolBindingContextsResultType = PagedResultType<ContextExposureType> 
 		readonly bindingId: string;
 	}>;
 
+type ReadSymbolAmbiguousResultType = Readonly<{
+	readonly kind: 'ambiguous';
+	readonly generationId: string;
+	readonly freshness: QueryFreshnessType;
+	readonly selector: 'query';
+	readonly candidates: readonly ReferenceCandidateType[];
+	readonly candidatesTotal: number;
+	readonly candidatesTruncated: boolean;
+}>;
+
+type ReadSymbolNoneResultType = Readonly<{
+	readonly kind: 'none';
+	readonly generationId: string;
+	readonly freshness: QueryFreshnessType;
+	readonly selector: 'query';
+	readonly reason: 'no_stored_match';
+	readonly fallback: 'text_search';
+	readonly message: string;
+	readonly limitations: readonly string[];
+}>;
+
 export type ReadSymbolResultType =
 	| ReadSymbolTextResultType
 	| ReadSymbolSitesResultType
 	| ReadSymbolNamesResultType
 	| ReadSymbolBindingSitesResultType
-	| ReadSymbolBindingContextsResultType;
+	| ReadSymbolBindingContextsResultType
+	| ReadSymbolAmbiguousResultType
+	| ReadSymbolNoneResultType;
 
 export type SymbolAtInputType = Readonly<{
 	readonly path: string;

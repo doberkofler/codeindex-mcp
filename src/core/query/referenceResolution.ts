@@ -58,7 +58,7 @@ const compactCandidateOf = (candidate: SymbolCandidateType): ReferenceCandidateT
  * @returns The selected selector name.
  * @throws {@link CodeIndexError} When both or neither selector is present.
  */
-export const assertReferenceSelector = (input: FindReferencesInputType): 'symbolId' | 'query' => {
+export const assertReferenceSelector = (input: Readonly<{symbolId?: string | undefined; query?: string | undefined}>): 'symbolId' | 'query' => {
 	const hasSymbolId = input.symbolId !== undefined;
 	const hasQuery = input.query !== undefined;
 

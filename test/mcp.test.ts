@@ -93,6 +93,9 @@ describe('MCP tool surface', () => {
 		expect(propertyOf(findDependencies, 'transitive')).toMatchObject({type: 'boolean', default: false});
 		expect(propertyOf(findDependencies, 'detail')).toMatchObject({enum: ['compact', 'evidence'], default: 'compact'});
 		expect(propertyOf(findReferences, 'group')).toMatchObject({enum: ['file', 'owner', 'occurrence']});
+		expect(readSymbol.inputSchema.required ?? []).not.toContain('symbolId');
+		expect(propertyOf(readSymbol, 'query')).toMatchObject({type: 'string', minLength: 1});
+		expect(propertyOf(readSymbol, 'match')).toMatchObject({enum: ['name', 'qualified'], default: 'name'});
 		expect(propertyOf(readSymbol, 'mode')).toMatchObject({enum: ['text', 'sites', 'names', 'binding_sites', 'binding_contexts'], default: 'text'});
 		expect(propertyOf(readSymbol, 'contextLines')).toMatchObject({type: 'integer', minimum: 0, maximum: 20, default: 2});
 	});
@@ -231,13 +234,13 @@ describe('MCP projections', () => {
 		expect(fullSymbol.data.items[0]).toHaveProperty('matched');
 	});
 
-	it('serves reference, dependency, source, and position envelopes', async () => {
+	it('serves reference, dependency, query-based source, and position envelopes', async () => {
 		const client = await connect();
 		const [references, dependencies, evidenceDependencies, source, position] = await Promise.all([
 			client.callTool({name: 'find_references', arguments: {query: 'fakeSymbol0'}}),
 			client.callTool({name: 'find_dependencies', arguments: {target: 'lodash'}}),
 			client.callTool({name: 'find_dependencies', arguments: {target: 'lodash', detail: 'evidence'}}),
-			client.callTool({name: 'read_symbol', arguments: {symbolId: 'symbol-0', contextLines: 0}}),
+			client.callTool({name: 'read_symbol', arguments: {query: 'fakeSymbol0', contextLines: 0}}),
 			client.callTool({name: 'symbol_at', arguments: {path: 'src/fake.ts', line: 1}}),
 		]);
 		const referencesEnvelope = asEnvelope(references) as EnvelopeType & {data: {kind: string; items: readonly {path: string}[]}};
@@ -264,6 +267,32 @@ describe('MCP projections', () => {
 		expect(sourceEnvelope.data).toMatchObject({source: FAKE_SOURCE, truncated: false, truncatedReason: null});
 		expect(positionEnvelope.data).toMatchObject({path: 'src/fake.ts', line: 1});
 		expect(positionEnvelope.data.candidates[0]?.symbol.name).toBe('fakeSymbol0');
+	});
+});
+
+describe('MCP query-based symbol reads', () => {
+	let connection: ConnectionType | undefined;
+
+	afterEach(async () => {
+		await connection?.close();
+		connection = undefined;
+	});
+
+	it('returns candidates and fallback guidance for unresolved queries', async () => {
+		connection = await openServer({index: createFakeIndex(), maxResultBytes: 32_768});
+		const ambiguous = asEnvelope(await connection.client.callTool({name: 'read_symbol', arguments: {query: 'ambiguous'}})) as EnvelopeType & {
+			data: {kind: string; candidates: readonly {symbolId: string}[]};
+			guidance: {action: string; fallbackRequired: boolean};
+		};
+		const missing = asEnvelope(await connection.client.callTool({name: 'read_symbol', arguments: {query: 'missing'}})) as EnvelopeType & {
+			data: {kind: string; fallback: string};
+			guidance: {action: string; fallbackRequired: boolean};
+		};
+
+		expect(ambiguous.data).toMatchObject({kind: 'ambiguous', candidates: [{symbolId: 'symbol-0'}, {symbolId: 'symbol-1'}]});
+		expect(ambiguous.guidance).toMatchObject({action: 'refine', fallbackRequired: false});
+		expect(missing.data).toMatchObject({kind: 'none', fallback: 'text_search'});
+		expect(missing.guidance).toMatchObject({action: 'text_search', fallbackRequired: true});
 	});
 });
 
