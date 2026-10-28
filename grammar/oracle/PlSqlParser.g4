@@ -28,7 +28,7 @@ options {
     superClass = PlSqlParserBase;
 }
 
-@header {import {PlSqlParserBase} from "../plSqlParserBase.js";}
+// Insert here @header for C++ parser.
 
 sql_script
     : (sql_plus_command SEMICOLON?)* (
@@ -1296,9 +1296,9 @@ dim_by_clause
 
 dim_key
     : dim_ref classification_clause* KEY (
-        '(' (a = id_expression '.')? f = column_name (',' (a = id_expression '.')? f = column_name)* ')'
-        | (a = id_expression '.')? f = column_name
-    ) REFERENCES DISTINCT? ('(' attribute_name (',' attribute_name) ')' | attribute_name) HIERARCHIES '(' hier_ref (
+        '(' (a += id_expression '.')? f += column_name (',' (a += id_expression '.')? f += column_name)* ')'
+        | (a += id_expression '.')? f += column_name
+    ) REFERENCES DISTINCT? ('(' attribute_name (',' attribute_name)* ')' | attribute_name) HIERARCHIES '(' hier_ref (
         ',' hier_ref
     )* ')'
     ;
@@ -3164,8 +3164,8 @@ create_materialized_view_log
     // table_partitioning_clauses TODO
     (
         WITH (','? ( OBJECT ID | PRIMARY KEY | ROWID | SEQUENCE | COMMIT SCN))* (
-            '(' ( ','? regular_id)+ ')' new_values_clause?
-        )? mv_log_purge_clause?
+            '(' ( ','? regular_id)+ ')'
+        )? new_values_clause? mv_log_purge_clause?
     )*
     ;
 
@@ -4807,7 +4807,7 @@ default_settings_clause
     ;
 
 set_time_zone_clause
-    : SET TIMEZONE EQUALS_OP CHAR_STRING
+    : SET TIME_ZONE EQUALS_OP CHAR_STRING
     ;
 
 instance_clauses
@@ -5048,15 +5048,29 @@ role_identified_clause
     ;
 
 alter_table
-    : ALTER TABLE tableview_name memoptimize_read_write_clause* (
-        | alter_table_properties
-        | constraint_clauses
-        | column_clauses
-        | alter_table_partitioning
-        //TODO      | alter_external_table
-        | move_table_clause
-        | modify_to_partitioned
-    ) ((enable_disable_clause | enable_or_disable (TABLE LOCK | ALL TRIGGERS))+)?
+    : ALTER TABLE tableview_name (
+        memoptimize_read_write_clause+ alter_table_body?
+        | alter_table_body
+    )
+    ;
+
+alter_table_body
+    : alter_table_action enable_disable_clauses?
+    | enable_disable_clauses
+    ;
+
+alter_table_action
+    : alter_table_properties
+    | constraint_clauses
+    | column_clauses
+    | alter_table_partitioning
+    //TODO      | alter_external_table
+    | move_table_clause
+    | modify_to_partitioned
+    ;
+
+enable_disable_clauses
+    : (enable_disable_clause | enable_or_disable (TABLE LOCK | ALL TRIGGERS))+
     ;
 
 memoptimize_read_write_clause
@@ -6786,6 +6800,14 @@ unary_expression_core
     | standard_function
     | {this.IsNotNumericFunction()}? atom
     | implicit_cursor_expression
+    | selection_directive_expression
+    ;
+
+// https://docs.oracle.com/en/database/oracle/oracle-database/26/lnpls/conditional-compilation1.html
+selection_directive_expression
+    : DOLLAR_IF condition DOLLAR_THEN expression (
+        DOLLAR_ELSIF condition DOLLAR_THEN expression
+    )* (DOLLAR_ELSE expression)? DOLLAR_END
     ;
 
 // https://docs.oracle.com/en/database/oracle/oracle-database/21/lnpls/plsql-optimization-and-tuning.html#GUID-DAF46F06-EF3F-4B1A-A518-5238B80C69FA
@@ -6851,6 +6873,7 @@ atom
     | inquiry_directive
     | general_element outer_join_sign?
     | '(' subquery ')' subquery_operation_part*
+    | '(' expression ')' ('.' general_element_part)*
     | '(' expressions_ ')'
     ;
 
@@ -6994,7 +7017,7 @@ json_value_return_type
     | CLOB
     | DATE
     | NUMBER ('(' INTEGER (',' INTEGER)? ')')?
-    | TIMESTAMP (WITH TIMEZONE)?
+    | TIMESTAMP (WITH TIME ZONE)?
     | SDO_GEOMETRY
     | expression (USING CASESENSITIVE MAPPING)?
     ;
@@ -7264,6 +7287,14 @@ sql_plus_command
     | start_command
     | set_command
     | clear_command
+    | execute_command
+    ;
+
+// SQL*Plus EXEC[UTE] executes a single PL/SQL statement. The command word must
+// start a line so that `EXEC` used as an identifier and PL/SQL `EXECUTE
+// IMMEDIATE` keep their normal meaning.
+execute_command
+    : {this.isLineStart()}? (EXEC | EXECUTE) statement
     ;
 
 start_command
@@ -7473,6 +7504,8 @@ tableview_name
 
 xmltable
     : XMLTABLE '(' (xml_namespaces_clause ',')? concatenation xml_passing_clause? (
+        RETURNING SEQUENCE BY REF
+    )? (
         COLUMNS xml_table_column (',' xml_table_column)*
     )? ')' ('.' general_element_part)?
     ;
@@ -7857,14 +7890,19 @@ regular_id
     | CONSTRUCTOR
     | CUSTOMDATUM
     | CASESENSITIVE
+    | COUNTED
+    | DATE
     | DECIMAL
     | DELETE
     | DEPRECATE
+    | DETECTED
     | DETERMINISTIC
+    | DISABLED
     | DSINTERVAL_UNCONSTRAINED
     | DURATION
     | E_LETTER
     | ENABLED
+    | ENCLOSED
     | ERROR_INDEX
     | ERROR_CODE
     | ERR
@@ -7872,9 +7910,11 @@ regular_id
     | EXCEPTION_INIT
     | EXCEPTIONS
     | EXISTS
+    | EXEC
     | EXIT
     | EXTEND
     | FIELDS
+    | FILE_EXT
     | FILESTORE
     | FLOAT
     | FORALL

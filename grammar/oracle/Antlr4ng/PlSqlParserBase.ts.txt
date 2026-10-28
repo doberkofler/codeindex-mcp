@@ -1,5 +1,5 @@
-import { Parser, type TokenStream, CommonTokenStream, Token } from 'antlr4ng';
-import { PlSqlLexer } from './generated/PlSqlLexer.js';
+import { Parser, TokenStream, CommonTokenStream, Token } from 'antlr4ng';
+import { PlSqlLexer } from './PlSqlLexer.js';
 
 export abstract class PlSqlParserBase extends Parser {
 
@@ -16,7 +16,7 @@ export abstract class PlSqlParserBase extends Parser {
     this._lastUnitWasPlsql = false;
   }
 
-  override reset(): void {
+  reset(): void {
     this._lastUnitWasPlsql = false;
     super.reset();
   }
@@ -43,6 +43,22 @@ export abstract class PlSqlParserBase extends Parser {
       return false;
 
     return true;
+  }
+
+  /** True when the current token is the first significant token on its line. */
+  isLineStart(): boolean {
+    const stream = this.tokenStream as CommonTokenStream;
+    const token = stream.LT(1);
+    if (token == null) {
+      return false;
+    }
+
+    const prev = stream.LT(-1);
+    if (prev == null || prev.type === Token.EOF) {
+      return true;
+    }
+
+    return prev.line < token.line;
   }
 
   isVersion10(): boolean {

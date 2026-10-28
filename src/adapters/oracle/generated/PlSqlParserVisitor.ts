@@ -771,6 +771,9 @@ import { Ts_file_name_convertContext } from "./PlSqlParser.js";
 import { Alter_roleContext } from "./PlSqlParser.js";
 import { Role_identified_clauseContext } from "./PlSqlParser.js";
 import { Alter_tableContext } from "./PlSqlParser.js";
+import { Alter_table_bodyContext } from "./PlSqlParser.js";
+import { Alter_table_actionContext } from "./PlSqlParser.js";
+import { Enable_disable_clausesContext } from "./PlSqlParser.js";
 import { Memoptimize_read_write_clauseContext } from "./PlSqlParser.js";
 import { Alter_table_propertiesContext } from "./PlSqlParser.js";
 import { Alter_table_partitioningContext } from "./PlSqlParser.js";
@@ -1070,6 +1073,7 @@ import { Single_column_for_loopContext } from "./PlSqlParser.js";
 import { Multi_column_for_loopContext } from "./PlSqlParser.js";
 import { Unary_expressionContext } from "./PlSqlParser.js";
 import { Unary_expression_coreContext } from "./PlSqlParser.js";
+import { Selection_directive_expressionContext } from "./PlSqlParser.js";
 import { Implicit_cursor_expressionContext } from "./PlSqlParser.js";
 import { Collection_expressionContext } from "./PlSqlParser.js";
 import { Case_statementContext } from "./PlSqlParser.js";
@@ -1138,6 +1142,7 @@ import { Annotations_clauseContext } from "./PlSqlParser.js";
 import { Annotations_listContext } from "./PlSqlParser.js";
 import { AnnotationContext } from "./PlSqlParser.js";
 import { Sql_plus_commandContext } from "./PlSqlParser.js";
+import { Execute_commandContext } from "./PlSqlParser.js";
 import { Start_commandContext } from "./PlSqlParser.js";
 import { Sql_plus_filepathContext } from "./PlSqlParser.js";
 import { Whenever_commandContext } from "./PlSqlParser.js";
@@ -5851,6 +5856,24 @@ export class PlSqlParserVisitor<Result> extends AbstractParseTreeVisitor<Result>
      */
     visitAlter_table?: (ctx: Alter_tableContext) => Result;
     /**
+     * Visit a parse tree produced by `PlSqlParser.alter_table_body`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitAlter_table_body?: (ctx: Alter_table_bodyContext) => Result;
+    /**
+     * Visit a parse tree produced by `PlSqlParser.alter_table_action`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitAlter_table_action?: (ctx: Alter_table_actionContext) => Result;
+    /**
+     * Visit a parse tree produced by `PlSqlParser.enable_disable_clauses`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitEnable_disable_clauses?: (ctx: Enable_disable_clausesContext) => Result;
+    /**
      * Visit a parse tree produced by `PlSqlParser.memoptimize_read_write_clause`.
      * @param ctx the parse tree
      * @return the visitor result
@@ -7648,6 +7671,12 @@ export class PlSqlParserVisitor<Result> extends AbstractParseTreeVisitor<Result>
      */
     visitUnary_expression_core?: (ctx: Unary_expression_coreContext) => Result;
     /**
+     * Visit a parse tree produced by `PlSqlParser.selection_directive_expression`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitSelection_directive_expression?: (ctx: Selection_directive_expressionContext) => Result;
+    /**
      * Visit a parse tree produced by `PlSqlParser.implicit_cursor_expression`.
      * @param ctx the parse tree
      * @return the visitor result
@@ -8055,6 +8084,12 @@ export class PlSqlParserVisitor<Result> extends AbstractParseTreeVisitor<Result>
      * @return the visitor result
      */
     visitSql_plus_command?: (ctx: Sql_plus_commandContext) => Result;
+    /**
+     * Visit a parse tree produced by `PlSqlParser.execute_command`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitExecute_command?: (ctx: Execute_commandContext) => Result;
     /**
      * Visit a parse tree produced by `PlSqlParser.start_command`.
      * @param ctx the parse tree

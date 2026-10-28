@@ -29,31 +29,7 @@ options {
     caseInsensitive = true;
 }
 
-@header {import {PlSqlLexerBase} from "../plSqlLexerBase.js";}
-
-@members {
-public isValidAlternativeQuotedString(): boolean {
-    const characters = Array.from(this.text);
-    const openingDelimiter = characters[2];
-    const closingDelimiter = characters.at(-2);
-    if (openingDelimiter === undefined || closingDelimiter === undefined || /\s/u.test(openingDelimiter)) {
-        return false;
-    }
-
-    switch (openingDelimiter) {
-        case '[':
-            return closingDelimiter === ']';
-        case '{':
-            return closingDelimiter === '}';
-        case '<':
-            return closingDelimiter === '>';
-        case '(':
-            return closingDelimiter === ')';
-        default:
-            return closingDelimiter === openingDelimiter;
-    }
-}
-}
+// Insert here @header for C++ lexer.
 
 ABORT                          : 'ABORT';
 ABS                            : 'ABS';
@@ -596,6 +572,7 @@ EXCHANGE                       : 'EXCHANGE';
 EXCLUDE                        : 'EXCLUDE';
 EXCLUDING                      : 'EXCLUDING';
 EXCLUSIVE                      : 'EXCLUSIVE';
+EXEC                           : 'EXEC';
 EXECUTE                        : 'EXECUTE';
 EXEMPT                         : 'EXEMPT';
 EXISTING                       : 'EXISTING';
@@ -2538,10 +2515,8 @@ APPROXIMATE_NUM_LIT : FLOAT_FRAGMENT ('E' ('+' | '-')? (FLOAT_FRAGMENT | [0-9]+)
 // and a superfluous subtoken typecasting of the "QUOTE"
 CHAR_STRING: '\'' (~('\'' | '\r' | '\n') | '\'' '\'' | NEWLINE)* '\'';
 
-// See https://docs.oracle.com/en/database/oracle/oracle-database/26/sqlrf/Literals.html
-CHAR_STRING_PERL:
-    'Q' '\'' . .*? . '\'' {this.isValidAlternativeQuotedString()}? -> type(CHAR_STRING)
-;
+// See https://livesql.oracle.com/apex/livesql/file/content_CIREYU9EA54EOKQ7LAMZKRF6P.html
+CHAR_STRING_PERL: 'Q' '\'' ~[ \t\r\n] .*? . '\'' {this.IsQQuoteDelimiter()}? -> type(CHAR_STRING);
 
 DELIMITED_ID: '"' (~ [\u0000"] | '"' '"')+ '"';
 
@@ -2593,13 +2568,14 @@ INTRODUCER: '_';
 
 SINGLE_LINE_COMMENT : '--' ~('\r' | '\n')* NEWLINE_EOF -> channel(HIDDEN);
 MULTI_LINE_COMMENT  : '/*' .*? '*/'                    -> channel(HIDDEN);
+// SQL*Plus separates a command word from its arguments with a space or a tab.
 // https://docs.oracle.com/cd/E11882_01/server.112/e16604/ch_twelve034.htm#SQPUG054
 REMARK_COMMENT:
-    'REM' {this.IsNewlineAtPos(-4)}? 'ARK'? (' ' ~('\r' | '\n')*)? NEWLINE_EOF -> channel(HIDDEN)
+    'REM' {this.IsNewlineAtPos(-4)}? 'ARK'? ([ \t] ~('\r' | '\n')*)? NEWLINE_EOF -> channel(HIDDEN)
 ;
 
 // https://docs.oracle.com/cd/E11882_01/server.112/e16604/ch_twelve032.htm#SQPUG052
-PROMPT_MESSAGE: 'PRO' {this.IsNewlineAtPos(-4)}? 'MPT'? (' ' ~('\r' | '\n')*)? NEWLINE_EOF;
+PROMPT_MESSAGE: 'PRO' {this.IsNewlineAtPos(-4)}? 'MPT'? ([ \t] ~('\r' | '\n')*)? NEWLINE_EOF;
 
 REGULAR_ID: SIMPLE_LETTER (SIMPLE_LETTER | '$' | '_' | '#' | [0-9])*;
 

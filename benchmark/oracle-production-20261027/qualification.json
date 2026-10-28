@@ -3,8 +3,8 @@
 	"generationId": "f7bcf467-8727-42be-bf4b-297b07531591",
 	"parser": {
 		"id": "structural",
-		"revision": "structural@5;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd",
-		"compilerVersion": "oracle19c;parser@structural;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/e199816b3f1a7a49ea1ad84fb6b87c382ea36a33+plsqldoc/8c8a44b668833c5603f5e5c1761837fd56dbc4fd"
+		"revision": "structural@5;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/3f1ca793eb1b72d421a016dd05b1d340dfa1a65e",
+		"compilerVersion": "oracle19c;parser@structural;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/3f1ca793eb1b72d421a016dd05b1d340dfa1a65e"
 	},
 	"contract": {
 		"id": "oracle-o1",
@@ -43,7 +43,7 @@
 		"files": 1244,
 		"objects": 1244,
 		"sourceHash": "2bb0da1e8151410432cfe55d30607ed229976b7ccfd974a97027ebeb220f7f2a",
-		"configHash": "b51a445cc2c6577116a19fb1614d79411fc8944cc2a161ef1df44a25b399e4ec"
+		"configHash": "8dbf461643f45d052056a7e498ec2d75ea8a7429ad2866bd251f7cb6edb426fb"
 	},
 	"policy": {
 		"version": "v5",

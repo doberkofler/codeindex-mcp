@@ -8,7 +8,10 @@ dependency-truth decision owned by
 
 This is a contract recomputation, not a new Oracle session. The retained source
 snapshot and truth exports are unchanged; only the contract and the report were
-regenerated. Replaying the retained snapshot is DB-free and reproduces every
+regenerated. The report was replayed again on 2026-10-28 after advancing the
+pinned Oracle lexer grammar, which changed only the parser identity and the
+derived configuration hash; every count, ratio, gate, and exclusion remained
+identical. Replaying the retained snapshot is DB-free and reproduces every
 number below.
 
 ## Identities
@@ -28,12 +31,12 @@ number below.
 | Corpus | 1,244 files / 1,244 objects; 1,246 installed, 2 without usable source |
 | Source hash | `2bb0da1e8151410432cfe55d30607ed229976b7ccfd974a97027ebeb220f7f2a` |
 | Plan/run config hash | `8ba026c038fe53224ab378d0e898589f0da818c4e32a3f98cf6957a493e24065` |
-| Report generation config hash | `b51a445cc2c6577116a19fb1614d79411fc8944cc2a161ef1df44a25b399e4ec` |
+| Report generation config hash | `8dbf461643f45d052056a7e498ec2d75ea8a7429ad2866bd251f7cb6edb426fb` |
 | Generation | `f7bcf467-8727-42be-bf4b-297b07531591` |
 | Truth identifier rows | 931,686 |
 | `user-identifiers.csv` SHA-256 | `4a980106361b7a336071a4265be22d512549c56b9af3475f2d7ed9b89ab9bc09` |
 | `user-dependencies.csv` SHA-256 | `c6783fb689113c668f7075ffbf358f6f9f8a040bfe26fd1df060e146fd891ce8` |
-| Committed report SHA-256 | `57cc9e50d8a878ca07f5c8e156eb7310b10f1d3f2342610cf82a26ff0a1626f1` |
+| Committed report SHA-256 | `c985a023803a068c96cb94d04801aafa88f7e27501652a1196066f9061adb96f` |
 | External raw report SHA-256 | `ba003cee4352f28324cace2249ce5f0b7c0a0a43023107c89f568a7697105dfb` |
 
 The retained plan recompiled 1,244 target objects with

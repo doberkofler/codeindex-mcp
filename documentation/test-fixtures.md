@@ -558,14 +558,14 @@ test/fixtures/oracle-qualification-golden/golden.pkb
 
 | Field | Value |
 |---|---|
-| Claim | Each documented grammar gap reports a parse diagnostic instead of silently succeeding, and the fixture is removed when the gap is fixed. |
-| Constructs | Nine one-construct files: SQL*Plus `REM` with a tab, non-reserved keyword as identifier, constant expression in a type size, `XMLTABLE ... RETURNING SEQUENCE BY REF`, `IS JSON(STRICT)`, SQL*Plus `EXEC`, `DATE NULL` record field, record value in `INSERT ... VALUES`, and wrapped source. |
-| Failure classes | Silent acceptance of an unsupported construct, over-broad diagnostic, gap-register drift, accidental grammar fix without fixture removal. |
-| Authority | Reviewed source manifest: each file contains exactly one construct from the known-gap register in [`oracle-antlr.md`](./oracle-antlr.md#7-known-grammar-gaps). The expected result is "a parse diagnostic exists", not a recorded message or location. |
-| Expected result | Every one of the nine files yields a diagnostic with code `ORACLE_DIAGNOSTIC.parse`. |
+| Claim | Each open documented grammar gap reports a parse diagnostic, and each upstream-fixed gap parses without one. |
+| Constructs | Nine one-construct files. Open: constant expression in a type size, invalid `XMLTABLE ... RETURNING SEQUENCE BY REF` clause order, `IS JSON(STRICT)`, `DATE NULL` record field, record value in `INSERT ... VALUES`, and wrapped source. Fixed: SQL*Plus `REM` with a tab, non-reserved keywords as identifiers, and SQL*Plus `EXEC`. |
+| Failure classes | Silent acceptance of an unsupported construct, regression of an upstream-fixed construct, over-broad diagnostic, gap-register drift. |
+| Authority | Reviewed source manifest: each file contains exactly one construct from the gap register in [`oracle-antlr.md`](./oracle-antlr.md#7-known-grammar-gaps). The expected result is diagnostic presence or absence, not a recorded message or location. |
+| Expected result | Every open gap yields a diagnostic with code `ORACLE_DIAGNOSTIC.parse`; every fixed gap yields none. |
 | Consuming tests | `test/oracleGrammarGaps.test.ts`. |
-| Mutation policy | Ground truth; one construct per file. Never add a file without a matching gap-register row. When a gap is fixed, delete the file, delete its row from the in-directory README and this manifest, and update the gap register. Wrapped source is out of scope and must not become a grammar-fix target. |
-| Known limitations | Asserts only that a parse diagnostic exists; it does not pin the message, location, or recovery shape. The fixtures are not part of the qualification corpus. |
+| Mutation policy | Ground truth; one construct per file. Never add a file without a matching gap-register row. When a gap is fixed, move it to the fixed set and update the in-directory README, this manifest, and the gap register. Wrapped source is out of scope and must not become a grammar-fix target. |
+| Known limitations | Asserts only diagnostic presence or absence; it does not pin the message, location, or recovery shape. The fixtures are not part of the qualification corpus. |
 | Update procedure | Add or remove a file only with a gap-register change, update the in-directory README and this entry, then run `pnpm vitest run test/oracleGrammarGaps.test.ts` and `pnpm verify`. |
 | Files (10) | See the manifest below. |
 
