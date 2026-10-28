@@ -50,15 +50,15 @@ const parseDigestKindOf = (context: string): string => `${PARSE_DIGEST_KIND}:${c
 
 const LIMITATIONS: readonly string[] = [
 	'Oracle 19c static source only; no live database or catalogue indexing',
-	'package specifications, package bodies, and standalone procedures/functions are indexed',
-	'object types, triggers, views, tables, columns, synonyms, and database links are not indexed',
+	'package specifications, package bodies, standalone procedures/functions, tables, table columns, and views are indexed',
+	'object types, triggers, synonyms, database links, and inferred view columns are not indexed',
 	'dynamic SQL, wrapped source, and conditional-compilation branches are outside O1 scope',
 	'table and SQL object lineage is deferred; only package dependencies are emitted',
 	'no cross-language edges, embeddings, or full-text search',
 ];
 
 const DISCOVERY_TEXT =
-	'The selected Oracle extractor indexes packages, procedures, and functions from package specifications (.pks), package bodies (.pkb), and configured standalone SQL / PL/SQL files. Search with natural qualified names such as LAS_SQL_JPos.reorderPos.';
+	'The selected Oracle extractor indexes packages, procedures, and functions from package specifications (.pks), package bodies (.pkb), and configured standalone SQL / PL/SQL files. It also indexes tables, table columns, and views from configured SQL files. Search with natural qualified names such as LAS_SQL_JPos.reorderPos or LAS_JPos.POS_ID.';
 
 type ContextResultType = Readonly<{
 	symbols: OracleContextSymbolsType;

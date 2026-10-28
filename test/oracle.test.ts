@@ -258,6 +258,21 @@ describe('Oracle index integration', () => {
 		expect(result.source).toContain('procedure sync_employee');
 		expect(result.path).toBe('database/sales_api.pkb');
 	});
+
+	it('discovers tables, qualified columns, and force views from aggregate SQL scripts', () => {
+		const table = firstSymbol('owner["APP"]::CUSTOMERS');
+		const column = firstSymbol('owner["APP"]::CUSTOMERS.CUSTOMER_ID');
+		const virtualColumn = firstSymbol('owner["APP"]::CUSTOMERS.NORMALIZED_NAME');
+		const view = firstSymbol('owner["APP"]::CUSTOMER_ORDERS');
+
+		expect(table).toMatchObject({kind: 'table', path: 'database/schema.sql'});
+		expect(column).toMatchObject({kind: 'column', path: 'database/schema.sql'});
+		expect(virtualColumn).toMatchObject({kind: 'column', path: 'database/schema.sql'});
+		expect(view).toMatchObject({kind: 'view', path: 'database/schema.sql'});
+		expect(fixture.index.getOutline({path: 'database/schema.sql', limit: 100}).items.map((symbol) => symbol.qualifiedName)).toStrictEqual(
+			expect.arrayContaining(['owner["APP"]::CUSTOMERS.CUSTOMER_ID', 'owner["APP"]::ORDERS.ORDER_ID', 'owner["APP"]::CUSTOMER_ORDERS']),
+		);
+	});
 });
 
 describe('Oracle manifest scanning and freshness', () => {

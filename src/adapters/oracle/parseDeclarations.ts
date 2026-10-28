@@ -1,4 +1,5 @@
 import {ORACLE_DIAGNOSTIC} from './diagnostics.ts';
+import {oracleDeclarationKeyword, oracleUnitKindAt, parseOracleDdlDeclaration} from './ddlDeclarations.ts';
 import {typeReferencesOf} from './referenceArguments.ts';
 import {namePartOf, splitObjectName} from './name.ts';
 import {
@@ -23,7 +24,7 @@ import {
 import {parseNestedBlockDeclarations} from './nestedBlocks.ts';
 import {routineFormOf} from './routineForm.ts';
 import {TokenCursor} from './tokenCursor.ts';
-import {type OracleDeclarationType, type OracleParseResultType, type OracleUnitKindType, type OracleUnitType} from './syntax.ts';
+import {type OracleDeclarationType, type OracleParseResultType, type OracleUnitType} from './syntax.ts';
 import {type OracleTokenType} from './tokenize.ts';
 
 type ParserInputType = Readonly<{tokens: readonly OracleTokenType[]; path: string; defaultSchema: string}>;
@@ -57,13 +58,17 @@ class OracleDeclarationParser {
 		let index = 0;
 
 		while (index < this.#state.cursor.length) {
-			const declarationIndex = this.#declarationKeyword(index);
-			const unitKind = this.#unitKind(declarationIndex);
+			const declarationIndex = oracleDeclarationKeyword(this.#state, index);
+			const unitKind = oracleUnitKindAt(this.#state, declarationIndex);
 
 			if (unitKind === 'package-spec' || unitKind === 'package-body') {
 				index = this.#parsePackage(index, declarationIndex, unitKind === 'package-body');
 			} else if (unitKind === 'procedure' || unitKind === 'function') {
 				index = this.#parseRoutine({keyword: declarationIndex, unitStart: index, parent: null, unit: -1, exported: true, kind: unitKind});
+			} else if (unitKind === 'table') {
+				index = parseOracleDdlDeclaration(this.#state, index, declarationIndex, 'table');
+			} else if (unitKind === 'view') {
+				index = parseOracleDdlDeclaration(this.#state, index, declarationIndex, 'view');
 			} else if (this.#state.cursor.text(index).startsWith('$')) {
 				index = this.#state.cursor.next(this.#state.cursor.findDirectiveEnd(index));
 			} else {
@@ -78,36 +83,6 @@ class OracleDeclarationParser {
 			dependencies: this.#state.dependencies,
 			diagnostics: this.#state.diagnostics.finish(),
 		};
-	}
-
-	#declarationKeyword(index: number): number {
-		if (!this.#state.cursor.word(index, 'CREATE')) {
-			return index;
-		}
-
-		let cursor = this.#state.cursor.next(index);
-
-		if (this.#state.cursor.word(cursor, 'OR') && this.#state.cursor.word(this.#state.cursor.next(cursor), 'REPLACE')) {
-			cursor = this.#state.cursor.next(this.#state.cursor.next(cursor));
-		}
-
-		while (this.#state.cursor.word(cursor, 'EDITIONABLE') || this.#state.cursor.word(cursor, 'NONEDITIONABLE') || this.#state.cursor.word(cursor, 'FORCE')) {
-			cursor = this.#state.cursor.next(cursor);
-		}
-
-		return cursor;
-	}
-
-	#unitKind(index: number): OracleUnitKindType | null {
-		if (this.#state.cursor.word(index, 'PACKAGE')) {
-			return this.#state.cursor.word(this.#state.cursor.next(index), 'BODY') ? 'package-body' : 'package-spec';
-		}
-
-		if (this.#state.cursor.word(index, 'PROCEDURE')) {
-			return 'procedure';
-		}
-
-		return this.#state.cursor.word(index, 'FUNCTION') ? 'function' : null;
 	}
 
 	#parsePackage(unitStart: number, packageIndex: number, body: boolean): number {
@@ -248,7 +223,7 @@ class OracleDeclarationParser {
 	}
 
 	#parseMember(start: number, parent: number, unit: number, exported: boolean): number {
-		const kind = this.#unitKind(start);
+		const kind = oracleUnitKindAt(this.#state, start);
 
 		if (kind === 'procedure' || kind === 'function') {
 			return this.#parseRoutine({keyword: start, unitStart: start, parent, unit, exported, kind});
