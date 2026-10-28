@@ -35,24 +35,13 @@ import {
 	typeReferencesOf,
 } from './antlrDeclarationSupport.ts';
 import {loopIteratorDeclarationOf, nestedDeclarationContexts} from './antlrNestedScopes.ts';
+import {collectAntlrDdlDeclaration} from './antlrDdlDeclarations.ts';
+import {type OracleMemberContextType} from './antlrDeclarationTypes.ts';
 import {defaultSchemaName, namePartOf, type OracleNamePartType} from './name.ts';
 import {type OracleDeclarationType, type OracleParameterType, type OracleParseInputType, type OracleRangeType, type OracleUnitType} from './syntax.ts';
 
 type ScopeType = Readonly<{parent: number; unit: number; exported: boolean}>;
 type RoutineScopeType = Readonly<{parent: number | null; unit: number; exported: boolean}>;
-type MemberContextType = Readonly<{
-	pragma_declaration: () => unknown;
-	exception_declaration: () => Exception_declarationContext | null;
-	procedure_spec: () => Procedure_specContext | null;
-	function_spec: () => Function_specContext | null;
-	variable_declaration: () => Variable_declarationContext | null;
-	subtype_declaration: () => Subtype_declarationContext | null;
-	cursor_declaration: () => Cursor_declarationContext | null;
-	type_declaration: () => Type_declarationContext | null;
-	procedure_body?: () => Procedure_bodyContext | null;
-	function_body?: () => Function_bodyContext | null;
-}>;
-
 type RoutineInputType = Readonly<{
 	kind: 'procedure' | 'function';
 	name: OracleNamePartType;
@@ -301,7 +290,7 @@ class OracleDeclarationCollector {
 		});
 	}
 
-	#collectMember(member: MemberContextType, parent: number, unit: number, exported: boolean): void {
+	#collectMember(member: OracleMemberContextType, parent: number, unit: number, exported: boolean): void {
 		const scope: ScopeType = {parent, unit, exported};
 
 		if (member.pragma_declaration() !== null) {
@@ -458,6 +447,11 @@ class OracleDeclarationCollector {
 		const unit = scriptUnit.plsql_unit();
 
 		if (unit === null) {
+			const sqlUnit = scriptUnit.sql_unit();
+			if (sqlUnit !== null) {
+				collectAntlrDdlDeclaration(this.#input, scriptUnit, sqlUnit, {units: this.#units, declarations: this.#declarations});
+			}
+
 			return;
 		}
 

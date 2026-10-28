@@ -10,7 +10,7 @@ export type OracleRangeType = Readonly<{
 	endColumn: number;
 }>;
 
-export type OracleUnitKindType = 'package-spec' | 'package-body' | 'procedure' | 'function';
+export type OracleUnitKindType = 'package-spec' | 'package-body' | 'procedure' | 'function' | 'table' | 'view';
 
 export type OracleDeclarationKindType =
 	| 'package'
@@ -25,7 +25,10 @@ export type OracleDeclarationKindType =
 	| 'collection_type'
 	| 'subtype'
 	| 'exception'
-	| 'field';
+	| 'field'
+	| 'table'
+	| 'column'
+	| 'view';
 
 /**
  * Source form of one routine or cursor declaration.

@@ -41,6 +41,29 @@ describe('Oracle ANTLR unit facts', () => {
 		expect(result.declarations.map((declaration) => declaration.kind)).toStrictEqual(['procedure', 'parameter', 'function']);
 	});
 
+	it('emits tables, table columns, views, and multiple DDL units', () => {
+		const result = parse(`create table app.customers
+( customer_id number primary key
+, display_name varchar2(100)
+, normalized_name varchar2(100) generated always as (upper(display_name)) virtual );
+create table orders (order_id number);
+create or replace force view app.customer_names as select display_name from app.customers;
+`);
+
+		expect(result.diagnostics).toStrictEqual([]);
+		expect(result.units.map((unit) => `${unit.kind}:${unit.canonical}`)).toStrictEqual(['table:APP.CUSTOMERS', 'table:APP.ORDERS', 'view:APP.CUSTOMER_NAMES']);
+		expect(result.declarations.map((declaration) => `${declaration.kind}:${declaration.name.canonical}`)).toStrictEqual([
+			'table:CUSTOMERS',
+			'column:CUSTOMER_ID',
+			'column:DISPLAY_NAME',
+			'column:NORMALIZED_NAME',
+			'table:ORDERS',
+			'column:ORDER_ID',
+			'view:CUSTOMER_NAMES',
+		]);
+		expect(result.declarations.slice(1, 4).every((declaration) => declaration.parent === 0 && declaration.exported)).toBe(true);
+	});
+
 	it('parses the committed Oracle fixture package specification', () => {
 		const source = readFileSync(path.join(fixtureRoot, 'hr_api.pks'), 'utf8');
 		const result = parseWithAntlr({source, path: 'hr_api.pks', defaultSchema: 'APP'});
