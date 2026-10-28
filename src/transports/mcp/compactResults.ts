@@ -48,9 +48,9 @@ export const compactOutlineOf = (result: OutlineResultType): CompactOutlineResul
 		symbolId: item.id,
 		name: item.name,
 		kind: item.kind,
-		path: item.path,
-		startLine: item.startLine,
-		endLine: item.endLine,
+		path: item.site.path,
+		startLine: item.site.startLine,
+		endLine: item.site.endLine,
 	})),
 });
 
