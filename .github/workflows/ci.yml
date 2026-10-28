@@ -6,6 +6,11 @@ name: CI
 # verify:pr keeps its 2 min reference-machine budget locally; this hosted runner is
 # slower and more variable, so it declares a 5 min wall-clock budget of its own
 # through CODE_INDEX_TEST_BUDGET_MS.
+
+# Named explicitly so a release commit shows as `CI (main)` beside the tag-triggered
+# `Release (v*)` run instead of both runs repeating the commit subject.
+run-name: "CI (${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || github.ref_name }})"
+
 on:
   push:
     branches: [main]

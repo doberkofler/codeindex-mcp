@@ -7,6 +7,10 @@ name: Release
 # Failure meaning: Deterministic system or Performance gate for stable checks;
 # release packaging for the final publish step. See .github/workflows/README.md.
 
+# Named explicitly so the tag run is distinguishable from the `main` CI run on the
+# same commit, which otherwise shares the release commit subject.
+run-name: Release (${{ github.ref_name }})
+
 on:
   push:
     tags: ['v*']
