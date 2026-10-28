@@ -159,8 +159,15 @@ Install the server with the CLI:
 
 ```bash
 codeindex-cli mcp install --root . --codeindex-config ./codeindex.config.json
-codeindex-cli mcp uninstall --root .
+codeindex-cli mcp uninstall --root . --codeindex-config ./codeindex.config.json
 ```
+
+The OpenCode server key is derived from the selected adapter. Without a
+CodeIndex configuration the installer registers `codeindex-typescript`; with
+one it registers `codeindex-<extractor.id>`, for example `codeindex-oracle`.
+Install each adapter as a separate server instance with its own
+`--codeindex-config`. Uninstall with the same argument to remove that key.
+Existing `codeindex` entries are never modified.
 
 `--config` selects the OpenCode configuration file to edit. `--codeindex-config`
 is passed to the server as `--config`, so it selects the CodeIndex project
@@ -175,13 +182,21 @@ codeindex-cli mcp install --root . \
 	--codeindex-config ./codeindex.config.json
 ```
 
+A second adapter installs alongside the first:
+
+```bash
+codeindex-cli mcp install --root . \
+	--mcp-path node_modules/codeindex-mcp/dist/mcp.mjs \
+	--codeindex-config ./codeindex.oracle.config.json
+```
+
 To register manually, add:
 
 ```jsonc
 {
 	"mcp": {
 		"servers": {
-			"codeindex": {
+			"codeindex-typescript": {
 				"type": "local",
 				"command": ["codeindex-mcp", "--config", "./codeindex.config.json"]
 			}
@@ -190,7 +205,7 @@ To register manually, add:
 }
 ```
 
-Open `/mcps` in OpenCode and confirm that `codeindex` is connected. OpenCode
+Open `/mcps` in OpenCode and confirm that `codeindex-typescript` is connected. OpenCode
 starts the server locally over stdio; no separate daemon is required.
 
 OpenCode V2 exposes MCP tools through Code Mode by default. The seven CodeIndex
@@ -411,8 +426,8 @@ A running MCP process does not pick up a replaced `dist/mcp.mjs`. After
 `pnpm install` resolves a new tag:
 
 1. open `/mcps` in OpenCode;
-2. disconnect `codeindex`;
-3. connect `codeindex` again;
+2. disconnect `codeindex-typescript` (or your derived adapter key);
+3. connect it again;
 4. start a new session if tool names, schemas, or instructions changed.
 
 ## Analytics
@@ -454,10 +469,10 @@ a bounded diagnostic. The server is local stdio without authentication.
 
 ## Troubleshooting
 
-- **`codeindex` is absent from `/mcps`:** confirm the dependency is installed and
-  the launcher resolves. Run `codeindex-cli status --config ...`.
+- **`codeindex-typescript` is absent from `/mcps`:** confirm the dependency is
+  installed and the launcher resolves. Run `codeindex-cli status --config ...`.
 - **The first request cannot see CodeIndex although the server starts:** wait
-  until `/mcps` reports `codeindex` as connected, then retry in a new session.
+  until `/mcps` reports the server as connected, then retry in a new session.
   On macOS, opening the same project through equivalent `/var` and
   `/private/var` paths can create two OpenCode project instances and trigger the
   startup race tracked by

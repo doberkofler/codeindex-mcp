@@ -183,6 +183,36 @@ const assertFile = (filePath: string, label: string): void => {
 	}
 };
 
+const parseConfigFile = (configPath: string, label: string): FileConfigType => {
+	assertFile(configPath, label);
+
+	let parsed: unknown;
+
+	try {
+		parsed = JSON.parse(readFileSync(configPath, 'utf8'));
+	} catch (error) {
+		return fail(`${label} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+	}
+
+	const result = FileConfigSchema.safeParse(parsed);
+
+	if (!result.success) {
+		return fail(`${label} failed validation:\n${z.prettifyError(result.error)}`);
+	}
+
+	return result.data;
+};
+
+/**
+ * Reads the selected extractor from a CodeIndex configuration file.
+ *
+ * @param configPath - Absolute configuration path, or undefined when none is configured.
+ * @returns The configured extractor identifier, or the default extractor.
+ * @throws {@link Error} When the file is missing, is not valid JSON, or fails validation.
+ */
+export const extractorIdOfConfig = (configPath: string | undefined): string =>
+	configPath === undefined ? DEFAULT_EXTRACTOR_ID : (parseConfigFile(configPath, 'CodeIndex configuration').extractor.id ?? DEFAULT_EXTRACTOR_ID);
+
 const canonicalisePath = (rawRootDir: string, realRootDir: string, candidatePath: string): string => {
 	const absolutePath = resolve(candidatePath);
 
@@ -219,31 +249,12 @@ const fileConfigOf = (source: unknown, cwd: string): Readonly<{config: FileConfi
 	const configuredPath = parsedEnvironment.data.CODE_INDEX_CONFIG;
 
 	if (configuredPath === undefined) {
-		return {
-			config: FileConfigSchema.parse({extractor: {}}),
-			directory: cwd,
-			configPath: null,
-		};
+		return {config: FileConfigSchema.parse({extractor: {}}), directory: cwd, configPath: null};
 	}
 
 	const configPath = resolve(cwd, configuredPath);
-	assertFile(configPath, 'CODE_INDEX_CONFIG');
 
-	let parsed: unknown;
-
-	try {
-		parsed = JSON.parse(readFileSync(configPath, 'utf8'));
-	} catch (error) {
-		return fail(`CODE_INDEX_CONFIG is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
-	}
-
-	const result = FileConfigSchema.safeParse(parsed);
-
-	if (!result.success) {
-		return fail(`CODE_INDEX_CONFIG failed validation:\n${z.prettifyError(result.error)}`);
-	}
-
-	return {config: result.data, directory: dirname(configPath), configPath};
+	return {config: parseConfigFile(configPath, 'CODE_INDEX_CONFIG'), directory: dirname(configPath), configPath};
 };
 
 type ParsedEnvironmentType = z.infer<typeof EnvironmentSchema>;

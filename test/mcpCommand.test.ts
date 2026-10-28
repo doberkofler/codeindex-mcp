@@ -79,7 +79,7 @@ describe('mcp command', () => {
 		return {root, mcpPath};
 	};
 
-	it('creates a project-local config with the codeindex server', () => {
+	it('creates a project-local config with the derived server name', () => {
 		const {root, mcpPath} = fixture();
 		const captured = createIo();
 
@@ -92,9 +92,9 @@ describe('mcp command', () => {
 
 		expect(config.$schema).toBeUndefined();
 		expect(serverOf(config)).toStrictEqual({
-			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
+			'codeindex-typescript': {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
 		});
-		expect(captured.stdout.join('\n')).toContain('Installed codeindex MCP server');
+		expect(captured.stdout.join('\n')).toContain('Installed codeindex-typescript MCP server');
 	});
 
 	it('preserves comments and unrelated configuration', () => {
@@ -120,7 +120,7 @@ describe('mcp command', () => {
 		expect(config.model).toBe('provider/model');
 		expect(serverOf(config)).toStrictEqual({
 			other: {type: 'local', command: ['other']},
-			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
+			'codeindex-typescript': {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
 		});
 	});
 
@@ -133,7 +133,7 @@ describe('mcp command', () => {
 			`{
 	// Keep this comment.
 	"model": "provider/model",
-	"mcp": {"servers": {"codeindex": {"type": "local", "command": ["node", "mcp.mjs"]}}},
+	"mcp": {"servers": {"codeindex-typescript": {"type": "local", "command": ["node", "mcp.mjs"]}}},
 }
 `,
 		);
@@ -192,7 +192,7 @@ describe('mcp command schema hint', () => {
 		const config = parseConfig(readFileSync(configPath, 'utf8'));
 		expect(config.$schema).toBeUndefined();
 		expect(serverOf(config)).toStrictEqual({
-			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
+			'codeindex-typescript': {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
 		});
 	});
 
@@ -233,7 +233,7 @@ describe('mcp command with a CodeIndex configuration', () => {
 
 	it('passes a CodeIndex configuration to the installed server', () => {
 		const {root, mcpPath} = fixture();
-		writeFileSync(path.join(root, 'tools', 'code_index', 'codeindex.config.json'), '{}\n');
+		writeFileSync(path.join(root, 'tools', 'code_index', 'codeindex.config.json'), '{"extractor": {}}\n');
 		const captured = createIo();
 
 		expect(runMcpCommand(['install', '--root', root, '--codeindex-config', 'tools/code_index/codeindex.config.json'], captured.io, {mcpPath})).toBe(0);
@@ -241,11 +241,28 @@ describe('mcp command with a CodeIndex configuration', () => {
 
 		const config = parseConfig(readFileSync(path.join(root, '.opencode', 'opencode.jsonc'), 'utf8'));
 		expect(serverOf(config)).toStrictEqual({
-			codeindex: {
+			'codeindex-typescript': {
 				type: 'local',
 				command: ['node', 'tools/code_index/dist/mcp.mjs', '--config', 'tools/code_index/codeindex.config.json'],
 			},
 		});
+	});
+
+	it('derives the server name from the configured adapter', () => {
+		const {root, mcpPath} = fixture();
+		writeFileSync(path.join(root, 'tools', 'code_index', 'codeindex.config.json'), '{"extractor": {"id": "oracle"}}\n');
+		const captured = createIo();
+
+		expect(runMcpCommand(['install', '--root', root, '--codeindex-config', 'tools/code_index/codeindex.config.json'], captured.io, {mcpPath})).toBe(0);
+
+		const config = parseConfig(readFileSync(path.join(root, '.opencode', 'opencode.jsonc'), 'utf8'));
+		expect(serverOf(config)).toStrictEqual({
+			'codeindex-oracle': {
+				type: 'local',
+				command: ['node', 'tools/code_index/dist/mcp.mjs', '--config', 'tools/code_index/codeindex.config.json'],
+			},
+		});
+		expect(captured.stdout.join('\n')).toContain('Installed codeindex-oracle MCP server');
 	});
 
 	it('registers an explicit MCP path', () => {
@@ -253,7 +270,7 @@ describe('mcp command with a CodeIndex configuration', () => {
 		const explicit = path.join(root, 'vendor', 'mcp.mjs');
 		mkdirSync(path.dirname(explicit), {recursive: true});
 		writeFileSync(explicit, '// vendor bundle\n');
-		writeFileSync(path.join(root, 'tools', 'code_index', 'codeindex.config.json'), '{}\n');
+		writeFileSync(path.join(root, 'tools', 'code_index', 'codeindex.config.json'), '{"extractor": {}}\n');
 		const captured = createIo();
 
 		expect(
@@ -264,7 +281,7 @@ describe('mcp command with a CodeIndex configuration', () => {
 
 		const config = parseConfig(readFileSync(path.join(root, '.opencode', 'opencode.jsonc'), 'utf8'));
 		expect(serverOf(config)).toStrictEqual({
-			codeindex: {
+			'codeindex-typescript': {
 				type: 'local',
 				command: ['node', 'vendor/mcp.mjs', '--config', 'tools/code_index/codeindex.config.json'],
 			},
@@ -279,9 +296,78 @@ describe('mcp command with a CodeIndex configuration', () => {
 		expect(missing.stderr.join('\n')).toContain('CodeIndex configuration not found');
 		expect(existsSync(path.join(root, '.opencode', 'opencode.jsonc'))).toBe(false);
 
-		writeFileSync(path.join(root, 'codeindex.config.json'), '{}\n');
+		writeFileSync(path.join(root, 'codeindex.config.json'), '{"extractor": {}}\n');
 		const outside = createIo();
 		expect(runMcpCommand(['install', '--root', root, '--codeindex-config', path.join(root, '..', 'outside.json')], outside.io, {mcpPath})).toBe(1);
 		expect(outside.stderr.join('\n')).toContain('must stay inside --root');
+	});
+});
+
+describe('mcp command server naming', () => {
+	let directory: string | undefined;
+
+	afterEach(() => {
+		if (directory !== undefined) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		directory = undefined;
+	});
+
+	const fixture = (): Readonly<{root: string; mcpPath: string; configPath: string}> => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-mcp-'));
+		const root = path.join(directory, 'workspace');
+		const mcpPath = path.join(root, 'tools', 'code_index', 'dist', 'mcp.mjs');
+		mkdirSync(path.dirname(mcpPath), {recursive: true});
+		writeFileSync(mcpPath, '// mcp bundle\n');
+
+		return {root, mcpPath, configPath: path.join(root, '.opencode', 'opencode.jsonc')};
+	};
+
+	it('uninstalls only the server named by the configured adapter', () => {
+		const {root, mcpPath, configPath} = fixture();
+		mkdirSync(path.dirname(configPath), {recursive: true});
+		writeFileSync(
+			configPath,
+			`{
+	"mcp": {"servers": {"codeindex-typescript": {"type": "local", "command": ["node", "ts.mjs"]}, "codeindex-oracle": {"type": "local", "command": ["node", "oracle.mjs"]}}},
+}
+`,
+		);
+		writeFileSync(path.join(root, 'tools', 'code_index', 'codeindex.config.json'), '{"extractor": {"id": "oracle"}}\n');
+
+		expect(runMcpCommand(['uninstall', '--root', root, '--codeindex-config', 'tools/code_index/codeindex.config.json'], createIo().io, {mcpPath})).toBe(0);
+
+		const config = parseConfig(readFileSync(configPath, 'utf8'));
+		expect(serverOf(config)).toStrictEqual({
+			'codeindex-typescript': {type: 'local', command: ['node', 'ts.mjs']},
+		});
+	});
+
+	it('leaves a legacy codeindex entry untouched', () => {
+		const {root, mcpPath, configPath} = fixture();
+		mkdirSync(path.dirname(configPath), {recursive: true});
+		writeFileSync(
+			configPath,
+			`{
+	"mcp": {"servers": {"codeindex": {"type": "local", "command": ["node", "legacy.mjs"]}}},
+}
+`,
+		);
+
+		expect(runMcpCommand(['install', '--root', root], createIo().io, {mcpPath})).toBe(0);
+
+		const installed = parseConfig(readFileSync(configPath, 'utf8'));
+		expect(serverOf(installed)).toStrictEqual({
+			codeindex: {type: 'local', command: ['node', 'legacy.mjs']},
+			'codeindex-typescript': {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
+		});
+
+		expect(runMcpCommand(['uninstall', '--root', root], createIo().io, {mcpPath})).toBe(0);
+
+		const uninstalled = parseConfig(readFileSync(configPath, 'utf8'));
+		expect(serverOf(uninstalled)).toStrictEqual({
+			codeindex: {type: 'local', command: ['node', 'legacy.mjs']},
+		});
 	});
 });

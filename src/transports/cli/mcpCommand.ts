@@ -2,10 +2,11 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {applyEdits, type JSONPath, type ParseError, modify, parse} from 'jsonc-parser';
 import {z} from 'zod';
+import {extractorIdOfConfig} from '../../core/config/config.ts';
 
 const {dirname, relative, resolve, sep} = path;
 
-const SERVER_NAME = 'codeindex';
+const SERVER_NAME_PREFIX = 'codeindex';
 // jsonc-parser deletes a property when the value is undefined; avoid an explicit
 // undefined literal to satisfy the lint policy.
 const REMOVE: unknown = new Map<string, unknown>().get('missing');
@@ -37,6 +38,10 @@ const usage = `Usage: cli mcp <install|uninstall> [options]
 
 Adds or removes the local code-index MCP server in the project OpenCode config.
 
+The server key is derived from the configured adapter:
+  codeindex-typescript       when no CodeIndex configuration selects one
+  codeindex-<extractor.id>   otherwise (for example codeindex-oracle)
+
 Options:
   --root <path>              Project root that contains the OpenCode config (default ".").
   --config <path>            Explicit OpenCode config path, relative to the root.
@@ -67,14 +72,14 @@ const parseJsonc = (text: string, configPath: string): Record<string, unknown> =
 	return parsed;
 };
 
-const serverAt = (config: Readonly<Record<string, unknown>>): unknown => {
+const serverAt = (config: Readonly<Record<string, unknown>>, serverName: string): unknown => {
 	const {mcp} = config;
 
 	if (!isObject(mcp) || !isObject(mcp['servers'])) {
 		return undefined;
 	}
 
-	return mcp['servers'][SERVER_NAME];
+	return mcp['servers'][serverName];
 };
 
 const applyPath = (text: string, keyPath: JSONPath, value: unknown): string => applyEdits(text, modify(text, keyPath, value, {formattingOptions: FORMATTING}));
@@ -134,6 +139,18 @@ const relativeInsideRoot = (root: string, filePath: string, option: string): str
 	return inside.split(sep).join('/');
 };
 
+// The server name is derived from the adapter so two instances (for example
+// TypeScript and Oracle) can coexist without manual renaming.
+const serverNameOf = (root: string, codeIndexConfig: string | undefined): string => {
+	const configPath = codeIndexConfig === undefined ? undefined : resolve(root, relativeInsideRoot(root, codeIndexConfig, '--codeindex-config'));
+
+	if (configPath !== undefined && !existsSync(configPath)) {
+		throw new Error(`CodeIndex configuration not found: ${codeIndexConfig}`);
+	}
+
+	return `${SERVER_NAME_PREFIX}-${extractorIdOfConfig(configPath)}`;
+};
+
 const serverEntry = (root: string, mcpPath: string, codeIndexConfig: string | undefined): Readonly<Record<string, unknown>> => {
 	const command = ['node', commandPathOf(root, mcpPath)];
 
@@ -146,30 +163,21 @@ const serverEntry = (root: string, mcpPath: string, codeIndexConfig: string | un
 
 const readConfig = (configPath: string): string => (existsSync(configPath) ? readFileSync(configPath, 'utf8') : '{\n}\n');
 
-const install = (input: InputType, configPath: string): string => {
+const install = (input: InputType, configPath: string, serverName: string): string => {
 	if (!existsSync(input.mcpPath)) {
 		throw new Error(`MCP bundle not found: ${input.mcpPath}. Run "pnpm build" first.`);
 	}
 
-	if (input.codeIndexConfig !== undefined) {
-		const relativeConfig = relativeInsideRoot(input.root, input.codeIndexConfig, '--codeindex-config');
-		const codeIndexPath = resolve(input.root, relativeConfig);
-
-		if (!existsSync(codeIndexPath)) {
-			throw new Error(`CodeIndex configuration not found: ${input.codeIndexConfig}`);
-		}
-	}
-
 	let text = readConfig(configPath);
 	parseJsonc(text, configPath);
-	text = applyPath(text, ['mcp', 'servers', SERVER_NAME], serverEntry(input.root, input.mcpPath, input.codeIndexConfig));
+	text = applyPath(text, ['mcp', 'servers', serverName], serverEntry(input.root, input.mcpPath, input.codeIndexConfig));
 	parseJsonc(text, configPath);
 	return text;
 };
 
 // The config carries no provenance marker, so install never writes `$schema`:
 // uninstall could not distinguish a hint it added from one the user chose.
-const uninstall = (configPath: string): Readonly<{text: string; removed: boolean}> => {
+const uninstall = (configPath: string, serverName: string): Readonly<{text: string; removed: boolean}> => {
 	if (!existsSync(configPath)) {
 		return {text: '', removed: false};
 	}
@@ -177,11 +185,11 @@ const uninstall = (configPath: string): Readonly<{text: string; removed: boolean
 	const text = readFileSync(configPath, 'utf8');
 	const config = parseJsonc(text, configPath);
 
-	if (serverAt(config) === undefined) {
+	if (serverAt(config, serverName) === undefined) {
 		return {text, removed: false};
 	}
 
-	const cleaned = removeEmptyAncestors(applyPath(text, ['mcp', 'servers', SERVER_NAME], REMOVE));
+	const cleaned = removeEmptyAncestors(applyPath(text, ['mcp', 'servers', serverName], REMOVE));
 	parseJsonc(cleaned, configPath);
 	return {text: cleaned, removed: true};
 };
@@ -217,8 +225,8 @@ const parseOptions = (argv: readonly string[]): Record<string, unknown> => {
 /**
  * Installs or removes the project-local code-index MCP server.
  *
- * The command updates only `mcp.servers.codeindex` and preserves unrelated
- * OpenCode configuration, comments, and formatting where possible.
+ * The command updates only `mcp.servers.codeindex-<extractor>` and preserves
+ * unrelated OpenCode configuration, comments, and formatting where possible.
  *
  * @param argv - Arguments after the `mcp` command.
  * @param io - Output sinks.
@@ -263,14 +271,15 @@ export const runMcpCommand = (argv: readonly string[], io: McpCommandIoType, opt
 
 		const configPath = configPathOf(input);
 		const relativePath = relative(resolve(input.root), configPath).split(sep).join('/');
+		const serverName = serverNameOf(input.root, input.codeIndexConfig);
 		let changed = false;
 		let text = '';
 
 		if (action === 'install') {
-			text = install(input, configPath);
+			text = install(input, configPath, serverName);
 			changed = true;
 		} else {
-			const {text: nextText, removed} = uninstall(configPath);
+			const {text: nextText, removed} = uninstall(configPath, serverName);
 			text = nextText;
 			changed = removed;
 		}
@@ -282,13 +291,13 @@ export const runMcpCommand = (argv: readonly string[], io: McpCommandIoType, opt
 
 		const message =
 			action === 'install'
-				? `Installed ${SERVER_NAME} MCP server in ${relativePath}`
+				? `Installed ${serverName} MCP server in ${relativePath}`
 				: changed
-					? `Removed ${SERVER_NAME} MCP server from ${relativePath}`
-					: `${SERVER_NAME} MCP server is not configured in ${relativePath}`;
+					? `Removed ${serverName} MCP server from ${relativePath}`
+					: `${serverName} MCP server is not configured in ${relativePath}`;
 
 		if (cliOptions.json) {
-			io.stdout(JSON.stringify({configPath: relativePath, installed: action === 'install', changed, server: SERVER_NAME}, null, 2));
+			io.stdout(JSON.stringify({configPath: relativePath, installed: action === 'install', changed, server: serverName}, null, 2));
 		} else {
 			io.stdout(message);
 		}
