@@ -13,7 +13,7 @@ import {
 	type QueryFreshnessType,
 	type SymbolSummaryType,
 } from '../model.ts';
-import {boundedPagedResult, decodeCursor, normalizeRelativePath} from './querySupport.ts';
+import {boundedPagedResult, decodeCursor, normalizeQueryText, normalizeRelativePath, type QueryNameNormalizerType} from './querySupport.ts';
 import {type BindingCandidateType} from '../storage/databasePublicationQueries.ts';
 
 export type QueryContextType = Readonly<{
@@ -22,6 +22,8 @@ export type QueryContextType = Readonly<{
 	readonly freshness: QueryFreshnessType;
 	/** Optional local analytics sink for exact-name presence outcomes. */
 	readonly exactNameTelemetry?: ((presence: ExactNamePresenceType) => void) | undefined;
+	/** Optional adapter rule that folds authored query names to published spellings. */
+	readonly normalizeQueryName?: QueryNameNormalizerType | undefined;
 }>;
 
 export const assertKnownContext = (context: QueryContextType, requested: string | undefined): void => {
@@ -297,7 +299,7 @@ const recordExactNameOutcome = (context: QueryContextType, input: FindSymbolInpu
  * @throws {@link CodeIndexError} When the query is empty, a filter is invalid, or the cursor is invalid.
  */
 export const findSymbols = (context: QueryContextType, input: FindSymbolInputType, maxResultBytes: number): FindSymbolResultType => {
-	const query = input.query.trim();
+	const query = normalizeQueryText(context.normalizeQueryName, input.query.trim());
 	const match = input.match ?? 'name';
 	const exposure = input.exposure ?? 'visible';
 

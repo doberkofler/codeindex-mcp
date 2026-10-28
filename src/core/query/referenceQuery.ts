@@ -3,11 +3,16 @@ import {type IndexDatabase} from '../storage/database.ts';
 import {type ReferenceScopeType} from '../storage/databaseReferenceQueries.ts';
 import {CodeIndexError} from '../errors/errors.ts';
 import {type FindReferencesInputType, type FindReferencesResultType, type QueryFreshnessType} from '../model.ts';
-import {boundedPagedResult, decodeCursor, normalizeRelativePath} from './querySupport.ts';
+import {boundedPagedResult, decodeCursor, normalizeRelativePath, withNormalizedQuery, type QueryNameNormalizerType} from './querySupport.ts';
 import {groupedResultOf} from './referenceGrouping.ts';
 import {assertReferenceSelector, resolveReferenceQuery, type ReferenceResolutionType} from './referenceResolution.ts';
 
-type QueryContextType = Readonly<{database: IndexDatabase; generationId: string; freshness: QueryFreshnessType}>;
+type QueryContextType = Readonly<{
+	database: IndexDatabase;
+	generationId: string;
+	freshness: QueryFreshnessType;
+	normalizeQueryName?: QueryNameNormalizerType | undefined;
+}>;
 
 const NONE_MESSAGE =
 	'No stored symbol matched this query. This is not evidence that no source defines it: the index covers only configured projects and indexing may be incomplete. Use a repository text search as the fallback.';
@@ -90,7 +95,7 @@ const selectSymbol = (
 		return {symbolId};
 	}
 
-	const resolution = resolveReferenceQuery(context.database, context.generationId, {...input, path});
+	const resolution = resolveReferenceQuery(context.database, context.generationId, {...withNormalizedQuery(context.normalizeQueryName, input), path});
 
 	if (resolution.kind === 'none') {
 		return {result: noneResultOf(context)};

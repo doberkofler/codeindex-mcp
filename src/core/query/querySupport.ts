@@ -119,6 +119,32 @@ export const boundedPagedResult = <ItemType, ResultType>(
 	return selected;
 };
 
+/** Adapter-owned folding of one authored query name to its published spelling. */
+export type QueryNameNormalizerType = (text: string) => string;
+
+/**
+ * Applies the selected adapter's query-name normalization to one name.
+ *
+ * Storage compares binding names verbatim, so an adapter whose canonical names
+ * differ from authored text owns the folding rule. Without a rule the text stays
+ * byte-identical.
+ *
+ * @param normalize - Optional adapter rule.
+ * @param text - Authored name.
+ * @returns The canonical published spelling.
+ */
+export const normalizeQueryText = (normalize: QueryNameNormalizerType | undefined, text: string): string => (normalize === undefined ? text : normalize(text));
+
+/**
+ * Applies the adapter's query-name normalization to one query-bearing request.
+ *
+ * @param normalize - Optional adapter rule.
+ * @param input - Query-bearing request.
+ * @returns The same request with a normalized query, or the original request.
+ */
+export const withNormalizedQuery = <Request extends {query?: string | undefined}>(normalize: QueryNameNormalizerType | undefined, input: Request): Request =>
+	normalize === undefined || input.query === undefined ? input : {...input, query: normalizeQueryText(normalize, input.query)};
+
 export const normalizeRelativePath = (path: string): string => {
 	if (path.startsWith('/') || path.includes('\\') || path.split('/').includes('..')) {
 		throw new CodeIndexError('invalid_argument', 'Path must be a repository-relative POSIX path without parent segments');

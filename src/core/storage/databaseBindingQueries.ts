@@ -167,18 +167,7 @@ export const bindingCandidateQuery = (input: BindingCandidateQueryType): Readonl
 	};
 };
 
-/**
- * Finds bindings that satisfy a symbol-search filter before deduplication.
- *
- * The candidate statement reads only `symbol_name` and orders by the indexed
- * `(name, container, binding_id)` tuple. Symbol summaries are loaded later for
- * the emitted page, so a page never joins the symbol table for every candidate.
- *
- * @param reader - Reader connection.
- * @param input - Generation, match mode, filters, and fetch bound.
- * @returns Binding candidates with their owning symbol identifiers.
- */
-export const findBindingCandidates = (reader: DatabaseSync, input: BindingCandidateQueryType): readonly BindingCandidateType[] => {
+const scanBindingCandidates = (reader: DatabaseSync, input: BindingCandidateQueryType): readonly BindingCandidateType[] => {
 	const {sql, parameters} = bindingCandidateQuery(input);
 	const rows = reader.prepare(sql).all(...parameters);
 
@@ -208,6 +197,71 @@ export const findBindingCandidates = (reader: DatabaseSync, input: BindingCandid
 			hasDeclaredSite: asNumber(row, 'has_declared_site') === 1,
 		};
 	});
+};
+
+const DISPLAY_MARKERS = ['::', '['] as const;
+const CONTAINER_BOUNDARIES = ['::', '.'] as const;
+
+/**
+ * Splits one natural qualified name into its container suffix and final name.
+ *
+ * Display-form names already carry explicit scope markers, so they are not
+ * natural names and must keep their exact comparison behavior.
+ *
+ * @param query - Authored qualified name.
+ * @returns Container suffix and terminal name, or null when the name is not natural.
+ */
+const naturalQualifiedPartsOf = (query: string): Readonly<{container: string; name: string}> | null => {
+	if (query.length === 0 || DISPLAY_MARKERS.some((marker) => query.includes(marker))) {
+		return null;
+	}
+
+	const separator = query.lastIndexOf('.');
+
+	if (separator <= 0 || separator === query.length - 1) {
+		return null;
+	}
+
+	return {container: query.slice(0, separator), name: query.slice(separator + 1)};
+};
+
+// Requires the authored container suffix to end the stored container at a member boundary.
+const isContainerSuffixOf = (container: string, suffix: string): boolean =>
+	container === suffix || CONTAINER_BOUNDARIES.some((boundary) => container.endsWith(`${boundary}${suffix}`));
+
+/**
+ * Finds bindings that satisfy a symbol-search filter before deduplication.
+ *
+ * The candidate statement reads only `symbol_name` and orders by the indexed
+ * `(name, container, binding_id)` tuple. Symbol summaries are loaded later for
+ * the emitted page, so a page never joins the symbol table for every candidate.
+ *
+ * A qualified query without display markers falls back to natural container
+ * resolution: the terminal segment must equal the binding name and the
+ * preceding segments must end the binding container at a `::` or `.` boundary.
+ * The fallback runs only when the direct lookup is empty, so existing results
+ * and their ranking never change.
+ *
+ * @param reader - Reader connection.
+ * @param input - Generation, match mode, filters, and fetch bound.
+ * @returns Binding candidates with their owning symbol identifiers.
+ */
+export const findBindingCandidates = (reader: DatabaseSync, input: BindingCandidateQueryType): readonly BindingCandidateType[] => {
+	const candidates = scanBindingCandidates(reader, input);
+
+	if (candidates.length > 0 || input.match !== 'qualified' || input.container !== undefined) {
+		return candidates;
+	}
+
+	const natural = naturalQualifiedPartsOf(input.query);
+
+	if (natural === null) {
+		return candidates;
+	}
+
+	return scanBindingCandidates(reader, {...input, query: natural.name, match: 'name'})
+		.filter((candidate) => candidate.binding.name === natural.name && isContainerSuffixOf(candidate.binding.container, natural.container))
+		.map((candidate) => ({...candidate, match: 'exact_qualified' as const}));
 };
 
 /**

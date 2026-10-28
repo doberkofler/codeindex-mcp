@@ -13,7 +13,12 @@ import {buildFailureCauseOf} from './buildFailureCause.ts';
 import {buildGeneration} from './buildGeneration.ts';
 import {type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
-import {findDependencies as queryDependencies, findReferences as queryReferences, findSymbols as querySymbols} from '../query/queryService.ts';
+import {
+	findDependencies as queryDependencies,
+	findReferences as queryReferences,
+	findSymbols as querySymbols,
+	type QueryContextType,
+} from '../query/queryService.ts';
 import {CodeIndexError, IndexNotReadyError} from '../errors/errors.ts';
 import {acquireOrObserveBuildLease, EXTERNAL_BUILD_TIMEOUT_MS} from './externalBuild.ts';
 import {collectStatus} from '../freshness/indexStatus.ts';
@@ -71,6 +76,9 @@ export class CodeIndex {
 	readonly #coordinator: RefreshCoordinator;
 	readonly #watcher: WorkspaceWatcher;
 	readonly #ownerId = randomUUID();
+	readonly #recordExactName = (presence: ExactNamePresenceType): void => {
+		this.#analytics?.record('find_symbol_outcome', {presence});
+	};
 	#published: GenerationRowType | null = null;
 	#refreshing: Promise<BuildReportType> | null = null;
 	#closed = false;
@@ -338,22 +346,7 @@ export class CodeIndex {
 	 * @returns Paginated symbol matches with explicit freshness.
 	 */
 	public findSymbols(input: FindSymbolInputType, maxResultBytes = this.#config.maxResultBytes): FindSymbolResultType {
-		return this.#database.readSnapshot(() => {
-			const context = {
-				database: this.#database,
-				generationId: this.#generation().id,
-				freshness: this.getFreshness(),
-				...(this.#analytics === null
-					? {}
-					: {
-							exactNameTelemetry: (presence: ExactNamePresenceType): void => {
-								this.#analytics?.record('find_symbol_outcome', {presence});
-							},
-						}),
-			};
-
-			return querySymbols(context, input, maxResultBytes);
-		});
+		return this.#database.readSnapshot(() => querySymbols(this.#queryContext(), input, maxResultBytes));
 	}
 
 	/** Finds occurrences for one symbol identifier or resolves one symbol query in the same call. */
@@ -362,10 +355,7 @@ export class CodeIndex {
 	public findReferences(input: QueryFindReferencesInputType, maxResultBytes?: number): QueryFindReferencesResultType;
 	public findReferences(input: FindReferencesInputType, maxResultBytes?: number): FindReferencesResultType;
 	public findReferences(input: FindReferencesInputType, maxResultBytes = this.#config.maxResultBytes): FindReferencesResultType {
-		return this.#database.readSnapshot(() => {
-			const context = {database: this.#database, generationId: this.#generation().id, freshness: this.getFreshness()};
-			return queryReferences(context, input, maxResultBytes);
-		});
+		return this.#database.readSnapshot(() => queryReferences(this.#queryContext(), input, maxResultBytes));
 	}
 
 	/**
@@ -399,7 +389,10 @@ export class CodeIndex {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
 			const freshness = this.getFreshness();
-			const selection = selectReadSymbol({database: this.#database, generationId: generation.id, freshness, maxResultBytes}, input);
+			const selection = selectReadSymbol(
+				{database: this.#database, generationId: generation.id, freshness, maxResultBytes, normalizeQueryName: this.#extractor.normalizeQueryName},
+				input,
+			);
 
 			if ('result' in selection) {
 				return selection.result;
@@ -447,6 +440,15 @@ export class CodeIndex {
 		this.#database.releaseBuildLease(this.#ownerId);
 		this.#analytics?.close();
 		this.#database.close();
+	}
+	#queryContext(): QueryContextType {
+		return {
+			database: this.#database,
+			generationId: this.#generation().id,
+			freshness: this.getFreshness(),
+			normalizeQueryName: this.#extractor.normalizeQueryName,
+			...(this.#analytics === null ? {} : {exactNameTelemetry: this.#recordExactName}),
+		};
 	}
 	async #rebuild(scan: ScanResultType, force: boolean): Promise<BuildReportType> {
 		const workerPath = this.#workerEntry;

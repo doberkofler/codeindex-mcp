@@ -391,3 +391,49 @@ describe('Oracle incremental revision', () => {
 		}
 	});
 });
+
+describe('Oracle natural qualified resolution', () => {
+	const fixture = createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+
+	afterAll(() => {
+		fixture.cleanup();
+	});
+
+	it('normalizes mixed-case queries and resolves natural qualified names', () => {
+		const canonical = 'owner["APP"]::HR_API.SAVE_EMPLOYEE';
+		const natural = fixture.index.findSymbols({query: 'HR_API.save_Employee', match: 'qualified', limit: 10}).items;
+
+		expect(fixture.index.findSymbols({query: 'save_Employee', limit: 10}).items.map((item) => item.qualifiedName)).toContain(canonical);
+		expect(natural.map((item) => item.qualifiedName)).toStrictEqual([canonical]);
+		expect(natural.map((item) => item.match)).toStrictEqual(['exact_qualified']);
+		expect(fixture.index.findSymbols({query: 'owner["APP"]::HR_API.SAVE_EMPLOYEE', match: 'qualified', limit: 10}).items).toHaveLength(1);
+		expect(fixture.index.findSymbols({query: 'owner["APP"]::HR_API.NOT_STORED', match: 'qualified', limit: 10}).items).toHaveLength(0);
+	});
+
+	it('resolves read_symbol and find_references through normalized names', () => {
+		const source = fixture.index.readSymbol({query: 'employee_label', contextLines: 0});
+		const normalized = fixture.index.findReferences({query: 'employee_Label', limit: 100});
+
+		expect(source).toMatchObject({kind: 'text'});
+		expect(normalized.kind).not.toBe('none');
+	});
+
+	it('keeps a natural qualified name ambiguous across owners', () => {
+		const ambiguous = createFixtureIndex('oracle-ambiguity', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+
+		try {
+			const result = ambiguous.index.findReferences({query: 'APP_API.load', match: 'qualified', limit: 10});
+
+			if (result.kind !== 'ambiguous') {
+				throw new Error(`Expected ambiguous resolution, received ${result.kind}`);
+			}
+
+			expect(result.candidates.map((candidate) => candidate.qualifiedName).sort()).toStrictEqual([
+				'owner["APP"]::APP_API.LOAD',
+				'owner["LEGACY"]::APP_API.LOAD',
+			]);
+		} finally {
+			ambiguous.cleanup();
+		}
+	});
+});
