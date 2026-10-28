@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.9.0...v0.10.0) (2026-10-28)
+
+### Changed
+
+* **oracle:** vendor the Oracle grammar from `antlr/grammars-v4@3f1ca793` and remove the local Q-string and `REM<TAB>` patches. This fixes tab-separated `REM[ARK]` comments, non-reserved keywords as identifiers, SQL*Plus `EXEC[UTE]`, and arbitrary alternative-quoted strings ([9168fc2](https://github.com/doberkofler/codeindex-mcp/commit/9168fc267d92c854680365d9fd79e425787174bd))
+
+### Documentation
+
+* **install:** pin the install example to v0.9.0 ([a4c32fe](https://github.com/doberkofler/codeindex-mcp/commit/a4c32fe09ca6e56e472497ce8a83de7cd7ba9065))
+
 ## [0.9.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.8.0...v0.9.0) (2026-10-28)
 
 ### Added
