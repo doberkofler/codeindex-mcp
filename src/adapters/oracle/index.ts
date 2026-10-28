@@ -57,6 +57,9 @@ const LIMITATIONS: readonly string[] = [
 	'no cross-language edges, embeddings, or full-text search',
 ];
 
+const DISCOVERY_TEXT =
+	'The selected Oracle extractor indexes packages, procedures, and functions from package specifications (.pks), package bodies (.pkb), and configured standalone SQL / PL/SQL files. Search with natural qualified names such as LAS_SQL_JPos.reorderPos.';
+
 type ContextResultType = Readonly<{
 	symbols: OracleContextSymbolsType;
 	occurrences: readonly IndexedOccurrenceType[];
@@ -363,6 +366,7 @@ export const createOracleExtractor = (binding: OracleParserBindingType): Extract
 	id: ORACLE_EXTRACTOR_ID,
 	version: ORACLE_EXTRACTOR_VERSION,
 	displayName: 'Oracle 19c SQL / PL/SQL',
+	discoveryText: DISCOVERY_TEXT,
 	sourceExtensions: DEFAULT_ORACLE_SOURCE_EXTENSIONS,
 	sourceExtensionsFor: (config) => {
 		const extensions = new Set<string>();

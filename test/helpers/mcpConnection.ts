@@ -1,5 +1,6 @@
 import {Client} from '@modelcontextprotocol/client';
 import {InMemoryTransport} from '@modelcontextprotocol/server';
+import {typeScriptExtractor} from '../../src/adapters/typescript/index.ts';
 import {type AnalyticsRecorderType} from '../../src/core/analytics/recorder.ts';
 import {buildMcpServer, type McpIndexType} from '../../src/transports/mcp/buildMcpServer.ts';
 import {silentLogger} from './silentLogger.ts';
@@ -12,6 +13,7 @@ export type OpenServerInputType = Readonly<{
 	index: McpIndexType;
 	maxResultBytes: number;
 	analytics?: AnalyticsRecorderType;
+	extractorDiscoveryText?: string;
 }>;
 
 /**
@@ -39,10 +41,11 @@ export const textOf = (result: Readonly<{content: readonly {type: string; text?:
  */
 export const openServer = async (input: OpenServerInputType): Promise<ConnectionType> => {
 	const {index, maxResultBytes, analytics} = input;
+	const extractorDiscoveryText = input.extractorDiscoveryText ?? typeScriptExtractor.discoveryText;
 	const server =
 		analytics === undefined
-			? buildMcpServer({index, logger: silentLogger, maxResultBytes})
-			: buildMcpServer({index, logger: silentLogger, analytics, maxResultBytes});
+			? buildMcpServer({index, logger: silentLogger, maxResultBytes, extractorDiscoveryText})
+			: buildMcpServer({index, logger: silentLogger, analytics, maxResultBytes, extractorDiscoveryText});
 	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
 	await server.connect(serverTransport);

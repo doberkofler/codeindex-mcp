@@ -72,6 +72,8 @@ export type ExtractorType = Readonly<{
 	readonly version: string;
 	/** Human-readable adapter name for status and console output. */
 	readonly displayName: string;
+	/** Adapter-specific MCP discovery guidance. */
+	readonly discoveryText: string;
 	/** File extensions the adapter publishes; used by the watcher. */
 	readonly sourceExtensions: readonly string[];
 	/** Optional configuration-dependent extensions, such as manifest-defined Oracle source. */

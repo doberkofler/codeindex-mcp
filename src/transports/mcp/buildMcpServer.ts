@@ -211,6 +211,7 @@ type ServerInputType = Readonly<{
 	logger: LoggerType;
 	analytics?: AnalyticsRecorderType;
 	maxResultBytes: number;
+	extractorDiscoveryText: string;
 }>;
 
 const registerTools = (server: McpServer, input: ServerInputType): void => {
@@ -325,7 +326,8 @@ const registerTools = (server: McpServer, input: ServerInputType): void => {
  * @returns The configured MCP server.
  */
 export const buildMcpServer = (input: ServerInputType): McpServer => {
-	const server = new McpServer({name: PROGRAM_NAME, version: PROGRAM_VERSION}, {instructions: SERVER_INSTRUCTIONS});
+	const instructions = `${SERVER_INSTRUCTIONS}\n${input.extractorDiscoveryText}`;
+	const server = new McpServer({name: PROGRAM_NAME, version: PROGRAM_VERSION}, {instructions});
 
 	debug('mcp server built', {name: PROGRAM_NAME, version: PROGRAM_VERSION, maxResultBytes: input.maxResultBytes});
 	registerTools(server, input);
