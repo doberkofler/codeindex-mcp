@@ -49,24 +49,13 @@ import {startProcessSample} from '../resources/processSample.ts';
 import {queryOutline} from '../query/outlineQuery.ts';
 import {verifyPublishedIndex} from './verifyIndex.ts';
 import {queryReadSymbol} from '../query/readSymbolQuery.ts';
+import {selectReadSymbol} from '../query/readSymbolSelection.ts';
 import {querySymbolAt} from '../query/symbolAtQuery.ts';
 import {RefreshCoordinator, type RefreshReasonType} from '../freshness/refreshCoordinator.ts';
 import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
 
 const debug = debugFor('index');
 const LEASE_RENEW_MS = 3000;
-
-const assertKnownContext = (database: IndexDatabase, generationId: string, requested: string | undefined): void => {
-	if (requested === undefined) {
-		return;
-	}
-
-	const known = database.listProjectContextNames(generationId);
-
-	if (!known.includes(requested)) {
-		throw new CodeIndexError('invalid_argument', `Unknown project context: ${requested}. Available contexts: ${known.join(', ')}`);
-	}
-};
 
 export type {CodeIndexOptionsType} from './codeIndexOptions.ts';
 
@@ -398,9 +387,9 @@ export class CodeIndex {
 	}
 
 	/**
-	 * Reads bounded source for one indexed symbol.
+	 * Reads bounded source for one indexed symbol identifier or natural query.
 	 *
-	 * @param input - Symbol identifier and context line count.
+	 * @param input - Symbol selector, optional filters, mode, and bounds.
 	 * @param maxResultBytes - Maximum serialized result-data size, excluding envelope framing.
 	 * @returns Source and freshness for the symbol.
 	 * @throws {@link CodeIndexError} When the symbol or its file is not indexed.
@@ -409,23 +398,28 @@ export class CodeIndex {
 	public readSymbol(input: ReadSymbolInputType, maxResultBytes = this.#config.maxResultBytes): ReadSymbolResultType {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
-			const symbol = this.#database.getSymbol(generation.id, input.symbolId);
+			const freshness = this.getFreshness();
+			const selection = selectReadSymbol({database: this.#database, generationId: generation.id, freshness, maxResultBytes}, input);
+
+			if ('result' in selection) {
+				return selection.result;
+			}
+
+			const symbol = this.#database.getSymbol(generation.id, selection.symbolId);
 
 			if (symbol === null) {
 				throw new CodeIndexError(
 					'symbol_not_found',
-					`Unknown symbol: ${input.symbolId}. Symbol IDs are opaque; copy one from find_symbol or outline instead of constructing it.`,
+					`Unknown symbol: ${selection.symbolId}. Symbol IDs are opaque; copy one from find_symbol or outline instead of constructing it.`,
 				);
 			}
-
-			assertKnownContext(this.#database, generation.id, input.context);
 
 			return queryReadSymbol(
 				{
 					database: this.#database,
 					rootDir: this.#config.rootDir,
 					generationId: generation.id,
-					freshness: this.getFreshness(),
+					freshness,
 					symbol,
 					isPathDirty: (pathName) => this.#coordinator.isPathDirty(pathName),
 					maxReadLines: this.#config.maxReadLines,

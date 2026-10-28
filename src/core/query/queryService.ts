@@ -24,7 +24,7 @@ export type QueryContextType = Readonly<{
 	readonly exactNameTelemetry?: ((presence: ExactNamePresenceType) => void) | undefined;
 }>;
 
-const assertKnownContext = (context: QueryContextType, requested: string | undefined): void => {
+export const assertKnownContext = (context: QueryContextType, requested: string | undefined): void => {
 	if (requested === undefined) {
 		return;
 	}

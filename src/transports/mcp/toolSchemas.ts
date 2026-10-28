@@ -106,7 +106,21 @@ export const FindDependenciesInputSchema = z.object({
 });
 
 export const ReadSymbolInputSchema = z.object({
-	symbolId: z.string().min(1).describe('Symbol identifier returned by find_symbol or outline'),
+	symbolId: z.string().min(1).optional().describe('Symbol identifier returned by find_symbol or outline; use exactly one of symbolId or query'),
+	query: z.string().min(1).optional().describe('Symbol name or name prefix resolved in the same call; use exactly one of symbolId or query'),
+	match: z.enum(['name', 'qualified']).default('name').describe('Compare the simple name or full qualified display for query resolution'),
+	kind: z
+		.string()
+		.max(MAX_SYMBOL_KIND_LENGTH)
+		.regex(SYMBOL_KIND_PATTERN)
+		.optional()
+		.describe('Optional adapter-defined symbol kind filter for query resolution'),
+	container: z.string().optional().describe('Binding container display prefix for query resolution'),
+	path: z.string().min(1).optional().describe('Only resolve symbols with a definition in this path'),
+	exposure: z
+		.enum(['published', 'reachable', 'visible', 'internal', 'any'])
+		.default('visible')
+		.describe('Binding exposure filter for query resolution; visible means published or reachable (default)'),
 	siteId: z.string().min(1).optional().describe('Optional definition site identifier from find_symbol or outline'),
 	mode: z.enum(['text', 'sites', 'names', 'binding_sites', 'binding_contexts']).default('text').describe('Text extent or one bounded list mode'),
 	bindingId: z.string().min(1).optional().describe('Required binding identifier for binding_sites and binding_contexts'),

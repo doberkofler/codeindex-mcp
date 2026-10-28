@@ -294,7 +294,7 @@ const registerTools = (server: McpServer, input: ServerInputType): void => {
 		{
 			name: 'read_symbol',
 			description:
-				'Read bounded source for one symbol or list its definition sites, bindings, binding sites, or binding contexts; refuses stale files and reports truncation. A current text result is authoritative source: report it and stop.',
+				'Read bounded source for one symbol selected by symbolId or natural query, or list its definition sites, bindings, binding sites, or binding contexts. A query returns candidates when ambiguous and explicit fallback guidance when unmatched; refuses stale files and reports truncation. A current text result is authoritative source: report it and stop.',
 			maxResultBytes,
 			logger,
 			analytics,

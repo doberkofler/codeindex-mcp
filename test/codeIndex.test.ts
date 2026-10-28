@@ -118,6 +118,38 @@ describe('CodeIndex queries', () => {
 	});
 });
 
+describe('CodeIndex query-based symbol reads', () => {
+	let fixture: FixtureContextType | undefined;
+
+	afterEach(() => {
+		fixture?.cleanup();
+		fixture = undefined;
+	});
+
+	it('resolves one match and reports ambiguity or explicit fallback', () => {
+		fixture = createFixtureIndex('simple-project');
+
+		const resolved = fixture.index.readSymbol({query: 'formatUser', contextLines: 0});
+		const ambiguous = fixture.index.readSymbol({query: 'd', contextLines: 0});
+		const missing = fixture.index.readSymbol({query: 'notStoredAnywhere', contextLines: 0});
+
+		expect(resolved).toMatchObject({kind: 'text', source: expect.stringContaining('export const formatUser')});
+		expect(ambiguous).toMatchObject({kind: 'ambiguous', selector: 'query', candidatesTruncated: false});
+		if (ambiguous.kind !== 'ambiguous') {
+			throw new Error('Expected ambiguous read result');
+		}
+		expect(ambiguous.candidates.length).toBeGreaterThan(1);
+		expect(missing).toMatchObject({kind: 'none', selector: 'query', reason: 'no_stored_match', fallback: 'text_search'});
+	});
+
+	it('requires exactly one selector', () => {
+		fixture = createFixtureIndex('simple-project');
+
+		expect(() => fixture?.index.readSymbol({contextLines: 0})).toThrow('Provide exactly one selector');
+		expect(() => fixture?.index.readSymbol({symbolId: 'symbol', query: 'formatUser', contextLines: 0})).toThrow('Provide exactly one selector');
+	});
+});
+
 describe('CodeIndex direct dependency usage', () => {
 	let fixture: FixtureContextType | undefined;
 

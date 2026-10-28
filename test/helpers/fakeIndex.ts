@@ -328,6 +328,31 @@ const readSymbolHandlerOf = (options: FakeIndexOptionsType) => {
 	return (input: ReadSymbolInputType): ReadSymbolResultType => {
 		fail();
 
+		if (input.query === 'ambiguous') {
+			return {
+				kind: 'ambiguous',
+				generationId: FAKE_GENERATION_ID,
+				freshness: FAKE_FRESHNESS,
+				selector: 'query',
+				candidates: [0, 1].map((index) => ({...summaryOf(index), symbolId: `symbol-${index}`, match: 'prefix_name' as const})),
+				candidatesTotal: 2,
+				candidatesTruncated: false,
+			};
+		}
+
+		if (input.query === 'missing') {
+			return {
+				kind: 'none',
+				generationId: FAKE_GENERATION_ID,
+				freshness: FAKE_FRESHNESS,
+				selector: 'query',
+				reason: 'no_stored_match',
+				fallback: 'text_search',
+				message: 'No stored symbol matched this query.',
+				limitations: ['Only configured extractor projects are indexed.'],
+			};
+		}
+
 		if (input.symbolId === 'stale') {
 			throw new StaleFileError(FAKE_PATH);
 		}
