@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.8.0...v0.9.0) (2026-10-28)
+
+### Added
+
+* **mcp:** add extractor-specific discovery ([1122021](https://github.com/doberkofler/codeindex-mcp/commit/112202187828dade4c8579ac84eadb419675c8e3))
+* **mcp:** support query-based symbol reads ([65abed7](https://github.com/doberkofler/codeindex-mcp/commit/65abed7cbd8f9a2e8bf2f5c319e4df0b327d262d))
+* **oracle:** index table and view declarations ([df07ee3](https://github.com/doberkofler/codeindex-mcp/commit/df07ee38aa7c876fe2621b0178f7f1bfbabbc97d))
+
+### Fixed
+
+* **mcp:** keep compact outline locations path-local ([8ec50a6](https://github.com/doberkofler/codeindex-mcp/commit/8ec50a667d55dfb13ced0e2cd589821bcf2379f4))
+* **oracle:** normalize query names and resolve natural qualified names ([dc3c794](https://github.com/doberkofler/codeindex-mcp/commit/dc3c7948352f1714d6d2af6a6c65373ebbaafc50))
+* **storage:** persist empty-string member binding names ([51f2fed](https://github.com/doberkofler/codeindex-mcp/commit/51f2feddfa4fd29f81d19ad9e43f02ddcfa04d52))
+
+### Documentation
+
+* **benchmark:** record the resolved VS Code pinned-project limitation ([bb5ded4](https://github.com/doberkofler/codeindex-mcp/commit/bb5ded4b62b50dc9694ee8039eb6ae735a82bdee))
+* **install:** pin the install example to v0.8.0 ([470e1d0](https://github.com/doberkofler/codeindex-mcp/commit/470e1d09fbbd41a127a9f2cca1d6fecd1831eec2))
+* **oracle:** reconcile ANTLR decision evidence ([a07b8dd](https://github.com/doberkofler/codeindex-mcp/commit/a07b8dd9dfe374d3a67f2359d33567010e495564))
+
 ## [0.8.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.7.0...v0.8.0) (2026-10-26)
 
 ### Added
