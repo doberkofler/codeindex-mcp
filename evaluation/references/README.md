@@ -8,8 +8,8 @@ one identity.
 
 The harness rejects a missing field instead of defaulting it. A changed provider,
 model ID, release, runtime, or generation setting produces a different reference
-hash, a different campaign identity, and therefore a new paired baseline. A
-historical result may never be reused as the comparison for a changed reference.
+hash, campaign identity, and paired baseline. Evidence from another identity may
+never be reused as its comparison.
 
 ## Selected reference
 
@@ -24,11 +24,8 @@ historical result may never be reused as the comparison for a changed reference.
 | Generation settings | Provider defaults at the pinned runtime |
 | Reference hash | `e3d86f8914fe9b9d77e9048216acd1535a44cf98b7e69a35edb3a1cf19dae07e` |
 
-The reference was selected from the hosted models available to the evaluation
-machine on 2026-10-23. Earlier Q2 v4 evidence used the same model ID under an
-older campaign identity and remains historical only. The new frontier campaign
-runs every treatment from scratch; it does not reuse those executions.
-Deterministic model-free evidence gates the hosted spend; independent local-model
+Every frontier campaign runs each treatment from scratch under this identity.
+Deterministic model-free evidence gates hosted spend; independent local-model
 qualification does not.
 
 `deepseek-flash-validity-2026-10-23.json` pins the same model for the
@@ -37,9 +34,6 @@ reference hash is
 `72ca34da2424381d404f52465a6c387e613a59f3dfa2b92b4192887e9ffda780`. It is not a
 final-certification reference; the selected reference above still pins the
 frozen 2.1.2 runtime until that pin is revised.
-
-`deepseek-v4-pro.json` is retained only to identify the unexecuted historical E2
-dry-run record. It is not the selected reference for #36.
 
 ## Commands
 
@@ -66,8 +60,7 @@ node evaluation/harness/src/cli.ts release \
 ```
 
 The command does not read local qualification. A failed, blocked, or absent local
-record neither authorizes nor blocks the hosted plan, and the historical
-`--local-regression` argument is no longer part of the interface.
+record neither authorizes nor blocks the hosted plan.
 
 The command verifies `opencode --version` against the pinned runtime before the
 first model call. It refuses missing, non-passing, stale, incomplete, or

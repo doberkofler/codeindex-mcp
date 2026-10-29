@@ -6,7 +6,6 @@ import {loadBenchmarkSuite} from '../src/core/benchmark/suiteTypes.ts';
 
 const evaluationRoot = path.resolve(import.meta.dirname, '..', 'evaluation');
 const corpusPath = path.join(evaluationRoot, 'corpora', 'external-material-ui.json');
-const auditPath = path.join(evaluationRoot, 'audits', 'external-corpus-pilot.md');
 const benchmarkPath = path.resolve(import.meta.dirname, '..', 'benchmark', 'suites', 'typescript-public.json');
 
 const relativePath = z
@@ -68,15 +67,11 @@ describe('external corpus manifest', () => {
 		expect(corpus.caseHashes).toStrictEqual({});
 	});
 
-	it('records the pilot decision and rejects an absolute checkout path', () => {
-		const audit = readFileSync(auditPath, 'utf8');
-
-		for (const project of ['TypeScript', 'VS Code', 'Material UI']) {
-			expect(audit).toContain(project);
-		}
-
-		expect(audit).toContain('external-material-ui');
+	it('records the selection and rejects an absolute checkout path', () => {
 		const corpus = corpusOf(corpusPath);
+
+		expect(corpus.status).toBe('selected');
+		expect(corpus.distinctEvidence).toContain('tsx-components');
 		const absolute = {...corpus, projectFile: '/Users/operator/material-ui/packages/mui-material/tsconfig.json'};
 
 		expect(corpusSchema.safeParse(absolute).success).toBe(false);

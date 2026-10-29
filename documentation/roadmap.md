@@ -38,7 +38,7 @@ Remaining work is evidence-driven:
 - verify hot SQLite query plans and deep pagination;
 - ~~measure direct MCP and Code Mode overhead separately~~ — done; direct MCP
   remains recommended at `1.307` Code Mode cost (upper `1.473`), see
-  [Exposure evidence](../evaluation/audits/exposure-eval-050.md);
+  [exposure report](../evaluation/reports/exposure-eval-050.json);
 - add incremental compiler state only if full-generation refresh misses its gate;
   **done** — per-file parse-digest fact reuse and per-path revision deltas closed
   the one-file edit-to-fresh gate (see below);

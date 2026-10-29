@@ -16,10 +16,9 @@ search handles poorly:
 | `src/types` | A type-only re-export gives one type a second public name. |
 | `src/defaults` | Consumers import and use one default export under local aliases. |
 
-The fixture is committed as source text. Cases under `../cases` declare exact
-expected files relative to the repository root. The E0 review in
-`../../audits/semantic-e0.md` records the TypeScript language-service result and
-the model-free grep admission measurement for every case.
+The fixture is committed as source text. Cases under `../../cases` declare exact
+expected files relative to the repository root and pin the TypeScript
+language-service truth plus model-free grep admission for each pattern.
 
 `tsconfig.json` is the fixture's own project file. It is not part of the
 repository build, and the fixture never emits output.

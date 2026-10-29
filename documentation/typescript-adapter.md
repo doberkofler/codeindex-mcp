@@ -435,16 +435,13 @@ measured rebuild or retention gate fails.
 
 - add a model-free edit-to-fresh benchmark; **done**
 - retain machine-readable startup, build, query, CPU, memory, and storage results;
-  **versioned baseline, gate evaluation, JSON artifacts, and reference-machine
-  measurements are retained in [Reference-workstation baseline](./reference-baseline.md)**
-- verify deep cursor query plans at production cardinalities; **done — production statements,
-  plan captures at offset 0 and maximum depth, retained per-page latency, and the
-  `find_symbol`/`outline` regression are recorded in
-  [Query regression](./query-regression.md)**
+  **done — current gates are versioned in `benchmark/baseline*.json`**
+- verify deep cursor query plans at production cardinalities; **done — benchmark
+  suites capture production statements and reject scans or regressions**
 - publish a Markdown summary while keeping JSON authoritative; **done**
 - compare direct MCP and Code Mode wrapping; **done — the paired comparison on
   the EVAL-037 artifact under OpenCode 2.1.4 is recorded in
-  [Exposure evidence](../evaluation/audits/exposure-eval-050.md)**
+  [exposure report](../evaluation/reports/exposure-eval-050.json)**
 - complete two-process, lease takeover, and four-hour soak runs; **deterministic restart, unattended recovery, and retention evidence implemented by `soak`**;
 - implement private controlled cases for direct dependency usage, grouped impact,
   binding-aware façades, and fallback behavior; façade cases wait on the §11.2

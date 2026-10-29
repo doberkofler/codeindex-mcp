@@ -13,22 +13,18 @@ CodeIndex artifact, and with a candidate artifact
 > Provider metering, not `step_finish` events, is the cost ledger. The frozen
 > economic contract is
 > [`../evaluation/contracts/evaluation-validity-v2.json`](../evaluation/contracts/evaluation-validity-v2.json);
-> the certification record is
-> [`../evaluation/audits/certification-eval-037.md`](../evaluation/audits/certification-eval-037.md).
+> the certification report is
+> [`../evaluation/reports/certification-eval-037.json`](../evaluation/reports/certification-eval-037.json).
 > The post-certification exposure comparison measured Code Mode at `1.307` direct
 > cost (upper `1.473`), so native direct MCP remains recommended; see
-> [`../evaluation/audits/exposure-eval-050.md`](../evaluation/audits/exposure-eval-050.md).
+> [`../evaluation/reports/exposure-eval-050.json`](../evaluation/reports/exposure-eval-050.json).
 > Do not cite a new economic result outside the frozen contract and pinned
-> configuration. See the [E3 erratum](../evaluation/audits/hosted-release-e3-erratum.md)
-> and the [request-1 evidence](../evaluation/audits/request-1-surface-eval-032.md).
+> configuration.
 
-This document owns harness mechanics. The
-[MCP evaluation strategy](./mcp-evaluation-strategy.md) owns product questions, test
-data, metrics, gates, evaluation tiers, the stage order, stop rules, retry policy,
-local-model use, and evaluation cadence. The strategy's
-[execution contract](./mcp-evaluation-strategy.md#81-execution-contract-tiers-order-invalidation-retry-and-stop-rules)
-is authoritative; [§13](#13-tier-gate-and-stop-rule-enforcement) lists where this harness
-enforces it.
+This document and the frozen validity contract own product questions, test data,
+metrics, gates, evaluation tiers, stage order, stop rules, retry policy,
+local-model use, and harness mechanics. [§13](#13-tier-gate-and-stop-rule-enforcement)
+defines where the harness enforces the execution contract.
 
 This document describes an evaluation method, not a shipped runtime component.
 The harness, public synthetic cases, suites, and reviewed aggregate reports live
@@ -38,12 +34,7 @@ and restricted raw results remain outside this repository.
 
 ## Scope and claim boundary
 
-The [MCP evaluation strategy](./mcp-evaluation-strategy.md) owns product questions,
-test data, metrics, gates, evaluation tiers, the stage order, stop rules, retry policy,
-claim authority, and evaluation cadence. This section repeats the strategy's scope
-statement because it constrains every harness run.
-
-The following statement is repeated verbatim from the strategy and is normative here:
+The following scope statement constrains every harness run:
 
 > **Evaluation v1 scope.** Evaluation v1 covers only the TypeScript/JavaScript
 > adapter, using the TypeScript language service or a reviewed source manifest as
@@ -55,11 +46,9 @@ The following statement is repeated verbatim from the strategy and is normative 
 Evaluation v1 harness runs use the TypeScript/JavaScript adapter only. External
 database systems ([§5.2](#52-external-systems)) and the non-TypeScript rows in
 [§8.2](#82-adapter-specific-case-classes) are deferred reference material; they are
-not v1 acceptance evidence. Harness results carry the claim class defined in
-[strategy §1.2](./mcp-evaluation-strategy.md#12-claim-authority): local qualification is
-local-model-scoped, and only a hosted campaign can support a release claim. Per
-[strategy §1.3](./mcp-evaluation-strategy.md#13-gate-responsibilities), local qualification
-is independent of the hosted architecture sequence.
+not v1 acceptance evidence. Local qualification results are local-model-scoped,
+and only a hosted campaign can support a release claim. Local qualification is
+independent of the hosted architecture sequence.
 
 ## 1. Decision
 
@@ -345,7 +334,7 @@ Selection rules:
   ([§7.7](#77-atomic-persistence-and-partial-writes));
 - a complete, effectively valid result is never re-executed; a stored `aborted`
   attempt does not satisfy its slot
-  ([strategy §8.1.5](./mcp-evaluation-strategy.md#815-failed-slot-only-retry));
+  ([§13](#13-tier-gate-and-stop-rule-enforcement));
 - `--retry-timed-out` with `--resume` re-executes a slot whose highest attempt timed
   out and writes the next attempt ordinal; the timeout is retained, and no completed
   non-timeout result is ever rerun by this flag.
@@ -369,7 +358,7 @@ measured ([7.1](#71-result-envelope)), what the campaign declared before it ran
 ([7.3](#73-run-identity-and-resume-equality)), and what may be retained or
 published ([7.9](#79-redaction-retention-and-public-evidence)). Invalidity stays a
 property of the evidence, not of the result
-([strategy §8.1.4](./mcp-evaluation-strategy.md#814-invalidation-rules)). Every
+([§13](#13-tier-gate-and-stop-rule-enforcement)). Every
 record is TypeScript-adapter-scoped
 ([Scope and claim boundary](#scope-and-claim-boundary)); no field widens the adapter
 or the claim class.
@@ -427,7 +416,7 @@ any result.
 | `schemaVersion` | string, `MAJOR.MINOR` | yes | Schema shared with the campaign's results. |
 | `campaignId` | string | yes | Stable campaign identifier. |
 | `createdAt` | string, ISO 8601 UTC | yes | Manifest creation time. |
-| `claimClass` | string enum | yes | `none`, `local-model-scoped`, or `hosted-model-scoped` ([strategy §1.2](./mcp-evaluation-strategy.md#12-claim-authority)). No other value is permitted. |
+| `claimClass` | string enum | yes | `none`, `local-model-scoped`, or `hosted-model-scoped` ([scope and claim boundary](#scope-and-claim-boundary)). No other value is permitted. |
 | `suite` | object | yes | `{id, version, hash, status}`; status is `draft` or `frozen` ([§3.2](#32-suite)). |
 | `cases` | array | yes | Ordered `{id, hash}` entries, exactly as declared. |
 | `model` | object | yes | `{provider, modelId, digest, quantization, runtime, runtimeVersion, generationSettingsDigest}`. `digest` is the provider's immutable model version or artifact digest, never a floating alias; `generationSettingsDigest` is always a hex digest. |
@@ -439,7 +428,7 @@ any result.
 | `environment` | object | yes | `{nodeVersion, platform, arch, cpuCount, memoryBytes, referenceMachine}`. |
 | `components` | object | yes | `{harnessVersion, eventParserVersion, toolNormalizerVersion, workflowClassifierVersion, graderVersion}`. |
 | `plan` | object | yes | `{repetitions, randomizationSeed, slotCount}`. |
-| `truthAuthority` | object | yes | `{kind, reference}`; `kind` is `language-service` or `reviewed-manifest` in v1 ([strategy §4 E0](./mcp-evaluation-strategy.md#e0-case-and-truth-validation)). |
+| `truthAuthority` | object | yes | `{kind, reference}`; `kind` is `language-service` or `reviewed-manifest` in v1 ([§3](#3-cases-suites-and-treatments)). |
 | `retention` | object | yes | `{privacyClass, rawUntil}` ([7.9](#79-redaction-retention-and-public-evidence)). |
 | `campaignStore` | object | no | `{kind, path}` for a campaign-local client database ([§5.1](#51-opencode-client-state)). Restricted; never public evidence. |
 | `notes` | string | no | Free text. |
@@ -464,8 +453,7 @@ stage. It selects exactly two predeclared impact cases, one repetition, and the
 beside the executions. The manifest, record, and claim class are
 `local-model-scoped`. Continuation requires a clean execution contract, a correct
 candidate answer on both cases, a strict improvement of the predeclared target
-metric, and no regression of retrieval bytes or tool calls. Those are the
-accepted-versus-candidate conditions of strategy §11. Token and wall-clock changes
+metric, and no regression of retrieval bytes or tool calls. Token and wall-clock changes
 are retained as observations, not verdicts: one repetition supports no interval, so
 the record cannot separate them from model sampling and local runtime variation.
 
@@ -480,9 +468,7 @@ non-improving target metric appears. A claim class other than the local class is
 rejected before the local record is written, so local evidence cannot be promoted
 to a release claim and a hosted result cannot replace it.
 
-This is the historical candidate-evaluation command, not the approved local-model
-qualification gate. The completed v1 record keeps its original `NOT PASSED` verdict and
-is never regraded.
+This candidate-evaluation command is not the local-model qualification gate.
 
 A `qualification` campaign runs the independent 108-slot gate. It loads the frozen
 18-case release corpus from [`evaluation/suites/qualification.json`](../evaluation/suites/qualification.json),
@@ -536,7 +522,7 @@ part of the interface, so its value is never consulted. The model-free precondit
 hosted reference and runtime, 270-slot plan, Q2 gates, and identity checks remain
 unchanged.
 
-A `calibration` manifest serves the historical six-case environment screen.
+A `calibration` manifest serves the six-case environment screen.
 `calibrate` verifies every eligible pinned environment, rebinds the frozen suite
 to each environment's model without changing case hashes, and first runs the
 diagnostic phase: three repetitions of `impl-default-result-bytes` and
@@ -620,15 +606,15 @@ One differing field satisfies none of these conditions. The stored result is
 retained, is not reused, is not deleted, and is not evidence for the new identity. If
 the difference contradicts a comparison predeclared before execution, the affected
 slots are invalid under
-[strategy §8.1.4](./mcp-evaluation-strategy.md#814-invalidation-rules); if the
+[§13](#13-tier-gate-and-stop-rule-enforcement); if the
 difference was predeclared, it defines a new plan and a new campaign or stage.
 
 Comparison identity. Two results may enter one paired comparison only when their
 identities are equal after removing `treatment.id`, `treatment.kind`,
 `treatment.definitionHash`, `treatment.mcpSurfaceHash`, `repetitionIndex`, and
 `artifacts.candidate`. `artifacts.accepted` stays compared, because a paired
-comparison requires one accepted baseline across every treatment ([strategy
-§8](./mcp-evaluation-strategy.md#8-acceptance-gates)). Their `components` values and
+comparison requires one accepted baseline across every treatment
+([§13](#13-tier-gate-and-stop-rule-enforcement)). Their `components` values and
 `claimClass` must also be equal. A report that cannot establish this rejects the
 pairing instead of merging the results.
 
@@ -701,14 +687,14 @@ Rules:
 - `unavailable` never invalidates the execution, the outcome, or any other metric. It
   invalidates the claim that needs the value, and nothing else. An execution is
   invalid rather than non-claimable only when it exists solely to produce that metric
-  ([strategy §8.1.4](./mcp-evaluation-strategy.md#814-invalidation-rules),
-  [§8.1.7](./mcp-evaluation-strategy.md#817-stop-rules) S3).
+  ([§13](#13-tier-gate-and-stop-rule-enforcement),
+  [§13](#13-tier-gate-and-stop-rule-enforcement) S3).
 - Never estimate tokens or cost from bytes, characters, context windows, another
   repetition, another treatment, another model, or a local price table. A reported
   cost is `exact` only when the provider reported it.
 - A sum of token components is claimable only when every component it includes is
   `exact`. The uncached input + output + reasoning total required by the Q2 token gate
-  is one such sum ([strategy §8](./mcp-evaluation-strategy.md#8-acceptance-gates)).
+  is one such sum ([§13](#13-tier-gate-and-stop-rule-enforcement)).
 - Harness-measured quantities, including `wallTimeMs` and `bytes`, need no state
   because the harness measures them directly. A missing harness measurement is an
   incomplete record ([7.7](#77-atomic-persistence-and-partial-writes)), never an
@@ -721,16 +707,16 @@ Rules:
 | Outcome | Meaning | Claimable | Retry |
 | --- | --- | --- | --- |
 | `completed` | The agent process ended per the declared success condition and grading ran. | Yes, per metric state. | No. |
-| `failed` | Non-zero exit, execution error, or a harness-recorded failure class. Events captured before the failure are retained. | Yes, as a failure. | No; it triggers the matching stop rule ([strategy §8.1.5](./mcp-evaluation-strategy.md#815-failed-slot-only-retry)). |
+| `failed` | Non-zero exit, execution error, or a harness-recorded failure class. Events captured before the failure are retained. | Yes, as a failure. | No; it triggers the matching stop rule ([§13](#13-tier-gate-and-stop-rule-enforcement)). |
 | `timed-out` | The declared `case.timeoutMs` elapsed and the process was terminated. Events up to termination are retained. | Yes, as a failure of correctness and of the wall-clock budget. | No. |
-| `aborted` | The harness or operator stopped the execution before evidence was complete, for example a recorded budget stop. | No. | Conditional; a new attempt requires a recorded cause under strategy §8.1.5. A stop-rule abort does not authorize a retry. |
+| `aborted` | The harness or operator stopped the execution before evidence was complete, for example a recorded budget stop. | No. | Conditional; a new attempt requires a recorded cause under [§13](#13-tier-gate-and-stop-rule-enforcement). A stop-rule abort does not authorize a retry. |
 
 `defects` is a closed list of harness-detected causes projected from
-[strategy §8.1.4](./mcp-evaluation-strategy.md#814-invalidation-rules):
+[§13](#13-tier-gate-and-stop-rule-enforcement):
 `artifact-mismatch`, `model-mismatch`, `prompt-agent-mismatch`,
 `revision-case-mismatch`, `configuration-mismatch`, `treatment-mismatch`,
-`missing-telemetry`, and `dirty-isolation`. The strategy table is
-authoritative; this list only names the field values a record may carry. A result
+`missing-telemetry`, and `dirty-isolation`. The §13 table is authoritative; this
+list only names the field values a record may carry. A result
 with a non-empty `defects` array is never a pass.
 
 `missing-telemetry` is recorded only when the execution exists solely to produce the
@@ -760,7 +746,7 @@ A result is atomic and append-only.
   missing, reports exclude it, and it may be quarantined for diagnosis only.
 - A retry writes a new record at `attempt + 1` and retains the earlier attempt beside
   it. At most one attempt per identity may be effectively valid, because a valid
-  execution is final ([strategy §8.1.5](./mcp-evaluation-strategy.md#815-failed-slot-only-retry));
+  execution is final ([§13](#13-tier-gate-and-stop-rule-enforcement));
   a retry is admissible only while no attempt is valid. `--resume` selects the highest
   attempt that is complete, readable, and effectively valid. `--retry-timed-out` makes
   a timed-out highest attempt pending retry without discarding it. When no attempt is
@@ -768,8 +754,8 @@ A result is atomic and append-only.
   effectively valid attempts for one identity are a harness defect, invalid under
   `configuration-mismatch` for both.
 - A second complete write for an existing `identityDigest` and `attempt` is a harness
-  defect, handled as an isolation or artifact failure
-  ([strategy §8.1.7](./mcp-evaluation-strategy.md#817-stop-rules) S5), not as a silent
+  defect, handled as an isolation or artifact failure under stop rule S5
+  ([§13](#13-tier-gate-and-stop-rule-enforcement)), not as a silent
   overwrite.
 - An `aborted` record is complete and inspectable but carries no grade; it occupies
   its attempt ordinal and does not satisfy the slot.
@@ -853,13 +839,13 @@ Public evidence minimum. A public issue or report may state, and needs no more t
 Public evidence must not contain credentials, prompts, corpus text, source excerpts,
 transcripts, answer prose, absolute paths, hostnames, or operator identifiers. A
 public claim remains bounded by the claim class of the evidence it cites
-([strategy §1.2](./mcp-evaluation-strategy.md#12-claim-authority)); identity and
+([scope and claim boundary](#scope-and-claim-boundary)); identity and
 retention never widen it.
 
 ### 7.10 Event-stream completeness
 
 Adoption may be measured only from a complete client event stream, never from MCP
-analytics ([strategy §E2](./mcp-evaluation-strategy.md#e2-controlled-agent-evaluation)).
+analytics ([§6](#6-cli-shape)).
 "Complete" is a structural proof about the capture, not a claim about which
 envelope the client chose to emit.
 
@@ -1073,11 +1059,8 @@ reviewer applies.
 
 ## 13. Tier, gate, and stop-rule enforcement
 
-The strategy's
-[§8.1 execution contract](./mcp-evaluation-strategy.md#81-execution-contract-tiers-order-invalidation-retry-and-stop-rules)
-owns tiers E0–E3, the mandatory stage order, gate results, invalidation rules,
-failed-slot retry, gate immutability, and stop rules. This document supplies mechanics
-only; it neither defines nor reinterprets a gate.
+This section owns tiers E0–E3, mandatory stage order, gate results, invalidation
+rules, failed-slot retry, gate immutability, and stop rules.
 
 | Contract obligation | Harness mechanism |
 | --- | --- |
@@ -1087,10 +1070,10 @@ only; it neither defines nor reinterprets a gate.
 | Run identity and mismatch invalidation | Run manifest identity; `--resume` matches the complete identity; mismatched revision, model, prompt, bundle, or configuration is rejected ([§6](#6-cli-shape), [§7.3](#73-run-identity-and-resume-equality), [§10](#10-verification)) |
 | Isolation and restoration | Dedicated checkout, ephemeral client state, atomic persistence, restoration after every execution ([§5](#5-isolation), [§5.1](#51-opencode-client-state)) |
 | Treatment equivalence | Treatment definitions record every difference; equivalence checks reject non-equivalent treatments ([§3.3](#33-treatment), [§9](#9-architecture)) |
-| Historical local diagnostic and regression | `local-diagnostic` and `local-regression` retain the old candidate-comparison mechanics and historical verdicts. They are not the model-qualification gate ([§7.2](#72-run-manifest)) |
+| Compatibility diagnostic and regression | `local-diagnostic` and `local-regression` provide candidate-comparison diagnosis. They are not the model-qualification gate ([§7.2](#72-run-manifest)) |
 | Local-model qualification | `qualification` runs the fixed 18 × 2 × 3 plan with `no-index`, the digest-pinned canonical artifact, and predeclared criteria. It fails closed on an identity or canonical-artifact mismatch, changes only the model environment across comparable campaigns, and writes a local-model-scoped record with no release authority ([§7.2](#72-run-manifest)) |
 | Hosted release stage | Policy requires a passing same-suite, same-revision, same-artifact model-free report, the pinned hosted reference and runtime, the fixed 18 × 3 × 5 plan, and `release-campaign.json` with hosted authority. Local qualification is not a precondition ([§7.2](#72-run-manifest)) |
-| Exposure comparison | The `exposure` command pins one artifact, model, client, tariff, ordinary tools, fixed cases, and core-query route; proves both request-1 surfaces; reconciles every provider request; and records a paired direct/Code-Mode decision without re-grading certification ([PROD-004 evidence](../evaluation/audits/exposure-eval-050.md)) |
+| Exposure comparison | The `exposure` command pins one artifact, model, client, tariff, ordinary tools, fixed cases, and core-query route; proves both request-1 surfaces; reconciles every provider request; and records a paired direct/Code-Mode decision without re-grading certification ([PROD-004 report](../evaluation/reports/exposure-eval-050.json)) |
 | Telemetry validity | Exact token extraction with availability status; missing usage invalidates the affected metric, never estimated from bytes ([§2](#2-goals), [§7.5](#75-telemetry-availability-states)) |
 | Failed-slot-only retry | One immutable result per execution identity; `--resume` neither repeats nor skips a completed slot; failed and invalid executions stay inspectable ([§6](#6-cli-shape), [§7.6](#76-execution-outcome-and-validity), [§7.7](#77-atomic-persistence-and-partial-writes)) |
 | Stop rules | The harness records pass, fail, or invalid per execution with raw evidence. Applying a stop rule is a reviewer decision, not a harness verdict |
@@ -1123,7 +1106,7 @@ Rules:
 - Estimate without spending. A diagnostic hosted call never replaces a forecast.
 - Reuse retained valid evidence and resume an interrupted campaign before paying
   for a new execution.
-- Rerun only invalid or failed executions, and record the cause under the strategy's
+- Rerun only invalid or failed executions, and record the cause under the
   execution contract ([§13](#13-tier-gate-and-stop-rule-enforcement)).
 - Choose the smallest design that still meets the declared statistical power and
   acceptance criteria. Spend reduction never justifies fewer cases, fewer

@@ -7,7 +7,7 @@ Status: accepted cleanup plan for implementation verification.
 This document covers tests of the CodeIndex implementation. It does **not** establish
 whether the MCP server is useful to an agent. Product usefulness, retrieval efficiency,
 and model behavior are governed by the
-[MCP evaluation strategy](./mcp-evaluation-strategy.md).
+[controlled evaluation harness](./evaluation-harness.md) and its frozen validity contract.
 
 ## 1. Purpose
 

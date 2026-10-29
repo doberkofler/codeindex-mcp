@@ -14,7 +14,6 @@ Operational and design documentation for CodeIndex MCP.
 | [Roadmap](./roadmap.md) | Ordered delivery phases, acceptance gates, stop rules, and open decisions |
 | [Maintainer guide](./maintainer-guide.md) | Runtime contracts, verification, performance, security, and release discipline |
 | [User guide](./user-guide.md) | Installation, configuration, MCP/CLI/console usage, and troubleshooting |
-| [MCP evaluation strategy](./mcp-evaluation-strategy.md) | Product usefulness, performance, test data, agent A/B gates, and local-model evaluation |
 | [Codebase testing strategy](./codebase-testing-strategy.md) | Test classes, module seams, ownership, fixture policy, and workflow targets |
 | [Evaluation harness](./evaluation-harness.md) | Implemented methodology for controlled index-versus-baseline comparisons |
 | [Enhancements: dependency decisions](./enhancements.md) | Dependency retention decisions, rejected library additions, and links to open dependency work |

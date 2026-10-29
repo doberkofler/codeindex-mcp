@@ -322,12 +322,10 @@ records both percentile sets, exits non-zero when either p95 misses its budget, 
 keeps call latency separate from core query time.
 
 Hardware-sensitive gates may be recalibrated only with the prior baseline,
-replacement value, machine identity, and reason recorded. CI may use broaderregression bounds but must detect order-of-magnitude regressions. The current
-retained reference-machine record, its bundle digest, and its reproduction
-commands are in [Reference-workstation baseline](./reference-baseline.md). The
-post-publication `find_symbol` and `outline` regression, its measured cause, the
-fix, and the retained per-page evidence are in
-[Query regression](./query-regression.md).
+replacement value, machine identity, and reason recorded. CI may use broader
+regression bounds but must detect order-of-magnitude regressions. Current gates
+are versioned in `benchmark/baseline*.json`; suite manifests and CI workflows
+select the applicable profile.
 
 ### 7.4 Operational soak and recovery
 

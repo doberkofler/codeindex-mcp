@@ -1,8 +1,8 @@
 # Evaluation corpus manifests
 
-One manifest per selected corpus records the identity a campaign must pin.
-The strategy's [corpus requirements](../../documentation/mcp-evaluation-strategy.md#5-evaluation-data)
-define the fields; the selected external corpus is
+One manifest per selected corpus records the identity a campaign must pin. The
+[harness contract](../../documentation/evaluation-harness.md#3-cases-suites-and-treatments)
+defines its use; the selected external corpus is
 [`external-material-ui.json`](./external-material-ui.json).
 
 A corpus manifest is not a suite. It names the repository, revision, project
@@ -11,11 +11,9 @@ reference the cases; the manifest proves which source they were reviewed against
 
 ## Selected external corpus
 
-`external-material-ui` was selected by the model-free pilot recorded in
-[`../audits/external-corpus-pilot.md`](../audits/external-corpus-pilot.md). It
-supplies TSX, JavaScript, renamed re-exports, barrel chains, default exports, and
-package-boundary evidence that the controlled fixture and the CodeIndex repository
-snapshot do not.
+`external-material-ui` supplies TSX, JavaScript, renamed re-exports, barrel
+chains, default exports, and package-boundary evidence that the controlled
+fixture and the CodeIndex repository snapshot do not.
 
 ## Rules
 

@@ -12,10 +12,9 @@ method in
 > MCP; the holdout is descriptive only. PROD-004 measured the paired exposure
 > comparison: Code Mode cost `1.307` direct with upper `1.473`, so direct MCP
 > remains recommended. Read the
-> [E3 erratum](../audits/hosted-release-e3-erratum.md), the
-> [exposure evidence](../audits/exposure-eval-050.md), the
+> [exposure report](../reports/exposure-eval-050.json), the
 > [frozen contract](../contracts/evaluation-validity-v2.json), and the
-> [certification record](../audits/certification-eval-037.md). Do not cite a new
+> [certification report](../reports/certification-eval-037.json). Do not cite a new
 > economic result outside the frozen contract and pinned configuration.
 
 The harness, public cases, suites, and reviewed aggregate reports are part of
@@ -41,8 +40,8 @@ canonical treatment set participates in run identity.
 Local-model qualification uses two treatments instead: `no-index` and one fixed
 canonical CodeIndex artifact. Across comparable qualification campaigns, only the
 pinned model environment changes. The `qualification` command implements this
-18 × 2 × 3 plan; `local-diagnostic` and `local-regression` remain the historical
-candidate-comparison commands and keep their original records.
+18 × 2 × 3 plan; `local-diagnostic` and `local-regression` remain available only
+for candidate-comparison diagnosis.
 
 The exposure comparison is a separate two-arm model over the same artifact:
 `direct-mcp` presents the native tools and `code-mode` presents the generic
@@ -499,7 +498,7 @@ excluded candidate is written to `selection.json` as a disqualification with zer
 executions, so it never silently disappears. Excluding a candidate is an operator
 constraint, not a model-quality result.
 
-A model passes this historical calibration screen only when every execution is
+A model passes this calibration screen only when every execution is
 valid, no case loses accepted correctness against `no-index`, no retry, timeout,
 defect, or unrestored workspace occurs, and the elapsed time is inside the budget. The
 existing record calls that state `qualified`; under the 2026-10-23 policy it does
@@ -512,9 +511,9 @@ limitation and invalidates only the token metrics. A changed model digest,
 quantization, runtime, context, generation setting, host fact, or budget defines
 a new baseline.
 
-### Historical targeted diagnostic and local regression
+### Targeted diagnostic and local regression
 
-`local-diagnostic` is the previous development loop for one MCP interface change:
+`local-diagnostic` diagnoses one MCP interface change:
 two predeclared impact cases, the `accepted` and `candidate` treatments, one
 repetition, and four executions in total. The target metric is predeclared on the
 command line and never inferred from the results:
@@ -567,14 +566,9 @@ but it can never satisfy a hosted release gate, and a hosted result can never
 replace or override a local regression. A non-matching claim class is rejected
 before the local record is written.
 
-The completed v1 162-slot campaign remains historical `NOT PASSED` evidence. It
-must not be rerun to replace a valid wrong answer. It does not qualify a future
-local model because its moving candidate artifact confounds model and product
-changes.
-
 ### Independent local-model qualification
 
-`qualification` implements the approved replacement. It runs the frozen 18-case
+`qualification` runs the frozen 18-case
 suite with `no-index` and one digest-pinned canonical CodeIndex artifact at three
 paired repetitions, exactly 108 slots. It predeclares correctness, timeout,
 tool-use, and efficiency criteria and changes only the model environment across
@@ -618,10 +612,6 @@ verdict.
 
 ### Hosted release campaign
 
-This command is retained for historical reproduction and dry-run diagnosis. It
-is blocked for new hosted evidence until the validity-v2 requirements are
-implemented and pass.
-
 `release` is the frontier architecture/release gate. It loads a pinned hosted reference, which
 records the exact provider, model ID, provider release, OpenCode runtime, and
 generation settings. The reference hash participates in the campaign identity, so
@@ -645,10 +635,9 @@ node src/cli.ts release --suite suites/release.json \
 ```
 
 Local qualification is not read by the command. A failed, blocked, or absent
-local record neither authorizes nor blocks a valid hosted plan. The historical
-`--local-regression` argument is no longer part of the interface, so its value is
-never consulted; the real command requires only current model-free evidence for
-the same suite, revision, and staged artifacts.
+local record neither authorizes nor blocks a valid hosted plan. The command
+requires current model-free evidence for the same suite, revision, and staged
+artifacts.
 
 The real command runs 18 cases × 3 treatments × 5 paired repetitions, exactly
 270 slots. It writes `release-campaign.json` beside `report.json`, carrying
@@ -896,9 +885,7 @@ case weight, tariff, model, exposure mode, or budget cannot reuse a campaign
 identity. The contract and tariff snapshot are machine-readable under
 [`../contracts/evaluation-validity-v2.json`](../contracts/evaluation-validity-v2.json)
 and
-[`../tariffs/deepseek-flash-2026-10-23.json`](../tariffs/deepseek-flash-2026-10-23.json);
-the evidence is in
-[`../audits/economic-contract-eval-034.md`](../audits/economic-contract-eval-034.md).
+[`../tariffs/deepseek-flash-2026-10-23.json`](../tariffs/deepseek-flash-2026-10-23.json).
 
 - The primary estimand is the ratio of preweighted mean total user-visible task
   cost, candidate/no-index, over the fixed 18-case suite. Case weights are
@@ -918,11 +905,10 @@ the evidence is in
 - Latency is recorded against the frozen timeout ceiling and is not an
   optimization target.
 - The output metric sums every tool-output family, including shell/execute,
-  task, write, and unrecognized output. The historical `retrievalBytes` metric
-  remains an explicitly narrower legacy metric.
+  task, write, and unrecognized output. `retrievalBytes` is an explicitly
+  narrower compatibility metric.
 - Final repetitions are sized by simulation from a disjoint paired pilot; the
   pilot cannot be the final campaign.
-- Historical E3 records remain under their original `retrievalBytes` contract.
 
 ## Artifact verification
 
@@ -1077,20 +1063,17 @@ declarations to be stored before any model call.
 
 The four impact cases ask for consumers of one symbol, because direct
 `find_dependencies` usage covers external package targets only. Expected files
-were verified against the pinned revision with the TypeScript language service;
-the per-case review is recorded in
-[`../audits/q2-v5-e0.md`](../audits/q2-v5-e0.md). The Q2 implementation cases
-remain file-identification descriptors and are not selected for the final suite.
+are pinned in each case after TypeScript language-service verification. The Q2
+implementation cases remain file-identification descriptors and are not selected
+for the final suite.
 
 The draft repository suite [`../suites/repository.json`](../suites/repository.json)
 adds fourteen cases over the same subject at the pinned revision
 `3184f55d300144d208d0adef3273af3e5a1cb9b7`: four locate cases reused from Q2,
 two additional impact cases, two renamed and shadowed repository semantic cases,
 and two bounded implementation cases. Each implementation case declares an exact
-changed-file set and a deterministic post-run unit-test check; the reference
-edits were exercised in a disposable worktree. The per-case review is recorded in
-[`../audits/repository-e0.md`](../audits/repository-e0.md). Treat the locate and
-impact cases as the repository candidates when the final suite is assembled.
+changed-file set and a deterministic post-run unit-test check. Treat the locate
+and impact cases as repository candidates when assembling a new suite.
 
 The frozen release suite [`../suites/release.json`](../suites/release.json) selects
 twelve of those repository cases (four locate, six impact, and two implementation)
@@ -1098,17 +1081,15 @@ and the six controlled semantic cases for 18 cases total. The frozen six-case
 calibration subset [`../suites/calibration.json`](../suites/calibration.json) uses
 one locate, two impact, two semantic, and one implementation case at one
 repetition. Both suites pin revision
-`3b6b791d148ef6e96bcddd7850e1bc3c43cc4516` and every case hash. The freeze record,
-pattern coverage, corpus manifests, and expected runtime are in
-[`../audits/frozen-suite-e0.md`](../audits/frozen-suite-e0.md).
+`3b6b791d148ef6e96bcddd7850e1bc3c43cc4516` and every case hash. The manifests
+are the authoritative freeze records.
 
 The selected external corpus is pinned in
 [`../corpora/external-material-ui.json`](../corpora/external-material-ui.json) at
 revision `28eadba9ec2899226ecbf4058b8fba1ddeab9e6d`, project
 `packages/mui-material/tsconfig.json`, and the `pnpm-lock.yaml` hash recorded by
-the benchmark preparation. The model-free pilot that selected it is recorded in
-[`../audits/external-corpus-pilot.md`](../audits/external-corpus-pilot.md). A
-campaign against it uses a checkout at that revision; the manifest records no
+the benchmark preparation. A campaign against it uses a checkout at that
+revision; the manifest records no
 absolute path. No external case is admitted to release suite version 1, so the
 corpus manifest's `caseHashes` remains empty until exact file sets and grep
 admission are recorded.
@@ -1121,8 +1102,7 @@ contract implementations, a type-only import through a renamed type, and default
 export consumers. The draft suite declares revision `HEAD`; the frozen release
 suite pins the same six cases and their hashes at an immutable commit.
 `src/semantic.test.ts` verifies each expected set against the TypeScript language
-service and measures literal search admission. The review is recorded in
-[`../audits/semantic-e0.md`](../audits/semantic-e0.md).
+service and measures literal search admission.
 
 ## Model
 
