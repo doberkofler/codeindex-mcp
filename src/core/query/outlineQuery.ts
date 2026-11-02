@@ -2,26 +2,62 @@ import {type OutlineInputType, type OutlineResultType, type QueryFreshnessType} 
 import {type IndexDatabase} from '../storage/database.ts';
 import {boundedPagedResult, decodeCursor, normalizeRelativePath} from './querySupport.ts';
 import {CodeIndexError} from '../errors/errors.ts';
+import {assertPathAdapter} from './queryScope.ts';
+
+/**
+ * Requires an explicit adapter to be configured and to own the path.
+ *
+ * @param input - Database, generation, configured adapters, path, and requested adapter.
+ * @throws {@link CodeIndexError} When the adapter is unknown or another adapter owns the path.
+ */
+const assertOutlineAdapter = (
+	input: Readonly<{
+		database: IndexDatabase;
+		generationId: string;
+		adapters: readonly string[];
+		path: string;
+		adapter: string | undefined;
+	}>,
+): void => {
+	if (input.adapter !== undefined && !input.adapters.includes(input.adapter)) {
+		throw new CodeIndexError('unknown_adapter', `Unknown adapter: ${input.adapter}`);
+	}
+
+	if (input.adapter !== undefined) {
+		assertPathAdapter({adapter: input.adapter, owner: input.database.fileAdapter(input.generationId, input.path), path: input.path});
+	}
+};
 
 /**
  * Builds one bounded lexical outline page and its re-export list.
  *
  * @param input - Published generation, freshness, path filters, and page bounds.
  * @returns Paginated outline items with a bounded re-export list.
- * @throws {@link CodeIndexError} When the path is unknown or the cursor is invalid.
+ * @throws {@link CodeIndexError} When the path is unknown, the adapter does not
+ * own the path, or the cursor is invalid.
  */
 export const queryOutline = (
 	input: Readonly<{
 		database: IndexDatabase;
 		generationId: string;
 		freshness: QueryFreshnessType;
+		adapters: readonly string[];
 		input: OutlineInputType;
 		maxResultBytes: number;
 	}>,
 ): OutlineResultType => {
 	const pathName = normalizeRelativePath(input.input.path);
 	const kinds = input.input.kinds ?? [];
-	const queryKind = JSON.stringify(['outline', pathName, kinds]);
+
+	assertOutlineAdapter({
+		database: input.database,
+		generationId: input.generationId,
+		adapters: input.adapters,
+		path: pathName,
+		adapter: input.input.adapter,
+	});
+
+	const queryKind = JSON.stringify(['outline', pathName, kinds, input.input.adapter ?? null]);
 	const offset = decodeCursor(input.input.cursor, input.generationId, queryKind).o;
 	const rows = input.database.outlineSymbols({
 		generationId: input.generationId,

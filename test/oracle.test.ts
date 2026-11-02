@@ -180,7 +180,7 @@ describe('Oracle index integration', () => {
 		const status = fixture.index.getStatus();
 		const outline = fixture.index.getOutline({path: 'database/hr_api.pks', limit: 100});
 
-		expect(status.scope.extractor.id).toBe('oracle');
+		expect(status.scope.extractor?.id).toBe('oracle');
 		expect(status.counts.files).toBeGreaterThan(4);
 		expect(status.counts.diagnostics).toBe(0);
 		expect(outline.items.some((symbol) => symbol.kind === 'package' && symbol.qualifiedName === 'owner["APP"]::HR_API')).toBe(true);

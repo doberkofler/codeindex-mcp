@@ -142,6 +142,8 @@ export const withPersistedReferenceIndex = <ValueType>(
 			database,
 			generationId: published.id,
 			freshness: {state: 'current', checkedAt: new Date().toISOString(), dirtyFileCount: 0},
+			adapters: [input.scan.extractorId],
+			normalizers: new Map(),
 		};
 		const reader: PersistedReferenceReaderType = {
 			readAll: (symbolId, scope) => {

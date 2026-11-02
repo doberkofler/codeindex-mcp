@@ -151,7 +151,7 @@ describe('index status', () => {
 			build: {startedAt: null, completedAt: null, durationMs: null, stages: null},
 			lastError: 'startup failed',
 		});
-		expect(absent.scope.extractor.compilerVersion).toBe('unknown');
+		expect(absent.scope.extractor?.compilerVersion).toBe('unknown');
 
 		const incomplete = statusOf({published: generation({completedAt: null})});
 

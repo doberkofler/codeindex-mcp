@@ -75,9 +75,9 @@ describe('find_references selectors and grouping', () => {
 			}
 
 			expect(result.items).toStrictEqual([
-				{path: 'src/first.ts', count: 2, usage: 3, contexts: ['root'], contextsTruncated: false},
-				{path: 'src/second.ts', count: 2, usage: 3, contexts: ['root'], contextsTruncated: false},
-				{path: 'src/shared.ts', count: 1, usage: 1, contexts: ['root'], contextsTruncated: false},
+				{path: 'src/first.ts', adapter: 'typescript', count: 2, usage: 3, contexts: ['root'], contextsTruncated: false},
+				{path: 'src/second.ts', adapter: 'typescript', count: 2, usage: 3, contexts: ['root'], contextsTruncated: false},
+				{path: 'src/shared.ts', adapter: 'typescript', count: 1, usage: 1, contexts: ['root'], contextsTruncated: false},
 			]);
 		} finally {
 			fixture.cleanup();
@@ -239,7 +239,9 @@ describe('find_references bounds and cursors', () => {
 		const fixture = createFixtureIndex('reference-grouping');
 
 		try {
-			const contextDropped = fixture.index.findReferences({query: 'duplicate', limit: 100}, 940);
+			const unbounded = fixture.index.findReferences({query: 'duplicate', limit: 100}, 1_000_000);
+			const fullBytes = Buffer.byteLength(JSON.stringify(unbounded), 'utf8');
+			const contextDropped = fixture.index.findReferences({query: 'duplicate', limit: 100}, fullBytes - 1);
 
 			if (contextDropped.kind !== 'files') {
 				throw new Error('Expected file groups');
@@ -253,7 +255,8 @@ describe('find_references bounds and cursors', () => {
 			expect(contextDropped.items).toHaveLength(3);
 			expect(contextDropped.items.every((item) => item.contexts.length === 0 && item.contextsTruncated)).toBe(true);
 
-			const shortened = fixture.index.findReferences({query: 'duplicate', limit: 100}, 930);
+			const contextFreeBytes = Buffer.byteLength(JSON.stringify(contextDropped), 'utf8');
+			const shortened = fixture.index.findReferences({query: 'duplicate', limit: 100}, contextFreeBytes - 1);
 
 			if (shortened.kind !== 'files') {
 				throw new Error('Expected shortened file groups');

@@ -112,6 +112,7 @@ const propagateImpact = (
 		rootGroups: RootGroupsType;
 		selectedRoots: readonly string[];
 		context?: string | undefined;
+		adapter?: string | undefined;
 	}>,
 ): void => {
 	let frontier = new Map<string, Set<string>>();
@@ -126,7 +127,10 @@ const propagateImpact = (
 		const targets = [...frontier.keys()].sort();
 		const next = new Map<string, Set<string>>();
 
-		for (const edge of input.database.findDependencyEdgesByTargets(input.generationId, targets, input.context)) {
+		for (const edge of input.database.findDependencyEdgesByTargets(input.generationId, targets, {
+			...(input.context === undefined ? {} : {context: input.context}),
+			...(input.adapter === undefined ? {} : {adapter: input.adapter}),
+		})) {
 			const reachedRoots = frontier.get(edge.targetPath ?? '');
 
 			if (reachedRoots === undefined || edge.sourcePath === edge.targetPath) {
@@ -161,11 +165,15 @@ export const findDependencyConsumers = (
 		generationId: string;
 		targetIdentifier: string;
 		context?: string | undefined;
+		adapter?: string | undefined;
 		transitive: boolean;
 		root?: string | undefined;
 	}>,
 ): readonly DependencyConsumerMatchType[] => {
-	const direct = input.database.findDependencyEdgesByTargetIdentifier(input.generationId, input.targetIdentifier, input.context);
+	const direct = input.database.findDependencyEdgesByTargetIdentifier(input.generationId, input.targetIdentifier, {
+		...(input.context === undefined ? {} : {context: input.context}),
+		...(input.adapter === undefined ? {} : {adapter: input.adapter}),
+	});
 	const directByRoot = directEdgesByRoot(direct);
 	const allRoots = [...directByRoot.keys()].sort();
 
@@ -177,7 +185,7 @@ export const findDependencyConsumers = (
 	const rootGroups = createRootGroups(directByRoot, selectedRoots);
 
 	if (input.transitive) {
-		propagateImpact({database: input.database, generationId: input.generationId, rootGroups, selectedRoots, context: input.context});
+		propagateImpact({database: input.database, generationId: input.generationId, rootGroups, selectedRoots, context: input.context, adapter: input.adapter});
 	}
 
 	const consumers: DependencyConsumerMatchType[] = [];
@@ -212,7 +220,7 @@ const evidenceBindings = (bindings: readonly IndexedDependencyBindingType[]): re
  * @returns Items containing only path, depth, and the direct root.
  */
 export const toDependencyConsumers = (matches: readonly DependencyConsumerMatchType[]): readonly DependencyConsumerType[] =>
-	matches.map(({path, depth, directRoot}) => ({path, depth, directRoot}));
+	matches.map(({path, depth, directRoot, edge}) => ({path, depth, directRoot, adapter: edge.adapterId}));
 
 /**
  * Converts traversal matches and their bindings into evidence response items.
@@ -238,6 +246,7 @@ export const toDependencyEvidenceConsumers = (
 		path: match.path,
 		depth: match.depth,
 		directRoot: match.directRoot,
+		adapter: match.edge.adapterId,
 		relationship: match.depth === 1 ? 'direct' : 'transitive',
 		evidenceCount: match.evidenceCount,
 		evidence: {

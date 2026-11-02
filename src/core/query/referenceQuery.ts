@@ -1,34 +1,16 @@
 import {createHash} from 'node:crypto';
-import {type IndexDatabase} from '../storage/database.ts';
 import {type ReferenceScopeType} from '../storage/databaseReferenceQueries.ts';
 import {CodeIndexError} from '../errors/errors.ts';
-import {type FindReferencesInputType, type FindReferencesResultType, type QueryFreshnessType} from '../model.ts';
-import {boundedPagedResult, decodeCursor, normalizeRelativePath, withNormalizedQuery, type QueryNameNormalizerType} from './querySupport.ts';
+import {type FindReferencesInputType, type FindReferencesResultType} from '../model.ts';
+import {boundedPagedResult, decodeCursor, normalizeRelativePath} from './querySupport.ts';
 import {groupedResultOf} from './referenceGrouping.ts';
 import {resolveReferencePartition, type ResolvedReferencePartitionType} from './referencePartition.ts';
 import {assertReferenceSelector, resolveReferenceQuery, type ReferenceResolutionType} from './referenceResolution.ts';
-
-type QueryContextType = Readonly<{
-	database: IndexDatabase;
-	generationId: string;
-	freshness: QueryFreshnessType;
-	normalizeQueryName?: QueryNameNormalizerType | undefined;
-}>;
+import {assertSymbolAdapter, resolveQueryScope, type QueryScopeType} from './queryScope.ts';
+import {type QueryContextType} from './queryService.ts';
 
 const NONE_MESSAGE =
 	'No stored symbol matched this query. This is not evidence that no source defines it: the index covers only configured projects and indexing may be incomplete. Use a repository text search as the fallback.';
-
-const assertKnownContext = (context: QueryContextType, requested: string | undefined): void => {
-	if (requested === undefined) {
-		return;
-	}
-
-	const known = context.database.listProjectContextNames(context.generationId);
-
-	if (!known.includes(requested)) {
-		throw new CodeIndexError('invalid_argument', `Unknown project context: ${requested}. Available contexts: ${known.join(', ')}`);
-	}
-};
 
 /**
  * Hashes the complete reference query identity into a compact cursor tag.
@@ -42,19 +24,23 @@ const queryTagOf = (identity: readonly (string | number | null)[]): string =>
 		.digest('base64url');
 
 const scopeOf = (
-	input: FindReferencesInputType,
-	role: 'definition' | 'reference' | undefined,
-	path: string | undefined,
-	symbolIds: readonly string[],
+	input: Readonly<{
+		request: FindReferencesInputType;
+		scope: QueryScopeType;
+		role: 'definition' | 'reference' | undefined;
+		path: string | undefined;
+		symbolIds: readonly string[];
+	}>,
 ): ReferenceScopeType => ({
 	generationId: '',
 	symbolId: '',
-	symbolIds,
-	...(role === undefined ? {} : {role}),
-	...(path === undefined ? {} : {path}),
-	...(input.enclosingId === undefined ? {} : {enclosingId: input.enclosingId}),
-	...(input.usage === undefined ? {} : {usage: input.usage}),
-	...(input.context === undefined ? {} : {context: input.context}),
+	symbolIds: input.symbolIds,
+	...(input.role === undefined ? {} : {role: input.role}),
+	...(input.path === undefined ? {} : {path: input.path}),
+	...(input.request.enclosingId === undefined ? {} : {enclosingId: input.request.enclosingId}),
+	...(input.request.usage === undefined ? {} : {usage: input.request.usage}),
+	...(input.scope.adapter === undefined ? {} : {adapter: input.scope.adapter}),
+	...(input.scope.context === undefined ? {} : {context: input.scope.context}),
 });
 
 const withSymbol = (scope: ReferenceScopeType, generationId: string, symbolId: string): ReferenceScopeType => ({...scope, generationId, symbolId});
@@ -89,22 +75,35 @@ const unknownSymbolError = (symbolId: string): CodeIndexError =>
 	);
 
 const selectSymbol = (
-	context: QueryContextType,
-	input: FindReferencesInputType,
-	selector: 'symbolId' | 'query',
-	path: string | undefined,
+	input: Readonly<{
+		context: QueryContextType;
+		request: FindReferencesInputType;
+		scope: QueryScopeType;
+		selector: 'symbolId' | 'query';
+		path: string | undefined;
+	}>,
 ): Readonly<{symbolId: string} | {result: FindReferencesResultType}> => {
-	if (selector === 'symbolId') {
-		const symbolId = input.symbolId ?? '';
+	const {context, request, scope, selector, path} = input;
 
-		if (context.database.getSymbol(context.generationId, symbolId) === null) {
+	if (selector === 'symbolId') {
+		const symbolId = request.symbolId ?? '';
+		const symbol = context.database.getSymbol(context.generationId, symbolId);
+
+		if (symbol === null) {
 			throw unknownSymbolError(symbolId);
 		}
+
+		assertSymbolAdapter(symbol.adapter, scope.adapter);
 
 		return {symbolId};
 	}
 
-	const resolution = resolveReferenceQuery(context.database, context.generationId, {...withNormalizedQuery(context.normalizeQueryName, input), path});
+	const resolution = resolveReferenceQuery(
+		context.database,
+		context.generationId,
+		{...request, ...(scope.adapter === undefined ? {} : {adapter: scope.adapter}), ...(scope.context === undefined ? {} : {context: scope.context}), path},
+		{adapters: context.adapters, normalizers: context.normalizers},
+	);
 
 	if (resolution.kind === 'none') {
 		return {result: noneResultOf(context)};
@@ -168,10 +167,11 @@ const queryIdentityOf = (
 		selector: 'symbolId' | 'query';
 		symbolId: string;
 		request: FindReferencesInputType;
+		scope: QueryScopeType;
 		group: 'occurrence' | 'file' | 'owner';
 		role: 'definition' | 'reference' | undefined;
 		path: string | undefined;
-		scope: 'partition' | 'external_alias_group';
+		partitionScope: 'partition' | 'external_alias_group';
 	}>,
 ): readonly (string | number | null)[] => [
 	input.selector,
@@ -186,8 +186,9 @@ const queryIdentityOf = (
 	input.path ?? null,
 	input.request.enclosingId ?? null,
 	input.request.usage ?? null,
-	input.request.context ?? null,
-	input.scope,
+	input.scope.adapter ?? null,
+	input.scope.context ?? null,
+	input.partitionScope,
 ];
 
 /**
@@ -207,8 +208,15 @@ const queryIdentityOf = (
 export const findReferences = (context: QueryContextType, input: FindReferencesInputType, maxResultBytes: number): FindReferencesResultType => {
 	const selector = assertReferenceSelector(input);
 	const normalizedPath = input.path === undefined ? undefined : normalizeRelativePath(input.path);
-	assertKnownContext(context, input.context);
-	const selection = selectSymbol(context, input, selector, normalizedPath);
+	const scope = resolveQueryScope({
+		database: context.database,
+		generationId: context.generationId,
+		adapters: context.adapters,
+		normalizers: context.normalizers,
+		...(input.adapter === undefined ? {} : {adapter: input.adapter}),
+		...(input.context === undefined ? {} : {context: input.context}),
+	});
+	const selection = selectSymbol({context, request: input, scope, selector, path: normalizedPath});
 
 	if ('result' in selection) {
 		return selection.result;
@@ -224,17 +232,30 @@ export const findReferences = (context: QueryContextType, input: FindReferencesI
 	const requestedScope = input.scope ?? 'partition';
 	const resolved = resolveReferencePartition(context.database, context.generationId, selection.symbolId, requestedScope);
 	const queryKind = queryTagOf(
-		queryIdentityOf({selector, symbolId: selection.symbolId, request: input, group, role, path: normalizedPath, scope: requestedScope}),
+		queryIdentityOf({
+			selector,
+			symbolId: selection.symbolId,
+			request: input,
+			scope,
+			group,
+			role,
+			path: normalizedPath,
+			partitionScope: requestedScope,
+		}),
 	);
 	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
-	const scope = withSymbol(scopeOf(input, role, normalizedPath, resolved.symbolIds), context.generationId, selection.symbolId);
+	const referenceScope = withSymbol(
+		scopeOf({request: input, scope, role, path: normalizedPath, symbolIds: resolved.symbolIds}),
+		context.generationId,
+		selection.symbolId,
+	);
 
 	return group === 'occurrence'
-		? occurrenceResultOf({context, query: input, scope, selector, partition: resolved.partition, queryKind, offset, maxResultBytes})
+		? occurrenceResultOf({context, query: input, scope: referenceScope, selector, partition: resolved.partition, queryKind, offset, maxResultBytes})
 		: groupedResultOf({
 				context,
 				query: input,
-				scope,
+				scope: referenceScope,
 				selector,
 				partition: resolved.partition,
 				group,

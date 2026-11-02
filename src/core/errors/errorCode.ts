@@ -6,5 +6,11 @@ export type ErrorCodeType =
 	| 'stale_file'
 	| 'invalid_cursor'
 	| 'invalid_argument'
+	| 'unknown_adapter'
+	| 'unknown_context'
+	| 'ambiguous_context'
+	| 'adapter_context_mismatch'
+	| 'adapter_path_mismatch'
+	| 'adapter_symbol_mismatch'
 	| 'response_too_large'
 	| 'internal_error';

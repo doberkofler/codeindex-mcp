@@ -304,6 +304,7 @@ export class CodeIndex {
 				database: this.#database,
 				generationId: generation.id,
 				freshness: this.getFreshness(),
+				adapters: this.#targets.map((target) => target.adapter.id),
 				input,
 				maxResultBytes,
 			});
@@ -324,6 +325,7 @@ export class CodeIndex {
 				database: this.#database,
 				generationId: generation.id,
 				freshness: this.getFreshness(),
+				adapters: this.#targets.map((target) => target.adapter.id),
 				selector: input,
 				maxResultBytes,
 			});
@@ -359,10 +361,7 @@ export class CodeIndex {
 	 * @returns Paginated dependency consumers with complete-set counts.
 	 */
 	public findDependencies(input: FindDependenciesInputType, maxResultBytes = this.#config.maxResultBytes): FindDependenciesResultType {
-		return this.#database.readSnapshot(() => {
-			const context = {database: this.#database, generationId: this.#generation().id, freshness: this.getFreshness()};
-			return queryDependencies(context, input, maxResultBytes);
-		});
+		return this.#database.readSnapshot(() => queryDependencies(this.#queryContext(), input, maxResultBytes));
 	}
 	/**
 	 * Reads bounded source for one indexed symbol identifier or natural query.
@@ -377,14 +376,12 @@ export class CodeIndex {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
 			const freshness = this.getFreshness();
-			const normalizeQueryName = this.#normalizeQueryName();
 			const selection = selectReadSymbol(
 				{
-					database: this.#database,
+					...this.#queryContext(),
 					generationId: generation.id,
 					freshness,
 					maxResultBytes,
-					...(normalizeQueryName === undefined ? {} : {normalizeQueryName}),
 				},
 				input,
 			);
@@ -430,25 +427,24 @@ export class CodeIndex {
 		this.#database.close();
 	}
 	#queryContext(): QueryContextType {
-		const normalizeQueryName = this.#normalizeQueryName();
+		const normalizers = new Map<string, (text: string) => string>();
+
+		for (const target of this.#targets) {
+			const normalize = target.extractor.normalizeQueryName;
+
+			if (normalize !== undefined) {
+				normalizers.set(target.adapter.id, normalize);
+			}
+		}
+
 		return {
 			database: this.#database,
 			generationId: this.#generation().id,
 			freshness: this.getFreshness(),
-			...(normalizeQueryName === undefined ? {} : {normalizeQueryName}),
+			adapters: this.#targets.map((target) => target.adapter.id),
+			normalizers,
 			...(this.#analytics === null ? {} : {exactNameTelemetry: this.#recordExactName}),
 		};
-	}
-	/**
-	 * Returns the query-name normalizer for the current adapter set.
-	 *
-	 * Cross-adapter normalisation unions are #125 scope; until then a multi-adapter
-	 * workspace uses the first adapter's normalizer and never mixes spellings.
-	 *
-	 * @returns The normalizer, or undefined when the primary adapter has none.
-	 */
-	#normalizeQueryName(): ((text: string) => string) | undefined {
-		return this.#targets.at(0)?.extractor.normalizeQueryName;
 	}
 	async #rebuild(plans: readonly AdapterScanPlanType[], force: boolean, startedAtEpoch: number): Promise<BuildReportType> {
 		const workerPath = this.#workerEntry;

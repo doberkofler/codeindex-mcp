@@ -46,7 +46,7 @@ Every result reports a generation, explicit freshness, truncation, and a guidanc
 Paginated limits are upper bounds; follow nextCursor whenever truncated is true.
 index_status defaults to a bounded summary; pass detail full only when build statistics, hashes, stages, the lease, or exclusions are required.
 Fall back to normal repository tools when the index reports stale data, incomplete scope, an unknown symbol, or no match.
-The index covers the sources selected by the configured extractor projects. Results list the project contexts that produced each fact; pass a context to find_symbol, find_references, or find_dependencies to restrict results. Unconfigured projects and other languages are outside its scope.`;
+The index covers the sources selected by the configured adapter projects. Results list the project contexts that produced each fact and the owning adapter; pass context to find_symbol, find_references, or find_dependencies to restrict results, and pass adapter to narrow every read tool to one configured adapter. A bare context name that exists under more than one adapter requires both adapter and context. Unconfigured projects and other languages are outside its scope.`;
 
 type ToolRegistrationType = Readonly<{
 	name: string;
@@ -224,7 +224,7 @@ const registerTools = (server: McpServer, input: ServerInputType): void => {
 		{
 			name: 'index_status',
 			description:
-				'Report index readiness, scope, counts, freshness, diagnostics, and the last error. Defaults to a bounded summary; pass detail full to add hashes, build statistics, build stages, the build lease, and exclusions.',
+				'Report index readiness, scope, per-adapter coverage, counts, freshness, diagnostics, and the last error. Defaults to a bounded summary; pass detail full to add hashes, build statistics, build stages, the build lease, and exclusions.',
 			maxResultBytes,
 			logger,
 			analytics,
@@ -255,7 +255,7 @@ const registerTools = (server: McpServer, input: ServerInputType): void => {
 		{
 			name: 'find_symbol',
 			description:
-				'Find a declaration by exact qualified name, exact simple name, or name prefix. Compact detail (default) returns symbolId, name, qualified name, kind, and line range; full detail adds bindings, names, and definition sites. A current untruncated result is the complete declaration set: report it and stop.',
+				'Find a declaration by exact qualified name, exact simple name, or name prefix. Each item names its owning adapter; pass adapter to filter. Compact detail (default) returns symbolId, name, qualified name, kind, and line range; full detail adds bindings, names, and definition sites. A current untruncated result is the complete declaration set: report it and stop.',
 			maxResultBytes,
 			logger,
 			analytics,
@@ -281,7 +281,7 @@ const registerTools = (server: McpServer, input: ServerInputType): void => {
 		{
 			name: 'find_dependencies',
 			description:
-				'Find authored modules that consume a canonical external dependency target, such as lodash or @mui/material. Direct usage is external-only; find importers of an authored file by resolving an exported symbol with find_symbol and calling find_references. For direct usage, call once with transitive false and compact detail; a current untruncated result is the complete answer. Transitive mode returns dependency impact grouped by direct root. Pages may be shortened to the response byte limit; follow nextCursor.',
+				'Find authored modules that consume a canonical external dependency target, such as lodash or @mui/material. Each item names its owning adapter; pass adapter to filter. Direct usage is external-only; find importers of an authored file by resolving an exported symbol with find_symbol and calling find_references. For direct usage, call once with transitive false and compact detail; a current untruncated result is the complete answer. Transitive mode returns dependency impact grouped by direct root. Pages may be shortened to the response byte limit; follow nextCursor.',
 			maxResultBytes,
 			logger,
 			analytics,

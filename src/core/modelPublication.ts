@@ -5,6 +5,8 @@ export type SymbolSummaryType = Readonly<{
 	readonly name: string;
 	readonly qualifiedName: string;
 	readonly kind: string;
+	/** Adapter that owns this symbol; identity is never merged across adapters. */
+	readonly adapter: string;
 	readonly path: string;
 	readonly startLine: number;
 	readonly startColumn: number;
@@ -95,6 +97,7 @@ export type OutlineReexportType = Readonly<{
 	readonly symbolId: string;
 	readonly name: string;
 	readonly qualifiedName: string;
+	readonly adapter: string;
 	readonly path: string;
 	readonly start: number;
 	readonly end: number;
@@ -105,6 +108,8 @@ export type OutlineReexportType = Readonly<{
 export type OutlineInputType = Readonly<{
 	readonly path: string;
 	readonly kinds?: readonly string[] | undefined;
+	/** Explicit adapter; when present it must own `path`. */
+	readonly adapter?: string | undefined;
 	readonly limit: number;
 	readonly cursor?: string | undefined;
 }>;
@@ -131,6 +136,8 @@ export type FindSymbolInputType = Readonly<{
 	readonly container?: string | undefined;
 	readonly path?: string | undefined;
 	readonly context?: string | undefined;
+	/** Optional adapter filter; omitted searches every configured adapter. */
+	readonly adapter?: string | undefined;
 	readonly exposure?: 'published' | 'reachable' | 'visible' | 'internal' | 'any' | undefined;
 	readonly limit: number;
 	readonly cursor?: string | undefined;
@@ -158,6 +165,7 @@ export type ReferencePartitionMemberType = Readonly<{
 	readonly symbolId: string;
 	readonly name: string;
 	readonly kind: string;
+	readonly adapter: string;
 	readonly path: string;
 	readonly startLine: number;
 }>;
@@ -196,6 +204,8 @@ export type FindReferencesInputType = Readonly<{
 	readonly enclosingId?: string | undefined;
 	readonly usage?: number | undefined;
 	readonly context?: string | undefined;
+	/** Optional adapter filter; omitted searches every configured adapter. */
+	readonly adapter?: string | undefined;
 	/**
 	 * Partition selector.
 	 *
@@ -218,6 +228,7 @@ export type ReferenceOwnerSummaryType = Readonly<{
 
 export type ReferenceType = Readonly<{
 	readonly symbolId: string;
+	readonly adapter: string;
 	readonly path: string;
 	readonly startOffset: number;
 	readonly endOffset: number;
@@ -245,6 +256,7 @@ type ReferenceTotalsType = Readonly<{
 /** One file or owner group of distinct occurrences. */
 export type ReferenceGroupType = Readonly<{
 	readonly path: string;
+	readonly adapter: string;
 	readonly count: number;
 	readonly usage: number;
 	readonly contexts: readonly string[];
@@ -260,6 +272,7 @@ export type ReferenceOwnerGroupType = ReferenceGroupType &
 /** One compact symbol candidate returned for an ambiguous query. */
 export type ReferenceCandidateType = Readonly<{
 	readonly symbolId: string;
+	readonly adapter: string;
 	readonly name: string;
 	readonly qualifiedName: string;
 	readonly kind: string;
@@ -364,6 +377,8 @@ export type ReadSymbolInputType = Readonly<{
 	readonly mode?: 'text' | 'sites' | 'names' | 'binding_sites' | 'binding_contexts' | undefined;
 	readonly bindingId?: string | undefined;
 	readonly context?: string | undefined;
+	/** Optional adapter filter; omitted searches every configured adapter. */
+	readonly adapter?: string | undefined;
 	readonly contextLines: number;
 	readonly limit?: number | undefined;
 	readonly cursor?: string | undefined;
@@ -439,6 +454,8 @@ export type SymbolAtInputType = Readonly<{
 	readonly path: string;
 	readonly line: number;
 	readonly column?: number | undefined;
+	/** Explicit adapter; when present it must own `path`. */
+	readonly adapter?: string | undefined;
 }>;
 
 type SymbolAtCandidateType = Readonly<{

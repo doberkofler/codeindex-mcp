@@ -8,6 +8,12 @@ const LimitSchema = z.number().int().min(1).max(100).default(50);
 // Compact dependency items are long enough that 50 exceed the 4 KiB page target.
 const DependencyLimitSchema = z.number().int().min(1).max(100).default(25);
 const CursorSchema = z.string().min(1).optional();
+const AdapterSchema = z
+	.string()
+	.min(1)
+	.regex(/^[a-z][a-z0-9_-]{0,63}$/u)
+	.optional()
+	.describe('Optional adapter identifier from index_status.scope.adapters; omitted searches every configured adapter');
 
 export const IndexStatusInputSchema = z.object({
 	detail: z
@@ -20,6 +26,7 @@ export const IndexStatusInputSchema = z.object({
 
 export const OutlineInputSchema = z.object({
 	path: z.string().min(1).describe('Repository-relative POSIX path, for example src/data/user/index.ts'),
+	adapter: AdapterSchema,
 	kinds: z
 		.array(z.string().max(MAX_SYMBOL_KIND_LENGTH).regex(SYMBOL_KIND_PATTERN))
 		.max(MAX_SYMBOL_KIND_FILTERS)
@@ -42,6 +49,7 @@ export const FindSymbolInputSchema = z.object({
 	container: z.string().optional().describe('Binding container display prefix; empty query lists its members'),
 	path: z.string().min(1).optional().describe('Only symbols with a definition occurrence in this path'),
 	context: ContextSchema,
+	adapter: AdapterSchema,
 	exposure: z
 		.enum(['published', 'reachable', 'visible', 'internal', 'any'])
 		.default('visible')
@@ -84,6 +92,7 @@ export const FindReferencesInputSchema = z.object({
 		.optional()
 		.describe('Usage bitmask filter'),
 	context: ContextSchema,
+	adapter: AdapterSchema,
 	scope: z
 		.enum(['partition', 'external_alias_group'])
 		.default('partition')
@@ -97,6 +106,7 @@ export const FindReferencesInputSchema = z.object({
 export const FindDependenciesInputSchema = z.object({
 	target: z.string().min(1).describe('Canonical target identifier, for example lodash, @mui/material, or SCHEMA.PACKAGE'),
 	context: ContextSchema,
+	adapter: AdapterSchema,
 	direction: z.literal('consumers').default('consumers').describe('Dependency direction; consumers is the only supported direction'),
 	transitive: z
 		.boolean()
@@ -131,6 +141,7 @@ export const ReadSymbolInputSchema = z.object({
 	mode: z.enum(['text', 'sites', 'names', 'binding_sites', 'binding_contexts']).default('text').describe('Text extent or one bounded list mode'),
 	bindingId: z.string().min(1).optional().describe('Required binding identifier for binding_sites and binding_contexts'),
 	context: ContextSchema,
+	adapter: AdapterSchema,
 	contextLines: z.number().int().min(0).max(20).default(2).describe('Additional lines before and after the declaration'),
 	limit: z.number().int().min(1).max(100).default(50),
 	cursor: CursorSchema,
@@ -138,6 +149,7 @@ export const ReadSymbolInputSchema = z.object({
 
 export const SymbolAtInputSchema = z.object({
 	path: z.string().min(1).describe('Repository-relative POSIX path'),
+	adapter: AdapterSchema,
 	line: z.number().int().min(1).describe('One-based line number'),
 	column: z.number().int().min(1).optional().describe('One-based column; omitted means the innermost extent covering the line'),
 });

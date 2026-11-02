@@ -21,6 +21,7 @@ const memberOf = (symbol: SymbolSummaryType): ReferencePartitionMemberType => ({
 	symbolId: symbol.id,
 	name: symbol.name,
 	kind: symbol.kind,
+	adapter: symbol.adapter,
 	path: symbol.path,
 	startLine: symbol.startLine,
 });

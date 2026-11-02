@@ -336,8 +336,22 @@ The MCP transport registers seven read-only, idempotent tools:
 Every MCP tool input is validated with Zod. Successful calls use a structured
 envelope with freshness and derived guidance. Paged results include a generation
 identifier, `truncated`, and `nextCursor`; requested limits are upper bounds because
-the byte budget may shorten a page. A cursor is tied to its generation and query
-shape.
+the byte budget may shorten a page. A cursor is tied to its generation, query
+shape, and resolved adapter/context pair.
+
+`index_status` reports one entry per configured adapter with its own coverage,
+absence reason, compiler identity, contexts, and limitations. A singular
+`scope.extractor` projection appears only when exactly one adapter is configured.
+An absent optional adapter is reported as absent, never as a present zero-fact
+adapter.
+
+Query addressing is adapter-scoped. An omitted `adapter` searches every configured
+adapter. A filtered query uses only that adapter's query-name normalization; an
+unfiltered query applies each adapter's normalization, unions results, and
+deduplicates by symbol ID. A bare `context` resolves only when it exists under one
+adapter. Unknown adapters and contexts, ambiguous bare contexts, and mismatched
+path, context, or symbol selectors fail with stable errors instead of an empty
+success.
 
 `find_references` selects one occurrence partition. The default `scope: partition`
 contains exactly one symbol. `scope: external_alias_group` expands an indexed
@@ -352,8 +366,10 @@ counters, so an extractor that could not store a member definition reports
 
 Stable expected error codes are `index_not_ready`, `index_build_failed`,
 `file_not_indexed`, `symbol_not_found`, `stale_file`, `invalid_cursor`,
-`invalid_argument`, and `response_too_large`. Unexpected failures become
-`internal_error` without a stack trace.
+`invalid_argument`, `unknown_adapter`, `unknown_context`, `ambiguous_context`,
+`adapter_context_mismatch`, `adapter_path_mismatch`, `adapter_symbol_mismatch`,
+and `response_too_large`. Unexpected failures become `internal_error` without a
+stack trace.
 
 Nested result lists have independent totals and truncation markers. The response
 builder reduces optional detail and then top-level items to fit the configured

@@ -8,6 +8,8 @@ export type BindingCandidateType = Readonly<{
 	readonly binding: BindingSummaryType;
 	/** Identifier of the owning symbol; the summary is loaded for the emitted page only. */
 	readonly symbolId: string;
+	/** Adapter that owns the binding and its symbol. */
+	readonly adapter: string;
 	readonly match: 'exact_qualified' | 'exact_name' | 'prefix_qualified' | 'prefix_name';
 	/** Whether a declared or default source site introduces this binding. */
 	readonly hasDeclaredSite: boolean;
@@ -17,14 +19,14 @@ const contextClause = (context: string | undefined, alias: string): Readonly<{sq
 	context === undefined
 		? {sql: '', parameters: []}
 		: {
-				sql: ` and exists (select 1 from symbol_name_context c where c.generation_id = ${alias}.generation_id and c.binding_id = ${alias}.binding_id and c.context_name = ?)`,
+				sql: ` and exists (select 1 from symbol_name_context c where c.generation_id = ${alias}.generation_id and c.adapter_id = ${alias}.adapter_id and c.binding_id = ${alias}.binding_id and c.context_name = ?)`,
 				parameters: [context],
 			};
 
 const exposureColumn = (context: string | undefined): string =>
 	context === undefined
 		? 'n.exposure'
-		: `(select c.exposure from symbol_name_context c where c.generation_id = n.generation_id and c.binding_id = n.binding_id and c.context_name = ? limit 1)`;
+		: `(select c.exposure from symbol_name_context c where c.generation_id = n.generation_id and c.adapter_id = n.adapter_id and c.binding_id = n.binding_id and c.context_name = ? limit 1)`;
 
 export const symbolContextsForRows = (reader: DatabaseSync, generationId: string, symbolIds: readonly string[]): ReadonlyMap<string, readonly string[]> => {
 	if (symbolIds.length === 0) {
@@ -79,20 +81,23 @@ const EXACT_NAME_PRESENCES: readonly ExactNamePresenceType[] = ['none', 'P', 'R'
  */
 export const exactNamePresence = (
 	reader: DatabaseSync,
-	input: Readonly<{readonly generationId: string; readonly name: string; readonly context?: string | undefined}>,
+	input: Readonly<{readonly generationId: string; readonly name: string; readonly context?: string | undefined; readonly adapter?: string | undefined}>,
 ): ExactNamePresenceType => {
 	const exposureExpression = exposureColumn(input.context);
 	const contextFilter = contextClause(input.context, 'n');
+	const adapterFilter = input.adapter === undefined ? '' : ' and n.adapter_id = ?';
 	const parameters: string[] = input.context === undefined ? [input.generationId, input.name] : [input.context, input.generationId, input.name];
+	const adapterParameters = input.adapter === undefined ? [] : [input.adapter];
 	const rows = reader
 		.prepare(
 			`select distinct ${exposureExpression} as exposure
 			 from symbol_name n
 			 where n.generation_id = ?
 			 and n.name = ?
+			 ${adapterFilter}
 			 ${contextFilter.sql}`,
 		)
-		.all(...parameters, ...contextFilter.parameters);
+		.all(...parameters, ...adapterParameters, ...contextFilter.parameters);
 	const present = new Set(rows.map((row) => exposureOf(asString(row, 'exposure'))));
 	const bits = `${present.has('published') ? 'P' : ''}${present.has('reachable') ? 'R' : ''}${present.has('internal') ? 'I' : ''}`;
 
@@ -108,6 +113,7 @@ export type BindingCandidateQueryType = Readonly<{
 	readonly container?: string | undefined;
 	readonly path?: string | undefined;
 	readonly context?: string | undefined;
+	readonly adapter?: string | undefined;
 	readonly exposure: 'published' | 'reachable' | 'visible' | 'internal' | 'any';
 	readonly fetchLimit: number;
 }>;
@@ -125,7 +131,12 @@ export const bindingCandidateQuery = (input: BindingCandidateQueryType): Readonl
 	const field = input.match === 'qualified' ? 'n.qualified_name' : 'n.name';
 	const upper = `${input.query}\uFFFF`;
 	const contextFilter = contextClause(input.context, 'n');
+	const adapterFilter = input.adapter === undefined ? '' : ' and n.adapter_id = ?';
 	const parameters: (string | number)[] = input.context === undefined ? [input.generationId] : [input.context, input.generationId];
+
+	if (input.adapter !== undefined) {
+		parameters.push(input.adapter);
+	}
 
 	parameters.push(input.query, upper);
 
@@ -151,10 +162,11 @@ export const bindingCandidateQuery = (input: BindingCandidateQueryType): Readonl
 	const symbolJoin = input.kind === undefined ? '' : 'join symbol s on s.generation_id = n.generation_id and s.id = n.symbol_id';
 
 	return {
-		sql: `select n.binding_id, n.symbol_id, n.name, n.container, n.qualified_name, ${exposureExpression} as exposure, n.has_declared_site
+		sql: `select n.binding_id, n.symbol_id, n.adapter_id, n.name, n.container, n.qualified_name, ${exposureExpression} as exposure, n.has_declared_site
 		from symbol_name n
 		${symbolJoin}
 		where n.generation_id = ?
+		${adapterFilter}
 		and ${field} >= ? and ${field} < ?
 		${input.kind === undefined ? '' : ' and s.kind = ?'}
 		${input.container === undefined ? '' : ' and n.container = ?'}
@@ -186,6 +198,7 @@ const scanBindingCandidates = (reader: DatabaseSync, input: BindingCandidateQuer
 				exposure: bindingExposure,
 				inRequestedContext: input.context === undefined ? null : true,
 			},
+			adapter: asString(row, 'adapter_id'),
 			symbolId: asString(row, 'symbol_id'),
 			match: exact
 				? input.match === 'qualified'
@@ -361,7 +374,7 @@ export const bindingDetailsForSymbols = (
 	const contextFilter =
 		input.context === undefined
 			? ''
-			: ' and exists (select 1 from symbol_name_context c where c.generation_id = n.generation_id and c.binding_id = n.binding_id and c.context_name = ?)';
+			: ' and exists (select 1 from symbol_name_context c where c.generation_id = n.generation_id and c.adapter_id = n.adapter_id and c.binding_id = n.binding_id and c.context_name = ?)';
 	const parameters = input.context === undefined ? [input.generationId, ...input.symbolIds] : [input.generationId, ...input.symbolIds, input.context];
 	const rows = reader
 		.prepare(

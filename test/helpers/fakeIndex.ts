@@ -118,6 +118,7 @@ const summaryOf = (index: number): SymbolSummaryType => ({
 	name: `fakeSymbol${index}`,
 	qualifiedName: `fakeSymbol${index}`,
 	kind: 'const',
+	adapter: 'typescript',
 	path: FAKE_PATH,
 	startLine: index + 1,
 	startColumn: 1,
@@ -182,8 +183,8 @@ const symbolItems = Array.from({length: FAKE_SYMBOL_COUNT}, (_, index) => symbol
 
 const dependencyItemsOf = (input: FindDependenciesInputType): readonly DependencyConsumerItemType[] => {
 	const compact: readonly DependencyConsumerItemType[] = [
-		{path: 'src/consumer-a.ts', depth: 1, directRoot: 'src/root.ts'},
-		{path: 'src/consumer-b.ts', depth: 2, directRoot: 'src/root.ts'},
+		{path: 'src/consumer-a.ts', depth: 1, directRoot: 'src/root.ts', adapter: 'typescript'},
+		{path: 'src/consumer-b.ts', depth: 2, directRoot: 'src/root.ts', adapter: 'typescript'},
 	];
 
 	if (input.detail !== 'evidence') {
@@ -294,8 +295,8 @@ const referenceHandlerOf = (options: FakeIndexOptionsType) => {
 		}
 
 		const groups = [
-			{path: 'src/consumer-a.ts', count: 2, usage: 0, contexts: ['root'], contextsTruncated: false},
-			{path: 'src/consumer-b.ts', count: 1, usage: 0, contexts: ['root'], contextsTruncated: false},
+			{path: 'src/consumer-a.ts', adapter: 'typescript', count: 2, usage: 0, contexts: ['root'], contextsTruncated: false},
+			{path: 'src/consumer-b.ts', adapter: 'typescript', count: 1, usage: 0, contexts: ['root'], contextsTruncated: false},
 		];
 
 		return {
@@ -309,7 +310,7 @@ const referenceHandlerOf = (options: FakeIndexOptionsType) => {
 				scope: 'partition',
 				externalTarget: null,
 				externalName: null,
-				memberSymbols: [{symbolId: 'fake-symbol', name: 'fake', kind: 'function', path: 'src/fake.ts', startLine: 1}],
+				memberSymbols: [{symbolId: 'fake-symbol', name: 'fake', kind: 'function', adapter: 'typescript', path: 'src/fake.ts', startLine: 1}],
 				siblingSymbols: [],
 				memberSymbolsTotal: 1,
 				siblingSymbolsTotal: 0,

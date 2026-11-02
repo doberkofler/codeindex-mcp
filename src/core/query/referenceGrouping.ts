@@ -15,6 +15,7 @@ type QueryContextType = Readonly<{database: IndexDatabase; generationId: string;
 
 type GroupAccumulatorType = Readonly<{
 	path: string;
+	adapter: string;
 	owner: ReferenceOwnerGroupType['owner'];
 	count: number;
 	usage: number;
@@ -67,14 +68,14 @@ const groupContexts = (group: ReferenceGroupModeType, rows: ReturnType<IndexData
  */
 const groupAccumulators = (context: QueryContextType, scope: ReferenceScopeType, group: ReferenceGroupModeType): readonly GroupAccumulatorType[] => {
 	const contexts = groupContexts(group, context.database.referenceGroupContexts(scope));
-	const groups = new Map<string, {path: string; owner: ReferenceOwnerGroupType['owner']; count: number; usage: number}>();
+	const groups = new Map<string, {path: string; adapter: string; owner: ReferenceOwnerGroupType['owner']; count: number; usage: number}>();
 
 	for (const row of context.database.referenceGroupRows(scope)) {
 		const key = groupKeyOf(group, row.path, row.owner?.symbolId ?? null);
 		const current = groups.get(key);
 
 		if (current === undefined) {
-			groups.set(key, {path: row.path, owner: group === 'owner' ? row.owner : null, count: row.count, usage: row.usage});
+			groups.set(key, {path: row.path, adapter: row.adapter, owner: group === 'owner' ? row.owner : null, count: row.count, usage: row.usage});
 		} else {
 			current.count += row.count;
 			current.usage = unionUsage(current.usage, row.usage);
@@ -104,6 +105,7 @@ const groupAccumulators = (context: QueryContextType, scope: ReferenceScopeType,
 
 const groupBaseOf = (groupValue: GroupAccumulatorType, includeContexts: boolean): ReferenceGroupType => ({
 	path: groupValue.path,
+	adapter: groupValue.adapter,
 	count: groupValue.count,
 	usage: groupValue.usage,
 	contexts: includeContexts ? groupValue.contexts.slice(0, MAX_GROUP_CONTEXTS) : [],

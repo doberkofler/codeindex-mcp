@@ -103,6 +103,7 @@ const boundedKindOf = (value: string): string => {
 
 export const toDependencyEdge = (row: SqlRowType, generationId: string): StoredDependencyEdgeType => ({
 	generationId,
+	adapterId: asString(row, 'adapter_id'),
 	id: asString(row, 'id'),
 	context: asNullableString(row, 'context_name') ?? undefined,
 	sourcePath: asString(row, 'source_path'),
@@ -130,7 +131,7 @@ export const toDependencyBinding = (row: SqlRowType): IndexedDependencyBindingTy
 });
 
 export const DEPENDENCY_EDGE_COLUMNS =
-	'id, context_name, source_path, target_path, raw_target, target_identifier, kind, compile_time_only, start_line, start_column, end_line, end_column, start_offset, end_offset';
+	'adapter_id, id, context_name, source_path, target_path, raw_target, target_identifier, kind, compile_time_only, start_line, start_column, end_line, end_column, start_offset, end_offset';
 
 export const DEPENDENCY_BINDING_COLUMNS = 'edge_id, position, kind, imported_name, exported_name, local_name, compile_time_only';
 

@@ -219,7 +219,12 @@ export type DependencyExtractionResultType = Readonly<{
 	readonly bindings: readonly IndexedDependencyBindingType[];
 }>;
 
-export type StoredDependencyEdgeType = IndexedDependencyEdgeType & Readonly<{readonly generationId: string}>;
+export type StoredDependencyEdgeType = IndexedDependencyEdgeType &
+	Readonly<{
+		readonly generationId: string;
+		/** Adapter that owns the authored source path. */
+		readonly adapterId: string;
+	}>;
 
 export type DependencyEvidenceBindingType = Omit<IndexedDependencyBindingType, 'edgeId' | 'position'>;
 
@@ -244,6 +249,8 @@ export type DependencyConsumerType = Readonly<{
 	readonly path: string;
 	readonly depth: number;
 	readonly directRoot: string;
+	/** Adapter that owns the direct consumer path. */
+	readonly adapter: string;
 }>;
 
 export type DependencyEvidenceConsumerType = DependencyConsumerType &
@@ -267,6 +274,8 @@ export type FindDependenciesInputType = Readonly<{
 	 */
 	readonly target: string;
 	readonly context?: string | undefined;
+	/** Optional adapter filter; omitted searches every configured adapter. */
+	readonly adapter?: string | undefined;
 	readonly direction?: 'consumers' | undefined;
 	readonly transitive?: boolean | undefined;
 	readonly root?: string | undefined;
@@ -366,91 +375,7 @@ export type BuildStatType = Readonly<{
 	readonly value: number;
 }>;
 
-export type IndexStatusType = Readonly<{
-	readonly ready: boolean;
-	readonly state: GenerationStateType | 'absent';
-	readonly refresh: RefreshStateType;
-	readonly generationId: string | null;
-	/** Publication revision of the stable generation identifier. */
-	readonly revision: number | null;
-	readonly building: boolean;
-	readonly scope: Readonly<{
-		readonly root: string;
-		readonly projectName: string;
-		readonly projectFile: string;
-		readonly projects: readonly Readonly<{readonly name: string; readonly projectFile: string; readonly adapter?: string | undefined}>[];
-		/** One entry per configured adapter with persisted coverage and provenance. */
-		readonly adapters: readonly Readonly<{
-			readonly id: string;
-			readonly version: string;
-			readonly coverage: 'present' | 'absent';
-			readonly absenceReason: string | null;
-			readonly compilerVersion: string;
-			readonly declaredCompilerVersion: string | null;
-			readonly compilerDrift: boolean;
-			readonly contexts: readonly string[];
-			readonly limitations: readonly string[];
-		}>[];
-		/** Singular projection of the first configured adapter. */
-		readonly extractor: Readonly<{
-			readonly id: string;
-			readonly version: string;
-			/** Runtime compiler or parser version. */
-			readonly compilerVersion: string;
-			/** Version declared by the project, when known. */
-			readonly declaredCompilerVersion: string | null;
-			/** True when the runtime and declared compiler majors differ. */
-			readonly compilerDrift: boolean;
-		}>;
-		readonly projectId: string;
-		readonly workingCopyId: string | null;
-	}>;
-	readonly hashes: Readonly<{
-		readonly source: string | null;
-		readonly configuration: string | null;
-	}>;
-	readonly counts: Readonly<{
-		readonly files: number;
-		readonly symbols: number;
-		readonly occurrences: number;
-		readonly dependencyEdges: number;
-		readonly dependencyBindings: number;
-		readonly diagnostics: number;
-	}>;
-	readonly buildStats: readonly BuildStatType[];
-	readonly build: Readonly<{
-		readonly startedAt: string | null;
-		readonly completedAt: string | null;
-		readonly durationMs: number | null;
-		readonly stages: BuildStagesType | null;
-	}>;
-	readonly freshness: QueryFreshnessType &
-		Readonly<{
-			readonly staleFiles: number;
-			readonly sourceChanged: boolean | null;
-		}>;
-	readonly lease: BuildLeaseType | null;
-	readonly exclusions: readonly string[];
-	readonly lastError: string | null;
-}>;
-
-/** Bounded status projection for the default MCP response. */
-export type IndexStatusSummaryType = Readonly<{
-	readonly ready: boolean;
-	readonly state: IndexStatusType['state'];
-	readonly refresh: IndexStatusType['refresh'];
-	readonly generationId: string | null;
-	readonly revision: number | null;
-	readonly building: boolean;
-	readonly scope: Readonly<{
-		readonly projectName: string;
-		readonly contexts: readonly string[];
-		readonly extractor: IndexStatusType['scope']['extractor'];
-	}>;
-	readonly counts: IndexStatusType['counts'];
-	readonly freshness: IndexStatusType['freshness'];
-	readonly lastError: string | null;
-}>;
+export type {IndexStatusSummaryType, IndexStatusType} from './modelStatus.ts';
 
 export type {
 	SymbolSummaryType,

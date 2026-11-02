@@ -42,6 +42,7 @@ export const toSymbolSummary = (row: SqlRowType, contexts: readonly string[]): S
 	name: asString(row, 'name'),
 	qualifiedName: asString(row, 'qualified_name'),
 	kind: asString(row, 'kind'),
+	adapter: asString(row, 'adapter_id'),
 	path: asString(row, 'path'),
 	startLine: asNumber(row, 'start_line'),
 	startColumn: asNumber(row, 'start_column'),

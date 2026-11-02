@@ -168,7 +168,7 @@ The server exposes seven read-only tools:
 
 | Tool | Use |
 | --- | --- |
-| `index_status` | Readiness, configured scope, counts, freshness, limitations, and last error |
+| `index_status` | Readiness, configured adapters and scope, coverage, counts, freshness, limitations, and last error |
 | `outline` | Declarations in one indexed file, in source order |
 | `find_symbol` | Exact or prefix declaration lookup |
 | `find_references` | References or definitions for a symbol ID, or one-call name resolution grouped by file or owner |
@@ -181,6 +181,13 @@ Responses include freshness and explicit guidance. When
 untruncated result is authoritative. Follow `nextCursor` whenever `truncated` is
 true. Use ordinary repository tools when guidance requests fallback or the fact is
 outside indexed scope.
+
+Every read tool accepts an optional `adapter` filter. Omitting it searches every
+configured adapter; results name the owning adapter on each item. Project contexts
+are adapter-scoped: a bare context name that exists under more than one adapter
+fails with `ambiguous_context` and requires both `adapter` and `context`. `outline`
+and `symbol_at` infer the adapter from the path, and an explicit filter must match
+or the call fails with `adapter_path_mismatch`.
 
 `outline` and `find_symbol` return compact results by default. Request full detail
 only for bindings, qualified names, or definition sites. Every response is bounded

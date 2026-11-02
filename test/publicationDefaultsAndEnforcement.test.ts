@@ -73,6 +73,8 @@ describe('Publication defaults', () => {
 				database: fixture.database,
 				generationId,
 				freshness: fixture.index.getFreshness(),
+				adapters: ['typescript'],
+				normalizers: new Map(),
 				exactNameTelemetry: (presence) => {
 					outcomes.push(presence);
 				},

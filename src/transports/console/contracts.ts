@@ -130,13 +130,15 @@ const indexStatusSchema = z.object({
 		projectFile: z.string(),
 		projects: z.array(z.object({name: z.string(), projectFile: z.string(), adapter: z.string().optional()})),
 		adapters: z.array(adapterStatusSchema).default([]),
-		extractor: z.object({
-			id: z.string(),
-			version: z.string(),
-			compilerVersion: z.string(),
-			declaredCompilerVersion: z.string().nullable(),
-			compilerDrift: z.boolean(),
-		}),
+		extractor: z
+			.object({
+				id: z.string(),
+				version: z.string(),
+				compilerVersion: z.string(),
+				declaredCompilerVersion: z.string().nullable(),
+				compilerDrift: z.boolean(),
+			})
+			.optional(),
 		projectId: z.string(),
 		workingCopyId: z.string().nullable(),
 	}),

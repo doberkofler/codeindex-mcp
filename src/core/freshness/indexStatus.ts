@@ -93,7 +93,7 @@ const adapterStatusOf = (config: ConfigType, published: GenerationRowType | null
 	return configuredAdapters(config).map((adapter, index) => adapterStatusEntry(adapter, index, stored, published));
 };
 
-const extractorStatusOf = (adapters: IndexStatusType['scope']['adapters']): IndexStatusType['scope']['extractor'] => {
+const extractorStatusOf = (adapters: IndexStatusType['scope']['adapters']): NonNullable<IndexStatusType['scope']['extractor']> => {
 	const [primary] = adapters;
 
 	return {
@@ -104,6 +104,18 @@ const extractorStatusOf = (adapters: IndexStatusType['scope']['adapters']): Inde
 		compilerDrift: primary?.compilerDrift ?? false,
 	};
 };
+
+/**
+ * Projects the singular extractor only when exactly one adapter is configured.
+ *
+ * A multi-adapter workspace must read the adapter list; presenting one adapter
+ * as the workspace summary would attribute its identity to the others.
+ *
+ * @param adapters - Configured adapter statuses.
+ * @returns The singular projection, or undefined for a multi-adapter workspace.
+ */
+const singularExtractorOf = (adapters: IndexStatusType['scope']['adapters']): IndexStatusType['scope']['extractor'] | undefined =>
+	adapters.length === 1 ? extractorStatusOf(adapters) : undefined;
 
 const freshnessOf = (refresh: RefreshCoordinatorSnapshotType): IndexStatusType['freshness'] => {
 	const state: QueryFreshnessType['state'] =
@@ -137,6 +149,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 	const {published, refresh} = input;
 	const lease: BuildLeaseType | null = input.database.getBuildLease();
 	const adapters = adapterStatusOf(input.config, published, input.database);
+	const extractor = singularExtractorOf(adapters);
 
 	return {
 		ready: published !== null,
@@ -153,7 +166,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 				adapter.projects.map((project) => ({name: project.name, projectFile: project.projectFilePath, adapter: adapter.id})),
 			),
 			adapters,
-			extractor: extractorStatusOf(adapters),
+			...(extractor === undefined ? {} : {extractor}),
 			projectId: input.config.projectId,
 			workingCopyId: input.workingCopyId,
 		},
@@ -179,19 +192,33 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
  * @param status - Complete status payload.
  * @returns The compact status payload.
  */
-export const summaryStatusOf = (status: IndexStatusType): IndexStatusSummaryType => ({
-	ready: status.ready,
-	state: status.state,
-	refresh: status.refresh,
-	generationId: status.generationId,
-	revision: status.revision,
-	building: status.building,
-	scope: {
-		projectName: status.scope.projectName,
-		contexts: status.scope.projects.map((project) => project.name),
-		extractor: status.scope.extractor,
-	},
-	counts: status.counts,
-	freshness: status.freshness,
-	lastError: status.lastError,
-});
+export const summaryStatusOf = (status: IndexStatusType): IndexStatusSummaryType => {
+	const extractor = status.scope.adapters.length === 1 ? status.scope.extractor : undefined;
+	const needsAdapterList = status.scope.adapters.length > 1 || status.scope.adapters.some((adapter) => adapter.coverage === 'absent');
+
+	return {
+		ready: status.ready,
+		state: status.state,
+		refresh: status.refresh,
+		generationId: status.generationId,
+		revision: status.revision,
+		building: status.building,
+		scope: {
+			projectName: status.scope.projectName,
+			contexts: [...new Set(status.scope.projects.map((project) => project.name))],
+			...(needsAdapterList
+				? {
+						adapters: status.scope.adapters.map((adapter) => ({
+							id: adapter.id,
+							coverage: adapter.coverage,
+							...(adapter.absenceReason === null ? {} : {absenceReason: adapter.absenceReason}),
+						})),
+					}
+				: {}),
+			...(extractor === undefined ? {} : {extractor}),
+		},
+		counts: status.counts,
+		freshness: status.freshness,
+		lastError: status.lastError,
+	};
+};

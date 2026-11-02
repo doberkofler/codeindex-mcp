@@ -155,10 +155,10 @@ describe('controlled dependency direct usage', () => {
 
 		expect(result.queryMeaning).toBe('direct_usage');
 		expect(result.items).toStrictEqual([
-			{path: 'src/cycle/a.ts', depth: 1, directRoot: 'src/cycle/a.ts'},
-			{path: 'src/roots/direct.ts', depth: 1, directRoot: 'src/roots/direct.ts'},
-			{path: 'src/roots/inner.ts', depth: 1, directRoot: 'src/roots/inner.ts'},
-			{path: 'src/roots/reexport.ts', depth: 1, directRoot: 'src/roots/reexport.ts'},
+			{path: 'src/cycle/a.ts', depth: 1, directRoot: 'src/cycle/a.ts', adapter: 'typescript'},
+			{path: 'src/roots/direct.ts', depth: 1, directRoot: 'src/roots/direct.ts', adapter: 'typescript'},
+			{path: 'src/roots/inner.ts', depth: 1, directRoot: 'src/roots/inner.ts', adapter: 'typescript'},
+			{path: 'src/roots/reexport.ts', depth: 1, directRoot: 'src/roots/reexport.ts', adapter: 'typescript'},
 		]);
 		expect(result.summary).toStrictEqual({
 			totalConsumers: 4,

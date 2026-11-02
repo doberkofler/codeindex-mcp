@@ -176,9 +176,9 @@ describe('CodeIndex direct dependency usage', () => {
 
 		expect(result.queryMeaning).toBe('direct_usage');
 		expect(result.items).toStrictEqual([
-			{path: 'src/adapters/escape.ts', depth: 1, directRoot: 'src/adapters/escape.ts'},
-			{path: 'src/adapters/lodash_api.ts', depth: 1, directRoot: 'src/adapters/lodash_api.ts'},
-			{path: 'src/cycle/a.ts', depth: 1, directRoot: 'src/cycle/a.ts'},
+			{path: 'src/adapters/escape.ts', depth: 1, directRoot: 'src/adapters/escape.ts', adapter: 'typescript'},
+			{path: 'src/adapters/lodash_api.ts', depth: 1, directRoot: 'src/adapters/lodash_api.ts', adapter: 'typescript'},
+			{path: 'src/cycle/a.ts', depth: 1, directRoot: 'src/cycle/a.ts', adapter: 'typescript'},
 		]);
 		expect(result.items[0]).not.toHaveProperty('evidence');
 		expect(result.summary).toStrictEqual({

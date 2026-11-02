@@ -1,11 +1,8 @@
 import {type IndexDatabase} from '../storage/database.ts';
-import {findDependencyConsumers, toDependencyConsumers, toDependencyEvidenceConsumers, type DependencyConsumerMatchType} from './dependencyQuery.ts';
 import {CodeIndexError} from '../errors/errors.ts';
 import {
 	type BindingDetailType,
 	type BindingSummaryType,
-	type FindDependenciesInputType,
-	type FindDependenciesResultType,
 	type ExactNamePresenceType,
 	type FindSymbolInputType,
 	type FindSymbolItemType,
@@ -13,30 +10,21 @@ import {
 	type QueryFreshnessType,
 	type SymbolSummaryType,
 } from '../model.ts';
-import {boundedPagedResult, decodeCursor, normalizeQueryText, normalizeRelativePath, type QueryNameNormalizerType} from './querySupport.ts';
+import {boundedPagedResult, decodeCursor, normalizeRelativePath, type QueryNameNormalizerType} from './querySupport.ts';
 import {type BindingCandidateType} from '../storage/databasePublicationQueries.ts';
+import {groupNormalizedQueries, normalizedQueryEntries, resolveQueryScope, type QueryScopeType} from './queryScope.ts';
 
 export type QueryContextType = Readonly<{
 	readonly database: IndexDatabase;
 	readonly generationId: string;
 	readonly freshness: QueryFreshnessType;
+	/** Configured adapter identifiers in declaration order. */
+	readonly adapters: readonly string[];
+	/** Adapter-owned query-name normalization, keyed by adapter identifier. */
+	readonly normalizers: ReadonlyMap<string, QueryNameNormalizerType>;
 	/** Optional local analytics sink for exact-name presence outcomes. */
 	readonly exactNameTelemetry?: ((presence: ExactNamePresenceType) => void) | undefined;
-	/** Optional adapter rule that folds authored query names to published spellings. */
-	readonly normalizeQueryName?: QueryNameNormalizerType | undefined;
 }>;
-
-export const assertKnownContext = (context: QueryContextType, requested: string | undefined): void => {
-	if (requested === undefined) {
-		return;
-	}
-
-	const known = context.database.listProjectContextNames(context.generationId);
-
-	if (!known.includes(requested)) {
-		throw new CodeIndexError('invalid_argument', `Unknown project context: ${requested}. Available contexts: ${known.join(', ')}`);
-	}
-};
 
 const exposureRank = (exposure: 'published' | 'reachable' | 'internal'): number => (exposure === 'published' ? 2 : exposure === 'reachable' ? 1 : 0);
 
@@ -150,10 +138,11 @@ const reduceItem = (item: FindSymbolItemType, level: number): FindSymbolItemType
 	};
 };
 
-const candidateScore = (candidate: BindingCandidateType): readonly [number, number, number, string, string, string, string] => [
+const candidateScore = (candidate: BindingCandidateType): readonly [number, number, number, string, string, string, string, string] => [
 	matchRank(candidate.match),
 	-exposureRank(candidate.binding.exposure),
 	candidate.hasDeclaredSite ? 0 : 1,
+	candidate.adapter,
 	candidate.binding.container,
 	candidate.binding.name,
 	candidate.binding.bindingId,
@@ -164,6 +153,7 @@ const compareCandidates = (left: BindingCandidateType, right: BindingCandidateTy
 	matchRank(left.match) - matchRank(right.match) ||
 	exposureRank(right.binding.exposure) - exposureRank(left.binding.exposure) ||
 	(left.hasDeclaredSite ? 0 : 1) - (right.hasDeclaredSite ? 0 : 1) ||
+	left.adapter.localeCompare(right.adapter) ||
 	left.binding.container.localeCompare(right.binding.container) ||
 	left.binding.name.localeCompare(right.binding.name) ||
 	left.binding.bindingId.localeCompare(right.binding.bindingId) ||
@@ -251,11 +241,15 @@ const boundedResult = (
 	}
 };
 
+const selectedAdaptersOf = (context: QueryContextType, scope: QueryScopeType): readonly string[] =>
+	scope.adapter === undefined ? context.adapters : [scope.adapter];
+
 const loadSymbolCandidates = (
 	context: QueryContextType,
 	input: FindSymbolInputType,
+	scope: QueryScopeType,
 	search: Readonly<{
-		query: string;
+		rawQuery: string;
 		match: 'name' | 'qualified';
 		exposure: FindSymbolResultType['exposure'];
 		normalizedPath: string | undefined;
@@ -263,26 +257,96 @@ const loadSymbolCandidates = (
 	}>,
 ): readonly BindingCandidateType[] => {
 	const fetchLimit = Math.min(10 ** 4, Math.max(10 ** 3, (search.offset + input.limit + 1) * 20));
+	const selected = selectedAdaptersOf(context, scope);
+	const entries = normalizedQueryEntries({scope, adapters: context.adapters, normalizers: context.normalizers, text: search.rawQuery});
+	const groups = groupNormalizedQueries(entries);
+	const candidates: BindingCandidateType[] = [];
 
-	return context.database.findBindingCandidates({
-		generationId: context.generationId,
-		query: search.query,
-		match: search.match,
-		...(input.kind === undefined ? {} : {kind: input.kind}),
-		...(input.container === undefined ? {} : {container: input.container}),
-		...(search.normalizedPath === undefined ? {} : {path: search.normalizedPath}),
-		...(input.context === undefined ? {} : {context: input.context}),
-		exposure: search.exposure,
-		fetchLimit,
-	});
+	for (const group of groups) {
+		const unfiltered = scope.adapter === undefined && group.adapters.length === selected.length;
+		const adapters = unfiltered ? [undefined] : group.adapters;
+
+		for (const adapter of adapters) {
+			candidates.push(
+				...context.database.findBindingCandidates({
+					generationId: context.generationId,
+					query: group.query,
+					match: search.match,
+					...(input.kind === undefined ? {} : {kind: input.kind}),
+					...(input.container === undefined ? {} : {container: input.container}),
+					...(search.normalizedPath === undefined ? {} : {path: search.normalizedPath}),
+					...(scope.context === undefined ? {} : {context: scope.context}),
+					...(adapter === undefined ? {} : {adapter}),
+					exposure: search.exposure,
+					fetchLimit,
+				}),
+			);
+		}
+	}
+
+	return candidates;
 };
 
-const recordExactNameOutcome = (context: QueryContextType, input: FindSymbolInputType, query: string, match: FindSymbolResultType['match']): void => {
-	if (query.length === 0 || match !== 'name' || input.cursor !== undefined || context.exactNameTelemetry === undefined) {
+const presenceBitsOf = (presence: ExactNamePresenceType): string => (presence === 'none' ? '' : presence);
+
+const PRESENCE_BY_BITS: Readonly<Record<string, ExactNamePresenceType>> = {
+	none: 'none',
+	P: 'P',
+	R: 'R',
+	I: 'I',
+	PR: 'PR',
+	PI: 'PI',
+	RI: 'RI',
+	PRI: 'PRI',
+};
+
+const presenceOfBits = (bits: string): ExactNamePresenceType => {
+	const ordered = ['P', 'R', 'I'].filter((bit) => bits.includes(bit)).join('');
+
+	return PRESENCE_BY_BITS[ordered] ?? 'none';
+};
+
+const recordExactNameOutcome = (
+	input: Readonly<{
+		context: QueryContextType;
+		scope: QueryScopeType;
+		request: FindSymbolInputType;
+		rawQuery: string;
+		match: FindSymbolResultType['match'];
+	}>,
+): void => {
+	const {context, scope, request, rawQuery, match} = input;
+
+	if (rawQuery.length === 0 || match !== 'name' || request.cursor !== undefined || context.exactNameTelemetry === undefined) {
 		return;
 	}
 
-	context.exactNameTelemetry(context.database.exactNamePresence({generationId: context.generationId, name: query, context: input.context}));
+	const entries = normalizedQueryEntries({scope, adapters: context.adapters, normalizers: context.normalizers, text: rawQuery});
+	const bits = entries.reduce((union, entry) => {
+		const presence = context.database.exactNamePresence({
+			generationId: context.generationId,
+			name: entry.query,
+			...(scope.context === undefined ? {} : {context: scope.context}),
+			adapter: entry.adapter,
+		});
+
+		return union + presenceBitsOf(presence);
+	}, '');
+
+	context.exactNameTelemetry(presenceOfBits([...new Set(bits)].join('')));
+};
+
+/**
+ * Rejects an empty search that cannot be satisfied by a container filter.
+ *
+ * @param rawQuery - Trimmed authored query.
+ * @param container - Optional binding container filter.
+ * @throws {@link CodeIndexError} When both the query and container are empty.
+ */
+const assertSearchableQuery = (rawQuery: string, container: string | undefined): void => {
+	if (rawQuery.length === 0 && container === undefined) {
+		throw new CodeIndexError('invalid_argument', 'Query must not be empty without a container');
+	}
 };
 
 /**
@@ -292,24 +356,29 @@ const recordExactNameOutcome = (context: QueryContextType, input: FindSymbolInpu
  * reports its matched binding, global primary binding, remaining bindings, and
  * definition sites.
  *
- * @param context - Database, published generation, and freshness.
+ * @param context - Database, published generation, adapters, and freshness.
  * @param input - Query text, filters, and page bounds.
  * @param maxResultBytes - Maximum serialized result-data size.
  * @returns Paginated symbol matches.
  * @throws {@link CodeIndexError} When the query is empty, a filter is invalid, or the cursor is invalid.
  */
 export const findSymbols = (context: QueryContextType, input: FindSymbolInputType, maxResultBytes: number): FindSymbolResultType => {
-	const query = normalizeQueryText(context.normalizeQueryName, input.query.trim());
+	const rawQuery = input.query.trim();
 	const match = input.match ?? 'name';
 	const exposure = input.exposure ?? 'visible';
 
-	if (query.length === 0 && input.container === undefined) {
-		throw new CodeIndexError('invalid_argument', 'Query must not be empty without a container');
-	}
+	assertSearchableQuery(rawQuery, input.container);
 
 	const normalizedPath = input.path === undefined ? undefined : normalizeRelativePath(input.path);
-	assertKnownContext(context, input.context);
-	recordExactNameOutcome(context, input, query, match);
+	const scope = resolveQueryScope({
+		database: context.database,
+		generationId: context.generationId,
+		adapters: context.adapters,
+		normalizers: context.normalizers,
+		...(input.adapter === undefined ? {} : {adapter: input.adapter}),
+		...(input.context === undefined ? {} : {context: input.context}),
+	});
+	recordExactNameOutcome({context, scope, request: input, rawQuery, match});
 	const queryKind = JSON.stringify([
 		'find_symbol',
 		match,
@@ -317,10 +386,11 @@ export const findSymbols = (context: QueryContextType, input: FindSymbolInputTyp
 		input.kind ?? null,
 		input.container ?? null,
 		normalizedPath ?? null,
-		input.context ?? null,
+		scope.adapter ?? null,
+		scope.context ?? null,
 	]);
 	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
-	const candidates = loadSymbolCandidates(context, input, {query, match, exposure, normalizedPath, offset});
+	const candidates = loadSymbolCandidates(context, input, scope, {rawQuery, match, exposure, normalizedPath, offset});
 	const ordered = selectBestCandidates(candidates);
 	const pageCandidates = ordered.slice(offset, offset + input.limit);
 	const symbolIds = pageCandidates.map((candidate) => candidate.symbolId);
@@ -328,7 +398,7 @@ export const findSymbols = (context: QueryContextType, input: FindSymbolInputTyp
 	const detailsBySymbol = context.database.bindingDetails({
 		generationId: context.generationId,
 		symbolIds,
-		...(input.context === undefined ? {} : {context: input.context}),
+		...(scope.context === undefined ? {} : {context: scope.context}),
 	});
 	const definitionsBySymbol = context.database.definitionSites({generationId: context.generationId, symbolIds});
 	const page = pageCandidates.map((candidate) => {
@@ -365,118 +435,4 @@ export const findSymbols = (context: QueryContextType, input: FindSymbolInputTyp
 
 export {findReferences} from './referenceQuery.ts';
 
-/**
- * Builds complete-set dependency counts, independent of the returned page.
- *
- * @param matches - Every consumer match for the query.
- * @param transitive - Whether the query is dependency impact.
- * @returns Unique totals and, for impact, per-root group counts.
- */
-const summarizeDependencyMatches = (matches: readonly DependencyConsumerMatchType[], transitive: boolean): FindDependenciesResultType['summary'] => {
-	const uniquePaths = new Set<string>();
-	const directPaths = new Set<string>();
-	const rootCounts = new Map<string, number>();
-
-	for (const match of matches) {
-		uniquePaths.add(match.path);
-
-		if (match.depth === 1) {
-			directPaths.add(match.path);
-		}
-
-		rootCounts.set(match.directRoot, (rootCounts.get(match.directRoot) ?? 0) + 1);
-	}
-
-	const roots = transitive
-		? [...rootCounts.entries()].map(([path, consumerCount]) => ({path, consumerCount})).sort((left, right) => left.path.localeCompare(right.path))
-		: [];
-
-	return {
-		totalConsumers: uniquePaths.size,
-		directConsumers: directPaths.size,
-		transitiveConsumers: uniquePaths.size - directPaths.size,
-		roots,
-	};
-};
-
-/**
- * Finds authored modules that consume one canonical external or logical target.
- *
- * Direct usage (`transitive: false`, the default) contains modules with an edge
- * to the exact target identifier. Dependency impact (`transitive: true`)
- * traverses authored module targets and groups every shortest path by the
- * direct consumer that starts it.
- *
- * @param context - Database, published generation, and freshness.
- * @param input - Target identifier, traversal mode, optional root, detail level, and page bounds.
- * @param maxResultBytes - Maximum serialized result-data size.
- * @returns Paginated dependency consumers with complete-set counts.
- * @throws {@link CodeIndexError} When the target is empty, a root is invalid, or the cursor is invalid.
- */
-export const findDependencies = (context: QueryContextType, input: FindDependenciesInputType, maxResultBytes: number): FindDependenciesResultType => {
-	const targetIdentifier = input.target.trim();
-
-	if (targetIdentifier.length === 0) {
-		throw new CodeIndexError('invalid_argument', 'Target must not be empty');
-	}
-
-	const transitive = input.transitive ?? false;
-	const detail = input.detail ?? 'compact';
-	const direction = input.direction ?? 'consumers';
-	const root = input.root === undefined ? undefined : normalizeRelativePath(input.root);
-
-	if (root !== undefined && !transitive) {
-		throw new CodeIndexError('invalid_argument', 'root requires transitive: true');
-	}
-
-	assertKnownContext(context, input.context);
-	const queryKind = JSON.stringify([
-		'find_dependencies',
-		direction,
-		transitive ? 'impact' : 'direct',
-		detail,
-		targetIdentifier,
-		root ?? null,
-		input.context ?? null,
-	]);
-	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
-	const matches = findDependencyConsumers({
-		database: context.database,
-		generationId: context.generationId,
-		targetIdentifier,
-		context: input.context,
-		transitive,
-		root,
-	});
-	const pageMatches = matches.slice(offset, offset + input.limit);
-	const items =
-		detail === 'evidence'
-			? toDependencyEvidenceConsumers(
-					pageMatches,
-					context.database.listDependencyBindings(
-						context.generationId,
-						pageMatches.map((match) => match.edge.id),
-					),
-				)
-			: toDependencyConsumers(pageMatches);
-	const summary = summarizeDependencyMatches(matches, transitive);
-	const queryMeaning = transitive ? 'dependency_impact' : 'direct_usage';
-
-	return boundedPagedResult({
-		generationId: context.generationId,
-		items,
-		offset,
-		queryKind,
-		hasMore: matches.length > offset + pageMatches.length,
-		maxResultBytes,
-		createResult: (page) => ({
-			generationId: context.generationId,
-			freshness: context.freshness,
-			queryMeaning,
-			summary,
-			items: page.items,
-			nextCursor: page.nextCursor,
-			truncated: page.truncated,
-		}),
-	});
-};
+export {findDependencies} from './dependencyService.ts';

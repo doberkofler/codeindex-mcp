@@ -1,9 +1,11 @@
 import {type IndexDatabase} from '../storage/database.ts';
 import {CodeIndexError} from '../errors/errors.ts';
 import {type FindReferencesInputType, type ReferenceCandidateType} from '../model.ts';
+import {normalizeQueryText, type QueryNameNormalizerType} from './querySupport.ts';
 
 type SymbolCandidateType = Readonly<{
 	symbolId: string;
+	adapter: string;
 	name: string;
 	qualifiedName: string;
 	kind: string;
@@ -34,6 +36,7 @@ const exposureRank = (exposure: 'published' | 'reachable' | 'internal'): number 
 const compareCandidates = (left: SymbolCandidateType, right: SymbolCandidateType): number =>
 	matchRank(left.match) - matchRank(right.match) ||
 	exposureRank(right.exposure) - exposureRank(left.exposure) ||
+	compareText(left.adapter, right.adapter) ||
 	compareText(left.container, right.container) ||
 	compareText(left.name, right.name) ||
 	compareText(left.bindingId, right.bindingId) ||
@@ -42,6 +45,7 @@ const compareCandidates = (left: SymbolCandidateType, right: SymbolCandidateType
 
 const compactCandidateOf = (candidate: SymbolCandidateType): ReferenceCandidateType => ({
 	symbolId: candidate.symbolId,
+	adapter: candidate.adapter,
 	name: candidate.name,
 	qualifiedName: candidate.qualifiedName,
 	kind: candidate.kind,
@@ -69,17 +73,22 @@ export const assertReferenceSelector = (input: Readonly<{symbolId?: string | und
 	return hasSymbolId ? 'symbolId' : 'query';
 };
 
-const queryCandidates = (database: IndexDatabase, generationId: string, input: FindReferencesInputType): readonly SymbolCandidateType[] => {
-	const query = (input.query ?? '').trim();
+const queryCandidates = (
+	database: IndexDatabase,
+	generationId: string,
+	input: FindReferencesInputType,
+	search: Readonly<{query: string; adapter: string | undefined}>,
+): readonly SymbolCandidateType[] => {
 	const bestBySymbol = new Map<string, SymbolCandidateType>();
 	const candidates = database.findBindingCandidates({
 		generationId,
-		query,
+		query: search.query,
 		match: input.match ?? 'name',
 		...(input.kind === undefined ? {} : {kind: input.kind}),
 		...(input.container === undefined ? {} : {container: input.container}),
 		...(input.path === undefined ? {} : {path: input.path}),
 		...(input.context === undefined ? {} : {context: input.context}),
+		...(search.adapter === undefined ? {} : {adapter: search.adapter}),
 		exposure: input.exposure ?? 'visible',
 		fetchLimit: CANDIDATE_FETCH_LIMIT,
 	});
@@ -94,6 +103,7 @@ const queryCandidates = (database: IndexDatabase, generationId: string, input: F
 
 		const next: SymbolCandidateType = {
 			symbolId: symbol.id,
+			adapter: symbol.adapter,
 			name: symbol.name,
 			qualifiedName: symbol.qualifiedName,
 			kind: symbol.kind,
@@ -112,7 +122,7 @@ const queryCandidates = (database: IndexDatabase, generationId: string, input: F
 		}
 	}
 
-	return [...bestBySymbol.values()].sort((left, right) => compareCandidates(left, right));
+	return [...bestBySymbol.values()];
 };
 
 const resolutionOf = (ordered: readonly SymbolCandidateType[]): ReferenceResolutionType => {
@@ -140,18 +150,44 @@ const resolutionOf = (ordered: readonly SymbolCandidateType[]): ReferenceResolut
  *
  * Exact candidates win over prefix candidates so an exact identifier still
  * resolves when unrelated names share its prefix. Multiple exact candidates
- * remain ambiguous.
+ * remain ambiguous. Without an adapter filter every configured adapter applies
+ * its own query-name normalization and the results are unioned by symbol ID.
  *
  * @param database - Reader database.
  * @param generationId - Published generation.
  * @param input - Query selector text, match mode, and symbol filters.
+ * @param options - Configured adapters and their query-name normalizers.
  * @returns A resolved symbol, bounded candidates, or no stored match.
  * @throws {@link CodeIndexError} When the query is empty without a container.
  */
-export const resolveReferenceQuery = (database: IndexDatabase, generationId: string, input: FindReferencesInputType): ReferenceResolutionType => {
-	if ((input.query ?? '').trim().length === 0 && input.container === undefined) {
+export const resolveReferenceQuery = (
+	database: IndexDatabase,
+	generationId: string,
+	input: FindReferencesInputType,
+	options: Readonly<{adapters?: readonly string[]; normalizers?: ReadonlyMap<string, QueryNameNormalizerType>}> = {},
+): ReferenceResolutionType => {
+	const authored = (input.query ?? '').trim();
+
+	if (authored.length === 0 && input.container === undefined) {
 		throw new CodeIndexError('invalid_argument', 'Query must not be empty without a container');
 	}
 
-	return resolutionOf(queryCandidates(database, generationId, input));
+	const selected = input.adapter === undefined ? (options.adapters ?? []) : [input.adapter];
+	const entries =
+		selected.length === 0
+			? [{adapter: undefined, query: authored}]
+			: selected.map((adapter) => ({adapter, query: normalizeQueryText(options.normalizers?.get(adapter), authored)}));
+	const bestBySymbol = new Map<string, SymbolCandidateType>();
+
+	for (const entry of entries) {
+		for (const candidate of queryCandidates(database, generationId, input, entry)) {
+			const current = bestBySymbol.get(candidate.symbolId);
+
+			if (current === undefined || compareCandidates(candidate, current) < 0) {
+				bestBySymbol.set(candidate.symbolId, candidate);
+			}
+		}
+	}
+
+	return resolutionOf([...bestBySymbol.values()].sort((left, right) => compareCandidates(left, right)));
 };

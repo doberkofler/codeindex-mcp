@@ -99,6 +99,21 @@ const formatBuildReport = (report: BuildReportType): readonly string[] => [
 	`  diagnostics: ${report.diagnosticCount}`,
 ];
 
+const extractorLineOf = (status: IndexStatusType): readonly string[] => {
+	const {extractor} = status.scope;
+
+	if (extractor !== undefined) {
+		return [
+			`extractor: ${extractor.id} ${extractor.version} (compiler ${extractor.compilerVersion}; declared ${extractor.declaredCompilerVersion ?? 'unknown'}${extractor.compilerDrift ? '; drift' : ''})`,
+		];
+	}
+
+	return status.scope.adapters.map(
+		(adapter) =>
+			`adapter ${adapter.id} ${adapter.version}: ${adapter.coverage}${adapter.absenceReason === null ? '' : ` (${adapter.absenceReason})`} (compiler ${adapter.compilerVersion}; declared ${adapter.declaredCompilerVersion ?? 'unknown'}${adapter.compilerDrift ? '; drift' : ''})`,
+	);
+};
+
 const formatStatus = (status: IndexStatusType): readonly string[] => [
 	`state: ${status.state}${status.building ? ' (building)' : ''}`,
 	`refresh: ${status.refresh}`,
@@ -108,7 +123,7 @@ const formatStatus = (status: IndexStatusType): readonly string[] => [
 	`project: ${status.scope.projectName} (${status.scope.projectId})`,
 	`root: ${status.scope.root}`,
 	`project file: ${status.scope.projectFile}`,
-	`extractor: ${status.scope.extractor.id} ${status.scope.extractor.version} (compiler ${status.scope.extractor.compilerVersion}; declared ${status.scope.extractor.declaredCompilerVersion ?? 'unknown'}${status.scope.extractor.compilerDrift ? '; drift' : ''})`,
+	...extractorLineOf(status),
 	`files: ${status.counts.files}`,
 	`symbols: ${status.counts.symbols}`,
 	`occurrences: ${status.counts.occurrences}`,

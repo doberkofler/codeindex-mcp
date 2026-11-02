@@ -272,6 +272,20 @@ export const readFile = (reader: DatabaseSync, generationId: string, filePath: s
 };
 
 /**
+ * Reads the adapter that owns one authored path in a generation.
+ *
+ * @param reader - Reader connection.
+ * @param generationId - Published generation.
+ * @param filePath - Workspace-relative POSIX path.
+ * @returns The owning adapter identifier, or null when the path is not indexed.
+ */
+export const readFileAdapter = (reader: DatabaseSync, generationId: string, filePath: string): string | null => {
+	const row = reader.prepare('select adapter_id from file where generation_id = ? and path = ?').get(generationId, filePath);
+
+	return row === undefined ? null : asString(row, 'adapter_id');
+};
+
+/**
  * Lists the file identities in one generation.
  *
  * @param reader - Reader connection.

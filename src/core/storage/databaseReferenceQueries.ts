@@ -21,6 +21,8 @@ export type ReferenceScopeType = Readonly<{
 	readonly enclosingId?: string | undefined;
 	readonly usage?: number | undefined;
 	readonly context?: string | undefined;
+	/** Optional adapter filter; occurrences inherit their symbol's adapter. */
+	readonly adapter?: string | undefined;
 }>;
 
 const symbolIdsOf = (input: ReferenceScopeType): readonly string[] =>
@@ -35,6 +37,7 @@ const symbolClauseOf = (input: ReferenceScopeType, alias: string): Readonly<{sql
 /** One usage bucket inside a file or owner group. */
 export type ReferenceGroupRowType = Readonly<{
 	readonly path: string;
+	readonly adapter: string;
 	readonly owner: ReferenceOwnerSummaryType | null;
 	readonly usage: number;
 	readonly count: number;
@@ -72,10 +75,15 @@ const occurrenceClauses = (input: ReferenceScopeType, alias: string): Readonly<{
 		parameters.push(input.usage);
 	}
 
+	if (input.adapter !== undefined) {
+		clauses.push(`${alias}.adapter_id = ?`);
+		parameters.push(input.adapter);
+	}
+
 	if (input.context !== undefined) {
 		clauses.push(
 			`exists (select 1 from occurrence_context oc
-				where oc.generation_id = ${alias}.generation_id and oc.symbol_id = ${alias}.symbol_id
+				where oc.generation_id = ${alias}.generation_id and oc.adapter_id = ${alias}.adapter_id and oc.symbol_id = ${alias}.symbol_id
 				and oc.path = ${alias}.path and oc.start_offset = ${alias}.start_offset
 				and oc.role = ${alias}.role and oc.context_name = ?)`,
 		);
@@ -100,10 +108,15 @@ const definitionClauses = (input: ReferenceScopeType, alias: string): Readonly<{
 		parameters.push(input.enclosingId);
 	}
 
+	if (input.adapter !== undefined) {
+		clauses.push(`${alias}.adapter_id = ?`);
+		parameters.push(input.adapter);
+	}
+
 	if (input.context !== undefined) {
 		clauses.push(
 			`exists (select 1 from occurrence_context oc
-				where oc.generation_id = ${alias}.generation_id and oc.symbol_id = ${alias}.symbol_id
+				where oc.generation_id = ${alias}.generation_id and oc.adapter_id = ${alias}.adapter_id and oc.symbol_id = ${alias}.symbol_id
 				and oc.path = ${alias}.path and oc.start_offset = ${alias}.start_offset
 				and oc.role = ${alias}.role and oc.context_name = ?)`,
 		);
@@ -157,7 +170,7 @@ export const referencePageQuery = (
 	const {sql: clauses, parameters: clauseParameters} = occurrenceClauses(input, 'o');
 
 	return {
-		sql: `select o.symbol_id, o.path, o.start_offset, o.end_offset, o.start_line, o.start_column, o.end_line, o.end_column,
+		sql: `select o.symbol_id, o.adapter_id, o.path, o.start_offset, o.end_offset, o.start_line, o.start_column, o.end_line, o.end_column,
 				o.role, o.usage, o.enclosing_id, s.name as owner_name, s.kind as owner_kind, s.path as owner_path, s.start_line as owner_start_line
 			 from occurrence o
 			 left join symbol s on s.generation_id = o.generation_id and s.id = o.enclosing_id
@@ -205,6 +218,7 @@ export const referenceRows = (reader: DatabaseSync, input: ReferenceScopeType & 
 
 		return {
 			symbolId: asString(row, 'symbol_id'),
+			adapter: asString(row, 'adapter_id'),
 			path: asString(row, 'path'),
 			startOffset: asNumber(row, 'start_offset'),
 			endOffset: asNumber(row, 'end_offset'),
@@ -349,12 +363,12 @@ export const referenceGroupRows = (reader: DatabaseSync, input: ReferenceScopeTy
 	const {sql: clauses, parameters} = occurrenceClauses(input, 'o');
 	const rows = reader
 		.prepare(
-			`select o.path, o.enclosing_id, o.usage, count(*) as occurrence_count,
+			`select o.path, o.adapter_id, o.enclosing_id, o.usage, count(*) as occurrence_count,
 				s.name as owner_name, s.kind as owner_kind, s.path as owner_path, s.start_line as owner_start_line
 			 from occurrence o
 			 left join symbol s on s.generation_id = o.generation_id and s.id = o.enclosing_id
 			 where ${clauses}
-			 group by o.path, o.enclosing_id, o.usage, s.name, s.kind, s.path, s.start_line
+			 group by o.path, o.adapter_id, o.enclosing_id, o.usage, s.name, s.kind, s.path, s.start_line
 			 order by o.path, o.enclosing_id, o.usage`,
 		)
 		.all(...parameters);
@@ -364,6 +378,7 @@ export const referenceGroupRows = (reader: DatabaseSync, input: ReferenceScopeTy
 
 		return {
 			path: asString(row, 'path'),
+			adapter: asString(row, 'adapter_id'),
 			owner:
 				ownerId === null
 					? null
@@ -391,10 +406,10 @@ export const referenceGroupContexts = (reader: DatabaseSync, input: ReferenceSco
 	const {sql: clauses, parameters} = occurrenceClauses(input, 'o');
 	const rows = reader
 		.prepare(
-			`select distinct o.path, o.enclosing_id, oc.context_name
+			`select distinct o.path, o.adapter_id, o.enclosing_id, oc.context_name
 			 from occurrence o
 			 join occurrence_context oc
-				on oc.generation_id = o.generation_id and oc.symbol_id = o.symbol_id
+				on oc.generation_id = o.generation_id and oc.adapter_id = o.adapter_id and oc.symbol_id = o.symbol_id
 				and oc.path = o.path and oc.start_offset = o.start_offset and oc.role = o.role
 			 where ${clauses}
 			 order by o.path, o.enclosing_id, oc.context_name`,

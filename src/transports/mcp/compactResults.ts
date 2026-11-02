@@ -11,6 +11,7 @@ type CompactOutlineItemType = Readonly<{
 	symbolId: string;
 	name: string;
 	kind: string;
+	adapter: string;
 	path: string;
 	startLine: number;
 	endLine: number;
@@ -25,6 +26,7 @@ type CompactSymbolItemType = Readonly<{
 	name: string;
 	qualifiedName: string;
 	kind: string;
+	adapter: string;
 	path: string;
 	startLine: number;
 	endLine: number;
@@ -48,6 +50,7 @@ export const compactOutlineOf = (result: OutlineResultType): CompactOutlineResul
 		symbolId: item.id,
 		name: item.name,
 		kind: item.kind,
+		adapter: item.adapter,
 		path: item.site.path,
 		startLine: item.site.startLine,
 		endLine: item.site.endLine,
@@ -67,6 +70,7 @@ export const compactSymbolsOf = (result: FindSymbolResultType): CompactSymbolRes
 		name: item.name,
 		qualifiedName: item.qualifiedName,
 		kind: item.kind,
+		adapter: item.adapter,
 		path: item.path,
 		startLine: item.startLine,
 		endLine: item.endLine,

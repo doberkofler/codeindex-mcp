@@ -106,7 +106,7 @@ export const symbolSummariesByIds = (reader: DatabaseSync, generationId: string,
 
 	const rows = reader
 		.prepare(
-			`select id as symbol_id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id,
+			`select id as symbol_id, name, qualified_name, kind, adapter_id, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id,
 				external_target, external_name
 			 from symbol
 			 where generation_id = ? and id in (${placeholders(symbolIds.length)})`,
@@ -249,7 +249,7 @@ export const outlineSymbols = (
 export const outlineReexports = (reader: DatabaseSync, generationId: string, pathName: string): readonly OutlineReexportType[] => {
 	const rows = reader
 		.prepare(
-			`select n.binding_id, n.symbol_id, n.name, n.qualified_name, site.kind, site.path, site.start_offset, site.end_offset
+			`select n.binding_id, n.symbol_id, n.adapter_id, n.name, n.qualified_name, site.kind, site.path, site.start_offset, site.end_offset
 			 from symbol_name_site site
 			 join symbol_name n on n.generation_id = site.generation_id and n.binding_id = site.binding_id
 			 where site.generation_id = ? and site.path = ? and site.kind in ('alias', 'default', 'reexport', 'wildcard')
@@ -273,6 +273,7 @@ export const outlineReexports = (reader: DatabaseSync, generationId: string, pat
 					symbolId: '',
 					name: '*',
 					qualifiedName: '*',
+					adapter: asString(row, 'adapter_id'),
 					path: asString(row, 'path'),
 					start: asNumber(row, 'start_offset'),
 					end: asNumber(row, 'end_offset'),
@@ -292,6 +293,7 @@ export const outlineReexports = (reader: DatabaseSync, generationId: string, pat
 			symbolId: asString(row, 'symbol_id'),
 			name: asString(row, 'name'),
 			qualifiedName: asString(row, 'qualified_name'),
+			adapter: asString(row, 'adapter_id'),
 			path: asString(row, 'path'),
 			start: asNumber(row, 'start_offset'),
 			end: asNumber(row, 'end_offset'),
@@ -342,7 +344,7 @@ export const symbolsAtPosition = (
 	const offset = input.column === null ? lineStart : lineStart + input.column - 1;
 	const rows = reader
 		.prepare(
-			`select s.id, s.name, s.qualified_name, s.kind, s.path, s.start_line, s.start_column, s.end_line, s.end_column,
+			`select s.id, s.name, s.qualified_name, s.kind, s.adapter_id, s.path, s.start_line, s.start_column, s.end_line, s.end_column,
 				s.enclosing_id, d.site_id, o.start_offset, o.end_offset, o.extent_start, o.extent_end, o.start_line, o.end_line, o.declaration_kind,
 				o.forward_definition
 			 from occurrence o
@@ -384,7 +386,7 @@ export const symbolsAtPosition = (
 export const symbolSummaryById = (reader: DatabaseSync, generationId: string, symbolId: string): SymbolSummaryType | null => {
 	const row = reader
 		.prepare(
-			`select id as symbol_id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id,
+			`select id as symbol_id, name, qualified_name, kind, adapter_id, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id,
 				external_target, external_name
 			 from symbol where generation_id = ? and id = ?`,
 		)

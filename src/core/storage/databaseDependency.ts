@@ -4,29 +4,41 @@ import {DEPENDENCY_BINDING_COLUMNS, DEPENDENCY_EDGE_COLUMNS, placeholders, toDep
 
 const TARGET_CHUNK_SIZE = 400;
 
+/** Context and adapter filters shared by dependency edge queries. */
+export type DependencyEdgeFilterType = Readonly<{
+	readonly context?: string | undefined;
+	readonly adapter?: string | undefined;
+}>;
+
 /**
  * Lists every edge importing or exporting one normalized package.
  *
  * @param reader - Reader connection.
  * @param generationId - Published generation.
  * @param targetIdentifier - Normalized npm package name.
- * @param context - Optional project-context filter.
+ * @param filter - Optional context and adapter filters.
  * @returns Edges in source and position order.
  */
 export const findDependencyEdgesByTargetIdentifier = (
 	reader: DatabaseSync,
 	generationId: string,
 	targetIdentifier: string,
-	context?: string,
+	filter: DependencyEdgeFilterType = {},
 ): readonly StoredDependencyEdgeType[] => {
-	const contextClause = context === undefined ? '' : ' and context_name = ?';
-	const parameters = context === undefined ? [generationId, targetIdentifier] : [generationId, targetIdentifier, context];
+	const contextClause = filter.context === undefined ? '' : ' and context_name = ?';
+	const adapterClause = filter.adapter === undefined ? '' : ' and adapter_id = ?';
+	const parameters = [
+		generationId,
+		targetIdentifier,
+		...(filter.context === undefined ? [] : [filter.context]),
+		...(filter.adapter === undefined ? [] : [filter.adapter]),
+	];
 
 	return reader
 		.prepare(
 			`select ${DEPENDENCY_EDGE_COLUMNS}
 			 from dependency_edge
-			 where generation_id = ? and target_identifier = ?${contextClause}
+			 where generation_id = ? and target_identifier = ?${contextClause}${adapterClause}
 			 order by source_path, start_offset, id`,
 		)
 		.all(...parameters)
@@ -39,18 +51,19 @@ export const findDependencyEdgesByTargetIdentifier = (
  * @param reader - Reader connection.
  * @param generationId - Published generation.
  * @param targetPaths - Repository-relative module paths.
- * @param context - Optional project-context filter.
+ * @param filter - Optional context and adapter filters.
  * @returns Edges in source and position order.
  */
 export const findDependencyEdgesByTargets = (
 	reader: DatabaseSync,
 	generationId: string,
 	targetPaths: readonly string[],
-	context?: string,
+	filter: DependencyEdgeFilterType = {},
 ): readonly StoredDependencyEdgeType[] => {
 	const edges: StoredDependencyEdgeType[] = [];
-	const contextClause = context === undefined ? '' : ' and context_name = ?';
-	const contextParameters = context === undefined ? [] : [context];
+	const contextClause = filter.context === undefined ? '' : ' and context_name = ?';
+	const adapterClause = filter.adapter === undefined ? '' : ' and adapter_id = ?';
+	const extraParameters = [...(filter.context === undefined ? [] : [filter.context]), ...(filter.adapter === undefined ? [] : [filter.adapter])];
 
 	for (let offset = 0; offset < targetPaths.length; offset += TARGET_CHUNK_SIZE) {
 		const chunk = targetPaths.slice(offset, offset + TARGET_CHUNK_SIZE);
@@ -58,10 +71,10 @@ export const findDependencyEdgesByTargets = (
 			.prepare(
 				`select ${DEPENDENCY_EDGE_COLUMNS}
 				 from dependency_edge
-				 where generation_id = ? and target_path in (${placeholders(chunk.length)})${contextClause}
+				 where generation_id = ? and target_path in (${placeholders(chunk.length)})${contextClause}${adapterClause}
 				 order by source_path, start_offset, id`,
 			)
-			.all(generationId, ...chunk, ...contextParameters);
+			.all(generationId, ...chunk, ...extraParameters);
 
 		edges.push(...rows.map((row) => toDependencyEdge(row, generationId)));
 	}

@@ -111,4 +111,6 @@ export const queryContextOf = (database: IndexDatabase, generationId: string): P
 	database,
 	generationId,
 	freshness: {state: 'current', checkedAt: '1970-01-01T00:00:00.000Z', dirtyFileCount: 0},
+	adapters: ['typescript'],
+	normalizers: new Map(),
 });

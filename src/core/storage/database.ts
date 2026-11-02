@@ -24,6 +24,7 @@ import {
 	putExtractionArtifacts,
 	pruneDeadArtifacts as pruneStoredDeadArtifacts,
 	readFile,
+	readFileAdapter,
 	type ExtractionArtifactKeyType,
 } from './databaseContent.ts';
 import {
@@ -49,7 +50,10 @@ import {asNumber} from './databaseRows.ts';
 import {verifyDatabaseIntegrity} from './databaseIntegrity.ts';
 import {ensureStatistics} from './databaseStatistics.ts';
 import {readBuildStats} from './databaseFactStats.ts';
-import {listProjectContextNames as listStoredProjectContextNames} from './databaseContextQueries.ts';
+import {
+	listProjectContextEntries as listStoredProjectContextEntries,
+	listProjectContextNames as listStoredProjectContextNames,
+} from './databaseContextQueries.ts';
 import {
 	bindingBelongsToSymbol,
 	bindingContextsFor,
@@ -339,6 +343,9 @@ export class IndexDatabase {
 	public getFile(generationId: string, filePath: string): SourceFileType | null {
 		return readFile(this.#reader, generationId, filePath);
 	}
+	public fileAdapter(generationId: string, filePath: string): string | null {
+		return readFileAdapter(this.#reader, generationId, filePath);
+	}
 	public listFiles(generationId: string, adapterId?: string): readonly Readonly<{path: string; sha256: string}>[] {
 		return listStoredFiles(this.#reader, generationId, adapterId);
 	}
@@ -347,6 +354,9 @@ export class IndexDatabase {
 	}
 	public listProjectContextNames(generationId: string): readonly string[] {
 		return listStoredProjectContextNames(this.#reader, generationId);
+	}
+	public listProjectContextEntries(generationId: string): ReturnType<typeof listStoredProjectContextEntries> {
+		return listStoredProjectContextEntries(this.#reader, generationId);
 	}
 	public getSymbol(generationId: string, id: string): SymbolSummaryType | null {
 		return symbolSummaryById(this.#reader, generationId, id);
@@ -418,11 +428,19 @@ export class IndexDatabase {
 	public externalAliasGroup(generationId: string, symbolId: string): ReturnType<typeof externalAliasGroup> {
 		return externalAliasGroup(this.#reader, generationId, symbolId);
 	}
-	public findDependencyEdgesByTargetIdentifier(generationId: string, targetIdentifier: string, context?: string): readonly StoredDependencyEdgeType[] {
-		return findDependencyEdgesByTargetIdentifier(this.#reader, generationId, targetIdentifier, context);
+	public findDependencyEdgesByTargetIdentifier(
+		generationId: string,
+		targetIdentifier: string,
+		filter: Parameters<typeof findDependencyEdgesByTargetIdentifier>[3] = {},
+	): readonly StoredDependencyEdgeType[] {
+		return findDependencyEdgesByTargetIdentifier(this.#reader, generationId, targetIdentifier, filter);
 	}
-	public findDependencyEdgesByTargets(generationId: string, targetPaths: readonly string[], context?: string): readonly StoredDependencyEdgeType[] {
-		return findDependencyEdgesByTargets(this.#reader, generationId, targetPaths, context);
+	public findDependencyEdgesByTargets(
+		generationId: string,
+		targetPaths: readonly string[],
+		filter: Parameters<typeof findDependencyEdgesByTargets>[3] = {},
+	): readonly StoredDependencyEdgeType[] {
+		return findDependencyEdgesByTargets(this.#reader, generationId, targetPaths, filter);
 	}
 	public listDependencyBindings(generationId: string, edgeIds: readonly string[]): readonly IndexedDependencyBindingType[] {
 		return listStoredDependencyBindings(this.#reader, generationId, edgeIds);

@@ -7,6 +7,7 @@ const symbol: SymbolSummaryType = {
 	name: 'run',
 	qualifiedName: 'demo.run',
 	kind: 'function',
+	adapter: 'typescript',
 	path: 'src/demo.ts',
 	startLine: 1,
 	endLine: 2,
