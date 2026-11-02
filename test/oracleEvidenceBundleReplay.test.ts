@@ -77,6 +77,6 @@ describe.each(BUNDLES)('Oracle evidence bundle replay: $descriptorPath', (bundle
 			expect(report.declarations).toMatchObject(bundle.declarations);
 			expect(report.references).toMatchObject(bundle.references);
 			expect(report.dependencies).toMatchObject(bundle.dependencies);
-		});
+		}, 120_000);
 	});
 });

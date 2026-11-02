@@ -1,0 +1,11 @@
+{
+	"name": "external-package",
+	"version": "1.0.0",
+	"types": "./lib/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./lib/index.d.ts",
+			"default": "./lib/index.js"
+		}
+	}
+}

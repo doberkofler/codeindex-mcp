@@ -5,7 +5,7 @@ import {type SourceFileType} from '../model.ts';
 import {asNumber, asString} from './databaseRows.ts';
 import {transaction} from './databaseTransaction.ts';
 
-const sha256Of = (value: Buffer): string => createHash('sha256').update(value).digest('hex');
+const sha256Of = (value: Uint8Array): string => createHash('sha256').update(value).digest('hex');
 
 const lineStartsOf = (content: string): readonly number[] => {
 	const starts = [0];
@@ -35,7 +35,9 @@ export const writeContents = (writer: DatabaseSync, files: readonly SourceFileTy
 	);
 
 	for (const file of files) {
-		const bytes = readFileSync(file.absolutePath);
+		// Adapters that captured immutable bytes hand them over with the record.
+		// A live reread would let the persisted blob describe a later version.
+		const bytes = file.content ?? readFileSync(file.absolutePath);
 		const digest = sha256Of(bytes);
 
 		if (digest !== file.sha256) {

@@ -23,6 +23,8 @@ type GenerationCommitBaseType = Readonly<{
 	/** `insert` creates the first published revision; `revise` updates it in place. */
 	readonly mode: GenerationFactWriteModeType;
 	readonly configHash: string;
+	/** Declaration and module-resolution input hash; defaults to `configHash`. */
+	readonly inputHash?: string;
 	readonly stages: Readonly<{scanMs: number; compilerMs: number; extractionMs: number}>;
 	readonly ownerId?: string;
 }>;
@@ -128,7 +130,7 @@ const publishPhase = (
 	writer
 		.prepare(
 			`update generation
-			 set state = 'published', completed_at = ?, revision = revision + 1, config_hash = ?, source_hash = ?,
+			 set state = 'published', completed_at = ?, revision = revision + 1, config_hash = ?, source_hash = ?, input_hash = ?,
 			     file_count = ?, symbol_count = ?, occurrence_count = ?,
 			     dependency_edge_count = ?, dependency_binding_count = ?, diagnostic_count = ?,
 			     scan_ms = ?, compiler_ms = ?, extraction_ms = ?, insertion_ms = ?, verification_ms = ?, publication_ms = ?
@@ -138,6 +140,7 @@ const publishPhase = (
 			new Date().toISOString(),
 			input.configHash,
 			input.sourceHash,
+			input.inputHash ?? input.configHash,
 			countsFor.files,
 			countsFor.symbols,
 			countsFor.occurrences,

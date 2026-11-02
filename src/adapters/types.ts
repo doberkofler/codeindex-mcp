@@ -9,7 +9,16 @@ import {type ScanResultType} from '../core/model.ts';
  * the complete extracted publication facts. The core finalizer derives canonical
  * identities and exposure; storage persists the finalized set atomically.
  */
-export type ExtractorBuildType = ExtractedFactSetType;
+export type ExtractorBuildType = ExtractedFactSetType &
+	Readonly<{
+		/**
+		 * Re-verifies captured inputs immediately before publication.
+		 *
+		 * Adapters that captured an immutable input snapshot supply this so the
+		 * core can reject a build whose inputs drifted during extraction.
+		 */
+		readonly validate?: () => void;
+	}>;
 
 /**
  * Language adapter contract.

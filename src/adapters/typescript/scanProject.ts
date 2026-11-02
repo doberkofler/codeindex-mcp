@@ -1,235 +1,30 @@
 import {createHash} from 'node:crypto';
-import {existsSync, readFileSync, realpathSync} from 'node:fs';
+import {existsSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import {z} from 'zod';
 import {type ConfigType, toRepositoryPath} from '../../core/config/config.ts';
+import {createCapturedSourceFileRecord, computeSourceHash} from '../../core/generation/sourceFiles.ts';
 import {debugFor} from '../../core/logging/debug.ts';
 import {type ScanProjectResultType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
-import {computeSourceHash, createSourceFileRecord} from '../../core/generation/sourceFiles.ts';
+import {isAuthoredSourceFile, TYPESCRIPT_IGNORED_SEGMENTS} from './sourcePaths.ts';
+import {createTypeScriptInputSnapshot, snapshotWatchInputs, type TypeScriptSnapshotProjectType} from './inputSnapshot.ts';
+
+export {collectConfigFiles, isAuthoredSourceFile, TYPESCRIPT_IGNORED_SEGMENTS} from './sourcePaths.ts';
 
 export const TYPESCRIPT_EXTRACTOR_ID = 'typescript';
-export const TYPESCRIPT_EXTRACTOR_VERSION = '0.2.1';
+export const TYPESCRIPT_EXTRACTOR_VERSION = '0.3.0';
 
-const PUBLISHABLE_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'];
-const DECLARATION_SUFFIXES: readonly string[] = ['.d.ts', '.d.mts', '.d.cts'];
-
-export const TYPESCRIPT_IGNORED_SEGMENTS: readonly string[] = [
-	'node_modules',
-	'dist',
-	'build',
-	'out',
-	'temp',
-	'coverage',
-	'public',
-	'__generated__',
-	'generated',
-	'deploy',
-	'.vite',
-];
-
-const {dirname, join, relative, resolve, sep} = path;
 const debug = debugFor('scan');
 
-const PackageJsonSchema = z.looseObject({
-	dependencies: z.record(z.string(), z.string()).optional(),
-	devDependencies: z.record(z.string(), z.string()).optional(),
-});
-
-const compilerVersionOf = (specifier: string | undefined): string | null => {
-	if (specifier === undefined) {
-		return null;
-	}
-
-	const aliased = /typescript@(?<version>\d[^"\s]*)/u.exec(specifier);
-
-	return aliased?.groups?.['version'] ?? specifier.replace(/^\D*/u, '');
-};
-
-const findPackageJson = (startDirectory: string, rootDir: string): string | null => {
-	let directory = startDirectory;
-
-	for (;;) {
-		const candidate = join(directory, 'package.json');
-
-		if (existsSync(candidate)) {
-			return candidate;
-		}
-
-		if (directory === rootDir || dirname(directory) === directory) {
-			return null;
-		}
-
-		directory = dirname(directory);
-	}
-};
-
-/**
- * Reads the compiler version the project declares.
- *
- * `typescript7` is an npm alias; when absent, the ordinary `typescript`
- * dependency is used. The extractor still requires the JavaScript compiler API,
- * so the declared version is only a drift signal.
- *
- * @param projectFilePath - Absolute project file.
- * @param rootDir - Absolute indexed workspace root.
- * @returns The declared version, or null when no package manifest declares one.
- */
-const readDeclaredCompiler = (projectFilePath: string, rootDir: string): string | null => {
-	const packageJsonPath = findPackageJson(dirname(projectFilePath), rootDir);
-
-	if (packageJsonPath === null) {
-		return null;
-	}
-
-	try {
-		const parsed = PackageJsonSchema.safeParse(JSON.parse(readFileSync(packageJsonPath, 'utf8')));
-
-		if (!parsed.success) {
-			return null;
-		}
-
-		const {dependencies = {}, devDependencies = {}} = parsed.data;
-
-		return (
-			compilerVersionOf(devDependencies['typescript7'] ?? dependencies['typescript7']) ??
-			compilerVersionOf(devDependencies['typescript'] ?? dependencies['typescript'])
-		);
-	} catch {
-		return null;
-	}
-};
-
-const majorOf = (version: string | null): string | null => (version === null ? null : (/^(?<major>\d+)/u.exec(version)?.groups?.['major'] ?? null));
-
-const hash = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
-
-const isExcludedSegment = (relativePath: string): boolean =>
-	relativePath
-		.split(sep)
-		.map((segment) => segment.toLowerCase())
-		.some((segment) => TYPESCRIPT_IGNORED_SEGMENTS.includes(segment));
-
-/**
- * Reports whether a compiler source file is authored, publishable source.
- *
- * Dependency declarations and generated files still participate in TypeScript
- * resolution; they are only excluded from published index facts.
- *
- * @param absolutePath - Candidate source file path.
- * @param rootDir - Absolute indexed workspace root.
- * @returns Whether the file is authored, publishable source.
- */
-export const isAuthoredSourceFile = (absolutePath: string, rootDir: string): boolean => {
-	const relativePath = relative(rootDir, absolutePath);
-
-	if (relativePath === '' || relativePath.startsWith('..') || relativePath.includes(`..${sep}`)) {
-		return false;
-	}
-
-	if (isExcludedSegment(relativePath)) {
-		return false;
-	}
-
-	if (DECLARATION_SUFFIXES.some((suffix) => absolutePath.endsWith(suffix))) {
-		return false;
-	}
-
-	return PUBLISHABLE_EXTENSIONS.some((extension) => absolutePath.endsWith(extension));
-};
+const hash = (value: string | Uint8Array): string => createHash('sha256').update(value).digest('hex');
 
 const hashCompilerOptions = (options: ts.CompilerOptions): string => hash(JSON.stringify(options, Object.keys(options).sort()));
 
+const majorOf = (version: string | null): string | null => (version === null ? null : (/^(?<major>\d+)/u.exec(version)?.groups?.['major'] ?? null));
+
 const sortByPath = (left: SourceFileType, right: SourceFileType): number => left.path.localeCompare(right.path);
 
-/**
- * Resolves the effective TypeScript configuration file chain.
- *
- * TypeScript reads the root file and every `extends` target itself, including
- * JSONC comments, trailing commas, and package manifests used for package
- * resolution. Recording the files it reads keeps the watch set identical to the
- * inputs that can change the effective configuration.
- *
- * The chain is used only for watching; scanning still reads the root file
- * itself, which is authoritative for compiler options.
- *
- * @param projectFilePath - Absolute tsconfig or jsconfig path.
- * @param rootDir - Absolute indexed workspace root; limits package-manifest discovery.
- * @returns Every existing configuration and package manifest read for the project.
- */
-export const collectConfigFiles = (projectFilePath: string, rootDir?: string): readonly string[] => {
-	const rootFile = resolve(projectFilePath);
-	const files = new Set<string>();
-	const addFile = (fileName: string): void => {
-		const resolved = resolve(fileName);
-
-		if (existsSync(resolved)) {
-			files.add(realpathSync(resolved));
-		}
-	};
-	const host: ts.ParseConfigFileHost = {
-		...ts.sys,
-		readFile: (fileName): string | undefined => {
-			addFile(fileName);
-			return ts.sys.readFile(fileName);
-		},
-		onUnRecoverableConfigFileDiagnostic: (): void => {
-			// The scanner reports configuration diagnostics; watching still works.
-		},
-	};
-
-	try {
-		ts.getParsedCommandLineOfConfigFile(rootFile, undefined, host);
-	} catch {
-		// Invalid configuration is reported by the scanner; watching the file still helps.
-	}
-
-	addFile(rootFile);
-
-	const packageRoot = rootDir === undefined ? path.parse(rootFile).root : resolve(rootDir);
-	const packageJson = findPackageJson(dirname(rootFile), packageRoot);
-
-	if (packageJson !== null) {
-		addFile(packageJson);
-	}
-
-	return [...files];
-};
-
-type ParsedProjectType = Readonly<{
-	readonly name: string;
-	readonly projectFilePath: string;
-	readonly projectFileBytes: string;
-	readonly parsed: ts.ParsedCommandLine;
-	readonly declaredCompilerVersion: string | null;
-}>;
-
-const parseProject = (rootDir: string, context: ConfigType['projects'][number]): ParsedProjectType => {
-	const projectFileBytes = readFileSync(context.projectFilePath, 'utf8');
-	const configFile = ts.readConfigFile(context.projectFilePath, (fileName) => ts.sys.readFile(fileName));
-
-	if (configFile.error !== undefined) {
-		throw new Error(`Cannot read TypeScript configuration ${context.projectFilePath}: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
-	}
-
-	const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(context.projectFilePath), undefined, context.projectFilePath);
-	const fatalErrors = parsed.errors.filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
-
-	if (fatalErrors.length > 0) {
-		const messages = fatalErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')).join('; ');
-		throw new Error(`TypeScript configuration is invalid (${context.name}): ${messages}`);
-	}
-
-	return {
-		name: context.name,
-		projectFilePath: context.projectFilePath,
-		projectFileBytes,
-		parsed,
-		declaredCompilerVersion: readDeclaredCompiler(context.projectFilePath, rootDir),
-	};
-};
-
-const projectConfigHash = (project: ParsedProjectType): string =>
+const projectConfigHash = (project: TypeScriptSnapshotProjectType): string =>
 	hash(
 		[
 			`context:${project.name}`,
@@ -249,6 +44,11 @@ const projectConfigHash = (project: ParsedProjectType): string =>
  * files are the union of all project file sets plus previously indexed imports,
  * so shared declarations appear once while retaining one context per program.
  *
+ * The adapter also captures every non-authored input that can change compiler
+ * facts: declaration files, configuration chains, package manifests, lockfiles,
+ * and module-resolution probes. Their identity is returned as `inputHash` and
+ * published source records carry the exact captured bytes.
+ *
  * @param config - Resolved project configuration.
  * @param knownPaths - Files indexed by the current generation. They keep
  * imported files outside the project include in the freshness set.
@@ -259,7 +59,7 @@ const projectConfigHash = (project: ParsedProjectType): string =>
 export const scanProject = (config: ConfigType, knownPaths: readonly string[] = []): ScanResultType => {
 	const startedAt = performance.now();
 	debug('scan start', {rootDir: config.rootDir, projects: config.projects.map((project) => project.projectFilePath), knownPaths: knownPaths.length});
-	const projects = config.projects.map((project) => parseProject(config.rootDir, project));
+	const {snapshot, projects} = createTypeScriptInputSnapshot(config, knownPaths);
 	let excludedFileCount = 0;
 	const candidates = new Set<string>();
 
@@ -274,14 +74,28 @@ export const scanProject = (config: ConfigType, knownPaths: readonly string[] = 
 	}
 
 	for (const knownPath of knownPaths) {
-		const absolutePath = resolve(config.rootDir, knownPath);
+		const absolutePath = path.resolve(config.rootDir, knownPath);
 
 		if (isAuthoredSourceFile(absolutePath, config.rootDir) && existsSync(absolutePath)) {
 			candidates.add(absolutePath);
 		}
 	}
 
-	const files = [...candidates].map((fileName) => createSourceFileRecord(fileName, config.rootDir)).sort(sortByPath);
+	const files = [...candidates]
+		.map((fileName) => {
+			const bytes = snapshot.readBytes(fileName);
+			const text = snapshot.readFile(fileName);
+
+			if (bytes === undefined || text === undefined) {
+				// Preserve the native read failure (EISDIR, ENOENT, EACCES) so the
+				// build cause stays classified as a source-read failure.
+				readFileSync(fileName);
+				throw new Error(`Source disappeared during scan: ${toRepositoryPath(config.rootDir, fileName)}`);
+			}
+
+			return createCapturedSourceFileRecord(fileName, config.rootDir, bytes, text);
+		})
+		.sort(sortByPath);
 	const sourceHash = computeSourceHash(files);
 	const declaredCompilerVersion = projects.find((project) => project.declaredCompilerVersion !== null)?.declaredCompilerVersion ?? null;
 	const compilerDrift = projects.some(
@@ -302,6 +116,8 @@ export const scanProject = (config: ConfigType, knownPaths: readonly string[] = 
 	);
 	const projectFileCount = projectResults.reduce((total, project) => total + project.projectFileCount, 0);
 	const configDiagnosticCount = projectResults.reduce((total, project) => total + project.configDiagnosticCount, 0);
+	const {inputHash} = snapshot.manifest;
+	const watchInputs = snapshotWatchInputs(config.rootDir, snapshot.manifest);
 
 	debug('scan complete', {
 		files: files.length,
@@ -312,6 +128,7 @@ export const scanProject = (config: ConfigType, knownPaths: readonly string[] = 
 		configDiagnosticCount,
 		sourceHash,
 		configHash,
+		inputHash,
 		declaredCompilerVersion,
 		compilerDrift,
 		durationMs: Math.round(performance.now() - startedAt),
@@ -328,6 +145,8 @@ export const scanProject = (config: ConfigType, knownPaths: readonly string[] = 
 		files,
 		sourceHash,
 		configHash,
+		inputHash,
+		watchInputs,
 		projects: projectResults,
 		projectFileCount,
 		excludedFileCount,

@@ -16,6 +16,13 @@ export type SourceFileType = Readonly<{
 	readonly sha256: string;
 	readonly byteCount: number;
 	readonly lineCount: number;
+	/**
+	 * Bytes captured by the adapter for the exact parsed version.
+	 *
+	 * Storage verifies these bytes instead of rereading the filesystem, so the
+	 * persisted content cannot describe a later file version.
+	 */
+	readonly content?: Uint8Array;
 }>;
 
 export type VcsKindType = 'git' | 'svn' | 'none';
@@ -73,6 +80,17 @@ export type ScanResultType = Readonly<{
 	readonly files: readonly SourceFileType[];
 	readonly sourceHash: string;
 	readonly configHash: string;
+	/**
+	 * Hash over non-authored inputs that can change extracted facts.
+	 *
+	 * Authored source bytes are already covered by `sourceHash`; this covers
+	 * declarations, configuration chains, package manifests, lockfiles, and
+	 * module-resolution probes. Adapters that do not distinguish the two use
+	 * `configHash`.
+	 */
+	readonly inputHash?: string;
+	/** Absolute files that can change the manifest, used by the workspace watcher. */
+	readonly watchInputs?: readonly string[];
 	/**
 	 * Configuration identity for per-file extraction artifacts.
 	 *
@@ -259,6 +277,8 @@ export type GenerationRowType = Readonly<{
 	readonly compilerVersion: string;
 	readonly sourceHash: string;
 	readonly configHash: string;
+	/** Hash over declarations and module-resolution inputs; empty for legacy rows. */
+	readonly inputHash?: string;
 	readonly startedAt: string;
 	readonly completedAt: string | null;
 	/** Monotonic publication counter; increments on every successful revision. */

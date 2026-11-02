@@ -4,6 +4,7 @@ import ts from 'typescript';
 import {type ConfigType, toRepositoryPath} from '../../core/config/config.ts';
 import {debugFor} from '../../core/logging/debug.ts';
 import {type DiagnosticType} from '../../core/model.ts';
+import {type TypeScriptInputSnapshotType} from './inputSnapshot.ts';
 
 const {dirname} = path;
 const debug = debugFor('project');
@@ -74,8 +75,50 @@ const collectDiagnostics = (program: ts.Program, config: ConfigType): Readonly<{
 	return {items: stored, total: diagnostics.length};
 };
 
+const compilerHostFor = (options: ts.CompilerOptions, snapshot: TypeScriptInputSnapshotType): ts.CompilerHost => {
+	const host = ts.createCompilerHost(options, true);
+
+	host.fileExists = (fileName: string): boolean => snapshot.fileExists(fileName);
+	host.readFile = (fileName: string): string | undefined => snapshot.readFile(fileName);
+	host.directoryExists = (directoryName: string): boolean => snapshot.directoryExists(directoryName);
+	host.getDirectories = (directoryName: string): string[] => [...snapshot.getDirectories(directoryName)];
+	host.realpath = (fileName: string): string => snapshot.realpath(fileName);
+	host.getSourceFile = (fileName: string, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions): ts.SourceFile | undefined => {
+		const text = snapshot.readFile(fileName);
+		return text === undefined ? undefined : ts.createSourceFile(fileName, text, languageVersionOrOptions, true);
+	};
+
+	return host;
+};
+
+const parseProjectFile = (projectFilePath: string, snapshot: TypeScriptInputSnapshotType | undefined): ts.ParsedCommandLine => {
+	const readFile = (fileName: string): string | undefined => (snapshot === undefined ? ts.sys.readFile(fileName) : snapshot.readFile(fileName));
+	const configFile = ts.readConfigFile(projectFilePath, readFile);
+
+	if (configFile.error !== undefined) {
+		throw new Error(`Cannot read TypeScript configuration ${projectFilePath}: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
+	}
+
+	const parseHost: ts.ParseConfigHost =
+		snapshot === undefined
+			? ts.sys
+			: {
+					useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
+					fileExists: (fileName): boolean => snapshot.fileExists(fileName),
+					readFile,
+					readDirectory: (...args): string[] => snapshot.readDirectory(...args),
+					getDirectories: (directory): string[] => [...snapshot.getDirectories(directory)],
+				};
+
+	return ts.parseJsonConfigFileContent(configFile.config, parseHost, dirname(projectFilePath), undefined, projectFilePath);
+};
+
 /**
  * Loads the configured TypeScript project with the compiler API.
+ *
+ * When an input snapshot is supplied, configuration parsing and every compiler
+ * read use the snapshot's captured bytes. The loaded program therefore parses
+ * one immutable version even if the filesystem changes during the build.
  *
  * Some projects declare a native compiler package that does not expose the
  * JavaScript program API used for extraction. Extraction therefore uses the
@@ -84,28 +127,30 @@ const collectDiagnostics = (program: ts.Program, config: ConfigType): Readonly<{
  *
  * @param config - Resolved project configuration.
  * @param projectFilePath - Project file to load; defaults to the first configured project.
+ * @param snapshot - Optional captured input snapshot.
  * @returns The loaded program, checker, and diagnostics.
  * @throws {@link Error} When the tsconfig is missing or the program cannot be
  * constructed.
  */
-export const loadTypeScriptProject = (config: ConfigType, projectFilePath = config.projectFilePath): LoadedProjectType => {
+export const loadTypeScriptProject = (
+	config: ConfigType,
+	projectFilePath = config.projectFilePath,
+	snapshot?: TypeScriptInputSnapshotType,
+): LoadedProjectType => {
 	const startedAt = performance.now();
 
-	if (!existsSync(projectFilePath)) {
+	if (!existsSync(projectFilePath) && snapshot === undefined) {
 		throw new Error(`TypeScript configuration does not exist: ${projectFilePath}`);
 	}
 
-	const configFile = ts.readConfigFile(projectFilePath, (fileName) => ts.sys.readFile(fileName));
+	const captured = snapshot?.projectOf(projectFilePath);
+	const parsed = captured?.parsed ?? parseProjectFile(projectFilePath, snapshot);
 
-	if (configFile.error !== undefined) {
-		throw new Error(`Cannot read TypeScript configuration ${projectFilePath}: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
-	}
-
-	const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(projectFilePath), undefined, projectFilePath);
 	const program = ts.createProgram({
 		rootNames: parsed.fileNames,
 		options: parsed.options,
 		...(parsed.projectReferences === undefined ? {} : {projectReferences: parsed.projectReferences}),
+		...(snapshot === undefined ? {} : {host: compilerHostFor(parsed.options, snapshot)}),
 	});
 	const diagnostics = collectDiagnostics(program, config);
 	debug('project loaded', {

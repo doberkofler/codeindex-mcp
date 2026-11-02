@@ -1,0 +1,7 @@
+{
+	"name": "input-manifest-fixture",
+	"private": true,
+	"devDependencies": {
+		"typescript": "6.0.3"
+	}
+}

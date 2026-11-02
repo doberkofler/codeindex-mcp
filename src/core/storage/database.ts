@@ -142,19 +142,36 @@ export class IndexDatabase {
 		return readPublishedGeneration(this.#reader);
 	}
 
-	public findReusableGeneration(sourceHash: string, configHash: string): GenerationRowType | null {
-		return findStoredReusableGeneration(this.#reader, sourceHash, configHash);
+	public findReusableGeneration(sourceHash: string, configHash: string, inputHash: string = configHash): GenerationRowType | null {
+		return findStoredReusableGeneration(this.#reader, sourceHash, configHash, inputHash);
 	}
 
 	public createGeneration(
-		input: Readonly<{id: string; extractorId: string; extractorVersion: string; compilerVersion: string; sourceHash: string; configHash: string}>,
+		input: Readonly<{
+			id: string;
+			extractorId: string;
+			extractorVersion: string;
+			compilerVersion: string;
+			sourceHash: string;
+			configHash: string;
+			inputHash?: string;
+		}>,
 	): void {
 		this.#writer
 			.prepare(
-				`insert into generation (id, state, extractor_id, extractor_version, compiler_version, source_hash, config_hash, started_at)
-				 values (?, 'building', ?, ?, ?, ?, ?, ?)`,
+				`insert into generation (id, state, extractor_id, extractor_version, compiler_version, source_hash, config_hash, input_hash, started_at)
+				 values (?, 'building', ?, ?, ?, ?, ?, ?, ?)`,
 			)
-			.run(input.id, input.extractorId, input.extractorVersion, input.compilerVersion, input.sourceHash, input.configHash, new Date().toISOString());
+			.run(
+				input.id,
+				input.extractorId,
+				input.extractorVersion,
+				input.compilerVersion,
+				input.sourceHash,
+				input.configHash,
+				input.inputHash ?? input.configHash,
+				new Date().toISOString(),
+			);
 	}
 
 	/**

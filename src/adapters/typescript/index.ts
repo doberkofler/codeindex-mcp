@@ -8,10 +8,11 @@ import {
 	type ExtractedSurfaceOriginType,
 } from '../../core/facts/index.ts';
 import {type DiagnosticType, type IndexedOccurrenceType, type IndexedSymbolType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
-import {createVerifiedSourceFileRecord} from '../../core/generation/sourceFiles.ts';
+import {createCapturedSourceFileRecord} from '../../core/generation/sourceFiles.ts';
 import {type ExtractorBuildType, type ExtractorType} from '../types.ts';
 import {extractDependencyFacts} from './extractDependencies.ts';
 import {extractSymbolFacts} from './extractSymbols.ts';
+import {createTypeScriptInputSnapshot, type TypeScriptInputSnapshotType} from './inputSnapshot.ts';
 import {loadTypeScriptProject, type LoadedProjectType} from './loadProject.ts';
 import {
 	collectConfigFiles,
@@ -36,7 +37,12 @@ const LIMITATIONS: readonly string[] = [
 const DISCOVERY_TEXT =
 	'The selected TypeScript / JavaScript extractor indexes declarations and references in .ts, .tsx, .mts, .cts, .js, .jsx, .mjs, and .cjs files reachable from the configured TypeScript projects. Search with natural source names such as UserService.loadUser.';
 
-const mergeProjectFiles = (config: ConfigType, scan: ScanResultType, project: LoadedProjectType): readonly SourceFileType[] => {
+const mergeProjectFiles = (
+	config: ConfigType,
+	scan: ScanResultType,
+	project: LoadedProjectType,
+	snapshot: TypeScriptInputSnapshotType,
+): readonly SourceFileType[] => {
 	const mergedFiles = new Map(scan.files.map((file) => [file.path, file]));
 
 	for (const sourceFile of project.program.getSourceFiles()) {
@@ -47,7 +53,13 @@ const mergeProjectFiles = (config: ConfigType, scan: ScanResultType, project: Lo
 		const path = toRepositoryPath(config.rootDir, sourceFile.fileName);
 
 		if (!mergedFiles.has(path)) {
-			mergedFiles.set(path, createVerifiedSourceFileRecord(sourceFile.fileName, config.rootDir, sourceFile.text));
+			const bytes = snapshot.readBytes(sourceFile.fileName);
+
+			if (bytes === undefined) {
+				throw new Error(`Source disappeared during build: ${path}`);
+			}
+
+			mergedFiles.set(path, createCapturedSourceFileRecord(sourceFile.fileName, config.rootDir, bytes, sourceFile.text));
 		}
 	}
 
@@ -195,11 +207,12 @@ const extractContext = (
 	config: ConfigType,
 	scan: ScanResultType,
 	context: ProjectContextConfigType,
+	snapshot: TypeScriptInputSnapshotType,
 ): Readonly<{context: ExtractedContextType; compilerMs: number}> => {
 	const {projectFilePath} = context;
 	const compilerStartedAt = performance.now();
-	const project = loadTypeScriptProject(config, projectFilePath);
-	const files = mergeProjectFiles(config, scan, project);
+	const project = loadTypeScriptProject(config, projectFilePath, snapshot);
+	const files = mergeProjectFiles(config, scan, project, snapshot);
 	const compilerMs = Math.round(performance.now() - compilerStartedAt);
 	const facts = extractSymbolFacts({
 		project,
@@ -273,12 +286,28 @@ const mergeContexts = (contexts: readonly ExtractedContextType[]): Omit<Extracto
 
 const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => {
 	const extractionStartedAt = performance.now();
-	const extracted = config.projects.map((context) => extractContext(config, scan, context));
+	const {snapshot} = createTypeScriptInputSnapshot(
+		config,
+		scan.files.map((file) => file.path),
+	);
+
+	if (scan.inputHash !== undefined && scan.inputHash !== snapshot.manifest.inputHash) {
+		throw new Error('TypeScript inputs changed before the build started');
+	}
+
+	const extracted = config.projects.map((context) => extractContext(config, scan, context, snapshot));
 	const compilerMs = extracted.reduce((total, context) => total + context.compilerMs, 0);
 	const merged = mergeContexts(extracted.map((context) => context.context));
 	const extractionMs = Math.round(performance.now() - extractionStartedAt);
 
-	return {...merged, compilerMs, extractionMs};
+	return {
+		...merged,
+		compilerMs,
+		extractionMs,
+		validate: (): void => {
+			snapshot.validate();
+		},
+	};
 };
 
 /**

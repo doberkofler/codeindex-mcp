@@ -65,6 +65,7 @@ export const toGeneration = (row: SqlRowType): GenerationRowType => ({
 	compilerVersion: asString(row, 'compiler_version'),
 	sourceHash: asString(row, 'source_hash'),
 	configHash: asString(row, 'config_hash'),
+	inputHash: asNullableString(row, 'input_hash') ?? asString(row, 'config_hash'),
 	startedAt: asString(row, 'started_at'),
 	completedAt: asNullableString(row, 'completed_at'),
 	revision: asNumber(row, 'revision'),

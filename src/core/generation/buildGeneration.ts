@@ -81,7 +81,7 @@ const createReport = (
 });
 
 const findReusableGeneration = (database: IndexDatabase, scan: ScanResultType, force: boolean | undefined): GenerationRowType | null =>
-	force === true ? null : database.findReusableGeneration(scan.sourceHash, scan.configHash);
+	force === true ? null : database.findReusableGeneration(scan.sourceHash, scan.configHash, scan.inputHash);
 
 const finalizePublication = (facts: ExtractorBuildType, extractorId: string | null): FinalizedFactSetType => {
 	const publication = finalizeFacts(facts, {
@@ -166,6 +166,7 @@ const commitReuse = (context: CommitContextType): BuildReportType => {
 		projects: context.scan.projects,
 		sourceHash: context.scan.sourceHash,
 		configHash: context.scan.configHash,
+		...(context.scan.inputHash === undefined ? {} : {inputHash: context.scan.inputHash}),
 		stages: {scanMs: context.scan.scanMs, compilerMs: 0, extractionMs: 0},
 		...(context.ownerId === undefined ? {} : {ownerId: context.ownerId}),
 	});
@@ -195,6 +196,9 @@ const commitExtraction = (context: CommitContextType): BuildReportType => {
 		diagnostics: extracted.diagnostics,
 		diagnosticCount: extracted.diagnostics.length,
 	};
+	// The adapter re-verifies every captured input after extraction. A drift
+	// here aborts the commit, so the previous published revision stays intact.
+	extracted.validate?.();
 	const commit = context.database.commitGeneration({
 		mode: context.mode,
 		reuseFacts: false,
@@ -207,6 +211,7 @@ const commitExtraction = (context: CommitContextType): BuildReportType => {
 		diagnostics: extracted.diagnostics,
 		sourceHash: computeSourceHash(extracted.files),
 		configHash: context.scan.configHash,
+		...(context.scan.inputHash === undefined ? {} : {inputHash: context.scan.inputHash}),
 		stages: {
 			scanMs: context.scan.scanMs,
 			compilerMs: extracted.compilerMs,
@@ -297,6 +302,7 @@ const beginGeneration = (
 		compilerVersion: scan.compilerVersion,
 		sourceHash: scan.sourceHash,
 		configHash: scan.configHash,
+		...(scan.inputHash === undefined ? {} : {inputHash: scan.inputHash}),
 	});
 
 	return {generationId, mode: 'insert'};

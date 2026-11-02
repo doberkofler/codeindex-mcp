@@ -216,7 +216,11 @@ export class CodeIndex {
 			const report = await this.#rebuild(scan, force);
 
 			if (this.#watchEnabled) {
-				this.#watcher.update(scan.files, this.#extractor.configFiles(this.#config), extractorSourceExtensions(this.#extractor, this.#config));
+				this.#watcher.update(
+					scan.files,
+					scan.watchInputs ?? this.#extractor.configFiles(this.#config),
+					extractorSourceExtensions(this.#extractor, this.#config),
+				);
 			}
 
 			this.#published = this.#database.getPublishedGeneration();

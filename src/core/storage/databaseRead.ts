@@ -33,17 +33,27 @@ export const readPublishedGeneration = (reader: DatabaseSync): GenerationRowType
 };
 
 /**
- * Finds a published generation with matching source and configuration hashes.
+ * Finds a published generation with matching source, configuration, and input hashes.
  *
  * @param reader - Reader connection.
  * @param sourceHash - Source-set hash.
  * @param configHash - Configuration hash.
+ * @param inputHash - Declaration and module-resolution input hash; defaults to `configHash` for adapters that do not distinguish it.
  * @returns The reusable generation, or null.
  */
-export const findReusableGeneration = (reader: DatabaseSync, sourceHash: string, configHash: string): GenerationRowType | null => {
+export const findReusableGeneration = (
+	reader: DatabaseSync,
+	sourceHash: string,
+	configHash: string,
+	inputHash: string = configHash,
+): GenerationRowType | null => {
 	const row = reader
-		.prepare("select * from generation where state = 'published' and source_hash = ? and config_hash = ? order by completed_at desc limit 1")
-		.get(sourceHash, configHash);
+		.prepare(
+			`select * from generation
+			 where state = 'published' and source_hash = ? and config_hash = ? and coalesce(nullif(input_hash, ''), config_hash) = ?
+			 order by completed_at desc limit 1`,
+		)
+		.get(sourceHash, configHash, inputHash);
 
 	return row === undefined ? null : toGeneration(row);
 };
