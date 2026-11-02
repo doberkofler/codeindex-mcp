@@ -12,5 +12,6 @@ export type ErrorCodeType =
 	| 'adapter_context_mismatch'
 	| 'adapter_path_mismatch'
 	| 'adapter_symbol_mismatch'
+	| 'adapter_identity_collision'
 	| 'response_too_large'
 	| 'internal_error';

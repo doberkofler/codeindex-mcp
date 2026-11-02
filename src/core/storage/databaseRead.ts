@@ -1,5 +1,5 @@
 import {type DatabaseSync} from 'node:sqlite';
-import {type BuildStagesType, type GenerationAdapterType, type GenerationRowType} from '../model.ts';
+import {type AdapterStagesType, type GenerationAdapterType, type GenerationRowType} from '../model.ts';
 import {asNumber, asString, toGeneration} from './databaseRows.ts';
 
 /**
@@ -14,16 +14,13 @@ export const readGenerationAdapters = (reader: DatabaseSync, generationId: strin
 
 	return rows.map((row) => {
 		const scanMs = typeof row['scan_ms'] === 'number' ? row['scan_ms'] : null;
-		const stages: BuildStagesType | null =
+		const stages: AdapterStagesType | null =
 			scanMs === null
 				? null
 				: {
 						scanMs,
 						compilerMs: asNumber(row, 'compiler_ms'),
 						extractionMs: asNumber(row, 'extraction_ms'),
-						insertionMs: 0,
-						verificationMs: 0,
-						publicationMs: 0,
 					};
 
 		return {

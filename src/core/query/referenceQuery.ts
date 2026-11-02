@@ -230,7 +230,10 @@ export const findReferences = (context: QueryContextType, input: FindReferencesI
 	}
 
 	const requestedScope = input.scope ?? 'partition';
-	const resolved = resolveReferencePartition(context.database, context.generationId, selection.symbolId, requestedScope);
+	const resolved = resolveReferencePartition(context.database, context.generationId, selection.symbolId, {
+		scope: requestedScope,
+		...(scope.adapter === undefined ? {} : {adapter: scope.adapter}),
+	});
 	const queryKind = queryTagOf(
 		queryIdentityOf({
 			selector,

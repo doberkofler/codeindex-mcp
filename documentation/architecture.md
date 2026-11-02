@@ -340,10 +340,11 @@ the byte budget may shorten a page. A cursor is tied to its generation, query
 shape, and resolved adapter/context pair.
 
 `index_status` reports one entry per configured adapter with its own coverage,
-absence reason, compiler identity, contexts, and limitations. A singular
-`scope.extractor` projection appears only when exactly one adapter is configured.
-An absent optional adapter is reported as absent, never as a present zero-fact
-adapter.
+absence reason, compiler identity, contexts, and limitations. An adapter that has
+no `generation_adapter` row in the published generation is reported absent with an
+explicit reason; coverage is never inferred from zero facts or assumed present. A
+singular `scope.extractor` projection appears only when exactly one adapter is
+configured, and it projects the first present adapter in configuration order.
 
 Query addressing is adapter-scoped. An omitted `adapter` searches every configured
 adapter. A filtered query uses only that adapter's query-name normalization; an
@@ -368,8 +369,15 @@ Stable expected error codes are `index_not_ready`, `index_build_failed`,
 `file_not_indexed`, `symbol_not_found`, `stale_file`, `invalid_cursor`,
 `invalid_argument`, `unknown_adapter`, `unknown_context`, `ambiguous_context`,
 `adapter_context_mismatch`, `adapter_path_mismatch`, `adapter_symbol_mismatch`,
-and `response_too_large`. Unexpected failures become `internal_error` without a
-stack trace.
+`adapter_identity_collision`, and `response_too_large`. Unexpected failures become
+`internal_error` without a stack trace.
+
+Build failures carry a closed envelope with the failing stage, cause, errno,
+workspace-relative project identity, and the adapter that failed. An adapter is
+annotated where it fails, so a multi-adapter failure never degrades to an
+unattributed error. Cross-adapter identity reuse fails the candidate as
+`adapter_identity_collision`, and a path claimed by two adapters fails as an
+adapter ownership conflict; neither is merged or resolved last-writer-wins.
 
 Nested result lists have independent totals and truncation markers. The response
 builder reduces optional detail and then top-level items to fit the configured

@@ -284,6 +284,9 @@ export type FindDependenciesInputType = Readonly<{
 	readonly cursor?: string | undefined;
 }>;
 
+/** Stages measured per adapter; publication stages are generation-wide. */
+export type AdapterStagesType = Pick<BuildStagesType, 'scanMs' | 'compilerMs' | 'extractionMs'>;
+
 /** Persisted provenance for one adapter within one generation. */
 export type GenerationAdapterType = Readonly<{
 	readonly adapterId: string;
@@ -302,7 +305,7 @@ export type GenerationAdapterType = Readonly<{
 	readonly dependencyEdgeCount: number;
 	readonly dependencyBindingCount: number;
 	readonly diagnosticCount: number;
-	readonly stages: BuildStagesType | null;
+	readonly stages: AdapterStagesType | null;
 }>;
 
 export type GenerationRowType = Readonly<{

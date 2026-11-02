@@ -35,7 +35,7 @@ export const isBuildFailureCause = (value: string): value is BuildFailureCauseTy
 type CauseRuleType = Readonly<{pattern: RegExp; cause: BuildFailureCauseType}>;
 
 const CAUSE_RULES: readonly CauseRuleType[] = [
-	{pattern: /adapter (?:ownership|identity)|adapter conflict|unconfigured adapter|absence reason/iu, cause: 'adapter'},
+	{pattern: /adapter (?:ownership|identity)|adapter conflict|unconfigured adapter|absence reason|is unavailable|undeclared absence/iu, cause: 'adapter'},
 	{pattern: /lease was lost|lease.*taken over|build lease/iu, cause: 'lease'},
 	{pattern: /source changed during index build|(?:input|inputs) changed (?:during|before)(?: the)? build/iu, cause: 'source-changed'},
 	{pattern: /EISDIR|ENOENT|EACCES|EPERM|illegal operation on a directory|no such file or directory/iu, cause: 'source-read'},

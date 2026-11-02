@@ -425,8 +425,8 @@ export class IndexDatabase {
 	public definitionCountsBySymbol(generationId: string, symbolIds: readonly string[]): ReturnType<typeof definitionCountsBySymbol> {
 		return definitionCountsBySymbol(this.#reader, generationId, symbolIds);
 	}
-	public externalAliasGroup(generationId: string, symbolId: string): ReturnType<typeof externalAliasGroup> {
-		return externalAliasGroup(this.#reader, generationId, symbolId);
+	public externalAliasGroup(generationId: string, symbolId: string, adapter?: string): ReturnType<typeof externalAliasGroup> {
+		return externalAliasGroup(this.#reader, generationId, symbolId, adapter);
 	}
 	public findDependencyEdgesByTargetIdentifier(
 		generationId: string,

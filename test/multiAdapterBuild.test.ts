@@ -5,6 +5,8 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
 import {type ExtractorType} from '../src/adapters/types.ts';
 import {type AdapterConfigType, type ConfigType} from '../src/core/config/config.ts';
+import {assertAdapterIdentity, assertSharedExtractedFiles} from '../src/core/generation/adapterBuild.ts';
+import {buildFailureOf, runAdapterStage} from '../src/core/generation/buildFailure.ts';
 import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
 import {silentLogger} from './helpers/fixture.ts';
@@ -107,6 +109,9 @@ describe('multi-adapter build', () => {
 
 			expect(report.outcome).toBe('published');
 			expect(published).not.toBeNull();
+			// The singular columns project the first present adapter in configuration
+			// order, not the alphabetically first adapter.
+			expect(published?.extractorId).toBe('typescript');
 
 			const adapters = database.getGenerationAdapters(report.generationId);
 			expect(adapters.map((adapter) => `${adapter.adapterId}:${adapter.coverage}`)).toStrictEqual(['oracle:present', 'typescript:present']);
@@ -292,5 +297,47 @@ describe('required adapter availability and ownership', () => {
 		} finally {
 			database.close();
 		}
+	});
+});
+
+describe('multi-adapter contract assertions', () => {
+	it('rejects identity reused by two adapters with a named collision', () => {
+		const first = {adapterId: 'alpha', coverage: 'present' as const, facts: {symbols: [{id: 'symbol-1'}], bindings: []}, dependencies: {edges: []}};
+		const second = {adapterId: 'beta', coverage: 'present' as const, facts: {symbols: [{id: 'symbol-1'}], bindings: []}, dependencies: {edges: []}};
+
+		expect(() => {
+			assertAdapterIdentity([first, second]);
+		}).toThrow(/adapter identity collision: symbol symbol-1 is claimed by alpha and beta/iu);
+		expect(() => {
+			assertAdapterIdentity([first, {...second, facts: {symbols: [{id: 'symbol-2'}], bindings: []}}]);
+		}).not.toThrow();
+	});
+
+	it('rejects a path claimed by two extracted file sets', () => {
+		const first = {adapterId: 'alpha', files: [{path: 'src/shared.ts'}]};
+		const second = {adapterId: 'beta', files: [{path: 'src/shared.ts'}]};
+
+		expect(() => {
+			assertSharedExtractedFiles([first, second]);
+		}).toThrow(/ownership conflict: src\/shared\.ts is claimed by alpha and beta/iu);
+		expect(() => {
+			assertSharedExtractedFiles([first, {adapterId: 'beta', files: [{path: 'src/other.ts'}]}]);
+		}).not.toThrow();
+	});
+
+	it('names the failing adapter in a multi-adapter failure envelope', () => {
+		const error = new Error('adapter exploded');
+
+		const failInAdapter = (): void => {
+			runAdapterStage('oracle', () => {
+				throw error;
+			});
+		};
+
+		expect(failInAdapter).toThrow('adapter exploded');
+
+		// A multi-adapter build cannot infer the adapter from the plan list, so the
+		// annotation is the only source of the failing adapter.
+		expect(buildFailureOf(error, 'extraction', null, null)).toMatchObject({adapter: 'oracle', stage: 'extraction'});
 	});
 });

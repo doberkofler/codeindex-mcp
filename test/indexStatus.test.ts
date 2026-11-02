@@ -134,7 +134,12 @@ describe('index status', () => {
 		expect(summary).not.toHaveProperty('build');
 		expect(summary).not.toHaveProperty('lease');
 		expect(summary).not.toHaveProperty('exclusions');
-		expect(Buffer.byteLength(JSON.stringify({ok: true, data: summary}), 'utf8')).toBeLessThanOrEqual(600);
+		// This synthetic generation has no generation_adapter row, so the summary
+		// must report the configured adapter as unrecorded rather than present.
+		expect(summary.scope.adapters).toStrictEqual([
+			{id: 'typescript', coverage: 'absent', absenceReason: 'adapter is not recorded in the published generation', contexts: ['root']},
+		]);
+		expect(Buffer.byteLength(JSON.stringify({ok: true, data: summary}), 'utf8')).toBeLessThanOrEqual(800);
 	});
 
 	it('reports absent and incomplete generations', () => {

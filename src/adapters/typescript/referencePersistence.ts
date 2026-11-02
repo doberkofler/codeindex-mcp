@@ -120,6 +120,7 @@ export const withPersistedReferenceIndex = <ValueType>(
 			mode: 'insert',
 			reuseFacts: false,
 			generationId,
+			adapterId: input.scan.extractorId,
 			language: input.scan.extractorId,
 			files: input.facts.files,
 			projects: input.scan.projects,

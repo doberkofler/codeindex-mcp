@@ -128,15 +128,17 @@ export type ExternalAliasGroupType = Readonly<{
  * Reads the external alias group that contains one symbol.
  *
  * Members are every stored symbol with the same `(externalTarget, externalName)`
- * pair, in deterministic path order. The seed is never fanned out and no
- * occurrence is duplicated: callers query the returned identifier set once.
+ * pair under the selected adapter, in deterministic path order. The seed is
+ * never fanned out and no occurrence is duplicated: callers query the returned
+ * identifier set once.
  *
  * @param reader - Reader connection.
  * @param generationId - Published generation.
  * @param symbolId - Seed symbol identifier.
+ * @param adapter - Optional adapter filter; omitted searches every adapter.
  * @returns The group, or null when the seed is not an external alias.
  */
-export const externalAliasGroup = (reader: DatabaseSync, generationId: string, symbolId: string): ExternalAliasGroupType | null => {
+export const externalAliasGroup = (reader: DatabaseSync, generationId: string, symbolId: string, adapter?: string): ExternalAliasGroupType | null => {
 	const seed = reader.prepare('select external_target, external_name from symbol where generation_id = ? and id = ?').get(generationId, symbolId);
 	const externalTarget = seed === undefined ? null : asNullableString(seed, 'external_target');
 	const externalName = seed === undefined ? null : asNullableString(seed, 'external_name');
@@ -145,13 +147,14 @@ export const externalAliasGroup = (reader: DatabaseSync, generationId: string, s
 		return null;
 	}
 
+	const adapterClause = adapter === undefined ? '' : ' and adapter_id = ?';
 	const ids = reader
 		.prepare(
 			`select id from symbol
-			 where generation_id = ? and external_target = ? and external_name = ?
+			 where generation_id = ? and external_target = ? and external_name = ?${adapterClause}
 			 order by path, start_offset, id`,
 		)
-		.all(generationId, externalTarget, externalName)
+		.all(...(adapter === undefined ? [generationId, externalTarget, externalName] : [generationId, externalTarget, externalName, adapter]))
 		.map((row) => asString(row, 'id'));
 	const summaries = symbolSummariesByIds(reader, generationId, ids);
 	const members = ids.map((id) => summaries.get(id)).filter((member): member is SymbolSummaryType => member !== undefined);

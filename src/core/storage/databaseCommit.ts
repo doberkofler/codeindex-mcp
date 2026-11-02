@@ -192,7 +192,8 @@ const publishPhase = (
 
 	const counts = sumCounts(input.adapters);
 	const present = input.adapters.filter((entry) => entry.adapter.coverage === 'present');
-	const [primary] = (present.length > 0 ? present : [...input.adapters]).sort((left, right) => left.adapter.adapterId.localeCompare(right.adapter.adapterId));
+	// Configuration order: the singular columns project the first present adapter.
+	const [primary] = present.length > 0 ? present : input.adapters;
 
 	if (primary === undefined) {
 		throw new Error('A generation requires at least one adapter');
@@ -346,7 +347,7 @@ const adapterFromSingle = (writer: DatabaseSync, input: GenerationCommitInputTyp
 	}
 
 	const factsInput = input.reuseFacts ? null : (input as GenerationFactsInputType & Readonly<{reuseFacts: false}>);
-	const adapterId = factsInput?.adapterId ?? factsInput?.language ?? generation.extractorId;
+	const adapterId = factsInput?.adapterId ?? generation.extractorId;
 	const previousRow = writer.prepare('select * from generation_adapter where generation_id = ? and adapter_id = ?').get(input.generationId, adapterId);
 	const counts =
 		previousRow === undefined

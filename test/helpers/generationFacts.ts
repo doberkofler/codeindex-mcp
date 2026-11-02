@@ -29,6 +29,7 @@ const address = (name: string): FactAddressType => [
 
 export type GenerationFactSeedType = Readonly<{
 	readonly language: string;
+	readonly adapterId: string;
 	readonly files: readonly SourceFileType[];
 	readonly projects: readonly ScanProjectResultType[];
 	readonly facts: FinalizedFactSetType;
@@ -139,6 +140,7 @@ export const createGenerationFactSeed = (
 
 	return {
 		language: 'typescript',
+		adapterId: 'typescript',
 		files,
 		projects,
 		facts,
@@ -269,6 +271,7 @@ export const createDerivedGenerationFactSeed = (): GenerationFactSeedType => {
 
 	return {
 		language: 'typescript',
+		adapterId: 'typescript',
 		files,
 		projects,
 		facts,

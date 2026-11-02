@@ -430,7 +430,7 @@ describe('find_references partition completeness', () => {
 				]),
 		} as unknown as IndexDatabase;
 
-		const resolved = resolveReferencePartition(database, 'generation', 'seed', 'external_alias_group');
+		const resolved = resolveReferencePartition(database, 'generation', 'seed', {scope: 'external_alias_group'});
 
 		expect(resolved.symbolIds).toStrictEqual(['seed', 'sibling']);
 		expect(resolved.partition.completeness).toBe('bounded');
@@ -462,7 +462,7 @@ describe('find_references partition completeness', () => {
 			definitionCountsBySymbol: () => new Map(members.map((member) => [member.id, 1])),
 		} as unknown as IndexDatabase;
 
-		const resolved = resolveReferencePartition(database, 'generation', 'seed', 'external_alias_group');
+		const resolved = resolveReferencePartition(database, 'generation', 'seed', {scope: 'external_alias_group'});
 
 		expect(resolved.partition.memberSymbols).toHaveLength(20);
 		expect(resolved.partition.memberSymbolsTotal).toBe(25);

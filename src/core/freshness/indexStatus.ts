@@ -64,6 +64,9 @@ const compilerProvenanceOf = (
 	compilerDrift: row?.compilerDrift ?? projection?.compilerDrift ?? false,
 });
 
+const missingCoverageReason = (published: GenerationRowType | null): string =>
+	published === null ? 'no published generation' : 'adapter is not recorded in the published generation';
+
 const adapterStatusEntry = (
 	adapter: ReturnType<typeof configuredAdapters>[number],
 	index: number,
@@ -76,9 +79,9 @@ const adapterStatusEntry = (
 
 	return {
 		id: adapter.id,
-		version: extractor.version,
-		coverage: row?.coverage ?? 'present',
-		absenceReason: row?.absenceReason ?? null,
+		version: row?.adapterVersion ?? extractor.version,
+		coverage: row?.coverage ?? 'absent',
+		absenceReason: row?.absenceReason ?? missingCoverageReason(published),
 		...compilerProvenanceOf(row, projection),
 		contexts: adapter.projects.map((project) => project.name),
 		limitations: extractor.limitations,
@@ -194,7 +197,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
  */
 export const summaryStatusOf = (status: IndexStatusType): IndexStatusSummaryType => {
 	const extractor = status.scope.adapters.length === 1 ? status.scope.extractor : undefined;
-	const needsAdapterList = status.scope.adapters.length > 1 || status.scope.adapters.some((adapter) => adapter.coverage === 'absent');
+	const needsAdapterList = status.scope.adapters.length > 1 || (status.ready && status.scope.adapters.some((adapter) => adapter.coverage === 'absent'));
 
 	return {
 		ready: status.ready,
@@ -212,6 +215,7 @@ export const summaryStatusOf = (status: IndexStatusType): IndexStatusSummaryType
 							id: adapter.id,
 							coverage: adapter.coverage,
 							...(adapter.absenceReason === null ? {} : {absenceReason: adapter.absenceReason}),
+							contexts: adapter.contexts,
 						})),
 					}
 				: {}),

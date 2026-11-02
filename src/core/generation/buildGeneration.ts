@@ -7,11 +7,13 @@ import {type LoggerType} from '../logging/logger.ts';
 import {type BuildOutcomeType, type BuildReportType, type BuildStagesType, type GenerationRowType, type ScanResultType} from '../model.ts';
 import {type AdapterCommitCountsType, type IndexDatabase} from '../storage/database.ts';
 import {type createExtractorCache} from './buildArtifacts.ts';
-import {type BuildProjectContextType, buildFailureOf, buildProjectContextOf, runBuildStage} from './buildFailure.ts';
+import {type BuildProjectContextType, buildFailureOf, buildProjectContextOf, runAdapterStage, runBuildStage} from './buildFailure.ts';
 import {adapterCommitOf, ZERO_COUNTS} from './adapterCommit.ts';
 import {
 	AdapterContractError,
 	adapterTargets,
+	assertAdapterIdentity,
+	assertSharedExtractedFiles,
 	assertSharedPaths,
 	combinedAdapterHashesOf,
 	combinedHashesOf,
@@ -203,14 +205,14 @@ const scanPlansOf = (
 
 	return targets.map((target) => {
 		const scoped = adapterConfigFor(input.config, target.adapter);
-		const probe = probeAdapter(target, scoped);
+		const probe = runAdapterStage(target.adapter.id, () => probeAdapter(target, scoped));
 
 		if (probe.coverage === 'absent') {
 			return {adapterId: target.adapter.id, coverage: 'absent', absenceReason: probe.reason, scan: null};
 		}
 
 		const knownPaths = published === null ? [] : input.database.listFiles(published.id, target.adapter.id).map((file) => file.path);
-		const scan = runBuildStage('scan', () => target.extractor.scan(scoped, knownPaths));
+		const scan = runAdapterStage(target.adapter.id, () => runBuildStage('scan', () => target.extractor.scan(scoped, knownPaths)));
 
 		return {adapterId: target.adapter.id, coverage: 'present', absenceReason: null, scan};
 	});
@@ -271,18 +273,23 @@ const commitAdapters = (context: CommitContextType): BuildReportType => {
 			throw new AdapterContractError(`No adapter target for ${plan.adapterId}`);
 		}
 
-		return adapterCommitOf({
-			plan,
-			target,
-			previous: previousById.get(plan.adapterId),
-			config: context.config,
-			database: context.database,
-			published: context.database.getPublishedGeneration(),
-			force: context.force,
-			override: context.extractorOverride,
-			persist,
-		});
+		return runAdapterStage(plan.adapterId, () =>
+			adapterCommitOf({
+				plan,
+				target,
+				previous: previousById.get(plan.adapterId),
+				config: context.config,
+				database: context.database,
+				published: context.database.getPublishedGeneration(),
+				force: context.force,
+				override: context.extractorOverride,
+				persist,
+			}),
+		);
 	});
+
+	assertAdapterIdentity(adapters);
+	assertSharedExtractedFiles(adapters);
 
 	const commit = context.database.commitAdapters({
 		generationId: context.generationId,
@@ -388,8 +395,22 @@ const failedBuild = (
 	}
 
 	const message = error instanceof Error ? error.message : String(error);
-	debug('build failed', {generationId: input.generationId, message, cause: failure.cause, stage: failure.stage, errno: failure.errno});
-	input.logger.error('index_build_failed', {generationId: input.generationId, message, cause: failure.cause, stage: failure.stage, errno: failure.errno});
+	debug('build failed', {
+		generationId: input.generationId,
+		message,
+		cause: failure.cause,
+		stage: failure.stage,
+		errno: failure.errno,
+		adapter: failure.adapter,
+	});
+	input.logger.error('index_build_failed', {
+		generationId: input.generationId,
+		message,
+		cause: failure.cause,
+		stage: failure.stage,
+		errno: failure.errno,
+		adapter: failure.adapter,
+	});
 
 	if (input.mode === 'insert') {
 		input.database.markFailed(input.generationId, message);

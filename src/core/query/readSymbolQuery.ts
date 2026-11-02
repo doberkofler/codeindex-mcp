@@ -15,6 +15,8 @@ type ReadQueryInputType = Readonly<{
 	generationId: string;
 	freshness: QueryFreshnessType;
 	symbol: SymbolSummaryType;
+	/** Normalized adapter filter bound into every list cursor. */
+	adapter?: string | undefined;
 	isPathDirty: (pathName: string) => boolean;
 	maxReadLines: number;
 	maxResultBytes: number;
@@ -46,7 +48,7 @@ const readList = (
 	mode: 'sites' | 'names' | 'binding_sites' | 'binding_contexts',
 ): ReadSymbolResultType => {
 	const limit = input.limit ?? 50;
-	const queryKind = JSON.stringify([mode, query.symbol.id, input.bindingId ?? null, input.context ?? null]);
+	const queryKind = JSON.stringify([mode, query.symbol.id, input.bindingId ?? null, input.context ?? null, query.adapter ?? null]);
 	const offset = decodeCursor(input.cursor, query.generationId, queryKind).o;
 
 	if (mode === 'sites') {

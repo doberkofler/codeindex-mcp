@@ -402,6 +402,7 @@ export class CodeIndex {
 					generationId: generation.id,
 					freshness,
 					symbol,
+					...(selection.adapter === undefined ? {} : {adapter: selection.adapter}),
 					isPathDirty: (pathName) => this.#coordinator.isPathDirty(pathName),
 					maxReadLines: this.#config.maxReadLines,
 					maxResultBytes,

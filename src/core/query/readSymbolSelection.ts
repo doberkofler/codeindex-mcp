@@ -5,7 +5,7 @@ import {type QueryContextType} from './queryService.ts';
 import {assertReferenceSelector, resolveReferenceQuery} from './referenceResolution.ts';
 import {readSymbolAmbiguousResult, readSymbolNoneResult} from './readSymbolResult.ts';
 
-export type ReadSymbolSelectionType = Readonly<{symbolId: string} | {result: ReadSymbolResultType}>;
+export type ReadSymbolSelectionType = Readonly<{symbolId: string; adapter: string | undefined}> | {result: ReadSymbolResultType};
 
 export type ReadSymbolSelectionContextType = QueryContextType & Readonly<{maxResultBytes: number}>;
 
@@ -45,7 +45,7 @@ export const selectReadSymbol = (context: ReadSymbolSelectionContextType, input:
 
 		assertSymbolAdapter(symbol.adapter, scope.adapter);
 
-		return {symbolId};
+		return {symbolId, adapter: scope.adapter};
 	}
 
 	const resolution = resolveReferenceQuery(
@@ -76,5 +76,5 @@ export const selectReadSymbol = (context: ReadSymbolSelectionContextType, input:
 		};
 	}
 
-	return {symbolId: resolution.symbolId};
+	return {symbolId: resolution.symbolId, adapter: scope.adapter};
 };

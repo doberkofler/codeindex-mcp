@@ -99,6 +99,7 @@ export type IndexStatusSummaryType = Readonly<{
 					readonly id: string;
 					readonly coverage: 'present' | 'absent';
 					readonly absenceReason?: string | undefined;
+					readonly contexts: readonly string[];
 			  }>[]
 			| undefined;
 		/** Singular projection, present only when exactly one adapter is configured. */

@@ -88,12 +88,14 @@ export const recordFailedRefresh = (
 		cause: input.failure.cause,
 		stage: input.failure.stage,
 		errno: input.failure.errno,
+		adapter: input.failure.adapter,
 	});
 	recordSafely(input.analytics, 'build_failed', {
 		reason: input.reason,
 		cause: input.failure.cause,
 		stage: input.failure.stage,
 		errno: input.failure.errno,
+		adapter: input.failure.adapter,
 		durationMs: input.durationMs,
 		...input.resources,
 	});

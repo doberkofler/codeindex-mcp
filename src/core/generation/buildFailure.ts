@@ -50,6 +50,32 @@ export type BuildFailureType = Readonly<{
 
 const errorStages = new WeakMap<object, BuildFailureStageType>();
 
+const errorAdapters = new WeakMap<object, string>();
+
+/**
+ * Attaches the adapter that owns a failing action.
+ *
+ * The error object is rethrown unchanged. The adapter is recorded out of band
+ * so a multi-adapter failure names the adapter that failed instead of degrading
+ * to null because several adapters participated.
+ *
+ * @param adapterId - Adapter that owns the action.
+ * @param action - Work to run.
+ * @returns The action's value.
+ * @throws {Error} Whatever the action throws, annotated with the adapter.
+ */
+export const runAdapterStage = <ValueType>(adapterId: string, action: () => ValueType): ValueType => {
+	try {
+		return action();
+	} catch (error) {
+		if (typeof error === 'object' && error !== null && !errorAdapters.has(error)) {
+			errorAdapters.set(error, adapterId);
+		}
+
+		throw error;
+	}
+};
+
 /**
  * Attaches one build stage to the error an action throws.
  *
@@ -110,6 +136,14 @@ const stageOf = (error: unknown, fallback: BuildFailureStageType): BuildFailureS
 	}
 
 	return fallback;
+};
+
+const adapterOf = (error: unknown): string | null => {
+	if (typeof error !== 'object' || error === null) {
+		return null;
+	}
+
+	return errorAdapters.get(error) ?? null;
 };
 
 /**
@@ -176,13 +210,15 @@ export const buildFailureOf = (
 		return error.failure;
 	}
 
+	const attachedAdapter = adapterOf(error);
+
 	return {
 		outcome: 'failed',
 		cause: buildFailureCauseOf(error),
 		stage: stageOf(error, fallbackStage),
 		errno: errnoOf(error),
 		project,
-		adapter,
+		adapter: attachedAdapter ?? adapter,
 	};
 };
 

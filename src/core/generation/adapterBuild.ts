@@ -192,6 +192,25 @@ export const combinedHashesOf = (plans: readonly AdapterScanPlanType[]): Readonl
 };
 
 /**
+ * Records one path owner, rejecting a second adapter for the same identity.
+ *
+ * @param owners - Identity to adapter map.
+ * @param identity - Resolved path identity or workspace-relative path.
+ * @param relativePath - Workspace-relative path used in the message.
+ * @param adapterId - Adapter claiming the path.
+ * @throws {@link AdapterContractError} When another adapter already owns the identity.
+ */
+const claimPath = (owners: Map<string, string>, identity: string, relativePath: string, adapterId: string): void => {
+	const existing = owners.get(identity);
+
+	if (existing !== undefined && existing !== adapterId) {
+		throw new AdapterContractError(`Adapter ownership conflict: ${relativePath} is claimed by ${existing} and ${adapterId}`);
+	}
+
+	owners.set(identity, adapterId);
+};
+
+/**
  * Rejects two adapters that claim the same authored path.
  *
  * Ownership is checked on the resolved real path, so symlinked or
@@ -210,13 +229,88 @@ export const assertSharedPaths = (plans: readonly AdapterScanPlanType[]): void =
 
 		for (const file of plan.scan.files) {
 			const identity = isAbsolute(file.absolutePath) ? realpathSync(file.absolutePath) : file.path;
-			const existing = owners.get(identity);
+			claimPath(owners, identity, file.path, plan.adapterId);
+		}
+	}
+};
 
-			if (existing !== undefined && existing !== plan.adapterId) {
-				throw new AdapterContractError(`Adapter ownership conflict: ${file.path} is claimed by ${existing} and ${plan.adapterId}`);
+/**
+ * Re-validates path ownership on the final extracted file sets.
+ *
+ * Extraction can publish more files than the scan manifest carried, so the
+ * scan-time check cannot prove uniqueness of the rows that are about to be
+ * written. A conflict here fails the candidate with an adapter ownership cause
+ * instead of surfacing as a primary-key violation during publication.
+ *
+ * @param adapters - Extracted adapters with their final file sets.
+ * @throws {@link AdapterContractError} When two adapters claim one path.
+ */
+export const assertSharedExtractedFiles = (adapters: readonly Readonly<{adapterId: string; files: readonly Readonly<{path: string}>[]}>[]): void => {
+	const owners = new Map<string, string>();
+
+	for (const adapter of adapters) {
+		for (const file of adapter.files) {
+			claimPath(owners, file.path, file.path, adapter.adapterId);
+		}
+	}
+};
+
+/** One identifier class validated across adapters. */
+type IdentityFactsType = Readonly<{
+	readonly kind: string;
+	readonly ids: (adapter: AdapterIdentitySourceType) => readonly string[];
+}>;
+
+/** Identity classes validated across adapters. */
+const IDENTITY_FACTS: readonly IdentityFactsType[] = [
+	{kind: 'symbol', ids: (adapter) => adapter.facts?.symbols.map((symbol) => symbol.id) ?? []},
+	{kind: 'binding', ids: (adapter) => adapter.facts?.bindings.map((binding) => binding.bindingId) ?? []},
+	{kind: 'dependency', ids: (adapter) => adapter.dependencies?.edges.map((edge) => edge.id) ?? []},
+];
+
+/** One adapter's extracted facts, as needed for cross-adapter identity checks. */
+type AdapterIdentitySourceType = Readonly<{
+	readonly adapterId: string;
+	readonly coverage: AdapterCoverageType;
+	readonly facts?:
+		| Readonly<{
+				readonly symbols: readonly Readonly<{id: string}>[];
+				readonly bindings: readonly Readonly<{bindingId: string}>[];
+		  }>
+		| undefined;
+	readonly dependencies?:
+		| Readonly<{
+				readonly edges: readonly Readonly<{id: string}>[];
+		  }>
+		| undefined;
+}>;
+
+/**
+ * Rejects identity reused by two adapters in one generation.
+ *
+ * Adapter-local identifiers are anchored to the adapter's own project paths, so
+ * a cross-adapter duplicate is an adapter defect. It is never merged, renamed,
+ * or resolved last-writer-wins.
+ *
+ * @param adapters - Extracted adapters and their fact bundles.
+ * @throws {@link AdapterContractError} When two adapters emit the same identifier.
+ */
+export const assertAdapterIdentity = (adapters: readonly AdapterIdentitySourceType[]): void => {
+	const present = adapters.filter((adapter) => adapter.coverage === 'present');
+
+	for (const {kind, ids} of IDENTITY_FACTS) {
+		const owners = new Map<string, string>();
+
+		for (const adapter of present) {
+			for (const id of ids(adapter)) {
+				const existing = owners.get(id);
+
+				if (existing !== undefined && existing !== adapter.adapterId) {
+					throw new AdapterContractError(`Adapter identity collision: ${kind} ${id} is claimed by ${existing} and ${adapter.adapterId}`);
+				}
+
+				owners.set(id, adapter.adapterId);
 			}
-
-			owners.set(identity, plan.adapterId);
 		}
 	}
 };

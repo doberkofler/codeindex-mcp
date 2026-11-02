@@ -86,7 +86,7 @@ const partitionOf = (input: PartitionInputType): ResolvedReferencePartitionType 
  * @param database - Published index reader.
  * @param generationId - Published generation.
  * @param symbolId - Requested seed symbol.
- * @param scope - Requested partition selector.
+ * @param options - Requested partition selector and optional adapter filter.
  * @returns Partition identifiers and response metadata.
  * @throws {@link CodeIndexError} When an alias group is requested for an
  * authored symbol that has no external target and name.
@@ -95,8 +95,9 @@ export const resolveReferencePartition = (
 	database: IndexDatabase,
 	generationId: string,
 	symbolId: string,
-	scope: ReferencePartitionScopeType | undefined,
+	options: Readonly<{scope: ReferencePartitionScopeType | undefined; adapter?: string | undefined}>,
 ): ResolvedReferencePartitionType => {
+	const {scope, adapter} = options;
 	const seed = database.getSymbol(generationId, symbolId);
 
 	if (seed === null) {
@@ -118,7 +119,7 @@ export const resolveReferencePartition = (
 		});
 	}
 
-	const group = database.externalAliasGroup(generationId, symbolId);
+	const group = database.externalAliasGroup(generationId, symbolId, adapter);
 
 	if (group === null) {
 		throw new CodeIndexError(
