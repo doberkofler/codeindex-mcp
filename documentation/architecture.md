@@ -302,7 +302,7 @@ The MCP transport registers seven read-only, idempotent tools:
 | `index_status` | Summarize readiness, scope, publication, freshness, counts, and diagnostics |
 | `outline` | Page declarations in one path in source order |
 | `find_symbol` | Search binding names and qualified names by exact or prefix match |
-| `find_references` | Resolve a name or symbol ID, then page occurrences or grouped paths/owners |
+| `find_references` | Resolve a name or symbol ID, then page occurrences or grouped paths/owners for one symbol partition or an external alias group |
 | `find_dependencies` | Page direct external consumers or bounded transitive impact roots |
 | `read_symbol` | Select a symbol, verify freshness, and return bounded source or metadata lists |
 | `symbol_at` | Resolve a path and position to the innermost covering stored declaration |
@@ -312,6 +312,17 @@ envelope with freshness and derived guidance. Paged results include a generation
 identifier, `truncated`, and `nextCursor`; requested limits are upper bounds because
 the byte budget may shorten a page. A cursor is tied to its generation and query
 shape.
+
+`find_references` selects one occurrence partition. The default `scope: partition`
+contains exactly one symbol. `scope: external_alias_group` expands an indexed
+external alias to every stored alias with the same `(externalTarget,
+externalName)` pair. Results report `memberSymbols`, `siblingSymbols`, and
+`completeness`; they are complete for the selected partition, never for an
+unselected one. Alias-group and single-symbol totals are different scopes and are
+not complements. Direct external call sites remain outside occurrence results.
+Completeness is derived from stored definitions, not from occurrence drop
+counters, so an extractor that could not store a member definition reports
+`bounded`.
 
 Stable expected error codes are `index_not_ready`, `index_build_failed`,
 `file_not_indexed`, `symbol_not_found`, `stale_file`, `invalid_cursor`,

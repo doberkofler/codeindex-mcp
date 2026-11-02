@@ -51,4 +51,6 @@ export const toSymbolSummary = (row: SqlRowType, contexts: readonly string[]): S
 	startOffset: asNumber(row, 'start_offset'),
 	endOffset: asNumber(row, 'end_offset'),
 	contexts,
+	externalTarget: asNullableString(row, 'external_target'),
+	externalName: asNullableString(row, 'external_name'),
 });

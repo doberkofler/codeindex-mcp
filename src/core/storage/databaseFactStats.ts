@@ -1,4 +1,7 @@
+import {type DatabaseSync} from 'node:sqlite';
 import {type FinalizedBindingType, type FinalizedFactSetType, type FinalizedSymbolType} from '../facts/types.ts';
+import {type BuildStatType} from '../model.ts';
+import {asNumber, asString} from './databaseRows.ts';
 
 /** One persisted closed-category build statistic row. */
 export type BuildStatRowType = Readonly<{
@@ -137,3 +140,23 @@ export const buildStatsOf = (facts: FinalizedFactSetType, language: string): rea
 			left.dim3.localeCompare(right.dim3),
 	);
 };
+
+/**
+ * Reads persisted build statistics for one generation.
+ *
+ * @param reader - Reader connection.
+ * @param generationId - Published generation.
+ * @returns Statistics ordered by language, metric, and dimensions.
+ */
+export const readBuildStats = (reader: DatabaseSync, generationId: string): readonly BuildStatType[] =>
+	reader
+		.prepare('select language, metric, dim1, dim2, dim3, value from build_stats where generation_id = ? order by language, metric, dim1, dim2, dim3')
+		.all(generationId)
+		.map((row) => ({
+			language: asString(row, 'language'),
+			metric: asString(row, 'metric'),
+			dim1: asString(row, 'dim1'),
+			dim2: asString(row, 'dim2'),
+			dim3: asString(row, 'dim3'),
+			value: asNumber(row, 'value'),
+		}));

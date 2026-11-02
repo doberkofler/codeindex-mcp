@@ -11,6 +11,8 @@ export type ToolGuidanceType = Readonly<{
 }>;
 
 const STOP_MESSAGE = 'Complete result; no fallback search is required.';
+const REFERENCE_STOP_MESSAGE = 'Complete for the selected reference partition; no fallback search is required.';
+const BOUNDED_MESSAGE = 'The selected reference partition is bounded; confirm with a repository text search before claiming completeness.';
 const CURSOR_MESSAGE = 'Result is truncated; follow nextCursor before answering.';
 const REFINE_MESSAGE = 'Multiple stored symbols match; choose one candidate before answering.';
 const TEXT_SEARCH_MESSAGE = 'No stored match; this is not evidence of absence. Use a repository text search as the fallback.';
@@ -25,6 +27,16 @@ const freshnessOf = (data: Readonly<Record<string, unknown>>): string | null => 
 	}
 
 	return isRecord(freshness) && typeof freshness['state'] === 'string' ? freshness['state'] : null;
+};
+
+const isBoundedReferencePartition = (tool: string, data: Readonly<Record<string, unknown>>): boolean => {
+	if (tool !== 'find_references') {
+		return false;
+	}
+
+	const {partition} = data;
+
+	return isRecord(partition) && partition['completeness'] === 'bounded';
 };
 
 const isEmptyOf = (data: Readonly<Record<string, unknown>>): boolean => {
@@ -66,6 +78,10 @@ export const toolGuidanceOf = (tool: string, data: unknown): ToolGuidanceType | 
 		return {action: 'refine', fallbackRequired: false, message: REFINE_MESSAGE};
 	}
 
+	if (isBoundedReferencePartition(tool, data)) {
+		return {action: 'text_search', fallbackRequired: true, message: BOUNDED_MESSAGE};
+	}
+
 	const freshness = freshnessOf(data);
 
 	if (freshness === 'stale' || freshness === 'unknown') {
@@ -90,5 +106,5 @@ export const toolGuidanceOf = (tool: string, data: unknown): ToolGuidanceType | 
 
 	return isEmptyOf(data)
 		? {action: 'text_search', fallbackRequired: true, message: TEXT_SEARCH_MESSAGE}
-		: {action: 'stop', fallbackRequired: false, message: STOP_MESSAGE};
+		: {action: 'stop', fallbackRequired: false, message: tool === 'find_references' ? REFERENCE_STOP_MESSAGE : STOP_MESSAGE};
 };

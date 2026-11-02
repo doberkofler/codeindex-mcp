@@ -3,7 +3,7 @@ import {type IndexedOccurrenceType, type IndexedSymbolType, type SourceFileType}
 import {debugFor} from '../../core/logging/debug.ts';
 import {scanProject} from './scanProject.ts';
 import {typeScriptExtractor} from './index.ts';
-import {compareReferenceLocations, type ReferenceLocationType} from './referenceLocations.ts';
+import {compareReferenceLocations, referenceLocationKey, type ReferenceLocationType} from './referenceLocations.ts';
 import {type ReferenceConstructTagType} from './referenceConstructs.ts';
 import {selectReferenceSample} from './referenceSampling.ts';
 import {
@@ -23,6 +23,7 @@ import {
 	type ReferenceCoverageType,
 	type ReferenceSkipReasonType,
 	type ReferenceUnmatchedClassType,
+	type ReferenceAliasGroupVerificationType,
 	type ReferenceUnmatchedLocationType,
 	type ReferenceVerificationFactsType,
 	type ReferenceVerificationReportType,
@@ -188,6 +189,88 @@ const accuracyOf = (comparisons: readonly ReferenceComparisonType[]): ReferenceA
 	};
 };
 
+const MIN_ALIAS_GROUP_MEMBERS = 2;
+
+type AliasGroupInputType = Readonly<{
+	readonly externalTarget: string;
+	readonly externalName: string;
+	readonly members: readonly IndexedSymbolType[];
+}>;
+
+const aliasGroupsOf = (symbols: readonly IndexedSymbolType[]): readonly AliasGroupInputType[] => {
+	const groups = new Map<string, {externalTarget: string; externalName: string; members: IndexedSymbolType[]}>();
+
+	for (const symbol of symbols) {
+		const externalTarget = symbol.externalTarget ?? null;
+		const externalName = symbol.externalName ?? null;
+
+		if (externalTarget === null || externalName === null) {
+			continue;
+		}
+
+		const key = `${externalTarget}\u0000${externalName}`;
+		const group = groups.get(key) ?? {externalTarget, externalName, members: []};
+		group.members.push(symbol);
+		groups.set(key, group);
+	}
+
+	return [...groups.values()]
+		.filter((group) => group.members.length >= MIN_ALIAS_GROUP_MEMBERS)
+		.map((group) => ({
+			...group,
+			members: [...group.members].sort(
+				(left, right) => left.path.localeCompare(right.path) || left.startOffset - right.startOffset || left.id.localeCompare(right.id),
+			),
+		}))
+		.sort((left, right) => left.externalTarget.localeCompare(right.externalTarget) || left.externalName.localeCompare(right.externalName));
+};
+
+const sameLocationMultiset = (left: readonly ReferenceLocationType[], right: readonly ReferenceLocationType[]): boolean =>
+	left
+		.map((location) => referenceLocationKey(location))
+		.sort()
+		.join('\n') ===
+	right
+		.map((location) => referenceLocationKey(location))
+		.sort()
+		.join('\n');
+
+const verifyAliasGroup = (
+	group: AliasGroupInputType,
+	reader: Parameters<Parameters<typeof withPersistedReferenceIndex>[1]>[0],
+	comparisons: readonly ReferenceComparisonType[],
+): ReferenceAliasGroupVerificationType => {
+	const perMember = group.members.map((member) => ({member, locations: reader.readAll(member.id, 'partition')}));
+	const [seed] = group.members;
+
+	if (seed === undefined) {
+		throw new Error('Alias group has no member');
+	}
+
+	const groupLocations = reader.readAll(seed.id, 'external_alias_group');
+	const memberLocations = perMember.flatMap((entry) => entry.locations);
+	const definitions = groupLocations.filter((location) => location.role === 'definition').length;
+	const memberIds = new Set(group.members.map((member) => member.id));
+	const memberComparisons = comparisons.filter((comparison) => comparison.skip === null && memberIds.has(comparison.symbolId));
+	const directExternalSites = memberComparisons.reduce(
+		(total, comparison) => total + comparison.unmatched.filter((entry) => entry.classification === 'direct_external').length,
+		0,
+	);
+
+	return {
+		externalTarget: group.externalTarget,
+		externalName: group.externalName,
+		memberSymbols: group.members.length,
+		siblingSymbols: group.members.length - 1,
+		definitions,
+		references: groupLocations.length - definitions,
+		completeness: perMember.every((entry) => entry.locations.some((location) => location.role === 'definition')) ? 'complete' : 'bounded',
+		matches: sameLocationMultiset(groupLocations, memberLocations),
+		sampledMembers: new Set(memberComparisons.map((comparison) => comparison.symbolId)).size,
+		directExternalSites,
+	};
+};
+
 const firstLocated = (
 	contexts: readonly ReferenceUnionContextType[],
 	symbolId: string,
@@ -280,8 +363,9 @@ export const verifyTypeScriptReferences = (config: ConfigType): ReferenceVerific
 		];
 	});
 	const sample = selectReferenceSample(candidates);
-	const {value: comparisons, persistence} = withPersistedReferenceIndex({config, scan, facts}, (reader) =>
-		sample.map((candidate) =>
+	const groups = aliasGroupsOf(facts.symbols);
+	const {value, persistence} = withPersistedReferenceIndex({config, scan, facts}, (reader) => {
+		const comparisons = sample.map((candidate) =>
 			compareSymbol({
 				symbol: candidate.symbol,
 				tags: candidate.tags,
@@ -291,8 +375,12 @@ export const verifyTypeScriptReferences = (config: ConfigType): ReferenceVerific
 				stored,
 				syntaxClassOf: (location) => syntaxClassifier(location.path, location.startOffset, location.endOffset),
 			}),
-		),
-	);
+		);
+		const aliasGroups = groups.map((group) => verifyAliasGroup(group, reader, comparisons));
+
+		return {comparisons, aliasGroups};
+	});
+	const {comparisons, aliasGroups} = value;
 
 	facts.validate?.();
 
@@ -300,6 +388,7 @@ export const verifyTypeScriptReferences = (config: ConfigType): ReferenceVerific
 		coverage: coverageOf({indexedSymbols: facts.symbols.length, locatedSymbols: locatedSymbols.length}, comparisons),
 		accuracy: accuracyOf(comparisons),
 		persistence,
+		aliasGroups,
 		comparisons,
 	};
 	const gate = evaluateReferenceGate(verification);
@@ -312,6 +401,7 @@ export const verifyTypeScriptReferences = (config: ConfigType): ReferenceVerific
 		actual: verification.accuracy.actual,
 		matched: verification.accuracy.matched,
 		unexplained: verification.accuracy.unexplained,
+		aliasGroups: verification.aliasGroups.length,
 		pages: verification.persistence.pages,
 		gate: gate.ok,
 	});
@@ -380,6 +470,7 @@ export const runVerification = (environment: NodeJS.ProcessEnv, io: Readonly<{st
 				coverage: report.coverage,
 				accuracy: report.accuracy,
 				persistence: report.persistence,
+				aliasGroups: report.aliasGroups,
 				gate: report.gate,
 				comparisons: report.comparisons
 					.filter((comparison) => comparison.skip !== null || comparison.missing.length > 0 || comparison.extra.length > 0)

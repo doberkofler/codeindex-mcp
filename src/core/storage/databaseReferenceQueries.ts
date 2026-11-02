@@ -6,13 +6,31 @@ import {asNullableString} from './databasePublicationRows.ts';
 /** Filters shared by every reference occurrence query. */
 export type ReferenceScopeType = Readonly<{
 	readonly generationId: string;
+	/** Seed symbol; the only member of the default partition. */
 	readonly symbolId: string;
+	/**
+	 * Complete symbol set of the selected partition.
+	 *
+	 * The default partition omits this and reads exactly `symbolId`. An external
+	 * alias group supplies every member, so one query returns the group without
+	 * fanning out one stored occurrence into several symbols.
+	 */
+	readonly symbolIds?: readonly string[] | undefined;
 	readonly role?: 'definition' | 'reference' | undefined;
 	readonly path?: string | undefined;
 	readonly enclosingId?: string | undefined;
 	readonly usage?: number | undefined;
 	readonly context?: string | undefined;
 }>;
+
+const symbolIdsOf = (input: ReferenceScopeType): readonly string[] =>
+	input.symbolIds === undefined || input.symbolIds.length === 0 ? [input.symbolId] : input.symbolIds;
+
+const symbolClauseOf = (input: ReferenceScopeType, alias: string): Readonly<{sql: string; parameters: readonly string[]}> => {
+	const symbolIds = symbolIdsOf(input);
+
+	return {sql: `${alias}.symbol_id in (${placeholders(symbolIds.length)})`, parameters: symbolIds};
+};
 
 /** One usage bucket inside a file or owner group. */
 export type ReferenceGroupRowType = Readonly<{
@@ -30,8 +48,9 @@ export type ReferenceGroupContextRowType = Readonly<{
 }>;
 
 const occurrenceClauses = (input: ReferenceScopeType, alias: string): Readonly<{sql: string; parameters: readonly (string | number)[]}> => {
-	const clauses: string[] = [`${alias}.generation_id = ?`, `${alias}.symbol_id = ?`];
-	const parameters: (string | number)[] = [input.generationId, input.symbolId];
+	const symbolClause = symbolClauseOf(input, alias);
+	const clauses: string[] = [`${alias}.generation_id = ?`, symbolClause.sql];
+	const parameters: (string | number)[] = [input.generationId, ...symbolClause.parameters];
 
 	if (input.role !== undefined) {
 		clauses.push(`${alias}.role = ?`);
@@ -67,8 +86,9 @@ const occurrenceClauses = (input: ReferenceScopeType, alias: string): Readonly<{
 };
 
 const definitionClauses = (input: ReferenceScopeType, alias: string): Readonly<{sql: string; parameters: readonly (string | number)[]}> => {
-	const clauses: string[] = [`${alias}.generation_id = ?`, `${alias}.symbol_id = ?`, `${alias}.role = 'definition'`];
-	const parameters: (string | number)[] = [input.generationId, input.symbolId];
+	const symbolClause = symbolClauseOf(input, alias);
+	const clauses: string[] = [`${alias}.generation_id = ?`, symbolClause.sql, `${alias}.role = 'definition'`];
+	const parameters: (string | number)[] = [input.generationId, ...symbolClause.parameters];
 
 	if (input.path !== undefined) {
 		clauses.push(`${alias}.path = ?`);
@@ -213,8 +233,9 @@ export const referenceCoverage = (
 	input: Readonly<{generationId: string; symbolId: string; filters: ReferenceScopeType}>,
 ): Readonly<{unclassifiedReferences: number; crossFileRefsObserved: boolean}> => {
 	const scope: ReferenceScopeType = {...input.filters, generationId: input.generationId, symbolId: input.symbolId};
-	const coverageClauses: string[] = ['generation_id = ?', 'symbol_id = ?'];
-	const coverageParameters: (string | number)[] = [input.generationId, input.symbolId];
+	const symbolIds = symbolIdsOf(scope);
+	const coverageClauses: string[] = ['generation_id = ?', `symbol_id in (${placeholders(symbolIds.length)})`];
+	const coverageParameters: (string | number)[] = [input.generationId, ...symbolIds];
 
 	if (scope.path !== undefined) {
 		coverageClauses.push('path = ?');
@@ -237,10 +258,10 @@ export const referenceCoverage = (
 		.prepare(
 			`select
 				(select count(*) from occurrence where ${coverageClauses.join(' and ')} and role = 'reference' and usage = 0) as unclassified,
-				(select count(*) from occurrence where ${coverageClauses.join(' and ')} and role = 'reference' and path <> (select path from symbol where generation_id = ? and id = ?)) as cross_file
+				(select count(*) from occurrence where ${coverageClauses.join(' and ')} and role = 'reference' and path not in (select path from symbol where generation_id = ? and id in (${placeholders(symbolIds.length)}))) as cross_file
 			 from (select 1)`,
 		)
-		.get(...coverageParameters, ...coverageParameters, input.generationId, input.symbolId);
+		.get(...coverageParameters, ...coverageParameters, input.generationId, ...symbolIds);
 
 	if (row === undefined) {
 		return {unclassifiedReferences: 0, crossFileRefsObserved: false};
@@ -283,6 +304,35 @@ export const referenceTotals = (
 		occurrencesTotal: asNumber(row, 'occurrences'),
 		definitionsTotal: asNumber(row, 'definitions'),
 	};
+};
+
+/**
+ * Counts stored definition occurrences for each requested symbol.
+ *
+ * The default partition always has one member; an external alias group has
+ * several. A member without a definition cannot prove its partition complete,
+ * so the count feeds the result completeness axis instead of a drop counter.
+ *
+ * @param reader - Reader connection.
+ * @param generationId - Published generation.
+ * @param symbolIds - Symbol identifiers in the selected partition.
+ * @returns Definition count per symbol, with missing symbols omitted.
+ */
+export const definitionCountsBySymbol = (reader: DatabaseSync, generationId: string, symbolIds: readonly string[]): ReadonlyMap<string, number> => {
+	if (symbolIds.length === 0) {
+		return new Map();
+	}
+
+	const rows = reader
+		.prepare(
+			`select symbol_id, count(*) as definitions
+			 from occurrence
+			 where generation_id = ? and symbol_id in (${placeholders(symbolIds.length)}) and role = 'definition'
+			 group by symbol_id`,
+		)
+		.all(generationId, ...symbolIds);
+
+	return new Map(rows.map((row) => [asString(row, 'symbol_id'), asNumber(row, 'definitions')]));
 };
 
 /**

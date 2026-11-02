@@ -14,6 +14,10 @@ export type SymbolSummaryType = Readonly<{
 	readonly startOffset: number;
 	readonly endOffset: number;
 	readonly contexts: readonly string[];
+	/** External module target for a synthetic authored alias; null or absent otherwise. */
+	readonly externalTarget?: string | null | undefined;
+	/** Imported external name (`*` for a namespace, `default` for a default alias). */
+	readonly externalName?: string | null | undefined;
 }>;
 
 export type BindingExposureType = 'published' | 'reachable' | 'internal';
@@ -144,6 +148,41 @@ export type ExactNamePresenceType = 'none' | 'P' | 'R' | 'I' | 'PR' | 'PI' | 'RI
 type ReferenceSelectorType = 'symbolId' | 'query';
 export type ReferenceGroupModeType = 'file' | 'owner' | 'occurrence';
 
+export type ReferencePartitionScopeType = 'partition' | 'external_alias_group';
+
+/** Whether the selected partition is provably complete from stored facts. */
+export type ReferenceCompletenessType = 'complete' | 'bounded';
+
+/** One symbol that belongs to the selected reference partition. */
+export type ReferencePartitionMemberType = Readonly<{
+	readonly symbolId: string;
+	readonly name: string;
+	readonly kind: string;
+	readonly path: string;
+	readonly startLine: number;
+}>;
+
+/**
+ * Scope metadata for one reference result.
+ *
+ * `memberSymbols` is the whole selected partition and `siblingSymbols` excludes
+ * the requested seed. Neither list is inferred from drop counters, and alias
+ * group totals are not a complement of any single-symbol partition.
+ */
+export type ReferencePartitionType = Readonly<{
+	readonly scope: ReferencePartitionScopeType;
+	readonly externalTarget: string | null;
+	readonly externalName: string | null;
+	/** Bounded member list; totals and truncation describe the whole partition. */
+	readonly memberSymbols: readonly ReferencePartitionMemberType[];
+	/** Bounded members other than the requested seed. */
+	readonly siblingSymbols: readonly ReferencePartitionMemberType[];
+	readonly memberSymbolsTotal: number;
+	readonly siblingSymbolsTotal: number;
+	readonly membersTruncated: boolean;
+	readonly completeness: ReferenceCompletenessType;
+}>;
+
 export type FindReferencesInputType = Readonly<{
 	readonly symbolId?: string | undefined;
 	readonly query?: string | undefined;
@@ -157,6 +196,14 @@ export type FindReferencesInputType = Readonly<{
 	readonly enclosingId?: string | undefined;
 	readonly usage?: number | undefined;
 	readonly context?: string | undefined;
+	/**
+	 * Partition selector.
+	 *
+	 * `partition` (default) keeps the one-symbol occurrence partition.
+	 * `external_alias_group` expands only an external alias to every stored
+	 * alias with the same `(externalTarget, externalName)` pair.
+	 */
+	readonly scope?: ReferencePartitionScopeType | undefined;
 	readonly limit: number;
 	readonly cursor?: string | undefined;
 }>;
@@ -226,6 +273,8 @@ type FindReferencesBaseResultType = Readonly<{
 	readonly generationId: string;
 	readonly freshness: QueryFreshnessType;
 	readonly selector: ReferenceSelectorType;
+	/** Null only when no symbol was resolved, such as an ambiguous or empty query. */
+	readonly partition: ReferencePartitionType | null;
 }>;
 
 export type FindReferencesOccurrencesResultType = FindReferencesBaseResultType &

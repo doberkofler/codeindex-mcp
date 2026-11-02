@@ -37,7 +37,7 @@ const debug = debugFor('mcp');
 
 const SERVER_INSTRUCTIONS = `For code navigation in this workspace, use the code index before broad grep or whole-file reads.
 Use find_symbol to locate a declaration by name, outline to inspect a known file, find_references to find consumers, find_dependencies to find external dependency usage, and read_symbol to read the smallest useful source range. Use symbol_at to resolve a source position to its innermost stored declaration.
-For "where is name X used?", call find_references once with query; it resolves the name and defaults to file groups. A current, untruncated file result is the complete path set: report it and stop. Use symbolId only when an opaque identifier is already available.
+For "where is name X used?", call find_references once with query; it resolves the name and defaults to file groups. A current, untruncated file result is the complete path set for the selected partition: report it and stop. Use symbolId only when an opaque identifier is already available. A single-symbol partition and an external alias group are different scopes, not complements; never add them or present one as the remainder of the other.
 outline and find_symbol return compact items by default; pass detail full only when qualified names, bindings, or definition sites are required.
 For "where is dependency X used?" call find_dependencies once with transitive false and compact detail, using a package target identifier such as lodash. Direct usage covers external dependencies only; to find importers of an authored file, resolve a symbol it exports with find_symbol and call find_references. A current, untruncated direct result is the complete answer: report the returned paths and stop. Do not search manifests, grep source, read the listed files, or expand into downstream consumers unless the question asks for those facts.
 Use detail evidence only when import statements, bindings, or locations are requested. Request transitive true only when the question asks about downstream dependency impact; those results prove authored-module reachability, not binding use. Filter with root to inspect one direct consumer.
@@ -268,7 +268,7 @@ const registerTools = (server: McpServer, input: ServerInputType): void => {
 		{
 			name: 'find_references',
 			description:
-				'Find occurrences for one indexed symbol. Provide exactly one selector: symbolId or query. query resolves a name and defaults to file grouping with references only; a current untruncated file result is the complete path set: report it and stop. symbolId defaults to flat occurrence mode. group file, owner, or occurrence is supported for either selector.',
+				'Find occurrences for one indexed symbol. Provide exactly one selector: symbolId or query. query resolves a name and defaults to file grouping with references only; a current untruncated file result is the complete path set for the selected partition: report it and stop. symbolId defaults to flat occurrence mode. group file, owner, or occurrence is supported for either selector. scope partition (default) contains one symbol; scope external_alias_group expands an indexed external alias to every stored alias with the same external target and imported name. Alias-group and single-symbol totals are not complements, and direct external call sites stay outside occurrence results.',
 			maxResultBytes,
 			logger,
 			analytics,

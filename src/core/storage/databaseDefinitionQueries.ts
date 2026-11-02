@@ -1,7 +1,7 @@
 import {type DatabaseSync} from 'node:sqlite';
 import {type BindingExposureType, type DefinitionSiteSummaryType, type OutlineReexportType, type SymbolSummaryType} from '../model.ts';
 import {asNumber, asString, placeholders} from './databaseRows.ts';
-import {EXPOSURE_ORDER, exposureOf, LineStartSchema, siteKindOf, toSymbolSummary} from './databasePublicationRows.ts';
+import {asNullableString, EXPOSURE_ORDER, exposureOf, LineStartSchema, siteKindOf, toSymbolSummary} from './databasePublicationRows.ts';
 import {symbolContextsForRows} from './databaseBindingQueries.ts';
 
 type SqlRowType = Readonly<Record<string, unknown>>;
@@ -106,7 +106,8 @@ export const symbolSummariesByIds = (reader: DatabaseSync, generationId: string,
 
 	const rows = reader
 		.prepare(
-			`select id as symbol_id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id
+			`select id as symbol_id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id,
+				external_target, external_name
 			 from symbol
 			 where generation_id = ? and id in (${placeholders(symbolIds.length)})`,
 		)
@@ -114,6 +115,48 @@ export const symbolSummariesByIds = (reader: DatabaseSync, generationId: string,
 	const contexts = symbolContextsForRows(reader, generationId, symbolIds);
 
 	return new Map(rows.map((row) => [asString(row, 'symbol_id'), toSymbolSummary(row, contexts.get(asString(row, 'symbol_id')) ?? [])]));
+};
+
+/** One external alias group keyed by the module target and imported name. */
+export type ExternalAliasGroupType = Readonly<{
+	readonly externalTarget: string;
+	readonly externalName: string;
+	readonly members: readonly SymbolSummaryType[];
+}>;
+
+/**
+ * Reads the external alias group that contains one symbol.
+ *
+ * Members are every stored symbol with the same `(externalTarget, externalName)`
+ * pair, in deterministic path order. The seed is never fanned out and no
+ * occurrence is duplicated: callers query the returned identifier set once.
+ *
+ * @param reader - Reader connection.
+ * @param generationId - Published generation.
+ * @param symbolId - Seed symbol identifier.
+ * @returns The group, or null when the seed is not an external alias.
+ */
+export const externalAliasGroup = (reader: DatabaseSync, generationId: string, symbolId: string): ExternalAliasGroupType | null => {
+	const seed = reader.prepare('select external_target, external_name from symbol where generation_id = ? and id = ?').get(generationId, symbolId);
+	const externalTarget = seed === undefined ? null : asNullableString(seed, 'external_target');
+	const externalName = seed === undefined ? null : asNullableString(seed, 'external_name');
+
+	if (externalTarget === null || externalName === null) {
+		return null;
+	}
+
+	const ids = reader
+		.prepare(
+			`select id from symbol
+			 where generation_id = ? and external_target = ? and external_name = ?
+			 order by path, start_offset, id`,
+		)
+		.all(generationId, externalTarget, externalName)
+		.map((row) => asString(row, 'id'));
+	const summaries = symbolSummariesByIds(reader, generationId, ids);
+	const members = ids.map((id) => summaries.get(id)).filter((member): member is SymbolSummaryType => member !== undefined);
+
+	return {externalTarget, externalName, members};
 };
 
 /**
@@ -341,7 +384,8 @@ export const symbolsAtPosition = (
 export const symbolSummaryById = (reader: DatabaseSync, generationId: string, symbolId: string): SymbolSummaryType | null => {
 	const row = reader
 		.prepare(
-			`select id as symbol_id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id
+			`select id as symbol_id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id,
+				external_target, external_name
 			 from symbol where generation_id = ? and id = ?`,
 		)
 		.get(generationId, symbolId);

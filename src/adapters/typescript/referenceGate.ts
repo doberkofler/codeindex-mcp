@@ -109,6 +109,7 @@ type ReferenceGateFailureKindType =
 	| 'unreferenced_construct'
 	| 'unclassified_mismatch'
 	| 'unexplained_truth'
+	| 'alias_group_mismatch'
 	| 'precision_below_target';
 
 type ReferenceGateFailureType = Readonly<{
@@ -131,10 +132,33 @@ export type ReferencePersistenceType = Readonly<{
 	readonly symbols: number;
 }>;
 
+/**
+ * One verified external alias group.
+ *
+ * `definitions` and `references` describe the alias-group partition returned by
+ * `scope: external_alias_group`. `directExternalSites` counts sampled truth
+ * locations classified as direct external calls; those sites stay outside
+ * occurrence results and are never added to either total.
+ */
+export type ReferenceAliasGroupVerificationType = Readonly<{
+	readonly externalTarget: string;
+	readonly externalName: string;
+	readonly memberSymbols: number;
+	readonly siblingSymbols: number;
+	readonly definitions: number;
+	readonly references: number;
+	readonly completeness: 'complete' | 'bounded';
+	/** Whether one alias-group query returned exactly the union of its members. */
+	readonly matches: boolean;
+	readonly sampledMembers: number;
+	readonly directExternalSites: number;
+}>;
+
 export type ReferenceVerificationFactsType = Readonly<{
 	readonly coverage: ReferenceCoverageType;
 	readonly accuracy: ReferenceAccuracyType;
 	readonly persistence: ReferencePersistenceType;
+	readonly aliasGroups: readonly ReferenceAliasGroupVerificationType[];
 	readonly comparisons: readonly ReferenceComparisonType[];
 }>;
 
@@ -218,6 +242,20 @@ export const evaluateReferenceGate = (report: ReferenceVerificationFactsType): R
 				'unexplained_truth',
 				`${String(report.accuracy.unexplained)} truth locations are unexplained: ${unexplained
 					.map((entry) => `${entry.location.path}:${String(entry.location.startOffset)}:${entry.location.role}`)
+					.join('; ')}`,
+			),
+		);
+	}
+
+	const aliasGroupMismatches = report.aliasGroups.filter((group) => !group.matches);
+
+	if (aliasGroupMismatches.length > 0) {
+		failures.push(
+			gateFailure(
+				'alias_group_mismatch',
+				`${String(aliasGroupMismatches.length)} alias groups disagree with the union of their member partitions: ${aliasGroupMismatches
+					.slice(0, 10)
+					.map((group) => `${group.externalTarget}:${group.externalName}`)
 					.join('; ')}`,
 			),
 		);

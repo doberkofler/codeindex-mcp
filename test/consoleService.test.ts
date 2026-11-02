@@ -174,6 +174,7 @@ const qualificationReport: ReferenceVerificationReportType = {
 		aliasGroupCoverage: {expected: 2, matched: 2, sibling: 0, directExternal: 0, namespaceImport: 0, unexplained: 0, ratio: 1},
 	},
 	persistence: {pageLimit: 3, pages: 1, symbols: 2},
+	aliasGroups: [],
 	comparisons: [
 		comparison({}),
 		comparison({symbolId: 'symbol-2', name: 'missing', missing: [{path: 'src/user.ts', startOffset: 1, endOffset: 2, role: 'reference'}]}),

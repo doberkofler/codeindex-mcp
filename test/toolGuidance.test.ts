@@ -12,6 +12,37 @@ describe('tool guidance', () => {
 		});
 		expect(toolGuidanceOf('read_symbol', {kind: 'text', source: 'export const value = 1;', freshness: current})).toMatchObject({action: 'stop'});
 		expect(toolGuidanceOf('symbol_at', {candidates: [{symbol: {id: 'symbol'}}], freshness: current})).toMatchObject({action: 'stop'});
+		expect(
+			toolGuidanceOf('find_references', {
+				kind: 'occurrences',
+				items: [{symbolId: 'symbol'}],
+				freshness: current,
+				truncated: false,
+				nextCursor: null,
+				partition: {scope: 'partition', completeness: 'complete'},
+			}),
+		).toStrictEqual({
+			action: 'stop',
+			fallbackRequired: false,
+			message: 'Complete for the selected reference partition; no fallback search is required.',
+		});
+	});
+
+	it('requires a text search when the selected reference partition is bounded', () => {
+		expect(
+			toolGuidanceOf('find_references', {
+				kind: 'occurrences',
+				items: [{symbolId: 'symbol'}],
+				freshness: current,
+				truncated: false,
+				nextCursor: null,
+				partition: {scope: 'external_alias_group', completeness: 'bounded'},
+			}),
+		).toStrictEqual({
+			action: 'text_search',
+			fallbackRequired: true,
+			message: 'The selected reference partition is bounded; confirm with a repository text search before claiming completeness.',
+		});
 	});
 
 	it('requires the next cursor before answering a truncated page', () => {

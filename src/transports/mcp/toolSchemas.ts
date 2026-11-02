@@ -84,6 +84,12 @@ export const FindReferencesInputSchema = z.object({
 		.optional()
 		.describe('Usage bitmask filter'),
 	context: ContextSchema,
+	scope: z
+		.enum(['partition', 'external_alias_group'])
+		.default('partition')
+		.describe(
+			'partition (default) returns the one-symbol occurrence partition. external_alias_group expands an indexed external alias to every stored alias with the same external target and imported name; results stay complete only for the selected partition',
+		),
 	limit: LimitSchema,
 	cursor: CursorSchema,
 });

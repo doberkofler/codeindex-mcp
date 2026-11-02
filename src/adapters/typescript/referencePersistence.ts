@@ -5,7 +5,7 @@ import path from 'node:path';
 import {type ExtractorBuildType} from '../types.ts';
 import {type ConfigType} from '../../core/config/config.ts';
 import {PUBLICATION_SURFACE_BINDINGS_PER_ROOT, finalizeFacts} from '../../core/facts/index.ts';
-import {type ScanResultType} from '../../core/model.ts';
+import {type ReferencePartitionScopeType, type ScanResultType} from '../../core/model.ts';
 import {findReferences as queryReferences, type QueryContextType} from '../../core/query/queryService.ts';
 import {computeSourceHash} from '../../core/generation/sourceFiles.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
@@ -17,8 +17,12 @@ const PAGE_LIMIT = 3;
 const MAX_PAGES_PER_SYMBOL = 100_000;
 
 export type PersistedReferenceReaderType = Readonly<{
-	/** Reads every persisted occurrence for one symbol through the real query surface. */
-	readAll: (symbolId: string) => readonly ReferenceLocationType[];
+	/**
+	 * Reads every persisted occurrence for one symbol through the real query
+	 * surface. Passing `external_alias_group` reads the whole group from one
+	 * seed, including page boundaries.
+	 */
+	readAll: (symbolId: string, scope?: ReferencePartitionScopeType) => readonly ReferenceLocationType[];
 }>;
 
 const locationOf = (item: Readonly<{path: string; startOffset: number; endOffset: number; role: 'definition' | 'reference'}>): ReferenceLocationType => ({
@@ -31,6 +35,7 @@ const locationOf = (item: Readonly<{path: string; startOffset: number; endOffset
 const readAllPages = (
 	context: QueryContextType,
 	symbolId: string,
+	scope: ReferencePartitionScopeType | undefined,
 	maxResultBytes: number,
 ): Readonly<{locations: readonly ReferenceLocationType[]; pages: number}> => {
 	const locations: ReferenceLocationType[] = [];
@@ -44,7 +49,17 @@ const readAllPages = (
 			throw new Error(`Persisted reference query did not terminate for symbol ${symbolId}`);
 		}
 
-		const result = queryReferences(context, {symbolId, group: 'occurrence', limit: PAGE_LIMIT, ...(cursor === undefined ? {} : {cursor})}, maxResultBytes);
+		const result = queryReferences(
+			context,
+			{
+				symbolId,
+				group: 'occurrence',
+				limit: PAGE_LIMIT,
+				...(scope === undefined ? {} : {scope}),
+				...(cursor === undefined ? {} : {cursor}),
+			},
+			maxResultBytes,
+		);
 
 		if (result.kind !== 'occurrences') {
 			throw new Error(`Persisted reference query returned ${result.kind} for symbol ${symbolId}`);
@@ -129,9 +144,9 @@ export const withPersistedReferenceIndex = <ValueType>(
 			freshness: {state: 'current', checkedAt: new Date().toISOString(), dirtyFileCount: 0},
 		};
 		const reader: PersistedReferenceReaderType = {
-			readAll: (symbolId) => {
+			readAll: (symbolId, scope) => {
 				counters.symbols += 1;
-				const page = readAllPages(context, symbolId, input.config.maxResultBytes);
+				const page = readAllPages(context, symbolId, scope, input.config.maxResultBytes);
 				counters.pages += page.pages;
 				return page.locations;
 			},

@@ -1,5 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {CodeIndexError} from '../src/core/errors/codeIndexError.ts';
+import {type IndexDatabase} from '../src/core/storage/database.ts';
+import {resolveReferencePartition} from '../src/core/query/referencePartition.ts';
 import {createFixtureIndex, type FixtureProjectType} from './helpers/fixture.ts';
 
 const PROJECTS: readonly FixtureProjectType[] = [
@@ -237,7 +239,7 @@ describe('find_references bounds and cursors', () => {
 		const fixture = createFixtureIndex('reference-grouping');
 
 		try {
-			const contextDropped = fixture.index.findReferences({query: 'duplicate', limit: 100}, 620);
+			const contextDropped = fixture.index.findReferences({query: 'duplicate', limit: 100}, 940);
 
 			if (contextDropped.kind !== 'files') {
 				throw new Error('Expected file groups');
@@ -251,7 +253,7 @@ describe('find_references bounds and cursors', () => {
 			expect(contextDropped.items).toHaveLength(3);
 			expect(contextDropped.items.every((item) => item.contexts.length === 0 && item.contextsTruncated)).toBe(true);
 
-			const shortened = fixture.index.findReferences({query: 'duplicate', limit: 100}, 600);
+			const shortened = fixture.index.findReferences({query: 'duplicate', limit: 100}, 930);
 
 			if (shortened.kind !== 'files') {
 				throw new Error('Expected shortened file groups');
@@ -273,9 +275,196 @@ describe('find_references bounds and cursors', () => {
 
 			expect(next.items.map((item) => item.path)).toStrictEqual(['src/second.ts', 'src/shared.ts']);
 			expect(next.nextCursor).toBeNull();
-			expect(() => fixture.index.findReferences({query: 'duplicate', limit: 100}, 500)).toThrow(CodeIndexError);
+			expect(() => fixture.index.findReferences({query: 'duplicate', limit: 100}, 900)).toThrow(CodeIndexError);
 		} finally {
 			fixture.cleanup();
 		}
+	});
+});
+
+describe('find_references partition scope', () => {
+	it('keeps the default scope to exactly one symbol', () => {
+		const fixture = createFixtureIndex('external-reexport');
+
+		try {
+			const seed = fixture.index.findSymbols({query: 'debounce', path: 'src/facade.ts', limit: 10}).items.at(0);
+
+			if (seed === undefined) {
+				throw new Error('Expected the facade alias');
+			}
+
+			const result = fixture.index.findReferences({symbolId: seed.symbolId, limit: 100});
+
+			expect(result.partition).toMatchObject({
+				scope: 'partition',
+				externalTarget: 'external-package',
+				externalName: 'externalDebounce',
+				completeness: 'complete',
+			});
+			expect(result.partition?.memberSymbols).toHaveLength(1);
+			expect(result.partition?.siblingSymbols).toStrictEqual([]);
+			expect(result.partition?.memberSymbols[0]?.symbolId).toBe(seed.symbolId);
+			expect(result.items.every((item) => item.symbolId === seed.symbolId)).toBe(true);
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
+	it('expands an external alias group without fanning one occurrence out to several symbols', () => {
+		const fixture = createFixtureIndex('external-reexport');
+
+		try {
+			const seed = fixture.index.findSymbols({query: 'debounce', path: 'src/facade.ts', limit: 10}).items.at(0);
+
+			if (seed === undefined) {
+				throw new Error('Expected the facade alias');
+			}
+
+			const partition = fixture.index.findReferences({symbolId: seed.symbolId, limit: 100});
+			const group = fixture.index.findReferences({symbolId: seed.symbolId, scope: 'external_alias_group', limit: 100});
+
+			expect(partition.kind).toBe('occurrences');
+			expect(group.kind).toBe('occurrences');
+			expect(group.partition).toMatchObject({
+				scope: 'external_alias_group',
+				externalTarget: 'external-package',
+				externalName: 'externalDebounce',
+				completeness: 'complete',
+			});
+			expect(group.partition?.memberSymbols).toHaveLength(2);
+			expect(group.partition?.siblingSymbols).toHaveLength(1);
+			expect(group.definitionsTotal).toBe(2);
+			expect(group.occurrencesTotal).toBeGreaterThan(partition.occurrencesTotal);
+
+			const members = new Set((group.partition?.memberSymbols ?? []).map((member) => member.symbolId));
+
+			expect(group.items.every((item) => members.has(item.symbolId))).toBe(true);
+			expect(new Set(group.items.map((item) => `${item.symbolId}:${item.path}:${String(item.startOffset)}:${item.role}`)).size).toBe(group.items.length);
+			expect(group.items.some((item) => item.path === 'src/direct.ts')).toBe(false);
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
+	it('paginates an alias group across member boundaries without duplicating an occurrence', () => {
+		const fixture = createFixtureIndex('external-reexport');
+
+		try {
+			const seed = fixture.index.findSymbols({query: 'debounce', path: 'src/facade.ts', limit: 10}).items.at(0);
+
+			if (seed === undefined) {
+				throw new Error('Expected the facade alias');
+			}
+
+			const group = fixture.index.findReferences({symbolId: seed.symbolId, scope: 'external_alias_group', limit: 100});
+			const paged: (typeof group.items)[number][] = [];
+			let cursor: string | undefined;
+
+			do {
+				const page = fixture.index.findReferences({
+					symbolId: seed.symbolId,
+					scope: 'external_alias_group',
+					limit: 1,
+					...(cursor === undefined ? {} : {cursor}),
+				});
+				paged.push(...page.items);
+				cursor = page.nextCursor ?? undefined;
+			} while (cursor !== undefined);
+
+			expect(paged).toHaveLength(group.occurrencesTotal);
+			expect(new Set(paged.map((item) => `${item.symbolId}:${item.path}:${String(item.startOffset)}:${item.role}`)).size).toBe(paged.length);
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
+	it('rejects an alias group for a symbol without an external target', () => {
+		const fixture = createFixtureIndex('simple-project');
+
+		try {
+			const symbol = fixture.index.findSymbols({query: 'formatUser', limit: 1}).items.at(0);
+
+			if (symbol === undefined) {
+				throw new Error('Expected formatUser');
+			}
+
+			expect(() => fixture.index.findReferences({symbolId: symbol.symbolId, scope: 'external_alias_group', limit: 10})).toThrow(CodeIndexError);
+			expect(() => fixture.index.findReferences({symbolId: symbol.symbolId, scope: 'external_alias_group', limit: 10})).toThrow(
+				/external_alias_group requires an indexed external alias/u,
+			);
+		} finally {
+			fixture.cleanup();
+		}
+	});
+});
+
+describe('find_references partition completeness', () => {
+	it('reports bounded completeness when a member has no stored definition', () => {
+		const summary = {
+			id: 'seed',
+			name: 'debounce',
+			qualifiedName: 'debounce',
+			kind: 'alias',
+			path: 'src/facade.ts',
+			startLine: 1,
+			startColumn: 1,
+			endLine: 1,
+			endColumn: 10,
+			enclosingId: null,
+			startOffset: 0,
+			endOffset: 10,
+			contexts: ['root'],
+			externalTarget: 'external-package',
+			externalName: 'debounce',
+		};
+		const database = {
+			getSymbol: () => summary,
+			externalAliasGroup: () => ({externalTarget: 'external-package', externalName: 'debounce', members: [summary, {...summary, id: 'sibling'}]}),
+			definitionCountsBySymbol: () =>
+				new Map([
+					['seed', 1],
+					['sibling', 0],
+				]),
+		} as unknown as IndexDatabase;
+
+		const resolved = resolveReferencePartition(database, 'generation', 'seed', 'external_alias_group');
+
+		expect(resolved.symbolIds).toStrictEqual(['seed', 'sibling']);
+		expect(resolved.partition.completeness).toBe('bounded');
+		expect(resolved.partition.siblingSymbols.map((member) => member.symbolId)).toStrictEqual(['sibling']);
+	});
+
+	it('bounds member lists while keeping the whole-partition totals', () => {
+		const summary = {
+			id: 'seed',
+			name: 'debounce',
+			qualifiedName: 'debounce',
+			kind: 'alias',
+			path: 'src/facade.ts',
+			startLine: 1,
+			startColumn: 1,
+			endLine: 1,
+			endColumn: 10,
+			enclosingId: null,
+			startOffset: 0,
+			endOffset: 10,
+			contexts: ['root'],
+			externalTarget: 'external-package',
+			externalName: 'debounce',
+		};
+		const members = [summary, ...Array.from({length: 24}, (_, index) => ({...summary, id: `member-${String(index)}`}))];
+		const database = {
+			getSymbol: () => summary,
+			externalAliasGroup: () => ({externalTarget: 'external-package', externalName: 'debounce', members}),
+			definitionCountsBySymbol: () => new Map(members.map((member) => [member.id, 1])),
+		} as unknown as IndexDatabase;
+
+		const resolved = resolveReferencePartition(database, 'generation', 'seed', 'external_alias_group');
+
+		expect(resolved.partition.memberSymbols).toHaveLength(20);
+		expect(resolved.partition.memberSymbolsTotal).toBe(25);
+		expect(resolved.partition.siblingSymbolsTotal).toBe(24);
+		expect(resolved.partition.membersTruncated).toBe(true);
+		expect(resolved.partition.completeness).toBe('complete');
 	});
 });

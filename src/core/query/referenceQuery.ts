@@ -5,6 +5,7 @@ import {CodeIndexError} from '../errors/errors.ts';
 import {type FindReferencesInputType, type FindReferencesResultType, type QueryFreshnessType} from '../model.ts';
 import {boundedPagedResult, decodeCursor, normalizeRelativePath, withNormalizedQuery, type QueryNameNormalizerType} from './querySupport.ts';
 import {groupedResultOf} from './referenceGrouping.ts';
+import {resolveReferencePartition, type ResolvedReferencePartitionType} from './referencePartition.ts';
 import {assertReferenceSelector, resolveReferenceQuery, type ReferenceResolutionType} from './referenceResolution.ts';
 
 type QueryContextType = Readonly<{
@@ -40,9 +41,15 @@ const queryTagOf = (identity: readonly (string | number | null)[]): string =>
 		.update(JSON.stringify(['find_references', ...identity]), 'utf8')
 		.digest('base64url');
 
-const scopeOf = (input: FindReferencesInputType, role: 'definition' | 'reference' | undefined, path: string | undefined): ReferenceScopeType => ({
+const scopeOf = (
+	input: FindReferencesInputType,
+	role: 'definition' | 'reference' | undefined,
+	path: string | undefined,
+	symbolIds: readonly string[],
+): ReferenceScopeType => ({
 	generationId: '',
 	symbolId: '',
+	symbolIds,
 	...(role === undefined ? {} : {role}),
 	...(path === undefined ? {} : {path}),
 	...(input.enclosingId === undefined ? {} : {enclosingId: input.enclosingId}),
@@ -57,6 +64,7 @@ const noneResultOf = (context: QueryContextType): FindReferencesResultType => ({
 	generationId: context.generationId,
 	freshness: context.freshness,
 	selector: 'query',
+	partition: null,
 	reason: 'no_stored_match',
 	fallback: 'text_search',
 	message: NONE_MESSAGE,
@@ -68,6 +76,7 @@ const ambiguousResultOf = (context: QueryContextType, resolution: ReferenceResol
 	generationId: context.generationId,
 	freshness: context.freshness,
 	selector: 'query',
+	partition: null,
 	candidates: resolution.candidates,
 	candidatesTotal: resolution.total,
 	candidatesTruncated: resolution.total > resolution.candidates.length,
@@ -114,6 +123,7 @@ const occurrenceResultOf = (
 		query: FindReferencesInputType;
 		scope: ReferenceScopeType;
 		selector: 'symbolId' | 'query';
+		partition: ResolvedReferencePartitionType['partition'];
 		queryKind: string;
 		offset: number;
 		maxResultBytes: number;
@@ -140,6 +150,7 @@ const occurrenceResultOf = (
 			generationId: input.context.generationId,
 			freshness: input.context.freshness,
 			selector: input.selector,
+			partition: input.partition,
 			group: 'occurrence',
 			occurrencesTotal: totals.occurrencesTotal,
 			definitionsTotal: totals.definitionsTotal,
@@ -160,6 +171,7 @@ const queryIdentityOf = (
 		group: 'occurrence' | 'file' | 'owner';
 		role: 'definition' | 'reference' | undefined;
 		path: string | undefined;
+		scope: 'partition' | 'external_alias_group';
 	}>,
 ): readonly (string | number | null)[] => [
 	input.selector,
@@ -175,6 +187,7 @@ const queryIdentityOf = (
 	input.request.enclosingId ?? null,
 	input.request.usage ?? null,
 	input.request.context ?? null,
+	input.scope,
 ];
 
 /**
@@ -208,17 +221,22 @@ export const findReferences = (context: QueryContextType, input: FindReferencesI
 		throw new CodeIndexError('invalid_argument', 'usage filtering is not valid with role: definition');
 	}
 
-	const queryKind = queryTagOf(queryIdentityOf({selector, symbolId: selection.symbolId, request: input, group, role, path: normalizedPath}));
+	const requestedScope = input.scope ?? 'partition';
+	const resolved = resolveReferencePartition(context.database, context.generationId, selection.symbolId, requestedScope);
+	const queryKind = queryTagOf(
+		queryIdentityOf({selector, symbolId: selection.symbolId, request: input, group, role, path: normalizedPath, scope: requestedScope}),
+	);
 	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
-	const scope = withSymbol(scopeOf(input, role, normalizedPath), context.generationId, selection.symbolId);
+	const scope = withSymbol(scopeOf(input, role, normalizedPath, resolved.symbolIds), context.generationId, selection.symbolId);
 
 	return group === 'occurrence'
-		? occurrenceResultOf({context, query: input, scope, selector, queryKind, offset, maxResultBytes})
+		? occurrenceResultOf({context, query: input, scope, selector, partition: resolved.partition, queryKind, offset, maxResultBytes})
 		: groupedResultOf({
 				context,
 				query: input,
 				scope,
 				selector,
+				partition: resolved.partition,
 				group,
 				queryKind,
 				offset,

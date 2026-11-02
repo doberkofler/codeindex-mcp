@@ -14,6 +14,7 @@ export {
 	definitionSiteById,
 	definitionSitesForSymbol,
 	definitionSitesForSymbols,
+	externalAliasGroup,
 	outlinePageQuerySql,
 	outlineReexports,
 	outlineSymbols,
@@ -22,4 +23,12 @@ export {
 	symbolSummaryById,
 	symbolsAtPosition,
 } from './databaseDefinitionQueries.ts';
-export {referenceCoverage, referenceGroupContexts, referenceGroupRows, referencePageQuery, referenceRows, referenceTotals} from './databaseReferenceQueries.ts';
+export {
+	referenceCoverage,
+	referenceGroupContexts,
+	referenceGroupRows,
+	referencePageQuery,
+	referenceRows,
+	referenceTotals,
+	definitionCountsBySymbol,
+} from './databaseReferenceQueries.ts';

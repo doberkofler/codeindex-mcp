@@ -91,12 +91,14 @@ const facts = (
 	input: Readonly<{
 		coverage?: ReferenceCoverageType;
 		accuracy?: ReferenceAccuracyType;
+		aliasGroups?: ReferenceVerificationFactsType['aliasGroups'];
 		comparisons?: readonly ReferenceComparisonType[];
 	}> = {},
 ): ReferenceVerificationFactsType => ({
 	coverage: input.coverage ?? coverage(),
 	accuracy: input.accuracy ?? accuracy(),
 	persistence: {pageLimit: 3, pages: 1, symbols: 1},
+	aliasGroups: input.aliasGroups ?? [],
 	comparisons: input.comparisons ?? [],
 });
 
@@ -238,6 +240,29 @@ describe('reference gate', () => {
 
 		expect(explained.failures.map((failure) => failure.kind)).not.toContain('unexplained_truth');
 		expect(unexplained.failures.map((failure) => failure.kind)).toContain('unexplained_truth');
+	});
+
+	it('fails when an alias-group query disagrees with its member partitions', () => {
+		const result = evaluateReferenceGate(
+			facts({
+				aliasGroups: [
+					{
+						externalTarget: 'external-package',
+						externalName: 'debounce',
+						memberSymbols: 2,
+						siblingSymbols: 1,
+						definitions: 2,
+						references: 4,
+						completeness: 'complete',
+						matches: false,
+						sampledMembers: 2,
+						directExternalSites: 0,
+					},
+				],
+			}),
+		);
+
+		expect(result.failures.map((failure) => failure.kind)).toContain('alias_group_mismatch');
 	});
 
 	it('requires exact precision', () => {
@@ -391,6 +416,12 @@ describe('reference truth conservation', () => {
 					report.accuracy.directExternal +
 					report.accuracy.namespaceImport,
 			).toBe(report.accuracy.missing);
+
+			const group = report.aliasGroups.find((entry) => entry.externalTarget === 'external-package' && entry.externalName === 'externalDebounce');
+
+			expect(group).toBeDefined();
+			expect(group).toMatchObject({memberSymbols: 2, siblingSymbols: 1, definitions: 2, completeness: 'complete', matches: true});
+			expect(group?.references).toBeGreaterThan(0);
 		} finally {
 			fixture.cleanup();
 		}

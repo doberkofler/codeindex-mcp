@@ -37,9 +37,10 @@ import {acquireLease, readLease, releaseLease, renewLease} from './databaseLease
 import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
-import {asNumber, asString} from './databaseRows.ts';
+import {asNumber} from './databaseRows.ts';
 import {verifyDatabaseIntegrity} from './databaseIntegrity.ts';
 import {ensureStatistics} from './databaseStatistics.ts';
+import {readBuildStats} from './databaseFactStats.ts';
 import {listProjectContextNames as listStoredProjectContextNames} from './databaseContextQueries.ts';
 import {
 	bindingBelongsToSymbol,
@@ -48,11 +49,13 @@ import {
 	bindingExposure,
 	bindingSitesFor,
 	busiestSymbolPath,
+	definitionCountsBySymbol,
 	definitionSiteById,
 	definitionSitesForSymbol,
 	definitionSitesForSymbols,
 	findBindingCandidates,
 	exactNamePresence,
+	externalAliasGroup,
 	outlineReexports as readOutlineReexports,
 	outlineSymbols as readOutlineSymbols,
 	referenceCoverage,
@@ -319,17 +322,7 @@ export class IndexDatabase {
 	}
 
 	public listBuildStats(generationId: string): readonly BuildStatType[] {
-		return this.#reader
-			.prepare('select language, metric, dim1, dim2, dim3, value from build_stats where generation_id = ? order by language, metric, dim1, dim2, dim3')
-			.all(generationId)
-			.map((row) => ({
-				language: asString(row, 'language'),
-				metric: asString(row, 'metric'),
-				dim1: asString(row, 'dim1'),
-				dim2: asString(row, 'dim2'),
-				dim3: asString(row, 'dim3'),
-				value: Number(row['value']),
-			}));
+		return readBuildStats(this.#reader, generationId);
 	}
 
 	public getFile(generationId: string, filePath: string): SourceFileType | null {
@@ -430,6 +423,12 @@ export class IndexDatabase {
 
 	public referenceGroupContexts(input: Parameters<typeof referenceGroupContexts>[1]): ReturnType<typeof referenceGroupContexts> {
 		return referenceGroupContexts(this.#reader, input);
+	}
+	public definitionCountsBySymbol(generationId: string, symbolIds: readonly string[]): ReturnType<typeof definitionCountsBySymbol> {
+		return definitionCountsBySymbol(this.#reader, generationId, symbolIds);
+	}
+	public externalAliasGroup(generationId: string, symbolId: string): ReturnType<typeof externalAliasGroup> {
+		return externalAliasGroup(this.#reader, generationId, symbolId);
 	}
 
 	public findDependencyEdgesByTargetIdentifier(generationId: string, targetIdentifier: string, context?: string): readonly StoredDependencyEdgeType[] {

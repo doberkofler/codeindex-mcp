@@ -8,6 +8,7 @@ import {
 	type ReferenceGroupModeType,
 	type ReferenceGroupType,
 	type ReferenceOwnerGroupType,
+	type ReferencePartitionType,
 } from '../model.ts';
 
 type QueryContextType = Readonly<{database: IndexDatabase; generationId: string; freshness: QueryFreshnessType}>;
@@ -119,6 +120,7 @@ const resultForGroup = (
 		generationId: string;
 		freshness: QueryFreshnessType;
 		selector: 'symbolId' | 'query';
+		partition: ReferencePartitionType;
 		group: 'file' | 'owner';
 		groupsTotal: number;
 		page: readonly GroupAccumulatorType[];
@@ -139,6 +141,7 @@ const resultForGroup = (
 		generationId: input.generationId,
 		freshness: input.freshness,
 		selector: input.selector,
+		partition: input.partition,
 		groupsTotal: input.groupsTotal,
 		occurrencesTotal: input.totals.occurrencesTotal,
 		definitionsTotal: input.totals.definitionsTotal,
@@ -168,6 +171,7 @@ const boundedGroupPage = (
 		generationId: string;
 		freshness: QueryFreshnessType;
 		selector: 'symbolId' | 'query';
+		partition: ReferencePartitionType;
 		group: 'file' | 'owner';
 		groups: readonly GroupAccumulatorType[];
 		offset: number;
@@ -236,6 +240,7 @@ export const groupedResultOf = (
 		query: FindReferencesInputType;
 		scope: ReferenceScopeType;
 		selector: 'symbolId' | 'query';
+		partition: ReferencePartitionType;
 		group: 'file' | 'owner';
 		queryKind: string;
 		offset: number;
@@ -257,6 +262,7 @@ export const groupedResultOf = (
 		generationId: input.context.generationId,
 		freshness: input.context.freshness,
 		selector: input.selector,
+		partition: input.partition,
 		group: input.group,
 		groups: groupAccumulators(input.context, input.scope, input.group),
 		offset: input.offset,

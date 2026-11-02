@@ -93,6 +93,7 @@ describe('MCP tool surface', () => {
 		expect(propertyOf(findDependencies, 'transitive')).toMatchObject({type: 'boolean', default: false});
 		expect(propertyOf(findDependencies, 'detail')).toMatchObject({enum: ['compact', 'evidence'], default: 'compact'});
 		expect(propertyOf(findReferences, 'group')).toMatchObject({enum: ['file', 'owner', 'occurrence']});
+		expect(propertyOf(findReferences, 'scope')).toMatchObject({enum: ['partition', 'external_alias_group'], default: 'partition'});
 		expect(readSymbol.inputSchema.required ?? []).not.toContain('symbolId');
 		expect(propertyOf(readSymbol, 'query')).toMatchObject({type: 'string', minLength: 1});
 		expect(propertyOf(readSymbol, 'match')).toMatchObject({enum: ['name', 'qualified'], default: 'name'});
