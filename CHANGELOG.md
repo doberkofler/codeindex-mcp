@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.10.0...v0.11.0) (2026-11-02)
+
+### Added
+
+* **build:** return closed outcomes and structured worker failures ([#129](https://github.com/doberkofler/codeindex-mcp/issues/129)) ([b44a6c3](https://github.com/doberkofler/codeindex-mcp/commit/b44a6c331272711fbde7c5398be38b85ef586c1d))
+* **cli:** derive the MCP server name from the configured adapter ([feac83f](https://github.com/doberkofler/codeindex-mcp/commit/feac83f00aafc8ccef7217c440715399a37bb6cb))
+* **query:** add external alias-group reference scope ([#131](https://github.com/doberkofler/codeindex-mcp/issues/131)) ([cd03404](https://github.com/doberkofler/codeindex-mcp/commit/cd03404c990d45008acdbbe70b9773fa5fac0af0))
+* **telemetry:** report exclusive stages and prune dead artifacts ([#132](https://github.com/doberkofler/codeindex-mcp/issues/132)) ([d94a3f1](https://github.com/doberkofler/codeindex-mcp/commit/d94a3f1709cae659fc35f740861fbb76c330cd99))
+* **typescript:** capture immutable build inputs and hash them ([#128](https://github.com/doberkofler/codeindex-mcp/issues/128)) ([42f9d4b](https://github.com/doberkofler/codeindex-mcp/commit/42f9d4be946864ae89dacde7a1b9289987d5e66a))
+* **typescript:** qualify references over production context unions ([#130](https://github.com/doberkofler/codeindex-mcp/issues/130)) ([946ccf4](https://github.com/doberkofler/codeindex-mcp/commit/946ccf47cf8594269601821fe908edcb3fe34517))
+
+### Fixed
+
+* **typescript:** resolve transient members and type-query this ([#127](https://github.com/doberkofler/codeindex-mcp/issues/127)) ([5ccb487](https://github.com/doberkofler/codeindex-mcp/commit/5ccb48725d819aa0ff9c6de167d16f3fde7b857a))
+
+### Documentation
+
+* consolidate project documentation ([d04ec55](https://github.com/doberkofler/codeindex-mcp/commit/d04ec55b7181aa1835bf35f5655c1b5769b49076))
+* remove superseded repository evidence ([#118](https://github.com/doberkofler/codeindex-mcp/issues/118)) ([dc97f61](https://github.com/doberkofler/codeindex-mcp/commit/dc97f615963d23c4d3bad2d8e35063f67af8a679))
+
 ## [0.10.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.9.0...v0.10.0) (2026-10-28)
 
 ### Changed
