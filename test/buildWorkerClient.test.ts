@@ -27,6 +27,7 @@ const report = {
 	generationId: 'generation',
 	revision: 1,
 	state: 'published',
+	outcome: 'published',
 	reused: false,
 	durationMs: 12,
 	fileCount: 1,
@@ -56,16 +57,18 @@ describe('build worker client', () => {
 		expect(actual).toStrictEqual(withoutStages);
 	});
 
-	it('rejects malformed reports and preserves worker messages', async () => {
+	it('rejects malformed reports and preserves structured worker failures', async () => {
 		await expect(
 			runWorkerScript(
-				`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: true, report: {generationId: 'generation', state: 'unknown'}});`,
+				`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: true, report: {generationId: 'generation', state: 'unknown', outcome: 'published'}});`,
 			),
-		).rejects.toThrow('Index build worker failed');
+		).rejects.toThrow('Index build failed (worker at worker');
 
 		await expect(
-			runWorkerScript("import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: false, message: 'structured failure'});"),
-		).rejects.toThrow('structured failure');
+			runWorkerScript(
+				"import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: false, failure: {outcome: 'failed', cause: 'source-read', stage: 'scan', errno: 'EACCES', project: {name: 'root', file: 'tsconfig.json'}}});",
+			),
+		).rejects.toThrow('Index build failed (source-read at scan, EACCES, root (tsconfig.json))');
 	});
 
 	it('rejects every report field with a non-numeric or non-boolean value', async () => {
@@ -87,7 +90,7 @@ describe('build worker client', () => {
 
 				await expect(
 					runWorkerScript(`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: true, report: ${malformed}});`),
-				).rejects.toThrow('Index build worker failed');
+				).rejects.toThrow('Index build failed (worker at worker');
 			}),
 		);
 	});
@@ -110,17 +113,17 @@ describe('build worker client', () => {
 		}
 	});
 
-	it('preserves the worker error instead of replacing it with the exit code', async () => {
-		await expect(runWorkerScript("throw new Error('worker exploded')")).rejects.toThrow('worker exploded');
+	it('bounds an unexpected worker error without leaking its message', async () => {
+		await expect(runWorkerScript("throw new Error('worker exploded')")).rejects.toThrow('Index build failed (worker at worker');
 	});
 
 	it('reports a structured worker failure', async () => {
 		await expect(
 			runWorkerScript("import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: false, message: 'worker said no'});"),
-		).rejects.toThrow('worker said no');
+		).rejects.toThrow('Index build failed (worker at worker');
 	});
 
 	it('reports an unexplained non-zero worker exit', async () => {
-		await expect(runWorkerScript('process.exit(1);')).rejects.toThrow('Index build worker exited with code 1');
+		await expect(runWorkerScript('process.exit(1);')).rejects.toThrow('Index build failed (worker at worker');
 	});
 });

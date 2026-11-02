@@ -11,6 +11,7 @@ const reusedReport = (generation: GenerationRowType): BuildReportType => ({
 	generationId: generation.id,
 	revision: generation.revision,
 	state: 'published',
+	outcome: 'reused',
 	reused: true,
 	durationMs: 0,
 	fileCount: generation.fileCount,

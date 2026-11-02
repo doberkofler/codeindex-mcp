@@ -9,8 +9,9 @@ import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
 import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
-import {buildFailureCauseOf} from './buildFailureCause.ts';
+import {buildFailureOf, buildProjectContextOfScan} from './buildFailure.ts';
 import {buildGeneration} from './buildGeneration.ts';
+import {recordFailedRefresh, recordPublishedRefresh, recordSupersededRefresh} from './refreshTelemetry.ts';
 import {type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
 import {
@@ -24,6 +25,7 @@ import {acquireOrObserveBuildLease, EXTERNAL_BUILD_TIMEOUT_MS} from './externalB
 import {collectStatus} from '../freshness/indexStatus.ts';
 import {
 	type BuildReportType,
+	type BuildOutcomeType,
 	type ExactNamePresenceType,
 	type FindDependenciesInputType,
 	type FindDependenciesResultType,
@@ -100,8 +102,9 @@ export class CodeIndex {
 			...(options.clock === undefined ? {} : {clock: options.clock}),
 			...(options.debounceMs === undefined ? {} : {debounceMs: options.debounceMs}),
 			...(options.reconcileIntervalMs === undefined ? {} : {reconcileIntervalMs: options.reconcileIntervalMs}),
-			runRefresh: async (reason): Promise<void> => {
-				await this.#refresh(reason, false);
+			runRefresh: async (reason): Promise<BuildOutcomeType> => {
+				const report = await this.#refresh(reason, false);
+				return report.outcome;
 			},
 			record: (event, fields): void => {
 				this.#analytics?.record(event, fields);
@@ -148,12 +151,17 @@ export class CodeIndex {
 	 * Reuses or rebuilds the index so it matches the current working copy.
 	 *
 	 * @param options - `force` ignores an existing reusable generation.
-	 * @returns The published generation's build report.
+	 * @returns The published, reused, or superseded generation report.
 	 * @throws {@link Error} When scanning or building fails.
 	 */
 	public async ensureReady(options: Readonly<{force?: boolean}> = {}): Promise<BuildReportType> {
 		const report = await this.#refresh('manual', options.force === true);
-		this.#coordinator.markCurrent();
+		if (report.outcome === 'superseded') {
+			this.#coordinator.noteSuperseded(report.durationMs);
+		} else {
+			this.#coordinator.markCurrent();
+		}
+
 		return report;
 	}
 
@@ -200,11 +208,13 @@ export class CodeIndex {
 		});
 		const sample = startProcessSample();
 		const resources = (): Readonly<Record<string, number>> => ({...sample.stop(), databaseBytes: this.#database.databaseSizeBytes()});
+		let scan: ScanResultType | null = null;
+
 		try {
 			const published = this.#database.getPublishedGeneration();
 			this.#published = published;
 			const knownPaths = published === null ? [] : this.#database.listFiles(published.id).map((file) => file.path);
-			const scan = this.#extractor.scan(this.#config, knownPaths);
+			scan = this.#extractor.scan(this.#config, knownPaths);
 
 			if (scan.compilerDrift) {
 				this.#logger.warn('compiler_drift', {extractorCompiler: scan.compilerVersion, declaredCompiler: scan.declaredCompilerVersion});
@@ -224,35 +234,32 @@ export class CodeIndex {
 			}
 
 			this.#published = this.#database.getPublishedGeneration();
-			debug('refresh complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
-			this.#logger.info('index_ready', {
-				generationId: report.generationId,
-				reused: report.reused,
-				durationMs: report.durationMs,
-				files: report.fileCount,
-				symbols: report.symbolCount,
-				occurrences: report.occurrenceCount,
-			});
-			this.#analytics?.record(report.reused ? 'build_reused' : 'build_complete', {
+			const telemetry = {
+				logger: this.#logger,
+				analytics: this.#analytics,
 				reason,
 				durationMs: report.durationMs,
-				fileCount: report.fileCount,
-				symbolCount: report.symbolCount,
-				occurrenceCount: report.occurrenceCount,
-				stages: report.stages,
-				...resources(),
-			});
+				resources: resources(),
+			};
+
+			if (report.outcome === 'superseded') {
+				debug('refresh superseded', {generationId: report.generationId, durationMs: report.durationMs});
+				recordSupersededRefresh({...telemetry, report});
+				return report;
+			}
+
+			debug('refresh complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
+			recordPublishedRefresh({...telemetry, report});
 			return report;
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			const cause = buildFailureCauseOf(error);
-			debug('refresh failed', {message, cause});
-			this.#logger.error('index_refresh_failed', {message, cause});
-			this.#analytics?.record('build_failed', {
+			recordFailedRefresh({
+				logger: this.#logger,
+				analytics: this.#analytics,
 				reason,
-				cause,
 				durationMs: Math.round(performance.now() - startedAt),
-				...resources(),
+				message: error instanceof Error ? error.message : String(error),
+				failure: buildFailureOf(error, 'scan', buildProjectContextOfScan(scan)),
+				resources: resources(),
 			});
 			throw error;
 		} finally {
@@ -299,11 +306,7 @@ export class CodeIndex {
 	 * @throws {@link Error} When SQLite reports an integrity, foreign-key, or count problem.
 	 */
 	public verify(): IndexVerificationType {
-		return this.#database.readSnapshot(() => this.#verifySnapshot());
-	}
-
-	#verifySnapshot(): IndexVerificationType {
-		return verifyPublishedIndex(this.#database, this.#generation());
+		return this.#database.readSnapshot(() => verifyPublishedIndex(this.#database, this.#generation()));
 	}
 
 	public getOutline(input: OutlineInputType, maxResultBytes = this.#config.maxResultBytes): OutlineResultType {
@@ -484,7 +487,6 @@ export class CodeIndex {
 	}
 	#generation(): GenerationRowType {
 		const published = this.#database.getPublishedGeneration();
-
 		if (published === null) {
 			debug('no published generation');
 			throw new IndexNotReadyError();

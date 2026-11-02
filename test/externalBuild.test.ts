@@ -66,6 +66,7 @@ describe('external build observation', () => {
 				generationId: 'external',
 				revision: 1,
 				state: 'published',
+				outcome: 'reused',
 				reused: true,
 				durationMs: 0,
 				fileCount: 1,

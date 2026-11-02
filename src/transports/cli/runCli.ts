@@ -71,8 +71,25 @@ const writeJson = (value: unknown, io: CliIoType): void => {
 	io.stdout(JSON.stringify(value, null, 2));
 };
 
+const buildOutcomeLabel = (report: BuildReportType): string => {
+	switch (report.outcome) {
+		case 'reused': {
+			return `Index already up to date: ${report.generationId}`;
+		}
+		case 'superseded': {
+			return `Index update superseded by newer changes; retry scheduled: ${report.generationId}`;
+		}
+		case 'published': {
+			return `Index rebuilt: ${report.generationId}`;
+		}
+		default: {
+			return `Index updated: ${report.generationId}`;
+		}
+	}
+};
+
 const formatBuildReport = (report: BuildReportType): readonly string[] => [
-	report.reused ? `Index already up to date: ${report.generationId}` : `Index rebuilt: ${report.generationId}`,
+	buildOutcomeLabel(report),
 	`  duration: ${report.durationMs} ms`,
 	`  files: ${report.fileCount}`,
 	`  symbols: ${report.symbolCount}`,

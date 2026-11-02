@@ -1,5 +1,8 @@
 export type GenerationStateType = 'building' | 'published' | 'superseded' | 'failed';
 
+/** Closed outcome of one build attempt. */
+export type BuildOutcomeType = 'reused' | 'published' | 'superseded' | 'failed';
+
 export type RefreshStateType = 'current' | 'dirty' | 'building' | 'failed' | 'unknown' | 'stopping';
 
 type QueryFreshnessStateType = 'current' | 'updating' | 'stale' | 'unknown';
@@ -297,6 +300,8 @@ export type BuildReportType = Readonly<{
 	readonly generationId: string;
 	readonly revision: number;
 	readonly state: GenerationStateType;
+	/** Closed attempt outcome; `failed` is carried by a structured error instead. */
+	readonly outcome: Exclude<BuildOutcomeType, 'failed'>;
 	readonly reused: boolean;
 	readonly durationMs: number;
 	readonly fileCount: number;

@@ -2,11 +2,22 @@ import {once} from 'node:events';
 import {Worker} from 'node:worker_threads';
 import {type ConfigType} from '../config/config.ts';
 import {type BuildReportType, type BuildStagesType, type GenerationStateType, type ScanResultType} from '../model.ts';
+import {
+	BuildFailureEnvelopeError,
+	buildFailureFromWorkerPayload,
+	buildFailureOf,
+	buildProjectContextOf,
+	type BuildFailureType,
+	type BuildProjectContextType,
+} from './buildFailure.ts';
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null;
 
 const isGenerationState = (value: unknown): value is GenerationStateType =>
 	value === 'building' || value === 'published' || value === 'superseded' || value === 'failed';
+
+const isReportOutcome = (value: unknown): value is 'reused' | 'published' | 'superseded' =>
+	value === 'reused' || value === 'published' || value === 'superseded';
 
 const numericField = (value: Readonly<Record<string, unknown>>, key: string): number | null => {
 	const field = value[key];
@@ -42,7 +53,7 @@ const asStages = (value: unknown): BuildStagesType | null => {
 };
 
 const asBuildReport = (value: unknown): BuildReportType | null => {
-	if (!isRecord(value) || !isGenerationState(value['state'])) {
+	if (!isRecord(value) || !isGenerationState(value['state']) || !isReportOutcome(value['outcome'])) {
 		return null;
 	}
 
@@ -68,6 +79,7 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 		generationId,
 		revision,
 		state: value['state'],
+		outcome: value['outcome'],
 		reused,
 		durationMs,
 		fileCount,
@@ -82,7 +94,9 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 
 const buildReportFromWorkerMessage = (raw: unknown): BuildReportType | null => (isRecord(raw) ? asBuildReport(raw['report']) : null);
 
-const workerMessageOf = (raw: unknown, fallback: string): string => (isRecord(raw) && typeof raw['message'] === 'string' ? raw['message'] : fallback);
+const projectContextOf = (scan: ScanResultType): BuildProjectContextType | null => buildProjectContextOf(scan.projects);
+
+const workerFailureOf = (error: unknown, project: BuildProjectContextType | null): BuildFailureType => buildFailureOf(error, 'worker', project);
 
 /**
  * Builds one generation in a background worker thread.
@@ -126,16 +140,19 @@ export const runBuildWorkerThread = async (
 	});
 
 	await once(completion, 'done');
+	const project = projectContextOf(input.scan);
 
 	if (state.failure !== null) {
-		throw state.failure;
+		throw new BuildFailureEnvelopeError(workerFailureOf(state.failure, project));
 	}
 
 	const report = buildReportFromWorkerMessage(state.message);
 
-	if (report === null) {
-		throw new Error(workerMessageOf(state.message, 'Index build worker failed'));
+	if (report !== null) {
+		return report;
 	}
 
-	return report;
+	const failure = isRecord(state.message) ? buildFailureFromWorkerPayload(state.message['failure']) : null;
+
+	throw new BuildFailureEnvelopeError(failure ?? {outcome: 'failed', cause: 'worker', stage: 'worker', errno: null, project});
 };

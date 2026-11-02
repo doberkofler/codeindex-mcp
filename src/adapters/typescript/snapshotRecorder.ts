@@ -3,7 +3,7 @@ import {readdirSync, readFileSync, realpathSync, statSync} from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import {decodeSourceBytes} from '../../core/generation/sourceFiles.ts';
-import {isDeclarationFile, isInsideRoot, PUBLISHABLE_EXTENSIONS} from './sourcePaths.ts';
+import {isAuthoredSourceFile, isDeclarationFile, isInsideRoot, PUBLISHABLE_EXTENSIONS} from './sourcePaths.ts';
 import {type TypeScriptSnapshotProjectType} from './snapshotTypes.ts';
 
 const {relative, resolve, sep} = path;
@@ -146,7 +146,7 @@ const classifyOf = (rootDir: string, absolutePath: string): SnapshotInputKindTyp
 		return inside ? 'authored-declaration' : 'external-declaration';
 	}
 
-	if (inside && PUBLISHABLE_EXTENSIONS.some((extension) => absolutePath.endsWith(extension))) {
+	if (isAuthoredSourceFile(absolutePath, rootDir)) {
 		return 'authored';
 	}
 

@@ -66,7 +66,7 @@ describe('build worker payload', () => {
 		}
 	});
 
-	it('reports build failures without a parent port', () => {
+	it('reports build failures as a bounded structured envelope', () => {
 		const {config, cleanup} = createFixtureConfig('simple-project');
 
 		try {
@@ -80,9 +80,19 @@ describe('build worker payload', () => {
 				debug: false,
 			};
 
-			expect(() => {
-				runBuildWorker(payload);
-			}).not.toThrow();
+			const message = runBuildWorker(payload);
+
+			expect(message).toMatchObject({
+				ok: false,
+				failure: {
+					outcome: 'failed',
+					cause: 'persistence',
+					stage: 'persistence',
+					project: {name: 'root', file: 'tsconfig.json'},
+				},
+			});
+			expect(JSON.stringify(message)).not.toContain('/dev/null');
+			expect(JSON.stringify(message)).not.toContain('stack');
 		} finally {
 			cleanup();
 		}

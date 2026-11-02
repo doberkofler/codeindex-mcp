@@ -1,11 +1,12 @@
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
-import {type QueryFreshnessType, type RefreshStateType} from '../model.ts';
+import {type BuildOutcomeType, type QueryFreshnessType, type RefreshStateType} from '../model.ts';
 
 const debug = debugFor('refresh');
 
 const DEFAULT_DEBOUNCE_MS = 500;
 const DEFAULT_RECONCILE_INTERVAL_MS = 60_000;
+const DEFAULT_SUPERSEDED_BACKOFF_MAX_MS = 30_000;
 
 export type ClockType = Readonly<{
 	now: () => number;
@@ -42,11 +43,13 @@ export type RefreshCoordinatorSnapshotType = Readonly<{
 }>;
 
 export type RefreshCoordinatorOptionsType = Readonly<{
-	runRefresh: (reason: RefreshReasonType) => Promise<void>;
+	runRefresh: (reason: RefreshReasonType) => Promise<BuildOutcomeType>;
 	logger: LoggerType;
 	clock?: ClockType;
 	debounceMs?: number;
 	reconcileIntervalMs?: number;
+	/** Upper bound for exponential retry after repeated superseded attempts. */
+	supersededBackoffMaxMs?: number;
 	record?: (event: string, fields?: Readonly<Record<string, unknown>>) => void;
 }>;
 
@@ -62,11 +65,12 @@ const noRecord = (_event: string, _fields?: Readonly<Record<string, unknown>>): 
  * follow-up. It performs no indexing work itself.
  */
 export class RefreshCoordinator {
-	readonly #runRefresh: (reason: RefreshReasonType) => Promise<void>;
+	readonly #runRefresh: (reason: RefreshReasonType) => Promise<BuildOutcomeType>;
 	readonly #logger: LoggerType;
 	readonly #clock: ClockType;
 	readonly #debounceMs: number;
 	readonly #reconcileIntervalMs: number;
+	readonly #supersededBackoffMaxMs: number;
 	readonly #record: (event: string, fields?: Readonly<Record<string, unknown>>) => void;
 	#state: RefreshStateType = 'unknown';
 	readonly #dirtyPaths = new Set<string>();
@@ -81,6 +85,8 @@ export class RefreshCoordinator {
 	#lastError: string | null = null;
 	#lastReason: RefreshReasonType | null = null;
 	#firstEventAt: number | null = null;
+	#supersededAttempts = 0;
+	#supersededBackoffMs = 0;
 
 	public constructor(options: RefreshCoordinatorOptionsType) {
 		this.#runRefresh = options.runRefresh;
@@ -88,6 +94,7 @@ export class RefreshCoordinator {
 		this.#clock = options.clock ?? systemClock;
 		this.#debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
 		this.#reconcileIntervalMs = options.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
+		this.#supersededBackoffMaxMs = options.supersededBackoffMaxMs ?? DEFAULT_SUPERSEDED_BACKOFF_MAX_MS;
 		this.#record = options.record ?? noRecord;
 	}
 
@@ -176,7 +183,40 @@ export class RefreshCoordinator {
 		this.#projectWideInvalidation = false;
 		this.#refreshAgain = false;
 		this.#firstEventAt = null;
+		this.#supersededAttempts = 0;
+		this.#supersededBackoffMs = 0;
 		this.#lastRefreshCompletedAt = new Date(this.#clock.now()).toISOString();
+	}
+
+	/**
+	 * Records a superseded attempt observed outside the coordinator.
+	 *
+	 * A manual `ensureReady` call runs its own refresh. When that refresh is
+	 * superseded, this schedules the same single capped-backoff follow-up a
+	 * watcher-triggered refresh receives. Calls made while the coordinator is
+	 * already building or dirty are no-ops, so the outcome is only handled once.
+	 *
+	 * @param durationMs - Measured duration of the superseded attempt.
+	 */
+	public noteSuperseded(durationMs: number): void {
+		if (this.#state === 'stopping' || this.#state === 'building' || this.#state === 'dirty') {
+			return;
+		}
+
+		this.#supersededAttempts += 1;
+		const backoffMs = Math.min(this.#debounceMs * 2 ** (this.#supersededAttempts - 1), this.#supersededBackoffMaxMs);
+		this.#state = 'dirty';
+		this.#lastError = null;
+		this.#refreshAgain = false;
+		this.#supersededBackoffMs = backoffMs;
+		this.#record('refresh_superseded', {
+			reason: 'manual',
+			durationMs,
+			attempt: this.#supersededAttempts,
+			backoffMs,
+			dirtyFileCount: this.#projectWideInvalidation ? null : this.#dirtyPaths.size,
+		});
+		this.#schedule('change', backoffMs);
 	}
 
 	public getSnapshot(): RefreshCoordinatorSnapshotType {
@@ -229,12 +269,13 @@ export class RefreshCoordinator {
 		}
 	}
 
-	#schedule(reason: RefreshReasonType): void {
+	#schedule(reason: RefreshReasonType, delayMs = this.#debounceMs): void {
 		this.#clearDebounce();
+		const effectiveDelay = this.#supersededBackoffMs > 0 ? Math.max(delayMs, this.#supersededBackoffMs) : delayMs;
 		this.#debounceTimer = this.#clock.setTimeout(() => {
 			this.#debounceTimer = null;
 			void this.#run(reason);
-		}, this.#debounceMs);
+		}, effectiveDelay);
 		this.#debounceTimer.unref();
 	}
 
@@ -251,6 +292,7 @@ export class RefreshCoordinator {
 		}
 
 		this.#refreshAgain = false;
+		this.#supersededBackoffMs = 0;
 		this.#state = 'building';
 		this.#lastReason = reason;
 		this.#lastRefreshStartedAt = new Date(this.#clock.now()).toISOString();
@@ -266,31 +308,66 @@ export class RefreshCoordinator {
 		}
 	}
 
+	#completeSuperseded(startedAt: number, completedAt: number): void {
+		this.#supersededAttempts += 1;
+		const backoffMs = Math.min(this.#debounceMs * 2 ** (this.#supersededAttempts - 1), this.#supersededBackoffMaxMs);
+		this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
+		this.#lastError = null;
+		this.#refreshAgain = false;
+		this.#state = 'dirty';
+		this.#supersededBackoffMs = backoffMs;
+		this.#record('refresh_superseded', {
+			reason: this.#lastReason,
+			durationMs: Math.round(completedAt - startedAt),
+			attempt: this.#supersededAttempts,
+			backoffMs,
+			dirtyFileCount: this.#projectWideInvalidation ? null : this.#dirtyPaths.size,
+		});
+		// A superseded candidate is discarded, not failed. Exactly one follow-up
+		// runs, delayed by a capped exponential backoff so sustained churn cannot
+		// spin the builder.
+		this.#schedule('change', backoffMs);
+	}
+
+	#completePublished(startedAt: number, completedAt: number): void {
+		this.#supersededAttempts = 0;
+		this.#supersededBackoffMs = 0;
+		this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
+		this.#lastError = null;
+		this.#record('refresh_published', {
+			reason: this.#lastReason,
+			durationMs: Math.round(completedAt - startedAt),
+			eventToPublicationMs: Math.round(completedAt - (this.#firstEventAt ?? startedAt)),
+			dirtyFileCount: this.#projectWideInvalidation ? null : this.#dirtyPaths.size,
+		});
+
+		if (this.#refreshAgain) {
+			this.#state = 'dirty';
+			this.#refreshAgain = false;
+			this.#schedule('change');
+			return;
+		}
+
+		this.#state = 'current';
+		this.#firstEventAt = null;
+		this.#dirtyPaths.clear();
+		this.#projectWideInvalidation = false;
+	}
+
 	async #execute(startedAt: number): Promise<void> {
 		try {
-			await this.#runRefresh(this.#lastReason ?? 'manual');
+			const outcome = await this.#runRefresh(this.#lastReason ?? 'manual');
 			const completedAt = this.#clock.now();
-			this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
-			this.#lastError = null;
-			this.#record('refresh_published', {
-				reason: this.#lastReason,
-				durationMs: Math.round(completedAt - startedAt),
-				eventToPublicationMs: Math.round(completedAt - (this.#firstEventAt ?? startedAt)),
-				dirtyFileCount: this.#projectWideInvalidation ? null : this.#dirtyPaths.size,
-			});
 
-			if (this.#refreshAgain) {
-				this.#state = 'dirty';
-				this.#refreshAgain = false;
-				this.#schedule('change');
+			if (outcome === 'superseded') {
+				this.#completeSuperseded(startedAt, completedAt);
 				return;
 			}
 
-			this.#state = 'current';
-			this.#firstEventAt = null;
-			this.#dirtyPaths.clear();
-			this.#projectWideInvalidation = false;
+			this.#completePublished(startedAt, completedAt);
 		} catch (error) {
+			this.#supersededAttempts = 0;
+			this.#supersededBackoffMs = 0;
 			this.#lastError = error instanceof Error ? error.message : String(error);
 			const completedAt = this.#clock.now();
 			const eventToPublicationMs = completedAt - (this.#firstEventAt ?? startedAt);

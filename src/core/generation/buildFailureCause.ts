@@ -35,12 +35,12 @@ type CauseRuleType = Readonly<{pattern: RegExp; cause: BuildFailureCauseType}>;
 
 const CAUSE_RULES: readonly CauseRuleType[] = [
 	{pattern: /lease was lost|lease.*taken over|build lease/iu, cause: 'lease'},
-	{pattern: /source changed during index build/iu, cause: 'source-changed'},
+	{pattern: /source changed during index build|(?:input|inputs) changed (?:during|before)(?: the)? build/iu, cause: 'source-changed'},
 	{pattern: /EISDIR|ENOENT|EACCES|EPERM|illegal operation on a directory|no such file or directory/iu, cause: 'source-read'},
 	{pattern: /worker/iu, cause: 'worker'},
 	{pattern: /SQLite integrity check failed|foreign-key check failed/iu, cause: 'verification'},
 	{pattern: /invalid code index configuration|tsconfig|parseJsonConfig|compiler option/iu, cause: 'configuration'},
-	{pattern: /SQLITE|disk I\/O|constraint failed|database is locked|readonly database/iu, cause: 'persistence'},
+	{pattern: /SQLITE|disk I\/O|constraint failed|database is locked|readonly database|unable to open database|ENOTDIR|EEXIST/iu, cause: 'persistence'},
 	{pattern: /publish|publication/iu, cause: 'publication'},
 	{pattern: /extract/iu, cause: 'extraction'},
 	{pattern: /compiler|typescript/iu, cause: 'compiler'},

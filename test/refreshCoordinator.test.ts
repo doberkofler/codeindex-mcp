@@ -2,6 +2,7 @@ import {once} from 'node:events';
 import {setImmediate as immediate} from 'node:timers/promises';
 import {describe, expect, it} from 'vitest';
 import {RefreshCoordinator, type ClockType} from '../src/core/freshness/refreshCoordinator.ts';
+import {type BuildOutcomeType} from '../src/core/model.ts';
 import {silentLogger} from './helpers/fixture.ts';
 
 type TimerType = ReturnType<typeof setTimeout> & Readonly<{id: number}>;
@@ -73,9 +74,10 @@ describe('RefreshCoordinator', () => {
 	it('coalesces one event burst into one refresh', async () => {
 		const {clock, advance} = createClock();
 		let calls = 0;
-		const runRefresh = async (): Promise<void> => {
+		const runRefresh = async (): Promise<BuildOutcomeType> => {
 			calls += 1;
 			await Promise.resolve();
+			return 'published';
 		};
 		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
 
@@ -98,9 +100,10 @@ describe('RefreshCoordinator', () => {
 		const {clock, advance} = createClock();
 		const gate = new EventTarget();
 		let calls = 0;
-		const runRefresh = async (): Promise<void> => {
+		const runRefresh = async (): Promise<BuildOutcomeType> => {
 			calls += 1;
 			await once(gate, 'release');
+			return 'published';
 		};
 		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
 
@@ -127,7 +130,7 @@ describe('RefreshCoordinator', () => {
 	it('reports stale freshness after a failed refresh and accepts a retry', async () => {
 		const {clock, advance} = createClock();
 		let calls = 0;
-		const runRefresh = async (): Promise<void> => {
+		const runRefresh = async (): Promise<BuildOutcomeType> => {
 			calls += 1;
 			await Promise.resolve();
 			throw new Error('build failed');
@@ -149,9 +152,10 @@ describe('RefreshCoordinator', () => {
 	it('skips reconciliation while a refresh is pending', async () => {
 		const {clock, advance} = createClock();
 		let calls = 0;
-		const runRefresh = async (): Promise<void> => {
+		const runRefresh = async (): Promise<BuildOutcomeType> => {
 			calls += 1;
 			await Promise.resolve();
+			return 'published';
 		};
 		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500, reconcileIntervalMs: 60_000});
 
@@ -167,18 +171,94 @@ describe('RefreshCoordinator', () => {
 	});
 });
 
+describe('RefreshCoordinator supersession', () => {
+	it('supersedes once and publishes the single follow-up', async () => {
+		const {clock, advance} = createClock();
+		const events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[] = [];
+		let calls = 0;
+		const coordinator = new RefreshCoordinator({
+			runRefresh: async (): Promise<BuildOutcomeType> => {
+				calls += 1;
+				await Promise.resolve();
+				return calls === 1 ? 'superseded' : 'published';
+			},
+			logger: silentLogger,
+			clock,
+			debounceMs: 500,
+			record: (event, fields): void => {
+				events.push({event, fields});
+			},
+		});
+
+		coordinator.start();
+		await advance(500);
+
+		expect(calls).toBe(1);
+		expect(coordinator.getSnapshot().state).toBe('dirty');
+		expect(coordinator.getFreshness().state).toBe('updating');
+		expect(events.map((entry) => entry.event)).toContain('refresh_superseded');
+		expect(events.map((entry) => entry.event)).not.toContain('refresh_failed');
+
+		await advance(500);
+
+		expect(calls).toBe(2);
+		expect(coordinator.getSnapshot().state).toBe('current');
+		expect(events.map((entry) => entry.event)).toContain('refresh_published');
+		await coordinator.close();
+	});
+
+	it('backs off with a cap while churn keeps superseding', async () => {
+		const {clock, advance} = createClock();
+		const backoffs: number[] = [];
+		const events: string[] = [];
+		const coordinator = new RefreshCoordinator({
+			runRefresh: async (): Promise<BuildOutcomeType> => {
+				await Promise.resolve();
+				return 'superseded';
+			},
+			logger: silentLogger,
+			clock,
+			debounceMs: 500,
+			supersededBackoffMaxMs: 2000,
+			record: (event, fields): void => {
+				events.push(event);
+
+				if (event === 'refresh_superseded') {
+					backoffs.push(Number(fields?.['backoffMs']));
+				}
+			},
+		});
+
+		coordinator.start();
+		await advance(500);
+		expect(coordinator.getFreshness().state).toBe('updating');
+		await advance(500);
+		await advance(1000);
+		await advance(2000);
+		await advance(2000);
+
+		expect(backoffs).toStrictEqual([500, 1000, 2000, 2000, 2000]);
+		expect(events).not.toContain('refresh_failed');
+		expect(events).not.toContain('refresh_published');
+		expect(coordinator.getFreshness().state).toBe('updating');
+		await coordinator.close();
+	});
+});
+
 describe('RefreshCoordinator failure recovery', () => {
 	it('runs one follow-up when a build fails with pending events', async () => {
 		const {clock, advance} = createClock();
 		const gate = new EventTarget();
 		let calls = 0;
-		const runRefresh = async (): Promise<void> => {
+		const runRefresh = async (): Promise<BuildOutcomeType> => {
 			calls += 1;
 			await once(gate, 'release');
 
 			if (calls === 1) {
 				throw new Error('source changed during build');
 			}
+
+			return 'published';
 		};
 		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
 
@@ -205,8 +285,9 @@ describe('RefreshCoordinator publication timing', () => {
 		const {clock, advance} = createClock();
 		const events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[] = [];
 		const coordinator = new RefreshCoordinator({
-			runRefresh: async (): Promise<void> => {
+			runRefresh: async (): Promise<BuildOutcomeType> => {
 				await Promise.resolve();
+				return 'published';
 			},
 			logger: silentLogger,
 			clock,

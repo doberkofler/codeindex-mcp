@@ -287,6 +287,17 @@ export class IndexDatabase {
 			.run(new Date().toISOString(), message, generationId);
 	}
 
+	/**
+	 * Deletes an unpublished candidate whose snapshot drifted during validation.
+	 *
+	 * Only `building` rows are removed; a published generation is never touched.
+	 *
+	 * @param generationId - Candidate generation identifier.
+	 */
+	public discardBuildingGeneration(generationId: string): void {
+		this.#writer.prepare("delete from generation where id = ? and state = 'building'").run(generationId);
+	}
+
 	public verifyIntegrity(): void {
 		verifyDatabaseIntegrity(this.#reader);
 	}

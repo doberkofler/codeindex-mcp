@@ -284,6 +284,12 @@ const mergeContexts = (contexts: readonly ExtractedContextType[]): Omit<Extracto
 	};
 };
 
+const authoredInputsMatch = (scan: ScanResultType, snapshot: TypeScriptInputSnapshotType): boolean => {
+	const captured = new Map(snapshot.manifest.inputs.filter((input) => input.kind === 'authored').map((input) => [input.absolutePath, input.sha256]));
+
+	return scan.files.every((file) => captured.get(file.absolutePath) === file.sha256);
+};
+
 const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => {
 	const extractionStartedAt = performance.now();
 	const {snapshot} = createTypeScriptInputSnapshot(
@@ -291,7 +297,7 @@ const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => 
 		scan.files.map((file) => file.path),
 	);
 
-	if (scan.inputHash !== undefined && scan.inputHash !== snapshot.manifest.inputHash) {
+	if ((scan.inputHash !== undefined && scan.inputHash !== snapshot.manifest.inputHash) || !authoredInputsMatch(scan, snapshot)) {
 		throw new Error('TypeScript inputs changed before the build started');
 	}
 
