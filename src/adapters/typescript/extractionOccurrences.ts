@@ -166,6 +166,34 @@ export const addDefinitionFacts = (
 	return {definitionsBySymbol, definitionNodes};
 };
 
+/**
+ * Recognises the TypeScript 6 type-query anomaly that parses `this` as an
+ * identifier.
+ *
+ * In `typeof this.member` the expression name is a `QualifiedName` whose left
+ * node is an `Identifier` named `this`; in expression position the same text is
+ * a `ThisKeyword` inside a `PropertyAccessExpression`. The identifier carries
+ * no authored reference, and resolving it would attribute the keyword to the
+ * enclosing class. A property literally named `this`, such as `obj.this`, has
+ * the identifier on the right of the qualified name and is preserved.
+ *
+ * @param node - Candidate identifier.
+ * @returns True when the identifier is a type-query `this` keyword.
+ */
+const isTypeQueryThis = (node: ts.Identifier): boolean => {
+	if (node.text !== 'this') {
+		return false;
+	}
+
+	let current: ts.Node = node;
+
+	while (ts.isQualifiedName(current.parent) && current.parent.left === current) {
+		current = current.parent;
+	}
+
+	return ts.isTypeQueryNode(current.parent) && current.parent.exprName === current;
+};
+
 const aliasTargetOf = (runtime: ExtractionRuntimeType, symbol: ts.Symbol | undefined): ts.Symbol | undefined => {
 	if (symbol === undefined) {
 		return undefined;
@@ -211,7 +239,7 @@ export const collectReferenceFacts = (
 			const declarationSymbol = runtime.symbolIdByDeclaration.get(node) ?? runtime.deferredIdByNode.get(node);
 			const nextEnclosingId = declarationSymbol ?? enclosingId;
 
-			if (ts.isIdentifier(node) && !definitionNodes.has(node)) {
+			if (ts.isIdentifier(node) && !definitionNodes.has(node) && !isTypeQueryThis(node)) {
 				const raw = runtime.checker.getSymbolAtLocation(node);
 				const symbolId =
 					symbolForTsSymbol(runtime, raw) ??

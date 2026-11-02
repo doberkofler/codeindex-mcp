@@ -219,6 +219,20 @@ const promoteDeferred = (runtime: ExtractionRuntimeType, deferred: DeferredCandi
 
 const deferredFor = (runtime: ExtractionRuntimeType, symbol: ts.Symbol): DeferredCandidateType | undefined => runtime.deferredByCanonical.get(symbol)?.[0];
 
+/**
+ * Finds the stored symbol for one compiler declaration.
+ *
+ * A transient object member keeps the identity of the node that already
+ * produced its declaration. Promotion is disabled during reference collection,
+ * so that identity is reused instead of promoting a second symbol.
+ *
+ * @param runtime - Extraction state.
+ * @param declaration - Compiler declaration node.
+ * @returns Stored symbol identifier, or undefined.
+ */
+const storedIdForDeclaration = (runtime: ExtractionRuntimeType, declaration: ts.Node): string | undefined =>
+	runtime.symbolIdByDeclaration.get(declaration) ?? runtime.deferredIdByNode.get(declaration);
+
 const promoteDeferredForDeclaration = (runtime: ExtractionRuntimeType, declarations: readonly ts.Declaration[]): string | null => {
 	for (const declaration of declarations) {
 		const deferred = runtime.deferredNodeById.get(declaration);
@@ -321,7 +335,7 @@ export const symbolForTsSymbol = (runtime: ExtractionRuntimeType, symbol: ts.Sym
 	const {target} = alias;
 
 	for (const declaration of target.declarations ?? []) {
-		const declared = runtime.symbolIdByDeclaration.get(declaration);
+		const declared = storedIdForDeclaration(runtime, declaration);
 
 		if (declared !== undefined) {
 			return declared;

@@ -9,7 +9,7 @@ import {type ScanProjectResultType, type ScanResultType, type SourceFileType} fr
 import {computeSourceHash, createSourceFileRecord} from '../../core/generation/sourceFiles.ts';
 
 export const TYPESCRIPT_EXTRACTOR_ID = 'typescript';
-export const TYPESCRIPT_EXTRACTOR_VERSION = '0.2.0';
+export const TYPESCRIPT_EXTRACTOR_VERSION = '0.2.1';
 
 const PUBLISHABLE_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'];
 const DECLARATION_SUFFIXES: readonly string[] = ['.d.ts', '.d.mts', '.d.cts'];

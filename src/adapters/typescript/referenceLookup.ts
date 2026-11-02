@@ -88,6 +88,10 @@ export const createLanguageService = (config: ConfigType, program: ts.Program): 
 		fileExists: (fileName) => ts.sys.fileExists(fileName),
 		readFile: (fileName) => ts.sys.readFile(fileName),
 		readDirectory: (...args: Parameters<typeof ts.sys.readDirectory>) => ts.sys.readDirectory(...args),
+		// The extraction program resolves symlinked workspace files through their
+		// real path. Without the same hook the service reports canonical paths that
+		// never match the authored set.
+		realpath: (fileName) => ts.sys.realpath?.(fileName) ?? fileName,
 	};
 
 	return ts.createLanguageService(host);
