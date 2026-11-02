@@ -1,115 +1,50 @@
 # CodeIndex MCP
 
-A local, extensible, language-neutral code index exposed through the Model Context
-Protocol (MCP), a command-line interface, and a loopback management console.
+CodeIndex MCP is a local, read-only code index for AI coding clients. It indexes
+one configured workspace into SQLite and exposes bounded navigation through MCP,
+a command-line interface, and a loopback management console.
 
-CodeIndex MCP builds an immutable index generation from a workspace, stores it in
-SQLite, and answers bounded navigation questions without reading the whole
-repository into an agent's context. It is read-only: tools never modify source
-files.
+Use it to locate declarations, inspect a file outline, find references, trace
+dependency use, resolve the declaration at a source position, and read the
+smallest useful source range without loading an entire repository into context.
 
-## What it does
+## Supported source
 
-The index stores:
+| Extractor | Input | Current coverage |
+| --- | --- | --- |
+| `typescript` | `tsconfig.json` or `jsconfig.json` | TypeScript and JavaScript declarations, references, imports, exports, bindings, and diagnostics |
+| `oracle` | Explicit Oracle manifest | Oracle 19c packages, standalone procedures/functions, tables, table columns, views, references, and package dependencies |
 
-- authored files with content hashes and line counts;
-- declarations with stable identifiers, qualified names, kinds, and source ranges;
-- definition and reference occurrences, including the enclosing declaration;
-- dependency edges and bindings (authored module imports and canonical external or logical targets);
-- extractor diagnostics;
-- build generations, freshness state, and analytics.
+JavaScript requires `allowJs` in the selected TypeScript project. Declaration
+files and generated output may participate in compiler resolution but are not
+published as authored source.
 
-Six read-only MCP tools are exposed:
+The Oracle extractor reads static source only; it does not connect to Oracle at
+runtime. Object types, triggers, synonyms, database links, inferred view columns,
+SQL object lineage, wrapped source, and conditional-compilation branch evaluation
+are not indexed.
 
-| Tool | Purpose |
-| --- | --- |
-| `index_status` | Bounded readiness, scope, counts, freshness, and last error; full detail adds build and limitation data |
-| `outline` | Declarations in one file, in source order |
-| `find_symbol` | Exact or prefix symbol search |
-| `find_references` | Occurrences for one symbol ID, or one-call name resolution with file/owner grouping |
-| `find_dependencies` | Direct target usage or transitive dependency impact |
-| `read_symbol` | Bounded source for one symbol, rejecting stale files |
+One server selects one extractor. TypeScript and Oracle can run as separate MCP
+servers, but they do not yet share one atomic generation or cross-language edges.
 
-All results are paginated and byte-bounded. Stale source is rejected rather than
-returned.
+## Requirements and installation
 
-## Language support
+- Node.js 26 or newer.
+- A released Git tag. The package is consumed from GitHub and is not published to
+  npm.
 
-Two extractors ship today:
-
-- **TypeScript / JavaScript**, using the TypeScript compiler API.
-- **Oracle 19c SQL / PL/SQL**, using a pinned ANTLR lexer and a tolerant structural
-  scanner. No Oracle database is needed at runtime.
-
-JavaScript files are indexed when a configured project enables `allowJs`.
-Declaration files (`.d.ts`, `.d.mts`, `.d.cts`) and generated output are used for
-resolution but are not published as authored source.
-
-The Oracle adapter indexes package specifications, package bodies, and standalone
-procedures/functions from an explicit manifest. Triggers, object types, table
-lineage, and live catalogue metadata are outside O1 scope. See the
-[Oracle adapter](./documentation/oracle-adapter.md).
-
-Oracle O1 status under contract `oracle-o1@4` is **PASS**: declarations
-(99.9489% recall, 100% precision), references (99.6697% recall, 100% precision),
-and package dependencies (100% recall and precision after 103 counted
-`compiler_inferred_dependency` exclusions)
-([production evidence](./benchmark/oracle-production-20261027/README.md)).
-Dependency truth was decided in
-[#101](https://github.com/doberkofler/codeindex-mcp/issues/101).
-
-The production performance baseline is retained at
-[`benchmark/oracle-performance`](./benchmark/oracle-performance/README.md). All 45
-declared gates pass: cold build, warm reuse, rebuild, one-file edit-to-fresh
-(1.53 s median over 25 rounds), queries, memory, storage, and bundles.
-
-ORDS and cross-language edges remain planned; later languages use the same adapter
-seam.
-
-## Architecture
-
-```text
-MCP / CLI / console
-        │
-        ▼
-Language-neutral core
-  generations · freshness · storage · publication
-  pagination · limits · dependency queries · analytics
-        │
-        ▼
-Extractor interface
-  files · declarations · occurrences · dependency edges
-  diagnostics · source ranges · identity and version
-        │
-        ▼
-TypeScript / JavaScript adapter     Oracle 19c adapter
-  TypeScript compiler API              pinned ANTLR lexer + structural scanner
-```
-
-The core does not know about TypeScript, `tsconfig.json`, npm, Oracle, or any
-version control system. Compiler objects stay inside the adapter. A new language is added
-by implementing the extractor interface and selecting it in configuration;
-storage, publication, MCP envelopes, and analytics do not change.
-
-## Installation
-
-The package is consumed directly from GitHub. No npm publication is performed.
+Install an immutable release tag in the consuming project:
 
 ```bash
-pnpm add github:doberkofler/codeindex-mcp#v0.9.0
+pnpm add "github:doberkofler/codeindex-mcp#<release-tag>"
 ```
 
-Pin a released tag. The Git dependency runs its `prepare` script, which builds:
+Do not depend on `main`. The Git dependency runs `prepare` and builds
+`dist/mcp.mjs`, `dist/cli.mjs`, `dist/console.mjs`, and the console frontend.
 
-```text
-dist/mcp.mjs
-dist/cli.mjs
-dist/console.mjs
-dist/console/
-```
-
-With pnpm 12, approve the Git dependency build and the `oracledb` install script in
-`pnpm-workspace.yaml`. Use the resolved commit key that pnpm prints:
+If pnpm blocks dependency build scripts, approve the resolved CodeIndex Git
+dependency and `oracledb` in `pnpm-workspace.yaml`. Use the exact resolved key
+reported by pnpm:
 
 ```yaml
 allowBuilds:
@@ -117,257 +52,272 @@ allowBuilds:
   oracledb: true
 ```
 
-See [the user guide](documentation/user-guide.md#install) for the complete sequence.
-Do not depend on the `main` branch. Every upgrade requires a new tag, an explicit
-dependency update, a lockfile update, and verification in the consuming project.
+`oracledb` is used only by opt-in live Oracle qualification; normal Oracle
+indexing opens no Oracle connection.
 
-## Configuration
+## Quick start
 
-Configuration is external to the package. Pass a JSON file with `--config` or
-`CODE_INDEX_CONFIG`:
+From a TypeScript workspace containing `tsconfig.json`, the defaults are enough:
 
 ```bash
-codeindex-cli status --config ./codeindex.config.json
-CODE_INDEX_CONFIG=./codeindex.config.json codeindex-mcp
+codeindex-cli update
+codeindex-cli status
 ```
 
-Paths inside the file resolve relative to the file's directory. Environment
-overrides resolve relative to the current working directory.
+The default extractor is `typescript`, the default root is the current directory,
+and the default project file is `tsconfig.json`.
+
+For explicit or multi-project configuration, create `codeindex.config.json`:
 
 ```json
 {
 	"project": {
 		"name": "my-workspace",
-		"id": "optional-stable-id",
 		"root": "."
 	},
 	"extractor": {
 		"id": "typescript",
 		"projects": [
-			{ "name": "browser", "project": "tsconfig.json" },
-			{ "name": "contracts", "project": "contracts/tsconfig.json" },
-			{ "name": "server", "project": "server/tsconfig.json" }
+			{"name": "browser", "project": "tsconfig.json"},
+			{"name": "server", "project": "server/tsconfig.json"}
 		]
-	},
-	"storage": {
-		"analyticsEnabled": true
 	},
 	"limits": {
 		"maxResultBytes": 32768,
 		"maxReadLines": 200
-	},
-	"diagnostics": {
-		"semantic": false
 	}
 }
 ```
 
-Every `extractor.projects[].project` must stay inside `project.root`. The single
-`extractor.project` form remains supported. The Oracle extractor requires an
-explicit manifest path; it never guesses a project filename. Storage paths must
-stay outside the indexed workspace.
+Then build or reuse the index:
 
-### Oracle manifest
-
-```json
-{
-	"schemaVersion": 1,
-	"dialect": "19c",
-	"defaultSchema": "APP",
-	"extensions": [".pks", ".pkg", ".pkb", ".prc", ".fnc"],
-	"include": ["database/**/*.pks", "database/**/*.pkb"],
-	"exclude": ["**/generated/**"]
-}
+```bash
+codeindex-cli update --config codeindex.config.json
 ```
 
-`extensions` is optional and replaces the default `.pks`, `.pkg`, `.pkb`, `.prc`,
-`.fnc` set. Add `.sql` or `.pls` only when those files should be published.
+All configured project contexts for the selected extractor share one publication
+boundary. Context names appear in results and can be used as query filters.
 
-All project contexts build into one atomic generation. Each declaration and
-occurrence records the contexts that produced it; `find_symbol` and
-`find_references` accept an optional `context` filter.
+Paths in a configuration file resolve relative to that file. Environment and CLI
+path overrides resolve relative to the current working directory. Project files
+must stay inside the workspace; database and analytics paths must stay outside it.
 
-### Environment overrides
+## Connect an MCP client
 
-| Variable | Effect |
-| --- | --- |
-| `CODE_INDEX_CONFIG` | Configuration file path |
-| `CODE_INDEX_ROOT` | Indexed workspace root |
-| `CODE_INDEX_EXTRACTOR` | Extractor identifier |
-| `CODE_INDEX_PROJECT_FILE` | Single extractor project file override |
-| `CODE_INDEX_DATABASE` | SQLite index path |
-| `CODE_INDEX_ANALYTICS` | `0` or `false` disables analytics writes |
-| `CODE_INDEX_ANALYTICS_PATH` | Analytics JSONL path |
-| `CODE_INDEX_MAX_RESULT_BYTES` | MCP response byte bound |
-| `CODE_INDEX_MAX_READ_LINES` | `read_symbol` line bound |
-| `CODE_INDEX_SEMANTIC_DIAGNOSTICS` | `1` or `true` enables semantic diagnostics |
-| `CODE_INDEX_PROJECT_ID` | Stable project identifier |
-| `CODE_INDEX_LOG_LEVEL` | `debug`, `info`, `warn`, `error` |
+### OpenCode
 
-`CODE_INDEX_LOG` remains an alias for the analytics path.
+Install a project-local server entry while preserving unrelated JSONC content:
 
-## Executables
+```bash
+codeindex-cli mcp install \
+  --root . \
+  --codeindex-config codeindex.config.json
+```
 
-### `codeindex-mcp`
+This writes `mcp.servers.codeindex-<extractor>` to the existing project OpenCode
+configuration, or creates `.opencode/opencode.jsonc`. Reconnect the MCP server
+after installation or an upgrade.
 
-Stdio MCP server. Stdout belongs exclusively to the MCP transport; diagnostics and
-the version banner use stderr.
+Remove only that generated server entry with:
+
+```bash
+codeindex-cli mcp uninstall \
+  --root . \
+  --codeindex-config codeindex.config.json
+```
+
+`--config` on the `mcp` subcommand selects the OpenCode configuration to edit;
+`--codeindex-config` selects the configuration passed to CodeIndex.
+
+### Other MCP clients
+
+Configure a local stdio server whose working directory is the indexed workspace:
 
 ```jsonc
 {
 	"mcp": {
 		"servers": {
-			"codeindex": {
+			"codeindex-typescript": {
 				"type": "local",
-				"command": ["codeindex-mcp", "--config", "./codeindex.config.json"]
+				"command": [
+					"codeindex-mcp",
+					"--config",
+					"codeindex.config.json"
+				]
 			}
 		}
 	}
 }
 ```
 
-Some clients require a launcher script to inject configuration. In that case
-point the command at the launcher, keep stdout clean, and let the launcher import
-the installed `codeindex-mcp/mcp` entry.
+`codeindex-mcp` reserves stdout for MCP framing. Its version banner,
+diagnostics, and debug traces go to stderr.
 
-### `codeindex-cli`
+## MCP tools
+
+The server exposes seven read-only tools:
+
+| Tool | Use |
+| --- | --- |
+| `index_status` | Readiness, configured scope, counts, freshness, limitations, and last error |
+| `outline` | Declarations in one indexed file, in source order |
+| `find_symbol` | Exact or prefix declaration lookup |
+| `find_references` | References or definitions for a symbol ID, or one-call name resolution grouped by file or owner |
+| `find_dependencies` | Direct external dependency consumers or transitive authored-module impact |
+| `read_symbol` | Bounded source or binding/definition-site metadata for one symbol |
+| `symbol_at` | Innermost stored declaration covering a source line or position |
+
+Responses include freshness and explicit guidance. When
+`guidance.action` is `stop` and `fallbackRequired` is `false`, the current,
+untruncated result is authoritative. Follow `nextCursor` whenever `truncated` is
+true. Use ordinary repository tools when guidance requests fallback or the fact is
+outside indexed scope.
+
+`outline` and `find_symbol` return compact results by default. Request full detail
+only for bindings, qualified names, or definition sites. Every response is bounded
+by `maxResultBytes`; source is also bounded by `maxReadLines`.
+
+`read_symbol` checks the current file hash before returning persisted source. A
+dirty or changed path returns `stale_file` instead of stale text.
+
+## Oracle configuration
+
+Select the Oracle extractor and name an explicit manifest:
+
+```json
+{
+	"project": {
+		"name": "database-source",
+		"root": "."
+	},
+	"extractor": {
+		"id": "oracle",
+		"project": "oracle-index.json"
+	}
+}
+```
+
+Example `oracle-index.json`:
+
+```json
+{
+	"schemaVersion": 1,
+	"dialect": "19c",
+	"defaultSchema": "APP",
+	"extensions": [".pks", ".pkg", ".pkb", ".prc", ".fnc", ".sql"],
+	"include": ["database/**/*"],
+	"exclude": ["**/generated/**"]
+}
+```
+
+Patterns are workspace-relative POSIX globs. `extensions` is optional; when
+omitted it defaults to `.pks`, `.pkg`, `.pkb`, `.prc`, and `.fnc`. Add `.sql` or
+`.pls` when those files should be published.
+
+Unquoted Oracle names use canonical uppercase spelling; quoted names preserve
+authored spelling. Natural qualified queries such as `PACKAGE_NAME.ROUTINE_NAME`
+are accepted.
+
+## CLI
+
+Common operational commands:
 
 ```bash
 codeindex-cli update     # build only when source or configuration changed
-codeindex-cli rebuild    # force a full re-extraction and a new revision
-codeindex-cli status     # generation, counts, freshness, scope
-codeindex-cli verify     # SQLite integrity and stored counts
-codeindex-cli analytics  # offline analytics report (text, json, html)
-codeindex-cli benchmark  # cold/warm build, edit-to-fresh, resources, deep cursors
-codeindex-cli benchmark-suite    # run a declarative benchmark suite
-codeindex-cli benchmark-prepare  # clone and install pinned public projects
-codeindex-cli qualify --extractor typescript  # language-service reference cross-check
-codeindex-cli qualify --extractor oracle --identifiers ... --dependencies ...
-codeindex-cli publication-report --output report.json  # report-only Phase 2 measurements
-codeindex-cli clean      # remove this project's index database (dry run by default)
+codeindex-cli refresh    # alias for update
+codeindex-cli rebuild    # force extraction and publication
+codeindex-cli status     # generation, scope, counts, and freshness
+codeindex-cli verify     # SQLite integrity, foreign keys, and stored counts
+codeindex-cli analytics  # report local privacy-safe analytics
+codeindex-cli clean      # list the current database; add --yes to remove it
 ```
 
-Index-backed commands accept `--config`, `--root`, `--extractor`, `--project-file`, and
-`--database`. `publication-report` is report-only: it accepts the first four and never
-opens or writes an index database. The benchmark command also accepts a generated corpus profile or a
-disposable database path. With `--baseline`, it writes an evaluation sidecar and
-fails only for `failure` gates; warnings remain successful. `--summary` writes
-Markdown. `--reference` accepts a previous benchmark report or a stored reference.
-See the
-[maintainer guide](./documentation/maintainer-guide.md#7-performance-verification).
+Index-backed operational commands accept `--config`, `--root`, `--extractor`,
+`--project-file`, `--database`, `--json`, and `--debug` where applicable.
+`clean` resolves its target from the environment; set `CODE_INDEX_CONFIG` when
+cleaning a non-default project.
 
-Repeated benchmark runs are orchestrated by a suite manifest. Each generated
-run starts from a pristine corpus, every step executes in a fresh process, and
-the evidence directory records identity, reports, gates, checksums, and a
-Markdown summary:
+Benchmark, soak, TypeScript differential, publication measurement, Oracle
+qualification, evidence preflight, and replay commands are maintainer surfaces.
+Run `codeindex-cli --help` and `codeindex-cli <command> --help` for their current
+options. Retained Oracle commands and evidence are documented in
+[`benchmark/oracle-production-20261027`](./benchmark/oracle-production-20261027/README.md)
+and [`benchmark/oracle-performance`](./benchmark/oracle-performance/README.md).
+
+## Console
+
+Start the loopback-only management console:
 
 ```bash
-pnpm benchmark:typescript:generated -- --output ~/codeindex-evidence/typescript-generated
-pnpm benchmark:typescript:public:prepare
-pnpm benchmark:typescript:public -- --output ~/codeindex-evidence/typescript-public
-pnpm benchmark:oracle:corpus -- --output ~/codeindex-evidence/oracle
+codeindex-console --config codeindex.config.json --open
 ```
 
-Semantic qualification is separate from performance benchmarking:
+It binds to `127.0.0.1`, uses a random per-run bearer token, and can show status,
+freshness, and analytics or run operational jobs. `--port 0` selects an available
+port.
 
-```bash
-pnpm qualify:typescript
-CODE_INDEX_ROOT=/path/to/oracle/workspace \
-CODE_INDEX_PROJECT_FILE=/path/to/oracle/workspace/oracle-index.json \
-CODE_INDEX_ORACLE_IDENTIFIERS=/path/to/user-identifiers.csv \
-CODE_INDEX_ORACLE_DEPENDENCIES=/path/to/user-dependencies.csv \
-pnpm qualify:oracle
-```
+## Environment overrides
 
-### `codeindex-console`
+| Variable | Effect |
+| --- | --- |
+| `CODE_INDEX_CONFIG` | Configuration file path |
+| `CODE_INDEX_ROOT` | Workspace root |
+| `CODE_INDEX_EXTRACTOR` | Extractor ID |
+| `CODE_INDEX_PROJECT_FILE` | Single extractor project-file override |
+| `CODE_INDEX_DATABASE` | SQLite database path |
+| `CODE_INDEX_ANALYTICS` | `0` or `false` disables analytics writes |
+| `CODE_INDEX_ANALYTICS_PATH` | Analytics JSONL path |
+| `CODE_INDEX_LOG` | Legacy alias for the analytics path |
+| `CODE_INDEX_MAX_RESULT_BYTES` | Maximum MCP response size |
+| `CODE_INDEX_MAX_READ_LINES` | Maximum source lines returned by `read_symbol` |
+| `CODE_INDEX_SEMANTIC_DIAGNOSTICS` | `1` or `true` enables TypeScript semantic diagnostics |
+| `CODE_INDEX_PROJECT_ID` | Reported stable logical project ID |
+| `CODE_INDEX_LOG_LEVEL` | `debug`, `info`, `warn`, or `error` |
 
-Loopback-only management console.
+## Storage and privacy
 
-```bash
-codeindex-console --config ./codeindex.config.json --open
-```
+By default, each physical checkout gets a separate directory under
+`~/.local/share/codeindex-mcp/`. Moving or copying a checkout produces a different
+storage key, so it cannot silently reuse another checkout's database or lease.
 
-It binds to `127.0.0.1`, requires a per-run bearer token, and serves a bundled
-frontend. It reports status, freshness, analytics, and runs update, rebuild,
-verify, benchmark, and qualification operations.
+The SQLite database is disposable derived data and contains indexed source bytes
+for freshness-safe reads. Schema incompatibility moves the old database aside and
+rebuilds; there are no in-place migrations.
 
-## Freshness and indexing semantics
+Analytics are local, bounded, versioned, and enabled by default. They contain
+operation names, timings, counts, byte sizes, freshness, and stable error codes;
+they exclude source text, prompts, queries, symbol names, credentials, and
+absolute paths. Set `CODE_INDEX_ANALYTICS=false` to disable writes.
 
-- Queries read exactly one published generation. `building` rows are never
-  exposed.
-- A generation is published only after extraction, insertion, and integrity
-  verification succeed. A failed build leaves the previous generation serving.
-- The scanner is authoritative. Filesystem events are hints; the coordinator
-  always performs a deterministic scan.
-- Exactly one process owns the build lease. Other processes remain readers and
-  observe the externally published generation.
-- Rebuilds run in a worker thread so the MCP transport stays responsive.
-- `read_symbol` verifies the file hash and rejects dirty paths with
-  `stale_file`.
-- Persisted paths are workspace-relative POSIX paths.
+Git and SVN provenance is recorded when available. An unversioned workspace is
+fully supported; freshness is hash-based, not VCS-based.
 
-## Data storage and privacy
+## Troubleshooting
 
-- Default storage: `~/.local/share/codeindex-mcp/<projectId>/`.
-- The database contains source content so `read_symbol` never trusts a changed
-  file. It stays local.
-- Analytics are local, versioned, bounded, and disabled with
-  `CODE_INDEX_ANALYTICS=false`. They contain tool names, durations, counts, and
-  freshness state — never source text, prompts, queries, symbol names,
-  credentials, or absolute paths.
-- Version-control provenance is optional. Git and SVN are detected when present;
-  an unversioned workspace indexes normally.
+- **`index_not_ready`:** the initial background build has not published. Run
+  `codeindex-cli update --config <path>` and inspect `status --json`.
+- **`index_build_failed`:** inspect MCP stderr or CLI output. The previous
+  published revision remains available when one exists.
+- **`file_not_indexed`:** confirm that the file is reachable from a configured
+  TypeScript project or included by the Oracle manifest.
+- **`stale_file`:** wait for watcher reconciliation or run `codeindex-cli update`;
+  never treat previously returned source as current.
+- **Oracle configuration failure:** Oracle requires `extractor.project` or
+  `extractor.projects`; it never guesses a manifest.
+- **No MCP output:** stdout is protocol-only. Read stderr, or enable
+  `DEBUG=codeindex:*` for namespaced traces.
+- **Changed server code or dependency version:** rebuild when developing locally,
+  then restart or reconnect the MCP process. A running process keeps the bundle it
+  started with.
 
-## Documentation
+## Project documentation
 
-- [Architecture](./documentation/architecture.md)
-- [TypeScript/JavaScript adapter](./documentation/typescript-adapter.md)
-- [Oracle adapter](./documentation/oracle-adapter.md)
-- [Oracle O1 qualification contract](./documentation/oracle-qualification-contract.md)
-- [Oracle ANTLR usage](./documentation/oracle-antlr.md)
-- [ORDS and cross-language design](./documentation/ords-cross-language.md)
-- [Roadmap](./documentation/roadmap.md)
-- [Maintainer guide](./documentation/maintainer-guide.md)
-- [User guide](./documentation/user-guide.md)
-- [Controlled evaluation harness](./documentation/evaluation-harness.md)
-- [Codebase testing strategy](./documentation/codebase-testing-strategy.md)
-- [Evaluation harness methodology](./documentation/evaluation-harness.md)
-- [Evaluation harness and public cases](./evaluation/README.md)
-
-## Development
-
-```bash
-pnpm install
-pnpm verify              # typecheck, Oxlint, Knip, Oxfmt, complete Vitest suite
-pnpm verify:pr           # single PR gate: one build, verify, fixture qualification
-pnpm test:fast           # module, adapter, core, and fake-index MCP classes
-pnpm test:typescript     # TypeScript adapter and reference-corpus classes
-pnpm test:mcp            # MCP protocol class
-pnpm test:system         # built-process deterministic system class
-pnpm test:oracle         # every Oracle module + generic Oracle contracts
-pnpm test:oracle:bundle  # retained evidence preflight and offline replay
-pnpm test:oracle:live    # read-only Oracle preflight; opt in with CODE_INDEX_ORACLE_LIVE=1
-pnpm qualify:typescript:fixture  # self-contained TypeScript language-service gate
-pnpm build
-```
-
-Requires Node.js 26 or newer. Formatting is owned by Oxfmt; semantic analysis by
-Oxlint. Focused workflows and `verify:pr` fail when they exceed their budget. Do
-not weaken a check to make it pass. Nightly and stable/release checks are recorded
-in [Verification workflows](.github/workflows/README.md).
-
-## Current limitations
-
-- TypeScript files must be reachable from a configured project file; JavaScript
-  requires `allowJs`.
-- Oracle O1 indexes static source only: no live database, triggers, object types,
-  table/column lineage, synonyms, database links, wrapped source, or conditional
-  compilation branch evaluation.
-- ORDS and cross-language edges are planned but not shipped.
-- No embeddings, fuzzy search, or full-text search.
-- Per-path fact deltas and per-file parse-digest fact reuse; the published
-  generation identifier is stable and every refresh increments its revision.
-- Console and MCP trust the local loopback boundary.
+- [Architecture](./documentation/architecture.md) — how the current implementation works.
+- [Enhancements](./documentation/enhancements.md) — index of open work; GitHub issues hold requirements and acceptance criteria.
+- [Contributing](./CONTRIBUTING.md) — development setup, checks, and contribution rules.
+- [Evaluation](./evaluation/README.md) — controlled evaluation contracts and retained reports.
+- [Verification workflows](./.github/workflows/README.md) — CI, nightly, stable, and release operations.
+- [Third-party notices](./THIRD_PARTY_NOTICES.md) — vendored Oracle grammar provenance and licenses.
 
 ## License
 

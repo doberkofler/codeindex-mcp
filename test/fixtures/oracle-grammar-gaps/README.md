@@ -1,8 +1,8 @@
 # Oracle Grammar Gap Fixtures
 
-These fixtures freeze the parser gaps recorded in
-[`documentation/oracle-antlr.md`](../../../documentation/oracle-antlr.md#7-known-grammar-gaps)
-and the gaps fixed by the current upstream pin.
+These fixtures are the retained manifest of parser gaps and fixes for the current
+upstream pin. Grammar provenance is recorded in
+[`THIRD_PARTY_NOTICES.md`](../../../THIRD_PARTY_NOTICES.md).
 
 Each file is intentionally small and exercises one construct. Open gaps assert
 that the current pinned grammar still reports a parse diagnostic. Fixed gaps

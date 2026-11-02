@@ -1,9 +1,9 @@
 # CodeIndex evaluation harness
 
 Repeatable evaluation of the CodeIndex MCP server against a plain retrieval
-baseline and against the currently accepted CodeIndex artifact, implementing the
-method in
-[`documentation/evaluation-harness.md`](../../documentation/evaluation-harness.md).
+baseline and against the currently accepted CodeIndex artifact. This file owns
+the human-readable harness contract; schemas, frozen JSON contracts, tests, and
+the implementation are executable authorities when prose and behavior differ.
 
 > **Certification status:** request-level provider metering, direct agent
 > request-1 surface proof, external-state workspace isolation, corpus preflight,
@@ -1123,3 +1123,29 @@ into `codemode: true` only for its `code-mode` arm. The harness verifies the
 artifact's native tool catalog before the first model call and records every
 observed tool name, so a regression to Code Mode routing is visible as a report
 failure rather than an unexplained payload increase.
+
+## Hosted-model spend approval
+
+A hosted-model call is billable. Model-free routes, request-1 surface probes,
+local models, protocol tests, and CI compute are not.
+
+No hosted-model call starts without explicit approval of a forecast produced
+before campaign admission. The forecast records:
+
+- the purpose and decision the evidence supports;
+- provider, model, client runtime, harness revision, and artifact digest;
+- planned executions and provider requests per treatment and repetition;
+- input/output token ranges per execution and in total, including reported cache
+  classes;
+- estimated cost range, tariff identity, and currency;
+- estimated wall-clock range;
+- confidence and the assumptions behind every estimate;
+- model-free and local checks already passed; and
+- the stop rule and conditions that justify a rerun.
+
+Estimate without spending. Reuse retained valid evidence and resume interrupted
+campaigns before buying new executions. Rerun only invalid or failed slots and
+retain the cause. Spend reduction may remove waste but must not weaken a frozen
+design's cases, repetitions, statistical power, acceptance criteria, or budget.
+The approved forecast is retained beside the campaign evidence; a campaign with
+no identifiable forecast and approval is not admitted.

@@ -1,7 +1,7 @@
 # Evaluation corpus manifests
 
 One manifest per selected corpus records the identity a campaign must pin. The
-[harness contract](../../documentation/evaluation-harness.md#3-cases-suites-and-treatments)
+[harness case and suite contract](../harness/README.md#case-and-suite-schema)
 defines its use; the selected external corpus is
 [`external-material-ui.json`](./external-material-ui.json).
 

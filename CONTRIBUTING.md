@@ -51,8 +51,8 @@ All authored executable source lives under `src/`:
 
 ```text
 src/core/        language-neutral indexing machinery
-src/adapters/    fact producers (TypeScript and static Oracle; ORDS planned)
-src/resolvers/   cross-adapter graph joins
+src/adapters/    fact producers (TypeScript and static Oracle)
+src/resolvers/   reserved cross-adapter resolver boundary
 src/transports/  MCP, CLI, and loopback console surfaces
 src/ui/          browser console application
 src/entries/     executable composition roots
@@ -83,7 +83,8 @@ boundaries.
 4. Register the adapter in `src/adapters/registry.ts`.
 5. Add fixtures and tests that exercise scanning, extraction, and stale-file
    rejection.
-6. Document the adapter and its limitations in `documentation/`.
+6. Document current behavior and limitations in
+   `documentation/architecture.md`; update `README.md` when usage changes.
 
 Do not add a language-specific branch to the core.
 

@@ -195,9 +195,34 @@ No Oracle session, DDL, or recompilation was performed.
 | Dependencies | 100% recall / 100% precision |
 
 A report under a different contract hash or dependency denominator is not
-comparable with this one. The document
-[`documentation/oracle-qualification-contract.md`](../../documentation/oracle-qualification-contract.md)
-records the change control.
+comparable with this one.
+
+## Contract authority and change control
+
+The executable contract is
+[`oracleQualificationContract.ts`](../../src/core/qualification/oracle/oracleQualificationContract.ts).
+Truth policies, exclusion vocabularies, report identity, and denominator
+reconstruction are implemented under `src/core/qualification/oracle/` and pinned
+by the Oracle qualification tests.
+
+Any semantic change requires one coordinated change: bump the contract version
+and hash, update the pinned tests, produce evidence under the new identity, and
+retain the previous bundle as historical evidence. Parser, corpus, truth-export,
+configuration, policy, or threshold changes create a different evidence identity;
+they never silently rewrite this result.
+
+## External bundle ownership
+
+The committed files below are a bounded public projection. The source snapshot,
+approved recompile plan, run metadata, truth exports, source backup, compile
+evidence, disagreement samples, and credentials remain outside Git under the
+external root named by `corpus.json`.
+
+The repository maintainer owns that root and one immutable backup per frozen
+corpus version. Restore or relocation is valid only after `oracle-preflight`
+passes. Write access is limited to an approved evidence-producing run; credentials
+are supplied through the environment and are never stored. A frozen root is
+deleted only after a superseding bundle or an explicit corpus-retirement decision.
 
 ## Files
 

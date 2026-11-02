@@ -13,10 +13,9 @@ runner is slower and more variable, so `ci.yml` declares a 5 min budget of its o
 weakens a local or reference-machine check; it records that the measurement does not
 transfer.
 
-The test classes and failure interpretation are owned by
-[Codebase testing strategy §6–§7](../../documentation/codebase-testing-strategy.md#6-target-workflows)
-and the [maintainer guide](../../documentation/maintainer-guide.md#7-performance-verification).
-This page records the operational contract beside the workflow definitions.
+Development commands and local checks are owned by
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md). This page owns the CI, nightly,
+stable, and release operational contract beside the workflow definitions.
 
 ## Runner profiles
 
@@ -70,7 +69,7 @@ dependency checkouts, and work directories are excluded.
 
 **Failure meaning:**
 
-| Failed observation | Class from strategy §7 | Interpretation |
+| Failed observation | Failure class | Interpretation |
 | --- | --- | --- |
 | Generated or pinned-public gate | **Performance gate** | Runtime or resource regression, corpus incompatibility, or an invalid deep-cursor plan |
 | TypeScript differential | **Semantic qualification** | Adapter divergence from compiler truth |
@@ -100,14 +99,14 @@ workspaces, and databases are excluded.
 
 **Failure meaning:**
 
-| Failed observation | Class from strategy §7 | Interpretation |
+| Failed observation | Failure class | Interpretation |
 | --- | --- | --- |
 | Retained-reference or absolute gate | **Performance gate** | Regression against the retained report or a violated absolute gate |
 | Soak or built-process lifecycle | **Deterministic system** | Wiring, worker, watcher, restart, recovery, or process-lifecycle defect |
 | Verify, build, or qualification | **Static verification** or **Semantic qualification** | Build/tool defect or adapter divergence |
 
-A reference-platform or architecture mismatch downgrades relative gates to warnings, as
-the maintainer guide specifies. Absolute gates and invalid deep-cursor plans still fail.
+A reference-platform or architecture mismatch downgrades relative gates to warnings.
+Absolute gates and invalid deep-cursor plans still fail.
 
 ## `release.yml`
 

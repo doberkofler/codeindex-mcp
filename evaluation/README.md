@@ -2,8 +2,8 @@
 
 Controlled evaluation of CodeIndex against no-index and accepted-artifact
 baselines. The normative mechanics are in the
-[evaluation harness contract](../documentation/evaluation-harness.md); the
-frozen economic and validity requirements are in
+[evaluation harness](./harness/README.md); the frozen economic and validity
+requirements are in
 [`evaluation-validity-v2.json`](contracts/evaluation-validity-v2.json).
 
 ## Current result
@@ -93,7 +93,7 @@ Any command that starts a hosted model requires explicit approval of an effort
 forecast before its first provider request. Complete all model-free checks first,
 reuse valid retained evidence, resume interrupted campaigns, and rerun only
 invalid executions. See
-[hosted-model spend approval](../documentation/evaluation-harness.md#14-hosted-model-spend-approval).
+[hosted-model spend approval](./harness/README.md#hosted-model-spend-approval).
 
 ## Storage and privacy
 

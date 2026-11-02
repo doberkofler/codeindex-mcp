@@ -1,8 +1,8 @@
 # Model-free route plans
 
 A route plan declares the complete minimum route from one case question to its
-exact answer for each treatment. It is the model-free tier of the
-[harness contract](../../documentation/evaluation-harness.md#13-tier-gate-and-stop-rule-enforcement):
+exact answer for each treatment. It is the
+[model-free tier of the harness](../harness/README.md#model-free-complete-route-comparison):
 
 - `text` is the ordinary retrieval route used by `no-index`;
 - `codeindex` is the route used by the accepted and candidate artifacts, and may
