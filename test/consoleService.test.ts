@@ -95,7 +95,20 @@ const status: IndexStatusType = {
 		root: '/workspace',
 		projectName: 'console-project',
 		projectFile: '/workspace/tsconfig.json',
-		projects: [{name: 'root', projectFile: '/workspace/tsconfig.json'}],
+		projects: [{name: 'root', projectFile: '/workspace/tsconfig.json', adapter: 'typescript'}],
+		adapters: [
+			{
+				id: 'typescript',
+				version: '9.9.9',
+				coverage: 'present',
+				absenceReason: null,
+				compilerVersion: '6.0.3',
+				declaredCompilerVersion: '6.0.3',
+				compilerDrift: false,
+				contexts: ['root'],
+				limitations: [],
+			},
+		],
 		extractor: {id: 'typescript', version: '9.9.9', compilerVersion: '6.0.3', declaredCompilerVersion: '6.0.3', compilerDrift: false},
 		projectId: 'console-project',
 		workingCopyId: 'working-copy',
@@ -244,9 +257,14 @@ describe('console service wiring', () => {
 
 		expect(doubles.databaseOpen).toHaveBeenCalledWith(config.databasePath, {
 			rootDir: config.rootDir,
-			projectFilePath: config.projectFilePath,
-			extractorId: config.extractorId,
 			projectId: config.projectId,
+			projects: [
+				{
+					adapterId: config.extractorId,
+					projectId: config.projectId,
+					projectFilePath: config.projectFilePath,
+				},
+			],
 			vcs: {available: false},
 		});
 		expect(doubles.createAnalyticsRecorder).toHaveBeenCalledWith({

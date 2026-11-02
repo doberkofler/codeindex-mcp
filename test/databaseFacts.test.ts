@@ -132,7 +132,7 @@ describe('generation fact persistence', () => {
 			expect(() =>
 				writer
 					.prepare(
-						"insert into symbol_name_context (generation_id, binding_id, context_name, exposure) values ('generation-1', 'b_missing', 'app', 'published')",
+						"insert into symbol_name_context (generation_id, adapter_id, binding_id, context_name, exposure) values ('generation-1', 'typescript', 'b_missing', 'app', 'published')",
 					)
 					.run(),
 			).toThrow(/FOREIGN KEY/u);

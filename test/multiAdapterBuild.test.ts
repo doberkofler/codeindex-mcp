@@ -1,0 +1,296 @@
+import {cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {afterEach, describe, expect, it} from 'vitest';
+import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {type ExtractorType} from '../src/adapters/types.ts';
+import {type AdapterConfigType, type ConfigType} from '../src/core/config/config.ts';
+import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
+import {IndexDatabase} from '../src/core/storage/database.ts';
+import {silentLogger} from './helpers/fixture.ts';
+
+const {join} = path;
+
+type WorkspaceType = Readonly<{root: string; storage: string; cleanup: () => void}>;
+
+const createWorkspace = (): WorkspaceType => {
+	const temporaryRoot = mkdtempSync(join(tmpdir(), 'code-index-multi-'));
+	const root = join(temporaryRoot, 'workspace');
+
+	cpSync(join(import.meta.dirname, 'fixtures', 'simple-project'), root, {recursive: true});
+	cpSync(join(import.meta.dirname, 'fixtures', 'oracle-project', 'database'), join(root, 'database'), {recursive: true});
+	writeFileSync(join(root, 'oracle-index.json'), readFileSync(join(import.meta.dirname, 'fixtures', 'oracle-project', 'oracle-index.json')));
+
+	return {
+		root: realpathSync(root),
+		storage: realpathSync(temporaryRoot),
+		cleanup: () => {
+			rmSync(temporaryRoot, {recursive: true, force: true});
+		},
+	};
+};
+
+const adapterOf = (id: string, projectDirectory: string, projectFile: string, name: string): AdapterConfigType => ({
+	id,
+	required: true,
+	options: {},
+	projectFilePath: join(projectDirectory, projectFile),
+	projects: [{name, projectFilePath: join(projectDirectory, projectFile)}],
+});
+
+const configOf = (workspace: WorkspaceType, adapters: readonly [AdapterConfigType, ...AdapterConfigType[]]): ConfigType => {
+	const [primary] = adapters;
+
+	return {
+		projectName: 'multi-adapter',
+		rootDir: workspace.root,
+		adapters,
+		extractorId: primary.id,
+		extractorOptions: primary.options,
+		projectFilePath: primary.projectFilePath,
+		projects: primary.projects,
+		storageDirectory: workspace.storage,
+		databasePath: join(workspace.storage, 'index.sqlite'),
+		analyticsEnabled: false,
+		analyticsPath: join(workspace.storage, 'analytics', 'events.jsonl'),
+		maxResultBytes: 32_768,
+		maxReadLines: 200,
+		semanticDiagnostics: false,
+		projectId: 'multi-adapter',
+		logLevel: 'error',
+		configPath: null,
+	};
+};
+
+const openDatabase = (config: ConfigType): IndexDatabase =>
+	IndexDatabase.open(config.databasePath, {
+		rootDir: config.rootDir,
+		projectId: config.projectId,
+		projects: (config.adapters ?? []).map((adapter) => ({
+			adapterId: adapter.id,
+			projectId: config.projectId,
+			projectFilePath: adapter.projectFilePath,
+		})),
+	});
+
+const wrappedTypeScript = (id: string, built: string[]): ExtractorType => ({
+	...typeScriptExtractor,
+	id,
+	version: `${id}-1`,
+	scan: (config, knownPaths) => ({...typeScriptExtractor.scan(config, knownPaths), extractorId: id}),
+	build: (config, scan, cache) => {
+		built.push(id);
+		return typeScriptExtractor.build(config, scan, cache);
+	},
+});
+
+describe('multi-adapter build', () => {
+	let cleanup: (() => void) | undefined;
+
+	afterEach(() => {
+		cleanup?.();
+		cleanup = undefined;
+	});
+
+	it('publishes TypeScript and static Oracle facts in one candidate with per-adapter provenance', () => {
+		const workspace = createWorkspace();
+		({cleanup} = workspace);
+		const config = configOf(workspace, [
+			adapterOf('typescript', workspace.root, 'tsconfig.json', 'app'),
+			adapterOf('oracle', workspace.root, 'oracle-index.json', 'database'),
+		]);
+		const database = openDatabase(config);
+
+		try {
+			const report = buildGeneration({config, database, logger: silentLogger, force: true});
+			const published = database.getPublishedGeneration();
+
+			expect(report.outcome).toBe('published');
+			expect(published).not.toBeNull();
+
+			const adapters = database.getGenerationAdapters(report.generationId);
+			expect(adapters.map((adapter) => `${adapter.adapterId}:${adapter.coverage}`)).toStrictEqual(['oracle:present', 'typescript:present']);
+			expect(report.symbolCount).toBe(adapters.reduce((total, adapter) => total + adapter.symbolCount, 0));
+			expect(report.fileCount).toBe(adapters.reduce((total, adapter) => total + adapter.fileCount, 0));
+
+			const files = database.listFiles(report.generationId);
+			expect(files.some((file) => file.path.endsWith('.ts'))).toBe(true);
+			expect(files.some((file) => file.path.endsWith('.sql'))).toBe(true);
+
+			expect(database.listProjectContextNames(report.generationId)).toStrictEqual(['app', 'database']);
+		} finally {
+			database.close();
+		}
+	});
+
+	it('reuses one unchanged adapter while re-extracting the edited adapter', () => {
+		const workspace = createWorkspace();
+		({cleanup} = workspace);
+		cpSync(join(import.meta.dirname, 'fixtures', 'simple-project'), join(workspace.root, 'second'), {recursive: true});
+		const built: string[] = [];
+		const extractors = [wrappedTypeScript('typescript', built), wrappedTypeScript('alt', built)];
+		const config = configOf(workspace, [
+			adapterOf('typescript', workspace.root, 'tsconfig.json', 'app'),
+			adapterOf('alt', join(workspace.root, 'second'), 'tsconfig.json', 'second'),
+		]);
+		const database = openDatabase(config);
+
+		try {
+			buildGeneration({config, database, logger: silentLogger, force: true, extractors});
+			expect([...built].sort()).toStrictEqual(['alt', 'typescript']);
+
+			built.length = 0;
+			writeFileSync(
+				join(workspace.root, 'src', 'models.ts'),
+				`${readFileSync(join(workspace.root, 'src', 'models.ts'), 'utf8')}\nexport type MultiAdapterEdit = string;\n`,
+			);
+			const second = buildGeneration({config, database, logger: silentLogger, extractors});
+
+			expect(second.outcome).toBe('published');
+			expect(built).toStrictEqual(['typescript']);
+
+			const adapters = new Map(database.getGenerationAdapters(second.generationId).map((adapter) => [adapter.adapterId, adapter]));
+			expect(adapters.get('alt')?.symbolCount).toBeGreaterThan(0);
+			expect(adapters.get('typescript')?.symbolCount).toBeGreaterThan(0);
+		} finally {
+			database.close();
+		}
+	});
+});
+
+describe('multi-adapter coverage and ownership', () => {
+	let cleanup: (() => void) | undefined;
+
+	afterEach(() => {
+		cleanup?.();
+		cleanup = undefined;
+	});
+
+	it('records declared optional absence and re-extracts once the adapter recovers', () => {
+		const workspace = createWorkspace();
+		({cleanup} = workspace);
+		let available = false;
+		const built: string[] = [];
+		const optional: ExtractorType = {
+			...typeScriptExtractor,
+			id: 'optional',
+			version: 'optional-1',
+			absenceReasons: ['tool-missing'],
+			probe: () => (available ? {available: true} : {available: false, reason: 'tool-missing'}),
+			scan: (config, knownPaths) => ({...typeScriptExtractor.scan(config, knownPaths), extractorId: 'optional'}),
+			build: (config, scan, cache) => {
+				built.push('optional');
+				return typeScriptExtractor.build(config, scan, cache);
+			},
+		};
+		cpSync(join(import.meta.dirname, 'fixtures', 'simple-project'), join(workspace.root, 'optional'), {recursive: true});
+		const config = configOf(workspace, [
+			adapterOf('typescript', workspace.root, 'tsconfig.json', 'app'),
+			{...adapterOf('optional', join(workspace.root, 'optional'), 'tsconfig.json', 'optional'), required: false},
+		]);
+		const database = openDatabase(config);
+
+		try {
+			const first = buildGeneration({config, database, logger: silentLogger, force: true, extractors: [typeScriptExtractor, optional]});
+			const absent = database.getGenerationAdapters(first.generationId).find((adapter) => adapter.adapterId === 'optional');
+
+			expect(absent).toMatchObject({coverage: 'absent', absenceReason: 'tool-missing', symbolCount: 0});
+			expect(built).toStrictEqual([]);
+
+			available = true;
+			const second = buildGeneration({config, database, logger: silentLogger, extractors: [typeScriptExtractor, optional]});
+			const present = database.getGenerationAdapters(second.generationId).find((adapter) => adapter.adapterId === 'optional');
+
+			expect(second.outcome).toBe('published');
+			expect(present).toMatchObject({coverage: 'present', absenceReason: null});
+			expect(built).toStrictEqual(['optional']);
+		} finally {
+			database.close();
+		}
+	});
+
+	it('fails a required adapter that reports declared unavailability', () => {
+		const workspace = createWorkspace();
+		({cleanup} = workspace);
+		const unavailable: ExtractorType = {
+			...typeScriptExtractor,
+			id: 'unavailable',
+			version: 'unavailable-1',
+			absenceReasons: ['tool-missing'],
+			probe: () => ({available: false, reason: 'tool-missing'}),
+		};
+		const config = configOf(workspace, [
+			adapterOf('typescript', workspace.root, 'tsconfig.json', 'app'),
+			adapterOf('unavailable', workspace.root, 'tsconfig.json', 'unavailable'),
+		]);
+		const database = openDatabase(config);
+
+		try {
+			expect(() => buildGeneration({config, database, logger: silentLogger, force: true, extractors: [typeScriptExtractor, unavailable]})).toThrow(
+				/is unavailable/iu,
+			);
+			expect(database.getPublishedGeneration()).toBeNull();
+		} finally {
+			database.close();
+		}
+	});
+});
+
+describe('required adapter availability and ownership', () => {
+	let cleanup: (() => void) | undefined;
+
+	afterEach(() => {
+		cleanup?.();
+		cleanup = undefined;
+	});
+
+	it('preserves the published generation when a required adapter fails', () => {
+		const workspace = createWorkspace();
+		({cleanup} = workspace);
+		const config = configOf(workspace, [
+			adapterOf('typescript', workspace.root, 'tsconfig.json', 'app'),
+			adapterOf('oracle', workspace.root, 'oracle-index.json', 'database'),
+		]);
+		const database = openDatabase(config);
+
+		try {
+			const first = buildGeneration({config, database, logger: silentLogger, force: true});
+			writeFileSync(join(workspace.root, 'oracle-index.json'), '{not valid json');
+
+			expect(() => buildGeneration({config, database, logger: silentLogger, force: true})).toThrow(/not valid JSON/iu);
+
+			const published = database.getPublishedGeneration();
+			expect(published?.id).toBe(first.generationId);
+			expect(published?.revision).toBe(1);
+			expect(database.getGenerationAdapters(first.generationId)).toHaveLength(2);
+		} finally {
+			database.close();
+		}
+	});
+
+	it('rejects two adapters that claim the same authored path', () => {
+		const workspace = createWorkspace();
+		({cleanup} = workspace);
+		const built: string[] = [];
+		const config = configOf(workspace, [
+			adapterOf('typescript', workspace.root, 'tsconfig.json', 'app'),
+			adapterOf('copy', workspace.root, 'tsconfig.json', 'copy'),
+		]);
+		const database = openDatabase(config);
+
+		try {
+			expect(() =>
+				buildGeneration({
+					config,
+					database,
+					logger: silentLogger,
+					force: true,
+					extractors: [wrappedTypeScript('typescript', built), wrappedTypeScript('copy', built)],
+				}),
+			).toThrow(/ownership conflict/iu);
+			expect(database.getPublishedGeneration()).toBeNull();
+		} finally {
+			database.close();
+		}
+	});
+});

@@ -3,7 +3,7 @@ import {createAnalyticsRecorder, type AnalyticsRecorderType} from '../../core/an
 import {buildAnalyticsDashboard} from '../../core/analytics/dashboard.ts';
 import {runBenchmarkReport} from '../../core/benchmark/runBenchmark.ts';
 import {runMcpCommand} from '../cli/mcpCommand.ts';
-import {type ConfigType} from '../../core/config/config.ts';
+import {configuredAdapters, type ConfigType} from '../../core/config/config.ts';
 import {extractorFor} from '../../adapters/registry.ts';
 import {createCodeIndex, type CodeIndex} from '../../core/generation/codeIndex.ts';
 import {type IndexStatusType} from '../../core/model.ts';
@@ -94,9 +94,12 @@ export class ConsoleService {
 		const logger = options.logger ?? createLogger({minimumLevel: config.logLevel});
 		const database = IndexDatabase.open(config.databasePath, {
 			rootDir: config.rootDir,
-			projectFilePath: config.projectFilePath,
-			extractorId: config.extractorId,
 			projectId: config.projectId,
+			projects: configuredAdapters(config).map((adapter) => ({
+				adapterId: adapter.id,
+				projectId: config.projectId,
+				projectFilePath: adapter.projectFilePath,
+			})),
 			vcs: readVcsProvenance(config.rootDir),
 		});
 		const analytics = createAnalyticsRecorder({

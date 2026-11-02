@@ -276,10 +276,15 @@ export const readFile = (reader: DatabaseSync, generationId: string, filePath: s
  *
  * @param reader - Reader connection.
  * @param generationId - Published generation.
+ * @param adapterId - Optional adapter filter.
  * @returns Paths and content hashes in path order.
  */
-export const listFiles = (reader: DatabaseSync, generationId: string): readonly Readonly<{path: string; sha256: string}>[] =>
+export const listFiles = (reader: DatabaseSync, generationId: string, adapterId?: string): readonly Readonly<{path: string; sha256: string}>[] =>
 	reader
-		.prepare('select path, sha256 from file where generation_id = ? order by path')
-		.all(generationId)
+		.prepare(
+			adapterId === undefined
+				? 'select path, sha256 from file where generation_id = ? order by path'
+				: 'select path, sha256 from file where generation_id = ? and adapter_id = ? order by path',
+		)
+		.all(...(adapterId === undefined ? [generationId] : [generationId, adapterId]))
 		.map((row) => ({path: asString(row, 'path'), sha256: asString(row, 'sha256')}));

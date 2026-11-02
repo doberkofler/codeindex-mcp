@@ -32,12 +32,19 @@ import {
 	listDependencyBindings as listStoredDependencyBindings,
 } from './databaseDependency.ts';
 import {countGenerationRows, insertGenerationFacts, type GenerationFactCountsType, type GenerationFactsInputType} from './databaseFacts.ts';
-import {commitGeneration, publishNewGeneration, type GenerationCommitInputType, type GenerationCommitType} from './databaseCommit.ts';
+import {
+	commitAdapters,
+	commitGeneration,
+	publishNewGeneration,
+	type GenerationCommitInputType,
+	type GenerationCommitType,
+	type MultiGenerationCommitInputType,
+} from './databaseCommit.ts';
 import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContextType} from './databaseIdentity.ts';
 import {acquireLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
 import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
-import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readPublishedGeneration} from './databaseRead.ts';
+import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readGenerationAdapters, readPublishedGeneration} from './databaseRead.ts';
 import {asNumber} from './databaseRows.ts';
 import {verifyDatabaseIntegrity} from './databaseIntegrity.ts';
 import {ensureStatistics} from './databaseStatistics.ts';
@@ -74,7 +81,13 @@ import {readSnapshot} from './databaseSnapshot.ts';
 const debug = debugFor('database');
 
 export type {DatabaseOpenContextType} from './databaseIdentity.ts';
-export type {GenerationCommitInputType, GenerationCommitType} from './databaseCommit.ts';
+export type {
+	GenerationCommitInputType,
+	GenerationCommitType,
+	AdapterCommitType,
+	AdapterCommitCountsType,
+	MultiGenerationCommitInputType,
+} from './databaseCommit.ts';
 export {BUILD_LEASE_TTL_MS} from './databaseLease.ts';
 
 /**
@@ -90,14 +103,12 @@ export class IndexDatabase {
 	readonly #writer: DatabaseSync;
 	readonly #projectId: string;
 	readonly #owner: ProcessOwnerType | null;
-
 	private constructor(reader: DatabaseSync, writer: DatabaseSync, projectId: string, owner: ProcessOwnerType | null) {
 		this.#reader = reader;
 		this.#writer = writer;
 		this.#projectId = projectId;
 		this.#owner = owner;
 	}
-
 	/**
 	 * Opens an index database, recreating an incompatible cache.
 	 *
@@ -107,7 +118,6 @@ export class IndexDatabase {
 	 */
 	public static open(databasePath: string, context: DatabaseOpenContextType = {}): IndexDatabase {
 		const owner = databasePath === ':memory:' ? null : registerProcessOwner(databasePath);
-
 		try {
 			const {writer, reader} = openDatabaseConnections(databasePath, context.rootDir);
 			const projectId = context.projectId ?? 'default';
@@ -118,18 +128,15 @@ export class IndexDatabase {
 			database.discardIncompleteGenerations();
 			ensureStatistics(reader, writer);
 			debug('database opened', {path: databasePath, projectId});
-
 			return database;
 		} catch (error) {
 			owner?.release();
 			throw error;
 		}
 	}
-
 	public getWorkingCopy(): WorkingCopyIdentityType | null {
 		return readWorkingCopy(this.#reader);
 	}
-
 	public discardIncompleteGenerations(): void {
 		this.#writer.exec(
 			`delete from generation
@@ -138,19 +145,24 @@ export class IndexDatabase {
 		);
 		debug('incomplete generations discarded');
 	}
-
 	public getGeneration(id: string): GenerationRowType | null {
 		return readGeneration(this.#reader, id);
 	}
-
 	public getPublishedGeneration(): GenerationRowType | null {
 		return readPublishedGeneration(this.#reader);
 	}
-
+	/**
+	 * Reads per-adapter provenance for one generation.
+	 *
+	 * @param generationId - Candidate or published generation.
+	 * @returns Adapter rows ordered by adapter identifier.
+	 */
+	public getGenerationAdapters(generationId: string): ReturnType<typeof readGenerationAdapters> {
+		return readGenerationAdapters(this.#reader, generationId);
+	}
 	public findReusableGeneration(sourceHash: string, configHash: string, inputHash: string = configHash): GenerationRowType | null {
 		return findStoredReusableGeneration(this.#reader, sourceHash, configHash, inputHash);
 	}
-
 	public createGeneration(
 		input: Readonly<{
 			id: string;
@@ -182,7 +194,6 @@ export class IndexDatabase {
 				new Date().toISOString(),
 			);
 	}
-
 	/**
 	 * Inserts immutable content versions keyed by raw SHA-256.
 	 *
@@ -194,7 +205,6 @@ export class IndexDatabase {
 		debug('contents inserted', {files: files.length, inserted});
 		return inserted;
 	}
-
 	/**
 	 * Persists one complete finalized fact set for a building generation.
 	 *
@@ -211,27 +221,21 @@ export class IndexDatabase {
 		debug('generation facts inserted', {generationId: input.generationId, counts});
 		return counts;
 	}
-
 	public putExtractionArtifact(input: ExtractionArtifactKeyType & Readonly<{artifactJson: string}>): void {
 		putExtractionArtifact(this.#writer, input);
 	}
-
 	public putExtractionArtifacts(entries: readonly (ExtractionArtifactKeyType & Readonly<{artifactJson: string}>)[]): void {
 		putExtractionArtifacts(this.#writer, entries);
 	}
-
 	public getExtractionArtifact(input: ExtractionArtifactKeyType): string | null {
 		return getExtractionArtifact(this.#reader, input);
 	}
-
 	public hasExtractionArtifact(input: ExtractionArtifactKeyType): boolean {
 		return hasExtractionArtifact(this.#reader, input);
 	}
-
 	public pruneDeadArtifacts(): ReturnType<typeof pruneStoredDeadArtifacts> {
 		return pruneStoredDeadArtifacts(this.#writer);
 	}
-
 	public countRows(
 		generationId: string,
 		table:
@@ -250,23 +254,18 @@ export class IndexDatabase {
 	): number {
 		return countGenerationRows(this.#reader, generationId, table);
 	}
-
 	public getBuildLease(): BuildLeaseType | null {
 		return readLease(this.#reader, this.#projectId);
 	}
-
 	public tryAcquireBuildLease(ownerId: string, processId: number, ttlMs: number): boolean {
 		return acquireLease(this.#writer, {projectId: this.#projectId, ownerId, processId, ttlMs});
 	}
-
 	public renewBuildLease(ownerId: string, ttlMs: number): boolean {
 		return renewLease(this.#writer, {projectId: this.#projectId, ownerId, ttlMs});
 	}
-
 	public releaseBuildLease(ownerId: string): void {
 		releaseLease(this.#writer, this.#projectId, ownerId);
 	}
-
 	/**
 	 * Applies one refresh to the published generation in a single transaction.
 	 *
@@ -276,7 +275,15 @@ export class IndexDatabase {
 	public commitGeneration(input: GenerationCommitInputType): GenerationCommitType {
 		return commitGeneration({writer: this.#writer, projectId: this.#projectId}, input);
 	}
-
+	/**
+	 * Applies one multi-adapter refresh to the published generation.
+	 *
+	 * @param input - Per-adapter contributions, combined hashes, and optional lease owner.
+	 * @returns Measured stages, persisted counts, and written row groups.
+	 */
+	public commitAdapters(input: MultiGenerationCommitInputType): GenerationCommitType {
+		return commitAdapters({writer: this.#writer, projectId: this.#projectId}, input);
+	}
 	public publish(
 		generationId: string,
 		diagnosticCount?: number,
@@ -293,13 +300,11 @@ export class IndexDatabase {
 			},
 		);
 	}
-
 	public markFailed(generationId: string, message: string): void {
 		this.#writer
 			.prepare("update generation set state = 'failed', completed_at = ?, error = ? where id = ?")
 			.run(new Date().toISOString(), message, generationId);
 	}
-
 	/**
 	 * Deletes an unpublished candidate whose snapshot drifted during validation.
 	 *
@@ -310,11 +315,9 @@ export class IndexDatabase {
 	public discardBuildingGeneration(generationId: string): void {
 		this.#writer.prepare("delete from generation where id = ? and state = 'building'").run(generationId);
 	}
-
 	public verifyIntegrity(): void {
 		verifyDatabaseIntegrity(this.#reader);
 	}
-
 	/**
 	 * Runs one read against a single WAL snapshot.
 	 *
@@ -330,99 +333,76 @@ export class IndexDatabase {
 	public readSnapshot<ValueType>(action: () => ValueType): ValueType {
 		return readSnapshot(this.#reader, this.#writer, action);
 	}
-
 	public listBuildStats(generationId: string): readonly BuildStatType[] {
 		return readBuildStats(this.#reader, generationId);
 	}
-
 	public getFile(generationId: string, filePath: string): SourceFileType | null {
 		return readFile(this.#reader, generationId, filePath);
 	}
-
-	public listFiles(generationId: string): readonly Readonly<{path: string; sha256: string}>[] {
-		return listStoredFiles(this.#reader, generationId);
+	public listFiles(generationId: string, adapterId?: string): readonly Readonly<{path: string; sha256: string}>[] {
+		return listStoredFiles(this.#reader, generationId, adapterId);
 	}
-
 	public busiestSymbolPath(generationId: string): string | null {
 		return busiestSymbolPath(this.#reader, generationId);
 	}
 	public listProjectContextNames(generationId: string): readonly string[] {
 		return listStoredProjectContextNames(this.#reader, generationId);
 	}
-
 	public getSymbol(generationId: string, id: string): SymbolSummaryType | null {
 		return symbolSummaryById(this.#reader, generationId, id);
 	}
-
 	public symbolAncestors(generationId: string, id: string): readonly SymbolSummaryType[] {
 		return symbolAncestors(this.#reader, generationId, id);
 	}
-
 	public symbolsAtPosition(input: Readonly<{generationId: string; path: string; line: number; column: number | null}>): ReturnType<typeof symbolsAtPosition> {
 		return symbolsAtPosition(this.#reader, input);
 	}
-
 	public findBindingCandidates(input: Parameters<typeof findBindingCandidates>[1]): ReturnType<typeof findBindingCandidates> {
 		return findBindingCandidates(this.#reader, input);
 	}
-
 	public exactNamePresence(input: Parameters<typeof exactNamePresence>[1]): ReturnType<typeof exactNamePresence> {
 		return exactNamePresence(this.#reader, input);
 	}
-
 	public bindingDetails(input: Parameters<typeof bindingDetailsForSymbols>[1]): ReturnType<typeof bindingDetailsForSymbols> {
 		return bindingDetailsForSymbols(this.#reader, input);
 	}
-
 	public symbolSummaries(generationId: string, symbolIds: readonly string[]): ReturnType<typeof symbolSummariesByIds> {
 		return symbolSummariesByIds(this.#reader, generationId, symbolIds);
 	}
-
 	public bindingContexts(generationId: string, bindingIds: readonly string[]): ReturnType<typeof bindingContextsFor> {
 		return bindingContextsFor(this.#reader, generationId, bindingIds);
 	}
-
 	public bindingSites(generationId: string, bindingIds: readonly string[]): ReturnType<typeof bindingSitesFor> {
 		return bindingSitesFor(this.#reader, generationId, bindingIds);
 	}
-
 	public definitionSites(input: Parameters<typeof definitionSitesForSymbols>[1]): ReturnType<typeof definitionSitesForSymbols> {
 		return definitionSitesForSymbols(this.#reader, input);
 	}
-
 	public definitionSitesForSymbol(generationId: string, symbolId: string): ReturnType<typeof definitionSitesForSymbol> {
 		return definitionSitesForSymbol(this.#reader, generationId, symbolId);
 	}
-
 	public definitionSite(generationId: string, symbolId: string, siteId: string): ReturnType<typeof definitionSiteById> {
 		return definitionSiteById(this.#reader, generationId, symbolId, siteId);
 	}
-
 	public bindingBelongsToSymbol(generationId: string, symbolId: string, bindingId: string): boolean {
 		return bindingBelongsToSymbol(this.#reader, generationId, symbolId, bindingId);
 	}
-
 	public bindingExposure(generationId: string, bindingId: string, context?: string): ReturnType<typeof bindingExposure> {
 		return bindingExposure(this.#reader, generationId, bindingId, context);
 	}
-
 	public outlineSymbols(input: Parameters<typeof readOutlineSymbols>[1]): ReturnType<typeof readOutlineSymbols> {
 		debug('list outline', {generationId: input.generationId, path: input.path, kinds: input.kinds, limit: input.limit, offset: input.offset});
 		return readOutlineSymbols(this.#reader, input);
 	}
-
 	public outlineReexports(generationId: string, pathName: string): ReturnType<typeof readOutlineReexports> {
 		return readOutlineReexports(this.#reader, generationId, pathName);
 	}
-
 	public findReferenceRows(input: Parameters<typeof referenceRows>[1]): ReturnType<typeof referenceRows> {
 		return referenceRows(this.#reader, input);
 	}
-
 	public referenceCoverage(input: Parameters<typeof referenceCoverage>[1]): ReturnType<typeof referenceCoverage> {
 		return referenceCoverage(this.#reader, input);
 	}
-
 	public referenceTotals(input: Parameters<typeof referenceTotals>[1]): ReturnType<typeof referenceTotals> {
 		return referenceTotals(this.#reader, input);
 	}
@@ -438,7 +418,6 @@ export class IndexDatabase {
 	public externalAliasGroup(generationId: string, symbolId: string): ReturnType<typeof externalAliasGroup> {
 		return externalAliasGroup(this.#reader, generationId, symbolId);
 	}
-
 	public findDependencyEdgesByTargetIdentifier(generationId: string, targetIdentifier: string, context?: string): readonly StoredDependencyEdgeType[] {
 		return findDependencyEdgesByTargetIdentifier(this.#reader, generationId, targetIdentifier, context);
 	}
@@ -448,31 +427,24 @@ export class IndexDatabase {
 	public listDependencyBindings(generationId: string, edgeIds: readonly string[]): readonly IndexedDependencyBindingType[] {
 		return listStoredDependencyBindings(this.#reader, generationId, edgeIds);
 	}
-
 	public countReferences(generationId: string, symbolId: string): number {
 		return countStoredReferences(this.#reader, generationId, symbolId);
 	}
-
 	public explainQueryPlan(sql: string, parameters: readonly (string | number)[] = []): readonly string[] {
 		return explainQueryPlan(this.#reader, sql, parameters);
 	}
-
 	public databaseSizeBytes(): number {
 		return readDatabaseSizeBytes(this.#reader);
 	}
-
 	public contentVersionCount(): number {
 		return countContentVersions(this.#reader);
 	}
-
 	public contentHashes(): readonly string[] {
 		return listStoredContentHashes(this.#reader);
 	}
-
 	public extractionArtifactCount(): number {
 		return countStoredExtractionArtifacts(this.#reader);
 	}
-
 	/**
 	 * Counts retained generation rows, including the published and one superseded generation.
 	 *
@@ -480,18 +452,14 @@ export class IndexDatabase {
 	 */
 	public generationCount(): number {
 		const row = this.#reader.prepare('select count(*) as total from generation').get();
-
 		return row === undefined ? 0 : asNumber(row, 'total');
 	}
-
 	public close(): void {
 		debug('close database');
-
 		try {
 			if (this.#reader !== this.#writer) {
 				this.#reader.close();
 			}
-
 			this.#writer.close();
 		} finally {
 			this.#owner?.release();

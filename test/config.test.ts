@@ -178,3 +178,150 @@ describe('configuration files', () => {
 		}
 	});
 });
+
+describe('multi-adapter configuration', () => {
+	let cleanup: (() => void) | undefined;
+
+	afterEach(() => {
+		cleanup?.();
+		cleanup = undefined;
+	});
+
+	it('normalizes the singular extractor form into one required adapter', () => {
+		const fixture = createFixtureConfig('simple-project');
+		({cleanup} = fixture);
+		const configPath = path.join(path.dirname(fixture.config.rootDir), 'codeindex.config.json');
+
+		writeFileSync(
+			configPath,
+			JSON.stringify({
+				project: {name: 'singular'},
+				extractor: {id: 'typescript', project: path.join(fixture.config.rootDir, 'tsconfig.json')},
+			}),
+		);
+
+		const config = loadConfig(
+			{CODE_INDEX_CONFIG: configPath, CODE_INDEX_DATABASE: fixture.config.databasePath, CODE_INDEX_ROOT: fixture.config.rootDir},
+			fixture.config.rootDir,
+		);
+
+		expect(config.adapters).toHaveLength(1);
+		expect(config.adapters?.[0]).toMatchObject({id: 'typescript', required: true});
+		expect(config.extractorId).toBe('typescript');
+	});
+
+	it('parses plural extractors with required defaulting to true', () => {
+		const fixture = createFixtureConfig('simple-project');
+		({cleanup} = fixture);
+		const configPath = path.join(path.dirname(fixture.config.rootDir), 'codeindex.config.json');
+		const manifestPath = path.join(fixture.config.rootDir, 'oracle-index.json');
+
+		writeFileSync(manifestPath, JSON.stringify({schemaVersion: 1, dialect: '19c', defaultSchema: 'APP', include: ['src/**/*.ts']}));
+		writeFileSync(
+			configPath,
+			JSON.stringify({
+				project: {name: 'plural'},
+				extractors: [
+					{id: 'typescript', projects: [{name: 'app', project: path.join(fixture.config.rootDir, 'tsconfig.json')}]},
+					{
+						id: 'oracle',
+						required: false,
+						projects: [{name: 'database', project: manifestPath}],
+					},
+				],
+			}),
+		);
+
+		const config = loadConfig(
+			{CODE_INDEX_CONFIG: configPath, CODE_INDEX_DATABASE: fixture.config.databasePath, CODE_INDEX_ROOT: fixture.config.rootDir},
+			fixture.config.rootDir,
+		);
+
+		expect(config.adapters?.map((adapter) => `${adapter.id}:${String(adapter.required)}`)).toStrictEqual(['typescript:true', 'oracle:false']);
+		expect(config.projectId).toBeDefined();
+	});
+});
+
+describe('multi-adapter storage identity', () => {
+	let cleanup: (() => void) | undefined;
+
+	afterEach(() => {
+		cleanup?.();
+		cleanup = undefined;
+	});
+
+	it('keeps one storage key while the adapter set changes in the same configuration file', () => {
+		const fixture = createFixtureConfig('simple-project');
+		({cleanup} = fixture);
+		const configPath = path.join(path.dirname(fixture.config.rootDir), 'codeindex.config.json');
+		const project = path.join(fixture.config.rootDir, 'tsconfig.json');
+		const manifestPath = path.join(fixture.config.rootDir, 'oracle-index.json');
+		const load = (): ReturnType<typeof loadConfig> =>
+			loadConfig(
+				{CODE_INDEX_CONFIG: configPath, CODE_INDEX_DATABASE: fixture.config.databasePath, CODE_INDEX_ROOT: fixture.config.rootDir},
+				fixture.config.rootDir,
+			);
+
+		writeFileSync(manifestPath, JSON.stringify({schemaVersion: 1, dialect: '19c', defaultSchema: 'APP', include: ['src/**/*.ts']}));
+		writeFileSync(configPath, JSON.stringify({extractors: [{id: 'typescript', projects: [{project}]}]}));
+		const singular = load();
+
+		writeFileSync(
+			configPath,
+			JSON.stringify({
+				extractors: [
+					{id: 'typescript', projects: [{project}]},
+					{
+						id: 'oracle',
+						required: false,
+						projects: [{project: manifestPath}],
+					},
+				],
+			}),
+		);
+		const multi = load();
+
+		expect(multi.databasePath).toBe(singular.databasePath);
+	});
+
+	it('rejects ambiguous and duplicate plural configuration', () => {
+		const fixture = createFixtureConfig('simple-project');
+		({cleanup} = fixture);
+		const configPath = path.join(path.dirname(fixture.config.rootDir), 'codeindex.config.json');
+		const project = path.join(fixture.config.rootDir, 'tsconfig.json');
+
+		writeFileSync(
+			configPath,
+			JSON.stringify({
+				extractor: {id: 'typescript'},
+				extractors: [{id: 'typescript', projects: [{project}]}],
+			}),
+		);
+		expect(() =>
+			loadConfig({CODE_INDEX_CONFIG: configPath, CODE_INDEX_DATABASE: fixture.config.databasePath, CODE_INDEX_ROOT: fixture.config.rootDir}),
+		).toThrow(/extractor or extractors/u);
+
+		writeFileSync(
+			configPath,
+			JSON.stringify({
+				extractors: [
+					{id: 'typescript', projects: [{project}]},
+					{id: 'typescript', projects: [{project: path.join(import.meta.dirname, 'fixtures', 'oracle-project', 'oracle-index.json')}]},
+				],
+			}),
+		);
+		expect(() =>
+			loadConfig({CODE_INDEX_CONFIG: configPath, CODE_INDEX_DATABASE: fixture.config.databasePath, CODE_INDEX_ROOT: fixture.config.rootDir}),
+		).toThrow(/more than once/u);
+
+		writeFileSync(configPath, JSON.stringify({extractors: [{id: 'typescript', projects: [{project}]}]}));
+		expect(() =>
+			loadConfig({
+				CODE_INDEX_CONFIG: configPath,
+				CODE_INDEX_DATABASE: fixture.config.databasePath,
+				CODE_INDEX_ROOT: fixture.config.rootDir,
+				CODE_INDEX_EXTRACTOR: 'typescript',
+			}),
+		).toThrow(/cannot be combined with extractors/u);
+	});
+});

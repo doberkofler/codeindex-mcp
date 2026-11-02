@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {createFactId} from '../facts/canonical.ts';
 import {buildStatsOf} from './databaseFactStats.ts';
-import {type GenerationFactsInputType} from './databaseFactTypes.ts';
+import {adapterIdOf, type GenerationFactsInputType} from './databaseFactTypes.ts';
 
 export type CellType = string | number | null;
 
@@ -71,6 +71,7 @@ const eachSymbolRow = (input: GenerationFactsInputType, visit: RowVisitorType): 
 	for (const symbol of input.facts.symbols) {
 		visit(symbol.path, [
 			input.generationId,
+			adapterIdOf(input),
 			symbol.id,
 			symbol.name,
 			symbol.qualifiedName,
@@ -93,7 +94,7 @@ const eachSymbolRow = (input: GenerationFactsInputType, visit: RowVisitorType): 
 const eachSymbolContextRow = (input: GenerationFactsInputType, visit: RowVisitorType): void => {
 	for (const symbol of input.facts.symbols) {
 		for (const context of symbol.contexts ?? []) {
-			visit(symbol.path, [input.generationId, symbol.id, context]);
+			visit(symbol.path, [input.generationId, adapterIdOf(input), symbol.id, context]);
 		}
 	}
 };
@@ -104,6 +105,7 @@ const eachBindingRow = (input: GenerationFactsInputType, visit: RowVisitorType):
 	for (const binding of input.facts.bindings) {
 		visit(symbolPath.get(binding.symbolId) ?? binding.symbolId, [
 			input.generationId,
+			adapterIdOf(input),
 			binding.bindingId,
 			binding.symbolId,
 			binding.bindingKey,
@@ -120,7 +122,13 @@ const eachBindingContextRow = (input: GenerationFactsInputType, visit: RowVisito
 	const {bindingPath} = ownerPathsOf(input);
 
 	for (const context of input.facts.bindingContexts) {
-		visit(bindingPath.get(context.bindingId) ?? context.bindingId, [input.generationId, context.bindingId, context.context, context.exposure]);
+		visit(bindingPath.get(context.bindingId) ?? context.bindingId, [
+			input.generationId,
+			adapterIdOf(input),
+			context.bindingId,
+			context.context,
+			context.exposure,
+		]);
 	}
 };
 
@@ -130,6 +138,7 @@ const eachBindingSiteRow = (input: GenerationFactsInputType, visit: RowVisitorTy
 	for (const site of input.facts.bindingSites) {
 		visit(bindingPath.get(site.bindingId) ?? site.path, [
 			input.generationId,
+			adapterIdOf(input),
 			site.bindingId,
 			site.kind,
 			site.path,
@@ -149,6 +158,7 @@ const eachSurfaceOriginRow = (input: GenerationFactsInputType, visit: RowVisitor
 	for (const origin of input.facts.surfaceOrigins) {
 		visit(bindingPath.get(origin.bindingId) ?? origin.bindingId, [
 			input.generationId,
+			adapterIdOf(input),
 			origin.bindingId,
 			origin.context,
 			origin.rootBindingId,
@@ -184,6 +194,7 @@ const eachOccurrenceRow = (input: GenerationFactsInputType, visit: RowVisitorTyp
 
 		visit(occurrence.path, [
 			input.generationId,
+			adapterIdOf(input),
 			occurrence.symbolId,
 			occurrence.path,
 			occurrence.startLine,
@@ -208,7 +219,7 @@ const eachOccurrenceRow = (input: GenerationFactsInputType, visit: RowVisitorTyp
 const eachOccurrenceContextRow = (input: GenerationFactsInputType, visit: RowVisitorType): void => {
 	for (const occurrence of input.facts.occurrences) {
 		for (const context of occurrence.contexts ?? []) {
-			visit(occurrence.path, [input.generationId, occurrence.symbolId, occurrence.path, occurrence.startOffset, occurrence.role, context]);
+			visit(occurrence.path, [input.generationId, adapterIdOf(input), occurrence.symbolId, occurrence.path, occurrence.startOffset, occurrence.role, context]);
 		}
 	}
 };
@@ -231,6 +242,7 @@ const eachDefinitionSiteRow = (input: GenerationFactsInputType, visit: RowVisito
 		seen.add(key);
 		visit(occurrence.path, [
 			input.generationId,
+			adapterIdOf(input),
 			definitionSiteIdOf(occurrence.symbolId, occurrence.path, occurrence.startOffset),
 			occurrence.symbolId,
 			occurrence.path,
@@ -245,6 +257,7 @@ const eachDependencyEdgeRow = (input: GenerationFactsInputType, visit: RowVisito
 	for (const edge of input.dependencies.edges) {
 		visit(edge.sourcePath, [
 			input.generationId,
+			adapterIdOf(input),
 			edge.id,
 			edge.context ?? null,
 			edge.sourcePath,
@@ -269,6 +282,7 @@ const eachDependencyBindingRow = (input: GenerationFactsInputType, visit: RowVis
 	for (const binding of input.dependencies.bindings) {
 		visit(edgePath.get(binding.edgeId) ?? '', [
 			input.generationId,
+			adapterIdOf(input),
 			binding.edgeId,
 			binding.position,
 			binding.kind,
@@ -284,6 +298,7 @@ const eachDiagnosticRow = (input: GenerationFactsInputType, visit: RowVisitorTyp
 	for (const [index, diagnostic] of input.diagnostics.entries()) {
 		visit(diagnostic.path ?? '', [
 			input.generationId,
+			adapterIdOf(input),
 			index,
 			diagnostic.category,
 			diagnostic.code,
@@ -297,7 +312,7 @@ const eachDiagnosticRow = (input: GenerationFactsInputType, visit: RowVisitorTyp
 
 const eachBuildStatRow = (input: GenerationFactsInputType, visit: RowVisitorType): void => {
 	for (const row of buildStatsOf(input.facts, input.language)) {
-		visit('', [input.generationId, row.language, row.metric, row.dim1, row.dim2, row.dim3, row.value]);
+		visit('', [input.generationId, adapterIdOf(input), row.language, row.metric, row.dim1, row.dim2, row.dim3, row.value]);
 	}
 };
 
@@ -306,68 +321,69 @@ export type TableWriteType = Readonly<{table: string; insertSql: string; each: (
 export const PATH_TABLES: readonly TableWriteType[] = [
 	{
 		table: 'symbol',
-		insertSql: `insert into symbol (generation_id, id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column,
+		insertSql: `insert into symbol (generation_id, adapter_id, id, name, qualified_name, kind, path, start_line, start_column, end_line, end_column,
 		 start_offset, end_offset, enclosing_id, external_target, external_name, exposure)
-		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		each: eachSymbolRow,
 	},
 	{
 		table: 'symbol_context',
-		insertSql: 'insert or ignore into symbol_context (generation_id, symbol_id, context_name) values (?, ?, ?)',
+		insertSql: 'insert or ignore into symbol_context (generation_id, adapter_id, symbol_id, context_name) values (?, ?, ?, ?)',
 		each: eachSymbolContextRow,
 	},
 	{
 		table: 'symbol_name',
-		insertSql: `insert into symbol_name (generation_id, binding_id, symbol_id, binding_key, container, name, qualified_name, exposure, has_declared_site)
-		 values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		insertSql: `insert into symbol_name (generation_id, adapter_id, binding_id, symbol_id, binding_key, container, name, qualified_name, exposure, has_declared_site)
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		each: eachBindingRow,
 	},
 	{
 		table: 'symbol_name_context',
-		insertSql: 'insert into symbol_name_context (generation_id, binding_id, context_name, exposure) values (?, ?, ?, ?)',
+		insertSql: 'insert into symbol_name_context (generation_id, adapter_id, binding_id, context_name, exposure) values (?, ?, ?, ?, ?)',
 		each: eachBindingContextRow,
 	},
 	{
 		table: 'symbol_name_site',
-		insertSql: `insert into symbol_name_site (generation_id, binding_id, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset)
-		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		insertSql: `insert into symbol_name_site (generation_id, adapter_id, binding_id, kind, path, start_line, start_column, end_line, end_column, start_offset, end_offset)
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		each: eachBindingSiteRow,
 	},
 	{
 		table: 'surface_binding_origin',
-		insertSql: `insert into surface_binding_origin (generation_id, binding_id, context_name, root_binding_id, relative_key)
-		 values (?, ?, ?, ?, ?)`,
+		insertSql: `insert into surface_binding_origin (generation_id, adapter_id, binding_id, context_name, root_binding_id, relative_key)
+		 values (?, ?, ?, ?, ?, ?)`,
 		each: eachSurfaceOriginRow,
 	},
 	{
 		table: 'occurrence',
-		insertSql: `insert into occurrence (generation_id, symbol_id, path, start_line, start_column, end_line, end_column, start_offset, end_offset,
+		insertSql: `insert into occurrence (generation_id, adapter_id, symbol_id, path, start_line, start_column, end_line, end_column, start_offset, end_offset,
 		 role, enclosing_id, declaration_kind, forward_definition, usage, extent_start, extent_end, anchor_rank, primary_rank)
-		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		each: eachOccurrenceRow,
 	},
 	{
 		table: 'occurrence_context',
-		insertSql: `insert or ignore into occurrence_context (generation_id, symbol_id, path, start_offset, role, context_name)
-		 values (?, ?, ?, ?, ?, ?)`,
+		insertSql: `insert or ignore into occurrence_context (generation_id, adapter_id, symbol_id, path, start_offset, role, context_name)
+		 values (?, ?, ?, ?, ?, ?, ?)`,
 		each: eachOccurrenceContextRow,
 	},
 	{
 		table: 'definition_site',
-		insertSql: 'insert into definition_site (generation_id, site_id, symbol_id, path, start_offset, role, first_in_symbol) values (?, ?, ?, ?, ?, ?, ?)',
+		insertSql:
+			'insert into definition_site (generation_id, adapter_id, site_id, symbol_id, path, start_offset, role, first_in_symbol) values (?, ?, ?, ?, ?, ?, ?, ?)',
 		each: eachDefinitionSiteRow,
 	},
 	{
 		table: 'dependency_edge',
-		insertSql: `insert into dependency_edge (generation_id, id, context_name, source_path, target_path, raw_target, target_identifier, kind, compile_time_only,
+		insertSql: `insert into dependency_edge (generation_id, adapter_id, id, context_name, source_path, target_path, raw_target, target_identifier, kind, compile_time_only,
 		 start_line, start_column, end_line, end_column, start_offset, end_offset)
-		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		each: eachDependencyEdgeRow,
 	},
 	{
 		table: 'dependency_binding',
-		insertSql: `insert into dependency_binding (generation_id, edge_id, position, kind, imported_name, exported_name, local_name, compile_time_only)
-		 values (?, ?, ?, ?, ?, ?, ?, ?)`,
+		insertSql: `insert into dependency_binding (generation_id, adapter_id, edge_id, position, kind, imported_name, exported_name, local_name, compile_time_only)
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		each: eachDependencyBindingRow,
 	},
 ];
@@ -375,13 +391,14 @@ export const PATH_TABLES: readonly TableWriteType[] = [
 export const GLOBAL_TABLES: readonly TableWriteType[] = [
 	{
 		table: 'diagnostic',
-		insertSql: 'insert into diagnostic (generation_id, position, category, code, message, path, start_line, start_column) values (?, ?, ?, ?, ?, ?, ?, ?)',
+		insertSql:
+			'insert into diagnostic (generation_id, adapter_id, position, category, code, message, path, start_line, start_column) values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
 		each: eachDiagnosticRow,
 	},
 	{
 		table: 'build_stats',
-		insertSql: `insert into build_stats (generation_id, language, metric, dim1, dim2, dim3, value)
-		 values (?, ?, ?, ?, ?, ?, ?)`,
+		insertSql: `insert into build_stats (generation_id, adapter_id, language, metric, dim1, dim2, dim3, value)
+		 values (?, ?, ?, ?, ?, ?, ?, ?)`,
 		each: eachBuildStatRow,
 	},
 ];

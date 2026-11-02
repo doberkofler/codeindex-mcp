@@ -69,8 +69,7 @@ and limits to the rest of the process.
 A resolved configuration contains:
 
 - one physical workspace root;
-- one selected extractor;
-- one or more project contexts for that extractor;
+- one or more configured adapters, each with its own project contexts;
 - a logical project name and optional configured project ID;
 - database and analytics locations outside the workspace;
 - response, source-read, diagnostics, and logging settings.
@@ -79,15 +78,24 @@ Configuration-file paths resolve against the file directory. Environment and CLI
 overrides resolve against the process working directory. Real paths prove that
 project files remain inside the workspace and storage remains outside it.
 
-The default storage key hashes the canonical physical root, extractor ID, and
-configured project-file paths. A configured logical project ID changes reporting,
-not the physical storage key. Therefore a copied or moved checkout cannot open
-the original checkout's database, build lease, or published revision.
+The canonical form is a non-empty `extractors` array. The legacy singular
+`extractor` form normalizes to one required adapter. Adapter IDs are unique;
+`required` defaults to `true`, and only an optional adapter may report declared
+absence. `CODE_INDEX_EXTRACTOR` and `CODE_INDEX_PROJECT_FILE` are rejected with
+the plural form because they cannot name an adapter unambiguously.
 
-Multiple project contexts for one extractor share one database and publication
-boundary. Facts retain the contexts that produced them, and applicable queries
-can filter by context. The current configuration cannot place different
-extractors in one generation.
+The default storage key hashes the canonical physical root and the real
+configuration-file path. Adding or removing an adapter in the same file therefore
+revises the same database, while moving the checkout or the configuration file
+creates a new scope. Without a configuration file the key hashes the root and the
+implicit singular adapter identity. A configured logical project ID changes
+reporting, not the physical storage key.
+
+Every adapter in one configuration shares one database, build lease, and published
+generation. Contexts are adapter-scoped: the same name may exist under two
+adapters, and facts retain both the context and the owning adapter. A workspace
+path has exactly one adapter owner; two adapters claiming the same resolved real
+path fail the candidate before publication.
 
 ## Extractor seam
 
@@ -223,18 +231,23 @@ or ceiling overrun fails the candidate instead of truncating it.
 2. **Acquire or observe.** A process acquires the expiring build lease. A
    non-owner remains a reader and waits for the owner to publish or lose its
    lease.
-3. **Scan.** The selected extractor deterministically discovers configured files,
-   hashes source and configuration inputs, and records compiler/parser identity.
-   Filesystem events only schedule this scan; they are never the source of truth.
-4. **Reuse.** If source and configuration hashes match the publication and the
-   build is not forced, no extraction occurs. An adapter may also prove that
-   changed content produced identical facts and revise only file/content metadata.
-5. **Extract and finalize.** Otherwise the adapter emits a complete fact bundle,
-   and the core finalizes and validates it.
+3. **Scan.** Every configured adapter deterministically discovers its configured
+   files, hashes source and configuration inputs, and records compiler/parser
+   identity. Filesystem events only schedule this scan; they are never the source
+   of truth.
+4. **Reuse.** Each adapter has its own source, configuration, and input hashes. An
+   adapter whose complete reuse key matches the publication is not re-extracted,
+   even when another adapter changed. An adapter may also prove that changed
+   content produced identical facts and revise only its file/content metadata.
+   Whole-generation reuse requires every adapter to match.
+5. **Extract and finalize.** Otherwise each adapter emits its own serializable
+   fact bundle, and the core finalizes and validates it under that adapter's
+   identity.
 6. **Commit.** The first build inserts a private `building` generation and
-   atomically publishes it after persistence and verification. Later refreshes
-   keep the published generation ID, atomically increment its revision, and
-   rewrite only path groups whose fact digest changed.
+   atomically publishes every adapter after persistence and verification. Later
+   refreshes keep the published generation ID, atomically increment its revision,
+   and rewrite only path groups whose fact digest changed. Removed and absent
+   adapters lose their facts in the same transaction.
 7. **Serve.** Each query pins one SQLite read snapshot and resolves one published
    generation. A reader sees either the old revision or the complete new revision,
    never a partial write.
@@ -250,8 +263,9 @@ by partial facts.
 
 ## Freshness
 
-`WorkspaceWatcher` observes configured source extensions and configuration files.
-`RefreshCoordinator` debounces bursts, allows one refresh at a time, coalesces
+`WorkspaceWatcher` observes the union of configured adapter source extensions and
+watch inputs. Ignored directory segments are the intersection across adapters, so
+one adapter's ignore rule cannot hide another adapter's source. `RefreshCoordinator` debounces bursts, allows one refresh at a time, coalesces
 changes arriving during a build into one follow-up, and schedules periodic full
 reconciliation. The scanner remains authoritative if an event is missed.
 
@@ -408,7 +422,8 @@ identity; it is private local derived data, not a telemetry artifact.
 - No full-text, fuzzy, or embedding search.
 - No remote service or multi-user authorization model.
 - No simultaneous multi-writer publication.
-- No multi-extractor generation, ORDS adapter, or cross-language graph.
+- No ORDS adapter or cross-language graph; adapters share a generation but never
+  cross-resolve each other's symbols.
 - No live Oracle dictionary extraction in the production index.
 - No claim of complete static resolution for dynamic dispatch, dynamic SQL,
   generated source, or unsupported parser constructs.

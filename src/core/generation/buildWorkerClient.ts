@@ -1,15 +1,9 @@
 import {once} from 'node:events';
 import {Worker} from 'node:worker_threads';
 import {type ConfigType} from '../config/config.ts';
-import {type BuildReportType, type BuildStagesType, type GenerationStateType, type ScanResultType} from '../model.ts';
-import {
-	BuildFailureEnvelopeError,
-	buildFailureFromWorkerPayload,
-	buildFailureOf,
-	buildProjectContextOf,
-	type BuildFailureType,
-	type BuildProjectContextType,
-} from './buildFailure.ts';
+import {type BuildReportType, type BuildStagesType, type GenerationStateType} from '../model.ts';
+import {type AdapterScanPlanType} from './adapterBuild.ts';
+import {BuildFailureEnvelopeError, buildFailureFromWorkerPayload, buildFailureOf, type BuildFailureType, type BuildProjectContextType} from './buildFailure.ts';
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null;
 
@@ -94,7 +88,10 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 
 const buildReportFromWorkerMessage = (raw: unknown): BuildReportType | null => (isRecord(raw) ? asBuildReport(raw['report']) : null);
 
-const projectContextOf = (scan: ScanResultType): BuildProjectContextType | null => buildProjectContextOf(scan.projects);
+const projectContextOf = (plans: readonly AdapterScanPlanType[]): BuildProjectContextType | null => {
+	const project = plans.find((plan) => plan.scan !== null)?.scan?.projects.at(0);
+	return project === undefined ? null : {name: project.name, file: project.projectFile};
+};
 
 const workerFailureOf = (error: unknown, project: BuildProjectContextType | null): BuildFailureType => buildFailureOf(error, 'worker', project);
 
@@ -108,13 +105,21 @@ const workerFailureOf = (error: unknown, project: BuildProjectContextType | null
  * @throws {@link Error} When the worker exits or reports a failure.
  */
 export const runBuildWorkerThread = async (
-	input: Readonly<{workerEntry: string; config: ConfigType; scan: ScanResultType; force: boolean; ownerId: string; startedAtEpoch: number; debug: boolean}>,
+	input: Readonly<{
+		workerEntry: string;
+		config: ConfigType;
+		scans: readonly AdapterScanPlanType[];
+		force: boolean;
+		ownerId: string;
+		startedAtEpoch: number;
+		debug: boolean;
+	}>,
 ): Promise<BuildReportType> => {
 	const worker = new Worker(input.workerEntry, {
 		workerData: {
 			kind: 'code-index-build',
 			config: input.config,
-			scan: input.scan,
+			scans: input.scans,
 			force: input.force,
 			ownerId: input.ownerId,
 			startedAtEpoch: input.startedAtEpoch,
@@ -148,7 +153,7 @@ export const runBuildWorkerThread = async (
 	});
 
 	await once(completion, 'done');
-	const project = projectContextOf(input.scan);
+	const project = projectContextOf(input.scans);
 
 	if (state.failure !== null) {
 		throw new BuildFailureEnvelopeError(workerFailureOf(state.failure, project));
@@ -162,5 +167,5 @@ export const runBuildWorkerThread = async (
 
 	const failure = isRecord(state.message) ? buildFailureFromWorkerPayload(state.message['failure']) : null;
 
-	throw new BuildFailureEnvelopeError(failure ?? {outcome: 'failed', cause: 'worker', stage: 'worker', errno: null, project});
+	throw new BuildFailureEnvelopeError(failure ?? {outcome: 'failed', cause: 'worker', stage: 'worker', errno: null, project, adapter: null});
 };

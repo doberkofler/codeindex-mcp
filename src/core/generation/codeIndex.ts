@@ -4,7 +4,6 @@ import {fileURLToPath} from 'node:url';
 import {type AnalyticsRecorderType} from '../analytics/recorder.ts';
 import {type ConfigType} from '../config/config.ts';
 import {extractorFor} from '../../adapters/registry.ts';
-import {extractorSourceExtensions, type ExtractorType} from '../../adapters/types.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
@@ -14,7 +13,8 @@ import {buildGeneration} from './buildGeneration.ts';
 import {recordFailedRefresh, recordPublishedRefresh, recordSupersededRefresh} from './refreshTelemetry.ts';
 import {type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
-import {recordCompilerDrift} from './compilerDriftTelemetry.ts';
+import {adapterTargets, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
+import {adapterConfigFiles, adapterIgnoredSegments, adapterSourceExtensions, planAdapterScans} from './adapterRefresh.ts';
 import {
 	findDependencies as queryDependencies,
 	findReferences as queryReferences,
@@ -48,7 +48,6 @@ import {
 	type QueryFreshnessType,
 	type ReadSymbolInputType,
 	type ReadSymbolResultType,
-	type ScanResultType,
 	type SymbolAtInputType,
 	type SymbolAtResultType,
 } from '../model.ts';
@@ -64,12 +63,12 @@ import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
 
 const debug = debugFor('index');
 const LEASE_RENEW_MS = 3000;
-
 export type {CodeIndexOptionsType} from './codeIndexOptions.ts';
+
 /** Deep module owning indexing, freshness, persistence, and bounded queries. */
 export class CodeIndex {
 	readonly #config: ConfigType;
-	readonly #extractor: ExtractorType;
+	readonly #targets: readonly AdapterTargetType[];
 	readonly #database: IndexDatabase;
 	readonly #logger: LoggerType;
 	readonly #analytics: AnalyticsRecorderType | null;
@@ -77,6 +76,7 @@ export class CodeIndex {
 	readonly #watchEnabled: boolean;
 	readonly #coordinator: RefreshCoordinator;
 	readonly #watcher: WorkspaceWatcher;
+	readonly #override: AdapterTargetType['extractor'] | undefined;
 	readonly #ownerId = randomUUID();
 	readonly #compilerDriftObserved = new Set<string>();
 	readonly #recordExactName = (presence: ExactNamePresenceType): void => {
@@ -85,19 +85,17 @@ export class CodeIndex {
 	#published: GenerationRowType | null = null;
 	#refreshing: Promise<BuildReportType> | null = null;
 	#closed = false;
-
 	public constructor(config: ConfigType, database: IndexDatabase, logger: LoggerType, options: CodeIndexOptionsType = {}) {
 		this.#config = config;
-		this.#extractor = options.extractor ?? extractorFor(config.extractorId);
+		this.#override = options.extractor;
+		this.#targets = adapterTargets(config, extractorFor, options.extractor);
 		this.#database = database;
 		this.#logger = logger;
 		this.#analytics = options.analytics ?? null;
 		this.#published = database.getPublishedGeneration();
 		this.#watchEnabled = options.watch ?? true;
-
 		const workerPath = fileURLToPath(new URL('buildWorker.js', import.meta.url));
 		this.#workerEntry = options.extractor === undefined ? (options.workerEntry ?? (existsSync(workerPath) ? workerPath : null)) : null;
-
 		this.#coordinator = new RefreshCoordinator({
 			logger,
 			...(options.clock === undefined ? {} : {clock: options.clock}),
@@ -114,20 +112,22 @@ export class CodeIndex {
 		this.#watcher = new WorkspaceWatcher({
 			rootDir: config.rootDir,
 			logger,
-			sourceExtensions: extractorSourceExtensions(this.#extractor, config),
-			ignoredSegments: this.#extractor.ignoredSegments,
+			sourceExtensions: adapterSourceExtensions(this.#config, this.#targets),
+			ignoredSegments: adapterIgnoredSegments(this.#targets),
 			onChange: (paths): void => {
 				this.#coordinator.notify(paths);
 			},
 		});
-
 		if (this.#published !== null) {
 			this.#coordinator.markCurrent();
 		}
-
-		debug('index created', {published: this.#published?.id ?? null, worker: this.#workerEntry, watch: this.#watchEnabled});
+		debug('index created', {
+			published: this.#published?.id ?? null,
+			worker: this.#workerEntry,
+			watch: this.#watchEnabled,
+			adapters: this.#targets.map((target) => target.adapter.id),
+		});
 	}
-
 	/**
 	 * Starts watching and the initial background reconciliation.
 	 *
@@ -138,16 +138,13 @@ export class CodeIndex {
 		if (this.#closed) {
 			return;
 		}
-
 		if (this.#watchEnabled) {
-			this.#watcher.start(publishedFiles(this.#database, this.#config.rootDir), this.#extractor.configFiles(this.#config));
+			this.#watcher.start(publishedFiles(this.#database, this.#config.rootDir), adapterConfigFiles(this.#config, this.#targets));
 		}
-
 		debug('startup refresh requested');
 		this.#coordinator.notify([]);
 		this.#coordinator.start();
 	}
-
 	/**
 	 * Reuses or rebuilds the index so it matches the current working copy.
 	 *
@@ -162,19 +159,15 @@ export class CodeIndex {
 		} else {
 			this.#coordinator.markCurrent();
 		}
-
 		return report;
 	}
-
 	async #refresh(reason: RefreshReasonType, force: boolean): Promise<BuildReportType> {
 		if (this.#refreshing !== null) {
 			debug('refresh already in progress', {reason});
 			return this.#refreshing;
 		}
-
 		const refreshing = this.#performRefresh(reason, force);
 		this.#refreshing = refreshing;
-
 		try {
 			return await refreshing;
 		} finally {
@@ -183,7 +176,6 @@ export class CodeIndex {
 			}
 		}
 	}
-
 	async #performRefresh(reason: RefreshReasonType, force: boolean): Promise<BuildReportType> {
 		debug('refresh start', {reason, force});
 		const startedAt = performance.now();
@@ -210,27 +202,27 @@ export class CodeIndex {
 		});
 		const sample = startProcessSample();
 		const resources = (): Readonly<Record<string, number>> => ({...sample.stop(), databaseBytes: this.#database.databaseSizeBytes()});
-		let scan: ScanResultType | null = null;
-
+		let plans: readonly AdapterScanPlanType[] = [];
 		try {
 			const published = this.#database.getPublishedGeneration();
 			this.#published = published;
-			const knownPaths = published === null ? [] : this.#database.listFiles(published.id).map((file) => file.path);
-			scan = this.#extractor.scan(this.#config, knownPaths);
-
-			if (scan.compilerDrift) {
-				recordCompilerDrift({logger: this.#logger, analytics: this.#analytics, observed: this.#compilerDriftObserved, scan});
-			}
-			const report = await this.#rebuild(scan, force, startedAtEpoch);
-
+			plans = planAdapterScans({
+				config: this.#config,
+				targets: this.#targets,
+				database: this.#database,
+				published,
+				logger: this.#logger,
+				analytics: this.#analytics,
+				observed: this.#compilerDriftObserved,
+			});
+			const report = await this.#rebuild(plans, force, startedAtEpoch);
 			if (this.#watchEnabled) {
 				this.#watcher.update(
-					scan.files,
-					scan.watchInputs ?? this.#extractor.configFiles(this.#config),
-					extractorSourceExtensions(this.#extractor, this.#config),
+					plans.flatMap((plan) => plan.scan?.files ?? []),
+					[...new Set([...plans.flatMap((plan) => plan.scan?.watchInputs ?? []), ...adapterConfigFiles(this.#config, this.#targets)])],
+					adapterSourceExtensions(this.#config, this.#targets),
 				);
 			}
-
 			this.#published = this.#database.getPublishedGeneration();
 			const telemetry = {
 				logger: this.#logger,
@@ -239,13 +231,11 @@ export class CodeIndex {
 				durationMs: report.durationMs,
 				resources: resources(),
 			};
-
 			if (report.outcome === 'superseded') {
 				debug('refresh superseded', {generationId: report.generationId, durationMs: report.durationMs});
 				recordSupersededRefresh({...telemetry, report});
 				return report;
 			}
-
 			debug('refresh complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
 			recordPublishedRefresh({...telemetry, report});
 			return report;
@@ -256,7 +246,12 @@ export class CodeIndex {
 				reason,
 				durationMs: Math.round(performance.now() - startedAt),
 				message: error instanceof Error ? error.message : String(error),
-				failure: buildFailureOf(error, 'scan', buildProjectContextOfScan(scan)),
+				failure: buildFailureOf(
+					error,
+					'scan',
+					buildProjectContextOfScan(plans.find((plan) => plan.scan !== null)?.scan ?? null),
+					plans.length === 1 ? (plans[0]?.adapterId ?? null) : null,
+				),
 				resources: resources(),
 			});
 			throw error;
@@ -273,7 +268,6 @@ export class CodeIndex {
 			}
 		}
 	}
-
 	public getStatus(): IndexStatusType {
 		return this.#database.readSnapshot(() => {
 			const published = this.#database.getPublishedGeneration();
@@ -287,15 +281,12 @@ export class CodeIndex {
 				lastError: null,
 			});
 			debug('status', {state: status.state, refresh: status.refresh, published: published?.id ?? null, dirtyFiles: status.freshness.dirtyFileCount});
-
 			return status;
 		});
 	}
-
 	public getFreshness(): QueryFreshnessType {
 		return this.#coordinator.getFreshness();
 	}
-
 	/**
 	 * Checks the published generation's SQLite integrity and stored counts.
 	 *
@@ -306,11 +297,9 @@ export class CodeIndex {
 	public verify(): IndexVerificationType {
 		return this.#database.readSnapshot(() => verifyPublishedIndex(this.#database, this.#generation()));
 	}
-
 	public getOutline(input: OutlineInputType, maxResultBytes = this.#config.maxResultBytes): OutlineResultType {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
-
 			return queryOutline({
 				database: this.#database,
 				generationId: generation.id,
@@ -320,7 +309,6 @@ export class CodeIndex {
 			});
 		});
 	}
-
 	/**
 	 * Finds the innermost stored definition covering one source position.
 	 *
@@ -332,7 +320,6 @@ export class CodeIndex {
 	public symbolAt(input: SymbolAtInputType, maxResultBytes = this.#config.maxResultBytes): SymbolAtResultType {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
-
 			return querySymbolAt({
 				database: this.#database,
 				generationId: generation.id,
@@ -342,7 +329,6 @@ export class CodeIndex {
 			});
 		});
 	}
-
 	/**
 	 * Finds declarations by exact or prefix name.
 	 *
@@ -353,7 +339,6 @@ export class CodeIndex {
 	public findSymbols(input: FindSymbolInputType, maxResultBytes = this.#config.maxResultBytes): FindSymbolResultType {
 		return this.#database.readSnapshot(() => querySymbols(this.#queryContext(), input, maxResultBytes));
 	}
-
 	/** Finds occurrences for one symbol identifier or resolves one symbol query in the same call. */
 	public findReferences(input: SymbolIdFindReferencesInputType, maxResultBytes?: number): FindReferencesOccurrencesResultType;
 	public findReferences(input: SymbolIdGroupedFindReferencesInputType, maxResultBytes?: number): SymbolIdGroupedFindReferencesResultType;
@@ -362,7 +347,6 @@ export class CodeIndex {
 	public findReferences(input: FindReferencesInputType, maxResultBytes = this.#config.maxResultBytes): FindReferencesResultType {
 		return this.#database.readSnapshot(() => queryReferences(this.#queryContext(), input, maxResultBytes));
 	}
-
 	/**
 	 * Finds authored modules that consume one normalized npm package.
 	 *
@@ -380,7 +364,6 @@ export class CodeIndex {
 			return queryDependencies(context, input, maxResultBytes);
 		});
 	}
-
 	/**
 	 * Reads bounded source for one indexed symbol identifier or natural query.
 	 *
@@ -394,24 +377,27 @@ export class CodeIndex {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
 			const freshness = this.getFreshness();
+			const normalizeQueryName = this.#normalizeQueryName();
 			const selection = selectReadSymbol(
-				{database: this.#database, generationId: generation.id, freshness, maxResultBytes, normalizeQueryName: this.#extractor.normalizeQueryName},
+				{
+					database: this.#database,
+					generationId: generation.id,
+					freshness,
+					maxResultBytes,
+					...(normalizeQueryName === undefined ? {} : {normalizeQueryName}),
+				},
 				input,
 			);
-
 			if ('result' in selection) {
 				return selection.result;
 			}
-
 			const symbol = this.#database.getSymbol(generation.id, selection.symbolId);
-
 			if (symbol === null) {
 				throw new CodeIndexError(
 					'symbol_not_found',
 					`Unknown symbol: ${selection.symbolId}. Symbol IDs are opaque; copy one from find_symbol or outline instead of constructing it.`,
 				);
 			}
-
 			return queryReadSymbol(
 				{
 					database: this.#database,
@@ -427,13 +413,11 @@ export class CodeIndex {
 			);
 		});
 	}
-
 	public async close(): Promise<void> {
 		debug('close');
 		this.#closed = true;
 		await this.#coordinator.close();
 		this.#watcher.close();
-
 		if (this.#refreshing !== null) {
 			try {
 				await this.#refreshing;
@@ -441,48 +425,56 @@ export class CodeIndex {
 				// The refresh failure is already recorded on the index.
 			}
 		}
-
 		this.#database.releaseBuildLease(this.#ownerId);
 		this.#analytics?.close();
 		this.#database.close();
 	}
 	#queryContext(): QueryContextType {
+		const normalizeQueryName = this.#normalizeQueryName();
 		return {
 			database: this.#database,
 			generationId: this.#generation().id,
 			freshness: this.getFreshness(),
-			normalizeQueryName: this.#extractor.normalizeQueryName,
+			...(normalizeQueryName === undefined ? {} : {normalizeQueryName}),
 			...(this.#analytics === null ? {} : {exactNameTelemetry: this.#recordExactName}),
 		};
 	}
-	async #rebuild(scan: ScanResultType, force: boolean, startedAtEpoch: number): Promise<BuildReportType> {
+	/**
+	 * Returns the query-name normalizer for the current adapter set.
+	 *
+	 * Cross-adapter normalisation unions are #125 scope; until then a multi-adapter
+	 * workspace uses the first adapter's normalizer and never mixes spellings.
+	 *
+	 * @returns The normalizer, or undefined when the primary adapter has none.
+	 */
+	#normalizeQueryName(): ((text: string) => string) | undefined {
+		return this.#targets.at(0)?.extractor.normalizeQueryName;
+	}
+	async #rebuild(plans: readonly AdapterScanPlanType[], force: boolean, startedAtEpoch: number): Promise<BuildReportType> {
 		const workerPath = this.#workerEntry;
-		debug('rebuild requested', {force, worker: workerPath, files: scan.files.length});
-
+		debug('rebuild requested', {force, worker: workerPath, adapters: plans.length});
 		if (workerPath === null) {
 			debug('building in process');
 			return buildGeneration({
 				config: this.#config,
 				database: this.#database,
 				logger: this.#logger,
-				scan,
+				scans: plans,
 				force,
 				ownerId: this.#ownerId,
 				startedAtEpoch,
-				extractor: this.#extractor,
+				...(this.#override === undefined ? {} : {extractor: this.#override}),
 			});
 		}
-
 		const report = await runBuildWorkerThread({
 			workerEntry: workerPath,
 			config: this.#config,
-			scan,
+			scans: plans,
 			force,
 			ownerId: this.#ownerId,
 			startedAtEpoch,
 			debug: debug.enabled,
 		});
-
 		return report;
 	}
 	#generation(): GenerationRowType {
@@ -491,7 +483,6 @@ export class CodeIndex {
 			debug('no published generation');
 			throw new IndexNotReadyError();
 		}
-
 		this.#published = published;
 		return published;
 	}

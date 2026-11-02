@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '14';
+export const SCHEMA_VERSION = '15';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -20,14 +20,14 @@ create table if not exists working_copy (
 );
 
 create table if not exists indexed_project (
-	id text primary key,
+	id text not null,
 	working_copy_id text not null references working_copy(id) on delete cascade,
+	adapter_id text not null,
 	project_file text not null,
 	compiler_version text not null,
-	extractor_id text not null,
 	extractor_version text not null,
 	created_at text not null,
-	unique (working_copy_id, project_file)
+	primary key (working_copy_id, adapter_id, project_file)
 );
 
 create table if not exists content (
@@ -39,6 +39,8 @@ create table if not exists content (
 	bytes blob not null
 );
 
+-- Singular columns are a projection of the first present adapter. The
+-- generation_adapter rows are authoritative per-adapter provenance.
 create table if not exists generation (
 	id text primary key,
 	state text not null check (state in ('building', 'published', 'superseded', 'failed')),
@@ -68,16 +70,47 @@ create table if not exists generation (
 	error text
 );
 
+-- One row per configured adapter and attempt. Coverage distinguishes a present
+-- adapter with facts from an explicitly absent optional adapter.
+create table if not exists generation_adapter (
+	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
+	adapter_version text not null,
+	compiler_version text not null,
+	declared_compiler_version text,
+	compiler_drift integer not null default 0 check (compiler_drift in (0, 1)),
+	coverage text not null check (coverage in ('present', 'absent')),
+	absence_reason text,
+	source_hash text not null,
+	config_hash text not null,
+	input_hash text not null default '',
+	file_count integer not null default 0,
+	symbol_count integer not null default 0,
+	occurrence_count integer not null default 0,
+	dependency_edge_count integer not null default 0,
+	dependency_binding_count integer not null default 0,
+	diagnostic_count integer not null default 0,
+	scan_ms integer,
+	compiler_ms integer,
+	extraction_ms integer,
+	insertion_ms integer,
+	verification_ms integer,
+	publication_ms integer,
+	primary key (generation_id, adapter_id)
+);
+
 create table if not exists project_context (
 	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
 	name text not null,
 	project_file text not null,
 	config_hash text not null,
-	primary key (generation_id, name)
+	primary key (generation_id, adapter_id, name)
 );
 
 create table if not exists file (
 	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
 	path text not null,
 	sha256 text not null,
 	content_sha256 text references content(sha256),
@@ -86,19 +119,24 @@ create table if not exists file (
 );
 
 create index if not exists file_by_content on file (content_sha256);
+create index if not exists file_by_adapter on file (generation_id, adapter_id, path);
 
 -- One digest per path group of persisted fact rows. Revisions rewrite only
 -- path groups whose digest changed, so an unchanged file costs no fact writes.
 create table if not exists generation_file_digest (
 	generation_id text not null,
+	adapter_id text not null,
 	path text not null,
 	digest text not null,
 	primary key (generation_id, path),
 	foreign key (generation_id, path) references file(generation_id, path) on delete cascade
 );
 
+create index if not exists generation_file_digest_by_adapter on generation_file_digest (generation_id, adapter_id);
+
 create table if not exists symbol (
 	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
 	id text not null,
 	name text not null,
 	qualified_name text not null,
@@ -121,15 +159,17 @@ create table if not exists symbol (
 
 create table if not exists symbol_context (
 	generation_id text not null,
+	adapter_id text not null,
 	symbol_id text not null,
 	context_name text not null,
-	primary key (generation_id, symbol_id, context_name),
+	primary key (generation_id, adapter_id, symbol_id, context_name),
 	foreign key (generation_id, symbol_id) references symbol(generation_id, id) on delete cascade,
-	foreign key (generation_id, context_name) references project_context(generation_id, name) on delete cascade
+	foreign key (generation_id, adapter_id, context_name) references project_context(generation_id, adapter_id, name) on delete cascade
 );
 
 create table if not exists symbol_name (
 	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
 	binding_id text not null,
 	symbol_id text not null,
 	binding_key text not null check (length(binding_key) > 0),
@@ -147,16 +187,18 @@ create table if not exists symbol_name (
 
 create table if not exists symbol_name_context (
 	generation_id text not null,
+	adapter_id text not null,
 	binding_id text not null,
 	context_name text not null,
 	exposure text not null check (exposure in ('published', 'reachable', 'internal')),
-	primary key (generation_id, binding_id, context_name),
+	primary key (generation_id, adapter_id, binding_id, context_name),
 	foreign key (generation_id, binding_id) references symbol_name(generation_id, binding_id) on delete cascade,
-	foreign key (generation_id, context_name) references project_context(generation_id, name) on delete cascade
+	foreign key (generation_id, adapter_id, context_name) references project_context(generation_id, adapter_id, name) on delete cascade
 );
 
 create table if not exists symbol_name_site (
 	generation_id text not null,
+	adapter_id text not null,
 	binding_id text not null,
 	kind text not null check (kind in ('declared', 'alias', 'default', 'reexport', 'wildcard', 'commonjs', 'surface')),
 	path text not null,
@@ -166,24 +208,26 @@ create table if not exists symbol_name_site (
 	end_column integer not null,
 	start_offset integer not null,
 	end_offset integer not null check (end_offset > start_offset),
-	primary key (generation_id, binding_id, path, start_offset),
+	primary key (generation_id, adapter_id, binding_id, path, start_offset),
 	foreign key (generation_id, binding_id) references symbol_name(generation_id, binding_id) on delete cascade,
 	foreign key (generation_id, path) references file(generation_id, path) on delete cascade
 );
 
 create table if not exists surface_binding_origin (
 	generation_id text not null,
+	adapter_id text not null,
 	binding_id text not null,
 	context_name text not null,
 	root_binding_id text not null,
 	relative_key text not null check (length(relative_key) > 0),
-	primary key (generation_id, binding_id, context_name),
-	foreign key (generation_id, binding_id, context_name) references symbol_name_context(generation_id, binding_id, context_name) on delete cascade,
-	foreign key (generation_id, root_binding_id, context_name) references symbol_name_context(generation_id, binding_id, context_name) on delete cascade
+	primary key (generation_id, adapter_id, binding_id, context_name),
+	foreign key (generation_id, adapter_id, binding_id, context_name) references symbol_name_context(generation_id, adapter_id, binding_id, context_name) on delete cascade,
+	foreign key (generation_id, adapter_id, root_binding_id, context_name) references symbol_name_context(generation_id, adapter_id, binding_id, context_name) on delete cascade
 );
 
 create table if not exists occurrence (
 	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
 	symbol_id text not null,
 	path text not null,
 	start_line integer not null,
@@ -228,18 +272,20 @@ create table if not exists occurrence (
 
 create table if not exists occurrence_context (
 	generation_id text not null,
+	adapter_id text not null,
 	symbol_id text not null,
 	path text not null,
 	start_offset integer not null,
 	role text not null check (role in ('definition', 'reference')),
 	context_name text not null,
-	primary key (generation_id, symbol_id, path, start_offset, role, context_name),
+	primary key (generation_id, adapter_id, symbol_id, path, start_offset, role, context_name),
 	foreign key (generation_id, symbol_id, path, start_offset, role) references occurrence(generation_id, symbol_id, path, start_offset, role) on delete cascade,
-	foreign key (generation_id, context_name) references project_context(generation_id, name) on delete cascade
+	foreign key (generation_id, adapter_id, context_name) references project_context(generation_id, adapter_id, name) on delete cascade
 );
 
 create table if not exists definition_site (
 	generation_id text not null,
+	adapter_id text not null,
 	site_id text not null,
 	symbol_id text not null,
 	path text not null,
@@ -247,12 +293,13 @@ create table if not exists definition_site (
 	role text not null check (role = 'definition'),
 	-- 1 for the smallest definition offset of a symbol in a path, else 0.
 	first_in_symbol integer not null default 0 check (first_in_symbol in (0, 1)),
-	primary key (generation_id, site_id),
+	primary key (generation_id, adapter_id, site_id),
 	foreign key (generation_id, symbol_id, path, start_offset, role) references occurrence(generation_id, symbol_id, path, start_offset, role) on delete cascade
 );
 
 create table if not exists dependency_edge (
 	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
 	id text not null,
 	context_name text,
 	source_path text not null,
@@ -273,6 +320,7 @@ create table if not exists dependency_edge (
 
 create table if not exists dependency_binding (
 	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
 	edge_id text not null,
 	position integer not null,
 	kind text not null,
@@ -280,12 +328,13 @@ create table if not exists dependency_binding (
 	exported_name text,
 	local_name text,
 	compile_time_only integer not null check (compile_time_only in (0, 1)),
-	primary key (generation_id, edge_id, position),
+	primary key (generation_id, adapter_id, edge_id, position),
 	foreign key (generation_id, edge_id) references dependency_edge(generation_id, id) on delete cascade
 );
 
 create table if not exists diagnostic (
 	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
 	position integer not null,
 	category text not null,
 	code integer not null,
@@ -293,18 +342,19 @@ create table if not exists diagnostic (
 	path text,
 	start_line integer,
 	start_column integer,
-	primary key (generation_id, position)
+	primary key (generation_id, adapter_id, position)
 );
 
 create table if not exists build_stats (
 	generation_id text not null references generation(id) on delete cascade,
+	adapter_id text not null,
 	language text not null check (length(language) > 0),
 	metric text not null check (length(metric) > 0),
 	dim1 text not null,
 	dim2 text not null,
 	dim3 text not null,
 	value integer not null check (value >= 0),
-	primary key (generation_id, language, metric, dim1, dim2, dim3)
+	primary key (generation_id, adapter_id, language, metric, dim1, dim2, dim3)
 );
 
 create table if not exists extraction_artifact (
@@ -328,8 +378,9 @@ create table if not exists build_lease (
 	expires_at text not null
 );
 
-create index if not exists symbol_context_by_context on symbol_context (generation_id, context_name, symbol_id);
+create index if not exists symbol_context_by_context on symbol_context (generation_id, adapter_id, context_name, symbol_id);
 create index if not exists symbol_by_path on symbol (generation_id, path, start_offset);
+create index if not exists symbol_by_adapter on symbol (generation_id, adapter_id, path, start_offset);
 create index if not exists symbol_by_name on symbol (generation_id, name);
 create index if not exists symbol_by_qualified_name on symbol (generation_id, qualified_name);
 create index if not exists symbol_by_enclosing on symbol (generation_id, enclosing_id);
@@ -339,14 +390,15 @@ create index if not exists symbol_name_by_name on symbol_name (generation_id, na
 create index if not exists symbol_name_by_qualified_name on symbol_name (generation_id, qualified_name);
 create index if not exists symbol_name_by_container_name on symbol_name (generation_id, container, name);
 
-create index if not exists symbol_name_context_by_exposure on symbol_name_context (generation_id, context_name, exposure, binding_id);
+create index if not exists symbol_name_context_by_exposure on symbol_name_context (generation_id, adapter_id, context_name, exposure, binding_id);
 
 create index if not exists symbol_name_site_by_path on symbol_name_site (generation_id, path, kind, start_offset);
 
-create index if not exists surface_binding_origin_by_root on surface_binding_origin (generation_id, root_binding_id, context_name);
+create index if not exists surface_binding_origin_by_root on surface_binding_origin (generation_id, adapter_id, root_binding_id, context_name);
 
-create index if not exists occurrence_context_by_context on occurrence_context (generation_id, context_name, symbol_id);
+create index if not exists occurrence_context_by_context on occurrence_context (generation_id, adapter_id, context_name, symbol_id);
 create index if not exists occurrence_by_path on occurrence (generation_id, path, role, start_offset);
+create index if not exists occurrence_by_adapter on occurrence (generation_id, adapter_id, path, role, start_offset);
 create index if not exists occurrence_by_extent on occurrence (generation_id, path, role, extent_start);
 create index if not exists occurrence_by_enclosing on occurrence (generation_id, enclosing_id);
 create index if not exists occurrence_by_definition_site on occurrence (generation_id, symbol_id, path, start_offset, role);

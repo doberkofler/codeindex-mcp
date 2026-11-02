@@ -52,7 +52,19 @@ const doubles = vi.hoisted(() => {
 
 vi.mock(import('@modelcontextprotocol/server/stdio'), () => ({serveStdio: doubles.stdio.serve}) as unknown as never);
 vi.mock(import('../src/core/analytics/recorder.ts'), () => ({createAnalyticsRecorder: doubles.createAnalyticsRecorder}) as unknown as never);
-vi.mock(import('../src/core/config/config.ts'), () => ({loadConfig: doubles.loadConfig}));
+vi.mock(import('../src/core/config/config.ts'), () => ({
+	loadConfig: doubles.loadConfig,
+	configuredAdapters: (config: ConfigType): NonNullable<ConfigType['adapters']> =>
+		config.adapters ?? [
+			{
+				id: config.extractorId,
+				required: true,
+				options: config.extractorOptions,
+				projectFilePath: config.projectFilePath,
+				projects: config.projects,
+			},
+		],
+}));
 vi.mock(import('../src/core/generation/codeIndex.ts'), () => ({createCodeIndex: doubles.createCodeIndex}) as unknown as never);
 vi.mock(import('../src/core/logging/logger.ts'), () => ({createLogger: doubles.createLogger}));
 vi.mock(import('../src/transports/mcp/buildMcpServer.ts'), () => ({buildMcpServer: doubles.buildMcpServer}) as unknown as never);
@@ -163,9 +175,14 @@ describe('MCP server startup', () => {
 		expect(doubles.createLogger).toHaveBeenCalledWith({minimumLevel: 'error'});
 		expect(doubles.databaseOpen).toHaveBeenCalledWith(config.databasePath, {
 			rootDir: config.rootDir,
-			projectFilePath: config.projectFilePath,
-			extractorId: config.extractorId,
 			projectId: config.projectId,
+			projects: [
+				{
+					adapterId: config.extractorId,
+					projectId: config.projectId,
+					projectFilePath: config.projectFilePath,
+				},
+			],
 			vcs: {available: false},
 		});
 		expect(doubles.createAnalyticsRecorder).toHaveBeenCalledWith({

@@ -44,6 +44,8 @@ export type BuildFailureType = Readonly<{
 	readonly stage: BuildFailureStageType;
 	readonly errno: string | null;
 	readonly project: BuildProjectContextType | null;
+	/** Adapter that failed, or null when the failure is not adapter-specific. */
+	readonly adapter: string | null;
 }>;
 
 const errorStages = new WeakMap<object, BuildFailureStageType>();
@@ -133,9 +135,10 @@ export const buildProjectContextOfScan = (scan: ScanResultType | null): BuildPro
 const buildFailureMessage = (failure: BuildFailureType): string => {
 	const location = `${failure.cause} at ${failure.stage}`;
 	const errno = failure.errno === null ? '' : `, ${failure.errno}`;
+	const adapter = failure.adapter === null ? '' : `, adapter ${failure.adapter}`;
 	const project = failure.project === null ? '' : `, ${failure.project.name} (${failure.project.file})`;
 
-	return `Index build failed (${location}${errno}${project})`;
+	return `Index build failed (${location}${errno}${adapter}${project})`;
 };
 
 /**
@@ -160,12 +163,14 @@ export class BuildFailureEnvelopeError extends Error {
  * @param error - Value thrown by a build stage.
  * @param fallbackStage - Stage to use when the error was not annotated.
  * @param project - Workspace-relative project context, when known.
+ * @param adapter - Adapter that failed, or null when not adapter-specific.
  * @returns The closed failure envelope.
  */
 export const buildFailureOf = (
 	error: unknown,
 	fallbackStage: BuildFailureStageType = 'unknown',
 	project: BuildProjectContextType | null = null,
+	adapter: string | null = null,
 ): BuildFailureType => {
 	if (error instanceof BuildFailureEnvelopeError) {
 		return error.failure;
@@ -177,8 +182,14 @@ export const buildFailureOf = (
 		stage: stageOf(error, fallbackStage),
 		errno: errnoOf(error),
 		project,
+		adapter,
 	};
 };
+
+const isWorkerErrno = (errno: unknown): boolean => errno === null || (typeof errno === 'string' && /^[A-Z0-9_]{1,32}$/u.test(errno));
+
+const isWorkerAdapter = (adapter: unknown): boolean =>
+	adapter === undefined || adapter === null || (typeof adapter === 'string' && /^[a-z][a-z0-9_-]{0,63}$/u.test(adapter));
 
 /**
  * Validates a worker failure envelope received across the thread boundary.
@@ -196,18 +207,22 @@ export const buildFailureFromWorkerPayload = (value: unknown): BuildFailureType 
 	const stage = fieldOf(value, 'stage');
 	const errno = fieldOf(value, 'errno');
 	const project = fieldOf(value, 'project');
+	const adapter = fieldOf(value, 'adapter');
 
 	if (outcome !== 'failed' || typeof cause !== 'string' || !isBuildFailureCause(cause) || !isStage(stage)) {
 		return null;
 	}
 
-	if (errno !== null && (typeof errno !== 'string' || !/^[A-Z0-9_]{1,32}$/u.test(errno))) {
+	if (!isWorkerErrno(errno) || (project !== null && !isProjectContext(project)) || !isWorkerAdapter(adapter)) {
 		return null;
 	}
 
-	if (project !== null && !isProjectContext(project)) {
-		return null;
-	}
-
-	return {outcome: 'failed', cause, stage, errno, project};
+	return {
+		outcome: 'failed',
+		cause,
+		stage,
+		errno: typeof errno === 'string' ? errno : null,
+		project,
+		adapter: typeof adapter === 'string' ? adapter : null,
+	};
 };

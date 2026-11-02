@@ -2,7 +2,7 @@ import {serveStdio} from '@modelcontextprotocol/server/stdio';
 import {extractorFor} from '../../adapters/registry.ts';
 import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
-import {loadConfig} from '../../core/config/config.ts';
+import {configuredAdapters, loadConfig} from '../../core/config/config.ts';
 import {createCodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
 import {createLogger} from '../../core/logging/logger.ts';
 import {buildMcpServer} from './buildMcpServer.ts';
@@ -24,9 +24,12 @@ export const run = (options: CodeIndexOptionsType = {}): void => {
 	const logger = createLogger({minimumLevel: config.logLevel});
 	const database = IndexDatabase.open(config.databasePath, {
 		rootDir: config.rootDir,
-		projectFilePath: config.projectFilePath,
-		extractorId: config.extractorId,
 		projectId: config.projectId,
+		projects: configuredAdapters(config).map((adapter) => ({
+			adapterId: adapter.id,
+			projectId: config.projectId,
+			projectFilePath: adapter.projectFilePath,
+		})),
 		vcs: readVcsProvenance(config.rootDir),
 	});
 	const workingCopy = database.getWorkingCopy();
@@ -39,7 +42,9 @@ export const run = (options: CodeIndexOptionsType = {}): void => {
 		workingCopyId: workingCopy?.id ?? null,
 	});
 	const index = createCodeIndex(config, database, logger, {...options, analytics});
-	const extractor = extractorFor(config.extractorId);
+	const discoveryText = configuredAdapters(config)
+		.map((adapter) => extractorFor(adapter.id).discoveryText)
+		.join('\n\n');
 
 	logger.info('code_index_starting', {
 		version: PROGRAM_VERSION,
@@ -65,7 +70,7 @@ export const run = (options: CodeIndexOptionsType = {}): void => {
 			logger,
 			analytics,
 			maxResultBytes: config.maxResultBytes,
-			extractorDiscoveryText: extractor.discoveryText,
+			extractorDiscoveryText: discoveryText,
 		}),
 	);
 

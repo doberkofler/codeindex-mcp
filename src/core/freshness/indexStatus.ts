@@ -1,7 +1,14 @@
-import {type ConfigType} from '../config/config.ts';
+import {type ConfigType, configuredAdapters} from '../config/config.ts';
 import {extractorFor} from '../../adapters/registry.ts';
 import {type IndexDatabase} from '../storage/database.ts';
-import {type BuildLeaseType, type GenerationRowType, type IndexStatusSummaryType, type IndexStatusType, type QueryFreshnessType} from '../model.ts';
+import {
+	type BuildLeaseType,
+	type GenerationAdapterType,
+	type GenerationRowType,
+	type IndexStatusSummaryType,
+	type IndexStatusType,
+	type QueryFreshnessType,
+} from '../model.ts';
 import {type RefreshCoordinatorSnapshotType} from './refreshCoordinator.ts';
 
 const CORE_EXCLUSIONS: readonly string[] = [
@@ -48,13 +55,55 @@ const buildOf = (published: GenerationRowType | null): IndexStatusType['build'] 
 const stateOf = (refresh: RefreshCoordinatorSnapshotType, published: GenerationRowType | null): IndexStatusType['state'] =>
 	refresh.state === 'building' ? 'building' : (published?.state ?? 'absent');
 
-const extractorStatusOf = (config: ConfigType, published: GenerationRowType | null): IndexStatusType['scope']['extractor'] => ({
-	id: config.extractorId,
-	version: extractorFor(config.extractorId).version,
-	compilerVersion: published?.compilerVersion ?? 'unknown',
-	declaredCompilerVersion: published?.declaredCompilerVersion ?? null,
-	compilerDrift: published?.compilerDrift ?? false,
+const compilerProvenanceOf = (
+	row: GenerationAdapterType | undefined,
+	projection: GenerationRowType | null,
+): Readonly<{compilerVersion: string; declaredCompilerVersion: string | null; compilerDrift: boolean}> => ({
+	compilerVersion: row?.compilerVersion ?? projection?.compilerVersion ?? 'unknown',
+	declaredCompilerVersion: row?.declaredCompilerVersion ?? projection?.declaredCompilerVersion ?? null,
+	compilerDrift: row?.compilerDrift ?? projection?.compilerDrift ?? false,
 });
+
+const adapterStatusEntry = (
+	adapter: ReturnType<typeof configuredAdapters>[number],
+	index: number,
+	stored: ReadonlyMap<string, GenerationAdapterType>,
+	published: GenerationRowType | null,
+): IndexStatusType['scope']['adapters'][number] => {
+	const row = stored.get(adapter.id);
+	const extractor = extractorFor(adapter.id);
+	const projection = row === undefined && index === 0 && published !== null ? published : null;
+
+	return {
+		id: adapter.id,
+		version: extractor.version,
+		coverage: row?.coverage ?? 'present',
+		absenceReason: row?.absenceReason ?? null,
+		...compilerProvenanceOf(row, projection),
+		contexts: adapter.projects.map((project) => project.name),
+		limitations: extractor.limitations,
+	};
+};
+
+const adapterStatusOf = (config: ConfigType, published: GenerationRowType | null, database: IndexDatabase): IndexStatusType['scope']['adapters'] => {
+	const stored = new Map<string, GenerationAdapterType>(
+		(published === null ? [] : database.getGenerationAdapters(published.id)).map((adapter) => [adapter.adapterId, adapter]),
+	);
+
+	return configuredAdapters(config).map((adapter, index) => adapterStatusEntry(adapter, index, stored, published));
+};
+
+const extractorStatusOf = (adapters: IndexStatusType['scope']['adapters']): IndexStatusType['scope']['extractor'] => {
+	const [primary] = adapters;
+
+	return {
+		id: primary?.id ?? 'unknown',
+		version: primary?.version ?? 'unknown',
+		compilerVersion: primary?.compilerVersion ?? 'unknown',
+		declaredCompilerVersion: primary?.declaredCompilerVersion ?? null,
+		compilerDrift: primary?.compilerDrift ?? false,
+	};
+};
 
 const freshnessOf = (refresh: RefreshCoordinatorSnapshotType): IndexStatusType['freshness'] => {
 	const state: QueryFreshnessType['state'] =
@@ -87,6 +136,7 @@ const freshnessOf = (refresh: RefreshCoordinatorSnapshotType): IndexStatusType['
 export const collectStatus = (input: StatusInputType): IndexStatusType => {
 	const {published, refresh} = input;
 	const lease: BuildLeaseType | null = input.database.getBuildLease();
+	const adapters = adapterStatusOf(input.config, published, input.database);
 
 	return {
 		ready: published !== null,
@@ -99,8 +149,11 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 			root: input.config.rootDir,
 			projectName: input.config.projectName,
 			projectFile: input.config.projectFilePath,
-			projects: input.config.projects.map((project) => ({name: project.name, projectFile: project.projectFilePath})),
-			extractor: extractorStatusOf(input.config, published),
+			projects: configuredAdapters(input.config).flatMap((adapter) =>
+				adapter.projects.map((project) => ({name: project.name, projectFile: project.projectFilePath, adapter: adapter.id})),
+			),
+			adapters,
+			extractor: extractorStatusOf(adapters),
 			projectId: input.config.projectId,
 			workingCopyId: input.workingCopyId,
 		},
@@ -110,7 +163,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 		build: buildOf(published),
 		freshness: freshnessOf(refresh),
 		lease,
-		exclusions: [...CORE_EXCLUSIONS, ...extractorFor(input.config.extractorId).limitations],
+		exclusions: [...CORE_EXCLUSIONS, ...adapters.flatMap((adapter) => adapter.limitations)],
 		lastError: refresh.lastError ?? input.lastError,
 	};
 };

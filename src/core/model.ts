@@ -275,6 +275,27 @@ export type FindDependenciesInputType = Readonly<{
 	readonly cursor?: string | undefined;
 }>;
 
+/** Persisted provenance for one adapter within one generation. */
+export type GenerationAdapterType = Readonly<{
+	readonly adapterId: string;
+	readonly adapterVersion: string;
+	readonly compilerVersion: string;
+	readonly declaredCompilerVersion: string | null;
+	readonly compilerDrift: boolean;
+	readonly coverage: 'present' | 'absent';
+	readonly absenceReason: string | null;
+	readonly sourceHash: string;
+	readonly configHash: string;
+	readonly inputHash: string;
+	readonly fileCount: number;
+	readonly symbolCount: number;
+	readonly occurrenceCount: number;
+	readonly dependencyEdgeCount: number;
+	readonly dependencyBindingCount: number;
+	readonly diagnosticCount: number;
+	readonly stages: BuildStagesType | null;
+}>;
+
 export type GenerationRowType = Readonly<{
 	readonly id: string;
 	readonly state: GenerationStateType;
@@ -357,7 +378,20 @@ export type IndexStatusType = Readonly<{
 		readonly root: string;
 		readonly projectName: string;
 		readonly projectFile: string;
-		readonly projects: readonly Readonly<{readonly name: string; readonly projectFile: string}>[];
+		readonly projects: readonly Readonly<{readonly name: string; readonly projectFile: string; readonly adapter?: string | undefined}>[];
+		/** One entry per configured adapter with persisted coverage and provenance. */
+		readonly adapters: readonly Readonly<{
+			readonly id: string;
+			readonly version: string;
+			readonly coverage: 'present' | 'absent';
+			readonly absenceReason: string | null;
+			readonly compilerVersion: string;
+			readonly declaredCompilerVersion: string | null;
+			readonly compilerDrift: boolean;
+			readonly contexts: readonly string[];
+			readonly limitations: readonly string[];
+		}>[];
+		/** Singular projection of the first configured adapter. */
 		readonly extractor: Readonly<{
 			readonly id: string;
 			readonly version: string;

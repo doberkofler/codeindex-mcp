@@ -1,5 +1,6 @@
 import {type DatabaseSync} from 'node:sqlite';
 import {
+	adapterIdOf,
 	type GenerationFactsInputType,
 	type GenerationFactCountsType,
 	type GenerationFactWriteModeType,
@@ -20,7 +21,7 @@ import {buildStatsOf} from './databaseFactStats.ts';
 import {asNumber, asString} from './databaseRows.ts';
 import {transaction} from './databaseTransaction.ts';
 
-export {syncGenerationFiles} from './databaseFactFiles.ts';
+export {syncGenerationFiles, syncProjectContexts} from './databaseFactFiles.ts';
 
 export type {GenerationFactCountsType, GenerationFactWriteModeType, GenerationFactWriteType, GenerationFactsInputType} from './databaseFactTypes.ts';
 
@@ -43,8 +44,8 @@ const assertState = (writer: DatabaseSync, generationId: string, mode: Generatio
 	}
 };
 
-const countOf = (reader: DatabaseSync, sql: string, generationId: string): number => {
-	const row = reader.prepare(sql).get(generationId);
+const countOf = (reader: DatabaseSync, sql: string, ...parameters: readonly (string | number)[]): number => {
+	const row = reader.prepare(sql).get(...parameters);
 
 	if (row === undefined) {
 		throw new Error('Expected one aggregate row');
@@ -53,8 +54,8 @@ const countOf = (reader: DatabaseSync, sql: string, generationId: string): numbe
 	return asNumber(row, 'total');
 };
 
-const countsOfTable = (reader: DatabaseSync, table: string, generationId: string): number =>
-	countOf(reader, `select count(*) as total from ${table} where generation_id = ?`, generationId);
+const countsOfTable = (reader: DatabaseSync, table: string, generationId: string, adapterId: string): number =>
+	countOf(reader, `select count(*) as total from ${table} where generation_id = ? and adapter_id = ?`, generationId, adapterId);
 
 const definitionSiteCountOf = (input: GenerationFactsInputType): number =>
 	input.facts.occurrences.filter((occurrence) => occurrence.role === 'definition').length;
@@ -99,11 +100,15 @@ const expectedCountsOf = (input: GenerationFactsInputType): ReadonlyMap<string, 
 	]);
 };
 
-const storedDigests = (writer: DatabaseSync, generationId: string): ReadonlyMap<string, string> =>
+const storedDigests = (writer: DatabaseSync, generationId: string, adapterId: string): ReadonlyMap<string, string> =>
 	new Map(
 		writer
-			.prepare('select path, digest from generation_file_digest where generation_id = ?')
-			.all(generationId)
+			.prepare(
+				`select d.path, d.digest from generation_file_digest d
+				 join file f on f.generation_id = d.generation_id and f.path = d.path
+				 where d.generation_id = ? and f.adapter_id = ?`,
+			)
+			.all(generationId, adapterId)
 			.map((row) => [asString(row, 'path'), asString(row, 'digest')]),
 	);
 
@@ -194,7 +199,7 @@ const prepareWrite = (writer: DatabaseSync, input: GenerationFactsInputType, mod
 	}
 
 	const next = digestFacts(input);
-	const changed = new Set(changedPathsOf(storedDigests(writer, input.generationId), next));
+	const changed = new Set(changedPathsOf(storedDigests(writer, input.generationId, adapterIdOf(input)), next));
 	expandCascadePaths(input, changed);
 	return {changed, selected: changed, next};
 };
@@ -260,25 +265,25 @@ const writeGlobalRows = (writer: DatabaseSync, input: GenerationFactsInputType, 
 	}
 };
 
-const writeDigests = (writer: DatabaseSync, generationId: string, digests: ReadonlyMap<string, string>): void => {
+const writeDigests = (writer: DatabaseSync, generationId: string, adapterId: string, digests: ReadonlyMap<string, string>): void => {
 	const statement = writer.prepare(
-		'insert into generation_file_digest (generation_id, path, digest) values (?, ?, ?) on conflict(generation_id, path) do update set digest = excluded.digest',
+		'insert into generation_file_digest (generation_id, adapter_id, path, digest) values (?, ?, ?, ?) on conflict(generation_id, path) do update set adapter_id = excluded.adapter_id, digest = excluded.digest',
 	);
 
 	for (const [path, digest] of digests) {
-		insertRow(statement, 'generation_file_digest', path, [generationId, path, digest]);
+		insertRow(statement, 'generation_file_digest', path, [generationId, adapterId, path, digest]);
 	}
 };
 
-const deleteGenerationRows = (writer: DatabaseSync, generationId: string, paths: ReadonlySet<string>): void => {
+const deleteGenerationRows = (writer: DatabaseSync, input: GenerationFactsInputType, paths: ReadonlySet<string>): void => {
 	const deleteFile = writer.prepare('delete from file where generation_id = ? and path = ?');
 
 	for (const path of paths) {
-		deleteFile.run(generationId, path);
+		deleteFile.run(input.generationId, path);
 	}
 
 	for (const table of GLOBAL_TABLES) {
-		writer.prepare(`delete from ${table.table} where generation_id = ?`).run(generationId);
+		writer.prepare(`delete from ${table.table} where generation_id = ? and adapter_id = ?`).run(input.generationId, adapterIdOf(input));
 	}
 };
 
@@ -301,20 +306,20 @@ export const writeGenerationFacts = (writer: DatabaseSync, input: GenerationFact
 	const counter: RowCounterType = {value: 0};
 	const digests = mode === 'insert' ? createDigestAccumulator(input.files.map((file) => file.path)) : null;
 
-	deleteGenerationRows(writer, input.generationId, prepared.changed);
-	syncGenerationFiles(writer, input.generationId, input.files);
-	counter.value += syncProjectContexts(writer, input);
+	deleteGenerationRows(writer, input, prepared.changed);
+	syncGenerationFiles(writer, input.generationId, input.files, adapterIdOf(input));
+	counter.value += syncProjectContexts(writer, {generationId: input.generationId, adapterId: adapterIdOf(input), projects: input.projects});
 	writeTableRows(writer, input, {selected: prepared.selected, digests, counter});
 	writeGlobalRows(writer, input, counter);
-	writeDigests(writer, input.generationId, prepared.next ?? digests?.digests() ?? new Map());
+	writeDigests(writer, input.generationId, adapterIdOf(input), prepared.next ?? digests?.digests() ?? new Map());
 	writer.prepare('update generation set source_hash = ? where id = ?').run(input.sourceHash, input.generationId);
 
 	return {counts: countsOfInput(input), changedPaths: [...prepared.changed].sort(), writtenRows: counter.value};
 };
 
-const countRowsMatch = (writer: DatabaseSync, generationId: string, expected: ReadonlyMap<string, number>): void => {
+const countRowsMatch = (writer: DatabaseSync, generationId: string, adapterId: string, expected: ReadonlyMap<string, number>): void => {
 	for (const [table, wanted] of expected) {
-		const inserted = countsOfTable(writer, table, generationId);
+		const inserted = countsOfTable(writer, table, generationId, adapterId);
 
 		if (inserted !== wanted) {
 			throw new Error(`Index insertion count mismatch: ${table} ${String(inserted)}/${String(wanted)}`);
@@ -404,9 +409,11 @@ const validateCoverage = (writer: DatabaseSync, generationId: string): void => {
  * @throws {@link Error} When the persisted generation violates an invariant.
  */
 export const validateGenerationFacts = (writer: DatabaseSync, input: GenerationFactsInputType): void => {
-	countRowsMatch(writer, input.generationId, expectedCountsOf(input));
+	countRowsMatch(writer, input.generationId, adapterIdOf(input), expectedCountsOf(input));
 
-	if (writer.prepare('pragma foreign_key_check').all().length > 0) {
+	const foreignKeyViolations = writer.prepare('pragma foreign_key_check').all();
+
+	if (foreignKeyViolations.length > 0) {
 		throw new Error('SQLite foreign-key check failed for the candidate generation');
 	}
 
@@ -455,4 +462,5 @@ export const insertGenerationFacts = (writer: DatabaseSync, reader: DatabaseSync
  * @param table - Fixed table name owned by the generation.
  * @returns Row count for that generation.
  */
-export const countGenerationRows = (reader: DatabaseSync, generationId: string, table: string): number => countsOfTable(reader, table, generationId);
+export const countGenerationRows = (reader: DatabaseSync, generationId: string, table: string): number =>
+	countOf(reader, `select count(*) as total from ${table} where generation_id = ?`, generationId);

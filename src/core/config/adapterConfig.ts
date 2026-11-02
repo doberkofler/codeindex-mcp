@@ -1,0 +1,97 @@
+/**
+ * One project context within one adapter.
+ *
+ * Contexts share one workspace and one published generation but retain their own
+ * project file, compiler options, and configuration digest.
+ */
+export type ProjectContextConfigType = Readonly<{
+	readonly name: string;
+	readonly projectFilePath: string;
+}>;
+
+/**
+ * One configured adapter and the project contexts it owns.
+ *
+ * Context names and project files are scoped to the adapter; two adapters may
+ * use the same names or even the same project file.
+ */
+export type AdapterConfigType = Readonly<{
+	readonly id: string;
+	/** Required adapters fail the candidate; optional adapters may be absent. */
+	readonly required: boolean;
+	readonly options: Readonly<Record<string, unknown>>;
+	/** First configured project; retained for single-project surfaces. */
+	readonly projectFilePath: string;
+	readonly projects: readonly ProjectContextConfigType[];
+}>;
+
+export type ConfigType = Readonly<{
+	readonly projectName: string;
+	readonly rootDir: string;
+	/**
+	 * Every configured adapter, in declaration order.
+	 *
+	 * Production resolves this from `extractors` (or the normalised singular
+	 * `extractor`). It is optional only so tests and qualification harnesses can
+	 * build a singular configuration directly.
+	 */
+	readonly adapters?: readonly AdapterConfigType[] | undefined;
+	/**
+	 * Singular projection of the first configured adapter.
+	 *
+	 * A multi-adapter workspace must resolve adapter identity from `adapters`;
+	 * this field exists for singular-only surfaces and legacy fixtures.
+	 */
+	readonly extractorId: string;
+	readonly extractorOptions: Readonly<Record<string, unknown>>;
+	/** First configured project; retained for compatibility with single-project surfaces. */
+	readonly projectFilePath: string;
+	readonly projects: readonly ProjectContextConfigType[];
+	/** Root holding one directory per indexed project. */
+	readonly storageDirectory: string;
+	readonly databasePath: string;
+	readonly analyticsEnabled: boolean;
+	readonly analyticsPath: string;
+	readonly maxResultBytes: number;
+	readonly maxReadLines: number;
+	readonly semanticDiagnostics: boolean;
+	readonly projectId: string;
+	readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
+	readonly configPath: string | null;
+}>;
+
+/**
+ * Returns the configured adapters, defaulting to the singular projection.
+ *
+ * @param config - Resolved configuration.
+ * @returns Every configured adapter.
+ */
+export const configuredAdapters = (config: ConfigType): readonly AdapterConfigType[] =>
+	config.adapters ?? [
+		{
+			id: config.extractorId,
+			required: true,
+			options: config.extractorOptions,
+			projectFilePath: config.projectFilePath,
+			projects: config.projects,
+		},
+	];
+
+/**
+ * Projects a multi-adapter configuration onto one adapter.
+ *
+ * Adapters receive only their own project contexts and options, so no adapter
+ * can observe another adapter's configuration.
+ *
+ * @param config - Resolved multi-adapter configuration.
+ * @param adapter - Adapter to project.
+ * @returns A configuration whose singular projection is the selected adapter.
+ */
+export const adapterConfigFor = (config: ConfigType, adapter: AdapterConfigType): ConfigType => ({
+	...config,
+	adapters: [adapter],
+	extractorId: adapter.id,
+	extractorOptions: adapter.options,
+	projectFilePath: adapter.projectFilePath,
+	projects: adapter.projects,
+});

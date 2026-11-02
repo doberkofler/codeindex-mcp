@@ -105,6 +105,18 @@ const buildLeaseSchema = z.object({
 	expiresAt: z.string(),
 });
 
+const adapterStatusSchema = z.object({
+	id: z.string(),
+	version: z.string(),
+	coverage: z.enum(['present', 'absent']),
+	absenceReason: z.string().nullable(),
+	compilerVersion: z.string(),
+	declaredCompilerVersion: z.string().nullable(),
+	compilerDrift: z.boolean(),
+	contexts: z.array(z.string()),
+	limitations: z.array(z.string()),
+});
+
 const indexStatusSchema = z.object({
 	ready: z.boolean(),
 	state: z.enum(['building', 'published', 'superseded', 'failed', 'absent']),
@@ -116,7 +128,8 @@ const indexStatusSchema = z.object({
 		root: z.string(),
 		projectName: z.string(),
 		projectFile: z.string(),
-		projects: z.array(z.object({name: z.string(), projectFile: z.string()})),
+		projects: z.array(z.object({name: z.string(), projectFile: z.string(), adapter: z.string().optional()})),
+		adapters: z.array(adapterStatusSchema).default([]),
 		extractor: z.object({
 			id: z.string(),
 			version: z.string(),

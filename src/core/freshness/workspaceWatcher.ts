@@ -11,9 +11,9 @@ const debug = debugFor('watch');
 export type WorkspaceWatcherOptionsType = Readonly<{
 	rootDir: string;
 	logger: LoggerType;
-	/** File extensions the selected extractor publishes. */
+	/** File extensions the configured adapters publish. */
 	sourceExtensions: readonly string[];
-	/** Directory segments the selected extractor ignores. */
+	/** Directory segments every configured adapter ignores. */
 	ignoredSegments: readonly string[];
 	onChange: (paths: readonly string[] | null) => void;
 }>;

@@ -7,9 +7,10 @@ import {
 	type SourceFileType,
 } from '../model.ts';
 
-/** Complete serializable fact set stored by one generation persistence call. */
-export type GenerationFactsInputType = Readonly<{
+/** Complete serializable fact set stored by one generation persistence call. */ export type GenerationFactsInputType = Readonly<{
 	readonly generationId: string;
+	/** Adapter that owns every row in this write; defaults to `language`. */
+	readonly adapterId?: string;
 	/** Adapter identifier used as the closed `build_stats.language` value. */
 	readonly language: string;
 	readonly files: readonly SourceFileType[];
@@ -48,3 +49,14 @@ export type GenerationFactWriteType = Readonly<{
 
 /** Accepted generation states for one fact write. */
 export type GenerationFactWriteModeType = 'insert' | 'revise';
+
+/**
+ * Resolves the adapter that owns one fact write.
+ *
+ * Older callers pass only `language`; the adapter identity defaults to it so the
+ * singular path keeps one source of truth.
+ *
+ * @param input - Fact write input.
+ * @returns The owning adapter identifier.
+ */
+export const adapterIdOf = (input: Readonly<{adapterId?: string | undefined; language: string}>): string => input.adapterId ?? input.language;

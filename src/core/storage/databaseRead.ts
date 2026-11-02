@@ -1,6 +1,52 @@
 import {type DatabaseSync} from 'node:sqlite';
-import {type GenerationRowType} from '../model.ts';
-import {toGeneration} from './databaseRows.ts';
+import {type BuildStagesType, type GenerationAdapterType, type GenerationRowType} from '../model.ts';
+import {asNumber, asString, toGeneration} from './databaseRows.ts';
+
+/**
+ * Reads per-adapter provenance for one generation.
+ *
+ * @param reader - Reader connection.
+ * @param generationId - Candidate or published generation.
+ * @returns Adapter rows ordered by adapter identifier.
+ */
+export const readGenerationAdapters = (reader: DatabaseSync, generationId: string): readonly GenerationAdapterType[] => {
+	const rows = reader.prepare('select * from generation_adapter where generation_id = ? order by adapter_id').all(generationId);
+
+	return rows.map((row) => {
+		const scanMs = typeof row['scan_ms'] === 'number' ? row['scan_ms'] : null;
+		const stages: BuildStagesType | null =
+			scanMs === null
+				? null
+				: {
+						scanMs,
+						compilerMs: asNumber(row, 'compiler_ms'),
+						extractionMs: asNumber(row, 'extraction_ms'),
+						insertionMs: 0,
+						verificationMs: 0,
+						publicationMs: 0,
+					};
+
+		return {
+			adapterId: asString(row, 'adapter_id'),
+			adapterVersion: asString(row, 'adapter_version'),
+			compilerVersion: asString(row, 'compiler_version'),
+			declaredCompilerVersion: typeof row['declared_compiler_version'] === 'string' ? row['declared_compiler_version'] : null,
+			compilerDrift: asNumber(row, 'compiler_drift') !== 0,
+			coverage: row['coverage'] === 'absent' ? 'absent' : 'present',
+			absenceReason: typeof row['absence_reason'] === 'string' ? row['absence_reason'] : null,
+			sourceHash: asString(row, 'source_hash'),
+			configHash: asString(row, 'config_hash'),
+			inputHash: asString(row, 'input_hash'),
+			fileCount: asNumber(row, 'file_count'),
+			symbolCount: asNumber(row, 'symbol_count'),
+			occurrenceCount: asNumber(row, 'occurrence_count'),
+			dependencyEdgeCount: asNumber(row, 'dependency_edge_count'),
+			dependencyBindingCount: asNumber(row, 'dependency_binding_count'),
+			diagnosticCount: asNumber(row, 'diagnostic_count'),
+			stages,
+		};
+	});
+};
 
 /**
  * Reads one generation by identifier.

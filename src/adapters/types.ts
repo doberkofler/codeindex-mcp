@@ -84,6 +84,19 @@ export type ExtractorType = Readonly<{
 	/** Adapter-specific MCP discovery guidance. */
 	readonly discoveryText: string;
 	/**
+	 * Closed, versioned absence reasons an optional adapter may report.
+	 *
+	 * Only declared reasons are persisted; core never interprets them.
+	 */
+	readonly absenceReasons?: readonly string[];
+	/**
+	 * Probes whether the adapter can run for this configuration.
+	 *
+	 * A required adapter is always built. An optional adapter may report declared
+	 * unavailability before scanning, which is recorded as coverage.
+	 */
+	readonly probe?: (config: ConfigType) => Readonly<{available: true} | {available: false; reason: string}>;
+	/**
 	 * Folds one authored query name to the adapter's canonical published spelling.
 	 *
 	 * Storage compares binding names verbatim, so an adapter whose canonical

@@ -1,15 +1,17 @@
-import {createHash} from 'node:crypto';
-import {existsSync, realpathSync, readFileSync, statSync} from 'node:fs';
-import {homedir} from 'node:os';
+import {existsSync, readFileSync, realpathSync, statSync} from 'node:fs';
 import path from 'node:path';
 import {z} from 'zod';
 import {debugFor} from '../logging/debug.ts';
+import {type AdapterConfigType, type ConfigType, type ProjectContextConfigType} from './adapterConfig.ts';
+import {resolveAdapters} from './adapterResolution.ts';
+import {DEFAULT_EXTRACTOR_ID, assertFile, createStorageKey, fail, indexRootDirectory, isInside} from './configSupport.ts';
 
 const {basename, dirname, isAbsolute, join, relative, resolve, sep} = path;
 const debug = debugFor('config');
 
-const DEFAULT_EXTRACTOR_ID = 'typescript';
-const DEFAULT_PROJECT_FILE = 'tsconfig.json';
+export type {AdapterConfigType, ConfigType, ProjectContextConfigType} from './adapterConfig.ts';
+export {adapterConfigFor, configuredAdapters} from './adapterConfig.ts';
+export {indexRootDirectory} from './configSupport.ts';
 
 const ProjectEntrySchema = z.object({
 	name: z.string().min(1).optional(),
@@ -18,6 +20,7 @@ const ProjectEntrySchema = z.object({
 
 const ExtractorSchema = z.object({
 	id: z.string().min(1).optional(),
+	required: z.boolean().optional(),
 	project: z.string().min(1).optional(),
 	projects: z.array(ProjectEntrySchema).min(1).optional(),
 	options: z.record(z.string(), z.unknown()).optional(),
@@ -45,13 +48,25 @@ const DiagnosticsSchema = z.object({
 	semantic: z.boolean().optional(),
 });
 
-const FileConfigSchema = z.object({
-	project: ProjectSchema.optional(),
-	extractor: ExtractorSchema,
-	storage: StorageSchema.optional(),
-	limits: LimitsSchema.optional(),
-	diagnostics: DiagnosticsSchema.optional(),
-});
+const FileConfigSchema = z
+	.object({
+		project: ProjectSchema.optional(),
+		extractor: ExtractorSchema.optional(),
+		extractors: z.array(ExtractorSchema).min(1).optional(),
+		storage: StorageSchema.optional(),
+		limits: LimitsSchema.optional(),
+		diagnostics: DiagnosticsSchema.optional(),
+	})
+	.superRefine((value, context) => {
+		const declared = Number(value.extractor !== undefined) + Number(value.extractors !== undefined);
+
+		if (declared !== 1) {
+			context.addIssue({
+				code: 'custom',
+				message: 'exactly one of extractor or extractors must be configured',
+			});
+		}
+	});
 
 const EnvironmentSchema = z.object({
 	CODE_INDEX_CONFIG: z.string().min(1).optional(),
@@ -77,111 +92,21 @@ const EnvironmentSchema = z.object({
 
 type FileConfigType = z.infer<typeof FileConfigSchema>;
 
-/**
- * One TypeScript project context within the indexed workspace.
- *
- * Contexts share one workspace and one published generation but retain their
- * own project file, compiler options, and configuration digest.
- */
-export type ProjectContextConfigType = Readonly<{
-	readonly name: string;
-	readonly projectFilePath: string;
-}>;
-
-export type ConfigType = Readonly<{
-	readonly projectName: string;
-	readonly rootDir: string;
-	readonly extractorId: string;
-	readonly extractorOptions: Readonly<Record<string, unknown>>;
-	/** First configured project; retained for compatibility with single-project surfaces. */
-	readonly projectFilePath: string;
-	readonly projects: readonly ProjectContextConfigType[];
-	/** Root holding one directory per indexed project. */
-	readonly storageDirectory: string;
-	readonly databasePath: string;
-	readonly analyticsEnabled: boolean;
-	readonly analyticsPath: string;
-	readonly maxResultBytes: number;
-	readonly maxReadLines: number;
-	readonly semanticDiagnostics: boolean;
-	readonly projectId: string;
-	readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
-	readonly configPath: string | null;
-}>;
-
 /** Resolved identity that both the workspace and storage resolvers share. */
-type WorkspaceIdentityType = Pick<ConfigType, 'extractorId' | 'projectFilePath' | 'projects' | 'projectId' | 'projectName'> & Readonly<{storageKey: string}>;
-
-const fail = (message: string): never => {
-	debug('invalid configuration: %s', message);
-	throw new Error(`Invalid code index configuration: ${message}`);
-};
-
-const isInside = (parent: string, candidate: string): boolean => {
-	const relativePath = relative(parent, candidate);
-	return relativePath === '' || (!relativePath.startsWith(`..${sep}`) && relativePath !== '..' && !isAbsolute(relativePath));
-};
-
-const resolveWithin = (rootDir: string, baseDirectory: string, candidate: string, label: string): string => {
-	const resolved = resolve(baseDirectory, candidate);
-
-	if (!isAbsolute(resolved)) {
-		return fail(`${label} must resolve to an absolute path`);
-	}
-
-	if (!existsSync(resolved)) {
-		return fail(`${label} does not exist: ${resolved}`);
-	}
-
-	const realRoot = realpathSync(rootDir);
-	const realCandidate = realpathSync(resolved);
-
-	if (isInside(realRoot, realCandidate)) {
-		return realCandidate;
-	}
-
-	return fail(`${label} must stay inside the configured root: ${resolved}`);
-};
-
-/**
- * Creates a stable, non-reversible identifier for one indexed project.
- *
- * The identifier is derived from real paths so tool results never leak absolute
- * filesystem locations. It is always used as the storage key and, unless the
- * project id is configured, as the project id.
- *
- * @param rootDir - Absolute indexed workspace root.
- * @param extractorId - Selected language extractor.
- * @param projectFilePaths - Absolute extractor project files.
- * @returns A stable 16-character project identifier.
- */
-const createProjectId = (rootDir: string, extractorId: string, projectFilePaths: readonly string[]): string => {
-	const paths = [...projectFilePaths].sort();
-	const identity = paths.length === 1 ? (paths[0] ?? '') : paths.join('\n');
-
-	return createHash('sha256').update(`${rootDir}\n${extractorId}\n${identity}`).digest('hex').slice(0, 16);
-};
-
-/**
- * Returns the root holding one index database per indexed project.
- *
- * @returns Absolute index root directory.
- */
-export const indexRootDirectory = (): string => join(homedir(), '.local', 'share', 'codeindex-mcp');
+type WorkspaceIdentityType = Readonly<{
+	adapters: readonly AdapterConfigType[];
+	extractorId: string;
+	extractorOptions: Readonly<Record<string, unknown>>;
+	projectFilePath: string;
+	projects: readonly ProjectContextConfigType[];
+	projectId: string;
+	storageKey: string;
+	projectName: string;
+}>;
 
 const defaultDatabasePath = (directory: string, projectId: string): string => join(directory, projectId, 'index.sqlite');
 
 const defaultAnalyticsPath = (directory: string, projectId: string): string => join(directory, projectId, 'analytics', 'events.jsonl');
-
-const assertFile = (filePath: string, label: string): void => {
-	if (!existsSync(filePath)) {
-		fail(`${label} does not exist: ${filePath}`);
-	}
-
-	if (!statSync(filePath).isFile()) {
-		fail(`${label} is not a file: ${filePath}`);
-	}
-};
 
 const parseConfigFile = (configPath: string, label: string): FileConfigType => {
 	assertFile(configPath, label);
@@ -204,14 +129,21 @@ const parseConfigFile = (configPath: string, label: string): FileConfigType => {
 };
 
 /**
- * Reads the selected extractor from a CodeIndex configuration file.
+ * Reads the first configured extractor from a CodeIndex configuration file.
  *
  * @param configPath - Absolute configuration path, or undefined when none is configured.
  * @returns The configured extractor identifier, or the default extractor.
  * @throws {@link Error} When the file is missing, is not valid JSON, or fails validation.
  */
-export const extractorIdOfConfig = (configPath: string | undefined): string =>
-	configPath === undefined ? DEFAULT_EXTRACTOR_ID : (parseConfigFile(configPath, 'CodeIndex configuration').extractor.id ?? DEFAULT_EXTRACTOR_ID);
+export const extractorIdOfConfig = (configPath: string | undefined): string => {
+	if (configPath === undefined) {
+		return DEFAULT_EXTRACTOR_ID;
+	}
+
+	const file = parseConfigFile(configPath, 'CodeIndex configuration');
+
+	return file.extractors?.[0]?.id ?? file.extractor?.id ?? DEFAULT_EXTRACTOR_ID;
+};
 
 const canonicalisePath = (rawRootDir: string, realRootDir: string, candidatePath: string): string => {
 	const absolutePath = resolve(candidatePath);
@@ -239,6 +171,13 @@ const assertOutsideRoot = (rootDir: string, targetPath: string, label: string): 
 	}
 };
 
+type FileConfigSourceType = Readonly<{
+	environment: z.infer<typeof EnvironmentSchema>;
+	config: FileConfigType;
+	directory: string;
+	configPath: string | null;
+}>;
+
 const fileConfigOf = (source: unknown, cwd: string): Readonly<{config: FileConfigType; directory: string; configPath: string | null}> => {
 	const parsedEnvironment = EnvironmentSchema.safeParse(source);
 
@@ -257,9 +196,6 @@ const fileConfigOf = (source: unknown, cwd: string): Readonly<{config: FileConfi
 	return {config: parseConfigFile(configPath, 'CODE_INDEX_CONFIG'), directory: dirname(configPath), configPath};
 };
 
-type ParsedEnvironmentType = z.infer<typeof EnvironmentSchema>;
-type FileConfigSourceType = Readonly<{environment: ParsedEnvironmentType; config: FileConfigType; directory: string; configPath: string | null}>;
-
 const parseSource = (source: NodeJS.ProcessEnv, cwd: string): FileConfigSourceType => {
 	const parsedEnvironment = EnvironmentSchema.safeParse(source);
 
@@ -272,7 +208,7 @@ const parseSource = (source: NodeJS.ProcessEnv, cwd: string): FileConfigSourceTy
 };
 
 const workspaceRoot = (
-	environment: ParsedEnvironmentType,
+	environment: z.infer<typeof EnvironmentSchema>,
 	file: FileConfigType,
 	directory: string,
 	cwd: string,
@@ -287,85 +223,41 @@ const workspaceRoot = (
 	return {rawRootDir, realRootDir: realpathSync(rawRootDir)};
 };
 
-const derivedProjectName = (rootDir: string, projectFilePath: string): string => {
-	const relativePath = relative(rootDir, projectFilePath).split(sep).join('/');
-	const separator = relativePath.lastIndexOf('/');
-
-	return separator === -1 ? 'root' : relativePath.slice(0, separator);
-};
-
-const resolveProjectContexts = (
-	input: Readonly<{environment: ParsedEnvironmentType; file: FileConfigType; realRootDir: string; cwd: string; extractorId: string}>,
-): readonly ProjectContextConfigType[] => {
-	const {environment, file, realRootDir, cwd, extractorId} = input;
-	if (environment.CODE_INDEX_PROJECT_FILE !== undefined) {
-		const projectFilePath = resolveWithin(realRootDir, cwd, environment.CODE_INDEX_PROJECT_FILE, 'project file');
-		assertFile(projectFilePath, 'project file');
-
-		return [{name: derivedProjectName(realRootDir, projectFilePath), projectFilePath}];
-	}
-
-	if (file.extractor.project !== undefined && file.extractor.projects !== undefined) {
-		return fail('extractor.project and extractor.projects are mutually exclusive');
-	}
-
-	if (extractorId === 'oracle' && file.extractor.project === undefined && file.extractor.projects === undefined) {
-		return fail('the oracle extractor requires extractor.project or extractor.projects to name an Oracle manifest');
-	}
-
-	const entries = file.extractor.projects ?? [{project: file.extractor.project ?? DEFAULT_PROJECT_FILE} satisfies Readonly<{project: string; name?: string}>];
-	const contexts = entries.map((entry) => {
-		const projectFilePath = resolveWithin(realRootDir, realRootDir, entry.project, 'project file');
-
-		assertFile(projectFilePath, 'project file');
-
-		return {
-			name: entry.name ?? derivedProjectName(realRootDir, projectFilePath),
-			projectFilePath,
-		};
+const projectIdentity = (
+	input: Readonly<{
+		environment: z.infer<typeof EnvironmentSchema>;
+		file: FileConfigType;
+		realRootDir: string;
+		cwd: string;
+		configPath: string | null;
+	}>,
+): WorkspaceIdentityType => {
+	const {environment, file, realRootDir, cwd, configPath} = input;
+	const adapters = resolveAdapters({
+		environment,
+		...(file.extractor === undefined ? {} : {extractor: file.extractor}),
+		...(file.extractors === undefined ? {} : {extractors: file.extractors}),
+		realRootDir,
+		cwd,
 	});
-	const names = new Set<string>();
-	const paths = new Set<string>();
+	const [primary] = adapters;
 
-	for (const context of contexts) {
-		if (names.has(context.name)) {
-			return fail(`project context name is duplicated: ${context.name}`);
-		}
-
-		if (paths.has(context.projectFilePath)) {
-			return fail(`project file is configured more than once: ${context.projectFilePath}`);
-		}
-
-		names.add(context.name);
-		paths.add(context.projectFilePath);
-	}
-
-	return contexts;
-};
-
-const projectIdentity = (environment: ParsedEnvironmentType, file: FileConfigType, realRootDir: string, cwd: string): WorkspaceIdentityType => {
-	const extractorId = environment.CODE_INDEX_EXTRACTOR ?? file.extractor.id ?? DEFAULT_EXTRACTOR_ID;
-	const projects = resolveProjectContexts({environment, file, realRootDir, cwd, extractorId});
-	const [firstProject] = projects;
-
-	if (firstProject === undefined) {
-		return fail('at least one extractor project is required');
+	if (primary === undefined) {
+		return fail('at least one adapter is required');
 	}
 
 	// The storage key always binds to the physical checkout, so a copy or a move
 	// never reaches another checkout's database. A configured project id changes
 	// only the reported logical identity.
-	const storageKey = createProjectId(
-		realRootDir,
-		extractorId,
-		projects.map((project) => project.projectFilePath),
-	);
+	const storageKey = createStorageKey(realRootDir, configPath, adapters);
 	const projectId = environment.CODE_INDEX_PROJECT_ID ?? file.project?.id ?? storageKey;
 
 	return {
-		extractorId,
-		projectFilePath: firstProject.projectFilePath,
-		projects,
+		adapters,
+		extractorId: primary.id,
+		extractorOptions: primary.options,
+		projectFilePath: primary.projectFilePath,
+		projects: primary.projects,
 		projectId,
 		storageKey,
 		projectName: file.project?.name ?? basename(realRootDir),
@@ -373,10 +265,10 @@ const projectIdentity = (environment: ParsedEnvironmentType, file: FileConfigTyp
 };
 
 const resolveWorkspace = (input: FileConfigSourceType, cwd: string): WorkspaceIdentityType & Readonly<{rawRootDir: string; realRootDir: string}> => {
-	const {environment, config: file, directory} = input;
+	const {environment, config: file, directory, configPath} = input;
 	const root = workspaceRoot(environment, file, directory, cwd);
 
-	return {...root, ...projectIdentity(environment, file, root.realRootDir, cwd)};
+	return {...root, ...projectIdentity({environment, file, realRootDir: root.realRootDir, cwd, configPath})};
 };
 
 const storagePath = (overridePath: string | undefined, filePath: string | undefined, defaultPath: string, baseDirectory: string): string => {
@@ -444,15 +336,16 @@ const resolveStorage = (
  */
 export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): ConfigType => {
 	const environment = parseSource(source, cwd);
-	const {rawRootDir, realRootDir, extractorId, projectFilePath, projects, projectId, storageKey, projectName} = resolveWorkspace(environment, cwd);
+	const {rawRootDir, realRootDir, adapters, extractorId, extractorOptions, projectFilePath, projects, projectId, storageKey, projectName} = resolveWorkspace(
+		environment,
+		cwd,
+	);
 	const {storageDirectory, databasePath, analyticsPath, analyticsEnabled} = resolveStorage(environment, cwd, {rawRootDir, realRootDir, storageKey});
 
 	debug('configuration resolved', {
 		configPath: environment.configPath,
 		rootDir: realRootDir,
-		extractorId,
-		projectFilePath,
-		projects,
+		adapters: adapters.map((adapter) => adapter.id),
 		databasePath,
 		analyticsPath,
 		projectId,
@@ -462,8 +355,9 @@ export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): Conf
 	return {
 		projectName,
 		rootDir: realRootDir,
+		adapters,
 		extractorId,
-		extractorOptions: environment.config.extractor.options ?? {},
+		extractorOptions,
 		projectFilePath,
 		projects,
 		storageDirectory,

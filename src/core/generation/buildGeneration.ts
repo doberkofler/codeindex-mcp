@@ -1,15 +1,23 @@
 import {randomUUID} from 'node:crypto';
 import {extractorFor} from '../../adapters/registry.ts';
-import {type ExtractorArtifactCacheType, type ExtractorBuildType, type ExtractorType} from '../../adapters/types.ts';
-import {type ConfigType} from '../config/config.ts';
-import {PUBLICATION_SURFACE_BINDINGS_PER_ROOT, finalizeFacts, type FinalizedFactSetType} from '../facts/index.ts';
+import {type ExtractorType} from '../../adapters/types.ts';
+import {adapterConfigFor, type AdapterConfigType, type ConfigType} from '../config/config.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {type BuildOutcomeType, type BuildReportType, type BuildStagesType, type GenerationRowType, type ScanResultType} from '../model.ts';
-import {type IndexDatabase} from '../storage/database.ts';
-import {artifactKeyOf, createExtractorCache} from './buildArtifacts.ts';
+import {type AdapterCommitCountsType, type IndexDatabase} from '../storage/database.ts';
+import {type createExtractorCache} from './buildArtifacts.ts';
 import {type BuildProjectContextType, buildFailureOf, buildProjectContextOf, runBuildStage} from './buildFailure.ts';
-import {computeSourceHash} from './sourceFiles.ts';
+import {adapterCommitOf, ZERO_COUNTS} from './adapterCommit.ts';
+import {
+	AdapterContractError,
+	adapterTargets,
+	assertSharedPaths,
+	combinedAdapterHashesOf,
+	combinedHashesOf,
+	probeAdapter,
+	type AdapterScanPlanType,
+} from './adapterBuild.ts';
 
 const debug = debugFor('build');
 
@@ -17,6 +25,8 @@ type BuildInputType = Readonly<{
 	config: ConfigType;
 	database: IndexDatabase;
 	logger: LoggerType;
+	scans?: readonly AdapterScanPlanType[];
+	/** Legacy singular scan input; only valid with one configured adapter. */
 	scan?: ScanResultType;
 	force?: boolean;
 	ownerId?: string;
@@ -27,40 +37,29 @@ type BuildInputType = Readonly<{
 	startedAtEpoch?: number;
 	/** Qualification-only adapter override; production resolves from the registry. */
 	extractor?: ExtractorType;
-}>;
-
-type BuildCountsType = Readonly<{
-	files: number;
-	symbols: number;
-	occurrences: number;
-	dependencyEdges: number;
-	dependencyBindings: number;
-	diagnostics: number;
+	/** Qualification/test-only adapter set override; production resolves from the registry. */
+	extractors?: readonly ExtractorType[];
 }>;
 
 type CommitContextType = Readonly<{
 	config: ConfigType;
 	database: IndexDatabase;
-	extractor: ExtractorType;
 	logger: LoggerType;
-	scan: ScanResultType;
+	plans: readonly AdapterScanPlanType[];
+	targets: readonly Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>[];
 	generationId: string;
 	mode: 'insert' | 'revise';
 	startedAt: number;
 	startedAtIso: string;
+	force: boolean | undefined;
 	extractorOverride: ExtractorType | undefined;
 	ownerId: string | undefined;
 }>;
 
-type ReuseProbeInputType = Readonly<{
-	extractor: ExtractorType;
-	config: ConfigType;
-	scan: ScanResultType;
-	database: IndexDatabase;
-	cache: ExtractorArtifactCacheType;
-	publishedFiles: readonly Readonly<{path: string; sha256: string}>[];
+type PreparedBuildType = Readonly<{
 	published: GenerationRowType | null;
-	force: boolean | undefined;
+	scans: readonly AdapterScanPlanType[];
+	targets: readonly Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>[];
 }>;
 
 const createReport = (
@@ -70,7 +69,7 @@ const createReport = (
 		outcome: Exclude<BuildOutcomeType, 'failed'>;
 		reused: boolean;
 		durationMs: number;
-		counts: BuildCountsType;
+		counts: AdapterCommitCountsType;
 		stages: BuildStagesType | null;
 	}>,
 ): BuildReportType => ({
@@ -89,7 +88,7 @@ const createReport = (
 	stages: input.stages,
 });
 
-const countsOf = (generation: GenerationRowType): BuildCountsType => ({
+const countsOf = (generation: GenerationRowType): AdapterCommitCountsType => ({
 	files: generation.fileCount,
 	symbols: generation.symbolCount,
 	occurrences: generation.occurrenceCount,
@@ -97,8 +96,6 @@ const countsOf = (generation: GenerationRowType): BuildCountsType => ({
 	dependencyBindings: generation.dependencyBindingCount,
 	diagnostics: generation.diagnosticCount,
 });
-
-const ZERO_COUNTS: BuildCountsType = {files: 0, symbols: 0, occurrences: 0, dependencyEdges: 0, dependencyBindings: 0, diagnostics: 0};
 
 const stageTotalOf = (stages: BuildStagesType | null): number =>
 	stages === null ? 0 : stages.scanMs + stages.compilerMs + stages.extractionMs + stages.insertionMs + stages.verificationMs + stages.publicationMs;
@@ -112,48 +109,9 @@ const stageTotalOf = (stages: BuildStagesType | null): number =>
  */
 const durationOf = (startedAt: number, stages: BuildStagesType | null): number => Math.max(Math.round(Date.now() - startedAt), stageTotalOf(stages));
 
-const projectContextOf = (scan: ScanResultType): BuildProjectContextType | null => buildProjectContextOf(scan.projects);
-
-const findReusableGeneration = (database: IndexDatabase, scan: ScanResultType, force: boolean | undefined): GenerationRowType | null =>
-	force === true ? null : database.findReusableGeneration(scan.sourceHash, scan.configHash, scan.inputHash);
-
-const finalizePublication = (facts: ExtractorBuildType, extractorId: string | null): FinalizedFactSetType => {
-	const publication = finalizeFacts(facts, {
-		mode: 'enforce',
-		maxBindingsPerRoot: PUBLICATION_SURFACE_BINDINGS_PER_ROOT,
-		...(extractorId === null ? {} : {extractorId}),
-	});
-
-	debug('publication facts finalized', publication.stats);
-	return publication;
-};
-
-/**
- * Reports whether the published generation still guarantees the facts of this scan.
- *
- * The adapter owns the proof: it must show that every changed file produces the
- * same parser output as the version whose facts are already published.
- *
- * @param input - Extractor, scan, published manifest, database, and force flag.
- * @returns True when persisted facts can be reused without extraction.
- */
-const factsAreReusable = (input: ReuseProbeInputType): boolean => {
-	if (input.published === null || input.force === true || input.extractor.canReusePublishedFacts === undefined) {
-		return false;
-	}
-
-	const startedAt = performance.now();
-	const reusable = input.extractor.canReusePublishedFacts({
-		config: input.config,
-		scan: input.scan,
-		publishedFiles: input.publishedFiles,
-		read: (artifact) => input.database.getExtractionArtifact(artifactKeyOf(input.scan, artifact)),
-		write: (artifact) => {
-			input.cache.write(artifact);
-		},
-	});
-	debug('fact reuse probe', {reusable, durationMs: Math.round(performance.now() - startedAt)});
-	return reusable;
+const projectContextOf = (plans: readonly AdapterScanPlanType[]): BuildProjectContextType | null => {
+	const scan = plans.find((plan) => plan.scan !== null)?.scan ?? null;
+	return scan === null ? null : buildProjectContextOf(scan.projects);
 };
 
 const logBuild = (
@@ -163,7 +121,7 @@ const logBuild = (
 		revision: number;
 		durationMs: number;
 		reusedFacts: boolean;
-		counts: BuildCountsType;
+		counts: AdapterCommitCountsType;
 		stages: BuildStagesType;
 	}>,
 ): void => {
@@ -191,82 +149,166 @@ const persistCachesSafely = (action: () => void): void => {
 	}
 };
 
-const commitReuse = (context: CommitContextType): BuildReportType => {
-	const commit = context.database.commitGeneration({
-		mode: context.mode,
-		reuseFacts: true,
+const rosterMatches = (plans: readonly AdapterScanPlanType[], adapters: readonly {adapterId: string; coverage: string}[]): boolean => {
+	if (plans.length !== adapters.length) {
+		return false;
+	}
+
+	const stored = new Map(adapters.map((adapter) => [adapter.adapterId, adapter.coverage]));
+
+	return plans.every((plan) => stored.get(plan.adapterId) === plan.coverage);
+};
+
+const resolveExtractor = (extractors: readonly ExtractorType[] | undefined): ((id: string) => ExtractorType) =>
+	extractors === undefined ? extractorFor : (id) => extractors.find((candidate) => candidate.id === id) ?? extractorFor(id);
+
+const scanPlansOf = (
+	input: BuildInputType,
+	targets: readonly Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>[],
+	published: GenerationRowType | null,
+): readonly AdapterScanPlanType[] => {
+	if (input.scan !== undefined) {
+		const [target] = targets;
+
+		if (target === undefined || targets.length !== 1) {
+			throw new AdapterContractError('A singular scan requires exactly one configured adapter');
+		}
+
+		return [{adapterId: target.adapter.id, coverage: 'present', absenceReason: null, scan: input.scan}];
+	}
+
+	if (input.scans !== undefined) {
+		const configured = new Set(targets.map((target) => target.adapter.id));
+
+		for (const plan of input.scans) {
+			if (!configured.has(plan.adapterId)) {
+				throw new AdapterContractError(`Scan plan names an unconfigured adapter: ${plan.adapterId}`);
+			}
+
+			if (plan.scan !== null && plan.scan.extractorId !== plan.adapterId) {
+				throw new AdapterContractError(`Scan plan for ${plan.adapterId} carries facts from ${plan.scan.extractorId}`);
+			}
+		}
+
+		if (new Set(input.scans.map((plan) => plan.adapterId)).size !== input.scans.length) {
+			throw new AdapterContractError('Scan plans name an adapter more than once');
+		}
+
+		if (input.scans.length !== targets.length) {
+			throw new AdapterContractError('Scan plans do not cover every configured adapter');
+		}
+
+		return input.scans;
+	}
+
+	return targets.map((target) => {
+		const scoped = adapterConfigFor(input.config, target.adapter);
+		const probe = probeAdapter(target, scoped);
+
+		if (probe.coverage === 'absent') {
+			return {adapterId: target.adapter.id, coverage: 'absent', absenceReason: probe.reason, scan: null};
+		}
+
+		const knownPaths = published === null ? [] : input.database.listFiles(published.id, target.adapter.id).map((file) => file.path);
+		const scan = runBuildStage('scan', () => target.extractor.scan(scoped, knownPaths));
+
+		return {adapterId: target.adapter.id, coverage: 'present', absenceReason: null, scan};
+	});
+};
+
+const prepareBuild = (input: BuildInputType): PreparedBuildType => {
+	const published = input.database.getPublishedGeneration();
+	const targets = adapterTargets(input.config, resolveExtractor(input.extractors), input.extractor);
+	const scans = scanPlansOf(input, targets, published);
+	assertSharedPaths(scans);
+
+	return {published, scans, targets};
+};
+
+const beginGeneration = (
+	input: BuildInputType,
+	published: GenerationRowType | null,
+	plans: readonly AdapterScanPlanType[],
+	hashes: Readonly<{sourceHash: string; configHash: string; inputHash: string}>,
+): Readonly<{generationId: string; mode: 'insert' | 'revise'}> => {
+	if (published !== null) {
+		return {generationId: published.id, mode: 'revise'};
+	}
+
+	const generationId = randomUUID();
+	const primary = plans.find((plan) => plan.scan !== null)?.scan;
+	const adapterVersion = primary?.extractorVersion ?? 'unknown';
+
+	input.database.createGeneration({
+		id: generationId,
+		extractorId: plans[0]?.adapterId ?? 'unknown',
+		extractorVersion: adapterVersion,
+		compilerVersion: primary?.compilerVersion ?? 'unknown',
+		declaredCompilerVersion: primary?.declaredCompilerVersion ?? null,
+		compilerDrift: primary?.compilerDrift ?? false,
+		sourceHash: hashes.sourceHash,
+		configHash: hashes.configHash,
+		inputHash: hashes.inputHash,
+	});
+
+	return {generationId, mode: 'insert'};
+};
+
+const commitAdapters = (context: CommitContextType): BuildReportType => {
+	const previousById = new Map(context.database.getGenerationAdapters(context.generationId).map((adapter) => [adapter.adapterId, adapter]));
+	const configured = new Set(context.plans.map((plan) => plan.adapterId));
+	const removedAdapterIds = [...previousById.keys()].filter((adapterId) => !configured.has(adapterId));
+	const caches: ReturnType<typeof createExtractorCache>[] = [];
+	const persist = (cache: ReturnType<typeof createExtractorCache>): void => {
+		caches.push(cache);
+	};
+	const targetsById = new Map(context.targets.map((target) => [target.adapter.id, target]));
+
+	const adapters = context.plans.map((plan) => {
+		const target = targetsById.get(plan.adapterId);
+
+		if (target === undefined) {
+			throw new AdapterContractError(`No adapter target for ${plan.adapterId}`);
+		}
+
+		return adapterCommitOf({
+			plan,
+			target,
+			previous: previousById.get(plan.adapterId),
+			config: context.config,
+			database: context.database,
+			published: context.database.getPublishedGeneration(),
+			force: context.force,
+			override: context.extractorOverride,
+			persist,
+		});
+	});
+
+	const commit = context.database.commitAdapters({
 		generationId: context.generationId,
-		files: context.scan.files,
-		projects: context.scan.projects,
-		sourceHash: context.scan.sourceHash,
-		configHash: context.scan.configHash,
-		...(context.scan.inputHash === undefined ? {} : {inputHash: context.scan.inputHash}),
-		stages: {scanMs: context.scan.scanMs, compilerMs: 0, extractionMs: 0},
+		adapters,
+		removedAdapterIds,
+		...combinedAdapterHashesOf(
+			adapters.map((adapter) => ({
+				adapterId: adapter.adapterId,
+				coverage: adapter.coverage,
+				reason: adapter.absenceReason,
+				sourceHash: adapter.sourceHash,
+				configHash: adapter.configHash,
+				inputHash: adapter.inputHash,
+			})),
+		),
+		mode: context.mode,
 		startedAt: context.startedAtIso,
-		declaredCompilerVersion: context.scan.declaredCompilerVersion,
-		compilerDrift: context.scan.compilerDrift,
 		...(context.ownerId === undefined ? {} : {ownerId: context.ownerId}),
 	});
 	const durationMs = durationOf(context.startedAt, commit.stages);
 
-	logBuild({
-		logger: context.logger,
-		generationId: context.generationId,
-		revision: commit.revision,
-		durationMs,
-		reusedFacts: true,
-		counts: commit.counts,
-		stages: commit.stages,
-	});
-
-	return createReport({
-		generationId: context.generationId,
-		revision: commit.revision,
-		outcome: 'published',
-		reused: false,
-		durationMs,
-		counts: commit.counts,
-		stages: commit.stages,
-	});
-};
-
-const commitExtraction = (context: CommitContextType): BuildReportType => {
-	const cache = createExtractorCache(context.database, context.scan);
-	const extracted = runBuildStage('extraction', () => context.extractor.build(context.config, context.scan, cache.cache));
-	// Qualification-only parser overrides are not production builds; keep measured invariants report-only there.
-	const finalized = finalizePublication(extracted, context.extractorOverride === undefined ? context.scan.extractorId : null);
-	// The adapter re-verifies every captured input after extraction. A drift
-	// here aborts the commit, so the previous published revision stays intact.
-	runBuildStage('validation', () => extracted.validate?.());
-	const commit = runBuildStage('publication', () =>
-		context.database.commitGeneration({
-			mode: context.mode,
-			reuseFacts: false,
-			generationId: context.generationId,
-			language: context.scan.extractorId,
-			files: extracted.files,
-			projects: context.scan.projects,
-			facts: finalized,
-			dependencies: extracted.dependencies,
-			diagnostics: extracted.diagnostics,
-			sourceHash: computeSourceHash(extracted.files),
-			configHash: context.scan.configHash,
-			...(context.scan.inputHash === undefined ? {} : {inputHash: context.scan.inputHash}),
-			stages: {
-				scanMs: context.scan.scanMs,
-				compilerMs: extracted.compilerMs,
-				extractionMs: extracted.extractionMs,
-			},
-			startedAt: context.startedAtIso,
-			declaredCompilerVersion: context.scan.declaredCompilerVersion,
-			compilerDrift: context.scan.compilerDrift,
-			...(context.ownerId === undefined ? {} : {ownerId: context.ownerId}),
-		}),
-	);
-	persistCachesSafely(() => {
-		cache.flush();
-	});
-	const durationMs = durationOf(context.startedAt, commit.stages);
+	for (const cache of caches) {
+		persistCachesSafely(() => {
+			cache.flush();
+		});
+	}
 
 	logBuild({
 		logger: context.logger,
@@ -317,81 +359,73 @@ const supersededReport = (
 		stages: null,
 	});
 
-const prepareBuild = (
-	input: BuildInputType,
-): Readonly<{
-	published: GenerationRowType | null;
-	publishedFiles: readonly Readonly<{path: string; sha256: string}>[];
-	extractor: ExtractorType;
-	scan: ScanResultType;
-}> => {
-	const published = input.database.getPublishedGeneration();
-	const publishedFiles = published === null ? [] : input.database.listFiles(published.id);
-	const extractor = input.extractor ?? extractorFor(input.config.extractorId);
-	const scan =
-		input.scan ??
-		runBuildStage('scan', () =>
-			extractor.scan(
-				input.config,
-				publishedFiles.map((file) => file.path),
-			),
-		);
+const failedBuild = (
+	input: Readonly<{
+		error: unknown;
+		generationId: string;
+		mode: 'insert' | 'revise';
+		published: GenerationRowType | null;
+		scans: readonly AdapterScanPlanType[];
+		startedAt: number;
+		database: IndexDatabase;
+		logger: LoggerType;
+	}>,
+): BuildReportType => {
+	const {error} = input;
+	const failure = buildFailureOf(error, 'publication', projectContextOf(input.scans), input.scans.length === 1 ? (input.scans[0]?.adapterId ?? null) : null);
 
-	return {published, publishedFiles, extractor, scan};
-};
+	// A candidate whose captured inputs changed is discarded. The previous
+	// published revision stays in place and the caller retries.
+	if (failure.cause === 'source-changed') {
+		if (input.mode === 'insert') {
+			input.database.discardBuildingGeneration(input.generationId);
+		}
 
-const beginGeneration = (
-	input: BuildInputType,
-	published: GenerationRowType | null,
-	scan: ScanResultType,
-): Readonly<{generationId: string; mode: 'insert' | 'revise'}> => {
-	if (published !== null) {
-		return {generationId: published.id, mode: 'revise'};
+		const report = supersededReport({generationId: input.generationId, published: input.published, startedAt: input.startedAt});
+		debug('build superseded', {generationId: input.generationId, stage: failure.stage, durationMs: report.durationMs});
+		input.logger.info('index_build_superseded', {generationId: input.generationId, stage: failure.stage, durationMs: report.durationMs});
+		return report;
 	}
 
-	const generationId = randomUUID();
-	input.database.createGeneration({
-		id: generationId,
-		extractorId: scan.extractorId,
-		extractorVersion: scan.extractorVersion,
-		compilerVersion: scan.compilerVersion,
-		declaredCompilerVersion: scan.declaredCompilerVersion,
-		compilerDrift: scan.compilerDrift,
-		sourceHash: scan.sourceHash,
-		configHash: scan.configHash,
-		...(scan.inputHash === undefined ? {} : {inputHash: scan.inputHash}),
-	});
+	const message = error instanceof Error ? error.message : String(error);
+	debug('build failed', {generationId: input.generationId, message, cause: failure.cause, stage: failure.stage, errno: failure.errno});
+	input.logger.error('index_build_failed', {generationId: input.generationId, message, cause: failure.cause, stage: failure.stage, errno: failure.errno});
 
-	return {generationId, mode: 'insert'};
+	if (input.mode === 'insert') {
+		input.database.markFailed(input.generationId, message);
+	}
+
+	throw error;
 };
 
 /**
  * Builds and atomically publishes one complete index generation.
  *
- * The published generation identifier is stable. When the extractor proves that
- * every changed file produces the same parser output, only version metadata is
- * revised; otherwise the new fact set replaces changed path groups. A failed
- * build leaves the previous published revision serving queries.
+ * Every configured adapter contributes one candidate in one transaction. The
+ * published generation identifier is stable. An adapter whose complete reuse key
+ * still matches is not re-extracted, and a changed adapter never forces another
+ * adapter to be re-extracted. A failed build leaves the previous published
+ * revision serving queries.
  *
- * @param input - Resolved configuration, database, logger, and optional scan or forced rebuild.
+ * @param input - Resolved configuration, database, logger, and optional scans or forced rebuild.
  * @returns The published or reused generation report.
  * @throws {@link Error} When scanning, loading, extraction, or publication fails.
  */
 export const buildGeneration = (input: BuildInputType): BuildReportType => {
 	const startedAt = input.startedAtEpoch ?? Date.now();
 	const startedAtIso = new Date(startedAt).toISOString();
-	const {published, publishedFiles, extractor, scan} = prepareBuild(input);
-	const reusable = findReusableGeneration(input.database, scan, input.force);
+	const {published, scans, targets} = prepareBuild(input);
+	const hashes = combinedHashesOf(scans);
+	const reusable = input.force === true ? null : input.database.findReusableGeneration(hashes.sourceHash, hashes.configHash, hashes.inputHash);
 	debug('build start', {
 		force: input.force === true,
-		scanProvided: input.scan !== undefined,
+		scansProvided: input.scans !== undefined,
 		published: published?.id ?? null,
-		sourceHash: scan.sourceHash,
-		configHash: scan.configHash,
+		adapters: scans.map((plan) => `${plan.adapterId}:${plan.coverage}`),
 		reusable: reusable?.id ?? null,
 	});
 
-	if (reusable !== null) {
+	if (reusable !== null && rosterMatches(scans, input.database.getGenerationAdapters(reusable.id))) {
 		const report = reusedReport(reusable, startedAt);
 		input.logger.info('index_reused', {generationId: reusable.id, revision: reusable.revision, durationMs: report.durationMs});
 		return report;
@@ -401,68 +435,35 @@ export const buildGeneration = (input: BuildInputType): BuildReportType => {
 	let mode: 'insert' | 'revise' = 'revise';
 
 	try {
-		const begun = runBuildStage('persistence', () => beginGeneration(input, published, scan));
+		const begun = runBuildStage('persistence', () => beginGeneration(input, published, scans, hashes));
 		({generationId, mode} = begun);
-		const cache = createExtractorCache(input.database, scan);
-		const reuseFacts = runBuildStage('extraction', () =>
-			factsAreReusable({
-				extractor,
-				config: input.config,
-				scan,
-				database: input.database,
-				cache: cache.cache,
-				publishedFiles,
-				published,
-				force: input.force,
-			}),
-		);
-		const context: CommitContextType = {
+
+		const report = commitAdapters({
 			config: input.config,
 			database: input.database,
-			extractor,
 			logger: input.logger,
-			scan,
+			plans: scans,
+			targets,
 			generationId,
 			mode,
 			startedAt,
 			startedAtIso,
+			force: input.force,
 			extractorOverride: input.extractor,
 			ownerId: input.ownerId,
-		};
-
-		const report = reuseFacts ? runBuildStage('publication', () => commitReuse(context)) : commitExtraction(context);
-
-		if (reuseFacts) {
-			persistCachesSafely(() => {
-				cache.flush();
-			});
-		}
+		});
 
 		return report;
 	} catch (error) {
-		const failure = buildFailureOf(error, 'publication', projectContextOf(scan));
-
-		// A candidate whose captured inputs changed is discarded. The previous
-		// published revision stays in place and the caller retries.
-		if (failure.cause === 'source-changed') {
-			if (mode === 'insert') {
-				input.database.discardBuildingGeneration(generationId);
-			}
-
-			const report = supersededReport({generationId, published, startedAt});
-			debug('build superseded', {generationId, stage: failure.stage, durationMs: report.durationMs});
-			input.logger.info('index_build_superseded', {generationId, stage: failure.stage, durationMs: report.durationMs});
-			return report;
-		}
-
-		const message = error instanceof Error ? error.message : String(error);
-		debug('build failed', {generationId, message, cause: failure.cause, stage: failure.stage, errno: failure.errno});
-		input.logger.error('index_build_failed', {generationId, message, cause: failure.cause, stage: failure.stage, errno: failure.errno});
-
-		if (mode === 'insert') {
-			input.database.markFailed(generationId, message);
-		}
-
-		throw error;
+		return failedBuild({
+			error,
+			generationId,
+			mode,
+			published,
+			scans,
+			startedAt,
+			database: input.database,
+			logger: input.logger,
+		});
 	}
 };

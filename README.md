@@ -75,13 +75,16 @@ For explicit or multi-project configuration, create `codeindex.config.json`:
 		"name": "my-workspace",
 		"root": "."
 	},
-	"extractor": {
-		"id": "typescript",
-		"projects": [
-			{"name": "browser", "project": "tsconfig.json"},
-			{"name": "server", "project": "server/tsconfig.json"}
-		]
-	},
+	"extractors": [
+		{
+			"id": "typescript",
+			"required": true,
+			"projects": [
+				{"name": "browser", "project": "tsconfig.json"},
+				{"name": "server", "project": "server/tsconfig.json"}
+			]
+		}
+	],
 	"limits": {
 		"maxResultBytes": 32768,
 		"maxReadLines": 200
@@ -89,14 +92,20 @@ For explicit or multi-project configuration, create `codeindex.config.json`:
 }
 ```
 
+The legacy singular `extractor` object remains valid and normalizes to one required
+adapter. With `extractors`, every adapter shares one database, build lease, and
+published generation; `required` defaults to `true`, and only an optional adapter
+may report declared absence. The two forms are mutually exclusive.
+
 Then build or reuse the index:
 
 ```bash
 codeindex-cli update --config codeindex.config.json
 ```
 
-All configured project contexts for the selected extractor share one publication
-boundary. Context names appear in results and can be used as query filters.
+All configured adapters and their project contexts share one publication boundary.
+Context names are adapter-scoped and appear in results; the same name may exist
+under two adapters.
 
 Paths in a configuration file resolve relative to that file. Environment and CLI
 path overrides resolve relative to the current working directory. Project files

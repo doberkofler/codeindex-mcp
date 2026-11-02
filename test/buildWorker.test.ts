@@ -6,7 +6,7 @@ import {createFixtureConfig} from './helpers/fixture.ts';
 type MutablePayloadType = {
 	kind: string;
 	config: Record<string, unknown>;
-	scan: Record<string, unknown>;
+	scans: [Record<string, unknown>, ...Record<string, unknown>[]];
 	force: boolean;
 	ownerId: string;
 	debug: boolean;
@@ -21,18 +21,34 @@ const validPayload = (): MutablePayloadType => ({
 		projects: [],
 		extractorId: 'typescript',
 	},
-	scan: {
-		sourceHash: 'source',
-		configHash: 'config',
-		files: [],
-	},
+	scans: [
+		{
+			adapterId: 'typescript',
+			coverage: 'present',
+			absenceReason: null,
+			scan: {
+				sourceHash: 'source',
+				configHash: 'config',
+				files: [],
+			},
+		},
+	],
 	force: false,
 	ownerId: 'owner',
 	debug: false,
 });
 
 const invalidPayloads = (): readonly unknown[] => {
-	const payloads: unknown[] = [null, 'payload', [], {}, {...validPayload(), kind: 'other'}, {...validPayload(), config: null}, {...validPayload(), scan: null}];
+	const payloads: unknown[] = [
+		null,
+		'payload',
+		[],
+		{},
+		{...validPayload(), kind: 'other'},
+		{...validPayload(), config: null},
+		{...validPayload(), scans: null},
+		{...validPayload(), scans: []},
+	];
 
 	for (const field of ['databasePath', 'rootDir', 'projectFilePath', 'projects', 'extractorId']) {
 		const payload = validPayload();
@@ -42,7 +58,9 @@ const invalidPayloads = (): readonly unknown[] => {
 
 	for (const field of ['sourceHash', 'configHash', 'files']) {
 		const payload = validPayload();
-		payload.scan[field] = 42;
+		const [plan] = payload.scans;
+
+		(plan['scan'] as Record<string, unknown>)[field] = 42;
 		payloads.push(payload);
 	}
 
@@ -74,7 +92,7 @@ describe('build worker payload', () => {
 			const payload = {
 				kind: 'code-index-build' as const,
 				config: {...config, databasePath: '/dev/null/index.sqlite'},
-				scan,
+				scans: [{adapterId: 'typescript', coverage: 'present' as const, absenceReason: null, scan}],
 				force: false,
 				ownerId: 'owner',
 				debug: false,

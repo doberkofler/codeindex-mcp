@@ -73,4 +73,11 @@ export const assertOracleParserBinding = (config: ConfigType, binding: OraclePar
 export const configForOracleParser = (config: ConfigType, parser: OracleParserIdType): ConfigType => ({
 	...config,
 	extractorOptions: {...config.extractorOptions, [ORACLE_PARSER_OPTION]: parser},
+	...(config.adapters === undefined
+		? {}
+		: {
+				adapters: config.adapters.map((adapter) =>
+					adapter.id === 'oracle' ? {...adapter, options: {...adapter.options, [ORACLE_PARSER_OPTION]: parser}} : adapter,
+				),
+			}),
 });
