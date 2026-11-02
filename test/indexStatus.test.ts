@@ -11,6 +11,8 @@ const generation = (overrides: Partial<GenerationRowType> = {}): GenerationRowTy
 	extractorId: 'typescript',
 	extractorVersion: '1',
 	compilerVersion: '5.0.0',
+	declaredCompilerVersion: '5.0.0',
+	compilerDrift: false,
 	sourceHash: 'source',
 	configHash: 'config',
 	startedAt: '2026-01-01T00:00:00.000Z',

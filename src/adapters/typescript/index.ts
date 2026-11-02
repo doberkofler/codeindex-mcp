@@ -275,7 +275,7 @@ const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => 
 	const extracted = config.projects.map((context) => extractContext(config, scan, context, snapshot));
 	const compilerMs = extracted.reduce((total, context) => total + context.compilerMs, 0);
 	const merged = mergeContexts(extracted.map((context) => context.context));
-	const extractionMs = Math.round(performance.now() - extractionStartedAt);
+	const extractionMs = Math.max(0, Math.round(performance.now() - extractionStartedAt) - compilerMs);
 
 	return {
 		...merged,

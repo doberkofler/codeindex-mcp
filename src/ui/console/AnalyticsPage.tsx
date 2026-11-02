@@ -257,9 +257,9 @@ const SignalsCard = ({dashboard}: Readonly<{dashboard: AnalyticsDashboardType}>)
 				</Stack>
 				<Stack direction="row" sx={{justifyContent: 'space-between'}}>
 					<Typography variant="body2" color="text.secondary">
-						Event → publication p95
+						Successful event → publication p95
 					</Typography>
-					<Typography variant="body2">{formatDuration(dashboard.watcher.eventToPublicationP95Ms)}</Typography>
+					<Typography variant="body2">{formatDuration(dashboard.watcher.successfulEventToPublicationP95Ms)}</Typography>
 				</Stack>
 			</Stack>
 		</CardContent>

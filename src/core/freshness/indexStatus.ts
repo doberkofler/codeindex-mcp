@@ -33,11 +33,27 @@ const hashesOf = (published: GenerationRowType | null): IndexStatusType['hashes'
 	configuration: published?.configHash ?? null,
 });
 
-const buildOf = (published: GenerationRowType | null): IndexStatusType['build'] => ({
-	startedAt: published?.startedAt ?? null,
-	completedAt: published?.completedAt ?? null,
-	durationMs: published?.completedAt === null || published === null ? null : Date.parse(published.completedAt) - Date.parse(published.startedAt),
-	stages: published?.stages ?? null,
+const buildOf = (published: GenerationRowType | null): IndexStatusType['build'] => {
+	const measured = published?.completedAt === null || published === null ? null : Date.parse(published.completedAt) - Date.parse(published.startedAt);
+	const stageTotal = published?.stages === null || published === null ? 0 : Object.values(published.stages).reduce((total, value) => total + value, 0);
+
+	return {
+		startedAt: published?.startedAt ?? null,
+		completedAt: published?.completedAt ?? null,
+		durationMs: measured === null ? null : Math.max(measured, stageTotal),
+		stages: published?.stages ?? null,
+	};
+};
+
+const stateOf = (refresh: RefreshCoordinatorSnapshotType, published: GenerationRowType | null): IndexStatusType['state'] =>
+	refresh.state === 'building' ? 'building' : (published?.state ?? 'absent');
+
+const extractorStatusOf = (config: ConfigType, published: GenerationRowType | null): IndexStatusType['scope']['extractor'] => ({
+	id: config.extractorId,
+	version: extractorFor(config.extractorId).version,
+	compilerVersion: published?.compilerVersion ?? 'unknown',
+	declaredCompilerVersion: published?.declaredCompilerVersion ?? null,
+	compilerDrift: published?.compilerDrift ?? false,
 });
 
 const freshnessOf = (refresh: RefreshCoordinatorSnapshotType): IndexStatusType['freshness'] => {
@@ -74,7 +90,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 
 	return {
 		ready: published !== null,
-		state: refresh.state === 'building' ? 'building' : (published?.state ?? 'absent'),
+		state: stateOf(refresh, published),
 		refresh: refresh.state,
 		generationId: published?.id ?? null,
 		revision: published?.revision ?? null,
@@ -84,11 +100,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 			projectName: input.config.projectName,
 			projectFile: input.config.projectFilePath,
 			projects: input.config.projects.map((project) => ({name: project.name, projectFile: project.projectFilePath})),
-			extractor: {
-				id: input.config.extractorId,
-				version: extractorFor(input.config.extractorId).version,
-				compilerVersion: published?.compilerVersion ?? 'unknown',
-			},
+			extractor: extractorStatusOf(input.config, published),
 			projectId: input.config.projectId,
 			workingCopyId: input.workingCopyId,
 		},

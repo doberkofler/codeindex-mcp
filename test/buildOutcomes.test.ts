@@ -76,6 +76,15 @@ describe('closed build outcomes', () => {
 
 			expect(first.outcome).toBe('published');
 			expect(reused.outcome).toBe('reused');
+			expect(first.stages).not.toBeNull();
+
+			if (first.stages === null) {
+				throw new Error('Expected measured stages');
+			}
+
+			expect(Object.values(first.stages).reduce((total, value) => total + value, 0)).toBeLessThanOrEqual(first.durationMs);
+			expect(database.extractionArtifactCount()).toBe(0);
+			const firstStartedAt = database.getPublishedGeneration()?.startedAt;
 
 			const staleScan = typeScriptExtractor.scan(fixture.config, []);
 			drift = true;
@@ -98,6 +107,12 @@ describe('closed build outcomes', () => {
 
 			expect(published.outcome).toBe('published');
 			expect(published.revision).toBe(first.revision + 1);
+			const secondStartedAt = database.getPublishedGeneration()?.startedAt;
+
+			expect(firstStartedAt).toBeDefined();
+			expect(secondStartedAt).toBeDefined();
+			expect(Date.parse(secondStartedAt ?? '')).toBeGreaterThanOrEqual(Date.parse(firstStartedAt ?? ''));
+			expect(database.getGeneration(first.generationId)).toMatchObject({startedAt: secondStartedAt, completedAt: expect.any(String)});
 		} finally {
 			database.close();
 		}

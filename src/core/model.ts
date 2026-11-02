@@ -55,8 +55,11 @@ export type BuildLeaseType = Readonly<{
 }>;
 
 export type BuildStagesType = Readonly<{
+	/** Workspace scan; excludes every later stage. */
 	readonly scanMs: number;
+	/** Compiler or parser load; excluded from `extractionMs`. */
 	readonly compilerMs: number;
+	/** Fact extraction after `compilerMs`; the stages partition the attempt. */
 	readonly extractionMs: number;
 	readonly insertionMs: number;
 	readonly verificationMs: number;
@@ -277,11 +280,17 @@ export type GenerationRowType = Readonly<{
 	readonly state: GenerationStateType;
 	readonly extractorId: string;
 	readonly extractorVersion: string;
+	/** Compiler or parser runtime version that produced the facts. */
 	readonly compilerVersion: string;
+	/** Compiler version declared by the project, when the adapter can resolve one. */
+	readonly declaredCompilerVersion: string | null;
+	/** True when the runtime major differs from the declared compiler major. */
+	readonly compilerDrift: boolean;
 	readonly sourceHash: string;
 	readonly configHash: string;
 	/** Hash over declarations and module-resolution inputs; empty for legacy rows. */
 	readonly inputHash?: string;
+	/** Start of the latest published revision, not the lifetime of the generation row. */
 	readonly startedAt: string;
 	readonly completedAt: string | null;
 	/** Monotonic publication counter; increments on every successful revision. */
@@ -352,7 +361,12 @@ export type IndexStatusType = Readonly<{
 		readonly extractor: Readonly<{
 			readonly id: string;
 			readonly version: string;
+			/** Runtime compiler or parser version. */
 			readonly compilerVersion: string;
+			/** Version declared by the project, when known. */
+			readonly declaredCompilerVersion: string | null;
+			/** True when the runtime and declared compiler majors differ. */
+			readonly compilerDrift: boolean;
 		}>;
 		readonly projectId: string;
 		readonly workingCopyId: string | null;

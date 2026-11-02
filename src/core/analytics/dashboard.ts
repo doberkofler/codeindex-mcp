@@ -1,4 +1,6 @@
 import {
+	type AnalyticsBuildOutcomeLatencyType,
+	type AnalyticsBuildOutcomeType,
 	type AnalyticsBuildPointType,
 	type AnalyticsDashboardType,
 	type AnalyticsLatencyBucketType,
@@ -47,6 +49,7 @@ type ToolAccumulatorType = {
 
 type BuildAccumulatorType = {
 	readonly durations: number[];
+	readonly outcomeDurations: Record<AnalyticsBuildOutcomeType, number[]>;
 	readonly stageValues: Map<string, number[]>;
 	readonly timeline: AnalyticsBuildPointType[];
 	failures: number;
@@ -141,6 +144,14 @@ const stageSummaries = (stages: ReadonlyMap<string, readonly number[]>): readonl
 		.map(([stage, values]) => ({stage, p50Ms: percentile(values, 0.5), p95Ms: percentile(values, 0.95)}))
 		.sort((left, right) => (right.p50Ms ?? 0) - (left.p50Ms ?? 0));
 
+const outcomeLatencyOf = (
+	durations: Readonly<Record<AnalyticsBuildOutcomeType, readonly number[]>>,
+): Readonly<Record<AnalyticsBuildOutcomeType, AnalyticsBuildOutcomeLatencyType>> => ({
+	complete: {count: durations.complete.length, p50Ms: percentile(durations.complete, 0.5), p95Ms: percentile(durations.complete, 0.95)},
+	reused: {count: durations.reused.length, p50Ms: percentile(durations.reused, 0.5), p95Ms: percentile(durations.reused, 0.95)},
+	failed: {count: durations.failed.length, p50Ms: percentile(durations.failed, 0.5), p95Ms: percentile(durations.failed, 0.95)},
+});
+
 const toolOf = (tools: Map<string, ToolAccumulatorType>, name: string): ToolAccumulatorType => {
 	const tool = tools.get(name) ?? {latency: [], buckets: new Map(), bytes: 0, errors: 0, truncated: 0};
 	tools.set(name, tool);
@@ -176,6 +187,7 @@ const accumulateBuild = (
 ): void => {
 	const outcome = input.event.event === 'build_failed' ? 'failed' : input.event.event === 'build_reused' ? 'reused' : 'complete';
 	input.builds.durations.push(input.durationMs);
+	input.builds.outcomeDurations[outcome].push(input.durationMs);
 	input.builds.failures += outcome === 'failed' ? 1 : 0;
 	input.builds.timeline.push({bucketStart: input.bucket, timestamp: input.event.timestamp, durationMs: input.durationMs, outcome});
 	input.bucketState.builds += 1;
@@ -262,7 +274,7 @@ export const buildAnalyticsDashboard = (analyticsPath: string, window: Analytics
 	const state: DashboardStateType = {
 		buckets: new Map(),
 		tools: new Map(),
-		builds: {durations: [], stageValues: new Map(), timeline: [], failures: 0},
+		builds: {durations: [], outcomeDurations: {complete: [], reused: [], failed: []}, stageValues: new Map(), timeline: [], failures: 0},
 		freshness: new Map(),
 		publicationDurations: [],
 		refreshes: 0,
@@ -309,6 +321,7 @@ export const buildAnalyticsDashboard = (analyticsPath: string, window: Analytics
 			p50Ms: percentile(builds.durations, 0.5),
 			p95Ms: percentile(builds.durations, 0.95),
 			stages: stageSummaries(builds.stageValues),
+			outcomes: outcomeLatencyOf(builds.outcomeDurations),
 			timeline: buildTimeline(builds.timeline),
 		},
 		freshness: [...freshness.entries()].map(([stateName, count]) => ({state: stateName, count})).sort((left, right) => right.count - left.count),
@@ -316,7 +329,7 @@ export const buildAnalyticsDashboard = (analyticsPath: string, window: Analytics
 			events: events.filter((event) => event.event.startsWith('watcher_') || event.event === 'refresh_published').length,
 			refreshes,
 			coalesced,
-			eventToPublicationP95Ms: percentile(publicationDurations, 0.95),
+			successfulEventToPublicationP95Ms: percentile(publicationDurations, 0.95),
 			timeline: timelineOf(buckets),
 		},
 	};

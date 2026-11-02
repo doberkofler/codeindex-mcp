@@ -14,6 +14,7 @@ import {buildGeneration} from './buildGeneration.ts';
 import {recordFailedRefresh, recordPublishedRefresh, recordSupersededRefresh} from './refreshTelemetry.ts';
 import {type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
+import {recordCompilerDrift} from './compilerDriftTelemetry.ts';
 import {
 	findDependencies as queryDependencies,
 	findReferences as queryReferences,
@@ -65,7 +66,6 @@ const debug = debugFor('index');
 const LEASE_RENEW_MS = 3000;
 
 export type {CodeIndexOptionsType} from './codeIndexOptions.ts';
-
 /** Deep module owning indexing, freshness, persistence, and bounded queries. */
 export class CodeIndex {
 	readonly #config: ConfigType;
@@ -78,6 +78,7 @@ export class CodeIndex {
 	readonly #coordinator: RefreshCoordinator;
 	readonly #watcher: WorkspaceWatcher;
 	readonly #ownerId = randomUUID();
+	readonly #compilerDriftObserved = new Set<string>();
 	readonly #recordExactName = (presence: ExactNamePresenceType): void => {
 		this.#analytics?.record('find_symbol_outcome', {presence});
 	};
@@ -186,6 +187,7 @@ export class CodeIndex {
 	async #performRefresh(reason: RefreshReasonType, force: boolean): Promise<BuildReportType> {
 		debug('refresh start', {reason, force});
 		const startedAt = performance.now();
+		const startedAtEpoch = Date.now();
 		const leaseOutcome = await acquireOrObserveBuildLease({
 			database: this.#database,
 			previous: this.#published,
@@ -217,13 +219,9 @@ export class CodeIndex {
 			scan = this.#extractor.scan(this.#config, knownPaths);
 
 			if (scan.compilerDrift) {
-				this.#logger.warn('compiler_drift', {extractorCompiler: scan.compilerVersion, declaredCompiler: scan.declaredCompilerVersion});
-				this.#analytics?.record('compiler_drift', {
-					extractorVersion: scan.compilerVersion,
-					declaredVersion: scan.declaredCompilerVersion,
-				});
+				recordCompilerDrift({logger: this.#logger, analytics: this.#analytics, observed: this.#compilerDriftObserved, scan});
 			}
-			const report = await this.#rebuild(scan, force);
+			const report = await this.#rebuild(scan, force, startedAtEpoch);
 
 			if (this.#watchEnabled) {
 				this.#watcher.update(
@@ -457,7 +455,7 @@ export class CodeIndex {
 			...(this.#analytics === null ? {} : {exactNameTelemetry: this.#recordExactName}),
 		};
 	}
-	async #rebuild(scan: ScanResultType, force: boolean): Promise<BuildReportType> {
+	async #rebuild(scan: ScanResultType, force: boolean, startedAtEpoch: number): Promise<BuildReportType> {
 		const workerPath = this.#workerEntry;
 		debug('rebuild requested', {force, worker: workerPath, files: scan.files.length});
 
@@ -470,6 +468,7 @@ export class CodeIndex {
 				scan,
 				force,
 				ownerId: this.#ownerId,
+				startedAtEpoch,
 				extractor: this.#extractor,
 			});
 		}
@@ -480,6 +479,7 @@ export class CodeIndex {
 			scan,
 			force,
 			ownerId: this.#ownerId,
+			startedAtEpoch,
 			debug: debug.enabled,
 		});
 

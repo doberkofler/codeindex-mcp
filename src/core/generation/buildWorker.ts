@@ -13,6 +13,8 @@ export type BuildWorkerDataType = Readonly<{
 	scan: ScanResultType;
 	force: boolean;
 	ownerId: string;
+	/** Epoch milliseconds at which the parent attempt started, including its scan. */
+	startedAtEpoch?: number;
 	debug: boolean;
 }>;
 
@@ -93,7 +95,15 @@ export const runBuildWorker = (data: BuildWorkerDataType): BuildWorkerMessageTyp
 			}),
 		);
 		debug('database opened');
-		const report = buildGeneration({config: data.config, database, logger, scan: data.scan, force: data.force, ownerId: data.ownerId});
+		const report = buildGeneration({
+			config: data.config,
+			database,
+			logger,
+			scan: data.scan,
+			force: data.force,
+			ownerId: data.ownerId,
+			...(data.startedAtEpoch === undefined ? {} : {startedAtEpoch: data.startedAtEpoch}),
+		});
 		debug('build worker complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
 		message = {ok: true, report};
 	} catch (error) {

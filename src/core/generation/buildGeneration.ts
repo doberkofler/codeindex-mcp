@@ -5,16 +5,9 @@ import {type ConfigType} from '../config/config.ts';
 import {PUBLICATION_SURFACE_BINDINGS_PER_ROOT, finalizeFacts, type FinalizedFactSetType} from '../facts/index.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
-import {
-	type BuildOutcomeType,
-	type BuildReportType,
-	type BuildStagesType,
-	type ExtractionResultType,
-	type GenerationRowType,
-	type ScanResultType,
-} from '../model.ts';
+import {type BuildOutcomeType, type BuildReportType, type BuildStagesType, type GenerationRowType, type ScanResultType} from '../model.ts';
 import {type IndexDatabase} from '../storage/database.ts';
-import {artifactKeyOf, createExtractorCache, persistArtifactCaches} from './buildArtifacts.ts';
+import {artifactKeyOf, createExtractorCache} from './buildArtifacts.ts';
 import {type BuildProjectContextType, buildFailureOf, buildProjectContextOf, runBuildStage} from './buildFailure.ts';
 import {computeSourceHash} from './sourceFiles.ts';
 
@@ -27,6 +20,11 @@ type BuildInputType = Readonly<{
 	scan?: ScanResultType;
 	force?: boolean;
 	ownerId?: string;
+	/**
+	 * Epoch milliseconds at which this attempt started, including a scan that
+	 * the caller already performed. Keeps reported duration covering every stage.
+	 */
+	startedAtEpoch?: number;
 	/** Qualification-only adapter override; production resolves from the registry. */
 	extractor?: ExtractorType;
 }>;
@@ -49,6 +47,7 @@ type CommitContextType = Readonly<{
 	generationId: string;
 	mode: 'insert' | 'revise';
 	startedAt: number;
+	startedAtIso: string;
 	extractorOverride: ExtractorType | undefined;
 	ownerId: string | undefined;
 }>;
@@ -100,6 +99,18 @@ const countsOf = (generation: GenerationRowType): BuildCountsType => ({
 });
 
 const ZERO_COUNTS: BuildCountsType = {files: 0, symbols: 0, occurrences: 0, dependencyEdges: 0, dependencyBindings: 0, diagnostics: 0};
+
+const stageTotalOf = (stages: BuildStagesType | null): number =>
+	stages === null ? 0 : stages.scanMs + stages.compilerMs + stages.extractionMs + stages.insertionMs + stages.verificationMs + stages.publicationMs;
+
+/**
+ * Keeps the reported attempt at least as long as its independently rounded stages.
+ *
+ * @param startedAt - Epoch milliseconds when the attempt started.
+ * @param stages - Exclusive stage durations, or null when nothing was measured.
+ * @returns Wall-clock duration in milliseconds.
+ */
+const durationOf = (startedAt: number, stages: BuildStagesType | null): number => Math.max(Math.round(Date.now() - startedAt), stageTotalOf(stages));
 
 const projectContextOf = (scan: ScanResultType): BuildProjectContextType | null => buildProjectContextOf(scan.projects);
 
@@ -191,9 +202,12 @@ const commitReuse = (context: CommitContextType): BuildReportType => {
 		configHash: context.scan.configHash,
 		...(context.scan.inputHash === undefined ? {} : {inputHash: context.scan.inputHash}),
 		stages: {scanMs: context.scan.scanMs, compilerMs: 0, extractionMs: 0},
+		startedAt: context.startedAtIso,
+		declaredCompilerVersion: context.scan.declaredCompilerVersion,
+		compilerDrift: context.scan.compilerDrift,
 		...(context.ownerId === undefined ? {} : {ownerId: context.ownerId}),
 	});
-	const durationMs = Math.round(performance.now() - context.startedAt);
+	const durationMs = durationOf(context.startedAt, commit.stages);
 
 	logBuild({
 		logger: context.logger,
@@ -221,12 +235,6 @@ const commitExtraction = (context: CommitContextType): BuildReportType => {
 	const extracted = runBuildStage('extraction', () => context.extractor.build(context.config, context.scan, cache.cache));
 	// Qualification-only parser overrides are not production builds; keep measured invariants report-only there.
 	const finalized = finalizePublication(extracted, context.extractorOverride === undefined ? context.scan.extractorId : null);
-	const artifactFacts: ExtractionResultType = {
-		symbols: extracted.symbols,
-		occurrences: extracted.occurrences,
-		diagnostics: extracted.diagnostics,
-		diagnosticCount: extracted.diagnostics.length,
-	};
 	// The adapter re-verifies every captured input after extraction. A drift
 	// here aborts the commit, so the previous published revision stays intact.
 	runBuildStage('validation', () => extracted.validate?.());
@@ -249,23 +257,16 @@ const commitExtraction = (context: CommitContextType): BuildReportType => {
 				compilerMs: extracted.compilerMs,
 				extractionMs: extracted.extractionMs,
 			},
+			startedAt: context.startedAtIso,
+			declaredCompilerVersion: context.scan.declaredCompilerVersion,
+			compilerDrift: context.scan.compilerDrift,
 			...(context.ownerId === undefined ? {} : {ownerId: context.ownerId}),
 		}),
 	);
 	persistCachesSafely(() => {
 		cache.flush();
-		persistArtifactCaches({
-			database: context.database,
-			generationId: context.generationId,
-			files: extracted.files,
-			facts: artifactFacts,
-			dependencies: extracted.dependencies,
-			contextHash: context.scan.artifactContextHash ?? context.scan.configHash,
-			extractorId: context.scan.extractorId,
-			extractorVersion: context.scan.extractorVersion,
-		});
 	});
-	const durationMs = Math.round(performance.now() - context.startedAt);
+	const durationMs = durationOf(context.startedAt, commit.stages);
 
 	logBuild({
 		logger: context.logger,
@@ -294,7 +295,7 @@ const reusedReport = (reusable: GenerationRowType, startedAt: number): BuildRepo
 		revision: reusable.revision,
 		outcome: 'reused',
 		reused: true,
-		durationMs: Math.round(performance.now() - startedAt),
+		durationMs: Math.round(Date.now() - startedAt),
 		counts: countsOf(reusable),
 		stages: null,
 	});
@@ -311,7 +312,7 @@ const supersededReport = (
 		revision: input.published?.revision ?? 0,
 		outcome: 'superseded',
 		reused: false,
-		durationMs: Math.round(performance.now() - input.startedAt),
+		durationMs: Math.round(Date.now() - input.startedAt),
 		counts: input.published === null ? ZERO_COUNTS : countsOf(input.published),
 		stages: null,
 	});
@@ -354,6 +355,8 @@ const beginGeneration = (
 		extractorId: scan.extractorId,
 		extractorVersion: scan.extractorVersion,
 		compilerVersion: scan.compilerVersion,
+		declaredCompilerVersion: scan.declaredCompilerVersion,
+		compilerDrift: scan.compilerDrift,
 		sourceHash: scan.sourceHash,
 		configHash: scan.configHash,
 		...(scan.inputHash === undefined ? {} : {inputHash: scan.inputHash}),
@@ -375,7 +378,8 @@ const beginGeneration = (
  * @throws {@link Error} When scanning, loading, extraction, or publication fails.
  */
 export const buildGeneration = (input: BuildInputType): BuildReportType => {
-	const startedAt = performance.now();
+	const startedAt = input.startedAtEpoch ?? Date.now();
+	const startedAtIso = new Date(startedAt).toISOString();
 	const {published, publishedFiles, extractor, scan} = prepareBuild(input);
 	const reusable = findReusableGeneration(input.database, scan, input.force);
 	debug('build start', {
@@ -421,6 +425,7 @@ export const buildGeneration = (input: BuildInputType): BuildReportType => {
 			generationId,
 			mode,
 			startedAt,
+			startedAtIso,
 			extractorOverride: input.extractor,
 			ownerId: input.ownerId,
 		};

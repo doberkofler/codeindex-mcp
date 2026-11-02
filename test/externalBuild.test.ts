@@ -9,6 +9,8 @@ const generation = (id: string): GenerationRowType => ({
 	extractorId: 'typescript',
 	extractorVersion: '1',
 	compilerVersion: '1',
+	declaredCompilerVersion: null,
+	compilerDrift: false,
 	sourceHash: 'source',
 	configHash: 'config',
 	startedAt: '2026-01-01T00:00:00.000Z',

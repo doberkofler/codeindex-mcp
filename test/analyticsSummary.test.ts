@@ -72,9 +72,19 @@ describe('analytics summaries', () => {
 				unknown: {calls: 0, errors: 0, p50Ms: null, bytes: 0, truncated: 0},
 				find_symbol: {calls: 1, errors: 1, p50Ms: 10, p95Ms: 10, p99Ms: 10, bytes: 20, truncated: 1},
 			},
-			builds: {count: 2, failures: 1, p50Ms: 100, stages: {scanMs: 5}},
+			builds: {
+				count: 2,
+				failures: 1,
+				p50Ms: 100,
+				stages: {scanMs: 5},
+				outcomes: {
+					complete: {count: 2, p50Ms: 100, p95Ms: 200},
+					reused: {count: 0, p50Ms: null, p95Ms: null},
+					failed: {count: 1, p50Ms: 50, p95Ms: 50},
+				},
+			},
 			freshness: {current: 1},
-			watcher: {events: 2, refreshes: 1, coalesced: 1, eventToPublicationP95Ms: 7},
+			watcher: {events: 2, refreshes: 1, coalesced: 1, successfulEventToPublicationP95Ms: 7},
 		});
 		expect(summary.events).toBe(8);
 		expect(summary.counts).toMatchObject({mcp_tool_call: 2, build_complete: 2, build_failed: 1});
@@ -83,6 +93,8 @@ describe('analytics summaries', () => {
 
 		expect(text).toContain('find_symbol: calls 1');
 		expect(text).toContain('scanMs: 5 ms');
+		expect(text).toContain('complete 100/200 ms');
+		expect(text).toContain('successful event-to-publication p95 7 ms');
 	});
 
 	it('keeps older events when the window is unknown or wider', () => {

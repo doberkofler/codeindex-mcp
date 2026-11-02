@@ -26,6 +26,12 @@ type GenerationCommitBaseType = Readonly<{
 	/** Declaration and module-resolution input hash; defaults to `configHash`. */
 	readonly inputHash?: string;
 	readonly stages: Readonly<{scanMs: number; compilerMs: number; extractionMs: number}>;
+	/** ISO start of this revision; keeps `started_at` describing one attempt. */
+	readonly startedAt?: string;
+	/** Declared compiler version for this revision, when known. */
+	readonly declaredCompilerVersion?: string | null;
+	/** Runtime-versus-declared compiler drift for this revision. */
+	readonly compilerDrift?: boolean;
 	readonly ownerId?: string;
 }>;
 
@@ -130,14 +136,22 @@ const publishPhase = (
 	writer
 		.prepare(
 			`update generation
-			 set state = 'published', completed_at = ?, revision = revision + 1, config_hash = ?, source_hash = ?, input_hash = ?,
+			 set state = 'published', started_at = coalesce(?, started_at), completed_at = ?, revision = revision + 1,
+			     declared_compiler_version = case when ? then ? else declared_compiler_version end,
+			     compiler_drift = case when ? then ? else compiler_drift end,
+			     config_hash = ?, source_hash = ?, input_hash = ?,
 			     file_count = ?, symbol_count = ?, occurrence_count = ?,
 			     dependency_edge_count = ?, dependency_binding_count = ?, diagnostic_count = ?,
 			     scan_ms = ?, compiler_ms = ?, extraction_ms = ?, insertion_ms = ?, verification_ms = ?, publication_ms = ?
 			 where id = ?`,
 		)
 		.run(
+			input.startedAt ?? null,
 			new Date().toISOString(),
+			input.declaredCompilerVersion === undefined ? 0 : 1,
+			input.declaredCompilerVersion ?? null,
+			input.compilerDrift === undefined ? 0 : 1,
+			input.compilerDrift === true ? 1 : 0,
 			input.configHash,
 			input.sourceHash,
 			input.inputHash ?? input.configHash,

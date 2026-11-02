@@ -108,10 +108,18 @@ const workerFailureOf = (error: unknown, project: BuildProjectContextType | null
  * @throws {@link Error} When the worker exits or reports a failure.
  */
 export const runBuildWorkerThread = async (
-	input: Readonly<{workerEntry: string; config: ConfigType; scan: ScanResultType; force: boolean; ownerId: string; debug: boolean}>,
+	input: Readonly<{workerEntry: string; config: ConfigType; scan: ScanResultType; force: boolean; ownerId: string; startedAtEpoch: number; debug: boolean}>,
 ): Promise<BuildReportType> => {
 	const worker = new Worker(input.workerEntry, {
-		workerData: {kind: 'code-index-build', config: input.config, scan: input.scan, force: input.force, ownerId: input.ownerId, debug: input.debug},
+		workerData: {
+			kind: 'code-index-build',
+			config: input.config,
+			scan: input.scan,
+			force: input.force,
+			ownerId: input.ownerId,
+			startedAtEpoch: input.startedAtEpoch,
+			debug: input.debug,
+		},
 	});
 	const completion = new EventTarget();
 	const state: {message: unknown; failure: Error | null} = {message: null, failure: null};

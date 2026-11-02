@@ -256,7 +256,7 @@ const build = (config: ConfigType, scan: ScanResultType, parser: OracleParserBin
 		}),
 	);
 	const compilerMs = contexts.reduce((total, context) => total + context.parseMs, 0);
-	const extractionMs = Math.round(performance.now() - startedAt);
+	const extractionMs = Math.max(0, Math.round(performance.now() - startedAt) - compilerMs);
 	const result = {
 		files: scan.files,
 		symbols: mergeSymbols(contexts),

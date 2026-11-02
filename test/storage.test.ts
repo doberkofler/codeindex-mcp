@@ -424,3 +424,62 @@ describe('index storage hot-statement plans', () => {
 		}
 	});
 });
+
+describe('extraction artifact pruning', () => {
+	let directory: string | undefined;
+
+	afterEach(() => {
+		if (directory !== undefined) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		directory = undefined;
+	});
+
+	it('prunes dead generic artifact kinds and reduces the database size', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-storage-'));
+		const root = path.join(directory, 'workspace');
+		const filePath = path.join(root, 'src', 'artifact.ts');
+		mkdirSync(path.dirname(filePath), {recursive: true});
+		writeFileSync(filePath, 'export const artifact = 1;\n');
+		const file = createSourceFileRecord(filePath, root);
+		const database = IndexDatabase.open(path.join(directory, 'index.sqlite'), {rootDir: root, projectId: 'storage-test'});
+
+		try {
+			database.insertContents([file]);
+			database.createGeneration(generation('generation-1'));
+			database.insertGenerationFacts({
+				generationId: 'generation-1',
+				...createGenerationFactSeed({path: 'src/artifact.ts'}),
+				files: [file],
+			});
+			const symbolsBefore = database.countRows('generation-1', 'symbol');
+			const occurrencesBefore = database.countRows('generation-1', 'occurrence');
+			const identity = {contentSha256: file.sha256, extractorId: 'typescript', extractorVersion: '0.1.0'};
+
+			database.putExtractionArtifacts([
+				...Array.from({length: 200}, (_, index) => ({
+					...identity,
+					artifactKind: index % 2 === 0 ? 'symbols' : 'dependencies',
+					contextHash: `dead-${String(index)}`,
+					artifactJson: JSON.stringify({payload: 'x'.repeat(512)}),
+				})),
+				{...identity, artifactKind: 'oracle-parse-root', contextHash: 'live', artifactJson: '{"digest":"kept"}'},
+			]);
+
+			const before = database.databaseSizeBytes();
+			const pruned = database.pruneDeadArtifacts();
+
+			expect(pruned.deletedRows).toBe(200);
+			expect(pruned.bytesAfter).toBeLessThan(pruned.bytesBefore);
+			expect(pruned.bytesAfter).toBeLessThan(before);
+			expect(database.extractionArtifactCount()).toBe(1);
+			expect(database.getExtractionArtifact({...identity, artifactKind: 'oracle-parse-root', contextHash: 'live'})).toBe('{"digest":"kept"}');
+			expect(database.countRows('generation-1', 'symbol')).toBe(symbolsBefore);
+			expect(database.countRows('generation-1', 'occurrence')).toBe(occurrencesBefore);
+			expect(symbolsBefore).toBeGreaterThan(0);
+		} finally {
+			database.close();
+		}
+	});
+});

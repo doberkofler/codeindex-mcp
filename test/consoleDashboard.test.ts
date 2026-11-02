@@ -76,7 +76,12 @@ describe('console analytics dashboard', () => {
 		expect(dashboard.freshness).toContainEqual({state: 'stale', count: 1});
 		expect(dashboard.builds.stages).toContainEqual({stage: 'scanMs', p50Ms: 100, p95Ms: 100});
 		expect(dashboard.builds.timeline.map((point) => point.outcome)).toStrictEqual(['complete', 'failed']);
-		expect(dashboard.watcher).toMatchObject({events: 2, refreshes: 1, coalesced: 1, eventToPublicationP95Ms: 80});
+		expect(dashboard.builds.outcomes).toStrictEqual({
+			complete: {count: 1, p50Ms: 1000, p95Ms: 1000},
+			reused: {count: 0, p50Ms: null, p95Ms: null},
+			failed: {count: 1, p50Ms: 500, p95Ms: 500},
+		});
+		expect(dashboard.watcher).toMatchObject({events: 2, refreshes: 1, coalesced: 1, successfulEventToPublicationP95Ms: 80});
 		expect(dashboard.timeline.length).toBeGreaterThan(0);
 	});
 

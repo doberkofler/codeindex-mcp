@@ -41,7 +41,7 @@ const status: IndexStatusType = {
 		projectName: 'project',
 		projectFile: '/repo/tsconfig.json',
 		projects: [{name: 'root', projectFile: '/repo/tsconfig.json'}],
-		extractor: {id: 'typescript', version: '0.1.0', compilerVersion: '6.0.3'},
+		extractor: {id: 'typescript', version: '0.1.0', compilerVersion: '6.0.3', declaredCompilerVersion: '6.0.3', compilerDrift: false},
 		projectId: 'project',
 		workingCopyId: 'copy',
 	},

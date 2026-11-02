@@ -47,7 +47,7 @@ const FAKE_STATUS: IndexStatusType = {
 		projectName: 'fake-project',
 		projectFile: 'tsconfig.json',
 		projects: [{name: 'root', projectFile: 'tsconfig.json'}],
-		extractor: {id: 'typescript', version: 'fake', compilerVersion: 'fake'},
+		extractor: {id: 'typescript', version: 'fake', compilerVersion: 'fake', declaredCompilerVersion: null, compilerDrift: false},
 		projectId: 'fake-project',
 		workingCopyId: 'fake-working-copy',
 	},

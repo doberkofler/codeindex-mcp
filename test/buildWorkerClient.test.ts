@@ -16,7 +16,7 @@ const runWorkerScript = async (script: string): Promise<unknown> => {
 		writeFileSync(workerEntry, `${script}\n`, {encoding: 'utf8'});
 		const scan: ScanResultType = typeScriptExtractor.scan(config, []);
 
-		return await runBuildWorkerThread({workerEntry, config, scan, force: false, ownerId: 'test-owner', debug: false});
+		return await runBuildWorkerThread({workerEntry, config, scan, force: false, ownerId: 'test-owner', startedAtEpoch: Date.now(), debug: false});
 	} finally {
 		rmSync(directory, {recursive: true, force: true});
 		cleanup();

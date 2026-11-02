@@ -22,6 +22,7 @@ import {
 	listFiles as listStoredFiles,
 	putExtractionArtifact,
 	putExtractionArtifacts,
+	pruneDeadArtifacts as pruneStoredDeadArtifacts,
 	readFile,
 	type ExtractionArtifactKeyType,
 } from './databaseContent.ts';
@@ -112,6 +113,7 @@ export class IndexDatabase {
 			const projectId = context.projectId ?? 'default';
 			const database = new IndexDatabase(reader, writer, projectId, owner);
 			ensureMetadata(writer);
+			pruneStoredDeadArtifacts(writer);
 			ensureIdentity({writer, reader, context});
 			database.discardIncompleteGenerations();
 			ensureStatistics(reader, writer);
@@ -155,6 +157,8 @@ export class IndexDatabase {
 			extractorId: string;
 			extractorVersion: string;
 			compilerVersion: string;
+			declaredCompilerVersion?: string | null;
+			compilerDrift?: boolean;
 			sourceHash: string;
 			configHash: string;
 			inputHash?: string;
@@ -162,14 +166,16 @@ export class IndexDatabase {
 	): void {
 		this.#writer
 			.prepare(
-				`insert into generation (id, state, extractor_id, extractor_version, compiler_version, source_hash, config_hash, input_hash, started_at)
-				 values (?, 'building', ?, ?, ?, ?, ?, ?, ?)`,
+				`insert into generation (id, state, extractor_id, extractor_version, compiler_version, declared_compiler_version, compiler_drift, source_hash, config_hash, input_hash, started_at)
+				 values (?, 'building', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				input.id,
 				input.extractorId,
 				input.extractorVersion,
 				input.compilerVersion,
+				input.declaredCompilerVersion ?? null,
+				input.compilerDrift === true ? 1 : 0,
 				input.sourceHash,
 				input.configHash,
 				input.inputHash ?? input.configHash,
@@ -220,6 +226,10 @@ export class IndexDatabase {
 
 	public hasExtractionArtifact(input: ExtractionArtifactKeyType): boolean {
 		return hasExtractionArtifact(this.#reader, input);
+	}
+
+	public pruneDeadArtifacts(): ReturnType<typeof pruneStoredDeadArtifacts> {
+		return pruneStoredDeadArtifacts(this.#writer);
 	}
 
 	public countRows(
@@ -416,11 +426,9 @@ export class IndexDatabase {
 	public referenceTotals(input: Parameters<typeof referenceTotals>[1]): ReturnType<typeof referenceTotals> {
 		return referenceTotals(this.#reader, input);
 	}
-
 	public referenceGroupRows(input: Parameters<typeof referenceGroupRows>[1]): ReturnType<typeof referenceGroupRows> {
 		return referenceGroupRows(this.#reader, input);
 	}
-
 	public referenceGroupContexts(input: Parameters<typeof referenceGroupContexts>[1]): ReturnType<typeof referenceGroupContexts> {
 		return referenceGroupContexts(this.#reader, input);
 	}
@@ -434,11 +442,9 @@ export class IndexDatabase {
 	public findDependencyEdgesByTargetIdentifier(generationId: string, targetIdentifier: string, context?: string): readonly StoredDependencyEdgeType[] {
 		return findDependencyEdgesByTargetIdentifier(this.#reader, generationId, targetIdentifier, context);
 	}
-
 	public findDependencyEdgesByTargets(generationId: string, targetPaths: readonly string[], context?: string): readonly StoredDependencyEdgeType[] {
 		return findDependencyEdgesByTargets(this.#reader, generationId, targetPaths, context);
 	}
-
 	public listDependencyBindings(generationId: string, edgeIds: readonly string[]): readonly IndexedDependencyBindingType[] {
 		return listStoredDependencyBindings(this.#reader, generationId, edgeIds);
 	}

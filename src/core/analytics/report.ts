@@ -7,6 +7,14 @@ const {dirname, join} = path;
 
 const EXACT_NAME_PRESENCE = new Set(['none', 'P', 'R', 'I', 'PR', 'PI', 'RI', 'PRI']);
 
+type AnalyticsBuildOutcomeType = 'complete' | 'reused' | 'failed';
+
+type AnalyticsBuildOutcomeLatencyType = Readonly<{
+	readonly count: number;
+	readonly p50Ms: number | null;
+	readonly p95Ms: number | null;
+}>;
+
 export type AnalyticsSummaryType = Readonly<{
 	readonly files: number;
 	readonly events: number;
@@ -23,6 +31,7 @@ export type AnalyticsSummaryType = Readonly<{
 		readonly p50Ms: number | null;
 		readonly p95Ms: number | null;
 		readonly stages: Readonly<Record<string, number | null>>;
+		readonly outcomes: Readonly<Record<AnalyticsBuildOutcomeType, AnalyticsBuildOutcomeLatencyType>>;
 		readonly failures: number;
 		readonly failureCauses: Readonly<Partial<Record<BuildFailureCauseType, number>>>;
 	}>;
@@ -31,7 +40,8 @@ export type AnalyticsSummaryType = Readonly<{
 		readonly events: number;
 		readonly refreshes: number;
 		readonly coalesced: number;
-		readonly eventToPublicationP95Ms: number | null;
+		/** Successful refreshes only; failed attempts are never labelled fresh. */
+		readonly successfulEventToPublicationP95Ms: number | null;
 	}>;
 }>;
 
@@ -65,6 +75,7 @@ type AggregateStateType = {
 	readonly exactNamePresence: Record<string, number>;
 	readonly tools: Map<string, ToolAccumulatorType>;
 	readonly buildDurations: number[];
+	readonly buildOutcomeDurations: Record<AnalyticsBuildOutcomeType, number[]>;
 	readonly stageValues: Map<string, number[]>;
 	readonly publicationDurations: number[];
 	buildFailures: number;
@@ -199,11 +210,12 @@ const accumulateTool = (state: AggregateStateType, event: AnalyticsEventType): v
 	}
 };
 
-const accumulateBuild = (state: AggregateStateType, event: AnalyticsEventType): void => {
+const accumulateBuild = (state: AggregateStateType, event: AnalyticsEventType, outcome: 'complete' | 'reused'): void => {
 	const duration = numberField(event, 'durationMs');
 
 	if (duration !== null) {
 		state.buildDurations.push(duration);
+		state.buildOutcomeDurations[outcome].push(duration);
 	}
 
 	const {stages} = event;
@@ -225,11 +237,31 @@ const accumulateBuild = (state: AggregateStateType, event: AnalyticsEventType): 
 
 const accumulateBuildFailure = (state: AggregateStateType, event: AnalyticsEventType): void => {
 	state.buildFailures += 1;
+	const duration = numberField(event, 'durationMs');
+
+	if (duration !== null) {
+		state.buildOutcomeDurations.failed.push(duration);
+	}
+
 	const cause = stringField(event, 'cause');
 
 	if (cause !== null && isBuildFailureCause(cause)) {
 		state.buildFailureCauses[cause] = (state.buildFailureCauses[cause] ?? 0) + 1;
 	}
+};
+
+const accumulateBuildEvent = (state: AggregateStateType, event: AnalyticsEventType): boolean => {
+	if (event.event === 'build_complete' || event.event === 'build_reused') {
+		accumulateBuild(state, event, event.event === 'build_reused' ? 'reused' : 'complete');
+		return true;
+	}
+
+	if (event.event === 'build_failed') {
+		accumulateBuildFailure(state, event);
+		return true;
+	}
+
+	return false;
 };
 
 const accumulateEvent = (state: AggregateStateType, event: AnalyticsEventType): void => {
@@ -248,13 +280,7 @@ const accumulateEvent = (state: AggregateStateType, event: AnalyticsEventType): 
 		return;
 	}
 
-	if (event.event === 'build_complete' || event.event === 'build_reused') {
-		accumulateBuild(state, event);
-		return;
-	}
-
-	if (event.event === 'build_failed') {
-		accumulateBuildFailure(state, event);
+	if (accumulateBuildEvent(state, event)) {
 		return;
 	}
 
@@ -304,6 +330,14 @@ const stageSummaries = (stages: ReadonlyMap<string, readonly number[]>): Readonl
 	return summaries;
 };
 
+const outcomeSummaries = (
+	durations: Readonly<Record<AnalyticsBuildOutcomeType, readonly number[]>>,
+): Readonly<Record<AnalyticsBuildOutcomeType, AnalyticsBuildOutcomeLatencyType>> => ({
+	complete: {count: durations.complete.length, p50Ms: percentile(durations.complete, 0.5), p95Ms: percentile(durations.complete, 0.95)},
+	reused: {count: durations.reused.length, p50Ms: percentile(durations.reused, 0.5), p95Ms: percentile(durations.reused, 0.95)},
+	failed: {count: durations.failed.length, p50Ms: percentile(durations.failed, 0.5), p95Ms: percentile(durations.failed, 0.95)},
+});
+
 /**
  * Reads and aggregates versioned analytics without model calls.
  *
@@ -322,6 +356,7 @@ export const summarizeAnalytics = (analyticsPath: string, since?: string): Analy
 		exactNamePresence: {},
 		tools: new Map(),
 		buildDurations: [],
+		buildOutcomeDurations: {complete: [], reused: [], failed: []},
 		stageValues: new Map(),
 		publicationDurations: [],
 		buildFailures: 0,
@@ -353,6 +388,7 @@ export const summarizeAnalytics = (analyticsPath: string, since?: string): Analy
 			p50Ms: percentile(state.buildDurations, 0.5),
 			p95Ms: percentile(state.buildDurations, 0.95),
 			stages: stageSummaries(state.stageValues),
+			outcomes: outcomeSummaries(state.buildOutcomeDurations),
 			failures: state.buildFailures,
 			failureCauses: state.buildFailureCauses,
 		},
@@ -361,7 +397,7 @@ export const summarizeAnalytics = (analyticsPath: string, since?: string): Analy
 			events: state.watcherEvents,
 			refreshes: state.watcherRefreshes,
 			coalesced: state.watcherCoalesced,
-			eventToPublicationP95Ms: percentile(state.publicationDurations, 0.95),
+			successfulEventToPublicationP95Ms: percentile(state.publicationDurations, 0.95),
 		},
 	};
 };
@@ -391,11 +427,12 @@ export const formatAnalyticsText = (summary: AnalyticsSummaryType): readonly str
 	`find_symbol exact-name presence: ${JSON.stringify(summary.exactNamePresence)}`,
 	'',
 	`builds: ${summary.builds.count}, failures ${summary.builds.failures}, p50 ${formatValue(summary.builds.p50Ms)} ms, p95 ${formatValue(summary.builds.p95Ms)} ms`,
+	`  outcome p50/p95: complete ${formatValue(summary.builds.outcomes.complete.p50Ms)}/${formatValue(summary.builds.outcomes.complete.p95Ms)} ms, reused ${formatValue(summary.builds.outcomes.reused.p50Ms)}/${formatValue(summary.builds.outcomes.reused.p95Ms)} ms, failed ${formatValue(summary.builds.outcomes.failed.p50Ms)}/${formatValue(summary.builds.outcomes.failed.p95Ms)} ms`,
 	`  failure causes: ${JSON.stringify(summary.builds.failureCauses)}`,
 	...Object.entries(summary.builds.stages).map(([stage, value]) => `  ${stage}: ${formatValue(value)} ms`),
 	'',
 	`freshness: ${JSON.stringify(summary.freshness)}`,
-	`watcher: events ${summary.watcher.events}, refreshes ${summary.watcher.refreshes}, coalesced ${summary.watcher.coalesced}, event-to-publication p95 ${formatValue(summary.watcher.eventToPublicationP95Ms)} ms`,
+	`watcher: events ${summary.watcher.events}, refreshes ${summary.watcher.refreshes}, coalesced ${summary.watcher.coalesced}, successful event-to-publication p95 ${formatValue(summary.watcher.successfulEventToPublicationP95Ms)} ms`,
 ];
 
 const escapeHtml = (value: string): string => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');

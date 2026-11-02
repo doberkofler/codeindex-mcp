@@ -212,6 +212,36 @@ export const databaseSizeBytes = (reader: DatabaseSync): number => {
 };
 
 /**
+ * Deletes artifact kinds that no adapter reads.
+ *
+ * Generic `symbols` and `dependencies` rows were derivable from published facts
+ * and never consumed. Adapter-owned kinds, such as Oracle parse digests, stay.
+ * A deletion is followed by `vacuum` so the measured database size reflects the
+ * reclaimed pages rather than leaving them on the free list.
+ *
+ * @param writer - Writer connection.
+ * @returns Deleted row count and the size change produced by vacuum.
+ */
+export const pruneDeadArtifacts = (writer: DatabaseSync): Readonly<{deletedRows: number; bytesBefore: number; bytesAfter: number}> => {
+	const bytesBefore = databaseSizeBytes(writer);
+	const before = writer.prepare('select count(*) as total from extraction_artifact').get();
+	const deleted = writer.prepare("delete from extraction_artifact where artifact_kind in ('symbols', 'dependencies')").run();
+	const deletedRows = Number(deleted.changes);
+	const after = writer.prepare('select count(*) as total from extraction_artifact').get();
+	const removedByDelete = (before === undefined ? 0 : asNumber(before, 'total')) - (after === undefined ? 0 : asNumber(after, 'total'));
+
+	if (deletedRows !== removedByDelete) {
+		throw new Error('Artifact pruning count did not match the deleted rows');
+	}
+
+	if (deletedRows > 0) {
+		writer.exec('vacuum');
+	}
+
+	return {deletedRows, bytesBefore, bytesAfter: databaseSizeBytes(writer)};
+};
+
+/**
  * Reads one generation file and its content metadata.
  *
  * @param reader - Reader connection.

@@ -280,7 +280,19 @@ SQLite is a disposable derived store. Its major groups are:
 | Navigation | symbols, contexts, bindings, binding sites/origins, occurrences, definition sites |
 | Dependencies | edges and import/export bindings |
 | Diagnostics and measurements | bounded diagnostics and build statistics |
-| Reuse | content/extractor/context-keyed extraction artifacts |
+| Reuse | adapter-owned extraction artifacts such as Oracle parse digests |
+
+Build stages partition one attempt: `scanMs`, `compilerMs`, `extractionMs`,
+`insertionMs`, `verificationMs`, and `publicationMs` are exclusive, and their sum
+never exceeds the reported attempt duration. `index_status.build` describes the
+latest published revision rather than the lifetime of the stable generation row.
+Status also reports the runtime compiler version beside the version declared by
+the project and whether the two majors drift. Drift is emitted once per observed
+runtime/declared pair.
+
+Generic `symbols` and `dependencies` artifacts are not written: they were never
+read and every row was derivable from published facts. A database open prunes
+those dead kinds and vacuums the reclaimed pages; adapter-owned kinds stay.
 
 WAL permits readers to continue while the single build owner writes. This is not
 a multi-writer design.
@@ -360,7 +372,11 @@ surface, not a remote or multi-user service.
 
 Analytics are local, versioned, bounded by retention policy, and enabled by
 default. Events record operation names, durations, byte/item counts, freshness,
-truncation, build stages, resource measurements, and stable error codes.
+truncation, build stages, build outcome, resource measurements, and stable error
+codes. Build latency percentiles are reported separately for `complete`,
+`reused`, and `failed` attempts. Event-to-publication latency describes successful
+refreshes only and is labelled as such; failed attempts never contribute to a
+freshness percentile.
 
 A prohibited-field guard prevents source text, prompts, query text, symbol names,
 credentials, tokens, and absolute paths from being serialized. Analytics never

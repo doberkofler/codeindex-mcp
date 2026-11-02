@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '13';
+export const SCHEMA_VERSION = '14';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -45,6 +45,8 @@ create table if not exists generation (
 	extractor_id text not null,
 	extractor_version text not null,
 	compiler_version text not null,
+	declared_compiler_version text,
+	compiler_drift integer not null default 0,
 	source_hash text not null,
 	config_hash text not null,
 	input_hash text not null default '',

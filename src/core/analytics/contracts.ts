@@ -43,11 +43,19 @@ export type AnalyticsToolType = Readonly<{
 	readonly timeline: readonly AnalyticsToolTimelinePointType[];
 }>;
 
+export type AnalyticsBuildOutcomeType = 'complete' | 'reused' | 'failed';
+
 export type AnalyticsBuildPointType = Readonly<{
 	readonly bucketStart: string;
 	readonly timestamp: string;
 	readonly durationMs: number;
-	readonly outcome: 'complete' | 'reused' | 'failed';
+	readonly outcome: AnalyticsBuildOutcomeType;
+}>;
+
+export type AnalyticsBuildOutcomeLatencyType = Readonly<{
+	readonly count: number;
+	readonly p50Ms: number | null;
+	readonly p95Ms: number | null;
 }>;
 
 export type AnalyticsStageType = Readonly<{
@@ -87,6 +95,7 @@ export type AnalyticsDashboardType = Readonly<{
 		readonly p50Ms: number | null;
 		readonly p95Ms: number | null;
 		readonly stages: readonly AnalyticsStageType[];
+		readonly outcomes: Readonly<Record<AnalyticsBuildOutcomeType, AnalyticsBuildOutcomeLatencyType>>;
 		readonly timeline: readonly AnalyticsBuildPointType[];
 	}>;
 	readonly freshness: readonly Readonly<{state: string; count: number}>[];
@@ -94,7 +103,8 @@ export type AnalyticsDashboardType = Readonly<{
 		readonly events: number;
 		readonly refreshes: number;
 		readonly coalesced: number;
-		readonly eventToPublicationP95Ms: number | null;
+		/** Successful refreshes only; failed attempts are never reported as fresh. */
+		readonly successfulEventToPublicationP95Ms: number | null;
 		readonly timeline: readonly AnalyticsTimelinePointType[];
 	}>;
 }>;

@@ -108,7 +108,7 @@ const formatStatus = (status: IndexStatusType): readonly string[] => [
 	`project: ${status.scope.projectName} (${status.scope.projectId})`,
 	`root: ${status.scope.root}`,
 	`project file: ${status.scope.projectFile}`,
-	`extractor: ${status.scope.extractor.id} ${status.scope.extractor.version} (compiler ${status.scope.extractor.compilerVersion})`,
+	`extractor: ${status.scope.extractor.id} ${status.scope.extractor.version} (compiler ${status.scope.extractor.compilerVersion}; declared ${status.scope.extractor.declaredCompilerVersion ?? 'unknown'}${status.scope.extractor.compilerDrift ? '; drift' : ''})`,
 	`files: ${status.counts.files}`,
 	`symbols: ${status.counts.symbols}`,
 	`occurrences: ${status.counts.occurrences}`,
