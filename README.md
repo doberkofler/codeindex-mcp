@@ -123,17 +123,35 @@ codeindex-cli mcp install \
   --codeindex-config codeindex.config.json
 ```
 
-This writes `mcp.servers.codeindex-<extractor>` to the existing project OpenCode
-configuration, or creates `.opencode/opencode.jsonc`. Reconnect the MCP server
-after installation or an upgrade.
+This writes exactly one `mcp.servers.codeindex` entry to the existing project
+OpenCode configuration, or creates `.opencode/opencode.jsonc`. The key does not
+change with the configured adapters. Reconnect the MCP server after installation
+or an upgrade.
 
-Remove only that generated server entry with:
+Older releases registered one key per adapter, such as `codeindex-oracle`.
+`mcp install` refuses to write while such legacy keys remain. When the registered
+command proves CodeIndex created the entry for this configuration, migrate it:
+
+```bash
+codeindex-cli mcp install \
+  --root . \
+  --codeindex-config codeindex.config.json \
+  --migrate-legacy
+```
+
+Migration never removes an entry whose command and arguments differ from what
+this invocation would write; remove or rename those entries manually.
+
+Remove only the canonical server entry with:
 
 ```bash
 codeindex-cli mcp uninstall \
   --root . \
   --codeindex-config codeindex.config.json
 ```
+
+Add `--legacy` to remove legacy entries whose command proves CodeIndex created
+them for this configuration.
 
 `--config` on the `mcp` subcommand selects the OpenCode configuration to edit;
 `--codeindex-config` selects the configuration passed to CodeIndex.
@@ -146,7 +164,7 @@ Configure a local stdio server whose working directory is the indexed workspace:
 {
 	"mcp": {
 		"servers": {
-			"codeindex-typescript": {
+			"codeindex": {
 				"type": "local",
 				"command": [
 					"codeindex-mcp",

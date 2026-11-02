@@ -399,6 +399,16 @@ Operational commands disable continuous watching and perform one explicit action
 Benchmark and qualification commands reuse the same production seams rather than
 maintaining a second index implementation.
 
+`mcp install` and `mcp uninstall` manage one project-local OpenCode entry named
+`codeindex`, independent of the configured adapter set. The entry preserves
+unrelated JSONC content. Releases before multi-adapter support registered one key
+per adapter (`codeindex-<extractor.id>`); install refuses to write while those
+legacy keys exist. Migration removes a legacy entry only when its registered
+command and arguments equal the command this invocation would write, so an entry
+CodeIndex cannot prove it created must be resolved manually. Uninstall removes
+only the canonical key unless `--legacy` explicitly requests provable legacy
+cleanup.
+
 ### Console
 
 `codeindex-console` exposes a small management API and bundled frontend on

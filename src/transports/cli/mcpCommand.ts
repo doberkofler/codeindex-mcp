@@ -2,11 +2,11 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {applyEdits, type JSONPath, type ParseError, modify, parse} from 'jsonc-parser';
 import {z} from 'zod';
-import {extractorIdOfConfig} from '../../core/config/config.ts';
 
 const {dirname, relative, resolve, sep} = path;
 
-const SERVER_NAME_PREFIX = 'codeindex';
+const SERVER_NAME = 'codeindex';
+const LEGACY_SERVER_PREFIX = `${SERVER_NAME}-`;
 // jsonc-parser deletes a property when the value is undefined; avoid an explicit
 // undefined literal to satisfy the lint policy.
 const REMOVE: unknown = new Map<string, unknown>().get('missing');
@@ -37,21 +37,26 @@ export type McpCommandOptionsType = Readonly<{
 const usage = `Usage: cli mcp <install|uninstall> [options]
 
 Adds or removes the local code-index MCP server in the project OpenCode config.
+The server key is always "codeindex", regardless of the configured adapters.
 
-The server key is derived from the configured adapter:
-  codeindex-typescript       when no CodeIndex configuration selects one
-  codeindex-<extractor.id>   otherwise (for example codeindex-oracle)
+Older releases registered one key per adapter (for example codeindex-oracle).
+Install refuses to write while such legacy keys remain. Use --migrate-legacy to
+remove the entries whose command proves CodeIndex created them for this
+configuration; remove or rename any other legacy entry manually.
 
 Options:
   --root <path>              Project root that contains the OpenCode config (default ".").
   --config <path>            Explicit OpenCode config path, relative to the root.
   --codeindex-config <path>  CodeIndex configuration passed to the server.
   --mcp-path <path>          MCP bundle to register, relative to the root.
+  --migrate-legacy           Install: remove provable legacy keys before writing codeindex.
+  --legacy                   Uninstall: also remove provable legacy keys.
   --json                     Print a machine-readable result.
   --help                     Print this message.
 
 --config selects the OpenCode configuration file to edit. To make the installed
-server use a CodeIndex configuration file, pass --codeindex-config.
+server use a CodeIndex configuration file, pass --codeindex-config. Legacy proof
+compares the registered command with the one this invocation would write.
 `;
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -72,15 +77,18 @@ const parseJsonc = (text: string, configPath: string): Record<string, unknown> =
 	return parsed;
 };
 
-const serverAt = (config: Readonly<Record<string, unknown>>, serverName: string): unknown => {
+const isStringArray = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+const serversAt = (config: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> | undefined => {
 	const {mcp} = config;
 
-	if (!isObject(mcp) || !isObject(mcp['servers'])) {
-		return undefined;
-	}
-
-	return mcp['servers'][serverName];
+	return isObject(mcp) && isObject(mcp['servers']) ? mcp['servers'] : undefined;
 };
+
+const serverAt = (config: Readonly<Record<string, unknown>>, serverName: string): unknown => serversAt(config)?.[serverName];
+
+const legacyServerNames = (config: Readonly<Record<string, unknown>>): readonly string[] =>
+	Object.keys(serversAt(config) ?? {}).filter((serverName) => serverName.startsWith(LEGACY_SERVER_PREFIX));
 
 const applyPath = (text: string, keyPath: JSONPath, value: unknown): string => applyEdits(text, modify(text, keyPath, value, {formattingOptions: FORMATTING}));
 
@@ -139,59 +147,105 @@ const relativeInsideRoot = (root: string, filePath: string, option: string): str
 	return inside.split(sep).join('/');
 };
 
-// The server name is derived from the adapter so two instances (for example
-// TypeScript and Oracle) can coexist without manual renaming.
-const serverNameOf = (root: string, codeIndexConfig: string | undefined): string => {
-	const configPath = codeIndexConfig === undefined ? undefined : resolve(root, relativeInsideRoot(root, codeIndexConfig, '--codeindex-config'));
+const codeIndexConfigPathOf = (root: string, codeIndexConfig: string | undefined): string | undefined => {
+	if (codeIndexConfig === undefined) {
+		return undefined;
+	}
 
-	if (configPath !== undefined && !existsSync(configPath)) {
+	const relativePath = relativeInsideRoot(root, codeIndexConfig, '--codeindex-config');
+
+	if (!existsSync(resolve(root, relativePath))) {
 		throw new Error(`CodeIndex configuration not found: ${codeIndexConfig}`);
 	}
 
-	return `${SERVER_NAME_PREFIX}-${extractorIdOfConfig(configPath)}`;
+	return relativePath;
 };
 
-const serverEntry = (root: string, mcpPath: string, codeIndexConfig: string | undefined): Readonly<Record<string, unknown>> => {
+const serverCommandOf = (root: string, mcpPath: string, codeIndexConfig: string | undefined): readonly string[] => {
 	const command = ['node', commandPathOf(root, mcpPath)];
 
 	if (codeIndexConfig !== undefined) {
-		command.push('--config', relativeInsideRoot(root, codeIndexConfig, '--codeindex-config'));
+		command.push('--config', codeIndexConfig);
 	}
 
-	return {type: 'local', command};
+	return command;
 };
+
+const serverEntryOf = (command: readonly string[]): Readonly<Record<string, unknown>> => ({type: 'local', command: [...command]});
+
+// A legacy entry is provable only when its registered command equals the one
+// this invocation would write; extra properties do not weaken that proof.
+const isProvenLegacy = (entry: unknown, command: readonly string[]): boolean => {
+	if (!isObject(entry) || entry['type'] !== 'local') {
+		return false;
+	}
+
+	const registered = entry['command'];
+
+	return isStringArray(registered) && registered.length === command.length && registered.every((argument, index) => argument === command[index]);
+};
+
+const unresolvedLegacyMessage = (names: readonly string[]): string =>
+	`Cannot prove these legacy CodeIndex MCP servers were created for this configuration: ${names.join(', ')}. Remove or rename them manually before installing codeindex.`;
 
 const readConfig = (configPath: string): string => (existsSync(configPath) ? readFileSync(configPath, 'utf8') : '{\n}\n');
 
-const install = (input: InputType, configPath: string, serverName: string): string => {
+type InstallResultType = Readonly<{text: string; migrated: readonly string[]}>;
+
+const install = (input: InputType, configPath: string, command: readonly string[], migrateLegacy: boolean): InstallResultType => {
 	if (!existsSync(input.mcpPath)) {
 		throw new Error(`MCP bundle not found: ${input.mcpPath}. Run "pnpm build" first.`);
 	}
 
-	let text = readConfig(configPath);
-	parseJsonc(text, configPath);
-	text = applyPath(text, ['mcp', 'servers', serverName], serverEntry(input.root, input.mcpPath, input.codeIndexConfig));
-	parseJsonc(text, configPath);
-	return text;
+	const text = readConfig(configPath);
+	const config = parseJsonc(text, configPath);
+	const legacy = legacyServerNames(config);
+
+	if (legacy.length > 0 && !migrateLegacy) {
+		throw new Error(
+			`Legacy CodeIndex MCP servers are configured for this workspace: ${legacy.join(', ')}. Run "mcp install --migrate-legacy" to remove provable entries, or remove or rename them manually before installing codeindex.`,
+		);
+	}
+
+	const unproven = legacy.filter((serverName) => !isProvenLegacy(serverAt(config, serverName), command));
+
+	if (unproven.length > 0) {
+		throw new Error(unresolvedLegacyMessage(unproven));
+	}
+
+	let next = text;
+
+	for (const serverName of legacy) {
+		next = applyPath(next, ['mcp', 'servers', serverName], REMOVE);
+	}
+
+	next = applyPath(next, ['mcp', 'servers', SERVER_NAME], serverEntryOf(command));
+	parseJsonc(next, configPath);
+	return {text: next, migrated: legacy};
 };
+
+type UninstallResultType = Readonly<{text: string; changed: boolean; removedCanonical: boolean; removedLegacy: readonly string[]}>;
 
 // The config carries no provenance marker, so install never writes `$schema`:
 // uninstall could not distinguish a hint it added from one the user chose.
-const uninstall = (configPath: string, serverName: string): Readonly<{text: string; removed: boolean}> => {
+const uninstall = (configPath: string, command: readonly string[], legacy: boolean): UninstallResultType => {
 	if (!existsSync(configPath)) {
-		return {text: '', removed: false};
+		return {text: '', changed: false, removedCanonical: false, removedLegacy: []};
 	}
 
 	const text = readFileSync(configPath, 'utf8');
 	const config = parseJsonc(text, configPath);
+	const removedLegacy = legacy ? legacyServerNames(config).filter((serverName) => isProvenLegacy(serverAt(config, serverName), command)) : [];
+	const removedCanonical = serverAt(config, SERVER_NAME) !== undefined;
 
-	if (serverAt(config, serverName) === undefined) {
-		return {text, removed: false};
+	if (!removedCanonical && removedLegacy.length === 0) {
+		return {text, changed: false, removedCanonical: false, removedLegacy: []};
 	}
 
-	const cleaned = removeEmptyAncestors(applyPath(text, ['mcp', 'servers', serverName], REMOVE));
+	const names = removedCanonical ? [SERVER_NAME, ...removedLegacy] : removedLegacy;
+	const cleaned = removeEmptyAncestors(names.reduce((current, serverName) => applyPath(current, ['mcp', 'servers', serverName], REMOVE), text));
 	parseJsonc(cleaned, configPath);
-	return {text: cleaned, removed: true};
+	return {text: cleaned, changed: true, removedCanonical, removedLegacy};
 };
 
 const parseOptions = (argv: readonly string[]): Record<string, unknown> => {
@@ -204,6 +258,10 @@ const parseOptions = (argv: readonly string[]): Record<string, unknown> => {
 			options['json'] = true;
 		} else if (argument === '--help' || argument === '-h') {
 			options['help'] = true;
+		} else if (argument === '--migrate-legacy') {
+			options['migrateLegacy'] = true;
+		} else if (argument === '--legacy') {
+			options['legacy'] = true;
 		} else if (argument === '--root' || argument === '--config' || argument === '--codeindex-config' || argument === '--mcp-path') {
 			const value = argv.at(index + 1);
 
@@ -222,11 +280,69 @@ const parseOptions = (argv: readonly string[]): Record<string, unknown> => {
 	return options;
 };
 
+const CliOptionsSchema = z.object({
+	root: z.string().default('.'),
+	config: z.string().optional(),
+	codeIndexConfig: z.string().optional(),
+	mcpPath: z.string().optional(),
+	json: z.boolean().default(false),
+	help: z.boolean().default(false),
+	migrateLegacy: z.boolean().default(false),
+	legacy: z.boolean().default(false),
+});
+
+type CliOptionsType = z.infer<typeof CliOptionsSchema>;
+
+const assertActionFlags = (action: InputType['action'], options: Pick<CliOptionsType, 'legacy' | 'migrateLegacy'>): void => {
+	if (action === 'install' && options.legacy) {
+		throw new Error('--legacy is only valid with "mcp uninstall"');
+	}
+
+	if (action === 'uninstall' && options.migrateLegacy) {
+		throw new Error('--migrate-legacy is only valid with "mcp install"');
+	}
+};
+
+type ActionOutcomeType = Readonly<{
+	changed: boolean;
+	text: string;
+	removedCanonical: boolean;
+	removedLegacy: readonly string[];
+}>;
+
+const applyAction = (
+	action: InputType['action'],
+	input: InputType,
+	configPath: string,
+	options: Pick<CliOptionsType, 'legacy' | 'migrateLegacy'>,
+): ActionOutcomeType => {
+	const command = serverCommandOf(input.root, input.mcpPath, codeIndexConfigPathOf(input.root, input.codeIndexConfig));
+
+	if (action === 'install') {
+		const result = install(input, configPath, command, options.migrateLegacy);
+		return {changed: true, text: result.text, removedCanonical: false, removedLegacy: result.migrated};
+	}
+
+	return uninstall(configPath, command, options.legacy);
+};
+
+const removalMessage = (removedCanonical: boolean, removedLegacy: readonly string[], relativePath: string): string => {
+	if (removedLegacy.length > 0) {
+		return removedCanonical
+			? `Removed codeindex MCP server and legacy ${removedLegacy.join(', ')} from ${relativePath}`
+			: `Removed legacy CodeIndex MCP servers ${removedLegacy.join(', ')} from ${relativePath}`;
+	}
+
+	return removedCanonical ? `Removed codeindex MCP server from ${relativePath}` : `codeindex MCP server is not configured in ${relativePath}`;
+};
+
 /**
  * Installs or removes the project-local code-index MCP server.
  *
- * The command updates only `mcp.servers.codeindex-<extractor>` and preserves
- * unrelated OpenCode configuration, comments, and formatting where possible.
+ * The command updates only `mcp.servers.codeindex` and preserves unrelated
+ * OpenCode configuration, comments, and formatting where possible. Legacy
+ * `codeindex-*` entries are removed only when their command proves CodeIndex
+ * created them for this configuration.
  *
  * @param argv - Arguments after the `mcp` command.
  * @param io - Output sinks.
@@ -247,57 +363,44 @@ export const runMcpCommand = (argv: readonly string[], io: McpCommandIoType, opt
 	}
 
 	try {
-		const cliOptions = z
-			.object({
-				root: z.string().default('.'),
-				config: z.string().optional(),
-				codeIndexConfig: z.string().optional(),
-				mcpPath: z.string().optional(),
-				json: z.boolean().default(false),
-				help: z.boolean().default(false),
-			})
-			.parse(parseOptions(rest));
+		const cliOptions = CliOptionsSchema.parse(parseOptions(rest));
+		const {help, json, legacy, migrateLegacy, mcpPath: cliMcpPath, root} = cliOptions;
 
-		if (cliOptions.help) {
+		if (help) {
 			io.stdout(usage.trimEnd());
 			return 0;
 		}
 
+		assertActionFlags(action, {legacy, migrateLegacy});
+
 		const input = InputSchema.parse({
 			...cliOptions,
 			action,
-			mcpPath: cliOptions.mcpPath === undefined ? options.mcpPath : resolve(cliOptions.root, cliOptions.mcpPath),
+			mcpPath: cliMcpPath === undefined ? options.mcpPath : resolve(root, cliMcpPath),
 		});
-
 		const configPath = configPathOf(input);
 		const relativePath = relative(resolve(input.root), configPath).split(sep).join('/');
-		const serverName = serverNameOf(input.root, input.codeIndexConfig);
-		let changed = false;
-		let text = '';
+		const outcome = applyAction(action, input, configPath, {legacy, migrateLegacy});
 
-		if (action === 'install') {
-			text = install(input, configPath, serverName);
-			changed = true;
-		} else {
-			const {text: nextText, removed} = uninstall(configPath, serverName);
-			text = nextText;
-			changed = removed;
-		}
-
-		if (changed) {
+		if (outcome.changed) {
 			mkdirSync(dirname(configPath), {recursive: true});
-			writeFileSync(configPath, text, {encoding: 'utf8'});
+			writeFileSync(configPath, outcome.text, {encoding: 'utf8'});
 		}
 
+		const legacyNote = outcome.removedLegacy.length > 0 ? ` (removed legacy ${outcome.removedLegacy.join(', ')})` : '';
 		const message =
 			action === 'install'
-				? `Installed ${serverName} MCP server in ${relativePath}`
-				: changed
-					? `Removed ${serverName} MCP server from ${relativePath}`
-					: `${serverName} MCP server is not configured in ${relativePath}`;
+				? `Installed ${SERVER_NAME} MCP server in ${relativePath}${legacyNote}`
+				: removalMessage(outcome.removedCanonical, outcome.removedLegacy, relativePath);
 
-		if (cliOptions.json) {
-			io.stdout(JSON.stringify({configPath: relativePath, installed: action === 'install', changed, server: serverName}, null, 2));
+		if (json) {
+			io.stdout(
+				JSON.stringify(
+					{configPath: relativePath, installed: action === 'install', changed: outcome.changed, server: SERVER_NAME, removedLegacy: outcome.removedLegacy},
+					null,
+					2,
+				),
+			);
 		} else {
 			io.stdout(message);
 		}

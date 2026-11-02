@@ -406,7 +406,7 @@ describe('console service job failures and retention', () => {
 		const job = await execute(consoleService, 'mcp-install');
 
 		expect(doubles.runMcpCommand).toHaveBeenCalledWith(
-			['install', '--root', config.rootDir, '--json'],
+			['install', '--root', config.rootDir, '--json', '--migrate-legacy'],
 			expect.objectContaining({stdout: expect.any(Function), stderr: expect.any(Function)}),
 			{mcpPath: '/app/mcp.mjs'},
 		);

@@ -4,7 +4,7 @@ import {z} from 'zod';
 import {debugFor} from '../logging/debug.ts';
 import {type AdapterConfigType, type ConfigType, type ProjectContextConfigType} from './adapterConfig.ts';
 import {resolveAdapters} from './adapterResolution.ts';
-import {DEFAULT_EXTRACTOR_ID, assertFile, createStorageKey, fail, indexRootDirectory, isInside} from './configSupport.ts';
+import {assertFile, createStorageKey, fail, indexRootDirectory, isInside} from './configSupport.ts';
 
 const {basename, dirname, isAbsolute, join, relative, resolve, sep} = path;
 const debug = debugFor('config');
@@ -126,23 +126,6 @@ const parseConfigFile = (configPath: string, label: string): FileConfigType => {
 	}
 
 	return result.data;
-};
-
-/**
- * Reads the first configured extractor from a CodeIndex configuration file.
- *
- * @param configPath - Absolute configuration path, or undefined when none is configured.
- * @returns The configured extractor identifier, or the default extractor.
- * @throws {@link Error} When the file is missing, is not valid JSON, or fails validation.
- */
-export const extractorIdOfConfig = (configPath: string | undefined): string => {
-	if (configPath === undefined) {
-		return DEFAULT_EXTRACTOR_ID;
-	}
-
-	const file = parseConfigFile(configPath, 'CodeIndex configuration');
-
-	return file.extractors?.[0]?.id ?? file.extractor?.id ?? DEFAULT_EXTRACTOR_ID;
 };
 
 const canonicalisePath = (rawRootDir: string, realRootDir: string, candidatePath: string): string => {

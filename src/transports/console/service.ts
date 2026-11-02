@@ -263,7 +263,7 @@ export class ConsoleService {
 
 		const output: string[] = [];
 		const code = runMcpCommand(
-			['install', '--root', this.#config.rootDir, '--json'],
+			['install', '--root', this.#config.rootDir, '--json', '--migrate-legacy'],
 			{
 				stdout: (line) => {
 					output.push(line);
