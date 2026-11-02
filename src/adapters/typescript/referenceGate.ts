@@ -3,10 +3,23 @@ import {REFERENCE_CONSTRUCT_QUOTA, REFERENCE_CONSTRUCT_TAGS, type ReferenceConst
 import {REFERENCE_SAMPLE_TARGET} from './referenceSampling.ts';
 
 const GATE_MIN_SAMPLES = REFERENCE_SAMPLE_TARGET;
-const GATE_MIN_RECALL = 0.995;
 const GATE_PRECISION = 1;
 
 export type ReferenceSkipReasonType = 'declaration_not_located' | 'reference_lookup_failed' | 'definition_outside_authored_files';
+
+/**
+ * Conservation class for one truth location absent from the tested partition.
+ *
+ * A location can be legitimately absent from one symbol's occurrence list while
+ * still being stored under another symbol, or classified as an external or
+ * namespace binding. Only `unexplained` is a correctness failure.
+ */
+export type ReferenceUnmatchedClassType = 'stored_reference' | 'stored_definition' | 'direct_external' | 'namespace_import' | 'unexplained';
+
+export type ReferenceUnmatchedLocationType = Readonly<{
+	readonly location: ReferenceLocationType;
+	readonly classification: ReferenceUnmatchedClassType;
+}>;
 
 export type ReferenceComparisonType = Readonly<{
 	readonly symbolId: string;
@@ -18,9 +31,34 @@ export type ReferenceComparisonType = Readonly<{
 	readonly actualCount: number;
 	readonly matchedCount: number;
 	readonly expectedReferenceCount: number;
+	/** Every language-service location, retained as raw evidence. */
+	readonly expectedLocations: readonly ReferenceLocationType[];
+	/** Every persisted occurrence returned through paginated `find_references`. */
+	readonly actualLocations: readonly ReferenceLocationType[];
 	readonly missing: readonly ReferenceLocationType[];
 	readonly extra: readonly ReferenceLocationType[];
+	readonly unmatched: readonly ReferenceUnmatchedLocationType[];
 	readonly skip: ReferenceSkipReasonType | null;
+}>;
+
+type ReferenceAliasGroupCoverageType = Readonly<{
+	/** Truth locations over every verified comparison. */
+	readonly expected: number;
+	/** Truth locations matched inside the tested partition. */
+	readonly matched: number;
+	/** Truth locations stored under a sibling symbol. */
+	readonly sibling: number;
+	/** Truth locations explained as direct external or namespace bindings. */
+	readonly directExternal: number;
+	readonly namespaceImport: number;
+	readonly unexplained: number;
+	/**
+	 * Coverage of the union partition: matched plus sibling-stored locations
+	 * divided by all truth locations. External and namespace classifications are
+	 * reported beside this ratio, never added to it. This is deliberately not
+	 * extraction recall and is never presented as a complement to a partition.
+	 */
+	readonly ratio: number;
 }>;
 
 type ReferenceSkipType = Readonly<{
@@ -48,8 +86,19 @@ export type ReferenceAccuracyType = Readonly<{
 	readonly matched: number;
 	readonly missing: number;
 	readonly extra: number;
+	/** Occurrence-level recall against the default one-symbol partition. */
 	readonly recall: number;
+	/** Explicit micro-recall name for new consumers. */
+	readonly microRecall: number;
+	/** Mean per-symbol recall; symbols with no truth locations are excluded. */
+	readonly macroRecall: number;
 	readonly precision: number;
+	readonly unexplained: number;
+	readonly storedReference: number;
+	readonly storedDefinition: number;
+	readonly directExternal: number;
+	readonly namespaceImport: number;
+	readonly aliasGroupCoverage: ReferenceAliasGroupCoverageType;
 }>;
 
 type ReferenceGateFailureKindType =
@@ -59,7 +108,7 @@ type ReferenceGateFailureKindType =
 	| 'missing_construct'
 	| 'unreferenced_construct'
 	| 'unclassified_mismatch'
-	| 'recall_below_target'
+	| 'unexplained_truth'
 	| 'precision_below_target';
 
 type ReferenceGateFailureType = Readonly<{
@@ -70,12 +119,22 @@ type ReferenceGateFailureType = Readonly<{
 export type ReferenceGateResultType = Readonly<{
 	readonly ok: boolean;
 	readonly failures: readonly ReferenceGateFailureType[];
-	readonly targets: Readonly<{readonly samples: number; readonly recall: number; readonly precision: number}>;
+	readonly targets: Readonly<{readonly samples: number; readonly precision: number}>;
+}>;
+
+export type ReferencePersistenceType = Readonly<{
+	/** Page size requested from the persisted `find_references` query. */
+	readonly pageLimit: number;
+	/** Pages consumed across every verified symbol. */
+	readonly pages: number;
+	/** Symbols read back through the persisted query. */
+	readonly symbols: number;
 }>;
 
 export type ReferenceVerificationFactsType = Readonly<{
 	readonly coverage: ReferenceCoverageType;
 	readonly accuracy: ReferenceAccuracyType;
+	readonly persistence: ReferencePersistenceType;
 	readonly comparisons: readonly ReferenceComparisonType[];
 }>;
 
@@ -148,8 +207,20 @@ export const evaluateReferenceGate = (report: ReferenceVerificationFactsType): R
 		);
 	}
 
-	if (report.accuracy.recall < GATE_MIN_RECALL) {
-		failures.push(gateFailure('recall_below_target', `recall ${String(report.accuracy.recall)} is below ${String(GATE_MIN_RECALL)}`));
+	if (report.accuracy.unexplained > 0) {
+		const unexplained = report.comparisons
+			.flatMap((comparison) => comparison.unmatched)
+			.filter((entry) => entry.classification === 'unexplained')
+			.slice(0, 10);
+
+		failures.push(
+			gateFailure(
+				'unexplained_truth',
+				`${String(report.accuracy.unexplained)} truth locations are unexplained: ${unexplained
+					.map((entry) => `${entry.location.path}:${String(entry.location.startOffset)}:${entry.location.role}`)
+					.join('; ')}`,
+			),
+		);
 	}
 
 	if (report.accuracy.precision !== GATE_PRECISION) {
@@ -159,6 +230,6 @@ export const evaluateReferenceGate = (report: ReferenceVerificationFactsType): R
 	return {
 		ok: failures.length === 0,
 		failures,
-		targets: {samples: GATE_MIN_SAMPLES, recall: GATE_MIN_RECALL, precision: GATE_PRECISION},
+		targets: {samples: GATE_MIN_SAMPLES, precision: GATE_PRECISION},
 	};
 };

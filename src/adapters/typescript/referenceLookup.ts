@@ -80,7 +80,12 @@ export const createLanguageService = (config: ConfigType, program: ts.Program): 
 		getScriptVersion: () => '0',
 		getScriptSnapshot: (fileName) => {
 			const text = ts.sys.readFile(fileName);
-			return text === undefined ? undefined : ts.ScriptSnapshot.fromString(text);
+
+			if (text === undefined) {
+				throw new Error(`Language Service source is unavailable: ${fileName}`);
+			}
+
+			return ts.ScriptSnapshot.fromString(text);
 		},
 		getCurrentDirectory: () => config.rootDir,
 		getCompilationSettings: () => options,
@@ -150,6 +155,7 @@ const symbolIdentity = (checker: ts.TypeChecker, symbol: ts.Symbol): string => {
 const collectGroupLocations = (
 	input: Readonly<{
 		config: ConfigType;
+		program: ts.Program;
 		checker: ts.TypeChecker;
 		constructs: ReferenceConstructIndexType;
 		group: ts.ReferencedSymbol;
@@ -160,6 +166,13 @@ const collectGroupLocations = (
 	}>,
 ): void => {
 	const add = (fileName: string, span: ts.TextSpan): void => {
+		// A language-service location must belong to the Program that produced
+		// it. A missing file means the service and the compiler disagreed about
+		// the project, so the comparison is invalid rather than merely incomplete.
+		if (input.program.getSourceFile(fileName) === undefined) {
+			throw new Error(`Language Service reference file is absent from the Program: ${fileName}`);
+		}
+
 		const relativePath = toLocationPath(input.config.rootDir, fileName);
 
 		if (relativePath === null || !input.authoredPaths.has(relativePath)) {
@@ -214,6 +227,7 @@ export const lookupReferences = (
 		checker: ts.TypeChecker;
 		service: ts.LanguageService;
 		constructs: ReferenceConstructIndexType;
+		program: ts.Program;
 		symbol: IndexedSymbolType;
 		located: LocatedDeclarationType;
 		authoredPaths: ReadonlySet<string>;
@@ -234,7 +248,13 @@ export const lookupReferences = (
 	const definitions = canonicalDefinitions(input.checker, input.located, input.config.rootDir).filter((definition) => input.authoredPaths.has(definition.path));
 	const definitionKeys = new Set(definitions.map((definition) => referenceLocationKey(definition)));
 	const sourceFile = input.located.nameNode.getSourceFile();
-	const groups = input.service.findReferences(sourceFile.fileName, input.located.nameNode.getStart(sourceFile));
+	let groups: readonly ts.ReferencedSymbol[] | undefined;
+
+	try {
+		groups = input.service.findReferences(sourceFile.fileName, input.located.nameNode.getStart(sourceFile));
+	} catch (error) {
+		throw new Error(`Language Service reference lookup failed for ${input.symbol.path}:${String(input.symbol.startOffset)}`, {cause: error});
+	}
 
 	if (groups === undefined || groups.length === 0) {
 		return {skip: 'reference_lookup_failed'};
@@ -246,6 +266,7 @@ export const lookupReferences = (
 	for (const group of groups) {
 		collectGroupLocations({
 			config: input.config,
+			program: input.program,
 			checker: input.checker,
 			constructs: input.constructs,
 			group,

@@ -75,6 +75,7 @@
 		"format:check": "oxfmt --check",
 		"test": "vitest run",
 		"index:verify": "node dist/cli.mjs verify",
+		"verify:references": "node --experimental-strip-types scripts/verifyReferences.ts",
 		"verify": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run format:check && pnpm run test",
 		"verify:pr": "node scripts/run-test-workflow.mjs verify:pr",
 		"verify:release": "pnpm run verify && pnpm run build && node scripts/check-release-version.mjs"

@@ -15,6 +15,7 @@ import {
 	type ReferenceCoverageType,
 	type ReferenceVerificationFactsType,
 } from '../src/adapters/typescript/referenceGate.ts';
+import {classifyUnmatchedLocation, createStoredLocationIndex} from '../src/adapters/typescript/referenceClassification.ts';
 import {verifyTypeScriptReferences} from '../src/adapters/typescript/verifyReferences.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 import {REFERENCE_CORPUS_MANIFEST} from './helpers/referenceCorpus.ts';
@@ -74,7 +75,15 @@ const accuracy = (input: Partial<ReferenceAccuracyType> = {}): ReferenceAccuracy
 	missing: 0,
 	extra: 0,
 	recall: 1,
+	microRecall: 1,
+	macroRecall: 1,
 	precision: 1,
+	unexplained: 0,
+	storedReference: 0,
+	storedDefinition: 0,
+	directExternal: 0,
+	namespaceImport: 0,
+	aliasGroupCoverage: {expected: 1000, matched: 1000, sibling: 0, directExternal: 0, namespaceImport: 0, unexplained: 0, ratio: 1},
 	...input,
 });
 
@@ -87,6 +96,7 @@ const facts = (
 ): ReferenceVerificationFactsType => ({
 	coverage: input.coverage ?? coverage(),
 	accuracy: input.accuracy ?? accuracy(),
+	persistence: {pageLimit: 3, pages: 1, symbols: 1},
 	comparisons: input.comparisons ?? [],
 });
 
@@ -208,8 +218,11 @@ describe('reference gate', () => {
 						actualCount: 1,
 						matchedCount: 1,
 						expectedReferenceCount: 1,
+						expectedLocations: [location({role: 'definition'}), location()],
+						actualLocations: [location({role: 'definition'})],
 						missing: [location()],
 						extra: [],
+						unmatched: [{location: location(), classification: 'unexplained'}],
 						skip: null,
 					},
 				],
@@ -219,12 +232,12 @@ describe('reference gate', () => {
 		expect(result.failures.map((failure) => failure.kind)).toContain('unclassified_mismatch');
 	});
 
-	it('uses raw recall, not a rounded value', () => {
-		const justBelow = evaluateReferenceGate(facts({accuracy: accuracy({recall: 0.995 - Number.EPSILON})}));
-		const atThreshold = evaluateReferenceGate(facts({accuracy: accuracy({recall: 0.995})}));
+	it('fails on one unexplained truth location even when micro recall is high', () => {
+		const explained = evaluateReferenceGate(facts({accuracy: accuracy({unexplained: 0})}));
+		const unexplained = evaluateReferenceGate(facts({accuracy: accuracy({unexplained: 1})}));
 
-		expect(justBelow.failures.map((failure) => failure.kind)).toContain('recall_below_target');
-		expect(atThreshold.ok).toBe(true);
+		expect(explained.failures.map((failure) => failure.kind)).not.toContain('unexplained_truth');
+		expect(unexplained.failures.map((failure) => failure.kind)).toContain('unexplained_truth');
 	});
 
 	it('requires exact precision', () => {
@@ -267,6 +280,123 @@ describe('reference edge cases', () => {
 	});
 });
 
+describe('production context union', () => {
+	it('merges every configured context and imported authored file', () => {
+		const fixture = createFixtureConfig('multi-project', [
+			{name: 'client', project: 'tsconfig.json'},
+			{name: 'contracts', project: 'contracts/tsconfig.json'},
+			{name: 'server', project: 'server/tsconfig.json'},
+		]);
+
+		try {
+			const report = verifyTypeScriptReferences(fixture.config);
+			const names = report.comparisons.map((comparison) => comparison.name);
+
+			expect(report.coverage.unlocatedSymbols).toBe(0);
+			expect(report.accuracy.unexplained).toBe(0);
+			expect(report.coverage.skipped).toStrictEqual([]);
+			expect(names).toContain('handleRequest');
+			expect(names).toContain('ServiceRequest');
+			expect(report.persistence.pages).toBeGreaterThan(0);
+			expect(report.persistence.symbols).toBe(report.coverage.sampledSymbols);
+
+			for (const comparison of report.comparisons) {
+				expect(comparison.expectedLocations).toHaveLength(comparison.expectedCount);
+				expect(comparison.actualLocations).toHaveLength(comparison.actualCount);
+				expect(comparison.unmatched).toHaveLength(comparison.missing.length);
+			}
+		} finally {
+			fixture.cleanup();
+		}
+	});
+});
+
+describe('reference unmatched conservation', () => {
+	it('distinguishes stored partitions, external syntax, and unexplained gaps', () => {
+		const stored = createStoredLocationIndex([
+			{
+				symbolId: 'symbol-2',
+				path: 'src/a.ts',
+				startLine: 1,
+				startColumn: 1,
+				endLine: 1,
+				endColumn: 6,
+				startOffset: 10,
+				endOffset: 20,
+				role: 'reference',
+				enclosingId: null,
+			},
+			{
+				symbolId: 'symbol-3',
+				path: 'src/a.ts',
+				startLine: 2,
+				startColumn: 1,
+				endLine: 2,
+				endColumn: 6,
+				startOffset: 30,
+				endOffset: 40,
+				role: 'definition',
+				enclosingId: null,
+			},
+		]);
+		const classify = (
+			startOffset: number,
+			syntaxClass: 'direct_external' | 'namespace_import' | null = null,
+			role: 'definition' | 'reference' = 'reference',
+		): string => classifyUnmatchedLocation({location: location({role, startOffset, endOffset: startOffset + 10}), symbolId: 'symbol-1', stored, syntaxClass});
+
+		expect(classify(10)).toBe('stored_reference');
+		expect(classify(30, 'direct_external', 'definition')).toBe('stored_definition');
+		expect(classify(50, 'direct_external')).toBe('direct_external');
+		expect(classify(60, 'namespace_import')).toBe('namespace_import');
+		expect(classify(70)).toBe('unexplained');
+	});
+
+	it('does not excuse a stored range owned by the tested symbol', () => {
+		const stored = createStoredLocationIndex([
+			{
+				symbolId: 'symbol-1',
+				path: 'src/a.ts',
+				startLine: 1,
+				startColumn: 1,
+				endLine: 1,
+				endColumn: 6,
+				startOffset: 10,
+				endOffset: 20,
+				role: 'reference',
+				enclosingId: null,
+			},
+		]);
+
+		expect(classifyUnmatchedLocation({location: location(), symbolId: 'symbol-1', stored, syntaxClass: null})).toBe('unexplained');
+	});
+});
+
+describe('reference truth conservation', () => {
+	it('classifies external and namespace bindings without claiming recall', () => {
+		const fixture = createFixtureConfig('external-reexport');
+
+		try {
+			const report = verifyTypeScriptReferences(fixture.config);
+
+			expect(report.accuracy.unexplained).toBe(0);
+			expect(report.accuracy.directExternal).toBe(0);
+			expect(report.accuracy.namespaceImport).toBe(0);
+			expect(report.accuracy.aliasGroupCoverage.expected).toBe(report.accuracy.expected);
+			expect(report.accuracy.aliasGroupCoverage.ratio).toBeGreaterThanOrEqual(report.accuracy.recall);
+			expect(
+				report.accuracy.unexplained +
+					report.accuracy.storedReference +
+					report.accuracy.storedDefinition +
+					report.accuracy.directExternal +
+					report.accuracy.namespaceImport,
+			).toBe(report.accuracy.missing);
+		} finally {
+			fixture.cleanup();
+		}
+	});
+});
+
 describe('reference corpus', () => {
 	it('passes the production gate with full construct coverage', () => {
 		const fixture = createFixtureConfig('reference-corpus');
@@ -283,6 +413,7 @@ describe('reference corpus', () => {
 			expect(report.accuracy.precision).toBe(1);
 			expect(report.accuracy.missing).toBe(0);
 			expect(report.accuracy.extra).toBe(0);
+			expect(report.persistence.pages).toBeGreaterThan(report.persistence.symbols);
 			expect(report.gate.ok).toBe(true);
 
 			for (const tag of REFERENCE_CORPUS_MANIFEST.requiredTags) {

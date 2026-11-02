@@ -1,4 +1,4 @@
-import {type ConfigType, toRepositoryPath, type ProjectContextConfigType} from '../../core/config/config.ts';
+import {type ConfigType, type ProjectContextConfigType} from '../../core/config/config.ts';
 import {
 	type AdapterStatType,
 	type ExtractedBindingContextType,
@@ -8,12 +8,12 @@ import {
 	type ExtractedSurfaceOriginType,
 } from '../../core/facts/index.ts';
 import {type DiagnosticType, type IndexedOccurrenceType, type IndexedSymbolType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
-import {createCapturedSourceFileRecord} from '../../core/generation/sourceFiles.ts';
 import {type ExtractorBuildType, type ExtractorType} from '../types.ts';
 import {extractDependencyFacts} from './extractDependencies.ts';
 import {extractSymbolFacts} from './extractSymbols.ts';
 import {createTypeScriptInputSnapshot, type TypeScriptInputSnapshotType} from './inputSnapshot.ts';
-import {loadTypeScriptProject, type LoadedProjectType} from './loadProject.ts';
+import {loadTypeScriptProject} from './loadProject.ts';
+import {mergeProjectFiles} from './projectFiles.ts';
 import {
 	collectConfigFiles,
 	isAuthoredSourceFile,
@@ -36,35 +36,6 @@ const LIMITATIONS: readonly string[] = [
 
 const DISCOVERY_TEXT =
 	'The selected TypeScript / JavaScript extractor indexes declarations and references in .ts, .tsx, .mts, .cts, .js, .jsx, .mjs, and .cjs files reachable from the configured TypeScript projects. Search with natural source names such as UserService.loadUser.';
-
-const mergeProjectFiles = (
-	config: ConfigType,
-	scan: ScanResultType,
-	project: LoadedProjectType,
-	snapshot: TypeScriptInputSnapshotType,
-): readonly SourceFileType[] => {
-	const mergedFiles = new Map(scan.files.map((file) => [file.path, file]));
-
-	for (const sourceFile of project.program.getSourceFiles()) {
-		if (!isAuthoredSourceFile(sourceFile.fileName, config.rootDir)) {
-			continue;
-		}
-
-		const path = toRepositoryPath(config.rootDir, sourceFile.fileName);
-
-		if (!mergedFiles.has(path)) {
-			const bytes = snapshot.readBytes(sourceFile.fileName);
-
-			if (bytes === undefined) {
-				throw new Error(`Source disappeared during build: ${path}`);
-			}
-
-			mergedFiles.set(path, createCapturedSourceFileRecord(sourceFile.fileName, config.rootDir, bytes, sourceFile.text));
-		}
-	}
-
-	return [...mergedFiles.values()].sort((left, right) => left.path.localeCompare(right.path));
-};
 
 const occurrenceKey = (occurrence: IndexedOccurrenceType): string =>
 	[occurrence.symbolId, occurrence.path, String(occurrence.startOffset), String(occurrence.endOffset), occurrence.role].join('\u0000');
@@ -212,7 +183,7 @@ const extractContext = (
 	const {projectFilePath} = context;
 	const compilerStartedAt = performance.now();
 	const project = loadTypeScriptProject(config, projectFilePath, snapshot);
-	const files = mergeProjectFiles(config, scan, project, snapshot);
+	const files = mergeProjectFiles(config, scan, project, (absolutePath) => snapshot.readBytes(absolutePath));
 	const compilerMs = Math.round(performance.now() - compilerStartedAt);
 	const facts = extractSymbolFacts({
 		project,

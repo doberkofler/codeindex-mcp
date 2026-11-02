@@ -129,8 +129,17 @@ const comparison = (overrides: Partial<ReferenceComparisonType>): ReferenceCompa
 	actualCount: 2,
 	matchedCount: 2,
 	expectedReferenceCount: 1,
+	expectedLocations: [
+		{path: 'src/user.ts', startOffset: 0, endOffset: 1, role: 'definition'},
+		{path: 'src/user.ts', startOffset: 10, endOffset: 11, role: 'reference'},
+	],
+	actualLocations: [
+		{path: 'src/user.ts', startOffset: 0, endOffset: 1, role: 'definition'},
+		{path: 'src/user.ts', startOffset: 10, endOffset: 11, role: 'reference'},
+	],
 	missing: [],
 	extra: [],
+	unmatched: [],
 	skip: null,
 	...overrides,
 });
@@ -147,13 +156,30 @@ const qualificationReport: ReferenceVerificationReportType = {
 		byTag: {},
 		referencedByTag: {},
 	},
-	accuracy: {expected: 2, actual: 2, matched: 2, missing: 0, extra: 0, recall: 1, precision: 1},
+	accuracy: {
+		expected: 2,
+		actual: 2,
+		matched: 2,
+		missing: 0,
+		extra: 0,
+		recall: 1,
+		microRecall: 1,
+		macroRecall: 1,
+		precision: 1,
+		unexplained: 0,
+		storedReference: 0,
+		storedDefinition: 0,
+		directExternal: 0,
+		namespaceImport: 0,
+		aliasGroupCoverage: {expected: 2, matched: 2, sibling: 0, directExternal: 0, namespaceImport: 0, unexplained: 0, ratio: 1},
+	},
+	persistence: {pageLimit: 3, pages: 1, symbols: 2},
 	comparisons: [
 		comparison({}),
 		comparison({symbolId: 'symbol-2', name: 'missing', missing: [{path: 'src/user.ts', startOffset: 1, endOffset: 2, role: 'reference'}]}),
 		comparison({symbolId: 'symbol-3', name: 'skipped', skip: 'declaration_not_located'}),
 	],
-	gate: {ok: false, failures: [{kind: 'missing_construct', detail: 'missing'}], targets: {samples: 100, recall: 0.98, precision: 0.98}},
+	gate: {ok: false, failures: [{kind: 'missing_construct', detail: 'missing'}], targets: {samples: 100, precision: 0.98}},
 };
 
 const openService = (options: Readonly<{logger?: LoggerType; mcpPath?: string; config?: ConfigType}> = {}): ConsoleService =>
