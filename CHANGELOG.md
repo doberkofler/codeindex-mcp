@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.11.0...v0.12.0) (2026-11-03)
+
+### Added
+
+* **adapters:** load adapters from explicit modules ([#133](https://github.com/doberkofler/codeindex-mcp/issues/133)) ([804b654](https://github.com/doberkofler/codeindex-mcp/commit/804b6540cee18bad952d490c6ab9de8cc2471003))
+* **build:** publish multi-adapter generations ([#123](https://github.com/doberkofler/codeindex-mcp/issues/123)) ([e0d7353](https://github.com/doberkofler/codeindex-mcp/commit/e0d73537a367ffa71d7a7f38102b7fe30b3bd99b))
+* **query:** add multi-adapter status and query addressing ([#125](https://github.com/doberkofler/codeindex-mcp/issues/125)) ([ed85c6f](https://github.com/doberkofler/codeindex-mcp/commit/ed85c6f96efd6219006956739c241c20fdcf5f84))
+* **storage:** make per-adapter provenance authoritative ([#133](https://github.com/doberkofler/codeindex-mcp/issues/133)) ([418cbad](https://github.com/doberkofler/codeindex-mcp/commit/418cbad6b172280e675cb0ae3a466c5a1357f113))
+
+### Fixed
+
+* **adapters:** resolve generated sources under node type stripping ([bdd0e1f](https://github.com/doberkofler/codeindex-mcp/commit/bdd0e1f097d9c0d4d8e760f4a628d392d2bedaed))
+* **build:** attribute adapter failures and reject identity collisions ([#123](https://github.com/doberkofler/codeindex-mcp/issues/123)) ([e7df7ea](https://github.com/doberkofler/codeindex-mcp/commit/e7df7ea9e76c6b9b49895bc3ed1fe344fec9c2e5))
+* **ci:** gate npm publish on job environment ([0f85575](https://github.com/doberkofler/codeindex-mcp/commit/0f85575c8aadfdc4bce65f9020a6b9d124a03d2f))
+* **cli:** register one canonical MCP server key ([#134](https://github.com/doberkofler/codeindex-mcp/issues/134)) ([11f98c1](https://github.com/doberkofler/codeindex-mcp/commit/11f98c1efd7786943ecf4eb120a71f2eebd02dae))
+
+### Changed
+
+* **adapters:** publish official adapters as workspace packages ([#133](https://github.com/doberkofler/codeindex-mcp/issues/133)) ([f32def7](https://github.com/doberkofler/codeindex-mcp/commit/f32def7ef38de5d6a2c6371575ae2f9e67888c49))
+* **qualification:** move Oracle maintainer tooling into its package ([#133](https://github.com/doberkofler/codeindex-mcp/issues/133)) ([65eeef5](https://github.com/doberkofler/codeindex-mcp/commit/65eeef5a2ae1961e6705d2520f34dc631d7a0806))
+
+### Documentation
+
+* **architecture:** reconcile adapter packages and provenance ([#133](https://github.com/doberkofler/codeindex-mcp/issues/133)) ([419bdc0](https://github.com/doberkofler/codeindex-mcp/commit/419bdc02933df9ac3751f0ea1ac5f1db7c4ef1b4))
+
 ## [0.11.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.10.0...v0.11.0) (2026-11-02)
 
 ### Added
