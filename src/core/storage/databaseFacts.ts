@@ -18,6 +18,7 @@ import {
 	type TableWriteType,
 } from './databaseFactRows.ts';
 import {buildStatsOf} from './databaseFactStats.ts';
+import {scopeAdapterFacts} from './factIdentity.ts';
 import {asNumber, asString} from './databaseRows.ts';
 import {transaction} from './databaseTransaction.ts';
 
@@ -295,12 +296,13 @@ const deleteGenerationRows = (writer: DatabaseSync, input: GenerationFactsInputT
  * empty building generation. The caller owns the surrounding transaction.
  *
  * @param writer - Writer connection inside an open transaction.
- * @param input - Files, finalized facts, dependencies, diagnostics, and hashes.
+ * @param rawInput - Files, finalized facts, dependencies, diagnostics, and hashes.
  * @param mode - Building-generation insert or published-generation revision.
  * @returns Persisted row counts, changed paths, and the number of written rows.
  * @throws {@link Error} When the generation state does not match the mode.
  */
-export const writeGenerationFacts = (writer: DatabaseSync, input: GenerationFactsInputType, mode: GenerationFactWriteModeType): GenerationFactWriteType => {
+export const writeGenerationFacts = (writer: DatabaseSync, rawInput: GenerationFactsInputType, mode: GenerationFactWriteModeType): GenerationFactWriteType => {
+	const input = scopeAdapterFacts(rawInput);
 	assertState(writer, input.generationId, mode);
 	const prepared = prepareWrite(writer, input, mode);
 	const counter: RowCounterType = {value: 0};

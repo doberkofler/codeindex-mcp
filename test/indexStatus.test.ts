@@ -9,11 +9,6 @@ import {createFixtureConfig} from './helpers/fixture.ts';
 const generation = (overrides: Partial<GenerationRowType> = {}): GenerationRowType => ({
 	id: 'generation',
 	state: 'published',
-	extractorId: 'typescript',
-	extractorVersion: '1',
-	compilerVersion: '5.0.0',
-	declaredCompilerVersion: '5.0.0',
-	compilerDrift: false,
 	sourceHash: 'source',
 	configHash: 'config',
 	startedAt: '2026-01-01T00:00:00.000Z',
@@ -93,7 +88,7 @@ describe('index status', () => {
 			state: 'published',
 			generationId: 'generation',
 			scope: {
-				extractor: {compilerVersion: '5.0.0'},
+				extractor: {compilerVersion: 'unknown'},
 				workingCopyId: 'working-copy',
 				projects: [{name: 'root', projectFile: fixture.config.projectFilePath}],
 			},
@@ -122,7 +117,7 @@ describe('index status', () => {
 			scope: {
 				projectName: fixture.config.projectName,
 				contexts: ['root'],
-				extractor: {id: 'typescript', compilerVersion: '5.0.0'},
+				extractor: {id: 'typescript', compilerVersion: 'unknown'},
 			},
 			counts: {files: 1, symbols: 2, occurrences: 3, dependencyEdges: 4, dependencyBindings: 5, diagnostics: 6},
 			freshness: {state: 'current', dirtyFileCount: null, staleFiles: 0, sourceChanged: false},

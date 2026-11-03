@@ -58,11 +58,10 @@ const stateOf = (refresh: RefreshCoordinatorSnapshotType, published: GenerationR
 
 const compilerProvenanceOf = (
 	row: GenerationAdapterType | undefined,
-	projection: GenerationRowType | null,
 ): Readonly<{compilerVersion: string; declaredCompilerVersion: string | null; compilerDrift: boolean}> => ({
-	compilerVersion: row?.compilerVersion ?? projection?.compilerVersion ?? 'unknown',
-	declaredCompilerVersion: row?.declaredCompilerVersion ?? projection?.declaredCompilerVersion ?? null,
-	compilerDrift: row?.compilerDrift ?? projection?.compilerDrift ?? false,
+	compilerVersion: row?.compilerVersion ?? 'unknown',
+	declaredCompilerVersion: row?.declaredCompilerVersion ?? null,
+	compilerDrift: row?.compilerDrift ?? false,
 });
 
 const missingCoverageReason = (published: GenerationRowType | null): string =>
@@ -70,24 +69,22 @@ const missingCoverageReason = (published: GenerationRowType | null): string =>
 
 type AdapterStatusInputType = Readonly<{
 	adapter: ReturnType<typeof configuredAdapters>[number];
-	index: number;
 	stored: ReadonlyMap<string, GenerationAdapterType>;
 	published: GenerationRowType | null;
 	loaded: ReadonlyMap<string, AdapterType>;
 }>;
 
 const adapterStatusEntry = (input: AdapterStatusInputType): IndexStatusType['scope']['adapters'][number] => {
-	const {adapter, index, stored, published, loaded} = input;
+	const {adapter, stored, published, loaded} = input;
 	const row = stored.get(adapter.id);
 	const extractor = loaded.get(adapter.id);
-	const projection = row === undefined && index === 0 && published !== null ? published : null;
 
 	return {
 		id: adapter.id,
 		version: row?.adapterVersion ?? extractor?.version ?? 'unknown',
 		coverage: row?.coverage ?? 'absent',
 		absenceReason: row?.absenceReason ?? missingCoverageReason(published),
-		...compilerProvenanceOf(row, projection),
+		...compilerProvenanceOf(row),
 		contexts: adapter.projects.map((project) => project.name),
 		limitations: extractor?.limitations ?? [],
 	};
@@ -103,7 +100,7 @@ const adapterStatusOf = (
 		(published === null ? [] : database.getGenerationAdapters(published.id)).map((adapter) => [adapter.adapterId, adapter]),
 	);
 
-	return configuredAdapters(config).map((adapter, index) => adapterStatusEntry({adapter, index, stored, published, loaded}));
+	return configuredAdapters(config).map((adapter) => adapterStatusEntry({adapter, stored, published, loaded}));
 };
 
 const extractorStatusOf = (adapters: IndexStatusType['scope']['adapters']): NonNullable<IndexStatusType['scope']['extractor']> => {

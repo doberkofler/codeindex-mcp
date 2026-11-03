@@ -1,4 +1,5 @@
 import {type FinalizedFactSetType} from '../facts/types.ts';
+import {type GenerationFactsInputType, type GenerationFactWriteModeType} from './databaseFactTypes.ts';
 import {
 	type DiagnosticType,
 	type IndexedDependencyBindingType,
@@ -28,7 +29,10 @@ export type AdapterCommitCountsType = Readonly<{
  */
 export type AdapterCommitType = Readonly<{
 	readonly adapterId: string;
+	readonly protocolVersion: number;
 	readonly adapterVersion: string;
+	readonly packageName: string | null;
+	readonly packageVersion: string | null;
 	readonly compilerVersion: string;
 	readonly declaredCompilerVersion: string | null;
 	readonly compilerDrift: boolean;
@@ -64,3 +68,51 @@ export type MultiGenerationCommitInputType = Readonly<{
 	/** Building-generation insert or published-generation revision. */
 	readonly mode?: 'insert' | 'revise' | undefined;
 }>;
+
+/** Refresh framing shared by a fact-writing commit and a fact-reuse commit. */
+type GenerationCommitBaseType = Readonly<{
+	/** `insert` creates the first published revision; `revise` updates it in place. */
+	readonly mode: GenerationFactWriteModeType;
+	readonly configHash: string;
+	/** Declaration and module-resolution input hash; defaults to `configHash`. */
+	readonly inputHash?: string;
+	readonly stages: Readonly<{scanMs: number; compilerMs: number; extractionMs: number}>;
+	/** Declared compiler version for this revision, when known. */
+	readonly declaredCompilerVersion?: string | null;
+	/** Runtime-versus-declared compiler drift for this revision. */
+	readonly compilerDrift?: boolean;
+	/** ISO start of this revision; keeps `started_at` describing one attempt. */
+	readonly startedAt?: string;
+	readonly ownerId?: string;
+}>;
+
+/**
+ * Per-adapter provenance supplied by the singular commit path.
+ *
+ * Multi-adapter publication supplies the same fields through
+ * {@link AdapterCommitType}; neither path projects them onto `generation`.
+ */
+type AdapterProvenanceType = Readonly<{
+	readonly adapterId: string;
+	readonly protocolVersion: number;
+	readonly adapterVersion: string;
+	readonly packageName: string | null;
+	readonly packageVersion: string | null;
+	readonly compilerVersion: string;
+	readonly declaredCompilerVersion: string | null;
+	readonly compilerDrift: boolean;
+}>;
+
+/** One refresh committed against the stable published generation. */
+export type GenerationCommitInputType = (
+	| (GenerationFactsInputType & Readonly<{readonly reuseFacts: false}>)
+	| Readonly<{
+			readonly reuseFacts: true;
+			readonly generationId: string;
+			readonly files: GenerationFactsInputType['files'];
+			readonly projects: GenerationFactsInputType['projects'];
+			readonly sourceHash: string;
+	  }>
+) &
+	GenerationCommitBaseType &
+	Readonly<{readonly provenance: AdapterProvenanceType}>;

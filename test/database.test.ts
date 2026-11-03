@@ -7,6 +7,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {findSymbols} from '../src/core/query/queryService.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {scopedFactIdOf} from '../src/core/storage/factIdentity.ts';
 import {bindingCandidateQuery, outlinePageQuerySql, referencePageQuery} from '../src/core/storage/databasePublicationQueries.ts';
 import {explainQueryPlan} from '../src/core/storage/databaseOpen.ts';
 import {createDerivedGenerationFactSeed, createGenerationFactSeed} from './helpers/generationFacts.ts';
@@ -39,9 +40,6 @@ describe('IndexDatabase', () => {
 
 		database.createGeneration({
 			id: generationId,
-			extractorId: 'typescript',
-			extractorVersion: '0.1.0',
-			compilerVersion: '6.0.3',
 			sourceHash: 'source',
 			configHash: 'config',
 		});
@@ -56,14 +54,14 @@ describe('IndexDatabase', () => {
 			symbolCount: 1,
 			occurrenceCount: 1,
 		});
-		expect(database.findReferenceRows({generationId, symbolId: 'symbol-0', limit: 10, offset: 0})).toHaveLength(1);
+		expect(database.findReferenceRows({generationId, symbolId: scopedFactIdOf('typescript', 'symbol-0'), limit: 10, offset: 0})).toHaveLength(1);
 
 		database.close();
 
 		const reopened = IndexDatabase.open(databasePath);
 
 		expect(reopened.getPublishedGeneration()?.id).toBe(generationId);
-		expect(reopened.getSymbol(generationId, 'symbol-0')?.name).toBe('example0');
+		expect(reopened.getSymbol(generationId, scopedFactIdOf('typescript', 'symbol-0'))?.name).toBe('example0');
 		reopened.close();
 	});
 
@@ -73,9 +71,6 @@ describe('IndexDatabase', () => {
 
 		database.createGeneration({
 			id: 'failed-generation',
-			extractorId: 'typescript',
-			extractorVersion: '0.1.0',
-			compilerVersion: '6.0.3',
 			sourceHash: 'source',
 			configHash: 'config',
 		});
@@ -93,9 +88,6 @@ describe('IndexDatabase', () => {
 		for (const id of ['generation-1', 'generation-2', 'generation-3']) {
 			database.createGeneration({
 				id,
-				extractorId: 'typescript',
-				extractorVersion: '0.1.0',
-				compilerVersion: '6.0.3',
 				sourceHash: id,
 				configHash: id,
 			});
@@ -173,9 +165,6 @@ describe('IndexDatabase dependencies', () => {
 
 		database.createGeneration({
 			id: generationId,
-			extractorId: 'typescript',
-			extractorVersion: '0.1.0',
-			compilerVersion: '6.0.3',
 			sourceHash: 'source',
 			configHash: 'config',
 		});
@@ -204,7 +193,10 @@ describe('IndexDatabase dependencies', () => {
 		database.publish(generationId);
 
 		expect(database.findDependencyEdgesByTargetIdentifier(generationId, 'lodash')).toHaveLength(1);
-		expect(database.listDependencyBindings(generationId, ['edge-1'])[0]).toMatchObject({importedName: 'debounce', localName: 'debounce'});
+		expect(database.listDependencyBindings(generationId, [scopedFactIdOf('typescript', 'edge-1')])[0]).toMatchObject({
+			importedName: 'debounce',
+			localName: 'debounce',
+		});
 		expect(database.getPublishedGeneration()).toMatchObject({dependencyEdgeCount: 1, dependencyBindingCount: 1});
 		database.close();
 	});
@@ -229,9 +221,6 @@ describe('IndexDatabase statistics and concurrency', () => {
 		try {
 			database.createGeneration({
 				id: 'generation-1',
-				extractorId: 'typescript',
-				extractorVersion: '0.1.0',
-				compilerVersion: '6.0.3',
 				sourceHash: 'derived-source',
 				configHash: 'derived-config',
 			});
@@ -260,11 +249,13 @@ describe('IndexDatabase statistics and concurrency', () => {
 						firstInSymbol: Number(row['first_in_symbol']),
 					}));
 
-				expect(bindings).toStrictEqual([
-					{symbolId: 'symbol-0', exposure: 'published', hasDeclaredSite: 1},
-					{symbolId: 'symbol-1', exposure: 'reachable', hasDeclaredSite: 0},
-					{symbolId: 'symbol-2', exposure: 'internal', hasDeclaredSite: 1},
-				]);
+				expect(bindings).toStrictEqual(
+					[
+						{symbolId: scopedFactIdOf('typescript', 'symbol-0'), exposure: 'published', hasDeclaredSite: 1},
+						{symbolId: scopedFactIdOf('typescript', 'symbol-1'), exposure: 'reachable', hasDeclaredSite: 0},
+						{symbolId: scopedFactIdOf('typescript', 'symbol-2'), exposure: 'internal', hasDeclaredSite: 1},
+					].sort((left, right) => left.symbolId.localeCompare(right.symbolId)),
+				);
 
 				const groups = new Map<string, typeof sites>();
 
@@ -294,7 +285,7 @@ describe('IndexDatabase statistics and concurrency', () => {
 					});
 				}
 
-				expect(sites.filter((site) => site.symbolId === 'symbol-0').map((site) => site.startOffset)).toStrictEqual([50, 100]);
+				expect(sites.filter((site) => site.symbolId === scopedFactIdOf('typescript', 'symbol-0')).map((site) => site.startOffset)).toStrictEqual([50, 100]);
 			} finally {
 				reader.close();
 			}
@@ -338,9 +329,6 @@ const database = IndexDatabase.open(databasePath, {projectId: 'storage-test'});
 try {
 	database.createGeneration({
 		id: generationId,
-		extractorId: 'typescript',
-		extractorVersion: '0.1.0',
-		compilerVersion: '6.0.3',
 		sourceHash: generationId,
 		configHash: generationId,
 	});
@@ -375,7 +363,7 @@ try {
 				});
 				const outlinePlan = explainQueryPlan(reader, outlinePageQuerySql(0), ['generation-2', 'src/example.ts', 10, offset]);
 				const candidatePlan = explainQueryPlan(reader, candidate.sql, candidate.parameters);
-				const reference = referencePageQuery({generationId: 'generation-2', symbolId: 'symbol-0', limit: 10, offset});
+				const reference = referencePageQuery({generationId: 'generation-2', symbolId: scopedFactIdOf('typescript', 'symbol-0'), limit: 10, offset});
 				const referencePlan = explainQueryPlan(reader, reference.sql, reference.parameters);
 
 				assertIndexedPlan(`multi_reader.find_symbol.plan.offset.${String(offset)}`, candidatePlan);
@@ -436,9 +424,6 @@ describe('IndexDatabase page-first query regression', () => {
 		try {
 			database.createGeneration({
 				id: 'generation-1',
-				extractorId: 'typescript',
-				extractorVersion: '0.1.0',
-				compilerVersion: '6.0.3',
 				sourceHash: 'derived-source',
 				configHash: 'derived-config',
 			});

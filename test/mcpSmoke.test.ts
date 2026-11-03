@@ -23,9 +23,6 @@ type PageEnvelopeType = EnvelopeType &
 
 const generation = {
 	id: 'generation-medium',
-	extractorId: 'typescript',
-	extractorVersion: '0.1.0',
-	compilerVersion: '6.0.3',
 	sourceHash: 'medium-source',
 	configHash: 'medium-config',
 };
@@ -44,7 +41,6 @@ const openMediumConnection = async (): Promise<MediumConnectionType> => {
 		rootDir: fixture.config.rootDir,
 		projectFilePath: fixture.config.projectFilePath,
 		projectId: fixture.config.projectId,
-		extractorId: fixture.config.extractorId,
 	});
 
 	try {

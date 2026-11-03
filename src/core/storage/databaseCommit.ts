@@ -17,40 +17,15 @@ import {asNumber, asString} from './databaseRows.ts';
 import {analyzeDatabase} from './databaseStatistics.ts';
 import {transaction} from './databaseTransaction.ts';
 import {deleteAdapterRows, upsertAdapterRow} from './databaseAdapterRows.ts';
-import {type AdapterCommitCountsType, type AdapterCommitType, type MultiGenerationCommitInputType} from './databaseCommitTypes.ts';
+import {
+	type AdapterCommitCountsType,
+	type AdapterCommitType,
+	type GenerationCommitInputType,
+	type MultiGenerationCommitInputType,
+} from './databaseCommitTypes.ts';
 
 const debug = debugFor('database');
-export type {AdapterCommitCountsType, AdapterCommitType, MultiGenerationCommitInputType} from './databaseCommitTypes.ts';
-/** Refresh framing shared by a fact-writing commit and a fact-reuse commit. */
-type GenerationCommitBaseType = Readonly<{
-	/** `insert` creates the first published revision; `revise` updates it in place. */
-	readonly mode: GenerationFactWriteModeType;
-	readonly configHash: string;
-	/** Declaration and module-resolution input hash; defaults to `configHash`. */
-	readonly inputHash?: string;
-	readonly stages: Readonly<{scanMs: number; compilerMs: number; extractionMs: number}>;
-	/** Declared compiler version for this revision, when known. */
-	readonly declaredCompilerVersion?: string | null;
-	/** Runtime-versus-declared compiler drift for this revision. */
-	readonly compilerDrift?: boolean;
-	/** ISO start of this revision; keeps `started_at` describing one attempt. */
-	readonly startedAt?: string;
-	readonly ownerId?: string;
-}>;
-
-/** One refresh committed against the stable published generation. */
-export type GenerationCommitInputType = (
-	| (GenerationFactsInputType & Readonly<{readonly reuseFacts: false}>)
-	| Readonly<{
-			readonly reuseFacts: true;
-			readonly generationId: string;
-			readonly files: GenerationFactsInputType['files'];
-			readonly projects: GenerationFactsInputType['projects'];
-			readonly sourceHash: string;
-	  }>
-) &
-	GenerationCommitBaseType;
-
+export type {AdapterCommitCountsType, AdapterCommitType, GenerationCommitInputType, MultiGenerationCommitInputType} from './databaseCommitTypes.ts';
 /** Persisted outcome of one refresh. */
 export type GenerationCommitType = Readonly<{
 	readonly generationId: string;
@@ -191,11 +166,8 @@ const publishPhase = (
 	}
 
 	const counts = sumCounts(input.adapters);
-	const present = input.adapters.filter((entry) => entry.adapter.coverage === 'present');
-	// Configuration order: the singular columns project the first present adapter.
-	const [primary] = present.length > 0 ? present : input.adapters;
 
-	if (primary === undefined) {
+	if (input.adapters.length === 0) {
 		throw new Error('A generation requires at least one adapter');
 	}
 
@@ -203,7 +175,6 @@ const publishPhase = (
 		.prepare(
 			`update generation
 			 set state = 'published', started_at = coalesce(?, started_at), completed_at = ?, revision = revision + 1,
-			     extractor_id = ?, extractor_version = ?, compiler_version = ?, declared_compiler_version = ?, compiler_drift = ?,
 			     config_hash = ?, source_hash = ?, input_hash = ?,
 			     file_count = ?, symbol_count = ?, occurrence_count = ?,
 			     dependency_edge_count = ?, dependency_binding_count = ?, diagnostic_count = ?,
@@ -213,11 +184,6 @@ const publishPhase = (
 		.run(
 			input.startedAt ?? null,
 			new Date().toISOString(),
-			primary.adapter.adapterId,
-			primary.adapter.adapterVersion,
-			primary.adapter.compilerVersion,
-			primary.adapter.declaredCompilerVersion,
-			primary.adapter.compilerDrift ? 1 : 0,
 			input.configHash,
 			input.sourceHash,
 			input.inputHash,
@@ -347,7 +313,8 @@ const adapterFromSingle = (writer: DatabaseSync, input: GenerationCommitInputTyp
 	}
 
 	const factsInput = input.reuseFacts ? null : (input as GenerationFactsInputType & Readonly<{reuseFacts: false}>);
-	const adapterId = factsInput?.adapterId ?? generation.extractorId;
+	const {provenance} = input;
+	const {adapterId} = provenance;
 	const previousRow = writer.prepare('select * from generation_adapter where generation_id = ? and adapter_id = ?').get(input.generationId, adapterId);
 	const counts =
 		previousRow === undefined
@@ -363,10 +330,13 @@ const adapterFromSingle = (writer: DatabaseSync, input: GenerationCommitInputTyp
 
 	return {
 		adapterId,
-		adapterVersion: generation.extractorVersion,
-		compilerVersion: generation.compilerVersion,
-		declaredCompilerVersion: input.declaredCompilerVersion ?? generation.declaredCompilerVersion,
-		compilerDrift: input.compilerDrift ?? generation.compilerDrift,
+		protocolVersion: provenance.protocolVersion,
+		adapterVersion: provenance.adapterVersion,
+		packageName: provenance.packageName,
+		packageVersion: provenance.packageVersion,
+		compilerVersion: provenance.compilerVersion,
+		declaredCompilerVersion: input.declaredCompilerVersion ?? provenance.declaredCompilerVersion,
+		compilerDrift: input.compilerDrift ?? provenance.compilerDrift,
 		coverage: 'present',
 		absenceReason: null,
 		sourceHash: input.sourceHash,

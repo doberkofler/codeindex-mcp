@@ -8,18 +8,12 @@ import {createGenerationFactSeed, type GenerationFactSeedType} from './helpers/g
 
 type GenerationRowType = Readonly<{
 	id: string;
-	extractorId: string;
-	extractorVersion: string;
-	compilerVersion: string;
 	sourceHash: string;
 	configHash: string;
 }>;
 
 const generation = (id: string): GenerationRowType => ({
 	id,
-	extractorId: 'typescript',
-	extractorVersion: '0.1.0',
-	compilerVersion: '6.0.3',
 	sourceHash: id,
 	configHash: id,
 });

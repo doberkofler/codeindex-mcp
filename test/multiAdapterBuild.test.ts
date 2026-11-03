@@ -1,15 +1,19 @@
 import {cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {buildTypeScriptFacts, scanTypeScriptProject, typeScriptExtractor} from '../src/adapters/typescript/index.ts';
 import {type ExtractorType} from '../src/adapters/types.ts';
-import {type AdapterConfigType, type ConfigType} from '../src/core/config/config.ts';
+import {adapterConfigFor, type AdapterConfigType, type ConfigType} from '../src/core/config/config.ts';
 import {assertAdapterIdentity, assertSharedExtractedFiles} from '../src/core/generation/adapterBuild.ts';
 import {buildFailureOf, runAdapterStage} from '../src/core/generation/buildFailure.ts';
 import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {PUBLICATION_SURFACE_BINDINGS_PER_ROOT, finalizeFacts} from '../src/core/facts/index.ts';
+import {scopedFactIdOf} from '../src/core/storage/factIdentity.ts';
 import {adapterSetOf, testAdaptersFor} from './helpers/adapters.ts';
+import {type AdapterSetType} from '../src/adapters/loader.ts';
 import {silentLogger} from './helpers/fixture.ts';
 
 const {join} = path;
@@ -87,12 +91,114 @@ const wrappedTypeScript = (id: string, built: string[]): ExtractorType => ({
 	},
 });
 
+const altTypeScript = (): ExtractorType => ({
+	...typeScriptExtractor,
+	id: 'alt',
+	version: 'alt-1',
+	scan: (scoped, knownPaths) => ({...scanTypeScriptProject(scoped, knownPaths), extractorId: 'alt'}),
+});
+
+const namespacedAdapterSet = (): AdapterSetType => ({
+	...adapterSetOf(typeScriptExtractor, altTypeScript()),
+	descriptors: [
+		{
+			id: 'typescript',
+			moduleUrl: 'builtin:typescript',
+			protocolVersion: 1,
+			implementationVersion: typeScriptExtractor.version,
+			packageName: '@codeindex/adapter-typescript',
+			packageVersion: '1.2.3',
+		},
+		{id: 'alt', moduleUrl: 'builtin:alt', protocolVersion: 1, implementationVersion: 'alt-1', packageName: '@fixture/alt', packageVersion: '4.5.6'},
+	],
+});
+
+const persistedSymbolIdsOf = (config: ConfigType, generationId: string, adapterId: string): readonly string[] => {
+	const reader = new DatabaseSync(config.databasePath, {readOnly: true});
+
+	try {
+		return reader
+			.prepare('select id from symbol where generation_id = ? and adapter_id = ? order by id')
+			.all(generationId, adapterId)
+			.map((row) => String(row['id']));
+	} finally {
+		reader.close();
+	}
+};
+
+const localSymbolIdsOf = (config: ConfigType, adapter: AdapterConfigType): readonly string[] => {
+	const scoped = adapterConfigFor(config, adapter);
+	const facts = buildTypeScriptFacts(scoped, scanTypeScriptProject(scoped, []));
+
+	return finalizeFacts(facts, {mode: 'enforce', maxBindingsPerRoot: PUBLICATION_SURFACE_BINDINGS_PER_ROOT, extractorId: adapter.id}).symbols.map(
+		(symbol) => symbol.id,
+	);
+};
+
+const assertNamespacedProvenance = (config: ConfigType, generationId: string, first: AdapterConfigType, second: AdapterConfigType): void => {
+	const reader = new DatabaseSync(config.databasePath, {readOnly: true});
+
+	try {
+		const columns = (table: string): readonly string[] =>
+			reader
+				.prepare(`pragma table_info(${table})`)
+				.all()
+				.map((row) => String(row['name']));
+
+		expect(columns('generation')).not.toContain('extractor_id');
+		expect(columns('generation')).not.toContain('compiler_version');
+		expect(columns('generation_adapter')).toStrictEqual(expect.arrayContaining(['protocol_version', 'adapter_version', 'package_name', 'package_version']));
+	} finally {
+		reader.close();
+	}
+
+	const typescriptIds = persistedSymbolIdsOf(config, generationId, 'typescript');
+	const altIds = persistedSymbolIdsOf(config, generationId, 'alt');
+
+	expect(typescriptIds).toStrictEqual(
+		localSymbolIdsOf(config, first)
+			.map((id) => scopedFactIdOf('typescript', id))
+			.sort(),
+	);
+	expect(altIds).toStrictEqual(
+		localSymbolIdsOf(config, second)
+			.map((id) => scopedFactIdOf('alt', id))
+			.sort(),
+	);
+	expect(typescriptIds.filter((id) => altIds.includes(id))).toStrictEqual([]);
+};
+
 describe('multi-adapter build', () => {
 	let cleanup: (() => void) | undefined;
 
 	afterEach(() => {
 		cleanup?.();
 		cleanup = undefined;
+	});
+
+	it('namespaces identical adapter-local identifiers and persists bounded provenance', async () => {
+		const workspace = createWorkspace();
+		({cleanup} = workspace);
+		cpSync(join(import.meta.dirname, 'fixtures', 'simple-project'), join(workspace.root, 'second'), {recursive: true});
+		const first = adapterOf('typescript', workspace.root, 'tsconfig.json', 'app');
+		const second = adapterOf('alt', join(workspace.root, 'second'), 'tsconfig.json', 'second');
+		const config = configOf(workspace, [first, second]);
+		const database = openDatabase(config);
+
+		try {
+			const report = await buildGeneration({
+				config,
+				database,
+				logger: silentLogger,
+				force: true,
+				adapters: namespacedAdapterSet(),
+			});
+
+			expect(report.outcome).toBe('published');
+			assertNamespacedProvenance(config, report.generationId, first, second);
+		} finally {
+			database.close();
+		}
 	});
 
 	it('publishes TypeScript and static Oracle facts in one candidate with per-adapter provenance', async () => {
@@ -110,12 +216,12 @@ describe('multi-adapter build', () => {
 
 			expect(report.outcome).toBe('published');
 			expect(published).not.toBeNull();
-			// The singular columns project the first present adapter in configuration
-			// order, not the alphabetically first adapter.
-			expect(published?.extractorId).toBe('typescript');
+			expect(published).not.toHaveProperty('extractorId');
+			expect(published).not.toHaveProperty('compilerVersion');
 
 			const adapters = database.getGenerationAdapters(report.generationId);
 			expect(adapters.map((adapter) => `${adapter.adapterId}:${adapter.coverage}`)).toStrictEqual(['oracle:present', 'typescript:present']);
+			expect(adapters.every((adapter) => adapter.protocolVersion === 1)).toBe(true);
 			expect(report.symbolCount).toBe(adapters.reduce((total, adapter) => total + adapter.symbolCount, 0));
 			expect(report.fileCount).toBe(adapters.reduce((total, adapter) => total + adapter.fileCount, 0));
 

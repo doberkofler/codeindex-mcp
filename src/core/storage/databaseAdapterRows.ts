@@ -39,13 +39,17 @@ export const upsertAdapterRow = (
 	writer
 		.prepare(
 			`insert into generation_adapter (
-				generation_id, adapter_id, adapter_version, compiler_version, declared_compiler_version, compiler_drift,
+				generation_id, adapter_id, protocol_version, adapter_version, package_name, package_version,
+				compiler_version, declared_compiler_version, compiler_drift,
 				coverage, absence_reason, source_hash, config_hash, input_hash,
 				file_count, symbol_count, occurrence_count, dependency_edge_count, dependency_binding_count, diagnostic_count,
 				scan_ms, compiler_ms, extraction_ms)
-			 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 on conflict(generation_id, adapter_id) do update set
+			 	protocol_version = excluded.protocol_version,
 			 	adapter_version = excluded.adapter_version,
+			 	package_name = excluded.package_name,
+			 	package_version = excluded.package_version,
 			 	compiler_version = excluded.compiler_version,
 			 	declared_compiler_version = excluded.declared_compiler_version,
 			 	compiler_drift = excluded.compiler_drift,
@@ -67,7 +71,10 @@ export const upsertAdapterRow = (
 		.run(
 			input.generationId,
 			adapter.adapterId,
+			adapter.protocolVersion,
 			adapter.adapterVersion,
+			adapter.packageName,
+			adapter.packageVersion,
 			adapter.compilerVersion,
 			adapter.declaredCompilerVersion,
 			adapter.compilerDrift ? 1 : 0,

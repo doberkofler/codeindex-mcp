@@ -1,12 +1,12 @@
 import {type ExtractorArtifactCacheType, type ExtractorBuildType, type ExtractorType} from '../../adapters/types.ts';
-import {adapterConfigFor, type AdapterConfigType, type ConfigType} from '../config/config.ts';
+import {adapterConfigFor, type ConfigType} from '../config/config.ts';
 import {PUBLICATION_SURFACE_BINDINGS_PER_ROOT, finalizeFacts, type FinalizedFactSetType} from '../facts/index.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type GenerationAdapterType, type GenerationRowType, type ScanResultType} from '../model.ts';
 import {type AdapterCommitCountsType, type AdapterCommitType, type IndexDatabase} from '../storage/database.ts';
 import {artifactKeyOf, createExtractorCache} from './buildArtifacts.ts';
 import {runBuildStage, runBuildStageAsync} from './buildFailure.ts';
-import {type AdapterScanPlanType} from './adapterBuild.ts';
+import {type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
 import {computeSourceHash} from './sourceFiles.ts';
 
 const debug = debugFor('build');
@@ -31,19 +31,21 @@ const finalizePublication = (facts: ExtractorBuildType, extractorId: string | nu
 	return publication;
 };
 
-const hashesMatch = (adapter: GenerationAdapterType, scan: ScanResultType, extractor: ExtractorType): boolean =>
+const hashesMatch = (adapter: GenerationAdapterType, scan: ScanResultType, target: AdapterTargetType): boolean =>
 	adapter.coverage === 'present' &&
 	adapter.sourceHash === scan.sourceHash &&
 	adapter.configHash === scan.configHash &&
 	adapter.inputHash === (scan.inputHash ?? scan.configHash) &&
-	adapter.adapterVersion === extractor.version &&
+	adapter.adapterVersion === target.extractor.version &&
+	adapter.protocolVersion === target.protocolVersion &&
 	adapter.compilerVersion === scan.compilerVersion;
 
-const configMatches = (adapter: GenerationAdapterType, scan: ScanResultType, extractor: ExtractorType): boolean =>
+const configMatches = (adapter: GenerationAdapterType, scan: ScanResultType, target: AdapterTargetType): boolean =>
 	adapter.coverage === 'present' &&
 	adapter.configHash === scan.configHash &&
 	adapter.inputHash === (scan.inputHash ?? scan.configHash) &&
-	adapter.adapterVersion === extractor.version;
+	adapter.adapterVersion === target.extractor.version &&
+	adapter.protocolVersion === target.protocolVersion;
 
 /**
  * Reports whether the published generation still guarantees one adapter's facts.
@@ -102,7 +104,7 @@ const previousCountsOf = (adapter: GenerationAdapterType): AdapterCommitCountsTy
 export const adapterCommitOf = async (
 	input: Readonly<{
 		plan: AdapterScanPlanType;
-		target: Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>;
+		target: AdapterTargetType;
 		previous: GenerationAdapterType | undefined;
 		config: ConfigType;
 		database: IndexDatabase;
@@ -114,10 +116,16 @@ export const adapterCommitOf = async (
 ): Promise<AdapterCommitType> => {
 	const {plan, target, previous} = input;
 	const adapterVersion = target.extractor.version;
+	const provenance = {
+		protocolVersion: target.protocolVersion,
+		packageName: target.packageName,
+		packageVersion: target.packageVersion,
+	} as const;
 
 	if (plan.coverage === 'absent' || plan.scan === null) {
 		return {
 			adapterId: plan.adapterId,
+			...provenance,
 			adapterVersion,
 			compilerVersion: 'unknown',
 			declaredCompilerVersion: null,
@@ -138,6 +146,7 @@ export const adapterCommitOf = async (
 	const scoped = adapterConfigFor(input.config, target.adapter);
 	const base = {
 		adapterId: plan.adapterId,
+		...provenance,
 		adapterVersion,
 		compilerVersion: scan.compilerVersion,
 		declaredCompilerVersion: scan.declaredCompilerVersion,
@@ -152,7 +161,7 @@ export const adapterCommitOf = async (
 		projects: scan.projects,
 	};
 
-	if (input.force !== true && previous !== undefined && hashesMatch(previous, scan, target.extractor)) {
+	if (input.force !== true && previous !== undefined && hashesMatch(previous, scan, target)) {
 		return {...base, counts: previousCountsOf(previous)};
 	}
 
@@ -161,7 +170,7 @@ export const adapterCommitOf = async (
 		input.force !== true &&
 		input.published !== null &&
 		previous !== undefined &&
-		configMatches(previous, scan, target.extractor) &&
+		configMatches(previous, scan, target) &&
 		(await adapterFactsAreReusable({
 			extractor: target.extractor,
 			config: scoped,

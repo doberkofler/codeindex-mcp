@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {type ExtractorType} from '../../adapters/types.ts';
 import {type AdapterSetType} from '../../adapters/loader.ts';
-import {adapterConfigFor, type AdapterConfigType, type ConfigType} from '../config/config.ts';
+import {adapterConfigFor, type ConfigType} from '../config/config.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {type BuildReportType, type BuildStagesType, type GenerationRowType, type ScanResultType} from '../model.ts';
@@ -11,6 +11,7 @@ import {type createExtractorCache} from './buildArtifacts.ts';
 import {type BuildProjectContextType, buildFailureOf, buildProjectContextOf, runAdapterStageAsync, runBuildStage, runBuildStageAsync} from './buildFailure.ts';
 import {adapterCommitOf, ZERO_COUNTS} from './adapterCommit.ts';
 import {
+	type AdapterTargetType,
 	AdapterContractError,
 	adapterTargets,
 	assertAdapterIdentity,
@@ -49,7 +50,7 @@ type CommitContextType = Readonly<{
 	database: IndexDatabase;
 	logger: LoggerType;
 	plans: readonly AdapterScanPlanType[];
-	targets: readonly Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>[];
+	targets: readonly AdapterTargetType[];
 	generationId: string;
 	mode: 'insert' | 'revise';
 	startedAt: number;
@@ -62,7 +63,7 @@ type CommitContextType = Readonly<{
 type PreparedBuildType = Readonly<{
 	published: GenerationRowType | null;
 	scans: readonly AdapterScanPlanType[];
-	targets: readonly Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>[];
+	targets: readonly AdapterTargetType[];
 }>;
 
 const projectContextOf = (plans: readonly AdapterScanPlanType[]): BuildProjectContextType | null => {
@@ -117,7 +118,7 @@ const rosterMatches = (plans: readonly AdapterScanPlanType[], adapters: readonly
 
 const scanPlansOf = async (
 	input: BuildInputType,
-	targets: readonly Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>[],
+	targets: readonly AdapterTargetType[],
 	published: GenerationRowType | null,
 ): Promise<readonly AdapterScanPlanType[]> => {
 	if (input.scan !== undefined) {
@@ -200,7 +201,6 @@ const prepareBuild = async (input: BuildInputType): Promise<PreparedBuildType> =
 const beginGeneration = (
 	input: BuildInputType,
 	published: GenerationRowType | null,
-	plans: readonly AdapterScanPlanType[],
 	hashes: Readonly<{sourceHash: string; configHash: string; inputHash: string}>,
 ): Readonly<{generationId: string; mode: 'insert' | 'revise'}> => {
 	if (published !== null) {
@@ -208,16 +208,9 @@ const beginGeneration = (
 	}
 
 	const generationId = randomUUID();
-	const primary = plans.find((plan) => plan.scan !== null)?.scan;
-	const adapterVersion = primary?.extractorVersion ?? 'unknown';
 
 	input.database.createGeneration({
 		id: generationId,
-		extractorId: plans[0]?.adapterId ?? 'unknown',
-		extractorVersion: adapterVersion,
-		compilerVersion: primary?.compilerVersion ?? 'unknown',
-		declaredCompilerVersion: primary?.declaredCompilerVersion ?? null,
-		compilerDrift: primary?.compilerDrift ?? false,
 		sourceHash: hashes.sourceHash,
 		configHash: hashes.configHash,
 		inputHash: hashes.inputHash,
@@ -434,7 +427,7 @@ export const buildGeneration = async (input: BuildInputType): Promise<BuildRepor
 	let mode: 'insert' | 'revise' = 'revise';
 
 	try {
-		const begun = runBuildStage('persistence', () => beginGeneration(input, published, scans, hashes));
+		const begun = runBuildStage('persistence', () => beginGeneration(input, published, hashes));
 		({generationId, mode} = begun);
 
 		const report = await commitAdapters({

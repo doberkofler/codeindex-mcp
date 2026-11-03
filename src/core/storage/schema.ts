@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '16';
+export const SCHEMA_VERSION = '17';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -39,17 +39,11 @@ create table if not exists content (
 	bytes blob not null
 );
 
--- Singular columns are a compatibility projection of the first present adapter
--- in configuration order. generation_adapter rows are authoritative; these
--- columns are nullable and never identify another adapter's provenance.
+-- Aggregate publication metadata only. Per-adapter provenance lives exclusively
+-- in generation_adapter; no adapter is an implicit primary adapter.
 create table if not exists generation (
 	id text primary key,
 	state text not null check (state in ('building', 'published', 'superseded', 'failed')),
-	extractor_id text,
-	extractor_version text,
-	compiler_version text,
-	declared_compiler_version text,
-	compiler_drift integer not null default 0,
 	source_hash text not null,
 	config_hash text not null,
 	input_hash text not null default '',
@@ -76,7 +70,12 @@ create table if not exists generation (
 create table if not exists generation_adapter (
 	generation_id text not null references generation(id) on delete cascade,
 	adapter_id text not null,
+	protocol_version integer not null default 1,
+	-- Adapter implementation version; changes whenever emitted facts or scan
+	-- semantics can change, and invalidates reuse for that adapter alone.
 	adapter_version text not null,
+	package_name text,
+	package_version text,
 	compiler_version text not null,
 	declared_compiler_version text,
 	compiler_drift integer not null default 0 check (compiler_drift in (0, 1)),

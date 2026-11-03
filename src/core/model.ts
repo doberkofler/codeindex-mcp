@@ -138,7 +138,14 @@ export type AdapterStagesType = Pick<BuildStagesType, 'scanMs' | 'compilerMs' | 
 /** Persisted provenance for one adapter within one generation. */
 export type GenerationAdapterType = Readonly<{
 	readonly adapterId: string;
+	/** Adapter protocol revision implemented by the loaded module. */
+	readonly protocolVersion: number;
+	/** Adapter implementation version; participates in reuse identity. */
 	readonly adapterVersion: string;
+	/** Bounded installed package name, or null for a local module. */
+	readonly packageName: string | null;
+	/** Bounded installed package version, or null when unavailable. */
+	readonly packageVersion: string | null;
 	readonly compilerVersion: string;
 	readonly declaredCompilerVersion: string | null;
 	readonly compilerDrift: boolean;
@@ -159,14 +166,6 @@ export type GenerationAdapterType = Readonly<{
 export type GenerationRowType = Readonly<{
 	readonly id: string;
 	readonly state: GenerationStateType;
-	readonly extractorId: string;
-	readonly extractorVersion: string;
-	/** Compiler or parser runtime version that produced the facts. */
-	readonly compilerVersion: string;
-	/** Compiler version declared by the project, when the adapter can resolve one. */
-	readonly declaredCompilerVersion: string | null;
-	/** True when the runtime major differs from the declared compiler major. */
-	readonly compilerDrift: boolean;
 	readonly sourceHash: string;
 	readonly configHash: string;
 	/** Hash over declarations and module-resolution inputs; empty for legacy rows. */

@@ -72,9 +72,6 @@ export const assertIndexedPlan = (stage: string, plan: readonly string[]): void 
 export const publishGeneration = (database: IndexDatabase, id: string, symbolCount: number, pathName = 'src/example.ts'): void => {
 	database.createGeneration({
 		id,
-		extractorId: 'typescript',
-		extractorVersion: '0.1.0',
-		compilerVersion: '6.0.3',
 		sourceHash: id,
 		configHash: id,
 	});

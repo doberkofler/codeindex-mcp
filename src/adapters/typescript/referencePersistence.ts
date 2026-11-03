@@ -3,12 +3,13 @@ import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {type ExtractorBuildType} from '../types.ts';
-import {type AdapterConfigType} from '@codeindex/adapter-sdk';
+import {ADAPTER_PROTOCOL_VERSION, type AdapterConfigType} from '@codeindex/adapter-sdk';
 import {PUBLICATION_SURFACE_BINDINGS_PER_ROOT, finalizeFacts} from '../../core/facts/index.ts';
 import {type ReferencePartitionScopeType, type ScanResultType} from '../../core/model.ts';
 import {findReferences as queryReferences, type QueryContextType} from '../../core/query/queryService.ts';
 import {computeSourceHash} from '../../core/generation/sourceFiles.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
+import {scopedFactIdOf} from '../../core/storage/factIdentity.ts';
 import {type ReferenceLocationType} from './referenceLocations.ts';
 import {type ReferencePersistenceType} from './referenceGate.ts';
 
@@ -109,9 +110,6 @@ export const withPersistedReferenceIndex = <ValueType>(
 
 		database.createGeneration({
 			id: generationId,
-			extractorId: input.scan.extractorId,
-			extractorVersion: input.scan.extractorVersion,
-			compilerVersion: input.scan.compilerVersion,
 			sourceHash: input.scan.sourceHash,
 			configHash: input.scan.configHash,
 			...(input.scan.inputHash === undefined ? {} : {inputHash: input.scan.inputHash}),
@@ -121,6 +119,16 @@ export const withPersistedReferenceIndex = <ValueType>(
 			reuseFacts: false,
 			generationId,
 			adapterId: input.scan.extractorId,
+			provenance: {
+				adapterId: input.scan.extractorId,
+				protocolVersion: ADAPTER_PROTOCOL_VERSION,
+				adapterVersion: input.scan.extractorVersion,
+				packageName: null,
+				packageVersion: null,
+				compilerVersion: input.scan.compilerVersion,
+				declaredCompilerVersion: input.scan.declaredCompilerVersion,
+				compilerDrift: input.scan.compilerDrift,
+			},
 			language: input.scan.extractorId,
 			files: input.facts.files,
 			projects: input.scan.projects,
@@ -149,7 +157,7 @@ export const withPersistedReferenceIndex = <ValueType>(
 		const reader: PersistedReferenceReaderType = {
 			readAll: (symbolId, scope) => {
 				counters.symbols += 1;
-				const page = readAllPages(context, symbolId, scope, input.config.maxResultBytes);
+				const page = readAllPages(context, scopedFactIdOf(input.scan.extractorId, symbolId), scope, input.config.maxResultBytes);
 				counters.pages += page.pages;
 				return page.locations;
 			},

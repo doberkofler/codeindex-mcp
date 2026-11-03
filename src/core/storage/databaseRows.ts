@@ -60,11 +60,6 @@ const stagesOf = (row: SqlRowType): GenerationRowType['stages'] => {
 export const toGeneration = (row: SqlRowType): GenerationRowType => ({
 	id: asString(row, 'id'),
 	state: toGenerationState(asString(row, 'state')),
-	extractorId: asString(row, 'extractor_id'),
-	extractorVersion: asString(row, 'extractor_version'),
-	compilerVersion: asString(row, 'compiler_version'),
-	declaredCompilerVersion: asNullableString(row, 'declared_compiler_version'),
-	compilerDrift: asNumber(row, 'compiler_drift') !== 0,
 	sourceHash: asString(row, 'source_hash'),
 	configHash: asString(row, 'config_hash'),
 	inputHash: asNullableString(row, 'input_hash') ?? asString(row, 'config_hash'),

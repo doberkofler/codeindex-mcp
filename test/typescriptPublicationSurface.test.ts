@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {buildTypeScriptFacts, scanTypeScriptProject} from '../src/adapters/typescript/index.ts';
 import {finalizeFacts, type FinalizedFactSetType} from '../src/core/facts/index.ts';
+import {scopedFactIdOf} from '../src/core/storage/factIdentity.ts';
 import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
 
 const buildFacts = (): Readonly<{facts: FinalizedFactSetType; cleanup: () => void}> => {
@@ -88,7 +89,7 @@ describe('TypeScript publication vertical slice', () => {
 		const fixture = await createFixtureIndex('publication-project');
 
 		try {
-			const names = fixture.index.readSymbol({symbolId: symbol.id, mode: 'names', contextLines: 0, limit: 20});
+			const names = fixture.index.readSymbol({symbolId: scopedFactIdOf('typescript', symbol.id), mode: 'names', contextLines: 0, limit: 20});
 			const item = names.kind === 'names' ? names.items[0] : undefined;
 
 			expect(item).toMatchObject({name: '', qualifiedName: 'module["src/property-names.ts"]::EmptyKeyedAttributes[""]'});

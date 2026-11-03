@@ -5,6 +5,7 @@ import {type AdapterConfigType, type ConfigType, configuredAdapters} from '../co
 import {type ScanResultType} from '../model.ts';
 import {type ExtractorType} from '../../adapters/types.ts';
 import {type AdapterSetType} from '../../adapters/loader.ts';
+import {ADAPTER_PROTOCOL_VERSION} from '@codeindex/adapter-sdk';
 
 const {isAbsolute} = path;
 
@@ -27,6 +28,12 @@ export type AdapterScanPlanType = Readonly<{
 export type AdapterTargetType = Readonly<{
 	readonly adapter: AdapterConfigType;
 	readonly extractor: ExtractorType;
+	/** Protocol revision declared by the loaded module. */
+	readonly protocolVersion: number;
+	/** Bounded installed package name, or null for a local module. */
+	readonly packageName: string | null;
+	/** Bounded installed package version, or null when unavailable. */
+	readonly packageVersion: string | null;
 }>;
 
 /** Raised when the adapter set itself violates the contract. */
@@ -55,7 +62,15 @@ export const adapterTargets = (config: ConfigType, adapters: AdapterSetType, ove
 			throw new AdapterContractError('An extractor override requires exactly one configured adapter');
 		}
 
-		return [{adapter, extractor: override}];
+		return [
+			{
+				adapter,
+				extractor: override,
+				protocolVersion: ADAPTER_PROTOCOL_VERSION,
+				packageName: null,
+				packageVersion: null,
+			},
+		];
 	}
 
 	return configured.map((adapter) => {
@@ -69,7 +84,15 @@ export const adapterTargets = (config: ConfigType, adapters: AdapterSetType, ove
 			throw new AdapterContractError(`Adapter ${adapter.id} resolved to ${extractor.id}`);
 		}
 
-		return {adapter, extractor};
+		const descriptor = adapters.descriptors.find((candidate) => candidate.id === adapter.id);
+
+		return {
+			adapter,
+			extractor,
+			protocolVersion: descriptor?.protocolVersion ?? ADAPTER_PROTOCOL_VERSION,
+			packageName: descriptor?.packageName ?? null,
+			packageVersion: descriptor?.packageVersion ?? null,
+		};
 	});
 };
 

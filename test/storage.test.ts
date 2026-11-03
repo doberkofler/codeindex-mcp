@@ -16,18 +16,12 @@ import {assertCompleteStatistics, assertIndexedPlan, publishGeneration, publishN
 
 type GenerationInputType = Readonly<{
 	id: string;
-	extractorId: string;
-	extractorVersion: string;
-	compilerVersion: string;
 	sourceHash: string;
 	configHash: string;
 }>;
 
 const generation = (id: string): GenerationInputType => ({
 	id,
-	extractorId: 'typescript',
-	extractorVersion: '0.1.0',
-	compilerVersion: '6.0.3',
 	sourceHash: id,
 	configHash: id,
 });
@@ -103,7 +97,7 @@ describe('index storage identity and content', () => {
 			contentSha256: file.sha256,
 			artifactKind: 'symbols',
 			extractorId: 'typescript',
-			extractorVersion: '0.1.0',
+			extractorVersion: '1.0.0',
 			contextHash: 'context',
 		};
 

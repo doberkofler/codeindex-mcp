@@ -25,7 +25,10 @@ export const readGenerationAdapters = (reader: DatabaseSync, generationId: strin
 
 		return {
 			adapterId: asString(row, 'adapter_id'),
+			protocolVersion: asNumber(row, 'protocol_version'),
 			adapterVersion: asString(row, 'adapter_version'),
+			packageName: typeof row['package_name'] === 'string' ? row['package_name'] : null,
+			packageVersion: typeof row['package_version'] === 'string' ? row['package_version'] : null,
 			compilerVersion: asString(row, 'compiler_version'),
 			declaredCompilerVersion: typeof row['declared_compiler_version'] === 'string' ? row['declared_compiler_version'] : null,
 			compilerDrift: asNumber(row, 'compiler_drift') !== 0,

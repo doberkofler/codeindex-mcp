@@ -170,11 +170,6 @@ export class IndexDatabase {
 	public createGeneration(
 		input: Readonly<{
 			id: string;
-			extractorId: string;
-			extractorVersion: string;
-			compilerVersion: string;
-			declaredCompilerVersion?: string | null;
-			compilerDrift?: boolean;
 			sourceHash: string;
 			configHash: string;
 			inputHash?: string;
@@ -182,21 +177,10 @@ export class IndexDatabase {
 	): void {
 		this.#writer
 			.prepare(
-				`insert into generation (id, state, extractor_id, extractor_version, compiler_version, declared_compiler_version, compiler_drift, source_hash, config_hash, input_hash, started_at)
-				 values (?, 'building', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`insert into generation (id, state, source_hash, config_hash, input_hash, started_at)
+				 values (?, 'building', ?, ?, ?, ?)`,
 			)
-			.run(
-				input.id,
-				input.extractorId,
-				input.extractorVersion,
-				input.compilerVersion,
-				input.declaredCompilerVersion ?? null,
-				input.compilerDrift === true ? 1 : 0,
-				input.sourceHash,
-				input.configHash,
-				input.inputHash ?? input.configHash,
-				new Date().toISOString(),
-			);
+			.run(input.id, input.sourceHash, input.configHash, input.inputHash ?? input.configHash, new Date().toISOString());
 	}
 	/**
 	 * Inserts immutable content versions keyed by raw SHA-256.
