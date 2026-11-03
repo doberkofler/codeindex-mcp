@@ -100,6 +100,7 @@ try {
 	}
 	assertAbsent(oracleConsumer, '@codeindex/adapter-typescript');
 	assertAbsent(oracleConsumer, 'typescript');
+	assertAbsent(oracleConsumer, 'oracledb');
 
 	const fixturePackage = path.join(work, 'fixture-adapter');
 	mkdirSync(path.join(fixturePackage, 'dist'), {recursive: true});
