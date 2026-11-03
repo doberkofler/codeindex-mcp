@@ -6,7 +6,7 @@ import {type AdapterConfigType, type ConfigType, type ProjectContextConfigType} 
 import {resolveAdapters} from './adapterResolution.ts';
 import {assertFile, createStorageKey, fail, indexRootDirectory, isInside} from './configSupport.ts';
 
-const {basename, dirname, isAbsolute, join, relative, resolve, sep} = path;
+const {basename, dirname, isAbsolute, join, relative, resolve} = path;
 const debug = debugFor('config');
 
 export type {AdapterConfigType, ConfigType} from './adapterConfig.ts';
@@ -370,20 +370,5 @@ export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): Conf
 	};
 };
 
-/**
- * Converts an absolute path into a normalized repository-relative path.
- *
- * @param rootDir - Absolute indexed workspace root.
- * @param absolutePath - Absolute path inside the root.
- * @returns The repository-relative path with POSIX separators.
- * @throws {@link Error} When the path escapes the configured root.
- */
-export const toRepositoryPath = (rootDir: string, absolutePath: string): string => {
-	const relativePath = relative(rootDir, absolutePath);
-
-	if (relativePath === '' || relativePath.startsWith('..') || isAbsolute(relativePath)) {
-		throw new Error(`Path is outside the indexed working copy: ${absolutePath}`);
-	}
-
-	return relativePath.split(sep).join('/');
-};
+/** Re-exports the workspace-relative path helper owned by the adapter SDK. */
+export {toRepositoryPath} from '@codeindex/adapter-sdk';

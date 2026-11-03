@@ -1,7 +1,7 @@
 import path from 'node:path';
 import ts from 'typescript';
 import {type ConfigType} from '../../config/config.ts';
-import {loadTypeScriptProject} from '../../../adapters/typescript/loadProject.ts';
+import {loadTypeScriptProject} from '@codeindex/adapter-typescript/internals';
 
 export const posixRelative = (rootDir: string, filePath: string): string | null => {
 	const relative = path.relative(rootDir, filePath).split(path.sep).join('/');

@@ -1,12 +1,12 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {buildOracleFacts, scanOracleFacts} from '../src/adapters/oracle/index.ts';
-import {parseOracleUnits} from '../src/adapters/oracle/parseUnits.ts';
-import {extractOracleSymbols} from '../src/adapters/oracle/extractSymbols.ts';
-import {resolveOracleReferences} from '../src/adapters/oracle/resolveReferences.ts';
-import {buildSymbolTable} from '../src/adapters/oracle/symbolTables.ts';
-import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
+import {buildOracleFacts, scanOracleFacts} from '@codeindex/adapter-oracle/index';
+import {parseOracleUnits} from '@codeindex/adapter-oracle/parseUnits';
+import {extractOracleSymbols} from '@codeindex/adapter-oracle/extractSymbols';
+import {resolveOracleReferences} from '@codeindex/adapter-oracle/resolveReferences';
+import {buildSymbolTable} from '@codeindex/adapter-oracle/symbolTables';
+import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
 import {finalizeFacts, type FinalizedFactSetType} from '../src/core/facts/index.ts';
 import {measureInvariants} from '../src/core/qualification/publication/invariants.ts';
 import {compactOutlineOf} from '../src/transports/mcp/compactResults.ts';

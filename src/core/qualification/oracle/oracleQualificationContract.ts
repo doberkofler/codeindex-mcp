@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {ORACLE_DIAGNOSTIC} from '../../../adapters/oracle/diagnostics.ts';
+import {ORACLE_DIAGNOSTIC} from '@codeindex/adapter-oracle/internals';
 import {ORACLE_DEPENDENCY_EXCLUSION_REASONS} from './oracleDependencyExclusions.ts';
 import {ORACLE_COMPARISON_SAMPLE_LIMIT} from './oracleTruth.ts';
 import {ORACLE_TRUTH_EXCLUSION_REASONS} from './oracleTruthExclusions.ts';

@@ -6,7 +6,7 @@ import {z} from 'zod';
 import {type ConfigType} from '../../config/config.ts';
 import {type ExtractedFactSetType} from '../../facts/index.ts';
 import {type FinalizedFactSetType} from '../../facts/types.ts';
-import {loadTypeScriptProject} from '../../../adapters/typescript/loadProject.ts';
+import {loadTypeScriptProject} from '@codeindex/adapter-typescript/internals';
 import {type P1ReportType, type P2ReportType, type P3ReportType} from './types.ts';
 import {countUnionIntersection} from './unionIntersection.ts';
 import {runProjectionPrototype} from './projectionPrototype.ts';

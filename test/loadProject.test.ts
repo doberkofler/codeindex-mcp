@@ -2,7 +2,7 @@ import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {loadTypeScriptProject} from '../src/adapters/typescript/loadProject.ts';
+import {loadTypeScriptProject} from '@codeindex/adapter-typescript/loadProject';
 import {type ConfigType} from '../src/core/config/config.ts';
 
 const directories: string[] = [];

@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {scanTypeScriptProject} from '../src/adapters/typescript/index.ts';
+import {scanTypeScriptProject} from '@codeindex/adapter-typescript/index';
 import {runBuildWorkerThread} from '../src/core/generation/buildWorkerClient.ts';
 import {type ScanResultType} from '../src/core/model.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {isBuildWorkerData, runBuildWorker} from '../src/core/generation/buildWorker.ts';
-import {scanTypeScriptProject, typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {scanTypeScriptProject, typeScriptExtractor} from '@codeindex/adapter-typescript/index';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 const descriptors = [

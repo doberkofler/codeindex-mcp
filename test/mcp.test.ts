@@ -1,6 +1,6 @@
 import {type Client} from '@modelcontextprotocol/client';
 import {afterEach, describe, expect, it} from 'vitest';
-import {oracleExtractor} from '../src/adapters/oracle/index.ts';
+import {oracleExtractor} from '@codeindex/adapter-oracle/index';
 import {CodeIndexError, IndexNotReadyError, StaleFileError, type ErrorCodeType} from '../src/core/errors/errors.ts';
 import {createFakeIndex, FAKE_SOURCE, FAKE_SYMBOL_COUNT, type FakeIndexOptionsType} from './helpers/fakeIndex.ts';
 import {openServer, textOf, type ConnectionType, type EnvelopeType} from './helpers/mcpConnection.ts';

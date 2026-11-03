@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {normalizeOracleQueryName} from '../src/adapters/oracle/queryNames.ts';
+import {normalizeOracleQueryName} from '@codeindex/adapter-oracle/queryNames';
 
 describe('Oracle query name normalization', () => {
 	it('folds unquoted identifiers to their canonical upper-case spelling', () => {

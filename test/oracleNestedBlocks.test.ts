@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest';
-import {parseNestedBlockDeclarations} from '../src/adapters/oracle/nestedBlocks.ts';
-import {createParserState, type OracleParserStateType} from '../src/adapters/oracle/parserState.ts';
-import {TokenCursor} from '../src/adapters/oracle/tokenCursor.ts';
-import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
+import {parseNestedBlockDeclarations} from '@codeindex/adapter-oracle/nestedBlocks';
+import {createParserState, type OracleParserStateType} from '@codeindex/adapter-oracle/parserState';
+import {TokenCursor} from '@codeindex/adapter-oracle/tokenCursor';
+import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
 
 const stateOf = (source: string): OracleParserStateType => {
 	const tokenized = tokenizeOracleSource(source, 'nested.pkb');

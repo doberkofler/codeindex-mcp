@@ -1,7 +1,7 @@
 import {type AdapterType} from '@codeindex/adapter-sdk';
 import {type AdapterSetType} from '../../src/adapters/loader.ts';
-import {oracleExtractor} from '../../src/adapters/oracle/index.ts';
-import {typeScriptExtractor} from '../../src/adapters/typescript/index.ts';
+import {oracleExtractor} from '@codeindex/adapter-oracle/index';
+import {typeScriptExtractor} from '@codeindex/adapter-typescript/index';
 import {configuredAdapters, type ConfigType} from '../../src/core/config/config.ts';
 
 const BUILT_IN: Readonly<Partial<Record<string, AdapterType>>> = {

@@ -1,6 +1,6 @@
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
-import {readOracleManifest} from '../../../../adapters/oracle/manifest.ts';
+import {readOracleManifest} from '@codeindex/adapter-oracle/internals';
 import {type ConfigType} from '../../../config/config.ts';
 import {computeSourceHash, createSourceFileRecord, hashContent} from '../../../generation/sourceFiles.ts';
 import {type SourceFileType} from '../../../model.ts';

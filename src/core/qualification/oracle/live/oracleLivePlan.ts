@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {z} from 'zod';
-import {scanOracleProject} from '../../../../adapters/oracle/scanProject.ts';
+import {scanOracleProject} from '@codeindex/adapter-oracle/internals';
 import {readVcsProvenance} from '../../../../adapters/vcs/vcsProvenance.ts';
 import {type ConfigType} from '../../../config/config.ts';
 import {

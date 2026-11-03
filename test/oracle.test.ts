@@ -2,11 +2,11 @@ import {appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from '
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterAll, describe, expect, it} from 'vitest';
-import {parseOracleManifest} from '../src/adapters/oracle/manifest.ts';
-import {parseOracleUnits} from '../src/adapters/oracle/parseUnits.ts';
-import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
+import {parseOracleManifest} from '@codeindex/adapter-oracle/manifest';
+import {parseOracleUnits} from '@codeindex/adapter-oracle/parseUnits';
+import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
 import {loadConfig} from '../src/core/config/config.ts';
-import {scanOracleProject} from '../src/adapters/oracle/scanProject.ts';
+import {scanOracleProject} from '@codeindex/adapter-oracle/scanProject';
 import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
 
 const fixtureRoot = path.join(import.meta.dirname, 'fixtures', 'oracle-project');

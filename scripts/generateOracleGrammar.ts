@@ -10,7 +10,7 @@ const parserGrammarSource = path.join(grammarDirectory, 'PlSqlParser.g4');
 const lexerBaseSource = path.join(grammarDirectory, 'Antlr4ng', 'PlSqlLexerBase.ts.txt');
 const parserBaseSource = path.join(grammarDirectory, 'Antlr4ng', 'PlSqlParserBase.ts.txt');
 const outputArgument: string | undefined = process.argv.at(2);
-const outputDirectory = outputArgument === undefined ? path.join(root, 'src', 'adapters', 'oracle', 'generated') : path.resolve(outputArgument);
+const outputDirectory = outputArgument === undefined ? path.join(root, 'packages', 'adapter-oracle', 'src', 'generated') : path.resolve(outputArgument);
 const runner = path.join(root, 'node_modules', 'antlr-ng', 'dist', 'cli', 'runner.js');
 const generated = {
 	lexer: path.join(outputDirectory, 'PlSqlLexer.ts'),

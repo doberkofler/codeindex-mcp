@@ -4,9 +4,9 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 import {type ExtractedOccurrenceType} from '../src/core/facts/index.ts';
 import {type ConfigType} from '../src/core/config/config.ts';
 import {type IndexedSymbolType} from '../src/core/model.ts';
-import {extractSymbolFacts} from '../src/adapters/typescript/extractSymbols.ts';
-import {loadTypeScriptProject} from '../src/adapters/typescript/loadProject.ts';
-import {scanProject} from '../src/adapters/typescript/scanProject.ts';
+import {extractSymbolFacts} from '@codeindex/adapter-typescript/extractSymbols';
+import {loadTypeScriptProject} from '@codeindex/adapter-typescript/loadProject';
+import {scanProject} from '@codeindex/adapter-typescript/scanProject';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 type ExtractedFixtureType = Readonly<{

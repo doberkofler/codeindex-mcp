@@ -1,5 +1,5 @@
 import {type DatabaseSync} from 'node:sqlite';
-import {ORACLE_DIAGNOSTIC} from '../../../adapters/oracle/diagnostics.ts';
+import {ORACLE_DIAGNOSTIC} from '@codeindex/adapter-oracle/internals';
 import {asNumber, asString} from '../../storage/databaseRows.ts';
 import {type CodeOccurrenceType} from './oracleTruth.ts';
 import {positionKeyOf} from './oracleTruthExclusions.ts';

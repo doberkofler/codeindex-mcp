@@ -1,0 +1,169 @@
+import {existsSync} from 'node:fs';
+import path from 'node:path';
+import ts from 'typescript';
+import {type AdapterConfigType, toRepositoryPath, debugFor, type DiagnosticType} from '@codeindex/adapter-sdk';
+import {type TypeScriptInputSnapshotType} from './inputSnapshot.ts';
+
+const {dirname} = path;
+const debug = debugFor('project');
+const MAX_STORED_DIAGNOSTICS = 500;
+
+export type LoadedProjectType = Readonly<{
+	readonly program: ts.Program;
+	readonly checker: ts.TypeChecker;
+	readonly diagnostics: readonly DiagnosticType[];
+	readonly diagnosticCount: number;
+	readonly programFileCount: number;
+}>;
+
+const categoryName = (category: ts.DiagnosticCategory): DiagnosticType['category'] => {
+	switch (category) {
+		case ts.DiagnosticCategory.Error: {
+			return 'error';
+		}
+		case ts.DiagnosticCategory.Warning: {
+			return 'warning';
+		}
+		case ts.DiagnosticCategory.Suggestion: {
+			return 'suggestion';
+		}
+		case ts.DiagnosticCategory.Message: {
+			return 'message';
+		}
+		default: {
+			return 'message';
+		}
+	}
+};
+
+const repositoryPathOrNull = (config: AdapterConfigType, fileName: string): string | null => {
+	try {
+		return toRepositoryPath(config.rootDir, fileName);
+	} catch {
+		return null;
+	}
+};
+
+const toDiagnostic = (diagnostic: ts.Diagnostic, config: AdapterConfigType): DiagnosticType => {
+	const {file} = diagnostic;
+	const position = diagnostic.start;
+	const location = file !== undefined && position !== undefined ? file.getLineAndCharacterOfPosition(position) : undefined;
+
+	return {
+		category: categoryName(diagnostic.category),
+		code: diagnostic.code,
+		message: ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+		path: file === undefined ? null : repositoryPathOrNull(config, file.fileName),
+		startLine: location === undefined ? null : location.line + 1,
+		startColumn: location === undefined ? null : location.character + 1,
+	};
+};
+
+const collectDiagnostics = (program: ts.Program, config: AdapterConfigType): Readonly<{items: readonly DiagnosticType[]; total: number}> => {
+	const diagnostics: readonly ts.Diagnostic[] = config.semanticDiagnostics
+		? [...program.getOptionsDiagnostics(), ...program.getGlobalDiagnostics(), ...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()]
+		: [...program.getOptionsDiagnostics(), ...program.getGlobalDiagnostics(), ...program.getSyntacticDiagnostics()];
+
+	const stored: DiagnosticType[] = [];
+
+	for (const diagnostic of diagnostics.slice(0, MAX_STORED_DIAGNOSTICS)) {
+		stored.push(toDiagnostic(diagnostic, config));
+	}
+
+	return {items: stored, total: diagnostics.length};
+};
+
+const compilerHostFor = (options: ts.CompilerOptions, snapshot: TypeScriptInputSnapshotType): ts.CompilerHost => {
+	const host = ts.createCompilerHost(options, true);
+
+	host.fileExists = (fileName: string): boolean => snapshot.fileExists(fileName);
+	host.readFile = (fileName: string): string | undefined => snapshot.readFile(fileName);
+	host.directoryExists = (directoryName: string): boolean => snapshot.directoryExists(directoryName);
+	host.getDirectories = (directoryName: string): string[] => [...snapshot.getDirectories(directoryName)];
+	host.realpath = (fileName: string): string => snapshot.realpath(fileName);
+	host.getSourceFile = (fileName: string, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions): ts.SourceFile | undefined => {
+		const text = snapshot.readFile(fileName);
+		return text === undefined ? undefined : ts.createSourceFile(fileName, text, languageVersionOrOptions, true);
+	};
+
+	return host;
+};
+
+const parseProjectFile = (projectFilePath: string, snapshot: TypeScriptInputSnapshotType | undefined): ts.ParsedCommandLine => {
+	const readFile = (fileName: string): string | undefined => (snapshot === undefined ? ts.sys.readFile(fileName) : snapshot.readFile(fileName));
+	const configFile = ts.readConfigFile(projectFilePath, readFile);
+
+	if (configFile.error !== undefined) {
+		throw new Error(`Cannot read TypeScript configuration ${projectFilePath}: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
+	}
+
+	const parseHost: ts.ParseConfigHost =
+		snapshot === undefined
+			? ts.sys
+			: {
+					useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
+					fileExists: (fileName): boolean => snapshot.fileExists(fileName),
+					readFile,
+					readDirectory: (...args): string[] => snapshot.readDirectory(...args),
+					getDirectories: (directory): string[] => [...snapshot.getDirectories(directory)],
+				};
+
+	return ts.parseJsonConfigFileContent(configFile.config, parseHost, dirname(projectFilePath), undefined, projectFilePath);
+};
+
+/**
+ * Loads the configured TypeScript project with the compiler API.
+ *
+ * When an input snapshot is supplied, configuration parsing and every compiler
+ * read use the snapshot's captured bytes. The loaded program therefore parses
+ * one immutable version even if the filesystem changes during the build.
+ *
+ * Some projects declare a native compiler package that does not expose the
+ * JavaScript program API used for extraction. Extraction therefore uses the
+ * installed compiler API; the scanner records the declared compiler version in
+ * the configuration hash and reports drift.
+ *
+ * @param config - Resolved project configuration.
+ * @param projectFilePath - Project file to load; defaults to the first configured project.
+ * @param snapshot - Optional captured input snapshot.
+ * @returns The loaded program, checker, and diagnostics.
+ * @throws {@link Error} When the tsconfig is missing or the program cannot be
+ * constructed.
+ */
+export const loadTypeScriptProject = (
+	config: AdapterConfigType,
+	projectFilePath = config.projectFilePath,
+	snapshot?: TypeScriptInputSnapshotType,
+): LoadedProjectType => {
+	const startedAt = performance.now();
+
+	if (!existsSync(projectFilePath) && snapshot === undefined) {
+		throw new Error(`TypeScript configuration does not exist: ${projectFilePath}`);
+	}
+
+	const captured = snapshot?.projectOf(projectFilePath);
+	const parsed = captured?.parsed ?? parseProjectFile(projectFilePath, snapshot);
+
+	const program = ts.createProgram({
+		rootNames: parsed.fileNames,
+		options: parsed.options,
+		...(parsed.projectReferences === undefined ? {} : {projectReferences: parsed.projectReferences}),
+		...(snapshot === undefined ? {} : {host: compilerHostFor(parsed.options, snapshot)}),
+	});
+	const diagnostics = collectDiagnostics(program, config);
+	debug('project loaded', {
+		rootNames: parsed.fileNames.length,
+		sourceFiles: program.getSourceFiles().length,
+		diagnostics: diagnostics.total,
+		semanticDiagnostics: config.semanticDiagnostics,
+		durationMs: Math.round(performance.now() - startedAt),
+	});
+
+	return {
+		program,
+		checker: program.getTypeChecker(),
+		diagnostics: diagnostics.items,
+		diagnosticCount: diagnostics.total,
+		programFileCount: program.getSourceFiles().length,
+	};
+};

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
-import {prepareConditionalSource} from '../src/adapters/oracle/conditionalCompilation.ts';
-import {ORACLE_DIAGNOSTIC} from '../src/adapters/oracle/diagnostics.ts';
-import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
+import {prepareConditionalSource} from '@codeindex/adapter-oracle/conditionalCompilation';
+import {ORACLE_DIAGNOSTIC} from '@codeindex/adapter-oracle/diagnostics';
+import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
 
 const prepare = (source: string): ReturnType<typeof prepareConditionalSource> => {
 	const tokenized = tokenizeOracleSource(source, 'conditional.pks');

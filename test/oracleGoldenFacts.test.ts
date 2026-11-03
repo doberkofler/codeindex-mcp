@@ -2,10 +2,10 @@ import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {z} from 'zod';
-import {extractOracleSymbols} from '../src/adapters/oracle/extractSymbols.ts';
-import {parseOracleUnits} from '../src/adapters/oracle/parseUnits.ts';
-import {resolveOracleReferences} from '../src/adapters/oracle/resolveReferences.ts';
-import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
+import {extractOracleSymbols} from '@codeindex/adapter-oracle/extractSymbols';
+import {parseOracleUnits} from '@codeindex/adapter-oracle/parseUnits';
+import {resolveOracleReferences} from '@codeindex/adapter-oracle/resolveReferences';
+import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
 import {createExtraClassifier} from '../src/core/qualification/oracle/oracleExtras.ts';
 import {type ObjectMappingType} from '../src/core/qualification/oracle/oracleMapping.ts';
 

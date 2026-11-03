@@ -1,9 +1,9 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {parseWithAntlr} from '../src/adapters/oracle/antlrParser.ts';
-import {ORACLE_DIAGNOSTIC} from '../src/adapters/oracle/diagnostics.ts';
-import {type OracleParseResultType} from '../src/adapters/oracle/syntax.ts';
+import {parseWithAntlr} from '@codeindex/adapter-oracle/antlrParser';
+import {ORACLE_DIAGNOSTIC} from '@codeindex/adapter-oracle/diagnostics';
+import {type OracleParseResultType} from '@codeindex/adapter-oracle/syntax';
 
 const fixtureRoot = path.join(import.meta.dirname, 'fixtures', 'oracle-grammar-gaps');
 const openGaps = [

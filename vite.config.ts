@@ -29,7 +29,7 @@ export default defineConfig({
 			fileName: () => entryName,
 		},
 		rolldownOptions: {
-			external: ['oracledb'],
+			external: ['oracledb', '@codeindex/adapter-typescript', '@codeindex/adapter-oracle'],
 			output: {
 				entryFileNames: `${entryName}.mjs`,
 			},

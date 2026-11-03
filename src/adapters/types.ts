@@ -3,7 +3,6 @@ import {type AdapterConfigType, type AdapterType} from '@codeindex/adapter-sdk';
 export type {
 	AdapterArtifactCacheType as ExtractorArtifactCacheType,
 	AdapterBuildType as ExtractorBuildType,
-	AdapterFactReuseInputType as ExtractorFactReuseInputType,
 	AdapterType as ExtractorType,
 } from '@codeindex/adapter-sdk';
 

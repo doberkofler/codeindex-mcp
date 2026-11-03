@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {createOracleId} from '../src/adapters/oracle/symbolIdentity.ts';
+import {createOracleId} from '@codeindex/adapter-oracle/symbolIdentity';
 
 const identity = {
 	projectId: 'project',

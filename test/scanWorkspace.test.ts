@@ -2,7 +2,7 @@ import {appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileS
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {collectConfigFiles, scanProject} from '../src/adapters/typescript/scanProject.ts';
+import {collectConfigFiles, scanProject} from '@codeindex/adapter-typescript/scanProject';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 const canonicalPath = (fileName: string): string => realpathSync(fileName);

@@ -11,7 +11,6 @@ import {type IndexStatusType} from '../../core/model.ts';
 import {createLogger, type LoggerType} from '../../core/logging/logger.ts';
 import {IndexDatabase} from '../../core/storage/database.ts';
 import {SCHEMA_VERSION} from '../../core/storage/schema.ts';
-import {verifyTypeScriptReferences} from '../../adapters/typescript/verifyReferences.ts';
 import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {
@@ -39,10 +38,30 @@ type MutableJobType = {
 	result: unknown;
 };
 
+export type ConsoleVerificationType = (config: ConfigType) => Readonly<{
+	coverage: unknown;
+	accuracy: unknown;
+	gate: unknown;
+	comparisons: readonly Readonly<{
+		name: string;
+		kind: string;
+		path: string;
+		tags: readonly string[];
+		expectedCount: number;
+		actualCount: number;
+		matchedCount: number;
+		missing: readonly unknown[];
+		extra: readonly unknown[];
+		skip: string | null;
+	}>[];
+}>;
+
 export type ConsoleServiceOptionsType = Readonly<{
 	config: ConfigType;
 	adapters?: readonly ExtractorType[];
 	adapterDescriptors?: readonly ResolvedAdapterDescriptorType[];
+	/** Adapter-specific verification injected by a maintainer entrypoint. */
+	verifyReferences?: ConsoleVerificationType;
 	logger?: LoggerType;
 	mcpPath?: string;
 }>;
@@ -70,6 +89,7 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
 export class ConsoleService {
 	readonly #config: ConfigType;
 	readonly #adapters: ReadonlyMap<string, ExtractorType>;
+	readonly #verifyReferences: ConsoleVerificationType | null;
 	readonly #index: CodeIndex;
 	readonly #logger: LoggerType;
 	readonly #analytics: AnalyticsRecorderType;
@@ -82,11 +102,18 @@ export class ConsoleService {
 	private constructor(
 		config: ConfigType,
 		index: CodeIndex,
-		runtime: Readonly<{logger: LoggerType; analytics: AnalyticsRecorderType; mcpPath: string | null; adapters: ReadonlyMap<string, ExtractorType>}>,
+		runtime: Readonly<{
+			logger: LoggerType;
+			analytics: AnalyticsRecorderType;
+			mcpPath: string | null;
+			adapters: ReadonlyMap<string, ExtractorType>;
+			verifyReferences: ConsoleVerificationType | null;
+		}>,
 	) {
 		this.#config = config;
 		this.#index = index;
 		this.#adapters = runtime.adapters;
+		this.#verifyReferences = runtime.verifyReferences;
 		this.#logger = runtime.logger;
 		this.#analytics = runtime.analytics;
 		this.#mcpPath = runtime.mcpPath;
@@ -131,6 +158,7 @@ export class ConsoleService {
 			analytics,
 			mcpPath: options.mcpPath ?? null,
 			adapters: new Map(adapters.map((adapter) => [adapter.id, adapter])),
+			verifyReferences: options.verifyReferences ?? null,
 		});
 		service.start();
 		return service;
@@ -247,7 +275,13 @@ export class ConsoleService {
 				return this.installMcp();
 			}
 			case 'qualify': {
-				const report = verifyTypeScriptReferences(this.#config);
+				const verify = this.#verifyReferences;
+
+				if (verify === null) {
+					throw new Error('Adapter verification is not available in this process');
+				}
+
+				const report = verify(this.#config);
 
 				return {
 					coverage: report.coverage,

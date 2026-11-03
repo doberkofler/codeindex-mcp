@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {oracleParserIdentityOf} from '../src/adapters/oracle/parserIdentity.ts';
+import {oracleParserIdentityOf} from '@codeindex/adapter-oracle/parserIdentity';
 import {
 	aggregateOraclePerformanceSamples,
 	collectOraclePerformanceSamples,

@@ -1,7 +1,7 @@
 import {appendFileSync} from 'node:fs';
 import path from 'node:path';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {buildTypeScriptFacts, scanTypeScriptProject, typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {buildTypeScriptFacts, scanTypeScriptProject, typeScriptExtractor} from '@codeindex/adapter-typescript/index';
 import {type ExtractorType} from '../src/adapters/types.ts';
 import {type AnalyticsRecorderType} from '../src/core/analytics/recorder.ts';
 import {buildGeneration} from '../src/core/generation/buildGeneration.ts';

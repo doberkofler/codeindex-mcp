@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
-import {type ReferenceComparisonType, type ReferenceVerificationReportType} from '../src/adapters/typescript/referenceGate.ts';
+import {typeScriptExtractor} from '@codeindex/adapter-typescript/index';
+import {type ReferenceComparisonType, type ReferenceVerificationReportType} from '@codeindex/adapter-typescript/referenceGate';
 import {type BenchmarkReportType} from '../src/core/benchmark/benchTypes.ts';
 import {type ConfigType} from '../src/core/config/config.ts';
 import {type LoggerType} from '../src/core/logging/logger.ts';
@@ -61,7 +61,6 @@ vi.mock(import('../src/transports/cli/mcpCommand.ts'), () => ({runMcpCommand: do
 vi.mock(import('../src/core/generation/codeIndex.ts'), () => ({createCodeIndex: doubles.createCodeIndex}) as unknown as never);
 vi.mock(import('../src/core/logging/logger.ts'), () => ({createLogger: doubles.createLogger}));
 vi.mock(import('../src/core/storage/database.ts'), () => ({IndexDatabase: {open: doubles.databaseOpen}}) as unknown as never);
-vi.mock(import('../src/adapters/typescript/verifyReferences.ts'), () => ({verifyTypeScriptReferences: doubles.verifyTypeScriptReferences}));
 vi.mock(import('../src/adapters/vcs/vcsProvenance.ts'), () => ({readVcsProvenance: doubles.readVcsProvenance}) as unknown as never);
 
 const config: ConfigType = {
@@ -199,6 +198,7 @@ const openService = (options: Readonly<{logger?: LoggerType; mcpPath?: string; c
 	ConsoleService.open({
 		config: options.config ?? config,
 		adapters: [{...typeScriptExtractor, version: '9.9.9'}],
+		verifyReferences: doubles.verifyTypeScriptReferences,
 		...(options.logger === undefined ? {} : {logger: options.logger}),
 		...(options.mcpPath === undefined ? {} : {mcpPath: options.mcpPath}),
 	});

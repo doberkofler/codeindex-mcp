@@ -1,0 +1,161 @@
+import {createHash} from 'node:crypto';
+import {realpathSync} from 'node:fs';
+import path from 'node:path';
+import {
+	type AdapterConfigType,
+	toRepositoryPath,
+	createSourceFileRecord,
+	computeSourceHash,
+	type ScanProjectResultType,
+	type ScanResultType,
+	type SourceFileType,
+} from '@codeindex/adapter-sdk';
+import {discoverOracleFiles, isOracleSourcePath, oracleArtifactContextHash, oracleManifestHash, readOracleManifest} from './manifest.ts';
+import {oracleParserIdOfConfig} from './parserBinding.ts';
+import {oracleParserIdentityOf} from './parserIdentity.ts';
+
+export const ORACLE_EXTRACTOR_ID = 'oracle';
+export const ORACLE_EXTRACTOR_VERSION = '0.5.0';
+
+const {isAbsolute, relative, sep} = path;
+
+export const ORACLE_IGNORED_SEGMENTS: readonly string[] = ['node_modules', '.git', '.svn', '.hg', 'dist', 'build', 'coverage', 'temp', '.vite'];
+
+const hash = (value: string): string => createHash('sha256').update(value).digest('hex');
+
+const isInside = (rootDir: string, candidate: string): boolean => {
+	const candidateRelative = relative(rootDir, candidate);
+	return candidateRelative === '' || (!candidateRelative.startsWith(`..${sep}`) && candidateRelative !== '..' && !isAbsolute(candidateRelative));
+};
+
+/**
+ * Reports whether an absolute path is publishable Oracle source in the workspace.
+ *
+ * Manifest include/exclude patterns remain authoritative for scanning.
+ *
+ * @param absolutePath - Candidate source path.
+ * @param rootDir - Absolute indexed workspace root.
+ * @returns Whether the path has a supported extension and stays inside the root.
+ */
+export const isOracleAuthoredSourceFile = (absolutePath: string, rootDir: string): boolean => {
+	if (!isOracleSourcePath(absolutePath)) {
+		return false;
+	}
+
+	if (
+		relative(rootDir, absolutePath)
+			.split(sep)
+			.map((segment) => segment.toLowerCase())
+			.some((segment) => ORACLE_IGNORED_SEGMENTS.includes(segment))
+	) {
+		return false;
+	}
+
+	try {
+		return isInside(realpathSync(rootDir), realpathSync(absolutePath));
+	} catch {
+		return false;
+	}
+};
+
+type ContextScanType = Readonly<{
+	project: ScanProjectResultType;
+	files: readonly SourceFileType[];
+	excludedFileCount: number;
+	artifactContextHash: string;
+}>;
+
+const scanContext = (config: AdapterConfigType, context: AdapterConfigType['projects'][number]): ContextScanType => {
+	const manifest = readOracleManifest(context.projectFilePath);
+	const discovery = discoverOracleFiles(config.rootDir, manifest.manifest);
+	const files = discovery.files.map((file) => createSourceFileRecord(file.absolutePath, config.rootDir));
+	const identity = oracleParserIdentityOf(oracleParserIdOfConfig(config));
+	const hashInput = {
+		manifestBytes: manifest.manifestBytes,
+		canonicalSchema: manifest.canonicalSchema,
+		include: manifest.manifest.include,
+		exclude: manifest.manifest.exclude,
+		extensions: manifest.manifest.extensions,
+		parserRevision: identity.revision,
+	};
+	const configHash = oracleManifestHash({...hashInput, files});
+	const artifactContextHash = oracleArtifactContextHash(hashInput);
+
+	return {
+		artifactContextHash,
+		project: {
+			name: context.name,
+			projectFile: isInside(config.rootDir, context.projectFilePath)
+				? toRepositoryPath(config.rootDir, context.projectFilePath)
+				: `manifests/${path.basename(context.projectFilePath)}`,
+			configHash,
+			projectFileCount: files.length,
+			configDiagnosticCount: 0,
+		},
+		files,
+		excludedFileCount: discovery.excludedFileCount,
+	};
+};
+
+/**
+ * Discovers deterministic Oracle source matches for every configured manifest.
+ *
+ * @param config - Resolved project configuration.
+ * @param _knownPaths - Previously indexed paths; manifests remain authoritative.
+ * @returns The scanned source manifest, per-context digests, and fingerprints.
+ */
+export const scanOracleProject = (config: AdapterConfigType, _knownPaths: readonly string[] = []): ScanResultType => {
+	const startedAt = performance.now();
+	const identity = oracleParserIdentityOf(oracleParserIdOfConfig(config));
+	const contexts = config.projects.map((context) => scanContext(config, context));
+	const merged = new Map<string, SourceFileType>();
+
+	for (const context of contexts) {
+		for (const file of context.files) {
+			merged.set(file.path, file);
+		}
+	}
+
+	const files = [...merged.values()].sort((left, right) => left.path.localeCompare(right.path));
+	const projects = contexts.map((context) => context.project).sort((left, right) => left.name.localeCompare(right.name));
+	const configHash = hash(
+		[...projects.map((project) => `${project.name}:${project.configHash}`), `extractor:${ORACLE_EXTRACTOR_ID}@${ORACLE_EXTRACTOR_VERSION}`].join('\n'),
+	);
+	const artifactContextHash = hash(
+		[
+			...contexts.map((context) => `${context.project.name}:${context.artifactContextHash}`).sort(),
+			`extractor:${ORACLE_EXTRACTOR_ID}@${ORACLE_EXTRACTOR_VERSION}`,
+		].join('\n'),
+	);
+	const projectFileCount = projects.reduce((total, project) => total + project.projectFileCount, 0);
+	const excludedFileCount = contexts.reduce((total, context) => total + context.excludedFileCount, 0);
+	const sourceHash = computeSourceHash(files);
+
+	return {
+		rootDir: config.rootDir,
+		projectId: config.projectId,
+		extractorId: ORACLE_EXTRACTOR_ID,
+		extractorVersion: ORACLE_EXTRACTOR_VERSION,
+		compilerVersion: identity.compilerVersion,
+		declaredCompilerVersion: null,
+		compilerDrift: false,
+		files,
+		sourceHash,
+		configHash,
+		artifactContextHash,
+		projects,
+		projectFileCount,
+		excludedFileCount,
+		configDiagnosticCount: 0,
+		scanMs: Math.round(performance.now() - startedAt),
+	};
+};
+
+/**
+ * Lists configuration files that affect the Oracle scan.
+ *
+ * @param config - Resolved project configuration.
+ * @returns Absolute manifest paths in deterministic order.
+ */
+export const collectOracleConfigFiles = (config: AdapterConfigType): readonly string[] =>
+	[...new Set(config.projects.map((project) => realpathSync(project.projectFilePath)))].sort();

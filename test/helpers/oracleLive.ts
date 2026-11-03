@@ -1,6 +1,6 @@
 import {readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
-import {scanOracleProject} from '../../src/adapters/oracle/scanProject.ts';
+import {scanOracleProject} from '@codeindex/adapter-oracle/scanProject';
 import {
 	normalizeOracleSource,
 	oracleObjectKeyOf,

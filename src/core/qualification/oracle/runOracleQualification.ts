@@ -3,9 +3,13 @@ import {readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {type ExtractorType} from '../../../adapters/types.ts';
-import {oracleExtractor} from '../../../adapters/oracle/index.ts';
-import {configForOracleParser} from '../../../adapters/oracle/parserBinding.ts';
-import {oracleParserIdentityOf, type OracleParserIdType, type OracleParserIdentityType} from '../../../adapters/oracle/parserIdentity.ts';
+import {
+	oracleExtractor,
+	configForOracleParser,
+	oracleParserIdentityOf,
+	type OracleParserIdType,
+	type OracleParserIdentityType,
+} from '@codeindex/adapter-oracle/internals';
 import {asString} from '../../storage/databaseRows.ts';
 import {IndexDatabase} from '../../storage/database.ts';
 import {createCodeIndex} from '../../generation/codeIndex.ts';
@@ -125,7 +129,7 @@ const extractorForParser = async (parser: OracleParserIdType): Promise<Extractor
 		return oracleExtractor;
 	}
 
-	const {antlrOracleExtractor} = await import('../../../adapters/oracle/antlrExtractor.ts');
+	const {antlrOracleExtractor} = await import('@codeindex/adapter-oracle/internals');
 	return antlrOracleExtractor;
 };
 

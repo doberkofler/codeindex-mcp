@@ -10,9 +10,9 @@ const config = {
 	// their upstream bytes; generated code is reproducible from the pinned grammar.
 	ignorePatterns: [
 		...defaults.ignorePatterns,
-		'src/adapters/oracle/generated/**',
-		'src/adapters/oracle/plSqlLexerBase.ts',
-		'src/adapters/oracle/plSqlParserBase.ts',
+		'packages/adapter-oracle/src/generated/**',
+		'packages/adapter-oracle/src/plSqlLexerBase.ts',
+		'packages/adapter-oracle/src/plSqlParserBase.ts',
 	],
 };
 

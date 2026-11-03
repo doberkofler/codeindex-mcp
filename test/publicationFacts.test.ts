@@ -1,9 +1,9 @@
 import {createHash} from 'node:crypto';
 import {describe, expect, it} from 'vitest';
-import {buildOracleFacts, scanOracleFacts} from '../src/adapters/oracle/index.ts';
-import {buildTypeScriptFacts, scanTypeScriptProject} from '../src/adapters/typescript/index.ts';
-import {collectBindings} from '../src/core/facts/bindings.ts';
+import {buildOracleFacts, scanOracleFacts} from '@codeindex/adapter-oracle/index';
+import {buildTypeScriptFacts, scanTypeScriptProject} from '@codeindex/adapter-typescript/index';
 import {
+	collectBindings,
 	finalizeFacts,
 	type ExtractedBindingContextType,
 	type ExtractedBindingSiteType,

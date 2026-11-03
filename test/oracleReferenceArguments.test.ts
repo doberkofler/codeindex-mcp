@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest';
-import {createParserState, type OracleParserStateType} from '../src/adapters/oracle/parserState.ts';
-import {addBulkCollectSite, argumentShapeOf, assignFollows, forRangeAt, statementStart, typeReferencesOf} from '../src/adapters/oracle/referenceArguments.ts';
-import {TokenCursor} from '../src/adapters/oracle/tokenCursor.ts';
-import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
+import {createParserState, type OracleParserStateType} from '@codeindex/adapter-oracle/parserState';
+import {addBulkCollectSite, argumentShapeOf, assignFollows, forRangeAt, statementStart, typeReferencesOf} from '@codeindex/adapter-oracle/referenceArguments';
+import {TokenCursor} from '@codeindex/adapter-oracle/tokenCursor';
+import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
 
 const stateOf = (source: string): OracleParserStateType => {
 	const tokenized = tokenizeOracleSource(source, 'arguments.pkb');

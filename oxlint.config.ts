@@ -54,9 +54,9 @@ const config = {
 	// not authored code. They still participate in TypeScript compilation.
 	ignorePatterns: [
 		...defaults.ignorePatterns,
-		'src/adapters/oracle/generated/**',
-		'src/adapters/oracle/plSqlLexerBase.ts',
-		'src/adapters/oracle/plSqlParserBase.ts',
+		'packages/adapter-oracle/src/generated/**',
+		'packages/adapter-oracle/src/plSqlLexerBase.ts',
+		'packages/adapter-oracle/src/plSqlParserBase.ts',
 		// Runtime-comparison harness: dynamic corpus metadata and native process
 		// output sit outside the authored TypeScript application.
 		'benchmark/oracle-antlr-runtime/**/*.mjs',

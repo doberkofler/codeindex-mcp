@@ -1,12 +1,12 @@
 import {describe, expect, it} from 'vitest';
 import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
-import {buildOracleFacts, createOracleExtractor, scanOracleFacts} from '../src/adapters/oracle/index.ts';
-import {scanOracleProject} from '../src/adapters/oracle/scanProject.ts';
-import {configForOracleParser, oracleParserIdOfConfig} from '../src/adapters/oracle/parserBinding.ts';
-import {oracleParserIdentityOf, parseOracleParserId} from '../src/adapters/oracle/parserIdentity.ts';
-import {structuralOracleParser} from '../src/adapters/oracle/parseUnits.ts';
-import {type OracleParseInputType, type OracleParseResultType} from '../src/adapters/oracle/syntax.ts';
+import {buildOracleFacts, createOracleExtractor, scanOracleFacts} from '@codeindex/adapter-oracle/index';
+import {scanOracleProject} from '@codeindex/adapter-oracle/scanProject';
+import {configForOracleParser, oracleParserIdOfConfig} from '@codeindex/adapter-oracle/parserBinding';
+import {oracleParserIdentityOf, parseOracleParserId} from '@codeindex/adapter-oracle/parserIdentity';
+import {structuralOracleParser} from '@codeindex/adapter-oracle/parseUnits';
+import {type OracleParseInputType, type OracleParseResultType} from '@codeindex/adapter-oracle/syntax';
 import {adapterSetOf} from './helpers/adapters.ts';
 import {createFixtureConfig, silentLogger} from './helpers/fixture.ts';
 

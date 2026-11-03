@@ -3,7 +3,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {buildTypeScriptFacts, scanTypeScriptProject, typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {buildTypeScriptFacts, scanTypeScriptProject, typeScriptExtractor} from '@codeindex/adapter-typescript/index';
 import {type ExtractorType} from '../src/adapters/types.ts';
 import {adapterConfigFor, type AdapterConfigType, type ConfigType} from '../src/core/config/config.ts';
 import {assertAdapterIdentity, assertSharedExtractedFiles} from '../src/core/generation/adapterBuild.ts';

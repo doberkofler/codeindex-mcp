@@ -1,7 +1,7 @@
 import {type ConfigType} from '../../config/config.ts';
 import {type ExtractedFactSetType} from '../../facts/index.ts';
 import {type FinalizedFactSetType} from '../../facts/types.ts';
-import {loadTypeScriptProject} from '../../../adapters/typescript/loadProject.ts';
+import {loadTypeScriptProject} from '@codeindex/adapter-typescript/internals';
 import {addProgramRoots} from './reachabilityTruthModel.ts';
 import {keyOf, type TruthStateType} from './reachabilityTruthSupport.ts';
 

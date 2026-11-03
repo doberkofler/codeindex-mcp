@@ -2,12 +2,12 @@ import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {type DependencyExtractionResultType} from '../src/core/model.ts';
-import {parseWithAntlr} from '../src/adapters/oracle/antlrParser.ts';
-import {extractOracleDependencies} from '../src/adapters/oracle/extractDependencies.ts';
-import {extractOracleSymbols} from '../src/adapters/oracle/extractSymbols.ts';
-import {parseOracleUnits} from '../src/adapters/oracle/parseUnits.ts';
-import {type OracleParseResultType} from '../src/adapters/oracle/syntax.ts';
-import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
+import {parseWithAntlr} from '@codeindex/adapter-oracle/antlrParser';
+import {extractOracleDependencies} from '@codeindex/adapter-oracle/extractDependencies';
+import {extractOracleSymbols} from '@codeindex/adapter-oracle/extractSymbols';
+import {parseOracleUnits} from '@codeindex/adapter-oracle/parseUnits';
+import {type OracleParseResultType} from '@codeindex/adapter-oracle/syntax';
+import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
 
 type ParsedFileType = Readonly<{path: string; parse: OracleParseResultType}>;
 type EdgeType = DependencyExtractionResultType['edges'][number];

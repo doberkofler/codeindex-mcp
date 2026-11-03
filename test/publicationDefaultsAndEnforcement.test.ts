@@ -2,7 +2,7 @@ import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {buildTypeScriptFacts, scanTypeScriptProject} from '../src/adapters/typescript/index.ts';
+import {buildTypeScriptFacts, scanTypeScriptProject} from '@codeindex/adapter-typescript/index';
 import {summarizeAnalytics} from '../src/core/analytics/report.ts';
 import {finalizeFacts, type ExtractedFactSetType} from '../src/core/facts/index.ts';
 import {findSymbols, type QueryContextType} from '../src/core/query/queryService.ts';

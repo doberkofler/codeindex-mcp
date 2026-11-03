@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {createFactId} from '../facts/canonical.ts';
+import {createFactId} from '@codeindex/adapter-sdk';
 import {buildStatsOf} from './databaseFactStats.ts';
 import {adapterIdOf, type GenerationFactsInputType} from './databaseFactTypes.ts';
 

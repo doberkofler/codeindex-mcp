@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest';
-import {parseOracleUnits} from '../src/adapters/oracle/parseUnits.ts';
-import {extractOracleSymbols} from '../src/adapters/oracle/extractSymbols.ts';
-import {resolveOracleReferences} from '../src/adapters/oracle/resolveReferences.ts';
-import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
+import {parseOracleUnits} from '@codeindex/adapter-oracle/parseUnits';
+import {extractOracleSymbols} from '@codeindex/adapter-oracle/extractSymbols';
+import {resolveOracleReferences} from '@codeindex/adapter-oracle/resolveReferences';
+import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
 
 type ParsedFileType = Readonly<{path: string; parse: ReturnType<typeof parseOracleUnits>}>;
 

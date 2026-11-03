@@ -1,22 +1,22 @@
 import {describe, expect, it} from 'vitest';
 import {type IndexedSymbolType} from '../src/core/model.ts';
-import {REFERENCE_CONSTRUCT_QUOTA, REFERENCE_CONSTRUCT_TAGS, type ReferenceConstructTagType} from '../src/adapters/typescript/referenceConstructs.ts';
+import {REFERENCE_CONSTRUCT_QUOTA, REFERENCE_CONSTRUCT_TAGS, type ReferenceConstructTagType} from '@codeindex/adapter-typescript/referenceConstructs';
 import {
 	compareReferenceLocations,
 	filterAuthoredLocations,
 	normalizeReferenceLocations,
 	type ReferenceLocationType,
-} from '../src/adapters/typescript/referenceLocations.ts';
-import {REFERENCE_SAMPLE_TARGET, selectReferenceSample, type ReferenceSampleCandidateType} from '../src/adapters/typescript/referenceSampling.ts';
+} from '@codeindex/adapter-typescript/referenceLocations';
+import {REFERENCE_SAMPLE_TARGET, selectReferenceSample, type ReferenceSampleCandidateType} from '@codeindex/adapter-typescript/referenceSampling';
 import {
 	evaluateReferenceGate,
 	type ReferenceAccuracyType,
 	type ReferenceComparisonType,
 	type ReferenceCoverageType,
 	type ReferenceVerificationFactsType,
-} from '../src/adapters/typescript/referenceGate.ts';
-import {classifyUnmatchedLocation, createStoredLocationIndex} from '../src/adapters/typescript/referenceClassification.ts';
-import {verifyTypeScriptReferences} from '../src/adapters/typescript/verifyReferences.ts';
+} from '@codeindex/adapter-typescript/referenceGate';
+import {classifyUnmatchedLocation, createStoredLocationIndex} from '@codeindex/adapter-typescript/referenceClassification';
+import {verifyTypeScriptReferences} from '../src/core/qualification/typescript/verifyReferences.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 import {REFERENCE_CORPUS_MANIFEST} from './helpers/referenceCorpus.ts';
 

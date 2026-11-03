@@ -1,8 +1,8 @@
 import {CharStream, CommonTokenStream} from 'antlr4ng';
 import {describe, expect, it} from 'vitest';
-import {collectAntlrSqlNames} from '../src/adapters/oracle/antlrSqlNames.ts';
-import {PlSqlLexer} from '../src/adapters/oracle/generated/PlSqlLexer.ts';
-import {PlSqlParser, type Sql_scriptContext} from '../src/adapters/oracle/generated/PlSqlParser.ts';
+import {collectAntlrSqlNames} from '@codeindex/adapter-oracle/antlrSqlNames';
+import {PlSqlLexer} from '@codeindex/adapter-oracle/generated/PlSqlLexer';
+import {PlSqlParser, type Sql_scriptContext} from '@codeindex/adapter-oracle/generated/PlSqlParser';
 
 const namesOf = (source: string): readonly string[] => {
 	const lexer = new PlSqlLexer(CharStream.fromString(source));

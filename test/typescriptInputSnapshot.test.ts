@@ -1,10 +1,10 @@
 import {appendFileSync, cpSync, mkdirSync, realpathSync, renameSync, symlinkSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {createTypeScriptInputSnapshot} from '../src/adapters/typescript/inputSnapshot.ts';
-import {loadTypeScriptProject} from '../src/adapters/typescript/loadProject.ts';
-import {scanProject} from '../src/adapters/typescript/scanProject.ts';
-import {verifyTypeScriptReferences} from '../src/adapters/typescript/verifyReferences.ts';
+import {createTypeScriptInputSnapshot} from '@codeindex/adapter-typescript/inputSnapshot';
+import {loadTypeScriptProject} from '@codeindex/adapter-typescript/loadProject';
+import {scanProject} from '@codeindex/adapter-typescript/scanProject';
+import {verifyTypeScriptReferences} from '../src/core/qualification/typescript/verifyReferences.ts';
 import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
 import {testAdaptersFor} from './helpers/adapters.ts';

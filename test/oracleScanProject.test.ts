@@ -2,7 +2,7 @@ import {mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync} from 'node:
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {collectOracleConfigFiles, isOracleAuthoredSourceFile, scanOracleProject} from '../src/adapters/oracle/scanProject.ts';
+import {collectOracleConfigFiles, isOracleAuthoredSourceFile, scanOracleProject} from '@codeindex/adapter-oracle/scanProject';
 import {type ConfigType} from '../src/core/config/config.ts';
 
 const directories: string[] = [];

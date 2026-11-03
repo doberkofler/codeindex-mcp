@@ -1,10 +1,10 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {parseWithAntlr} from '../src/adapters/oracle/antlrParser.ts';
-import {parseOracleUnits} from '../src/adapters/oracle/parseUnits.ts';
-import {type OracleDeclarationType, type OracleParameterType, type OracleParseResultType} from '../src/adapters/oracle/syntax.ts';
-import {tokenizeOracleSource} from '../src/adapters/oracle/tokenize.ts';
+import {parseWithAntlr} from '@codeindex/adapter-oracle/antlrParser';
+import {parseOracleUnits} from '@codeindex/adapter-oracle/parseUnits';
+import {type OracleDeclarationType, type OracleParameterType, type OracleParseResultType} from '@codeindex/adapter-oracle/syntax';
+import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
 
 const databaseRoot = path.join(import.meta.dirname, 'fixtures', 'oracle-project', 'database');
 const fixtures = ['hr_api.pks', 'hr_api.pkb', 'qualification.pkb', 'sales_api.pks', 'sales_api.pkb', 'maintenance_run.prc'];

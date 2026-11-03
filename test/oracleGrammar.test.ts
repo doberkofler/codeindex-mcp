@@ -5,7 +5,7 @@ import {spawnSync} from 'node:child_process';
 import {afterAll, describe, expect, it} from 'vitest';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
-const checkedInDirectory = path.join(repositoryRoot, 'src', 'adapters', 'oracle', 'generated');
+const checkedInDirectory = path.join(repositoryRoot, 'packages', 'adapter-oracle', 'src', 'generated');
 const artifacts = ['PlSqlLexer.ts', 'PlSqlParser.ts', 'PlSqlParserVisitor.ts', 'PlSqlLexerBase.ts', 'PlSqlParserBase.ts'] as const;
 const temporaryRoot = mkdtempSync(path.join(tmpdir(), 'oracle-grammar-'));
 

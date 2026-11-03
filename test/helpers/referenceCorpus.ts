@@ -1,4 +1,4 @@
-import {REFERENCE_CONSTRUCT_TAGS, type ReferenceConstructTagType} from '../../src/adapters/typescript/referenceConstructs.ts';
+import {REFERENCE_CONSTRUCT_TAGS, type ReferenceConstructTagType} from '@codeindex/adapter-typescript/referenceConstructs';
 
 type ReferenceCorpusSelectorType = Readonly<{
 	readonly path: string;

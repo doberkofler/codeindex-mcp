@@ -210,6 +210,9 @@ export type DependencyExtractionResultType = Readonly<{
 	readonly bindings: readonly IndexedDependencyBindingType[];
 }>;
 
+/** Reference partition requested by a verification or query caller. */
+export type ReferencePartitionScopeType = 'partition' | 'external_alias_group';
+
 /** Source range carried by one declaration or binding site. */
 export type FactRangeType = Readonly<{
 	readonly startLine: number;

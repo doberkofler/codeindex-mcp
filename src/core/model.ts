@@ -3,11 +3,8 @@ import {type DependencyKindType, type IndexedDependencyBindingType, type Indexed
 export type {
 	DiagnosticType,
 	DependencyExtractionResultType,
-	DependencyKindType,
-	ExtractionResultType,
 	IndexedDependencyBindingType,
 	IndexedDependencyEdgeType,
-	IndexedOccurrenceType,
 	IndexedSymbolType,
 	ScanProjectResultType,
 	ScanResultType,

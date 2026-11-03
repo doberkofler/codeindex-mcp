@@ -1,11 +1,11 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {parseWithAntlr} from '../src/adapters/oracle/antlrParser.ts';
-import {ORACLE_DIAGNOSTIC} from '../src/adapters/oracle/diagnostics.ts';
-import {extractOracleSymbols} from '../src/adapters/oracle/extractSymbols.ts';
-import {resolveOracleReferences} from '../src/adapters/oracle/resolveReferences.ts';
-import {type OracleParseResultType} from '../src/adapters/oracle/syntax.ts';
+import {parseWithAntlr} from '@codeindex/adapter-oracle/antlrParser';
+import {ORACLE_DIAGNOSTIC} from '@codeindex/adapter-oracle/diagnostics';
+import {extractOracleSymbols} from '@codeindex/adapter-oracle/extractSymbols';
+import {resolveOracleReferences} from '@codeindex/adapter-oracle/resolveReferences';
+import {type OracleParseResultType} from '@codeindex/adapter-oracle/syntax';
 
 type FixtureFileType = Readonly<{path: string; parse: OracleParseResultType}>;
 type ContextSymbolsType = ReturnType<typeof extractOracleSymbols>;

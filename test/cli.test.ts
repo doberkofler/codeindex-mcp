@@ -79,7 +79,6 @@ describe('operational CLI', () => {
 			['benchmark-suite', '--help'],
 			['benchmark-prepare', '--help'],
 			['soak', '--help'],
-			['verify-references', '--help'],
 		];
 
 		const results = await Promise.all(
@@ -115,8 +114,8 @@ describe('operational CLI', () => {
 		expect(help.stdout()).toContain('Operational commands');
 
 		const qualify = captureIo();
-		await expect(runCli(['qualify', '--help'], environment, qualify.io)).resolves.toBe(0);
-		expect(qualify.stdout()).toContain('--extractor <id>');
+		await expect(runCli(['qualify'], environment, qualify.io)).resolves.toBe(2);
+		expect(qualify.stderr()).toContain("unknown command 'qualify'");
 
 		const invalid = captureIo();
 		await expect(runCli(['explode'], environment, invalid.io)).resolves.toBe(2);
@@ -127,7 +126,7 @@ describe('operational CLI', () => {
 		const captured = captureIo();
 		const environment: NodeJS.ProcessEnv = {CODE_INDEX_LOG_LEVEL: 'error'};
 
-		await expect(runCli(['verify-references', '--root', '/definitely/missing-root'], environment, captured.io)).resolves.toBe(1);
+		await expect(runCli(['verify-references', '--root', '/definitely/missing-root'], environment, captured.io)).resolves.toBe(2);
 		expect(captured.stderr()).not.toBe('');
 	});
 });

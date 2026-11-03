@@ -62,14 +62,14 @@ const BUILTIN_SCHEME = 'builtin:';
 const BUILTIN_MODULES: Readonly<Record<string, BuiltinModuleType>> = {
 	typescript: {
 		load: async () => {
-			const module = await import('./typescript/index.ts');
+			const module = await import('@codeindex/adapter-typescript');
 			return module;
 		},
 		packageName: '@codeindex/adapter-typescript',
 	},
 	oracle: {
 		load: async () => {
-			const module = await import('./oracle/index.ts');
+			const module = await import('@codeindex/adapter-oracle');
 			return module;
 		},
 		packageName: '@codeindex/adapter-oracle',

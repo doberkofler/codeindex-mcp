@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {ORACLE_DIAGNOSTIC, OracleDiagnosticCollector} from '../src/adapters/oracle/diagnostics.ts';
+import {ORACLE_DIAGNOSTIC, OracleDiagnosticCollector} from '@codeindex/adapter-oracle/diagnostics';
 
 describe('Oracle diagnostics', () => {
 	it('bounds messages and records optional locations', () => {

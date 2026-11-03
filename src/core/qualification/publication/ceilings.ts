@@ -1,7 +1,7 @@
 export {
 	PUBLICATION_REACHABILITY_STEPS_PER_ROOT as FALLBACK_REACHABILITY_STEPS_PER_ROOT,
 	PUBLICATION_SURFACE_BINDINGS_PER_ROOT as REPORT_SURFACE_BINDINGS_PER_ROOT,
-} from '../../facts/ceilings.ts';
+} from '@codeindex/adapter-sdk';
 
 /**
  * Report-only projection probe budgets.

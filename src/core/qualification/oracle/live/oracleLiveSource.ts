@@ -1,7 +1,6 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
-import {parseOracleUnits} from '../../../../adapters/oracle/parseUnits.ts';
-import {tokenizeOracleSource} from '../../../../adapters/oracle/tokenize.ts';
+import {parseOracleUnits, tokenizeOracleSource} from '@codeindex/adapter-oracle/internals';
 import {hashContent} from '../../../generation/sourceFiles.ts';
 import {type LivePlanType} from './oracleLivePlan.ts';
 

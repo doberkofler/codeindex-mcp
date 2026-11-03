@@ -14,9 +14,6 @@ importers:
       '@modelcontextprotocol/server':
         specifier: 2.4.0
         version: 2.4.0
-      antlr4ng:
-        specifier: 3.0.16
-        version: 3.0.16
       chokidar:
         specifier: 6.0.0
         version: 6.0.0
@@ -35,16 +32,16 @@ importers:
       jsonc-parser:
         specifier: 3.3.1
         version: 3.3.1
-      oracledb:
-        specifier: 26.0.0
-        version: 26.0.0
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
       zod:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      '@codeindex/adapter-oracle':
+        specifier: workspace:*
+        version: link:packages/adapter-oracle
+      '@codeindex/adapter-typescript':
+        specifier: workspace:*
+        version: link:packages/adapter-typescript
       '@commitlint/cli':
         specifier: 21.2.4
         version: 21.2.4(conventional-commits-filter@6.0.1)(conventional-commits-parser@7.1.3)(typescript@6.0.3)
@@ -102,6 +99,9 @@ importers:
       antlr-ng:
         specifier: 1.0.10
         version: 1.0.10
+      antlr4ng:
+        specifier: 3.0.16
+        version: 3.0.16
       eslint-plugin-regexp:
         specifier: 3.3.1
         version: 3.3.1(eslint@10.13.0(jiti@2.7.0))
@@ -114,6 +114,9 @@ importers:
       knip:
         specifier: 6.43.0
         version: 6.43.0
+      oracledb:
+        specifier: 26.0.0
+        version: 26.0.0
       oxfmt:
         specifier: 0.74.0
         version: 0.74.0
@@ -132,6 +135,9 @@ importers:
       release-it:
         specifier: 21.1.1
         version: 21.1.1(@types/node@26.6.5)(magicast@0.5.5)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.5)(jiti@2.7.0)(yaml@2.9.1)
@@ -141,11 +147,32 @@ importers:
 
   evaluation/harness: {}
 
+  packages/adapter-oracle:
+    dependencies:
+      '@codeindex/adapter-sdk':
+        specifier: workspace:*
+        version: link:../adapter-sdk
+      antlr4ng:
+        specifier: 3.0.16
+        version: 3.0.16
+
   packages/adapter-sdk:
     dependencies:
+      debug:
+        specifier: 4.4.3
+        version: 4.4.3
       zod:
         specifier: 4.6.7
         version: 4.6.7
+
+  packages/adapter-typescript:
+    dependencies:
+      '@codeindex/adapter-sdk':
+        specifier: workspace:*
+        version: link:../adapter-sdk
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
 
 packages:
 

@@ -10,6 +10,55 @@ const HARNESS_ROOT = path.resolve(import.meta.dirname, '..');
 const EVALUATION_ROOT = path.resolve(HARNESS_ROOT, '..');
 const SUBJECT_ROOT = path.resolve(EVALUATION_ROOT, '..');
 const SOURCE_ROOT = path.join(SUBJECT_ROOT, 'src');
+const LEGACY_TYPESCRIPT_PREFIX = 'src/adapters/typescript/';
+const LEGACY_ORACLE_PREFIX = 'src/adapters/oracle/';
+const TYPESCRIPT_PACKAGE_PREFIX = 'packages/adapter-typescript/src/';
+const ORACLE_PACKAGE_PREFIX = 'packages/adapter-oracle/src/';
+const MOVED_HOST_PATH = 'src/core/qualification/typescript/verifyReferences.ts';
+/**
+ * Maps a frozen pre-workspace path onto the current monorepo location.
+ *
+ * @param file - Frozen case path.
+ * @returns Current workspace path.
+ */
+const currentPathOf = (file: string): string => {
+	if (file === 'src/adapters/typescript/verifyReferences.ts') {
+		return MOVED_HOST_PATH;
+	}
+
+	if (file.startsWith(LEGACY_TYPESCRIPT_PREFIX)) {
+		return `${TYPESCRIPT_PACKAGE_PREFIX}${file.slice(LEGACY_TYPESCRIPT_PREFIX.length)}`;
+	}
+
+	if (file.startsWith(LEGACY_ORACLE_PREFIX)) {
+		return `${ORACLE_PACKAGE_PREFIX}${file.slice(LEGACY_ORACLE_PREFIX.length)}`;
+	}
+
+	return file;
+};
+
+/**
+ * Maps a current workspace path back onto the frozen case spelling.
+ *
+ * @param file - Current workspace path.
+ * @returns Frozen case path.
+ */
+const legacyPathOf = (file: string): string => {
+	if (file === MOVED_HOST_PATH) {
+		return 'src/adapters/typescript/verifyReferences.ts';
+	}
+
+	if (file.startsWith(TYPESCRIPT_PACKAGE_PREFIX)) {
+		return `${LEGACY_TYPESCRIPT_PREFIX}${file.slice(TYPESCRIPT_PACKAGE_PREFIX.length)}`;
+	}
+
+	if (file.startsWith(ORACLE_PACKAGE_PREFIX)) {
+		return `${LEGACY_ORACLE_PREFIX}${file.slice(ORACLE_PACKAGE_PREFIX.length)}`;
+	}
+
+	return file;
+};
+
 const SCOPE_PREFIX = 'src/';
 
 type ReferenceProbeType = Readonly<{
@@ -85,7 +134,7 @@ const REFERENCE_PROBES: readonly ReferenceProbeType[] = [
 	},
 	{
 		caseId: 'semantic-repo-renamed-name-node',
-		file: 'src/adapters/typescript/extractSymbols.ts',
+		file: 'packages/adapter-typescript/src/extractSymbols.ts',
 		name: 'candidateNameNode',
 		kind: 'alias',
 		grepIdentifiers: ['candidateNameNode', 'nameNodeOf'],
@@ -159,7 +208,7 @@ const languageServiceOf = (root: string): LanguageServiceType => {
 };
 
 const namedDeclarationOf = (program: ts.Program, file: string, name: string): Readonly<{sourceFile: ts.SourceFile; nameNode: ts.Node}> => {
-	const sourceFile = program.getSourceFile(path.join(SUBJECT_ROOT, file));
+	const sourceFile = program.getSourceFile(path.join(SUBJECT_ROOT, currentPathOf(file)));
 
 	if (sourceFile === undefined) {
 		throw new Error(`repository file is missing: ${file}`);
@@ -195,7 +244,7 @@ const namedDeclarationOf = (program: ts.Program, file: string, name: string): Re
 };
 
 const aliasDeclarationOf = (program: ts.Program, file: string, name: string): Readonly<{sourceFile: ts.SourceFile; nameNode: ts.Node}> => {
-	const sourceFile = program.getSourceFile(path.join(SUBJECT_ROOT, file));
+	const sourceFile = program.getSourceFile(path.join(SUBJECT_ROOT, currentPathOf(file)));
 
 	if (sourceFile === undefined) {
 		throw new Error(`repository file is missing: ${file}`);
@@ -275,7 +324,7 @@ const truthFilesOf = (language: LanguageServiceType, probe: ReferenceProbeType):
 				continue;
 			}
 
-			const relative = posixRelativeOf(reference.fileName);
+			const relative = legacyPathOf(posixRelativeOf(reference.fileName));
 
 			if (relative.startsWith(SCOPE_PREFIX)) {
 				files.add(relative);
@@ -302,9 +351,10 @@ const sourceFilesOf = (directory: string): readonly string[] =>
 const textSearchFilesOf = (identifier: string): readonly string[] => {
 	const pattern = new RegExp(`\\b${identifier}\\b`, 'u');
 
-	return sourceFilesOf(SOURCE_ROOT)
+	return [SOURCE_ROOT, path.join(SUBJECT_ROOT, 'packages')]
+		.flatMap((root) => sourceFilesOf(root))
 		.filter((file) => pattern.test(readFileSync(file, 'utf8')))
-		.map((file) => posixRelativeOf(file))
+		.map((file) => legacyPathOf(posixRelativeOf(file)))
 		.sort();
 };
 
@@ -365,7 +415,7 @@ describe('repository', () => {
 	it('every declared repository path exists at the pinned source tree', () => {
 		for (const testCase of repositorySuite.cases) {
 			for (const file of [...testCase.expectedFiles, ...testCase.contextFiles, ...testCase.forbiddenFiles]) {
-				assert.ok(existsSync(path.join(SUBJECT_ROOT, file)), `${testCase.id} references missing path ${file}`);
+				assert.ok(existsSync(path.join(SUBJECT_ROOT, currentPathOf(file))), `${testCase.id} references missing path ${file}`);
 			}
 
 			if (testCase.class !== 'implementation') {

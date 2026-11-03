@@ -2,9 +2,9 @@ import {mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync} from 'node:
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
-import {loadTypeScriptProject} from '../src/adapters/typescript/loadProject.ts';
-import {isAuthoredSourceFile, scanProject} from '../src/adapters/typescript/scanProject.ts';
+import {typeScriptExtractor} from '@codeindex/adapter-typescript/index';
+import {loadTypeScriptProject} from '@codeindex/adapter-typescript/loadProject';
+import {isAuthoredSourceFile, scanProject} from '@codeindex/adapter-typescript/scanProject';
 import {type ConfigType} from '../src/core/config/config.ts';
 import {createFixtureConfig, createFixtureIndex, type FixtureContextType} from './helpers/fixture.ts';
 

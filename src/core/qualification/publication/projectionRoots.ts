@@ -1,6 +1,6 @@
 import ts from 'typescript';
 import {type ConfigType} from '../../config/config.ts';
-import {loadTypeScriptProject} from '../../../adapters/typescript/loadProject.ts';
+import {loadTypeScriptProject} from '@codeindex/adapter-typescript/internals';
 import {
 	addAddress,
 	authoredDeclarationsOf,

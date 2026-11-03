@@ -1,0 +1,23 @@
+{
+	"name": "@codeindex/adapter-oracle",
+	"version": "0.0.0",
+	"private": true,
+	"description": "adapter-oracle adapter for CodeIndex.",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./internals": {
+			"types": "./src/internals.ts",
+			"default": "./src/internals.ts"
+		},
+		"./package.json": "./package.json",
+		"./*": "./src/*.ts"
+	},
+	"dependencies": {
+		"@codeindex/adapter-sdk": "workspace:*",
+		"antlr4ng": "3.0.16"
+	}
+}

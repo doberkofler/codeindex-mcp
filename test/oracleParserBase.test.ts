@@ -1,7 +1,7 @@
 import {Token, type TokenStream} from 'antlr4ng';
 import {describe, expect, it} from 'vitest';
-import {PlSqlLexer} from '../src/adapters/oracle/generated/PlSqlLexer.ts';
-import {PlSqlParser} from '../src/adapters/oracle/generated/PlSqlParser.ts';
+import {PlSqlLexer} from '@codeindex/adapter-oracle/generated/PlSqlLexer';
+import {PlSqlParser} from '@codeindex/adapter-oracle/generated/PlSqlParser';
 
 type TokenLikeType = Readonly<{type: number; line: number}>;
 

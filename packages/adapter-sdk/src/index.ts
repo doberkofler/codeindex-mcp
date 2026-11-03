@@ -3,6 +3,10 @@ import {z} from 'zod';
 import {type AdapterManifestType, type AdapterModuleType, type AdapterType} from './types.ts';
 
 export type * from './types.ts';
+export * from './debug.ts';
+export * from './facts/index.ts';
+export * from './paths.ts';
+export * from './sourceFiles.ts';
 
 /**
  * Protocol revision implemented by this SDK.

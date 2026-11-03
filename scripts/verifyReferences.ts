@@ -1,5 +1,5 @@
 import path from 'node:path';
-import {runVerification} from '../src/adapters/typescript/verifyReferences.ts';
+import {runVerification} from '../src/core/qualification/typescript/verifyReferences.ts';
 
 const fixtureRoot = path.resolve(import.meta.dirname, '..', 'test', 'fixtures', 'reference-corpus');
 const requestedRoot =

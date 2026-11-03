@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest';
-import {OracleDiagnosticCollector} from '../src/adapters/oracle/diagnostics.ts';
-import {type ChoiceCandidateType, type ResolutionType, type ResolveStateType} from '../src/adapters/oracle/resolveReferences.ts';
-import {filterByTypes, type ResolutionServicesType} from '../src/adapters/oracle/resolveTypes.ts';
-import {type OracleNamePartType, type OracleNameType} from '../src/adapters/oracle/name.ts';
-import {type OracleDeclarationType, type OracleParameterType, type OracleReferenceSiteType} from '../src/adapters/oracle/syntax.ts';
+import {OracleDiagnosticCollector} from '@codeindex/adapter-oracle/diagnostics';
+import {type ChoiceCandidateType, type ResolutionType, type ResolveStateType} from '@codeindex/adapter-oracle/resolveReferences';
+import {filterByTypes, type ResolutionServicesType} from '@codeindex/adapter-oracle/resolveTypes';
+import {type OracleNamePartType, type OracleNameType} from '@codeindex/adapter-oracle/name';
+import {type OracleDeclarationType, type OracleParameterType, type OracleReferenceSiteType} from '@codeindex/adapter-oracle/syntax';
 
 type SpecType = Readonly<{
 	kind: OracleDeclarationType['kind'];

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {buildTypeScriptFacts, scanTypeScriptProject} from '../src/adapters/typescript/index.ts';
+import {buildTypeScriptFacts, scanTypeScriptProject} from '@codeindex/adapter-typescript/index';
 import {finalizeFacts, type FinalizedFactSetType} from '../src/core/facts/index.ts';
 import {scopedFactIdOf} from '../src/core/storage/factIdentity.ts';
 import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
