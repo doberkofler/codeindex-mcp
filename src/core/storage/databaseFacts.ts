@@ -336,6 +336,7 @@ const validateCoverage = (writer: DatabaseSync, generationId: string): void => {
 		 from occurrence o
 		 left join definition_site d
 		   on d.generation_id = o.generation_id
+		  and d.adapter_id = o.adapter_id
 		  and d.symbol_id = o.symbol_id
 		  and d.path = o.path
 		  and d.start_offset = o.start_offset
@@ -352,11 +353,17 @@ const validateCoverage = (writer: DatabaseSync, generationId: string): void => {
 		writer,
 		`select count(*) as total
 		 from symbol_name_context c
-		 join symbol_name n on n.generation_id = c.generation_id and n.binding_id = c.binding_id
+		 join symbol_name n
+		   on n.generation_id = c.generation_id
+		  and n.adapter_id = c.adapter_id
+		  and n.binding_id = c.binding_id
 		 where c.generation_id = ?
 		 and not exists (
 			select 1 from symbol_context s
-			where s.generation_id = c.generation_id and s.symbol_id = n.symbol_id and s.context_name = c.context_name
+			where s.generation_id = c.generation_id
+			and s.adapter_id = c.adapter_id
+			and s.symbol_id = n.symbol_id
+			and s.context_name = c.context_name
 		 )`,
 		generationId,
 	);
@@ -371,6 +378,7 @@ const validateCoverage = (writer: DatabaseSync, generationId: string): void => {
 		 from surface_binding_origin o
 		 join symbol_name_context c
 		   on c.generation_id = o.generation_id
+		  and c.adapter_id = o.adapter_id
 		  and c.binding_id = o.root_binding_id
 		  and c.context_name = o.context_name
 		 where o.generation_id = ? and c.exposure <> 'published'`,
@@ -389,6 +397,7 @@ const validateCoverage = (writer: DatabaseSync, generationId: string): void => {
 		 and exists (
 			select 1 from surface_binding_origin d
 			where d.generation_id = o.generation_id
+			and d.adapter_id = o.adapter_id
 			and d.binding_id = o.root_binding_id
 			and d.context_name = o.context_name
 		 )`,
