@@ -21,7 +21,7 @@ All notable changes to this project are documented here. The format follows
 * **cli:** register one canonical MCP server key ([#134](https://github.com/doberkofler/codeindex-mcp/issues/134)) ([11f98c1](https://github.com/doberkofler/codeindex-mcp/commit/11f98c1efd7786943ecf4eb120a71f2eebd02dae))
 * **release:** derive every artifact name and reject packed `workspace:` dependencies so a version bump cannot leave the release expecting a previous tarball
 * **benchmark:** move every configured adapter onto the generated soak workspace
-* **storage:** keep candidate-generation coverage validation adapter-scoped, restoring indexed verification plans
+* **storage:** keep candidate-generation coverage validation adapter-scoped and make `find_symbol`'s name index covering, restoring indexed verification and cursor plans; schema version 18 rebuilds existing derived databases
 
 ### Changed
 

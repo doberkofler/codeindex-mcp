@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '17';
+export const SCHEMA_VERSION = '18';
 
 export const SCHEMA_SQL = `
 pragma foreign_keys = on;
@@ -383,7 +383,7 @@ create index if not exists symbol_by_qualified_name on symbol (generation_id, qu
 create index if not exists symbol_by_enclosing on symbol (generation_id, enclosing_id);
 
 create index if not exists symbol_name_by_symbol on symbol_name (generation_id, symbol_id, binding_key);
-create index if not exists symbol_name_by_name on symbol_name (generation_id, name, container, binding_id, symbol_id, exposure, has_declared_site, qualified_name);
+create index if not exists symbol_name_by_name on symbol_name (generation_id, name, container, binding_id, symbol_id, adapter_id, exposure, has_declared_site, qualified_name);
 create index if not exists symbol_name_by_qualified_name on symbol_name (generation_id, qualified_name);
 create index if not exists symbol_name_by_container_name on symbol_name (generation_id, container, name);
 
