@@ -4,7 +4,7 @@ import {describe, expect, it} from 'vitest';
 import {createOracleLivePlan} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
 import {readOracleLiveSettings} from '../src/core/qualification/oracle/live/oracleLiveSettings.ts';
 import {runOracleLiveQualification} from '../src/core/qualification/oracle/live/runOracleLiveQualification.ts';
-import {runCli} from '../src/transports/cli/runCli.ts';
+import {runQualify} from '../src/transports/cli/qualifyProgram.ts';
 import {capture, fixture, settingsOf, sourceRows, stubDatabase} from './helpers/oracleLive.ts';
 
 describe('Oracle live qualification run', () => {
@@ -50,7 +50,7 @@ describe('Oracle live qualification command', () => {
 
 		try {
 			const outputDir = path.join(path.dirname(context.config.rootDir), 'qualification');
-			const code = await runCli(['qualify-oracle-live', '--root', context.config.rootDir, '--schema', 'HR', '--output', outputDir], {}, captured.io);
+			const code = await runQualify(['qualify-oracle-live', '--root', context.config.rootDir, '--schema', 'HR', '--output', outputDir], {}, captured.io);
 
 			expect(captured.stderr).toStrictEqual([]);
 			expect(code).toBe(0);
@@ -70,7 +70,7 @@ describe('Oracle live qualification command', () => {
 
 	it('requires a source root argument', async () => {
 		const captured = capture();
-		const code = await runCli(['qualify-oracle-live'], {}, captured.io);
+		const code = await runQualify(['qualify-oracle-live'], {}, captured.io);
 
 		expect(code).toBe(2);
 		expect(captured.stderr.join('\n')).toContain('requires --root');

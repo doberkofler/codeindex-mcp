@@ -17,8 +17,6 @@ import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 import {addAnalyticsCommand} from './analyticsCommand.ts';
 import {messageOf, parseCommandAsync} from './commanderSupport.ts';
-import {addOracleLiveCommand} from './oracleLiveCommand.ts';
-import {addOraclePreflightCommand} from './oraclePreflightCommand.ts';
 
 const debug = debugFor('cli');
 const BANNER_COMMANDS: ReadonlySet<string> = new Set(['update', 'refresh', 'rebuild', 'status', 'verify']);
@@ -335,8 +333,6 @@ const buildProgram = (context: CliContextType): Command => {
 		workerEntry: context.workerEntry,
 		configOf: () => loadConfig({...context.environment, CODE_INDEX_ANALYTICS: 'false'}),
 	});
-	addOracleLiveCommand(program, context.environment, context.io);
-	addOraclePreflightCommand(program, context.environment, context.io);
 
 	return program;
 };

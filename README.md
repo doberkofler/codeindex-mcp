@@ -55,6 +55,33 @@ allowBuilds:
 `oracledb` is used only by opt-in live Oracle qualification; normal Oracle
 indexing opens no Oracle connection.
 
+## Installation topology
+
+CodeIndex is distributed as independent ESM packages:
+
+| Package | Responsibility |
+| --- | --- |
+| `codeindex-mcp` | Host CLI, MCP server, console, core, loader |
+| `@codeindex/adapter-sdk` | Language-neutral protocol, schemas, `defineAdapter`, conformance |
+| `@codeindex/adapter-typescript` | TypeScript / JavaScript adapter and `typescript` dependency |
+| `@codeindex/adapter-oracle` | Static Oracle adapter and `antlr4ng` dependency |
+
+Install only what a workspace needs:
+
+```bash
+npm install codeindex-mcp @codeindex/adapter-typescript
+npm install codeindex-mcp @codeindex/adapter-oracle      # Oracle workspace
+```
+
+The host has no runtime dependency on a language adapter. An unconfigured
+adapter is never installed or bundled. Official adapter IDs normalize to their
+package names, so `id: "typescript"` and `id: "oracle"` keep working without a
+`module` field. A missing package fails before transport startup with
+`adapter_module_not_found` and names the package to install.
+
+Adapter packages are trusted code: installing one grants the same filesystem,
+environment, and network authority as the CodeIndex process.
+
 ## Quick start
 
 From a TypeScript workspace containing `tsconfig.json`, the defaults are enough:

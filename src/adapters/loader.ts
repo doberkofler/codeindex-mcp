@@ -2,7 +2,8 @@ import {existsSync, readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
-import {ADAPTER_PROTOCOL_VERSION, type AdapterManifestType, type AdapterType, parseAdapterManifest, parseAdapterSurface} from '@codeindex/adapter-sdk';
+import {ADAPTER_PROTOCOL_VERSION, type AdapterManifestType, type AdapterType} from '@codeindex/adapter-sdk';
+import {parseAdapterManifest, parseAdapterSurface} from '@codeindex/adapter-sdk/schema';
 import {configuredAdapters, type ConfigType} from '../core/config/config.ts';
 
 const {dirname, resolve} = path;
@@ -138,7 +139,14 @@ const importModule = async (moduleUrl: string): Promise<unknown> => {
 				throw new AdapterLoadError('adapter_module_not_found', `Unknown built-in adapter module: ${moduleUrl}`);
 			}
 
-			return builtin.load();
+			try {
+				return await builtin.load();
+			} catch {
+				throw new AdapterLoadError(
+					'adapter_module_not_found',
+					`Adapter package ${builtin.packageName} is not installed; install it in the consuming workspace`,
+				);
+			}
 		}
 
 		try {

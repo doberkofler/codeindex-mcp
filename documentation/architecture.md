@@ -98,6 +98,31 @@ adapters, and facts retain both the context and the owning adapter. A workspace
 path has exactly one adapter owner; two adapters claiming the same resolved real
 path fail the candidate before publication.
 
+## Package topology
+
+The repository is a workspace with one package per independently installable
+unit:
+
+- `codeindex-mcp` — host CLI, MCP server, console, core, and loader;
+- `packages/adapter-sdk` — language-neutral protocol, runtime schemas, fact
+  contract, source-file helpers, `defineAdapter`, and conformance checks;
+- `packages/adapter-typescript` — TypeScript / JavaScript adapter and compiler;
+- `packages/adapter-oracle` — static Oracle adapter, generated grammar, and
+  `antlr4ng`.
+
+Each package builds independently with `tsc` and publishes prebuilt ESM plus
+declarations. `publishConfig` points exports at `dist`. The host Vite build
+externalizes both official adapter packages, so host output contains no adapter
+code or compiler/parser dependency. `pnpm run build:packages` builds the SDK
+before the adapters; the release workflow builds, packs, and installs the exact
+tarballs into clean consumers before publishing the SDK, then the adapters, then
+the host.
+
+The host package still declares `@codeindex/adapter-sdk` because loader and core
+import protocol schemas. Adapter packages declare only the SDK and their own
+compiler/parser dependency. `oracledb` is a maintainer-only dependency used by
+live Oracle qualification, not by the host runtime or the static adapter.
+
 ## Adapter SDK and loader
 
 `@codeindex/adapter-sdk` owns the language-neutral adapter protocol. An adapter

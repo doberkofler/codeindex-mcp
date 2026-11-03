@@ -1,4 +1,4 @@
-import {measurePublicationInvariants, type PublicationInvariantReportType, type PublicationInvariantViolationType} from '@codeindex/adapter-sdk';
+import {measurePublicationInvariants, type PublicationInvariantReportType, type PublicationInvariantViolationType} from '@codeindex/adapter-sdk/facts';
 import {type ExtractedFactSetType} from '../../facts/index.ts';
 import {type FinalizedFactSetType} from '../../facts/types.ts';
 import {type R2ReportType, type ViolationSummaryType} from './types.ts';

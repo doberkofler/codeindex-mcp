@@ -1,8 +1,12 @@
 {
 	"name": "@codeindex/adapter-sdk",
-	"version": "0.0.0",
-	"private": true,
+	"version": "0.1.0",
+	"private": false,
 	"description": "Language-neutral adapter protocol for CodeIndex.",
+	"files": [
+		"dist",
+		"README.md"
+	],
 	"type": "module",
 	"exports": {
 		".": {
@@ -13,7 +17,39 @@
 			"types": "./src/facts/index.ts",
 			"default": "./src/facts/index.ts"
 		},
-		"./package.json": "./package.json"
+		"./package.json": "./package.json",
+		"./schema": {
+			"types": "./src/schema.ts",
+			"default": "./src/schema.ts"
+		},
+		"./conformance": {
+			"types": "./src/conformance.ts",
+			"default": "./src/conformance.ts"
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"./facts": {
+				"types": "./dist/facts/index.d.ts",
+				"default": "./dist/facts/index.js"
+			},
+			"./package.json": "./package.json",
+			"./schema": {
+				"types": "./dist/schema.d.ts",
+				"default": "./dist/schema.js"
+			},
+			"./conformance": {
+				"types": "./dist/conformance.d.ts",
+				"default": "./dist/conformance.js"
+			}
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json"
 	},
 	"dependencies": {
 		"debug": "4.4.3",

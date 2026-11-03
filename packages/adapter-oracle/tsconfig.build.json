@@ -1,0 +1,18 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"rootDir": "src",
+		"outDir": "dist",
+		"noEmit": false,
+		"declaration": true,
+		"declarationMap": false,
+		"sourceMap": false,
+		"types": ["node"],
+		"lib": ["ES2024"],
+		"paths": {
+			"@codeindex/adapter-sdk": ["../adapter-sdk/dist/index.d.ts"],
+			"@codeindex/adapter-sdk/facts": ["../adapter-sdk/dist/facts/index.d.ts"]
+		}
+	},
+	"include": ["src/**/*"]
+}

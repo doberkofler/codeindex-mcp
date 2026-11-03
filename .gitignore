@@ -11,3 +11,4 @@ evaluation/harness/harness.json
 .DS_Store
 .vite/
 .oracle-antlr-benchmark-*/
+release-artifacts/

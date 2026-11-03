@@ -1,8 +1,12 @@
 {
 	"name": "@codeindex/adapter-oracle",
-	"version": "0.0.0",
-	"private": true,
+	"version": "0.1.0",
+	"private": false,
 	"description": "adapter-oracle adapter for CodeIndex.",
+	"files": [
+		"dist",
+		"README.md"
+	],
 	"type": "module",
 	"exports": {
 		".": {
@@ -15,6 +19,22 @@
 		},
 		"./package.json": "./package.json",
 		"./*": "./src/*.ts"
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"./internals": {
+				"types": "./dist/internals.d.ts",
+				"default": "./dist/internals.js"
+			},
+			"./package.json": "./package.json"
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json"
 	},
 	"dependencies": {
 		"@codeindex/adapter-sdk": "workspace:*",

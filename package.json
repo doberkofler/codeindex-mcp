@@ -78,7 +78,9 @@
 		"verify:references": "node --experimental-strip-types scripts/verifyReferences.ts",
 		"verify": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run format:check && pnpm run test",
 		"verify:pr": "node scripts/run-test-workflow.mjs verify:pr",
-		"verify:release": "pnpm run verify && pnpm run build && node scripts/check-release-version.mjs"
+		"verify:release": "pnpm run verify && pnpm run build && node scripts/check-release-version.mjs",
+		"build:packages": "pnpm --filter @codeindex/adapter-sdk run build && pnpm --filter @codeindex/adapter-typescript run build && pnpm --filter @codeindex/adapter-oracle run build",
+		"test:packages": "node scripts/packageSmoke.mjs"
 	},
 	"dependencies": {
 		"@codeindex/adapter-sdk": "workspace:*",

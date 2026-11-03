@@ -1,3 +1,11 @@
+/**
+ * Protocol revision implemented by this SDK.
+ *
+ * The host rejects a module that exports any other value. Increment it only for
+ * incompatible interface or fact-schema changes.
+ */
+export const ADAPTER_PROTOCOL_VERSION = 1;
+
 /** Language-neutral adapter protocol types. */
 
 /** One project context owned by an adapter. */

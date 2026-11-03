@@ -1,4 +1,5 @@
-import {type FactAddressType, PUBLICATION_REACHABILITY_STEPS_PER_ROOT, PUBLICATION_SURFACE_BINDINGS_PER_ROOT, debugFor} from '@codeindex/adapter-sdk';
+import {type FactAddressType, debugFor} from '@codeindex/adapter-sdk';
+import {PUBLICATION_REACHABILITY_STEPS_PER_ROOT, PUBLICATION_SURFACE_BINDINGS_PER_ROOT} from '@codeindex/adapter-sdk/facts';
 import {type ExtractionRuntimeType, symbolForDeclaration, symbolForTsSymbol} from './extractionRuntime.ts';
 import {addSite, ensureBinding, type FactSinkType, type RootDraftType} from './extractionRoots.ts';
 import {projectPublishedRoot, SurfaceProjectionError, type SurfaceProjectionHostType} from './surfaceProjection.ts';
