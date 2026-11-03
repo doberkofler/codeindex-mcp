@@ -7,9 +7,10 @@ in [enhancements](./enhancements.md).
 
 ## Scope
 
-CodeIndex MCP builds a local, read-only index of one workspace with one selected
-language extractor. It persists language-neutral facts in SQLite and serves
-bounded navigation queries through MCP, a CLI, and a loopback console.
+CodeIndex MCP builds a local, read-only index of one workspace from one or more
+configured language adapters. It persists language-neutral facts in one SQLite
+database and serves bounded navigation queries through MCP, a CLI, and a loopback
+console.
 
 ```text
 MCP server       CLI       loopback console
@@ -20,18 +21,19 @@ MCP server       CLI       loopback console
       configuration · freshness · builds
       finalization · storage · bounded queries
                    |
-             ExtractorType seam
-              /             \
- TypeScript/JavaScript    Oracle 19c source
-  compiler API            lexer + structural parser
+          adapter protocol seam (adapter SDK)
+              /                       \
+ TypeScript/JavaScript             Oracle 19c source
+  compiler API                     lexer + structural parser
+  (adapter package)                (adapter package)
                    |
         serializable language-neutral facts
 ```
 
 The core owns project identity, generations and revisions, publication,
-freshness, storage, query semantics, bounds, and analytics. An extractor owns
-everything requiring a compiler or parser. Compiler objects, parser trees, and
-external connections never cross the extractor seam.
+freshness, storage, query semantics, bounds, and analytics. An adapter owns
+everything requiring a compiler, parser, or driver. Compiler objects, parser
+trees, and external connections never cross the adapter seam.
 
 ## Repository boundaries
 
@@ -45,10 +47,11 @@ external connections never cross the extractor seam.
 | `src/core/query/` | Bounded symbol, occurrence, dependency, source, and position queries |
 | `src/core/analytics/` | Privacy-safe local events and reports |
 | `src/core/benchmark/` | Model-free benchmark and soak machinery |
-| `src/core/qualification/` | TypeScript comparison, Oracle truth contracts, and publication measurements |
-| `src/adapters/typescript/` | TypeScript/JavaScript scanning and extraction |
-| `src/adapters/oracle/` | Oracle manifest discovery, tokenization, parsing, resolution, and extraction |
-| `packages/adapter-sdk/` | Language-neutral adapter protocol, manifest schemas, and `defineAdapter` |
+| `src/core/qualification/` | Maintainer-only TypeScript comparison and publication measurements |
+| `packages/adapter-sdk/` | Language-neutral adapter protocol, manifest schemas, `defineAdapter`, and conformance checks |
+| `packages/adapter-typescript/` | TypeScript/JavaScript scanning and extraction |
+| `packages/adapter-oracle/` | Oracle manifest discovery, tokenization, parsing, resolution, and extraction |
+| `packages/adapter-oracle-tools/` | Private maintainer Oracle qualification, live driver, and evidence replay |
 | `src/adapters/vcs/` | Optional Git/SVN provenance read at composition time |
 | `src/transports/mcp/` | MCP schemas, envelopes, guidance, and tool registration |
 | `src/transports/cli/` | CLI composition and operational commands |
@@ -191,9 +194,10 @@ Composition roots await the loader before creating `CodeIndex`. A worker receive
 only the descriptors and reloads the same canonical modules, revalidating the
 protocol, adapter ID, and implementation version. The resolved module URL stays
 process-internal and never enters SQLite, tool responses, CLI JSON, analytics, or
-bounded failure envelopes. In this release the official `typescript` and `oracle`
-IDs still resolve to built-in module identities; the loader, module field, and
-worker descriptor path are the same ones an installed package uses.
+bounded failure envelopes. The official `typescript` and `oracle` IDs resolve to
+`@codeindex/adapter-typescript` and `@codeindex/adapter-oracle`, which must be
+installed beside the host; the same loader, `module` field, and worker descriptor
+path serve third-party packages.
 
 Each adapter provides:
 
@@ -463,15 +467,16 @@ Stable expected error codes are `index_not_ready`, `index_build_failed`,
 `file_not_indexed`, `symbol_not_found`, `stale_file`, `invalid_cursor`,
 `invalid_argument`, `unknown_adapter`, `unknown_context`, `ambiguous_context`,
 `adapter_context_mismatch`, `adapter_path_mismatch`, `adapter_symbol_mismatch`,
-`adapter_identity_collision`, and `response_too_large`. Unexpected failures become
-`internal_error` without a stack trace.
+and `response_too_large`. Unexpected failures become `internal_error` without a
+stack trace.
 
 Build failures carry a closed envelope with the failing stage, cause, errno,
 workspace-relative project identity, and the adapter that failed. An adapter is
 annotated where it fails, so a multi-adapter failure never degrades to an
-unattributed error. Cross-adapter identity reuse fails the candidate as
-`adapter_identity_collision`, and a path claimed by two adapters fails as an
-adapter ownership conflict; neither is merged or resolved last-writer-wins.
+unattributed error. Adapter-local identifiers are namespaced before persistence,
+so cross-adapter identity reuse cannot occur; a path claimed by two adapters
+fails as an adapter ownership conflict and is neither merged nor resolved
+last-writer-wins.
 
 Nested result lists have independent totals and truncation markers. The response
 builder reduces optional detail and then top-level items to fit the configured
@@ -488,10 +493,11 @@ stderr. MCP starts continuous watching and reconciliation.
 
 ### CLI
 
-`codeindex-cli` composes the same configuration, database, extractor, and core.
+`codeindex-cli` composes the same configuration, database, adapters, and core.
 Operational commands disable continuous watching and perform one explicit action.
-Benchmark and qualification commands reuse the same production seams rather than
-maintaining a second index implementation.
+Benchmark commands reuse the same production seams rather than maintaining a
+second index implementation. Oracle qualification and evidence commands are
+maintainer-only and live in `src/entries/qualify.ts`, not in the production CLI.
 
 `mcp install` and `mcp uninstall` manage one project-local OpenCode entry named
 `codeindex`, independent of the configured adapter set. The entry preserves
@@ -536,8 +542,9 @@ identity; it is private local derived data, not a telemetry artifact.
 - Pull-request, nightly, stable, and release command ownership is documented
   beside the workflows in [`.github/workflows/README.md`](../.github/workflows/README.md).
 - The executable Oracle semantic contract is
-  [`oracleQualificationContract.ts`](../src/core/qualification/oracle/oracleQualificationContract.ts);
-  retained qualification and replay evidence lives in
+  [`oracleQualificationContract.ts`](../packages/adapter-oracle-tools/src/oracleQualificationContract.ts)
+  in the private maintainer package; retained qualification and replay evidence
+  lives in
   [`benchmark/oracle-production-20261027`](../benchmark/oracle-production-20261027/README.md).
 - Oracle performance evidence lives in
   [`benchmark/oracle-performance`](../benchmark/oracle-performance/README.md).

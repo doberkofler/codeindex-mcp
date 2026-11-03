@@ -7,13 +7,6 @@ open repository work.
 
 ## Priority P2
 
-### Multi-adapter generations
-
-- [#105 — Multi-adapter generations (master)](https://github.com/doberkofler/codeindex-mcp/issues/105)
-- [#124 — Specify multi-adapter configuration, identity, and provenance](https://github.com/doberkofler/codeindex-mcp/issues/124)
-- [#123 — Implement atomic multi-adapter build, storage, and freshness](https://github.com/doberkofler/codeindex-mcp/issues/123)
-- [#125 — Add multi-adapter status, coverage, and query addressing](https://github.com/doberkofler/codeindex-mcp/issues/125)
-
 ### Operations and observability
 
 - [#120 — Add a reproducible privacy-safe storage audit](https://github.com/doberkofler/codeindex-mcp/issues/120)
