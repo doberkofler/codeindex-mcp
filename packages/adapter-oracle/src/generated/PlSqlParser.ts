@@ -2,9 +2,9 @@
 import * as antlr from "antlr4ng";
 import { Token } from "antlr4ng";
 
-import { PlSqlParserVisitor } from "./PlSqlParserVisitor.js";
+import { PlSqlParserVisitor } from "./PlSqlParserVisitor.ts";
 
-import {PlSqlParserBase} from "./PlSqlParserBase.js";
+import {PlSqlParserBase} from "./PlSqlParserBase.ts";
 
 export class PlSqlParser extends PlSqlParserBase {
     public static readonly ABORT = 1;

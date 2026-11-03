@@ -1,7 +1,7 @@
 
 import * as antlr from "antlr4ng";
 
-import {PlSqlLexerBase} from "./PlSqlLexerBase.js";
+import {PlSqlLexerBase} from "./PlSqlLexerBase.ts";
 
 export class PlSqlLexer extends PlSqlLexerBase {
     public static readonly ABORT = 1;

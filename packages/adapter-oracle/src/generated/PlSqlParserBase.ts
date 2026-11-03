@@ -1,5 +1,5 @@
 import { Parser, type TokenStream, CommonTokenStream, Token } from 'antlr4ng';
-import { PlSqlLexer } from './PlSqlLexer.js';
+import { PlSqlLexer } from './PlSqlLexer.ts';
 
 export abstract class PlSqlParserBase extends Parser {
 

@@ -20,6 +20,15 @@ const generated = {
 	parserBase: path.join(outputDirectory, 'PlSqlParserBase.ts'),
 };
 
+// Node's ESM resolver, including `--experimental-strip-types`, does not rewrite
+// a local `./X.js` specifier to `./X.ts`. Generated imports therefore point at
+// the checked-in `.ts` files; `rewriteRelativeImportExtensions` restores `.js`
+// in emitted output.
+const generatedModuleNames = ['PlSqlLexer', 'PlSqlLexerBase', 'PlSqlParser', 'PlSqlParserBase', 'PlSqlParserVisitor'] as const;
+
+const withSourceExtensions = (source: string): string =>
+	generatedModuleNames.reduce((result, name) => result.replaceAll(`./${name}.js`, `./${name}.ts`), source);
+
 const replaceExactlyOnce = (source: string, search: string, replacement: string, description: string): string => {
 	const firstIndex = source.indexOf(search);
 
@@ -37,7 +46,7 @@ const adaptLexerGrammar = (upstream: string): string =>
 	replaceExactlyOnce(
 		upstream,
 		'// Insert here @header for C++ lexer.',
-		'@header {import {PlSqlLexerBase} from "./PlSqlLexerBase.js";}',
+		'@header {import {PlSqlLexerBase} from "./PlSqlLexerBase.ts";}',
 		'lexer target-language header marker',
 	);
 
@@ -45,7 +54,7 @@ const adaptParserGrammar = (upstream: string): string =>
 	replaceExactlyOnce(
 		upstream,
 		'// Insert here @header for C++ parser.',
-		'@header {import {PlSqlParserBase} from "./PlSqlParserBase.js";}',
+		'@header {import {PlSqlParserBase} from "./PlSqlParserBase.ts";}',
 		'parser target-language header marker',
 	);
 
@@ -110,9 +119,11 @@ try {
 
 // Generated sources are vendored byte-for-byte except for these deterministic
 // post-processing steps required by this repository's strict TypeScript settings.
-const lexer = readFileSync(generated.lexer, 'utf8')
-	.replace('import { Token } from "antlr4ng";\n', '')
-	.replaceAll('_sempred(localContext: antlr.ParserRuleContext | null', '_sempred(_localContext: antlr.ParserRuleContext | null');
+const lexer = withSourceExtensions(
+	readFileSync(generated.lexer, 'utf8')
+		.replace('import { Token } from "antlr4ng";\n', '')
+		.replaceAll('_sempred(localContext: antlr.ParserRuleContext | null', '_sempred(_localContext: antlr.ParserRuleContext | null'),
+);
 
 // ANTLR emits a `previousContext` local for every left-recursive rule. Some
 // rules never read it, which strict `noUnusedLocals` rejects.
@@ -166,17 +177,19 @@ const removeUnusedPreviousContext = (source: string): string => {
 };
 
 const parser = removeUnusedPreviousContext(
-	readFileSync(generated.parser, 'utf8')
-		.replace(
-			'// for running tests with parameters, TODO: discuss strategy for typed parameters in CI\n// eslint-disable-next-line no-unused-vars\ntype int = number;\n\n',
-			'',
-		)
-		.replaceAll(/_sempred\(localContext: (?<context>\w+)Context \| null/gu, '_sempred(_localContext: $<context>Context | null'),
+	withSourceExtensions(
+		readFileSync(generated.parser, 'utf8')
+			.replace(
+				'// for running tests with parameters, TODO: discuss strategy for typed parameters in CI\n// eslint-disable-next-line no-unused-vars\ntype int = number;\n\n',
+				'',
+			)
+			.replaceAll(/_sempred\(localContext: (?<context>\w+)Context \| null/gu, '_sempred(_localContext: $<context>Context | null'),
+	),
 );
 
 // The grammar header is copied into the visitor, but the visitor never
 // references the parser base class.
-const visitor = readFileSync(generated.visitor, 'utf8').replace('import {PlSqlParserBase} from "./PlSqlParserBase.js";\n\n', '');
+const visitor = withSourceExtensions(readFileSync(generated.visitor, 'utf8').replace('import {PlSqlParserBase} from "./PlSqlParserBase.ts";\n\n', ''));
 
 for (const artifact of ['PlSqlLexer.interp', 'PlSqlLexer.tokens', 'PlSqlParser.interp', 'PlSqlParser.tokens']) {
 	rmSync(path.join(outputDirectory, artifact), {force: true});
@@ -185,8 +198,8 @@ for (const artifact of ['PlSqlLexer.interp', 'PlSqlLexer.tokens', 'PlSqlParser.i
 writeFileSync(generated.lexer, lexer);
 writeFileSync(generated.parser, parser);
 writeFileSync(generated.visitor, visitor);
-writeFileSync(generated.lexerBase, adaptLexerBase(readFileSync(lexerBaseSource, 'utf8')));
-writeFileSync(generated.parserBase, adaptParserBase(readFileSync(parserBaseSource, 'utf8')));
+writeFileSync(generated.lexerBase, withSourceExtensions(adaptLexerBase(readFileSync(lexerBaseSource, 'utf8'))));
+writeFileSync(generated.parserBase, withSourceExtensions(adaptParserBase(readFileSync(parserBaseSource, 'utf8'))));
 process.stdout.write(
 	`Generated ${path.relative(root, generated.lexer)}, ${path.relative(root, generated.parser)}, ${path.relative(root, generated.visitor)}, ${path.relative(root, generated.lexerBase)}, ${path.relative(root, generated.parserBase)}\n`,
 );
