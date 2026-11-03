@@ -130,11 +130,7 @@ const exclude = (
 	state.excludedByReason[decision.reason] += 1;
 };
 
-const ephemeralDecisionOf = (
-	state: TruthStateType,
-	parsed: OracleParsedTruthRowType,
-	kind: 'declaration' | 'reference' | null,
-): ExclusionDecisionType | null =>
+const ephemeralDecisionOf = (state: TruthStateType, parsed: OracleParsedTruthRowType, kind: 'declaration' | 'reference' | null): ExclusionDecisionType | null =>
 	kind === 'declaration' && state.policy.excludeEphemeralDeclarations && isEphemeralDeclaration(state.usageById, parsed)
 		? {role: 'declaration', reason: 'ephemeral_declaration'}
 		: null;
