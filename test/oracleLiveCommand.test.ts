@@ -1,9 +1,9 @@
 import {existsSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {createOracleLivePlan} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
-import {readOracleLiveSettings} from '../src/core/qualification/oracle/live/oracleLiveSettings.ts';
-import {runOracleLiveQualification} from '../src/core/qualification/oracle/live/runOracleLiveQualification.ts';
+import {createOracleLivePlan} from '@codeindex/adapter-oracle-tools/live/oracleLivePlan';
+import {readOracleLiveSettings} from '@codeindex/adapter-oracle-tools/live/oracleLiveSettings';
+import {runOracleLiveQualification} from '@codeindex/adapter-oracle-tools/live/runOracleLiveQualification';
 import {runQualify} from '../src/transports/cli/qualifyProgram.ts';
 import {capture, fixture, settingsOf, sourceRows, stubDatabase} from './helpers/oracleLive.ts';
 

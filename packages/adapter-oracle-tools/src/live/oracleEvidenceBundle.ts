@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {readFile, stat} from 'node:fs/promises';
 import path from 'node:path';
 import {z} from 'zod';
-import {indexRootDirectory} from '../../../config/config.ts';
+import {indexRootDirectory} from '../../../../src/core/config/config.ts';
 import {oracleQualificationContractIdentityOf} from '../oracleQualificationContract.ts';
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);

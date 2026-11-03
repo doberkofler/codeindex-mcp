@@ -1,0 +1,17 @@
+{
+	"name": "@codeindex/adapter-oracle-tools",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Maintainer-only Oracle qualification tooling for CodeIndex.",
+	"type": "module",
+	"exports": {
+		"./*": "./src/*.ts"
+	},
+	"dependencies": {
+		"@codeindex/adapter-oracle": "workspace:*",
+		"csv-parse": "7.0.3",
+		"csv-stringify": "6.9.0",
+		"oracledb": "26.0.0",
+		"zod": "4.6.7"
+	}
+}

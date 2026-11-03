@@ -5,8 +5,8 @@ import {z} from 'zod';
 import {runVerification} from './typescript/verifyReferences.ts';
 import {parseOracleParserId} from '@codeindex/adapter-oracle';
 import {CommandExitError, configureCommand, parseCommandAsync} from '../../transports/cli/commanderSupport.ts';
-import {oracleTruthPolicyOf} from './oracle/oracleTruthPolicy.ts';
-import {runOracleQualification} from './oracle/runOracleQualification.ts';
+import {oracleTruthPolicyOf} from '@codeindex/adapter-oracle-tools/oracleTruthPolicy';
+import {runOracleQualification} from '@codeindex/adapter-oracle-tools/runOracleQualification';
 
 const UnitsFileSchema = z.object({
 	snapshot: z.object({

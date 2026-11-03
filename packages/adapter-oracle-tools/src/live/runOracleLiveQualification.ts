@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {existsSync, mkdirSync, realpathSync, statSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {DEFAULT_ORACLE_SOURCE_EXTENSIONS, type OracleManifestType} from '@codeindex/adapter-oracle/internals';
-import {indexRootDirectory, type ConfigType} from '../../../config/config.ts';
+import {indexRootDirectory, type ConfigType} from '../../../../src/core/config/config.ts';
 import {qualifyOracleConfig} from '../runOracleQualification.ts';
 import {applyOracleLivePlan, type OracleLiveApplyResultType, type OracleLiveDependenciesType} from './oracleDatabase.ts';
 import {readInstalledOracleDependencies, readInstalledOracleSources} from './oracleInventory.ts';

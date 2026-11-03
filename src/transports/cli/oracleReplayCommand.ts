@@ -1,7 +1,7 @@
 import path from 'node:path';
 import {Command} from 'commander';
 import {z} from 'zod';
-import {replayOracleEvidenceBundle} from '../../core/qualification/oracle/live/oracleReplay.ts';
+import {replayOracleEvidenceBundle} from '@codeindex/adapter-oracle-tools/live/oracleReplay';
 import {type CommandIoType, CommandExitError, configureCommand} from './commanderSupport.ts';
 
 const FAILURE_LIMIT = 20;

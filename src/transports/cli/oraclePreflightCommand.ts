@@ -1,7 +1,7 @@
 import {writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {Command} from 'commander';
-import {preflightOracleEvidenceBundle, type OracleEvidencePreflightReportType} from '../../core/qualification/oracle/live/oracleEvidenceBundle.ts';
+import {preflightOracleEvidenceBundle, type OracleEvidencePreflightReportType} from '@codeindex/adapter-oracle-tools/live/oracleEvidenceBundle';
 import {type CommandIoType, CommandExitError, configureCommand} from './commanderSupport.ts';
 
 const FAILURE_LIMIT = 20;

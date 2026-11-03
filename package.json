@@ -87,14 +87,13 @@
 		"@modelcontextprotocol/server": "2.4.0",
 		"chokidar": "6.0.0",
 		"commander": "15.0.0",
-		"csv-parse": "7.0.3",
-		"csv-stringify": "6.9.0",
 		"debug": "4.4.3",
 		"jsonc-parser": "3.3.1",
 		"zod": "4.6.7"
 	},
 	"devDependencies": {
 		"@codeindex/adapter-oracle": "workspace:*",
+		"@codeindex/adapter-oracle-tools": "workspace:*",
 		"@codeindex/adapter-typescript": "workspace:*",
 		"@commitlint/cli": "21.2.4",
 		"@commitlint/config-conventional": "21.2.4",

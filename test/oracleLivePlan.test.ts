@@ -1,9 +1,9 @@
 import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {applyOracleLivePlan} from '../src/core/qualification/oracle/live/oracleDatabase.ts';
-import {normalizeOracleSource, oracleObjectKeyOf, type OracleInstalledSourceType} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
-import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
+import {applyOracleLivePlan} from '@codeindex/adapter-oracle-tools/live/oracleDatabase';
+import {normalizeOracleSource, oracleObjectKeyOf, type OracleInstalledSourceType} from '@codeindex/adapter-oracle-tools/live/oracleLiveSource';
+import {createOracleLivePlan, readOracleLivePlan, type LivePlanType} from '@codeindex/adapter-oracle-tools/live/oracleLivePlan';
 import {fixture, installedSourcesOf, qualificationConfig, settingsOf, sourceRows, writeSelectionManifest} from './helpers/oracleLive.ts';
 
 describe('Oracle live qualification plan', () => {

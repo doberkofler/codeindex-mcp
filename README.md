@@ -82,6 +82,10 @@ package names, so `id: "typescript"` and `id: "oracle"` keep working without a
 Adapter packages are trusted code: installing one grants the same filesystem,
 environment, and network authority as the CodeIndex process.
 
+This is a major installation change: the previous single-package Git install no
+longer supplies every adapter. Roll back by pinning a host release together with
+the adapter versions it was verified against.
+
 ## Quick start
 
 From a TypeScript workspace containing `tsconfig.json`, the defaults are enough:

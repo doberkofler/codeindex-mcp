@@ -1,8 +1,8 @@
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {assertOracleSourceMatchesSnapshot, oracleSourceUnitsOf} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
-import {createOracleLivePlan} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
-import {type OracleLiveSettingsType} from '../src/core/qualification/oracle/live/oracleLiveSettings.ts';
+import {assertOracleSourceMatchesSnapshot, oracleSourceUnitsOf} from '@codeindex/adapter-oracle-tools/live/oracleLiveSource';
+import {createOracleLivePlan} from '@codeindex/adapter-oracle-tools/live/oracleLivePlan';
+import {type OracleLiveSettingsType} from '@codeindex/adapter-oracle-tools/live/oracleLiveSettings';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 const fixture = (): ReturnType<typeof createFixtureConfig> => createFixtureConfig('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');

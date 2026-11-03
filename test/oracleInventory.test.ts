@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {readInstalledOracleDependencies, readInstalledOracleSources} from '../src/core/qualification/oracle/live/oracleInventory.ts';
-import {oracleObjectKeyOf} from '../src/core/qualification/oracle/live/oracleLiveSource.ts';
+import {readInstalledOracleDependencies, readInstalledOracleSources} from '@codeindex/adapter-oracle-tools/live/oracleInventory';
+import {oracleObjectKeyOf} from '@codeindex/adapter-oracle-tools/live/oracleLiveSource';
 
 const mocks = vi.hoisted(() => ({
 	execute: vi.fn<(...args: readonly unknown[]) => Promise<unknown>>(),

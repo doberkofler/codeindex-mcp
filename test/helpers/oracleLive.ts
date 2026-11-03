@@ -6,9 +6,9 @@ import {
 	oracleObjectKeyOf,
 	oracleSourceUnitsOf,
 	type OracleInstalledSourceType,
-} from '../../src/core/qualification/oracle/live/oracleLiveSource.ts';
-import {type LivePlanType} from '../../src/core/qualification/oracle/live/oracleLivePlan.ts';
-import {type OracleLiveSettingsType} from '../../src/core/qualification/oracle/live/oracleLiveSettings.ts';
+} from '@codeindex/adapter-oracle-tools/live/oracleLiveSource';
+import {type LivePlanType} from '@codeindex/adapter-oracle-tools/live/oracleLivePlan';
+import {type OracleLiveSettingsType} from '@codeindex/adapter-oracle-tools/live/oracleLiveSettings';
 import {createFixtureConfig} from './fixture.ts';
 
 export const fixture = (): ReturnType<typeof createFixtureConfig> =>

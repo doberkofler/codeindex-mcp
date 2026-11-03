@@ -3,7 +3,7 @@ import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {z} from 'zod';
 import {indexRootDirectory} from '../src/core/config/config.ts';
-import {replayOracleEvidenceBundle} from '../src/core/qualification/oracle/live/oracleReplay.ts';
+import {replayOracleEvidenceBundle} from '@codeindex/adapter-oracle-tools/live/oracleReplay';
 
 type BundleType = Readonly<{
 	descriptorPath: string;

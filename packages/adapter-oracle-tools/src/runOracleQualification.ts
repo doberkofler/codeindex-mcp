@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
-import {type ExtractorType} from '../../../adapters/types.ts';
+import {type ExtractorType} from '../../../src/adapters/types.ts';
 import {
 	oracleExtractor,
 	configForOracleParser,
@@ -10,12 +10,12 @@ import {
 	type OracleParserIdType,
 	type OracleParserIdentityType,
 } from '@codeindex/adapter-oracle/internals';
-import {asString} from '../../storage/databaseRows.ts';
-import {IndexDatabase} from '../../storage/database.ts';
-import {createCodeIndex} from '../../generation/codeIndex.ts';
-import {createLogger} from '../../logging/logger.ts';
-import {loadConfig, type ConfigType} from '../../config/config.ts';
-import {readVcsProvenance} from '../../../adapters/vcs/vcsProvenance.ts';
+import {asString} from '../../../src/core/storage/databaseRows.ts';
+import {IndexDatabase} from '../../../src/core/storage/database.ts';
+import {createCodeIndex} from '../../../src/core/generation/codeIndex.ts';
+import {createLogger} from '../../../src/core/logging/logger.ts';
+import {loadConfig, type ConfigType} from '../../../src/core/config/config.ts';
+import {readVcsProvenance} from '../../../src/adapters/vcs/vcsProvenance.ts';
 import {readCsv} from './oracleCsv.ts';
 import {objectKey, objectMapping, objectTypeOfPath, type ObjectMappingType} from './oracleMapping.ts';
 import {compareFacts, readOracleTruth, type ComparisonType} from './oracleTruth.ts';

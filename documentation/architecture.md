@@ -108,7 +108,9 @@ unit:
   contract, source-file helpers, `defineAdapter`, and conformance checks;
 - `packages/adapter-typescript` — TypeScript / JavaScript adapter and compiler;
 - `packages/adapter-oracle` — static Oracle adapter, generated grammar, and
-  `antlr4ng`.
+  `antlr4ng`;
+- `packages/adapter-oracle-tools` — private maintainer qualification tooling,
+  live Oracle driver, and evidence replay.
 
 Each package builds independently with `tsc` and publishes prebuilt ESM plus
 declarations. `publishConfig` points exports at `dist`. The host Vite build
@@ -122,6 +124,43 @@ The host package still declares `@codeindex/adapter-sdk` because loader and core
 import protocol schemas. Adapter packages declare only the SDK and their own
 compiler/parser dependency. `oracledb` is a maintainer-only dependency used by
 live Oracle qualification, not by the host runtime or the static adapter.
+
+## Storage and provenance
+
+`SCHEMA_VERSION` is `17`. The `generation` table holds aggregate publication
+metadata only: state, revision, hashes, counts, stages, timestamps, and bounded
+failure state. It has no extractor, compiler, or drift projection.
+
+`generation_adapter` is the sole per-generation provenance source. Each row
+carries protocol version, implementation version, bounded package name/version,
+compiler/parser identity, coverage, absence reason, hashes, counts, and timings.
+Reuse compares the stored protocol and implementation versions, so an adapter
+upgrade cannot reuse facts produced by another implementation.
+
+Adapter-emitted symbol, binding, site, and dependency identifiers are adapter-local.
+Before persistence the core rewrites each one to
+`a_<sha256(adapter_id NUL local_id)>`, so two adapters may emit the same local
+identity without collision. Persisted query results expose only the core-owned
+identity.
+
+Adapter caches (`extraction_artifact`) remain keyed by content hash, artifact
+kind, adapter ID, adapter implementation version, and context hash. They are
+bounded, independently disposable, and never required to read a published
+generation.
+
+## Major-release migration
+
+Package separation changes installation, not configuration. Existing
+`id: "typescript"` and `id: "oracle"` entries without `module` normalize to the
+official package aliases. A TypeScript-only installation must install
+`codeindex-mcp` and `@codeindex/adapter-typescript`; an Oracle workspace adds
+`@codeindex/adapter-oracle`. A missing adapter package fails before transport
+startup with `adapter_module_not_found` and an install instruction.
+
+Rollback pins the previous host release and its adapters together. Adapter
+implementation upgrades invalidate only that adapter's reuse identity; a host
+schema change recreates the derived database under the existing one-backup
+policy.
 
 ## Adapter SDK and loader
 

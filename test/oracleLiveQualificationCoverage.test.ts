@@ -1,8 +1,8 @@
 import {existsSync, mkdirSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it, vi} from 'vitest';
-import {createOracleLivePlan} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
-import {runOracleLiveQualification} from '../src/core/qualification/oracle/live/runOracleLiveQualification.ts';
+import {createOracleLivePlan} from '@codeindex/adapter-oracle-tools/live/oracleLivePlan';
+import {runOracleLiveQualification} from '@codeindex/adapter-oracle-tools/live/runOracleLiveQualification';
 import {capture, fixture, installedSourcesOf, settingsOf, sourceRows, type StubDatabaseType} from './helpers/oracleLive.ts';
 
 const oracleState = vi.hoisted(() => ({

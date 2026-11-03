@@ -1,8 +1,8 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {createOracleLivePlan} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
-import {recompileOracleDependents, recompileOracleObjects} from '../src/core/qualification/oracle/live/oracleRecompile.ts';
+import {createOracleLivePlan} from '@codeindex/adapter-oracle-tools/live/oracleLivePlan';
+import {recompileOracleDependents, recompileOracleObjects} from '@codeindex/adapter-oracle-tools/live/oracleRecompile';
 import {fixture, installedSourcesOf, settingsOf} from './helpers/oracleLive.ts';
 
 const executorOf = (execute: (sql: string) => Promise<void>): Readonly<{execute: (sql: string) => Promise<void>}> => ({execute});

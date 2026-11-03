@@ -3,8 +3,8 @@ import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync}
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {preflightOracleEvidenceBundle, type OracleEvidencePreflightReportType} from '../src/core/qualification/oracle/live/oracleEvidenceBundle.ts';
-import {oracleQualificationContractIdentityOf} from '../src/core/qualification/oracle/oracleQualificationContract.ts';
+import {preflightOracleEvidenceBundle, type OracleEvidencePreflightReportType} from '@codeindex/adapter-oracle-tools/live/oracleEvidenceBundle';
+import {oracleQualificationContractIdentityOf} from '@codeindex/adapter-oracle-tools/oracleQualificationContract';
 import {runOraclePreflight} from '../src/transports/cli/oraclePreflightCommand.ts';
 import {runOracleReplay} from '../src/transports/cli/oracleReplayCommand.ts';
 

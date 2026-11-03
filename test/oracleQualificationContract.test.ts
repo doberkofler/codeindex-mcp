@@ -1,14 +1,10 @@
 import {describe, expect, it} from 'vitest';
-import {objectKey, type ObjectMappingType} from '../src/core/qualification/oracle/oracleMapping.ts';
-import {
-	ORACLE_QUALIFICATION_CONTRACT,
-	oracleGatesOf,
-	oracleQualificationContractIdentityOf,
-} from '../src/core/qualification/oracle/oracleQualificationContract.ts';
-import {DEPENDENCIES_SQL, IDENTIFIERS_SQL} from '../src/core/qualification/oracle/live/oracleLiveSql.ts';
-import {readOracleTruth} from '../src/core/qualification/oracle/oracleTruth.ts';
-import {ORACLE_DEPENDENCY_EXCLUSION_REASONS} from '../src/core/qualification/oracle/oracleDependencyExclusions.ts';
-import {ORACLE_TRUTH_EXCLUSION_REASONS, positionKeyOf, type OracleTruthExclusionReasonType} from '../src/core/qualification/oracle/oracleTruthExclusions.ts';
+import {objectKey, type ObjectMappingType} from '@codeindex/adapter-oracle-tools/oracleMapping';
+import {ORACLE_QUALIFICATION_CONTRACT, oracleGatesOf, oracleQualificationContractIdentityOf} from '@codeindex/adapter-oracle-tools/oracleQualificationContract';
+import {DEPENDENCIES_SQL, IDENTIFIERS_SQL} from '@codeindex/adapter-oracle-tools/live/oracleLiveSql';
+import {readOracleTruth} from '@codeindex/adapter-oracle-tools/oracleTruth';
+import {ORACLE_DEPENDENCY_EXCLUSION_REASONS} from '@codeindex/adapter-oracle-tools/oracleDependencyExclusions';
+import {ORACLE_TRUTH_EXCLUSION_REASONS, positionKeyOf, type OracleTruthExclusionReasonType} from '@codeindex/adapter-oracle-tools/oracleTruthExclusions';
 import {
 	ORACLE_TRUTH_OBJECT_TYPES,
 	ORACLE_TRUTH_POLICY_V1,
@@ -17,7 +13,7 @@ import {
 	ORACLE_TRUTH_POLICY_V4,
 	ORACLE_TRUTH_POLICY_V5,
 	oracleTruthPolicyOf,
-} from '../src/core/qualification/oracle/oracleTruthPolicy.ts';
+} from '@codeindex/adapter-oracle-tools/oracleTruthPolicy';
 
 const mappingOf = (lines: readonly string[]): ObjectMappingType => ({path: 'source.pkg', offset: 0, columnShift: 0, lines});
 

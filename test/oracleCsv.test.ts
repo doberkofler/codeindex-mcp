@@ -2,8 +2,8 @@ import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {parseCsv, readCsv} from '../src/core/qualification/oracle/oracleCsv.ts';
-import {writeCsvRows} from '../src/core/qualification/oracle/live/oracleCsvExport.ts';
+import {parseCsv, readCsv} from '@codeindex/adapter-oracle-tools/oracleCsv';
+import {writeCsvRows} from '@codeindex/adapter-oracle-tools/live/oracleCsvExport';
 
 let directory: string | undefined;
 

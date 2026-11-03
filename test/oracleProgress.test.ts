@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {formatDuration, phaseProgressLine} from '../src/core/qualification/oracle/live/oracleProgress.ts';
+import {formatDuration, phaseProgressLine} from '@codeindex/adapter-oracle-tools/live/oracleProgress';
 
 describe('Oracle live progress lines', () => {
 	it('formats durations for progress output', () => {

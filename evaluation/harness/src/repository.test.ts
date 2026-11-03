@@ -4,60 +4,13 @@ import path from 'node:path';
 import {describe, it} from 'vitest';
 import ts from 'typescript';
 import {caseOf, type CaseType} from './schema.ts';
+import {currentPathOf, legacyPathOf} from './repositoryLayout.ts';
 import {loadSuite} from './suite.ts';
 
 const HARNESS_ROOT = path.resolve(import.meta.dirname, '..');
 const EVALUATION_ROOT = path.resolve(HARNESS_ROOT, '..');
 const SUBJECT_ROOT = path.resolve(EVALUATION_ROOT, '..');
 const SOURCE_ROOT = path.join(SUBJECT_ROOT, 'src');
-const LEGACY_TYPESCRIPT_PREFIX = 'src/adapters/typescript/';
-const LEGACY_ORACLE_PREFIX = 'src/adapters/oracle/';
-const TYPESCRIPT_PACKAGE_PREFIX = 'packages/adapter-typescript/src/';
-const ORACLE_PACKAGE_PREFIX = 'packages/adapter-oracle/src/';
-const MOVED_HOST_PATH = 'src/core/qualification/typescript/verifyReferences.ts';
-/**
- * Maps a frozen pre-workspace path onto the current monorepo location.
- *
- * @param file - Frozen case path.
- * @returns Current workspace path.
- */
-const currentPathOf = (file: string): string => {
-	if (file === 'src/adapters/typescript/verifyReferences.ts') {
-		return MOVED_HOST_PATH;
-	}
-
-	if (file.startsWith(LEGACY_TYPESCRIPT_PREFIX)) {
-		return `${TYPESCRIPT_PACKAGE_PREFIX}${file.slice(LEGACY_TYPESCRIPT_PREFIX.length)}`;
-	}
-
-	if (file.startsWith(LEGACY_ORACLE_PREFIX)) {
-		return `${ORACLE_PACKAGE_PREFIX}${file.slice(LEGACY_ORACLE_PREFIX.length)}`;
-	}
-
-	return file;
-};
-
-/**
- * Maps a current workspace path back onto the frozen case spelling.
- *
- * @param file - Current workspace path.
- * @returns Frozen case path.
- */
-const legacyPathOf = (file: string): string => {
-	if (file === MOVED_HOST_PATH) {
-		return 'src/adapters/typescript/verifyReferences.ts';
-	}
-
-	if (file.startsWith(TYPESCRIPT_PACKAGE_PREFIX)) {
-		return `${LEGACY_TYPESCRIPT_PREFIX}${file.slice(TYPESCRIPT_PACKAGE_PREFIX.length)}`;
-	}
-
-	if (file.startsWith(ORACLE_PACKAGE_PREFIX)) {
-		return `${LEGACY_ORACLE_PREFIX}${file.slice(ORACLE_PACKAGE_PREFIX.length)}`;
-	}
-
-	return file;
-};
 
 const SCOPE_PREFIX = 'src/';
 

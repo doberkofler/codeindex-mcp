@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {oracleDependentsOf, type OracleDependencyRowType} from '../src/core/qualification/oracle/live/oracleDependencies.ts';
+import {oracleDependentsOf, type OracleDependencyRowType} from '@codeindex/adapter-oracle-tools/live/oracleDependencies';
 
 const edge = (name: string, type: string, referencedName: string, referencedType: string): OracleDependencyRowType => ({
 	name,

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {parseCsv} from '../src/core/qualification/oracle/oracleCsv.ts';
+import {parseCsv} from '@codeindex/adapter-oracle-tools/oracleCsv';
 import {runQualifyCommand, type QualifyIoType} from '../src/core/qualification/qualifyCommand.ts';
 
 type CapturedIoType = Readonly<{io: QualifyIoType; stdout: () => string; stderr: () => string}>;

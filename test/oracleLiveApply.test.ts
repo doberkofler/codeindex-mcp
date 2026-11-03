@@ -1,8 +1,8 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {applyOracleLivePlan} from '../src/core/qualification/oracle/live/oracleDatabase.ts';
-import {createOracleLivePlan, type LivePlanType} from '../src/core/qualification/oracle/live/oracleLivePlan.ts';
+import {applyOracleLivePlan} from '@codeindex/adapter-oracle-tools/live/oracleDatabase';
+import {createOracleLivePlan, type LivePlanType} from '@codeindex/adapter-oracle-tools/live/oracleLivePlan';
 import {fixture, installedSourcesOf, inventoryDatabase, settingsOf, sourceRows, type StubDatabaseType} from './helpers/oracleLive.ts';
 
 type InvalidationEdgeType = Readonly<{name: string; referencedName: string}>;

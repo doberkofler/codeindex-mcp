@@ -1,5 +1,5 @@
 import {Command} from 'commander';
-import {runOracleLiveQualification} from '../../core/qualification/oracle/live/runOracleLiveQualification.ts';
+import {runOracleLiveQualification} from '@codeindex/adapter-oracle-tools/live/runOracleLiveQualification';
 import {type CommandIoType, CommandExitError, configureCommand} from './commanderSupport.ts';
 
 type OracleLiveOptionsType = Readonly<{

@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {readTruthDependencies} from '../src/core/qualification/oracle/oracleDependencies.ts';
+import {readTruthDependencies} from '@codeindex/adapter-oracle-tools/oracleDependencies';
 import {
 	objectKey,
 	objectMapping,
@@ -10,11 +10,11 @@ import {
 	positionOf,
 	sourceTokenMatches,
 	type ObjectMappingType,
-} from '../src/core/qualification/oracle/oracleMapping.ts';
-import {createExtraClassifier} from '../src/core/qualification/oracle/oracleExtras.ts';
-import {compareOracleStrata} from '../src/core/qualification/oracle/oracleStratification.ts';
-import {compareFacts, gateOf, readOracleTruth, type CodeOccurrenceType, type PositionedTruthType} from '../src/core/qualification/oracle/oracleTruth.ts';
-import {ORACLE_TRUTH_POLICY_V1, ORACLE_TRUTH_POLICY_V2} from '../src/core/qualification/oracle/oracleTruthPolicy.ts';
+} from '@codeindex/adapter-oracle-tools/oracleMapping';
+import {createExtraClassifier} from '@codeindex/adapter-oracle-tools/oracleExtras';
+import {compareOracleStrata} from '@codeindex/adapter-oracle-tools/oracleStratification';
+import {compareFacts, gateOf, readOracleTruth, type CodeOccurrenceType, type PositionedTruthType} from '@codeindex/adapter-oracle-tools/oracleTruth';
+import {ORACLE_TRUTH_POLICY_V1, ORACLE_TRUTH_POLICY_V2} from '@codeindex/adapter-oracle-tools/oracleTruthPolicy';
 
 const {join} = path;
 const temporaryDirectories: string[] = [];

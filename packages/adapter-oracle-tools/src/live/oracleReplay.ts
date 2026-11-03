@@ -2,8 +2,8 @@ import {copyFile, cp, mkdir, mkdtemp, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {z} from 'zod';
-import {indexRootDirectory} from '../../../config/config.ts';
-import {runQualifyCommand} from '../../qualifyCommand.ts';
+import {indexRootDirectory} from '../../../../src/core/config/config.ts';
+import {runQualifyCommand} from '../../../../src/core/qualification/qualifyCommand.ts';
 import {preflightOracleEvidenceBundle, type OracleEvidencePreflightReportType} from './oracleEvidenceBundle.ts';
 
 const DescriptorSchema = z.object({

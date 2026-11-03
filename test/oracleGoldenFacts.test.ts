@@ -6,8 +6,8 @@ import {extractOracleSymbols} from '@codeindex/adapter-oracle/extractSymbols';
 import {parseOracleUnits} from '@codeindex/adapter-oracle/parseUnits';
 import {resolveOracleReferences} from '@codeindex/adapter-oracle/resolveReferences';
 import {tokenizeOracleSource} from '@codeindex/adapter-oracle/tokenize';
-import {createExtraClassifier} from '../src/core/qualification/oracle/oracleExtras.ts';
-import {type ObjectMappingType} from '../src/core/qualification/oracle/oracleMapping.ts';
+import {createExtraClassifier} from '@codeindex/adapter-oracle-tools/oracleExtras';
+import {type ObjectMappingType} from '@codeindex/adapter-oracle-tools/oracleMapping';
 
 const GoldenFactsSchema = z.object({
 	path: z.string().min(1),

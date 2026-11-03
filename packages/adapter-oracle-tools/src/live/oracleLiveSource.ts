@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {parseOracleUnits, tokenizeOracleSource} from '@codeindex/adapter-oracle/internals';
-import {hashContent} from '../../../generation/sourceFiles.ts';
+import {hashContent} from '../../../../src/core/generation/sourceFiles.ts';
 import {type LivePlanType} from './oracleLivePlan.ts';
 
 type OracleSourceObjectType = 'PACKAGE' | 'PACKAGE BODY' | 'FUNCTION' | 'PROCEDURE';

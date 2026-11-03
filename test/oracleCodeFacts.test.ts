@@ -1,6 +1,6 @@
 import {DatabaseSync} from 'node:sqlite';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
-import {loadAmbiguousOverloadSites, loadCodeDependencies, loadCodeFacts} from '../src/core/qualification/oracle/oracleCodeFacts.ts';
+import {loadAmbiguousOverloadSites, loadCodeDependencies, loadCodeFacts} from '@codeindex/adapter-oracle-tools/oracleCodeFacts';
 
 let database: DatabaseSync;
 

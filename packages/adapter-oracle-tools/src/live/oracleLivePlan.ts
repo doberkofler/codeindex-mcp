@@ -3,8 +3,8 @@ import {copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node
 import path from 'node:path';
 import {z} from 'zod';
 import {scanOracleProject} from '@codeindex/adapter-oracle/internals';
-import {readVcsProvenance} from '../../../../adapters/vcs/vcsProvenance.ts';
-import {type ConfigType} from '../../../config/config.ts';
+import {readVcsProvenance} from '../../../../src/adapters/vcs/vcsProvenance.ts';
+import {type ConfigType} from '../../../../src/core/config/config.ts';
 import {
 	oracleSourceCandidates,
 	selectOracleSources,

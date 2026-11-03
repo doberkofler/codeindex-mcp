@@ -3,8 +3,8 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterAll, describe, expect, it} from 'vitest';
-import {readInstalledOracleDependencies, readInstalledOracleSources} from '../src/core/qualification/oracle/live/oracleInventory.ts';
-import {runOracleLiveQualification} from '../src/core/qualification/oracle/live/runOracleLiveQualification.ts';
+import {readInstalledOracleDependencies, readInstalledOracleSources} from '@codeindex/adapter-oracle-tools/live/oracleInventory';
+import {runOracleLiveQualification} from '@codeindex/adapter-oracle-tools/live/runOracleLiveQualification';
 
 /*
  * Opt-in live tier. Every step is read-only: it inspects the catalogue and
