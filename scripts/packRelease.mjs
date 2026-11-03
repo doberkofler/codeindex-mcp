@@ -24,12 +24,23 @@ for (const filter of ['@codeindex/adapter-sdk', '@codeindex/adapter-typescript',
 	run('pnpm', ['--filter', filter, 'pack', '--pack-destination', output]);
 }
 
-const expected = [
-	'codeindex-adapter-sdk-0.1.0.tgz',
-	'codeindex-adapter-typescript-0.1.0.tgz',
-	'codeindex-adapter-oracle-0.1.0.tgz',
-	`codeindex-mcp-${JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version}.tgz`,
-];
+const manifestOf = (packageDirectory) => {
+	const manifest = JSON.parse(readFileSync(path.join(root, packageDirectory, 'package.json'), 'utf8'));
+
+	if (typeof manifest?.name !== 'string' || typeof manifest?.version !== 'string') {
+		throw new TypeError(`${packageDirectory} has no string name and version`);
+	}
+
+	return {name: manifest.name, version: manifest.version};
+};
+
+// Derive every artifact name from the packed manifest so a version bump cannot
+// leave the release expecting a previous release's tarball.
+const expected = ['packages/adapter-sdk', 'packages/adapter-typescript', 'packages/adapter-oracle', '.'].map((packageDirectory) => {
+	const {name, version} = manifestOf(packageDirectory);
+
+	return `${name.replace(/^@/u, '').replace('/', '-')}-${version}.tgz`;
+});
 
 for (const name of expected) {
 	readFileSync(path.join(output, name));

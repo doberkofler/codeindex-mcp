@@ -102,4 +102,31 @@ describe('operational soak', () => {
 		expect(soakMarkdown(report)).toContain('Operational soak report');
 		expect(soakMarkdown(report)).not.toContain(run.workspace);
 	}, 120_000);
+
+	it('moves every configured adapter onto the generated workspace', async () => {
+		const fixture = createFixtureConfig('simple-project');
+		// loadConfig always resolves `adapters`; a configuration that carries only
+		// the singular projection cannot reproduce the project-file mismatch.
+		const config = {
+			...fixture.config,
+			adapters: [
+				{
+					id: fixture.config.extractorId,
+					required: true,
+					options: fixture.config.extractorOptions,
+					projectFilePath: fixture.config.projectFilePath,
+					projects: fixture.config.projects,
+				},
+			],
+		};
+		const plan: SoakPlanType = {...PLAN, rounds: 1, burstEdits: 1, failures: 0, restarts: 1, idleSampleMs: 0};
+		const run = await runSoak({config, profile: plan.profile, plan, logger: silentLogger, requireBuildOverlap: false});
+		cleanup = (): void => {
+			removeSoakWorkspace(run);
+			fixture.cleanup();
+		};
+
+		expect(run.report.passed).toBe(true);
+		expect(run.report.blocking).toStrictEqual([]);
+	}, 120_000);
 });

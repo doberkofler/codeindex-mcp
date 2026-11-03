@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* oxlint-disable typescript/no-unsafe-argument, typescript/no-unsafe-call, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access, typescript/no-unsafe-return -- NOTE: untyped Node tooling script; inputs are literal argument arrays. */
-import {cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -9,6 +9,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const work = mkdtempSync(path.join(tmpdir(), 'codeindex-packages-'));
 const packs = path.join(work, 'packs');
 mkdirSync(packs, {recursive: true});
+const RUNTIME_DEPENDENCY_SECTIONS = ['dependencies', 'optionalDependencies', 'peerDependencies'];
 
 const run = (command, args, options = {}) => {
 	const result = spawnSync(command, args, {cwd: options.cwd ?? root, encoding: 'utf8', env: {...process.env, ...options.env}, stdio: options.stdio ?? 'pipe'});
@@ -22,6 +23,31 @@ const run = (command, args, options = {}) => {
 
 const pack = (filter) => {
 	run('pnpm', ['--filter', filter, 'pack', '--pack-destination', packs]);
+};
+
+const manifestOf = (packageDirectory) => JSON.parse(readFileSync(path.join(root, packageDirectory, 'package.json'), 'utf8'));
+
+// `pnpm pack` derives the artifact name from the package name and version, so
+// the smoke test must derive it the same way instead of pinning a release.
+const tarballOf = (packageDirectory) => {
+	const {name, version} = manifestOf(packageDirectory);
+
+	return path.join(packs, `${name.replace(/^@/u, '').replace('/', '-')}-${version}.tgz`);
+};
+
+const packedManifestOf = (tarball) => JSON.parse(run('tar', ['-xOf', tarball, 'package/package.json']).stdout);
+
+// Published consumers install only runtime dependencies. A `workspace:` spec that
+// survives packing cannot be resolved outside this repository, so the release must
+// fail here rather than at the first consumer installation.
+const assertNoWorkspaceSpecs = (label, manifest) => {
+	for (const section of RUNTIME_DEPENDENCY_SECTIONS) {
+		for (const [name, spec] of Object.entries(manifest[section] ?? {})) {
+			if (typeof spec === 'string' && spec.startsWith('workspace:')) {
+				throw new Error(`${label} publishes an unresolvable workspace dependency: ${section}.${name}=${spec}`);
+			}
+		}
+	}
 };
 
 const install = (consumer, tarballs) => {
@@ -52,15 +78,17 @@ try {
 	pack('codeindex-mcp');
 
 	const files = {
-		sdk: path.join(packs, 'codeindex-adapter-sdk-0.1.0.tgz'),
-		typescript: path.join(packs, 'codeindex-adapter-typescript-0.1.0.tgz'),
-		oracle: path.join(packs, 'codeindex-adapter-oracle-0.1.0.tgz'),
-		host: path.join(packs, 'codeindex-mcp-0.11.0.tgz'),
+		sdk: tarballOf('packages/adapter-sdk'),
+		typescript: tarballOf('packages/adapter-typescript'),
+		oracle: tarballOf('packages/adapter-oracle'),
+		host: tarballOf('.'),
 	};
-	for (const file of Object.values(files)) {
+	for (const [label, file] of Object.entries(files)) {
 		if (!existsSync(file)) {
-			throw new Error(`missing tarball: ${file}`);
+			throw new Error(`missing ${label} tarball: ${file}`);
 		}
+
+		assertNoWorkspaceSpecs(label, packedManifestOf(file));
 	}
 
 	const typescriptConsumer = path.join(work, 'typescript-consumer');

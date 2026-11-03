@@ -24,33 +24,43 @@ runtime. Object types, triggers, synonyms, database links, inferred view columns
 SQL object lineage, wrapped source, and conditional-compilation branch evaluation
 are not indexed.
 
-One server selects one extractor. TypeScript and Oracle can run as separate MCP
-servers, but they do not yet share one atomic generation or cross-language edges.
+One server may index several adapters. A multi-adapter workspace shares one
+database, build lease, and published generation, and each read tool accepts an
+`adapter` filter; cross-language edges are not indexed.
 
 ## Requirements and installation
 
 - Node.js 26 or newer.
-- A released Git tag. The package is consumed from GitHub and is not published to
-  npm.
+- The tarballs attached to a GitHub release tag. CodeIndex and its official
+  adapters are not published to npm.
 
-Install an immutable release tag in the consuming project:
+Install an immutable release in the consuming project:
 
 ```bash
-pnpm add "github:doberkofler/codeindex-mcp#<release-tag>"
+VERSION=0.12.0
+BASE="https://github.com/doberkofler/codeindex-mcp/releases/download/v${VERSION}"
+
+pnpm add \
+  "$BASE/codeindex-mcp-${VERSION}.tgz" \
+  "$BASE/codeindex-adapter-sdk-0.1.0.tgz" \
+  "$BASE/codeindex-adapter-typescript-0.1.0.tgz" \
+  "$BASE/codeindex-adapter-oracle-0.1.0.tgz"
 ```
 
-Do not depend on `main`. The Git dependency runs `prepare` and builds
-`dist/mcp.mjs`, `dist/cli.mjs`, `dist/console.mjs`, and the console frontend.
-
-If pnpm blocks dependency build scripts, approve the resolved CodeIndex Git
-dependency and `oracledb` in `pnpm-workspace.yaml`. Use the exact resolved key
-reported by pnpm:
+The adapters depend on `@codeindex/adapter-sdk@0.1.0`, which is not in the npm
+registry. pnpm does not resolve that nested range against the directly installed
+tarball, so pin the same artifact in the consumer's `pnpm-workspace.yaml`:
 
 ```yaml
-allowBuilds:
-  codeindex-mcp@https://codeload.github.com/doberkofler/codeindex-mcp/tar.gz/<commit-sha>: true
-  oracledb: true
+overrides:
+  "@codeindex/adapter-sdk": "https://github.com/doberkofler/codeindex-mcp/releases/download/v0.12.0/codeindex-adapter-sdk-0.1.0.tgz"
 ```
+
+npm resolves the nested range against the directly installed copy and needs no
+override.
+
+Do not install a Git tag directly: the host and adapter manifests use the pnpm
+`workspace:` protocol, and the adapter packages ship built output only.
 
 `oracledb` is used only by opt-in live Oracle qualification; normal Oracle
 indexing opens no Oracle connection.
@@ -66,12 +76,8 @@ CodeIndex is distributed as independent ESM packages:
 | `@codeindex/adapter-typescript` | TypeScript / JavaScript adapter and `typescript` dependency |
 | `@codeindex/adapter-oracle` | Static Oracle adapter and `antlr4ng` dependency |
 
-Install only what a workspace needs:
-
-```bash
-npm install codeindex-mcp @codeindex/adapter-typescript
-npm install codeindex-mcp @codeindex/adapter-oracle      # Oracle workspace
-```
+Install only what a workspace needs; a TypeScript-only workspace omits the
+Oracle adapter tarball, and an Oracle workspace omits the TypeScript adapter.
 
 The host has no runtime dependency on a language adapter. An unconfigured
 adapter is never installed or bundled. Official adapter IDs normalize to their

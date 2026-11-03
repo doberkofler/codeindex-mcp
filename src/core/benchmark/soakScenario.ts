@@ -3,7 +3,7 @@ import path from 'node:path';
 import {realpathSync, rmSync} from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
 import {loadConfiguredAdapters} from '../../adapters/loader.ts';
-import {type ConfigType} from '../config/config.ts';
+import {type ConfigType, configuredAdapters} from '../config/config.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {type BenchmarkProfileType} from './benchTypes.ts';
 import {benchmarkCorpusCounts, prepareBenchmarkWorkspace} from './corpus.ts';
@@ -230,13 +230,19 @@ const baseConfigOf = (options: SoakRunOptionsType, workspaceRoot: string, databa
 	// while config files resolve to their real path (`/private/var/...`), and the
 	// watcher silently drops every event that arrives with the other spelling.
 	const rootDir = realpathSync(workspaceRoot);
+	const projectFilePath = path.join(rootDir, 'tsconfig.json');
+	const projects = [{name: 'root', projectFilePath}];
 
+	// Adapters read their projects from `adapters`; overriding only the singular
+	// projection would leave every adapter pointing at the caller's project file,
+	// which is outside the generated workspace.
 	return {
 		...options.config,
 		projectName: `soak-${options.profile}`,
 		rootDir,
-		projectFilePath: path.join(rootDir, 'tsconfig.json'),
-		projects: [{name: 'root', projectFilePath: path.join(rootDir, 'tsconfig.json')}],
+		projectFilePath,
+		projects,
+		adapters: configuredAdapters(options.config).map((adapter) => ({...adapter, projectFilePath, projects})),
 		databasePath: path.join(databaseDirectory, 'index.sqlite'),
 		analyticsEnabled: false,
 		analyticsPath: path.join(databaseDirectory, 'analytics.jsonl'),

@@ -19,6 +19,8 @@ All notable changes to this project are documented here. The format follows
 * **build:** attribute adapter failures and reject identity collisions ([#123](https://github.com/doberkofler/codeindex-mcp/issues/123)) ([e7df7ea](https://github.com/doberkofler/codeindex-mcp/commit/e7df7ea9e76c6b9b49895bc3ed1fe344fec9c2e5))
 * **ci:** gate npm publish on job environment ([0f85575](https://github.com/doberkofler/codeindex-mcp/commit/0f85575c8aadfdc4bce65f9020a6b9d124a03d2f))
 * **cli:** register one canonical MCP server key ([#134](https://github.com/doberkofler/codeindex-mcp/issues/134)) ([11f98c1](https://github.com/doberkofler/codeindex-mcp/commit/11f98c1efd7786943ecf4eb120a71f2eebd02dae))
+* **release:** derive every artifact name and reject packed `workspace:` dependencies so a version bump cannot leave the release expecting a previous tarball
+* **benchmark:** move every configured adapter onto the generated soak workspace
 
 ### Changed
 
@@ -28,6 +30,7 @@ All notable changes to this project are documented here. The format follows
 ### Documentation
 
 * **architecture:** reconcile adapter packages and provenance ([#133](https://github.com/doberkofler/codeindex-mcp/issues/133)) ([419bdc0](https://github.com/doberkofler/codeindex-mcp/commit/419bdc02933df9ac3751f0ea1ac5f1db7c4ef1b4))
+* **install:** document the GitHub release tarball topology and the pnpm override required for the unpublished adapter SDK
 
 ## [0.11.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.10.0...v0.11.0) (2026-11-02)
 
