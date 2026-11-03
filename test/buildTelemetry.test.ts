@@ -4,6 +4,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {type AnalyticsRecorderType} from '../src/core/analytics/recorder.ts';
 import {createCodeIndex, type CodeIndex} from '../src/core/generation/codeIndex.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {testAdaptersFor} from './helpers/adapters.ts';
 import {createFixtureConfig, silentLogger} from './helpers/fixture.ts';
 
 const {join} = path;
@@ -45,7 +46,11 @@ describe('build telemetry', () => {
 		writeFileSync(join(fixture.config.rootDir, 'package.json'), JSON.stringify({devDependencies: {typescript: '7.0.2'}}), {encoding: 'utf8'});
 		const database = openDatabase(fixture.config);
 		const events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[] = [];
-		index = createCodeIndex(fixture.config, database, silentLogger, {watch: false, analytics: recordingAnalytics(events)});
+		index = createCodeIndex(fixture.config, database, silentLogger, {
+			watch: false,
+			analytics: recordingAnalytics(events),
+			adapters: testAdaptersFor(fixture.config).adapters,
+		});
 
 		const first = await index.ensureReady();
 		const firstStatus = index.getStatus();
@@ -87,7 +92,11 @@ describe('build telemetry', () => {
 		writeFileSync(join(fixture.config.rootDir, 'package.json'), JSON.stringify({devDependencies: {typescript: '7.0.2'}}), {encoding: 'utf8'});
 		const database = openDatabase(fixture.config);
 		const events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[] = [];
-		index = createCodeIndex(fixture.config, database, silentLogger, {watch: false, analytics: recordingAnalytics(events)});
+		index = createCodeIndex(fixture.config, database, silentLogger, {
+			watch: false,
+			analytics: recordingAnalytics(events),
+			adapters: testAdaptersFor(fixture.config).adapters,
+		});
 
 		await index.ensureReady();
 		await index.ensureReady();

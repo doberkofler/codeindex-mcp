@@ -20,8 +20,8 @@ describe('multi-adapter query addressing', () => {
 		workspace = undefined;
 	});
 
-	it('searches every configured adapter by default and names the owning adapter', () => {
-		workspace = createMultiAdapterWorkspace();
+	it('searches every configured adapter by default and names the owning adapter', async () => {
+		workspace = await createMultiAdapterWorkspace();
 		const result = workspace.index.findSymbols({query: 'f', limit: 100});
 		const adapters = [...new Set(result.items.map((item) => item.adapter))].sort();
 
@@ -29,8 +29,8 @@ describe('multi-adapter query addressing', () => {
 		expect(result.items.every((item) => item.path.startsWith('src/') === (item.adapter === 'typescript'))).toBe(true);
 	});
 
-	it('narrows deterministically by adapter and invalidates a cursor under another filter', () => {
-		workspace = createMultiAdapterWorkspace();
+	it('narrows deterministically by adapter and invalidates a cursor under another filter', async () => {
+		workspace = await createMultiAdapterWorkspace();
 		const all = workspace.index.findSymbols({query: 'f', limit: 100});
 		const first = workspace.index.findSymbols({query: 'f', adapter: 'oracle', limit: 1});
 
@@ -46,8 +46,8 @@ describe('multi-adapter query addressing', () => {
 		expect(rest.items.some((item) => first.items[0]?.symbolId === item.symbolId)).toBe(false);
 	});
 
-	it('rejects unknown adapters and contexts instead of returning an empty success', () => {
-		workspace = createMultiAdapterWorkspace();
+	it('rejects unknown adapters and contexts instead of returning an empty success', async () => {
+		workspace = await createMultiAdapterWorkspace();
 
 		expect(errorCodeOf(() => workspace?.index.findSymbols({query: 'f', adapter: 'missing', limit: 10}))).toBe('unknown_adapter');
 		expect(errorCodeOf(() => workspace?.index.findSymbols({query: 'f', context: 'missing', limit: 10}))).toBe('unknown_context');
@@ -55,8 +55,8 @@ describe('multi-adapter query addressing', () => {
 		expect(errorCodeOf(() => workspace?.index.getOutline({path: 'src/index.ts', adapter: 'missing', limit: 10}))).toBe('unknown_adapter');
 	});
 
-	it('requires an adapter when a bare context exists under several adapters', () => {
-		workspace = createMultiAdapterWorkspace();
+	it('requires an adapter when a bare context exists under several adapters', async () => {
+		workspace = await createMultiAdapterWorkspace();
 		const oracle = workspace.index.findSymbols({query: 'f', adapter: 'oracle', context: 'app', limit: 10});
 		const typescript = workspace.index.findSymbols({query: 'f', adapter: 'typescript', context: 'server', limit: 10});
 
@@ -66,14 +66,14 @@ describe('multi-adapter query addressing', () => {
 		expect(typescript.items.every((item) => item.adapter === 'typescript')).toBe(true);
 	});
 
-	it('rejects an adapter and context pair that does not exist', () => {
-		workspace = createMultiAdapterWorkspace();
+	it('rejects an adapter and context pair that does not exist', async () => {
+		workspace = await createMultiAdapterWorkspace();
 
 		expect(errorCodeOf(() => workspace?.index.findSymbols({query: 'f', adapter: 'oracle', context: 'server', limit: 10}))).toBe('adapter_context_mismatch');
 	});
 
-	it('returns adapter provenance on symbol, source, outline, and reference results', () => {
-		workspace = createMultiAdapterWorkspace();
+	it('returns adapter provenance on symbol, source, outline, and reference results', async () => {
+		workspace = await createMultiAdapterWorkspace();
 		const oracle = workspace.index.findSymbols({query: 'HR_API', adapter: 'oracle', limit: 1}).items.at(0);
 		const typescript = workspace.index.findSymbols({query: 'formatUser', adapter: 'typescript', limit: 1}).items.at(0);
 
@@ -92,8 +92,8 @@ describe('multi-adapter query addressing', () => {
 		expect(references.items.every((item) => item.adapter === 'typescript')).toBe(true);
 	});
 
-	it('rejects path and symbol selectors owned by another adapter', () => {
-		workspace = createMultiAdapterWorkspace();
+	it('rejects path and symbol selectors owned by another adapter', async () => {
+		workspace = await createMultiAdapterWorkspace();
 		const {items} = workspace.index.findSymbols({query: 'HR_API', adapter: 'oracle', limit: 1});
 		const oracleSymbol = items.at(0);
 
@@ -111,8 +111,8 @@ describe('multi-adapter query addressing', () => {
 		);
 	});
 
-	it('filters dependency consumers by adapter', () => {
-		workspace = createMultiAdapterWorkspace('dependency-graph');
+	it('filters dependency consumers by adapter', async () => {
+		workspace = await createMultiAdapterWorkspace('dependency-graph');
 		const filtered = workspace.index.findDependencies({target: 'lodash', adapter: 'typescript', limit: 50});
 		const absent = workspace.index.findDependencies({target: 'lodash', adapter: 'oracle', limit: 50});
 
@@ -121,8 +121,8 @@ describe('multi-adapter query addressing', () => {
 		expect(absent.items).toStrictEqual([]);
 	});
 
-	it('reports every configured adapter and keeps the singular projection out of a multi-adapter status', () => {
-		workspace = createMultiAdapterWorkspace();
+	it('reports every configured adapter and keeps the singular projection out of a multi-adapter status', async () => {
+		workspace = await createMultiAdapterWorkspace();
 		const status = workspace.index.getStatus();
 		const summary = summaryStatusOf(status);
 

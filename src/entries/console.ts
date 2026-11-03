@@ -3,6 +3,7 @@ import {existsSync} from 'node:fs';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {Command, CommanderError} from 'commander';
+import {loadConfiguredAdapters} from '../adapters/loader.ts';
 import {loadConfig} from '../core/config/config.ts';
 import {createLogger} from '../core/logging/logger.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../core/version.ts';
@@ -60,8 +61,15 @@ const executeConsole = async (options: ConsoleOptionsType): Promise<void> => {
 	}
 
 	const config = loadConfig(environmentOf(options));
+	const adapters = await loadConfiguredAdapters(config);
 	const logger = createLogger({minimumLevel: config.logLevel});
-	const service = ConsoleService.open({config, logger, mcpPath: fileURLToPath(new URL('mcp.mjs', import.meta.url))});
+	const service = ConsoleService.open({
+		config,
+		logger,
+		mcpPath: fileURLToPath(new URL('mcp.mjs', import.meta.url)),
+		adapters: adapters.adapters,
+		adapterDescriptors: adapters.descriptors,
+	});
 	const token = randomBytes(32).toString('hex');
 	const server = await startConsoleServer({
 		service,

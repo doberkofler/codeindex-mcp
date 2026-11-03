@@ -1,4 +1,4 @@
-import {type ConfigType} from '../../core/config/config.ts';
+import {type AdapterConfigType} from '@codeindex/adapter-sdk';
 import {structuralOracleParser} from './parseUnits.ts';
 import {oracleParserIdentityOf, parseOracleParserId, type OracleParserIdType, type OracleParserIdentityType} from './parserIdentity.ts';
 import {type OracleParserType} from './syntax.ts';
@@ -32,7 +32,7 @@ export const structuralOracleParserBinding: OracleParserBindingType = {
  * @returns The selected parser identifier.
  * @throws {@link Error} When the configured value is not a known parser.
  */
-export const oracleParserIdOfConfig = (config: ConfigType): OracleParserIdType => {
+export const oracleParserIdOfConfig = (config: AdapterConfigType): OracleParserIdType => {
 	const configured = config.extractorOptions[ORACLE_PARSER_OPTION];
 
 	if (configured === undefined) {
@@ -55,7 +55,7 @@ export const oracleParserIdOfConfig = (config: ConfigType): OracleParserIdType =
  * @param binding - Parser bound to the extractor.
  * @throws {@link Error} When the configured parser differs from the binding.
  */
-export const assertOracleParserBinding = (config: ConfigType, binding: OracleParserBindingType): void => {
+export const assertOracleParserBinding = (config: AdapterConfigType, binding: OracleParserBindingType): void => {
 	const selected = oracleParserIdOfConfig(config);
 
 	if (selected !== binding.identity.id) {
@@ -70,7 +70,7 @@ export const assertOracleParserBinding = (config: ConfigType, binding: OraclePar
  * @param parser - Parser identifier to pin.
  * @returns A copy whose extractor options select the requested parser.
  */
-export const configForOracleParser = (config: ConfigType, parser: OracleParserIdType): ConfigType => ({
+export const configForOracleParser = <ConfigType extends AdapterConfigType>(config: ConfigType, parser: OracleParserIdType): ConfigType => ({
 	...config,
 	extractorOptions: {...config.extractorOptions, [ORACLE_PARSER_OPTION]: parser},
 	...(config.adapters === undefined

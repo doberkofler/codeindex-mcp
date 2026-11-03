@@ -4,6 +4,7 @@ import path from 'node:path';
 import {type AdapterConfigType, type ConfigType, configuredAdapters} from '../config/config.ts';
 import {type ScanResultType} from '../model.ts';
 import {type ExtractorType} from '../../adapters/types.ts';
+import {type AdapterSetType} from '../../adapters/loader.ts';
 
 const {isAbsolute} = path;
 
@@ -37,28 +38,32 @@ export class AdapterContractError extends Error {
 }
 
 /**
- * Resolves every configured adapter to its registered implementation.
+ * Resolves every configured adapter to its loaded implementation.
  *
  * @param config - Resolved configuration.
- * @param resolve - Registry lookup.
+ * @param adapters - Loaded adapter set.
  * @param override - Optional qualification-only extractor for a singular config.
  * @returns Adapter targets in declaration order.
  */
-export const adapterTargets = (config: ConfigType, resolve: (id: string) => ExtractorType, override?: ExtractorType): readonly AdapterTargetType[] => {
-	const adapters = configuredAdapters(config);
+export const adapterTargets = (config: ConfigType, adapters: AdapterSetType, override?: ExtractorType): readonly AdapterTargetType[] => {
+	const configured = configuredAdapters(config);
 
 	if (override !== undefined) {
-		const [adapter] = adapters;
+		const [adapter] = configured;
 
-		if (adapter === undefined || adapters.length !== 1) {
+		if (adapter === undefined || configured.length !== 1) {
 			throw new AdapterContractError('An extractor override requires exactly one configured adapter');
 		}
 
 		return [{adapter, extractor: override}];
 	}
 
-	return adapters.map((adapter) => {
-		const extractor = resolve(adapter.id);
+	return configured.map((adapter) => {
+		const extractor = adapters.byId.get(adapter.id);
+
+		if (extractor === undefined) {
+			throw new AdapterContractError(`Adapter ${adapter.id} is not loaded`);
+		}
 
 		if (extractor.id !== adapter.id) {
 			throw new AdapterContractError(`Adapter ${adapter.id} resolved to ${extractor.id}`);
@@ -75,12 +80,15 @@ export const adapterTargets = (config: ConfigType, resolve: (id: string) => Extr
  * @param config - Resolved configuration scoped by the caller.
  * @returns Declared absence, or present when the adapter may run.
  */
-export const probeAdapter = (target: AdapterTargetType, config: ConfigType): Readonly<{coverage: 'present'} | {coverage: 'absent'; reason: string}> => {
+export const probeAdapter = async (
+	target: AdapterTargetType,
+	config: ConfigType,
+): Promise<Readonly<{coverage: 'present'}> | {coverage: 'absent'; reason: string}> => {
 	if (target.extractor.probe === undefined) {
 		return {coverage: 'present'};
 	}
 
-	const result = target.extractor.probe(config);
+	const result = await target.extractor.probe(config);
 
 	if (result.available) {
 		return {coverage: 'present'};

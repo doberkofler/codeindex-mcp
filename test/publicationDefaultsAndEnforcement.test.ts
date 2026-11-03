@@ -2,7 +2,7 @@ import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {buildTypeScriptFacts, scanTypeScriptProject} from '../src/adapters/typescript/index.ts';
 import {summarizeAnalytics} from '../src/core/analytics/report.ts';
 import {finalizeFacts, type ExtractedFactSetType} from '../src/core/facts/index.ts';
 import {findSymbols, type QueryContextType} from '../src/core/query/queryService.ts';
@@ -11,8 +11,8 @@ import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
 
 const buildExtracted = (): Readonly<{extracted: ExtractedFactSetType; cleanup: () => void}> => {
 	const {config, cleanup} = createFixtureConfig('publication-project');
-	const scan = typeScriptExtractor.scan(config, []);
-	const extracted = typeScriptExtractor.build(config, scan);
+	const scan = scanTypeScriptProject(config, []);
+	const extracted = buildTypeScriptFacts(config, scan);
 
 	return {extracted, cleanup};
 };
@@ -41,10 +41,10 @@ const eventLine = (id: string, presence: string): string =>
 	});
 
 describe('Publication defaults', () => {
-	it('defaults find_symbol to visible exposure', () => {
+	it('defaults find_symbol to visible exposure', async () => {
 		expect(FindSymbolInputSchema.parse({query: 'api'}).exposure).toBe('visible');
 
-		const fixture = createFixtureIndex('publication-project');
+		const fixture = await createFixtureIndex('publication-project');
 
 		try {
 			const supporting = fixture.index.findSymbols({query: 'Supporting', limit: 10});
@@ -59,8 +59,8 @@ describe('Publication defaults', () => {
 		}
 	});
 
-	it('records exact-name presence outcomes for local analytics', () => {
-		const fixture = createFixtureIndex('publication-project');
+	it('records exact-name presence outcomes for local analytics', async () => {
+		const fixture = await createFixtureIndex('publication-project');
 
 		try {
 			const {generationId} = fixture.index.getStatus();

@@ -49,6 +49,17 @@ describe('configuration', () => {
 		expect(config.projectFilePath).toBe(realpathSync(fixture.config.projectFilePath));
 	});
 
+	it('rejects absolute and URL adapter module specifiers', () => {
+		const fixture = createFixtureConfig('simple-project');
+		({cleanup} = fixture);
+		const configPath = path.join(fixture.config.rootDir, 'codeindex.config.json');
+
+		for (const module of [path.join(fixture.config.rootDir, 'adapter.mjs'), 'https://example.com/adapter.mjs', 'data:text/javascript,export {}']) {
+			writeFileSync(configPath, JSON.stringify({extractors: [{id: 'typescript', module, project: 'tsconfig.json'}]}), 'utf8');
+			expect(() => loadConfig({CODE_INDEX_CONFIG: configPath})).toThrow(/module must be a bare package name or a relative path/u);
+		}
+	});
+
 	it('rejects a database inside the indexed working copy', () => {
 		const fixture = createFixtureConfig('simple-project');
 		({cleanup} = fixture);

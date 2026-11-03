@@ -97,6 +97,28 @@ adapter. With `extractors`, every adapter shares one database, build lease, and
 published generation; `required` defaults to `true`, and only an optional adapter
 may report declared absence. The two forms are mutually exclusive.
 
+Each entry may name an adapter `module`. A bare package name resolves from the
+configuration-file directory; a relative path resolves from the same directory.
+Absolute paths and URL schemes are rejected. Without `module`, the official IDs
+`typescript` and `oracle` use the built-in compatibility aliases.
+
+```json
+{
+	"extractors": [
+		{
+			"id": "custom",
+			"module": "@example/codeindex-adapter-custom",
+			"required": true,
+			"project": "custom-project.json"
+		}
+	]
+}
+```
+
+An adapter module exports one named `codeIndexAdapter` with a manifest and
+factory; the host validates the protocol version, adapter ID, implementation
+version, and factory result before scanning.
+
 Then build or reuse the index:
 
 ```bash

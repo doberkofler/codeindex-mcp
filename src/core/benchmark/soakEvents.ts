@@ -207,6 +207,8 @@ const restartOf = async (
 	const database = IndexDatabase.open(state.config.databasePath, databaseContextOf(state.config));
 	const index = createCodeIndex(state.config, database, logger, {
 		watch: false,
+		adapters: state.adapters,
+		adapterDescriptors: state.descriptors,
 		...(state.workerEntry === undefined ? {} : {workerEntry: state.workerEntry}),
 	});
 

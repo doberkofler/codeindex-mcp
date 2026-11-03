@@ -3,7 +3,7 @@ import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {type ExtractorBuildType} from '../types.ts';
-import {type ConfigType} from '../../core/config/config.ts';
+import {type AdapterConfigType} from '@codeindex/adapter-sdk';
 import {PUBLICATION_SURFACE_BINDINGS_PER_ROOT, finalizeFacts} from '../../core/facts/index.ts';
 import {type ReferencePartitionScopeType, type ScanResultType} from '../../core/model.ts';
 import {findReferences as queryReferences, type QueryContextType} from '../../core/query/queryService.ts';
@@ -87,7 +87,7 @@ const readAllPages = (
  * @returns The callback value and measured pagination metadata.
  */
 export const withPersistedReferenceIndex = <ValueType>(
-	input: Readonly<{config: ConfigType; scan: ScanResultType; facts: ExtractorBuildType}>,
+	input: Readonly<{config: AdapterConfigType; scan: ScanResultType; facts: ExtractorBuildType}>,
 	action: (reader: PersistedReferenceReaderType) => ValueType,
 ): Readonly<{value: ValueType; persistence: ReferencePersistenceType}> => {
 	const directory = mkdtempSync(path.join(tmpdir(), 'codeindex-reference-verify-'));

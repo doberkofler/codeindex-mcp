@@ -11,8 +11,8 @@ describe('benchmark resources', () => {
 		fixture = undefined;
 	});
 
-	it('reports database, WAL, shared-memory, and extraction counts', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('reports database, WAL, shared-memory, and extraction counts', async () => {
+		fixture = await createFixtureIndex('simple-project');
 		const storage = readStorage(fixture.database, fixture.config.databasePath);
 
 		expect(storage.databaseBytes).toBeGreaterThan(0);
@@ -21,8 +21,8 @@ describe('benchmark resources', () => {
 		expect(storage.extractionArtifacts).toBeGreaterThanOrEqual(0);
 	});
 
-	it('treats missing sidecar files as zero bytes', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('treats missing sidecar files as zero bytes', async () => {
+		fixture = await createFixtureIndex('simple-project');
 		const storage = readStorage(fixture.database, path.join(fixture.config.rootDir, 'missing', 'index.sqlite'));
 
 		expect(storage.walBytes).toBe(0);

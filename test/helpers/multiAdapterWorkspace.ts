@@ -5,6 +5,7 @@ import {buildGeneration} from '../../src/core/generation/buildGeneration.ts';
 import {createCodeIndex, type CodeIndex} from '../../src/core/generation/codeIndex.ts';
 import {type AdapterConfigType, type ConfigType} from '../../src/core/config/config.ts';
 import {IndexDatabase} from '../../src/core/storage/database.ts';
+import {testAdaptersFor} from './adapters.ts';
 import {silentLogger} from './silentLogger.ts';
 
 const {join} = path;
@@ -35,7 +36,7 @@ const adapterOf = (id: string, projectFile: string, name: string): AdapterConfig
  * @param typescriptFixture - TypeScript fixture directory name.
  * @returns The built index, its database, configuration, and teardown.
  */
-export const createMultiAdapterWorkspace = (typescriptFixture = 'simple-project'): MultiAdapterWorkspaceType => {
+export const createMultiAdapterWorkspace = async (typescriptFixture = 'simple-project'): Promise<MultiAdapterWorkspaceType> => {
 	const temporaryRoot = mkdtempSync(join(tmpdir(), 'code-index-multi-query-'));
 	const root = join(temporaryRoot, 'workspace');
 
@@ -84,15 +85,17 @@ export const createMultiAdapterWorkspace = (typescriptFixture = 'simple-project'
 		projects: adapters.map((adapter) => ({adapterId: adapter.id, projectId: config.projectId, projectFilePath: adapter.projectFilePath})),
 	});
 
+	const adaptersSet = testAdaptersFor(config);
+
 	try {
-		buildGeneration({config, database, logger: silentLogger, force: true});
+		await buildGeneration({config, database, logger: silentLogger, force: true, adapters: adaptersSet});
 	} catch (error) {
 		database.close();
 		rmSync(temporaryRoot, {recursive: true, force: true});
 		throw error;
 	}
 
-	const index = createCodeIndex(config, database, silentLogger, {watch: false});
+	const index = createCodeIndex(config, database, silentLogger, {watch: false, adapters: adaptersSet.adapters});
 
 	return {
 		config,

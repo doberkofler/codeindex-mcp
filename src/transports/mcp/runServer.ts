@@ -1,5 +1,5 @@
 import {serveStdio} from '@modelcontextprotocol/server/stdio';
-import {extractorFor} from '../../adapters/registry.ts';
+import {loadConfiguredAdapters} from '../../adapters/loader.ts';
 import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
 import {configuredAdapters, loadConfig} from '../../core/config/config.ts';
@@ -18,7 +18,7 @@ import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
  * @param options - Runtime injection points; the bundled entry passes its own
  * executable as the background worker entry.
  */
-export const run = (options: CodeIndexOptionsType = {}): void => {
+export const run = async (options: CodeIndexOptionsType = {}): Promise<void> => {
 	process.stderr.write(`${PROGRAM_NAME} ${PROGRAM_VERSION}\n`);
 	const config = loadConfig(process.env);
 	const logger = createLogger({minimumLevel: config.logLevel});
@@ -41,9 +41,16 @@ export const run = (options: CodeIndexOptionsType = {}): void => {
 		programVersion: PROGRAM_VERSION,
 		workingCopyId: workingCopy?.id ?? null,
 	});
-	const index = createCodeIndex(config, database, logger, {...options, analytics});
+	const adapterSet = await loadConfiguredAdapters(config);
+	const index = createCodeIndex(config, database, logger, {
+		...options,
+		analytics,
+		adapters: adapterSet.adapters,
+		adapterDescriptors: adapterSet.descriptors,
+	});
 	const discoveryText = configuredAdapters(config)
-		.map((adapter) => extractorFor(adapter.id).discoveryText)
+		.map((adapter) => adapterSet.byId.get(adapter.id)?.discoveryText ?? '')
+		.filter((text) => text.length > 0)
 		.join('\n\n');
 
 	logger.info('code_index_starting', {

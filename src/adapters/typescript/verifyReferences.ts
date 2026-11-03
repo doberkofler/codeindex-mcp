@@ -1,8 +1,9 @@
-import {type ConfigType, loadConfig} from '../../core/config/config.ts';
+import {type AdapterConfigType} from '@codeindex/adapter-sdk';
+import {loadConfig} from '../../core/config/config.ts';
 import {type IndexedOccurrenceType, type IndexedSymbolType, type SourceFileType} from '../../core/model.ts';
 import {debugFor} from '../../core/logging/debug.ts';
 import {scanProject} from './scanProject.ts';
-import {typeScriptExtractor} from './index.ts';
+import {buildTypeScriptFacts} from './index.ts';
 import {compareReferenceLocations, referenceLocationKey, type ReferenceLocationType} from './referenceLocations.ts';
 import {type ReferenceConstructTagType} from './referenceConstructs.ts';
 import {selectReferenceSample} from './referenceSampling.ts';
@@ -36,7 +37,7 @@ type ComparisonInputType = Readonly<{
 	tags: readonly ReferenceConstructTagType[];
 	actual: readonly ReferenceLocationType[];
 	union: ReferenceUnionType;
-	config: ConfigType;
+	config: AdapterConfigType;
 	stored: StoredLocationIndexType;
 	syntaxClassOf: (location: ReferenceLocationType) => 'direct_external' | 'namespace_import' | null;
 }>;
@@ -324,13 +325,13 @@ const groupOccurrences = (occurrences: readonly IndexedOccurrenceType[]): Readon
  * @throws {@link Error} When a project cannot load, the language service throws,
  * a truth file is absent from its Program, or captured inputs drift.
  */
-export const verifyTypeScriptReferences = (config: ConfigType): ReferenceVerificationReportType => {
+export const verifyTypeScriptReferences = (config: AdapterConfigType): ReferenceVerificationReportType => {
 	if (config.projects.length === 0) {
 		throw new Error('Reference verification requires at least one configured TypeScript project');
 	}
 
 	const scan = scanProject(config);
-	const facts = typeScriptExtractor.build(config, scan);
+	const facts = buildTypeScriptFacts(config, scan);
 	// The truth programs below read the current filesystem. Reject drift before
 	// comparing offsets, and again after all language-service queries finish.
 	facts.validate?.();

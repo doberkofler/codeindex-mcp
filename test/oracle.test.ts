@@ -157,8 +157,10 @@ describe('Oracle manifest', () => {
 	});
 });
 
+const oracleIndexFixture = await createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+
 describe('Oracle index integration', () => {
-	const fixture = createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+	const fixture = oracleIndexFixture;
 
 	afterAll(() => {
 		fixture.cleanup();
@@ -348,7 +350,7 @@ describe('Oracle manifest scanning and freshness', () => {
 
 describe('Oracle incremental revision', () => {
 	it('reuses facts for a content-only edit and stays reusable afterwards', async () => {
-		const local = createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+		const local = await createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
 
 		try {
 			const before = local.index.getStatus();
@@ -370,7 +372,7 @@ describe('Oracle incremental revision', () => {
 	});
 
 	it('applies a fact-changing edit as an in-place revision', async () => {
-		const local = createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+		const local = await createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
 
 		try {
 			const before = local.index.getStatus();
@@ -392,8 +394,10 @@ describe('Oracle incremental revision', () => {
 	});
 });
 
+const oracleResolutionFixture = await createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+
 describe('Oracle natural qualified resolution', () => {
-	const fixture = createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+	const fixture = oracleResolutionFixture;
 
 	afterAll(() => {
 		fixture.cleanup();
@@ -418,8 +422,8 @@ describe('Oracle natural qualified resolution', () => {
 		expect(normalized.kind).not.toBe('none');
 	});
 
-	it('keeps a natural qualified name ambiguous across owners', () => {
-		const ambiguous = createFixtureIndex('oracle-ambiguity', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+	it('keeps a natural qualified name ambiguous across owners', async () => {
+		const ambiguous = await createFixtureIndex('oracle-ambiguity', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
 
 		try {
 			const result = ambiguous.index.findReferences({query: 'APP_API.load', match: 'qualified', limit: 10});

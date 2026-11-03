@@ -2,6 +2,7 @@ import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node
 import os from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
+import {testAdaptersFor} from './helpers/adapters.ts';
 import {parseBenchmarkOptions} from '../src/core/benchmark/benchmarkOptions.ts';
 import {phaseOf} from '../src/core/benchmark/benchmarkPhase.ts';
 import {
@@ -119,7 +120,7 @@ describe('benchmark deep cursor', () => {
 		const fixture = createFixtureConfig('simple-project');
 
 		try {
-			const scenario = await runCursorScenario({config: fixture.config, maxDepth: 10, pageLimit: 2});
+			const scenario = await runCursorScenario({config: fixture.config, maxDepth: 10, pageLimit: 2, adapters: testAdaptersFor(fixture.config).adapters});
 
 			expect(scenario.samples.length).toBeGreaterThan(0);
 			expect(scenario.samples.some((sample) => sample.kind === 'outline')).toBe(true);
@@ -141,6 +142,7 @@ describe('benchmark edit-to-fresh', () => {
 			const progress: number[] = [];
 			const scenario = await runEditScenario({
 				config,
+				adapters: testAdaptersFor(config).adapters,
 				rounds: 1,
 				timeoutMs: 30_000,
 				targetPath: 'src/features/feature00001.ts',

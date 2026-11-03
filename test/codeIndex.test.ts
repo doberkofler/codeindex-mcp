@@ -16,8 +16,8 @@ describe('CodeIndex queries', () => {
 		fixture = undefined;
 	});
 
-	it('finds declarations by exact name and reports qualified names', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('finds declarations by exact name and reports qualified names', async () => {
+		fixture = await createFixtureIndex('simple-project');
 
 		const result = fixture.index.findSymbols({query: 'formatUser', limit: 10});
 
@@ -30,8 +30,8 @@ describe('CodeIndex queries', () => {
 		});
 	});
 
-	it('finds class members with qualified names', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('finds class members with qualified names', async () => {
+		fixture = await createFixtureIndex('simple-project');
 
 		const result = fixture.index.findSymbols({query: 'module["src/models.ts"]::UserService.find', match: 'qualified', limit: 10});
 
@@ -43,8 +43,8 @@ describe('CodeIndex queries', () => {
 		});
 	});
 
-	it('resolves a natural qualified name without its scope prefix', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('resolves a natural qualified name without its scope prefix', async () => {
+		fixture = await createFixtureIndex('simple-project');
 
 		const result = fixture.index.findSymbols({query: 'UserService.find', match: 'qualified', limit: 10});
 
@@ -55,8 +55,8 @@ describe('CodeIndex queries', () => {
 		});
 	});
 
-	it('lists an outline in source order with kind filtering', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('lists an outline in source order with kind filtering', async () => {
+		fixture = await createFixtureIndex('simple-project');
 
 		const all = fixture.index.getOutline({path: 'src/models.ts', limit: 100});
 		const classes = fixture.index.getOutline({path: 'src/models.ts', kinds: ['class'], limit: 100});
@@ -66,8 +66,8 @@ describe('CodeIndex queries', () => {
 		expect(classes.items.map((item) => item.name)).toStrictEqual(['UserService']);
 	});
 
-	it('paginates deterministically and rejects malformed cursors', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('paginates deterministically and rejects malformed cursors', async () => {
+		fixture = await createFixtureIndex('simple-project');
 		const {index} = fixture;
 
 		const first = index.getOutline({path: 'src/models.ts', limit: 2});
@@ -79,8 +79,8 @@ describe('CodeIndex queries', () => {
 		expect(() => index.getOutline({path: 'src/models.ts', limit: 2, cursor: 'not-a-cursor'})).toThrow(CodeIndexError);
 	});
 
-	it('finds definitions and references for a symbol', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('finds definitions and references for a symbol', async () => {
+		fixture = await createFixtureIndex('simple-project');
 		const symbol = fixture.index.findSymbols({query: 'formatUser', limit: 1}).items.at(0);
 
 		if (symbol === undefined) {
@@ -93,8 +93,8 @@ describe('CodeIndex queries', () => {
 		expect(result.items.some((item) => item.role === 'reference' && item.path === 'src/models.ts')).toBe(true);
 	});
 
-	it('preserves authored re-exports whose canonical declaration is external', () => {
-		fixture = createFixtureIndex('external-reexport');
+	it('preserves authored re-exports whose canonical declaration is external', async () => {
+		fixture = await createFixtureIndex('external-reexport');
 		const symbol = fixture.index.findSymbols({query: 'debounce', limit: 10}).items.at(0);
 
 		expect(symbol).toMatchObject({name: 'debounce', path: 'src/facade.ts', kind: 'alias'});
@@ -110,8 +110,8 @@ describe('CodeIndex queries', () => {
 		expect(references.items.filter((item) => item.role === 'definition').every((item) => item.path === 'src/facade.ts')).toBe(true);
 	});
 
-	it('reads bounded symbol source with context', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('reads bounded symbol source with context', async () => {
+		fixture = await createFixtureIndex('simple-project');
 		const symbol = fixture.index.findSymbols({query: 'formatUser', limit: 1}).items.at(0);
 
 		if (symbol === undefined) {
@@ -138,8 +138,8 @@ describe('CodeIndex query-based symbol reads', () => {
 		fixture = undefined;
 	});
 
-	it('resolves one match and reports ambiguity or explicit fallback', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('resolves one match and reports ambiguity or explicit fallback', async () => {
+		fixture = await createFixtureIndex('simple-project');
 
 		const resolved = fixture.index.readSymbol({query: 'formatUser', contextLines: 0});
 		const ambiguous = fixture.index.readSymbol({query: 'd', contextLines: 0});
@@ -154,8 +154,8 @@ describe('CodeIndex query-based symbol reads', () => {
 		expect(missing).toMatchObject({kind: 'none', selector: 'query', reason: 'no_stored_match', fallback: 'text_search'});
 	});
 
-	it('requires exactly one selector', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('requires exactly one selector', async () => {
+		fixture = await createFixtureIndex('simple-project');
 
 		expect(() => fixture?.index.readSymbol({contextLines: 0})).toThrow('Provide exactly one selector');
 		expect(() => fixture?.index.readSymbol({symbolId: 'symbol', query: 'formatUser', contextLines: 0})).toThrow('Provide exactly one selector');
@@ -170,8 +170,8 @@ describe('CodeIndex direct dependency usage', () => {
 		fixture = undefined;
 	});
 
-	it('returns compact direct package usage by default', () => {
-		fixture = createFixtureIndex('dependency-graph');
+	it('returns compact direct package usage by default', async () => {
+		fixture = await createFixtureIndex('dependency-graph');
 		const result = fixture.index.findDependencies({target: 'lodash', limit: 50});
 
 		expect(result.queryMeaning).toBe('direct_usage');
@@ -189,8 +189,8 @@ describe('CodeIndex direct dependency usage', () => {
 		});
 	});
 
-	it('adds edge evidence, locations, and bindings only when requested', () => {
-		fixture = createFixtureIndex('dependency-graph');
+	it('adds edge evidence, locations, and bindings only when requested', async () => {
+		fixture = await createFixtureIndex('dependency-graph');
 		const result = fixture.index.findDependencies({target: 'lodash', detail: 'evidence', limit: 50});
 		const adapter = evidenceOf(result.items.find((item) => item.path === 'src/adapters/lodash_api.ts'));
 
@@ -214,8 +214,8 @@ describe('CodeIndex direct dependency usage', () => {
 		});
 	});
 
-	it('normalizes scoped packages and preserves type-only bindings', () => {
-		fixture = createFixtureIndex('dependency-graph');
+	it('normalizes scoped packages and preserves type-only bindings', async () => {
+		fixture = await createFixtureIndex('dependency-graph');
 		const result = fixture.index.findDependencies({target: '@scope/pkg', detail: 'evidence', limit: 50});
 		const scoped = evidenceOf(result.items[0]);
 
@@ -245,8 +245,8 @@ describe('CodeIndex module impact', () => {
 		fixture = undefined;
 	});
 
-	it('groups module impact by direct root with shortest depth and no cycles', () => {
-		fixture = createFixtureIndex('dependency-graph');
+	it('groups module impact by direct root with shortest depth and no cycles', async () => {
+		fixture = await createFixtureIndex('dependency-graph');
 		const result = fixture.index.findDependencies({target: 'lodash', transitive: true, detail: 'evidence', limit: 100});
 
 		expect(result.queryMeaning).toBe('dependency_impact');
@@ -274,8 +274,8 @@ describe('CodeIndex module impact', () => {
 		});
 	});
 
-	it('reports non-additive root counts when impact paths overlap', () => {
-		fixture = createFixtureIndex('dependency-impact');
+	it('reports non-additive root counts when impact paths overlap', async () => {
+		fixture = await createFixtureIndex('dependency-impact');
 		const result = fixture.index.findDependencies({target: 'lodash', transitive: true, limit: 100});
 
 		expect(result.summary).toStrictEqual({
@@ -296,8 +296,8 @@ describe('CodeIndex module impact', () => {
 		).toStrictEqual(['src/boundary/barrel.ts', 'src/boundary/narrow.ts']);
 	});
 
-	it('filters impact to one direct root', () => {
-		fixture = createFixtureIndex('dependency-impact');
+	it('filters impact to one direct root', async () => {
+		fixture = await createFixtureIndex('dependency-impact');
 		const result = fixture.index.findDependencies({target: 'lodash', transitive: true, root: 'src/boundary/narrow.ts', limit: 100});
 
 		expect(result.items.every((item) => item.directRoot === 'src/boundary/narrow.ts')).toBe(true);
@@ -310,15 +310,15 @@ describe('CodeIndex module impact', () => {
 		});
 	});
 
-	it('rejects root filters that are not direct consumers or not in impact mode', () => {
-		fixture = createFixtureIndex('dependency-impact');
+	it('rejects root filters that are not direct consumers or not in impact mode', async () => {
+		fixture = await createFixtureIndex('dependency-impact');
 
 		expect(() => fixture?.index.findDependencies({target: 'lodash', transitive: true, root: 'src/shared/shared.ts', limit: 10})).toThrow(CodeIndexError);
 		expect(() => fixture?.index.findDependencies({target: 'lodash', transitive: false, root: 'src/boundary/narrow.ts', limit: 10})).toThrow(CodeIndexError);
 	});
 
-	it('does not treat TypeScript path aliases as packages', () => {
-		fixture = createFixtureIndex('dependency-graph');
+	it('does not treat TypeScript path aliases as packages', async () => {
+		fixture = await createFixtureIndex('dependency-graph');
 
 		expect(fixture.index.findDependencies({target: '@app/adapters', transitive: true, limit: 10}).items).toHaveLength(0);
 	});
@@ -332,8 +332,8 @@ describe('CodeIndex dependency pagination', () => {
 		fixture = undefined;
 	});
 
-	it('paginates grouped impact and rejects cursors reused with different semantics', () => {
-		fixture = createFixtureIndex('dependency-impact');
+	it('paginates grouped impact and rejects cursors reused with different semantics', async () => {
+		fixture = await createFixtureIndex('dependency-impact');
 		const {index} = fixture;
 		const first = index.findDependencies({target: 'lodash', transitive: true, limit: 7});
 		const second = index.findDependencies({target: 'lodash', transitive: true, limit: 7, cursor: first.nextCursor ?? undefined});
@@ -373,7 +373,7 @@ describe('CodeIndex freshness', () => {
 	});
 
 	it('refuses stale source and recovers after a rebuild', async () => {
-		fixture = createFixtureIndex('simple-project');
+		fixture = await createFixtureIndex('simple-project');
 		const symbol = fixture.index.findSymbols({query: 'formatUser', limit: 1}).items.at(0);
 
 		if (symbol === undefined) {
@@ -392,8 +392,8 @@ describe('CodeIndex freshness', () => {
 		expect(unchanged.reused).toBe(true);
 	});
 
-	it('reports freshness metadata on every query result', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('reports freshness metadata on every query result', async () => {
+		fixture = await createFixtureIndex('simple-project');
 		const {index} = fixture;
 		const found = index.findSymbols({query: 'formatUser', limit: 1});
 		const symbolId = found.items.map((item) => item.id).at(0) ?? 'missing';
@@ -405,8 +405,8 @@ describe('CodeIndex freshness', () => {
 		expect(index.readSymbol({symbolId, contextLines: 0}).freshness.state).toBe('current');
 	});
 
-	it('reports unindexed files explicitly', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('reports unindexed files explicitly', async () => {
+		fixture = await createFixtureIndex('simple-project');
 		const {index} = fixture;
 
 		expect(() => index.getOutline({path: 'src/missing.ts', limit: 10})).toThrow(CodeIndexError);
@@ -414,7 +414,7 @@ describe('CodeIndex freshness', () => {
 	});
 
 	it('recovers after indexed files are deleted', async () => {
-		fixture = createFixtureIndex('simple-project');
+		fixture = await createFixtureIndex('simple-project');
 		rmSync(path.join(fixture.config.rootDir, 'src', 'summary.ts'));
 		rmSync(path.join(fixture.config.rootDir, 'shared', 'contracts.ts'));
 
@@ -426,7 +426,7 @@ describe('CodeIndex freshness', () => {
 	});
 
 	it('indexes imported files outside the tsconfig include', async () => {
-		fixture = createFixtureIndex('simple-project');
+		fixture = await createFixtureIndex('simple-project');
 
 		const result = fixture.index.findSymbols({query: 'SharedContract', limit: 10});
 
@@ -440,8 +440,8 @@ describe('CodeIndex freshness', () => {
 		expect(unchanged.reused).toBe(true);
 	});
 
-	it('reports status with scope, counts, and freshness', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('reports status with scope, counts, and freshness', async () => {
+		fixture = await createFixtureIndex('simple-project');
 
 		const status = fixture.index.getStatus();
 

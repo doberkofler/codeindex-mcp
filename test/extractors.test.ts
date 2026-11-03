@@ -1,22 +1,38 @@
 import {describe, expect, it} from 'vitest';
-import {availableExtractors, extractorFor} from '../src/adapters/registry.ts';
-import {createFixtureIndex} from './helpers/fixture.ts';
+import {loadConfiguredAdapters} from '../src/adapters/loader.ts';
+import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
 
-describe('extractor registry', () => {
-	it('exposes the TypeScript and Oracle adapters', () => {
-		expect(availableExtractors().map((extractor) => extractor.id)).toStrictEqual(['typescript', 'oracle']);
-		expect(extractorFor('typescript').displayName).toBe('TypeScript / JavaScript');
-		expect(extractorFor('oracle').displayName).toBe('Oracle 19c SQL / PL/SQL');
+describe('adapter loader', () => {
+	it('resolves the official adapter aliases', async () => {
+		const {config, cleanup} = createFixtureConfig('simple-project');
+
+		try {
+			const typescript = await loadConfiguredAdapters(config);
+			const oracle = await loadConfiguredAdapters({...config, extractorId: 'oracle'});
+
+			expect(typescript.adapters.map((adapter) => adapter.id)).toStrictEqual(['typescript']);
+			expect(typescript.adapters[0]?.displayName).toBe('TypeScript / JavaScript');
+			expect(oracle.adapters.map((adapter) => adapter.id)).toStrictEqual(['oracle']);
+			expect(oracle.adapters[0]?.displayName).toBe('Oracle 19c SQL / PL/SQL');
+		} finally {
+			cleanup();
+		}
 	});
 
-	it('rejects an unknown extractor', () => {
-		expect(() => extractorFor('cobol')).toThrow(/Unknown code index extractor: cobol/u);
+	it('rejects an unknown adapter without a module specifier', async () => {
+		const {config, cleanup} = createFixtureConfig('simple-project');
+
+		try {
+			await expect(loadConfiguredAdapters({...config, extractorId: 'cobol'})).rejects.toMatchObject({code: 'adapter_module_not_found'});
+		} finally {
+			cleanup();
+		}
 	});
 });
 
 describe('JavaScript projects', () => {
-	it('indexes JavaScript declarations when the project enables allowJs', () => {
-		const fixture = createFixtureIndex('javascript-project');
+	it('indexes JavaScript declarations when the project enables allowJs', async () => {
+		const fixture = await createFixtureIndex('javascript-project');
 
 		try {
 			expect(fixture.index.getStatus().counts.files).toBe(2);

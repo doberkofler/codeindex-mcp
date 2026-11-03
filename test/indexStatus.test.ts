@@ -3,6 +3,7 @@ import {collectStatus, summaryStatusOf, type StatusInputType} from '../src/core/
 import {type RefreshCoordinatorSnapshotType} from '../src/core/freshness/refreshCoordinator.ts';
 import {type GenerationRowType, type RefreshStateType} from '../src/core/model.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {testAdaptersFor} from './helpers/adapters.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 const generation = (overrides: Partial<GenerationRowType> = {}): GenerationRowType => ({
@@ -48,6 +49,7 @@ const database = IndexDatabase.open(':memory:');
 const statusOf = (overrides: Partial<StatusInputType> = {}): ReturnType<typeof collectStatus> =>
 	collectStatus({
 		config: fixture.config,
+		adapters: testAdaptersFor(fixture.config).byId,
 		database,
 		published: generation(),
 		refresh: refresh(),

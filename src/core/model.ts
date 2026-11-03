@@ -1,3 +1,19 @@
+import {type DependencyKindType, type IndexedDependencyBindingType, type IndexedDependencyEdgeType} from '@codeindex/adapter-sdk';
+
+export type {
+	DiagnosticType,
+	DependencyExtractionResultType,
+	DependencyKindType,
+	ExtractionResultType,
+	IndexedDependencyBindingType,
+	IndexedDependencyEdgeType,
+	IndexedOccurrenceType,
+	IndexedSymbolType,
+	ScanProjectResultType,
+	ScanResultType,
+	SourceFileType,
+} from '@codeindex/adapter-sdk';
+
 export type GenerationStateType = 'building' | 'published' | 'superseded' | 'failed';
 
 /** Closed outcome of one build attempt. */
@@ -11,21 +27,6 @@ export type QueryFreshnessType = Readonly<{
 	readonly state: QueryFreshnessStateType;
 	readonly checkedAt: string;
 	readonly dirtyFileCount: number | null;
-}>;
-
-export type SourceFileType = Readonly<{
-	readonly path: string;
-	readonly absolutePath: string;
-	readonly sha256: string;
-	readonly byteCount: number;
-	readonly lineCount: number;
-	/**
-	 * Bytes captured by the adapter for the exact parsed version.
-	 *
-	 * Storage verifies these bytes instead of rereading the filesystem, so the
-	 * persisted content cannot describe a later file version.
-	 */
-	readonly content?: Uint8Array;
 }>;
 
 export type VcsKindType = 'git' | 'svn' | 'none';
@@ -64,159 +65,6 @@ export type BuildStagesType = Readonly<{
 	readonly insertionMs: number;
 	readonly verificationMs: number;
 	readonly publicationMs: number;
-}>;
-
-export type ScanProjectResultType = Readonly<{
-	readonly name: string;
-	/** Workspace-relative POSIX path to the project file. */
-	readonly projectFile: string;
-	readonly configHash: string;
-	readonly projectFileCount: number;
-	readonly configDiagnosticCount: number;
-}>;
-
-export type ScanResultType = Readonly<{
-	readonly rootDir: string;
-	readonly projectId: string;
-	readonly extractorId: string;
-	readonly extractorVersion: string;
-	readonly compilerVersion: string;
-	readonly declaredCompilerVersion: string | null;
-	readonly compilerDrift: boolean;
-	readonly files: readonly SourceFileType[];
-	readonly sourceHash: string;
-	readonly configHash: string;
-	/**
-	 * Hash over non-authored inputs that can change extracted facts.
-	 *
-	 * Authored source bytes are already covered by `sourceHash`; this covers
-	 * declarations, configuration chains, package manifests, lockfiles, and
-	 * module-resolution probes. Adapters that do not distinguish the two use
-	 * `configHash`.
-	 */
-	readonly inputHash?: string;
-	/** Absolute files that can change the manifest, used by the workspace watcher. */
-	readonly watchInputs?: readonly string[];
-	/**
-	 * Configuration identity for per-file extraction artifacts.
-	 *
-	 * Adapters set this when artifact validity does not depend on source content.
-	 * It defaults to `configHash` when absent.
-	 */
-	readonly artifactContextHash?: string;
-	readonly projects: readonly ScanProjectResultType[];
-	readonly projectFileCount: number;
-	readonly excludedFileCount: number;
-	readonly configDiagnosticCount: number;
-	readonly scanMs: number;
-}>;
-
-export type DiagnosticType = Readonly<{
-	readonly category: 'error' | 'warning' | 'suggestion' | 'message';
-	readonly code: number;
-	readonly message: string;
-	readonly path: string | null;
-	readonly startLine: number | null;
-	readonly startColumn: number | null;
-}>;
-
-export type IndexedSymbolType = Readonly<{
-	readonly id: string;
-	readonly name: string;
-	readonly qualifiedName: string;
-	readonly kind: string;
-	readonly path: string;
-	readonly startLine: number;
-	readonly startColumn: number;
-	readonly endLine: number;
-	readonly endColumn: number;
-	readonly startOffset: number;
-	readonly endOffset: number;
-	readonly enclosingId: string | null;
-	/**
-	 * External module target for a synthetic authored alias.
-	 *
-	 * Authored declarations leave both external fields absent.
-	 */
-	readonly externalTarget?: string | null | undefined;
-	/** Imported external name (`*` for a namespace, `default` for a default alias). */
-	readonly externalName?: string | null | undefined;
-	/** Compiler contexts that produced this declaration. */
-	readonly contexts?: readonly string[] | undefined;
-}>;
-
-export type IndexedOccurrenceType = Readonly<{
-	readonly symbolId: string;
-	readonly path: string;
-	readonly startLine: number;
-	readonly startColumn: number;
-	readonly endLine: number;
-	readonly endColumn: number;
-	readonly startOffset: number;
-	readonly endOffset: number;
-	readonly role: 'definition' | 'reference';
-	readonly enclosingId: string | null;
-	/**
-	 * Usage bitmask for a reference: `call` 1, `read` 2, `write` 4,
-	 * `type_ref` 8. Definitions use zero and absent values default to zero.
-	 */
-	readonly usage?: number | undefined;
-	/** Compiler contexts that resolved this occurrence. */
-	readonly contexts?: readonly string[] | undefined;
-}>;
-
-export type ExtractionResultType = Readonly<{
-	readonly symbols: readonly IndexedSymbolType[];
-	readonly occurrences: readonly IndexedOccurrenceType[];
-	readonly diagnostics: readonly DiagnosticType[];
-	readonly diagnosticCount: number;
-}>;
-
-/**
- * Adapter-defined dependency kind.
- *
- * The core stores and filters the value but does not interpret it. Adapters emit
- * bounded, non-empty lower-case identifiers such as `import` or `package-call`.
- */
-export type DependencyKindType = string;
-
-/**
- * Adapter-defined dependency binding kind.
- *
- * The core stores the value but does not interpret it.
- */
-type DependencyBindingKindType = string;
-
-export type IndexedDependencyEdgeType = Readonly<{
-	readonly id: string;
-	readonly context?: string | undefined;
-	readonly sourcePath: string;
-	readonly targetPath: string | null;
-	readonly rawTarget: string;
-	readonly targetIdentifier: string | null;
-	readonly kind: DependencyKindType;
-	readonly compileTimeOnly: boolean;
-	readonly startLine: number;
-	readonly startColumn: number;
-	readonly endLine: number;
-	readonly endColumn: number;
-	readonly startOffset: number;
-	readonly endOffset: number;
-}>;
-
-export type IndexedDependencyBindingType = Readonly<{
-	readonly edgeId: string;
-	readonly position: number;
-	readonly kind: DependencyBindingKindType;
-	readonly importedName: string | null;
-	readonly exportedName: string | null;
-	readonly localName: string | null;
-	readonly compileTimeOnly: boolean;
-}>;
-
-export type DependencyExtractionResultType = Readonly<{
-	readonly edges: readonly IndexedDependencyEdgeType[];
-	readonly bindings: readonly IndexedDependencyBindingType[];
 }>;
 
 export type StoredDependencyEdgeType = IndexedDependencyEdgeType &

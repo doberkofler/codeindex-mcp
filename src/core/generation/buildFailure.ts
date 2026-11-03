@@ -77,6 +77,46 @@ export const runAdapterStage = <ValueType>(adapterId: string, action: () => Valu
 };
 
 /**
+ * Awaits one adapter-owned action and attributes a failure to that adapter.
+ *
+ * @param adapterId - Adapter that owns the action.
+ * @param action - Asynchronous work to run.
+ * @returns The action's value.
+ * @throws {Error} Whatever the action throws, annotated with the adapter.
+ */
+export const runAdapterStageAsync = async <ValueType>(adapterId: string, action: () => Promise<ValueType>): Promise<ValueType> => {
+	try {
+		return await action();
+	} catch (error) {
+		if (typeof error === 'object' && error !== null && !errorAdapters.has(error)) {
+			errorAdapters.set(error, adapterId);
+		}
+
+		throw error;
+	}
+};
+
+/**
+ * Awaits one stage and attaches it to the error an action throws.
+ *
+ * @param stage - Stage that owns the action.
+ * @param action - Asynchronous work to run.
+ * @returns The action's value.
+ * @throws {Error} Whatever the action throws, annotated with the stage.
+ */
+export const runBuildStageAsync = async <ValueType>(stage: BuildFailureStageType, action: () => Promise<ValueType>): Promise<ValueType> => {
+	try {
+		return await action();
+	} catch (error) {
+		if (typeof error === 'object' && error !== null && !errorStages.has(error)) {
+			errorStages.set(error, stage);
+		}
+
+		throw error;
+	}
+};
+
+/**
  * Attaches one build stage to the error an action throws.
  *
  * The error object is rethrown unchanged so callers keep its type, message, and

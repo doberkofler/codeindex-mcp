@@ -1,12 +1,12 @@
 import {describe, expect, it} from 'vitest';
-import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {buildTypeScriptFacts, scanTypeScriptProject} from '../src/adapters/typescript/index.ts';
 import {finalizeFacts, type FinalizedFactSetType} from '../src/core/facts/index.ts';
 import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
 
 const buildFacts = (): Readonly<{facts: FinalizedFactSetType; cleanup: () => void}> => {
 	const {config, cleanup} = createFixtureConfig('publication-project');
-	const scan = typeScriptExtractor.scan(config, []);
-	const extracted = typeScriptExtractor.build(config, scan);
+	const scan = scanTypeScriptProject(config, []);
+	const extracted = buildTypeScriptFacts(config, scan);
 	const facts = finalizeFacts(extracted, {mode: 'enforce', maxBindingsPerRoot: 2000});
 
 	return {facts, cleanup};
@@ -75,7 +75,7 @@ describe('TypeScript publication vertical slice', () => {
 		}
 	});
 
-	it('persists and serves an empty-string binding name', () => {
+	it('persists and serves an empty-string binding name', async () => {
 		const {facts, cleanup} = buildFacts();
 		const symbol = facts.symbols.find((entry) => entry.name === '' && entry.path === 'src/property-names.ts');
 
@@ -85,7 +85,7 @@ describe('TypeScript publication vertical slice', () => {
 			throw new Error('Missing empty-name symbol');
 		}
 
-		const fixture = createFixtureIndex('publication-project');
+		const fixture = await createFixtureIndex('publication-project');
 
 		try {
 			const names = fixture.index.readSymbol({symbolId: symbol.id, mode: 'names', contextLines: 0, limit: 20});
@@ -154,8 +154,8 @@ describe('External alias publication', () => {
 		}
 	});
 
-	it('serves find_symbol filters and deduplicates bindings by symbol', () => {
-		const fixture = createFixtureIndex('publication-project');
+	it('serves find_symbol filters and deduplicates bindings by symbol', async () => {
+		const fixture = await createFixtureIndex('publication-project');
 
 		try {
 			const api = fixture.index.findSymbols({query: 'api', exposure: 'published', limit: 10});
@@ -176,8 +176,8 @@ describe('External alias publication', () => {
 		}
 	});
 
-	it('serves binding and definition list modes plus symbol_at', () => {
-		const fixture = createFixtureIndex('publication-project');
+	it('serves binding and definition list modes plus symbol_at', async () => {
+		const fixture = await createFixtureIndex('publication-project');
 
 		try {
 			const api = fixture.index.findSymbols({query: 'api', limit: 1}).items.at(0);
@@ -230,8 +230,8 @@ describe('External alias publication', () => {
 });
 
 describe('ESM JavaScript vertical slice', () => {
-	it('serves ESM JavaScript through the same vertical slice', () => {
-		const fixture = createFixtureIndex('javascript-project');
+	it('serves ESM JavaScript through the same vertical slice', async () => {
+		const fixture = await createFixtureIndex('javascript-project');
 
 		try {
 			const greet = fixture.index.findSymbols({query: 'greet', limit: 1}).items.at(0);

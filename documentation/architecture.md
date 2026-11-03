@@ -48,6 +48,7 @@ external connections never cross the extractor seam.
 | `src/core/qualification/` | TypeScript comparison, Oracle truth contracts, and publication measurements |
 | `src/adapters/typescript/` | TypeScript/JavaScript scanning and extraction |
 | `src/adapters/oracle/` | Oracle manifest discovery, tokenization, parsing, resolution, and extraction |
+| `packages/adapter-sdk/` | Language-neutral adapter protocol, manifest schemas, and `defineAdapter` |
 | `src/adapters/vcs/` | Optional Git/SVN provenance read at composition time |
 | `src/transports/mcp/` | MCP schemas, envelopes, guidance, and tool registration |
 | `src/transports/cli/` | CLI composition and operational commands |
@@ -97,10 +98,40 @@ adapters, and facts retain both the context and the owning adapter. A workspace
 path has exactly one adapter owner; two adapters claiming the same resolved real
 path fail the candidate before publication.
 
-## Extractor seam
+## Adapter SDK and loader
 
-`src/adapters/types.ts` defines `ExtractorType`. Each registered extractor
-provides:
+`@codeindex/adapter-sdk` owns the language-neutral adapter protocol. An adapter
+module exports exactly one named `codeIndexAdapter` value with a manifest and a
+factory:
+
+```ts
+export const codeIndexAdapter = defineAdapter({
+	manifest: {protocolVersion: 1, id: 'custom', implementationVersion: '1.0.0', displayName: 'Custom'},
+	create: () => adapter,
+});
+```
+
+`src/adapters/loader.ts` is the only production implementation loader. For each
+configured `extractors[]` entry it normalizes a compatibility alias or resolves
+the explicit `module` field, imports the module once per canonical identity,
+validates the manifest and factory result at runtime, and returns fresh adapter
+instances plus a process-internal descriptor. Bare package specifiers resolve
+from the configuration-file directory; relative paths resolve from the same
+directory (or the workspace root without a configuration file). Absolute paths
+and URL schemes are rejected during configuration validation. Stable load
+failures are `adapter_module_not_found`, `adapter_module_invalid`,
+`adapter_protocol_unsupported`, `adapter_id_mismatch`,
+`adapter_version_mismatch`, and `adapter_module_duplicate`.
+
+Composition roots await the loader before creating `CodeIndex`. A worker receives
+only the descriptors and reloads the same canonical modules, revalidating the
+protocol, adapter ID, and implementation version. The resolved module URL stays
+process-internal and never enters SQLite, tool responses, CLI JSON, analytics, or
+bounded failure envelopes. In this release the official `typescript` and `oracle`
+IDs still resolve to built-in module identities; the loader, module field, and
+worker descriptor path are the same ones an installed package uses.
+
+Each adapter provides:
 
 - stable extractor identity and version;
 - display, discovery, limitation, extension, and ignored-directory metadata;
@@ -114,9 +145,8 @@ The complete fact bundle contains files, symbols, bindings, binding contexts and
 sites, surface origins, definition/reference occurrences, dependency edges and
 bindings, diagnostics, adapter statistics, and stage timings.
 
-`src/adapters/registry.ts` is the only production registry. It currently registers
-`typescript` and `oracle`. Adding a source language means implementing the seam
-and registering it; it does not add a language branch to storage, publication,
+Adding a source language means publishing an SDK-conforming module and naming it
+in configuration; it does not add a language branch to storage, publication,
 queries, or transports.
 
 ### TypeScript and JavaScript

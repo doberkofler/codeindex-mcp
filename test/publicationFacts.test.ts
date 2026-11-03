@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {describe, expect, it} from 'vitest';
-import {oracleExtractor} from '../src/adapters/oracle/index.ts';
-import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {buildOracleFacts, scanOracleFacts} from '../src/adapters/oracle/index.ts';
+import {buildTypeScriptFacts, scanTypeScriptProject} from '../src/adapters/typescript/index.ts';
 import {collectBindings} from '../src/core/facts/bindings.ts';
 import {
 	finalizeFacts,
@@ -374,8 +374,8 @@ describe('publication adapter seam', () => {
 		const {config, cleanup} = createFixtureConfig('simple-project');
 
 		try {
-			const scan = typeScriptExtractor.scan(config, []);
-			const extracted = typeScriptExtractor.build(config, scan);
+			const scan = scanTypeScriptProject(config, []);
+			const extracted = buildTypeScriptFacts(config, scan);
 			const report = finalizeFacts(extracted, REPORT_POLICY);
 
 			expect(extracted.bindings.length).toBeGreaterThanOrEqual(extracted.symbols.length);
@@ -391,8 +391,8 @@ describe('publication adapter seam', () => {
 		const {config, cleanup} = createFixtureConfig('oracle-project', [{name: 'root', project: 'oracle-index.json'}], 'oracle');
 
 		try {
-			const scan = oracleExtractor.scan(config, []);
-			const extracted = oracleExtractor.build(config, scan);
+			const scan = scanOracleFacts(config, []);
+			const extracted = buildOracleFacts(config, scan);
 			const report = finalizeFacts(extracted, REPORT_POLICY);
 
 			expect(extracted.bindings.length).toBeGreaterThanOrEqual(extracted.symbols.length);

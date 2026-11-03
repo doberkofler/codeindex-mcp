@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import {type ConfigType} from '../../core/config/config.ts';
+import {type AdapterConfigType} from '@codeindex/adapter-sdk';
 import {type IndexedSymbolType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
 import {loadTypeScriptProject, type LoadedProjectType} from './loadProject.ts';
 import {mergeProjectFiles} from './projectFiles.ts';
@@ -48,7 +48,7 @@ const sourceBytes = (absolutePath: string): Uint8Array | undefined => {
  * @param symbols - Merged production symbols.
  * @returns Contexts, the union of authored files, and lookup sets.
  */
-export const createReferenceUnion = (config: ConfigType, scan: ScanResultType, symbols: readonly IndexedSymbolType[]): ReferenceUnionType => {
+export const createReferenceUnion = (config: AdapterConfigType, scan: ScanResultType, symbols: readonly IndexedSymbolType[]): ReferenceUnionType => {
 	const contexts = config.projects.map((context): ReferenceUnionContextType => {
 		const project = loadTypeScriptProject(config, context.projectFilePath);
 		const files = mergeProjectFiles(config, scan, project, sourceBytes);
@@ -94,7 +94,7 @@ export const createReferenceUnion = (config: ConfigType, scan: ScanResultType, s
  */
 export const lookupUnionReferences = (
 	input: Readonly<{
-		config: ConfigType;
+		config: AdapterConfigType;
 		union: ReferenceUnionType;
 		symbol: IndexedSymbolType;
 	}>,

@@ -1,13 +1,14 @@
 import {randomUUID} from 'node:crypto';
-import {extractorFor} from '../../adapters/registry.ts';
 import {type ExtractorType} from '../../adapters/types.ts';
+import {type AdapterSetType} from '../../adapters/loader.ts';
 import {adapterConfigFor, type AdapterConfigType, type ConfigType} from '../config/config.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
-import {type BuildOutcomeType, type BuildReportType, type BuildStagesType, type GenerationRowType, type ScanResultType} from '../model.ts';
+import {type BuildReportType, type BuildStagesType, type GenerationRowType, type ScanResultType} from '../model.ts';
 import {type AdapterCommitCountsType, type IndexDatabase} from '../storage/database.ts';
+import {countsOf, createReport, durationOf} from './buildReport.ts';
 import {type createExtractorCache} from './buildArtifacts.ts';
-import {type BuildProjectContextType, buildFailureOf, buildProjectContextOf, runAdapterStage, runBuildStage} from './buildFailure.ts';
+import {type BuildProjectContextType, buildFailureOf, buildProjectContextOf, runAdapterStageAsync, runBuildStage, runBuildStageAsync} from './buildFailure.ts';
 import {adapterCommitOf, ZERO_COUNTS} from './adapterCommit.ts';
 import {
 	AdapterContractError,
@@ -37,10 +38,10 @@ type BuildInputType = Readonly<{
 	 * the caller already performed. Keeps reported duration covering every stage.
 	 */
 	startedAtEpoch?: number;
-	/** Qualification-only adapter override; production resolves from the registry. */
+	/** Qualification-only adapter override; production resolves from the loaded set. */
 	extractor?: ExtractorType;
-	/** Qualification/test-only adapter set override; production resolves from the registry. */
-	extractors?: readonly ExtractorType[];
+	/** Loaded adapters selected by the composition root. */
+	adapters: AdapterSetType;
 }>;
 
 type CommitContextType = Readonly<{
@@ -63,53 +64,6 @@ type PreparedBuildType = Readonly<{
 	scans: readonly AdapterScanPlanType[];
 	targets: readonly Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>[];
 }>;
-
-const createReport = (
-	input: Readonly<{
-		generationId: string;
-		revision: number;
-		outcome: Exclude<BuildOutcomeType, 'failed'>;
-		reused: boolean;
-		durationMs: number;
-		counts: AdapterCommitCountsType;
-		stages: BuildStagesType | null;
-	}>,
-): BuildReportType => ({
-	generationId: input.generationId,
-	revision: input.revision,
-	state: 'published',
-	outcome: input.outcome,
-	reused: input.reused,
-	durationMs: input.durationMs,
-	fileCount: input.counts.files,
-	symbolCount: input.counts.symbols,
-	occurrenceCount: input.counts.occurrences,
-	dependencyEdgeCount: input.counts.dependencyEdges,
-	dependencyBindingCount: input.counts.dependencyBindings,
-	diagnosticCount: input.counts.diagnostics,
-	stages: input.stages,
-});
-
-const countsOf = (generation: GenerationRowType): AdapterCommitCountsType => ({
-	files: generation.fileCount,
-	symbols: generation.symbolCount,
-	occurrences: generation.occurrenceCount,
-	dependencyEdges: generation.dependencyEdgeCount,
-	dependencyBindings: generation.dependencyBindingCount,
-	diagnostics: generation.diagnosticCount,
-});
-
-const stageTotalOf = (stages: BuildStagesType | null): number =>
-	stages === null ? 0 : stages.scanMs + stages.compilerMs + stages.extractionMs + stages.insertionMs + stages.verificationMs + stages.publicationMs;
-
-/**
- * Keeps the reported attempt at least as long as its independently rounded stages.
- *
- * @param startedAt - Epoch milliseconds when the attempt started.
- * @param stages - Exclusive stage durations, or null when nothing was measured.
- * @returns Wall-clock duration in milliseconds.
- */
-const durationOf = (startedAt: number, stages: BuildStagesType | null): number => Math.max(Math.round(Date.now() - startedAt), stageTotalOf(stages));
 
 const projectContextOf = (plans: readonly AdapterScanPlanType[]): BuildProjectContextType | null => {
 	const scan = plans.find((plan) => plan.scan !== null)?.scan ?? null;
@@ -161,14 +115,11 @@ const rosterMatches = (plans: readonly AdapterScanPlanType[], adapters: readonly
 	return plans.every((plan) => stored.get(plan.adapterId) === plan.coverage);
 };
 
-const resolveExtractor = (extractors: readonly ExtractorType[] | undefined): ((id: string) => ExtractorType) =>
-	extractors === undefined ? extractorFor : (id) => extractors.find((candidate) => candidate.id === id) ?? extractorFor(id);
-
-const scanPlansOf = (
+const scanPlansOf = async (
 	input: BuildInputType,
 	targets: readonly Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>[],
 	published: GenerationRowType | null,
-): readonly AdapterScanPlanType[] => {
+): Promise<readonly AdapterScanPlanType[]> => {
 	if (input.scan !== undefined) {
 		const [target] = targets;
 
@@ -203,25 +154,44 @@ const scanPlansOf = (
 		return input.scans;
 	}
 
-	return targets.map((target) => {
+	const plans: AdapterScanPlanType[] = [];
+
+	for (const target of targets) {
 		const scoped = adapterConfigFor(input.config, target.adapter);
-		const probe = runAdapterStage(target.adapter.id, () => probeAdapter(target, scoped));
+		// Adapter probes are sequential so absence and failure attribution follow
+		// configuration order.
+		// oxlint-disable-next-line eslint/no-await-in-loop
+		const probe = await runAdapterStageAsync(target.adapter.id, async () => {
+			const result = await probeAdapter(target, scoped);
+			return result;
+		});
 
 		if (probe.coverage === 'absent') {
-			return {adapterId: target.adapter.id, coverage: 'absent', absenceReason: probe.reason, scan: null};
+			plans.push({adapterId: target.adapter.id, coverage: 'absent', absenceReason: probe.reason, scan: null});
+			continue;
 		}
 
 		const knownPaths = published === null ? [] : input.database.listFiles(published.id, target.adapter.id).map((file) => file.path);
-		const scan = runAdapterStage(target.adapter.id, () => runBuildStage('scan', () => target.extractor.scan(scoped, knownPaths)));
+		// oxlint-disable-next-line eslint/no-await-in-loop
+		const scan = await runAdapterStageAsync(target.adapter.id, async () => {
+			const staged = await runBuildStageAsync('scan', async () => {
+				const result = await target.extractor.scan(scoped, knownPaths);
+				return result;
+			});
 
-		return {adapterId: target.adapter.id, coverage: 'present', absenceReason: null, scan};
-	});
+			return staged;
+		});
+
+		plans.push({adapterId: target.adapter.id, coverage: 'present', absenceReason: null, scan});
+	}
+
+	return plans;
 };
 
-const prepareBuild = (input: BuildInputType): PreparedBuildType => {
+const prepareBuild = async (input: BuildInputType): Promise<PreparedBuildType> => {
 	const published = input.database.getPublishedGeneration();
-	const targets = adapterTargets(input.config, resolveExtractor(input.extractors), input.extractor);
-	const scans = scanPlansOf(input, targets, published);
+	const targets = adapterTargets(input.config, input.adapters, input.extractor);
+	const scans = await scanPlansOf(input, targets, published);
 	assertSharedPaths(scans);
 
 	return {published, scans, targets};
@@ -256,7 +226,7 @@ const beginGeneration = (
 	return {generationId, mode: 'insert'};
 };
 
-const commitAdapters = (context: CommitContextType): BuildReportType => {
+const commitAdapters = async (context: CommitContextType): Promise<BuildReportType> => {
 	const previousById = new Map(context.database.getGenerationAdapters(context.generationId).map((adapter) => [adapter.adapterId, adapter]));
 	const configured = new Set(context.plans.map((plan) => plan.adapterId));
 	const removedAdapterIds = [...previousById.keys()].filter((adapterId) => !configured.has(adapterId));
@@ -266,27 +236,35 @@ const commitAdapters = (context: CommitContextType): BuildReportType => {
 	};
 	const targetsById = new Map(context.targets.map((target) => [target.adapter.id, target]));
 
-	const adapters = context.plans.map((plan) => {
+	const adapters = [];
+
+	for (const plan of context.plans) {
 		const target = targetsById.get(plan.adapterId);
 
 		if (target === undefined) {
 			throw new AdapterContractError(`No adapter target for ${plan.adapterId}`);
 		}
 
-		return runAdapterStage(plan.adapterId, () =>
-			adapterCommitOf({
-				plan,
-				target,
-				previous: previousById.get(plan.adapterId),
-				config: context.config,
-				database: context.database,
-				published: context.database.getPublishedGeneration(),
-				force: context.force,
-				override: context.extractorOverride,
-				persist,
+		// Adapters extract sequentially so one adapter's failure preserves the
+		// previous generation before the next adapter runs.
+		adapters.push(
+			// oxlint-disable-next-line eslint/no-await-in-loop
+			await runAdapterStageAsync(plan.adapterId, async () => {
+				const contribution = await adapterCommitOf({
+					plan,
+					target,
+					previous: previousById.get(plan.adapterId),
+					config: context.config,
+					database: context.database,
+					published: context.database.getPublishedGeneration(),
+					force: context.force,
+					override: context.extractorOverride,
+					persist,
+				});
+				return contribution;
 			}),
 		);
-	});
+	}
 
 	assertAdapterIdentity(adapters);
 	assertSharedExtractedFiles(adapters);
@@ -432,10 +410,10 @@ const failedBuild = (
  * @returns The published or reused generation report.
  * @throws {@link Error} When scanning, loading, extraction, or publication fails.
  */
-export const buildGeneration = (input: BuildInputType): BuildReportType => {
+export const buildGeneration = async (input: BuildInputType): Promise<BuildReportType> => {
 	const startedAt = input.startedAtEpoch ?? Date.now();
 	const startedAtIso = new Date(startedAt).toISOString();
-	const {published, scans, targets} = prepareBuild(input);
+	const {published, scans, targets} = await prepareBuild(input);
 	const hashes = combinedHashesOf(scans);
 	const reusable = input.force === true ? null : input.database.findReusableGeneration(hashes.sourceHash, hashes.configHash, hashes.inputHash);
 	debug('build start', {
@@ -459,7 +437,7 @@ export const buildGeneration = (input: BuildInputType): BuildReportType => {
 		const begun = runBuildStage('persistence', () => beginGeneration(input, published, scans, hashes));
 		({generationId, mode} = begun);
 
-		const report = commitAdapters({
+		const report = await commitAdapters({
 			config: input.config,
 			database: input.database,
 			logger: input.logger,

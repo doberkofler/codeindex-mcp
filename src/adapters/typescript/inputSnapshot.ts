@@ -3,7 +3,7 @@ import {type Dirent, readdirSync, readFileSync, statSync} from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import {z} from 'zod';
-import {type ConfigType, type ProjectContextConfigType} from '../../core/config/config.ts';
+import {type AdapterConfigType, type ProjectContextConfigType} from '@codeindex/adapter-sdk';
 import {debugFor} from '../../core/logging/debug.ts';
 import {isAuthoredSourceFile, isDeclarationFile, isExcludedSegment, isInsideRoot, TYPESCRIPT_IGNORED_SEGMENTS} from './sourcePaths.ts';
 import {
@@ -223,7 +223,11 @@ const watchInputsOf = (rootDir: string, manifest: TypeScriptInputManifestType): 
 		.map((input) => input.absolutePath)
 		.sort();
 
-const authoredCandidates = (config: ConfigType, projects: readonly TypeScriptSnapshotProjectType[], knownPaths: readonly string[]): readonly string[] => {
+const authoredCandidates = (
+	config: AdapterConfigType,
+	projects: readonly TypeScriptSnapshotProjectType[],
+	knownPaths: readonly string[],
+): readonly string[] => {
 	const authored = new Set<string>();
 
 	for (const project of projects) {
@@ -257,7 +261,7 @@ const authoredCandidates = (config: ConfigType, projects: readonly TypeScriptSna
  * @returns The immutable snapshot and its parsed projects.
  * @throws {@link Error} When a project file is missing or invalid.
  */
-export const createTypeScriptInputSnapshot = (config: ConfigType, knownPaths: readonly string[] = []): CreatedTypeScriptInputSnapshotType => {
+export const createTypeScriptInputSnapshot = (config: AdapterConfigType, knownPaths: readonly string[] = []): CreatedTypeScriptInputSnapshotType => {
 	const recorder = createRecorder(config.rootDir);
 
 	collectRootMetadata(recorder, config.rootDir);

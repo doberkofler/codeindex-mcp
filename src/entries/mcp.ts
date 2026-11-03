@@ -72,10 +72,10 @@ const applyArguments = (): boolean => {
  */
 if (isMainThread) {
 	if (applyArguments()) {
-		runMcp({workerEntry: import.meta.filename});
+		await runMcp({workerEntry: import.meta.filename});
 	}
 } else if (isBuildWorkerData(workerData)) {
-	runBuildWorker(workerData);
+	await runBuildWorker(workerData);
 } else {
 	throw new Error('Unsupported code index worker payload');
 }

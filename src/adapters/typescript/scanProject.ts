@@ -2,7 +2,8 @@ import {createHash} from 'node:crypto';
 import {existsSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import {type ConfigType, toRepositoryPath} from '../../core/config/config.ts';
+import {type AdapterConfigType} from '@codeindex/adapter-sdk';
+import {toRepositoryPath} from '../../core/config/config.ts';
 import {createCapturedSourceFileRecord, computeSourceHash} from '../../core/generation/sourceFiles.ts';
 import {debugFor} from '../../core/logging/debug.ts';
 import {type ScanProjectResultType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
@@ -56,7 +57,7 @@ const projectConfigHash = (project: TypeScriptSnapshotProjectType): string =>
  * @throws {@link Error} When a project file cannot be read or contains fatal
  * configuration diagnostics.
  */
-export const scanProject = (config: ConfigType, knownPaths: readonly string[] = []): ScanResultType => {
+export const scanProject = (config: AdapterConfigType, knownPaths: readonly string[] = []): ScanResultType => {
 	const startedAt = performance.now();
 	debug('scan start', {rootDir: config.rootDir, projects: config.projects.map((project) => project.projectFilePath), knownPaths: knownPaths.length});
 	const {snapshot, projects} = createTypeScriptInputSnapshot(config, knownPaths);

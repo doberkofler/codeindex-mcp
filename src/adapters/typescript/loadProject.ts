@@ -1,7 +1,8 @@
 import {existsSync} from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import {type ConfigType, toRepositoryPath} from '../../core/config/config.ts';
+import {type AdapterConfigType} from '@codeindex/adapter-sdk';
+import {toRepositoryPath} from '../../core/config/config.ts';
 import {debugFor} from '../../core/logging/debug.ts';
 import {type DiagnosticType} from '../../core/model.ts';
 import {type TypeScriptInputSnapshotType} from './inputSnapshot.ts';
@@ -38,7 +39,7 @@ const categoryName = (category: ts.DiagnosticCategory): DiagnosticType['category
 	}
 };
 
-const repositoryPathOrNull = (config: ConfigType, fileName: string): string | null => {
+const repositoryPathOrNull = (config: AdapterConfigType, fileName: string): string | null => {
 	try {
 		return toRepositoryPath(config.rootDir, fileName);
 	} catch {
@@ -46,7 +47,7 @@ const repositoryPathOrNull = (config: ConfigType, fileName: string): string | nu
 	}
 };
 
-const toDiagnostic = (diagnostic: ts.Diagnostic, config: ConfigType): DiagnosticType => {
+const toDiagnostic = (diagnostic: ts.Diagnostic, config: AdapterConfigType): DiagnosticType => {
 	const {file} = diagnostic;
 	const position = diagnostic.start;
 	const location = file !== undefined && position !== undefined ? file.getLineAndCharacterOfPosition(position) : undefined;
@@ -61,7 +62,7 @@ const toDiagnostic = (diagnostic: ts.Diagnostic, config: ConfigType): Diagnostic
 	};
 };
 
-const collectDiagnostics = (program: ts.Program, config: ConfigType): Readonly<{items: readonly DiagnosticType[]; total: number}> => {
+const collectDiagnostics = (program: ts.Program, config: AdapterConfigType): Readonly<{items: readonly DiagnosticType[]; total: number}> => {
 	const diagnostics: readonly ts.Diagnostic[] = config.semanticDiagnostics
 		? [...program.getOptionsDiagnostics(), ...program.getGlobalDiagnostics(), ...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()]
 		: [...program.getOptionsDiagnostics(), ...program.getGlobalDiagnostics(), ...program.getSyntacticDiagnostics()];
@@ -133,7 +134,7 @@ const parseProjectFile = (projectFilePath: string, snapshot: TypeScriptInputSnap
  * constructed.
  */
 export const loadTypeScriptProject = (
-	config: ConfigType,
+	config: AdapterConfigType,
 	projectFilePath = config.projectFilePath,
 	snapshot?: TypeScriptInputSnapshotType,
 ): LoadedProjectType => {

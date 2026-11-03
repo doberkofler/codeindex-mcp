@@ -5,6 +5,7 @@ import {type ConfigType} from '../../src/core/config/config.ts';
 import {createCodeIndex, type CodeIndex} from '../../src/core/generation/codeIndex.ts';
 import {buildGeneration} from '../../src/core/generation/buildGeneration.ts';
 import {IndexDatabase} from '../../src/core/storage/database.ts';
+import {testAdaptersFor} from './adapters.ts';
 import {silentLogger} from './silentLogger.ts';
 
 export {silentLogger} from './silentLogger.ts';
@@ -69,7 +70,11 @@ export const createFixtureConfig = (
 	};
 };
 
-export const createFixtureIndex = (fixtureName: string, projects?: readonly FixtureProjectType[], extractorId = 'typescript'): FixtureContextType => {
+export const createFixtureIndex = async (
+	fixtureName: string,
+	projects?: readonly FixtureProjectType[],
+	extractorId = 'typescript',
+): Promise<FixtureContextType> => {
 	const {config, cleanup} = createFixtureConfig(fixtureName, projects, extractorId);
 	const database = IndexDatabase.open(config.databasePath, {
 		rootDir: config.rootDir,
@@ -77,10 +82,11 @@ export const createFixtureIndex = (fixtureName: string, projects?: readonly Fixt
 		projectId: config.projectId,
 		extractorId: config.extractorId,
 	});
+	const adapters = testAdaptersFor(config);
 
-	buildGeneration({config, database, logger: silentLogger});
+	await buildGeneration({config, database, logger: silentLogger, adapters});
 
-	const index = createCodeIndex(config, database, silentLogger, {watch: false});
+	const index = createCodeIndex(config, database, silentLogger, {watch: false, adapters: adapters.adapters});
 
 	return {
 		config,

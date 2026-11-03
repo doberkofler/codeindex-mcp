@@ -54,7 +54,7 @@ export const adapterConfigFiles = (config: ConfigType, targets: readonly Adapter
  * @param input - Configuration, adapters, database, published generation, and telemetry sinks.
  * @returns One scan plan per adapter, including declared optional absence.
  */
-export const planAdapterScans = (
+export const planAdapterScans = async (
 	input: Readonly<{
 		config: ConfigType;
 		targets: readonly AdapterTargetType[];
@@ -64,21 +64,31 @@ export const planAdapterScans = (
 		analytics: AnalyticsRecorderType | null;
 		observed: Set<string>;
 	}>,
-): readonly AdapterScanPlanType[] =>
-	input.targets.map((target) => {
+): Promise<readonly AdapterScanPlanType[]> => {
+	const plans: AdapterScanPlanType[] = [];
+
+	for (const target of input.targets) {
 		const scoped = adapterConfigFor(input.config, target.adapter);
-		const probe = probeAdapter(target, scoped);
+		// Adapter probes are sequential so absence and failure attribution follow
+		// configuration order.
+		// oxlint-disable-next-line eslint/no-await-in-loop
+		const probe = await probeAdapter(target, scoped);
 
 		if (probe.coverage === 'absent') {
-			return {adapterId: target.adapter.id, coverage: 'absent', absenceReason: probe.reason, scan: null};
+			plans.push({adapterId: target.adapter.id, coverage: 'absent', absenceReason: probe.reason, scan: null});
+			continue;
 		}
 
 		const knownPaths = input.published === null ? [] : input.database.listFiles(input.published.id, target.adapter.id).map((file) => file.path);
-		const scan = target.extractor.scan(scoped, knownPaths);
+		// oxlint-disable-next-line eslint/no-await-in-loop
+		const scan = await target.extractor.scan(scoped, knownPaths);
 
 		if (scan.compilerDrift) {
 			recordCompilerDrift({logger: input.logger, analytics: input.analytics, observed: input.observed, scan});
 		}
 
-		return {adapterId: target.adapter.id, coverage: 'present', absenceReason: null, scan};
-	});
+		plans.push({adapterId: target.adapter.id, coverage: 'present', absenceReason: null, scan});
+	}
+
+	return plans;
+};

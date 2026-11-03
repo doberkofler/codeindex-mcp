@@ -2,13 +2,14 @@ import {cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} 
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {buildTypeScriptFacts, scanTypeScriptProject, typeScriptExtractor} from '../src/adapters/typescript/index.ts';
 import {type ExtractorType} from '../src/adapters/types.ts';
 import {type AdapterConfigType, type ConfigType} from '../src/core/config/config.ts';
 import {assertAdapterIdentity, assertSharedExtractedFiles} from '../src/core/generation/adapterBuild.ts';
 import {buildFailureOf, runAdapterStage} from '../src/core/generation/buildFailure.ts';
 import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {adapterSetOf, testAdaptersFor} from './helpers/adapters.ts';
 import {silentLogger} from './helpers/fixture.ts';
 
 const {join} = path;
@@ -79,10 +80,10 @@ const wrappedTypeScript = (id: string, built: string[]): ExtractorType => ({
 	...typeScriptExtractor,
 	id,
 	version: `${id}-1`,
-	scan: (config, knownPaths) => ({...typeScriptExtractor.scan(config, knownPaths), extractorId: id}),
-	build: (config, scan, cache) => {
+	scan: (config, knownPaths) => ({...scanTypeScriptProject(config, knownPaths), extractorId: id}),
+	build: (config, scan, _cache) => {
 		built.push(id);
-		return typeScriptExtractor.build(config, scan, cache);
+		return buildTypeScriptFacts(config, scan);
 	},
 });
 
@@ -94,7 +95,7 @@ describe('multi-adapter build', () => {
 		cleanup = undefined;
 	});
 
-	it('publishes TypeScript and static Oracle facts in one candidate with per-adapter provenance', () => {
+	it('publishes TypeScript and static Oracle facts in one candidate with per-adapter provenance', async () => {
 		const workspace = createWorkspace();
 		({cleanup} = workspace);
 		const config = configOf(workspace, [
@@ -104,7 +105,7 @@ describe('multi-adapter build', () => {
 		const database = openDatabase(config);
 
 		try {
-			const report = buildGeneration({config, database, logger: silentLogger, force: true});
+			const report = await buildGeneration({config, database, logger: silentLogger, force: true, adapters: testAdaptersFor(config)});
 			const published = database.getPublishedGeneration();
 
 			expect(report.outcome).toBe('published');
@@ -128,7 +129,7 @@ describe('multi-adapter build', () => {
 		}
 	});
 
-	it('reuses one unchanged adapter while re-extracting the edited adapter', () => {
+	it('reuses one unchanged adapter while re-extracting the edited adapter', async () => {
 		const workspace = createWorkspace();
 		({cleanup} = workspace);
 		cpSync(join(import.meta.dirname, 'fixtures', 'simple-project'), join(workspace.root, 'second'), {recursive: true});
@@ -141,7 +142,7 @@ describe('multi-adapter build', () => {
 		const database = openDatabase(config);
 
 		try {
-			buildGeneration({config, database, logger: silentLogger, force: true, extractors});
+			await buildGeneration({config, database, logger: silentLogger, force: true, adapters: adapterSetOf(...extractors)});
 			expect([...built].sort()).toStrictEqual(['alt', 'typescript']);
 
 			built.length = 0;
@@ -149,7 +150,7 @@ describe('multi-adapter build', () => {
 				join(workspace.root, 'src', 'models.ts'),
 				`${readFileSync(join(workspace.root, 'src', 'models.ts'), 'utf8')}\nexport type MultiAdapterEdit = string;\n`,
 			);
-			const second = buildGeneration({config, database, logger: silentLogger, extractors});
+			const second = await buildGeneration({config, database, logger: silentLogger, adapters: adapterSetOf(...extractors)});
 
 			expect(second.outcome).toBe('published');
 			expect(built).toStrictEqual(['typescript']);
@@ -171,7 +172,7 @@ describe('multi-adapter coverage and ownership', () => {
 		cleanup = undefined;
 	});
 
-	it('records declared optional absence and re-extracts once the adapter recovers', () => {
+	it('records declared optional absence and re-extracts once the adapter recovers', async () => {
 		const workspace = createWorkspace();
 		({cleanup} = workspace);
 		let available = false;
@@ -182,10 +183,10 @@ describe('multi-adapter coverage and ownership', () => {
 			version: 'optional-1',
 			absenceReasons: ['tool-missing'],
 			probe: () => (available ? {available: true} : {available: false, reason: 'tool-missing'}),
-			scan: (config, knownPaths) => ({...typeScriptExtractor.scan(config, knownPaths), extractorId: 'optional'}),
-			build: (config, scan, cache) => {
+			scan: (config, knownPaths) => ({...scanTypeScriptProject(config, knownPaths), extractorId: 'optional'}),
+			build: (config, scan, _cache) => {
 				built.push('optional');
-				return typeScriptExtractor.build(config, scan, cache);
+				return buildTypeScriptFacts(config, scan);
 			},
 		};
 		cpSync(join(import.meta.dirname, 'fixtures', 'simple-project'), join(workspace.root, 'optional'), {recursive: true});
@@ -196,14 +197,14 @@ describe('multi-adapter coverage and ownership', () => {
 		const database = openDatabase(config);
 
 		try {
-			const first = buildGeneration({config, database, logger: silentLogger, force: true, extractors: [typeScriptExtractor, optional]});
+			const first = await buildGeneration({config, database, logger: silentLogger, force: true, adapters: adapterSetOf(typeScriptExtractor, optional)});
 			const absent = database.getGenerationAdapters(first.generationId).find((adapter) => adapter.adapterId === 'optional');
 
 			expect(absent).toMatchObject({coverage: 'absent', absenceReason: 'tool-missing', symbolCount: 0});
 			expect(built).toStrictEqual([]);
 
 			available = true;
-			const second = buildGeneration({config, database, logger: silentLogger, extractors: [typeScriptExtractor, optional]});
+			const second = await buildGeneration({config, database, logger: silentLogger, adapters: adapterSetOf(typeScriptExtractor, optional)});
 			const present = database.getGenerationAdapters(second.generationId).find((adapter) => adapter.adapterId === 'optional');
 
 			expect(second.outcome).toBe('published');
@@ -214,7 +215,7 @@ describe('multi-adapter coverage and ownership', () => {
 		}
 	});
 
-	it('fails a required adapter that reports declared unavailability', () => {
+	it('fails a required adapter that reports declared unavailability', async () => {
 		const workspace = createWorkspace();
 		({cleanup} = workspace);
 		const unavailable: ExtractorType = {
@@ -231,9 +232,9 @@ describe('multi-adapter coverage and ownership', () => {
 		const database = openDatabase(config);
 
 		try {
-			expect(() => buildGeneration({config, database, logger: silentLogger, force: true, extractors: [typeScriptExtractor, unavailable]})).toThrow(
-				/is unavailable/iu,
-			);
+			await expect(
+				buildGeneration({config, database, logger: silentLogger, force: true, adapters: adapterSetOf(typeScriptExtractor, unavailable)}),
+			).rejects.toThrow(/is unavailable/iu);
 			expect(database.getPublishedGeneration()).toBeNull();
 		} finally {
 			database.close();
@@ -249,7 +250,7 @@ describe('required adapter availability and ownership', () => {
 		cleanup = undefined;
 	});
 
-	it('preserves the published generation when a required adapter fails', () => {
+	it('preserves the published generation when a required adapter fails', async () => {
 		const workspace = createWorkspace();
 		({cleanup} = workspace);
 		const config = configOf(workspace, [
@@ -259,10 +260,12 @@ describe('required adapter availability and ownership', () => {
 		const database = openDatabase(config);
 
 		try {
-			const first = buildGeneration({config, database, logger: silentLogger, force: true});
+			const first = await buildGeneration({config, database, logger: silentLogger, force: true, adapters: testAdaptersFor(config)});
 			writeFileSync(join(workspace.root, 'oracle-index.json'), '{not valid json');
 
-			expect(() => buildGeneration({config, database, logger: silentLogger, force: true})).toThrow(/not valid JSON/iu);
+			await expect(buildGeneration({config, database, logger: silentLogger, force: true, adapters: testAdaptersFor(config)})).rejects.toThrow(
+				/not valid JSON/iu,
+			);
 
 			const published = database.getPublishedGeneration();
 			expect(published?.id).toBe(first.generationId);
@@ -273,7 +276,7 @@ describe('required adapter availability and ownership', () => {
 		}
 	});
 
-	it('rejects two adapters that claim the same authored path', () => {
+	it('rejects two adapters that claim the same authored path', async () => {
 		const workspace = createWorkspace();
 		({cleanup} = workspace);
 		const built: string[] = [];
@@ -284,15 +287,15 @@ describe('required adapter availability and ownership', () => {
 		const database = openDatabase(config);
 
 		try {
-			expect(() =>
+			await expect(
 				buildGeneration({
 					config,
 					database,
 					logger: silentLogger,
 					force: true,
-					extractors: [wrappedTypeScript('typescript', built), wrappedTypeScript('copy', built)],
+					adapters: adapterSetOf(wrappedTypeScript('typescript', built), wrappedTypeScript('copy', built)),
 				}),
-			).toThrow(/ownership conflict/iu);
+			).rejects.toThrow(/ownership conflict/iu);
 			expect(database.getPublishedGeneration()).toBeNull();
 		} finally {
 			database.close();

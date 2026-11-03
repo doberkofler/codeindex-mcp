@@ -3,6 +3,8 @@ import {appendFileSync, mkdtempSync, readFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
+import {type ExtractorType} from '../../adapters/types.ts';
+import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
 import {type BuildFailureCauseType, buildFailureCauseOf} from '../generation/buildFailureCause.ts';
 import {createCodeIndex, type CodeIndex} from '../generation/codeIndex.ts';
@@ -37,6 +39,8 @@ type BuildFailureRecordType = {
 
 export type SoakStateType = Readonly<{
 	config: ConfigType;
+	adapters: readonly ExtractorType[];
+	descriptors: readonly ResolvedAdapterDescriptorType[];
 	plan: SoakPlanType;
 	index: CodeIndex;
 	database: IndexDatabase;
@@ -108,6 +112,8 @@ export const databaseContextOf = (config: ConfigType): Readonly<{rootDir: string
 export const openState = (
 	input: Readonly<{
 		config: ConfigType;
+		adapters: readonly ExtractorType[];
+		descriptors?: readonly ResolvedAdapterDescriptorType[];
 		plan: SoakPlanType;
 		logger: LoggerType;
 		watch: boolean;
@@ -118,11 +124,15 @@ export const openState = (
 	const database = IndexDatabase.open(input.config.databasePath, databaseContextOf(input.config));
 	const index = createCodeIndex(input.config, database, input.logger, {
 		watch: input.watch,
+		adapters: input.adapters,
+		adapterDescriptors: input.descriptors ?? [],
 		...(input.workerEntry === undefined ? {} : {workerEntry: input.workerEntry}),
 	});
 
 	return {
 		config: input.config,
+		adapters: input.adapters,
+		descriptors: input.descriptors ?? [],
 		plan: input.plan,
 		index,
 		database,

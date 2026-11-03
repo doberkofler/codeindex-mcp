@@ -96,7 +96,11 @@ const buildIndex = async (config: ConfigType, extractor: ExtractorType): Promise
 		projectId: config.projectId,
 		vcs: readVcsProvenance(config.rootDir),
 	});
-	const index = createCodeIndex(config, database, createLogger({minimumLevel: config.logLevel}), {watch: false, extractor});
+	const index = createCodeIndex(config, database, createLogger({minimumLevel: config.logLevel}), {
+		watch: false,
+		extractor,
+		adapters: [extractor],
+	});
 
 	try {
 		// Qualification must observe the current extractor, never an index built

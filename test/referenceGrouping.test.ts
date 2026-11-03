@@ -11,8 +11,8 @@ const PROJECTS: readonly FixtureProjectType[] = [
 ];
 
 describe('find_references selectors and grouping', () => {
-	it('accepts exactly one selector and names both fields when neither or both are provided', () => {
-		const fixture = createFixtureIndex('reference-grouping');
+	it('accepts exactly one selector and names both fields when neither or both are provided', async () => {
+		const fixture = await createFixtureIndex('reference-grouping');
 
 		try {
 			for (const input of [{limit: 10}, {symbolId: 'symbol', query: 'duplicate', limit: 10}]) {
@@ -24,8 +24,8 @@ describe('find_references selectors and grouping', () => {
 		}
 	});
 
-	it('keeps the flat occurrence contract for a symbolId selector', () => {
-		const fixture = createFixtureIndex('simple-project');
+	it('keeps the flat occurrence contract for a symbolId selector', async () => {
+		const fixture = await createFixtureIndex('simple-project');
 
 		try {
 			const symbol = fixture.index.findSymbols({query: 'formatUser', limit: 1}).items.at(0);
@@ -52,8 +52,8 @@ describe('find_references selectors and grouping', () => {
 		}
 	});
 
-	it('resolves a query in one call and defaults to reference-only file groups', () => {
-		const fixture = createFixtureIndex('reference-grouping');
+	it('resolves a query in one call and defaults to reference-only file groups', async () => {
+		const fixture = await createFixtureIndex('reference-grouping');
 
 		try {
 			const result = fixture.index.findReferences({query: 'duplicate', limit: 100});
@@ -84,8 +84,8 @@ describe('find_references selectors and grouping', () => {
 		}
 	});
 
-	it('keeps definition occurrences in occurrence mode for a query selector', () => {
-		const fixture = createFixtureIndex('reference-grouping');
+	it('keeps definition occurrences in occurrence mode for a query selector', async () => {
+		const fixture = await createFixtureIndex('reference-grouping');
 
 		try {
 			const result = fixture.index.findReferences({query: 'duplicate', group: 'occurrence', limit: 100});
@@ -104,8 +104,8 @@ describe('find_references selectors and grouping', () => {
 });
 
 describe('find_references resolution and grouping order', () => {
-	it('orders owner groups by path and puts top-level code first', () => {
-		const fixture = createFixtureIndex('reference-grouping');
+	it('orders owner groups by path and puts top-level code first', async () => {
+		const fixture = await createFixtureIndex('reference-grouping');
 
 		try {
 			const result = fixture.index.findReferences({query: 'duplicate', group: 'owner', limit: 100});
@@ -127,9 +127,9 @@ describe('find_references resolution and grouping order', () => {
 		}
 	});
 
-	it('prefers one exact candidate over prefix siblings and reports real ambiguity', () => {
-		const exactFixture = createFixtureIndex('simple-project');
-		const ambiguousFixture = createFixtureIndex('reference-grouping');
+	it('prefers one exact candidate over prefix siblings and reports real ambiguity', async () => {
+		const exactFixture = await createFixtureIndex('simple-project');
+		const ambiguousFixture = await createFixtureIndex('reference-grouping');
 
 		try {
 			const exact = exactFixture.index.findReferences({query: 'User', limit: 100});
@@ -157,8 +157,8 @@ describe('find_references resolution and grouping order', () => {
 		}
 	});
 
-	it('returns an explicit text-search fallback instead of claiming source absence', () => {
-		const fixture = createFixtureIndex('reference-grouping');
+	it('returns an explicit text-search fallback instead of claiming source absence', async () => {
+		const fixture = await createFixtureIndex('reference-grouping');
 
 		try {
 			const result = fixture.index.findReferences({query: 'noSuchStoredName', limit: 100});
@@ -179,9 +179,9 @@ describe('find_references resolution and grouping order', () => {
 });
 
 describe('find_references filters', () => {
-	it('applies role, path, usage, enclosing, and context filters before grouping', () => {
-		const fixture = createFixtureIndex('simple-project');
-		const multiProject = createFixtureIndex('multi-project', PROJECTS);
+	it('applies role, path, usage, enclosing, and context filters before grouping', async () => {
+		const fixture = await createFixtureIndex('simple-project');
+		const multiProject = await createFixtureIndex('multi-project', PROJECTS);
 
 		try {
 			const symbol = fixture.index.findSymbols({query: 'formatUser', limit: 1}).items.at(0);
@@ -216,8 +216,8 @@ describe('find_references filters', () => {
 });
 
 describe('find_references bounds and cursors', () => {
-	it('rejects invalid filter combinations, unknown contexts, and cursors bound to another query', () => {
-		const fixture = createFixtureIndex('reference-grouping');
+	it('rejects invalid filter combinations, unknown contexts, and cursors bound to another query', async () => {
+		const fixture = await createFixtureIndex('reference-grouping');
 
 		try {
 			const first = fixture.index.findReferences({query: 'duplicate', limit: 1});
@@ -235,8 +235,8 @@ describe('find_references bounds and cursors', () => {
 		}
 	});
 
-	it('drops contexts first, then trailing groups, while retaining totals and cursor continuity', () => {
-		const fixture = createFixtureIndex('reference-grouping');
+	it('drops contexts first, then trailing groups, while retaining totals and cursor continuity', async () => {
+		const fixture = await createFixtureIndex('reference-grouping');
 
 		try {
 			const unbounded = fixture.index.findReferences({query: 'duplicate', limit: 100}, 1_000_000);
@@ -286,8 +286,8 @@ describe('find_references bounds and cursors', () => {
 });
 
 describe('find_references partition scope', () => {
-	it('keeps the default scope to exactly one symbol', () => {
-		const fixture = createFixtureIndex('external-reexport');
+	it('keeps the default scope to exactly one symbol', async () => {
+		const fixture = await createFixtureIndex('external-reexport');
 
 		try {
 			const seed = fixture.index.findSymbols({query: 'debounce', path: 'src/facade.ts', limit: 10}).items.at(0);
@@ -313,8 +313,8 @@ describe('find_references partition scope', () => {
 		}
 	});
 
-	it('expands an external alias group without fanning one occurrence out to several symbols', () => {
-		const fixture = createFixtureIndex('external-reexport');
+	it('expands an external alias group without fanning one occurrence out to several symbols', async () => {
+		const fixture = await createFixtureIndex('external-reexport');
 
 		try {
 			const seed = fixture.index.findSymbols({query: 'debounce', path: 'src/facade.ts', limit: 10}).items.at(0);
@@ -349,8 +349,8 @@ describe('find_references partition scope', () => {
 		}
 	});
 
-	it('paginates an alias group across member boundaries without duplicating an occurrence', () => {
-		const fixture = createFixtureIndex('external-reexport');
+	it('paginates an alias group across member boundaries without duplicating an occurrence', async () => {
+		const fixture = await createFixtureIndex('external-reexport');
 
 		try {
 			const seed = fixture.index.findSymbols({query: 'debounce', path: 'src/facade.ts', limit: 10}).items.at(0);
@@ -381,8 +381,8 @@ describe('find_references partition scope', () => {
 		}
 	});
 
-	it('rejects an alias group for a symbol without an external target', () => {
-		const fixture = createFixtureIndex('simple-project');
+	it('rejects an alias group for a symbol without an external target', async () => {
+		const fixture = await createFixtureIndex('simple-project');
 
 		try {
 			const symbol = fixture.index.findSymbols({query: 'formatUser', limit: 1}).items.at(0);

@@ -1,12 +1,13 @@
 import {describe, expect, it} from 'vitest';
 import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
-import {createOracleExtractor, oracleExtractor} from '../src/adapters/oracle/index.ts';
+import {buildOracleFacts, createOracleExtractor, scanOracleFacts} from '../src/adapters/oracle/index.ts';
+import {scanOracleProject} from '../src/adapters/oracle/scanProject.ts';
 import {configForOracleParser, oracleParserIdOfConfig} from '../src/adapters/oracle/parserBinding.ts';
 import {oracleParserIdentityOf, parseOracleParserId} from '../src/adapters/oracle/parserIdentity.ts';
 import {structuralOracleParser} from '../src/adapters/oracle/parseUnits.ts';
-import {scanOracleProject} from '../src/adapters/oracle/scanProject.ts';
 import {type OracleParseInputType, type OracleParseResultType} from '../src/adapters/oracle/syntax.ts';
+import {adapterSetOf} from './helpers/adapters.ts';
 import {createFixtureConfig, silentLogger} from './helpers/fixture.ts';
 
 const projects = [{name: 'app', project: 'oracle-index.json'}];
@@ -60,14 +61,14 @@ describe('Oracle parser selection', () => {
 		try {
 			const antlrConfig = configForOracleParser(fixture.config, 'antlr');
 
-			expect(() => oracleExtractor.scan(antlrConfig, [])).toThrow(/bound to structural/u);
-			expect(() => oracleExtractor.build(antlrConfig, scanOracleProject(antlrConfig, []))).toThrow(/bound to structural/u);
+			expect(() => scanOracleFacts(antlrConfig, [])).toThrow(/bound to structural/u);
+			expect(() => buildOracleFacts(antlrConfig, scanOracleProject(antlrConfig, []))).toThrow(/bound to structural/u);
 		} finally {
 			fixture.cleanup();
 		}
 	});
 
-	it('injects the bound parser into extraction', () => {
+	it('injects the bound parser into extraction', async () => {
 		const fixture = createFixtureConfig('oracle-project', projects, 'oracle');
 		const parsedPaths: string[] = [];
 		const binding = {
@@ -86,14 +87,15 @@ describe('Oracle parser selection', () => {
 		});
 
 		try {
-			const scan = extractor.scan(fixture.config, []);
-			const report = buildGeneration({
+			const scan = scanOracleProject(fixture.config, []);
+			const report = await buildGeneration({
 				config: fixture.config,
 				database,
 				logger: silentLogger,
 				scan,
 				force: true,
 				extractor,
+				adapters: adapterSetOf(extractor),
 			});
 
 			expect(parsedPaths.sort()).toStrictEqual(scan.files.map((file) => file.path).sort());

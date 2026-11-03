@@ -4,6 +4,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Command} from 'commander';
 import {CommandExitError, configureCommand, parseCommandAsync} from '../../transports/cli/commanderSupport.ts';
+import {loadConfiguredAdapters, type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
+import {type ExtractorType} from '../../adapters/types.ts';
 import {type ConfigType, loadConfig} from '../config/config.ts';
 import {createCodeIndex} from '../generation/codeIndex.ts';
 import {debugFor} from '../logging/debug.ts';
@@ -31,6 +33,11 @@ import {measureQueries, summarizeQueries} from './queries.ts';
 const {join} = path;
 const LOGGER = createLogger({minimumLevel: 'error'});
 const debug = debugFor('benchmark');
+
+type BenchmarkAdapterRuntimeType = Readonly<{
+	adapters: readonly ExtractorType[];
+	descriptors: readonly ResolvedAdapterDescriptorType[];
+}>;
 
 const machineOf = (): BenchmarkMachineType => ({
 	nodeVersion: process.version,
@@ -89,6 +96,7 @@ const measureQueryScenario = async (
 	config: ConfigType,
 	iterations: number,
 	workerEntry: string | undefined,
+	runtime: BenchmarkAdapterRuntimeType,
 ): Promise<
 	Readonly<{
 		readonly queries: Readonly<Record<string, BenchmarkPercentilesType>>;
@@ -96,7 +104,12 @@ const measureQueryScenario = async (
 	}>
 > => {
 	const database = IndexDatabase.open(config.databasePath, databaseContextOf(config));
-	const index = createCodeIndex(config, database, LOGGER, {watch: false, ...(workerEntry === undefined ? {} : {workerEntry})});
+	const index = createCodeIndex(config, database, LOGGER, {
+		watch: false,
+		adapters: runtime.adapters,
+		adapterDescriptors: runtime.descriptors,
+		...(workerEntry === undefined ? {} : {workerEntry}),
+	});
 
 	try {
 		const build = await index.ensureReady();
@@ -136,15 +149,22 @@ const runInitialBuild = async (
 	input: BenchmarkReportInputType,
 	selected: ReadonlySet<BenchmarkScenarioNameType>,
 	workerEntry: string | undefined,
+	runtime: BenchmarkAdapterRuntimeType,
 ): Promise<BenchmarkScenarioResultType> => {
 	if (selected.has('cold_build') || !existsSync(input.config.databasePath)) {
 		removeDatabase(input.config.databasePath);
-		const report = await phaseOf('cold_build', runBuildScenario({config: input.config, name: 'cold_build', force: false, workerEntry}));
+		const report = await phaseOf(
+			'cold_build',
+			runBuildScenario({config: input.config, name: 'cold_build', force: false, workerEntry, adapters: runtime.adapters, descriptors: runtime.descriptors}),
+		);
 		return report;
 	}
 
 	const name = input.force ? 'warm_rebuild' : 'warm_reuse';
-	const report = await phaseOf(name, runBuildScenario({config: input.config, name, force: input.force, workerEntry}));
+	const report = await phaseOf(
+		name,
+		runBuildScenario({config: input.config, name, force: input.force, workerEntry, adapters: runtime.adapters, descriptors: runtime.descriptors}),
+	);
 	return report;
 };
 
@@ -152,15 +172,26 @@ const runOptionalScenarios = async (
 	input: BenchmarkReportInputType,
 	selected: ReadonlySet<BenchmarkScenarioNameType>,
 	workerEntry: string | undefined,
+	runtime: BenchmarkAdapterRuntimeType,
 ): Promise<readonly BenchmarkScenarioResultType[]> => {
 	const results: BenchmarkScenarioResultType[] = [];
 
 	if (selected.has('warm_reuse') && selected.has('cold_build')) {
-		results.push(await phaseOf('warm_reuse', runBuildScenario({config: input.config, name: 'warm_reuse', force: false, workerEntry})));
+		results.push(
+			await phaseOf(
+				'warm_reuse',
+				runBuildScenario({config: input.config, name: 'warm_reuse', force: false, workerEntry, adapters: runtime.adapters, descriptors: runtime.descriptors}),
+			),
+		);
 	}
 
 	if (selected.has('warm_rebuild') && !input.force) {
-		results.push(await phaseOf('warm_rebuild', runBuildScenario({config: input.config, name: 'warm_rebuild', force: true, workerEntry})));
+		results.push(
+			await phaseOf(
+				'warm_rebuild',
+				runBuildScenario({config: input.config, name: 'warm_rebuild', force: true, workerEntry, adapters: runtime.adapters, descriptors: runtime.descriptors}),
+			),
+		);
 	}
 
 	if (selected.has('edit_to_fresh')) {
@@ -171,6 +202,8 @@ const runOptionalScenarios = async (
 				'edit_to_fresh',
 				runEditScenario({
 					config: input.config,
+					adapters: runtime.adapters,
+					descriptors: runtime.descriptors,
 					rounds: input.editRounds ?? 5,
 					...(editTarget === null ? {} : {targetPath: editTarget}),
 					workerEntry,
@@ -181,7 +214,19 @@ const runOptionalScenarios = async (
 	}
 
 	if (selected.has('deep_cursor')) {
-		results.push(await phaseOf('deep_cursor', runCursorScenario({config: input.config, maxDepth: input.maxDepth, pageLimit: input.pageLimit, workerEntry})));
+		results.push(
+			await phaseOf(
+				'deep_cursor',
+				runCursorScenario({
+					config: input.config,
+					maxDepth: input.maxDepth,
+					pageLimit: input.pageLimit,
+					workerEntry,
+					adapters: runtime.adapters,
+					descriptors: runtime.descriptors,
+				}),
+			),
+		);
 	}
 
 	return results;
@@ -200,9 +245,11 @@ const runOptionalScenarios = async (
 export const runBenchmarkReport = async (input: BenchmarkReportInputType): Promise<BenchmarkReportType> => {
 	const selected = new Set<BenchmarkScenarioNameType>(input.scenarios ?? ['warm_reuse']);
 	const workerEntry = input.workerEntry ?? workerEntryOf();
-	const initial = await runInitialBuild(input, selected, workerEntry);
-	const results = [initial, ...(await runOptionalScenarios(input, selected, workerEntry))];
-	const measured = await phaseOf('queries', measureQueryScenario(input.config, input.iterations, workerEntry));
+	const loaded = await loadConfiguredAdapters(input.config);
+	const {adapters, descriptors} = loaded;
+	const initial = await runInitialBuild(input, selected, workerEntry, {adapters, descriptors});
+	const results = [initial, ...(await runOptionalScenarios(input, selected, workerEntry, {adapters, descriptors}))];
+	const measured = await phaseOf('queries', measureQueryScenario(input.config, input.iterations, workerEntry, {adapters, descriptors}));
 
 	return {
 		schemaVersion: 2,

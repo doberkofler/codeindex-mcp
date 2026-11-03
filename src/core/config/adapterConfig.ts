@@ -1,29 +1,9 @@
-/**
- * One project context within one adapter.
- *
- * Contexts share one workspace and one published generation but retain their own
- * project file, compiler options, and configuration digest.
- */
-export type ProjectContextConfigType = Readonly<{
-	readonly name: string;
-	readonly projectFilePath: string;
-}>;
+import {type ConfiguredAdapterType, type ProjectContextConfigType} from '@codeindex/adapter-sdk';
 
-/**
- * One configured adapter and the project contexts it owns.
- *
- * Context names and project files are scoped to the adapter; two adapters may
- * use the same names or even the same project file.
- */
-export type AdapterConfigType = Readonly<{
-	readonly id: string;
-	/** Required adapters fail the candidate; optional adapters may be absent. */
-	readonly required: boolean;
-	readonly options: Readonly<Record<string, unknown>>;
-	/** First configured project; retained for single-project surfaces. */
-	readonly projectFilePath: string;
-	readonly projects: readonly ProjectContextConfigType[];
-}>;
+export type {ProjectContextConfigType} from '@codeindex/adapter-sdk';
+
+/** One configured adapter and the project contexts it owns. */
+export type AdapterConfigType = ConfiguredAdapterType;
 
 export type ConfigType = Readonly<{
 	readonly projectName: string;

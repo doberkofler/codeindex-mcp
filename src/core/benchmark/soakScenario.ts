@@ -2,6 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {realpathSync, rmSync} from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
+import {loadConfiguredAdapters} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {type BenchmarkProfileType} from './benchTypes.ts';
@@ -258,10 +259,14 @@ export const runSoak = async (options: SoakRunOptionsType): Promise<SoakRunResul
 	const workspace = initialWorkspaceOf(options);
 	const databaseDirectory = databaseDirectoryOf();
 	const config = baseConfigOf(options, workspace.rootDir, databaseDirectory);
+	const loaded = await loadConfiguredAdapters(config);
+	const {adapters, descriptors} = loaded;
 	const overall = startResourceSampler();
 	const coldSampler = startResourceSampler();
 	let state = openState({
 		config,
+		adapters,
+		descriptors,
 		plan: options.plan,
 		logger: options.logger,
 		watch: true,

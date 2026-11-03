@@ -1,4 +1,5 @@
 import {Command} from 'commander';
+import {loadConfiguredAdapters} from '../../adapters/loader.ts';
 import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
 import {addBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
 import {addBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
@@ -188,6 +189,7 @@ const withIndex = async (
 	}
 
 	const config = loadConfig({...context.environment, ...toOverrides(options)});
+	const adapters = await loadConfiguredAdapters(config);
 	debug('command starting', {
 		rootDir: config.rootDir,
 		projectFilePath: config.projectFilePath,
@@ -218,6 +220,8 @@ const withIndex = async (
 		...(context.workerEntry === undefined ? {} : {workerEntry: context.workerEntry}),
 		analytics,
 		watch: false,
+		adapters: adapters.adapters,
+		adapterDescriptors: adapters.descriptors,
 	});
 
 	try {

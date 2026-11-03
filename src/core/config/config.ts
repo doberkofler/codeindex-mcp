@@ -9,7 +9,7 @@ import {assertFile, createStorageKey, fail, indexRootDirectory, isInside} from '
 const {basename, dirname, isAbsolute, join, relative, resolve, sep} = path;
 const debug = debugFor('config');
 
-export type {AdapterConfigType, ConfigType, ProjectContextConfigType} from './adapterConfig.ts';
+export type {AdapterConfigType, ConfigType} from './adapterConfig.ts';
 export {adapterConfigFor, configuredAdapters} from './adapterConfig.ts';
 export {indexRootDirectory} from './configSupport.ts';
 
@@ -18,9 +18,23 @@ const ProjectEntrySchema = z.object({
 	project: z.string().min(1),
 });
 
+const MODULE_URL_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
+
+/**
+ * Reports whether a configured adapter module is an accepted specifier.
+ *
+ * Only bare package names and relative paths are allowed. Absolute paths and
+ * every URL scheme are rejected before scanning.
+ *
+ * @param value - Configured module specifier.
+ * @returns True when the specifier is relative or bare.
+ */
+const isAdapterModuleSpecifier = (value: string): boolean => !isAbsolute(value) && !MODULE_URL_SCHEME.test(value);
+
 const ExtractorSchema = z.object({
 	id: z.string().min(1).optional(),
 	required: z.boolean().optional(),
+	module: z.string().min(1).refine(isAdapterModuleSpecifier, 'module must be a bare package name or a relative path').optional(),
 	project: z.string().min(1).optional(),
 	projects: z.array(ProjectEntrySchema).min(1).optional(),
 	options: z.record(z.string(), z.unknown()).optional(),

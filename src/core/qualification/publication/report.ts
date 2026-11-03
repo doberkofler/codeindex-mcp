@@ -1,6 +1,6 @@
 import {mkdirSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
-import {extractorFor} from '../../../adapters/registry.ts';
+import {type AdapterType} from '@codeindex/adapter-sdk';
 import {type ConfigType} from '../../config/config.ts';
 import {finalizeFacts} from '../../facts/index.ts';
 import {createPublicationDiagnostics} from './diagnostics.ts';
@@ -53,21 +53,27 @@ const writeJson = (filePath: string, value: unknown): void => {
  * diagnostic examples. It never opens or writes an index database and never
  * publishes a generation.
  *
- * @param input - Resolved configuration, ceilings, probe budget, and whether to run prototypes.
+ * @param input - Resolved configuration, loaded adapters, ceilings, probe budget, and whether to run prototypes.
  * @returns Aggregate report and optional local diagnostic artifact.
  */
-export const createPublicationReport = (
+export const createPublicationReport = async (
 	input: Readonly<{
 		readonly config: ConfigType;
+		readonly adapters: ReadonlyMap<string, AdapterType>;
 		readonly provisionalCeiling: number;
 		readonly projectionBudget: ProjectionBudgetType;
 		readonly includePrototypes: boolean;
 	}>,
-): Readonly<{report: PublicationReportType; diagnostics: PublicationDiagnosticArtifactType}> => {
+): Promise<Readonly<{report: PublicationReportType; diagnostics: PublicationDiagnosticArtifactType}>> => {
 	const startedAt = performance.now();
-	const extractor = extractorFor(input.config.extractorId);
-	const scan = extractor.scan(input.config, []);
-	const extracted = extractor.build(input.config, scan);
+	const extractor = input.adapters.get(input.config.extractorId);
+
+	if (extractor === undefined) {
+		throw new Error(`Adapter ${input.config.extractorId} is not loaded`);
+	}
+
+	const scan = await extractor.scan(input.config, []);
+	const extracted = await extractor.build(input.config, scan);
 	const finalizationStartedAt = performance.now();
 	const finalized = finalizeFacts(extracted, {mode: 'report', maxBindingsPerRoot: input.provisionalCeiling});
 	const finalizationMs = Math.round(performance.now() - finalizationStartedAt);

@@ -1,4 +1,5 @@
 import {parentPort} from 'node:worker_threads';
+import {isAdapterDescriptor, loadAdaptersFromDescriptors, type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {configuredAdapters, type ConfigType} from '../config/config.ts';
 import {debugFor, enableDebug} from '../logging/debug.ts';
 import {createLogger} from '../logging/logger.ts';
@@ -12,6 +13,8 @@ export type BuildWorkerDataType = Readonly<{
 	kind: 'code-index-build';
 	config: ConfigType;
 	scans: readonly AdapterScanPlanType[];
+	/** Exact module identities the parent selected; never functions. */
+	descriptors: readonly ResolvedAdapterDescriptorType[];
 	force: boolean;
 	ownerId: string;
 	/** Epoch milliseconds at which the parent attempt started, including its scan. */
@@ -32,43 +35,49 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
  * @param value - Raw `workerData`.
  * @returns True when the payload can start a build.
  */
+const isWorkerConfig = (value: unknown): boolean =>
+	isRecord(value) &&
+	typeof value['databasePath'] === 'string' &&
+	typeof value['rootDir'] === 'string' &&
+	typeof value['projectFilePath'] === 'string' &&
+	(Array.isArray(value['projects']) || Array.isArray(value['adapters'])) &&
+	typeof value['extractorId'] === 'string';
+
+const isScanPlan = (plan: unknown): boolean => {
+	if (!isRecord(plan) || typeof plan['adapterId'] !== 'string') {
+		return false;
+	}
+
+	if (plan['coverage'] === 'absent') {
+		return true;
+	}
+
+	const {scan} = plan;
+
+	return (
+		plan['coverage'] === 'present' &&
+		isRecord(scan) &&
+		typeof scan['sourceHash'] === 'string' &&
+		typeof scan['configHash'] === 'string' &&
+		Array.isArray(scan['files'])
+	);
+};
+
 export const isBuildWorkerData = (value: unknown): value is BuildWorkerDataType => {
 	if (!isRecord(value) || value['kind'] !== 'code-index-build') {
 		return false;
 	}
 
-	const {config, scans} = value;
-
-	if (!isRecord(config) || !Array.isArray(scans)) {
-		return false;
-	}
+	const {config, descriptors, scans} = value;
 
 	return (
-		typeof config['databasePath'] === 'string' &&
-		typeof config['rootDir'] === 'string' &&
-		typeof config['projectFilePath'] === 'string' &&
-		(Array.isArray(config['projects']) || Array.isArray(config['adapters'])) &&
-		typeof config['extractorId'] === 'string' &&
+		isWorkerConfig(config) &&
+		Array.isArray(descriptors) &&
+		descriptors.length > 0 &&
+		descriptors.every((descriptor) => isAdapterDescriptor(descriptor)) &&
+		Array.isArray(scans) &&
 		scans.length > 0 &&
-		scans.every((plan) => {
-			if (!isRecord(plan) || typeof plan['adapterId'] !== 'string') {
-				return false;
-			}
-
-			if (plan['coverage'] === 'absent') {
-				return true;
-			}
-
-			const {scan} = plan;
-
-			return (
-				plan['coverage'] === 'present' &&
-				isRecord(scan) &&
-				typeof scan['sourceHash'] === 'string' &&
-				typeof scan['configHash'] === 'string' &&
-				Array.isArray(scan['files'])
-			);
-		}) &&
+		scans.every((plan) => isScanPlan(plan)) &&
 		typeof value['force'] === 'boolean' &&
 		typeof value['ownerId'] === 'string'
 	);
@@ -96,7 +105,7 @@ const projectContextOf = (plans: readonly AdapterScanPlanType[]): BuildProjectCo
  * @param data - Validated worker payload.
  * @returns The message posted to the parent process.
  */
-export const runBuildWorker = (data: BuildWorkerDataType): BuildWorkerMessageType => {
+export const runBuildWorker = async (data: BuildWorkerDataType): Promise<BuildWorkerMessageType> => {
 	if (data.debug) {
 		enableDebug();
 	}
@@ -106,6 +115,7 @@ export const runBuildWorker = (data: BuildWorkerDataType): BuildWorkerMessageTyp
 	debug('build worker start', {rootDir: data.config.rootDir, adapters: data.scans.length, force: data.force});
 
 	try {
+		const adapters = await loadAdaptersFromDescriptors(data.descriptors);
 		debug('opening database');
 		database = runBuildStage('persistence', () =>
 			IndexDatabase.open(data.config.databasePath, {
@@ -125,10 +135,11 @@ export const runBuildWorker = (data: BuildWorkerDataType): BuildWorkerMessageTyp
 			}),
 		);
 		debug('database opened');
-		const report = buildGeneration({
+		const report = await buildGeneration({
 			config: data.config,
 			database,
 			logger,
+			adapters,
 			scans: data.scans,
 			force: data.force,
 			ownerId: data.ownerId,

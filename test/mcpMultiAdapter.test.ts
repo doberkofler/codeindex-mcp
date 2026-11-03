@@ -16,7 +16,7 @@ describe('MCP multi-adapter addressing', () => {
 	});
 
 	const connect = async (): Promise<ConnectionType> => {
-		workspace = createMultiAdapterWorkspace();
+		workspace = await createMultiAdapterWorkspace();
 		connection = await openServer({index: workspace.index, maxResultBytes: 32_768});
 
 		return connection;

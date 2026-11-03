@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {type ConfigType} from '../../core/config/config.ts';
+import {ADAPTER_PROTOCOL_VERSION, type AdapterConfigType, defineAdapter} from '@codeindex/adapter-sdk';
 import {
 	type AdapterStatType,
 	type ExtractedBindingContextType,
@@ -121,8 +121,8 @@ const mergePublicationFacts = (contexts: readonly ContextResultType[]): Extracte
 
 const parseContext = (
 	input: Readonly<{
-		config: ConfigType;
-		context: ConfigType['projects'][number];
+		config: AdapterConfigType;
+		context: AdapterConfigType['projects'][number];
 		scan: ScanResultType;
 		parser: OracleParserBindingType['parser'];
 		cache?: ExtractorArtifactCacheType;
@@ -244,7 +244,12 @@ const mergeDiagnostics = (contexts: readonly ContextResultType[]): readonly Diag
 	return [...merged.values()];
 };
 
-const build = (config: ConfigType, scan: ScanResultType, parser: OracleParserBindingType['parser'], cache?: ExtractorArtifactCacheType): ExtractorBuildType => {
+const build = (
+	config: AdapterConfigType,
+	scan: ScanResultType,
+	parser: OracleParserBindingType['parser'],
+	cache?: ExtractorArtifactCacheType,
+): ExtractorBuildType => {
 	const startedAt = performance.now();
 	const contexts = config.projects.map((context) =>
 		parseContext({
@@ -406,3 +411,43 @@ export const createOracleExtractor = (binding: OracleParserBindingType): Extract
  * objects stay inside per-file tokenization and only serializable facts leave.
  */
 export const oracleExtractor: ExtractorType = createOracleExtractor(structuralOracleParserBinding);
+
+/**
+ * Scans the configured Oracle project with the static parser binding.
+ *
+ * @param config - Resolved adapter configuration.
+ * @param knownPaths - Files already published for this adapter.
+ * @returns The deterministic scan manifest.
+ */
+export const scanOracleFacts = (config: AdapterConfigType, knownPaths: readonly string[] = []): ScanResultType => {
+	assertOracleParserBinding(config, structuralOracleParserBinding);
+	return scanOracleProject(config, knownPaths);
+};
+
+/**
+ * Extracts Oracle facts with the static parser binding.
+ *
+ * @param config - Resolved adapter configuration.
+ * @param scan - Scan manifest produced for this configuration.
+ * @param cache - Optional adapter artifact cache.
+ * @returns Serializable Oracle facts.
+ */
+export const buildOracleFacts = (config: AdapterConfigType, scan: ScanResultType, cache?: ExtractorArtifactCacheType): ExtractorBuildType => {
+	assertOracleParserBinding(config, structuralOracleParserBinding);
+	return build(config, scan, structuralOracleParserBinding.parser, cache);
+};
+
+/**
+ * Explicit package module for the static Oracle adapter.
+ *
+ * @public
+ */
+export const codeIndexAdapter = defineAdapter({
+	manifest: {
+		protocolVersion: ADAPTER_PROTOCOL_VERSION,
+		id: ORACLE_EXTRACTOR_ID,
+		implementationVersion: ORACLE_EXTRACTOR_VERSION,
+		displayName: oracleExtractor.displayName,
+	},
+	create: () => ({...oracleExtractor}),
+});

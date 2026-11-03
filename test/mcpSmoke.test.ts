@@ -2,6 +2,7 @@ import {type Client} from '@modelcontextprotocol/client';
 import {afterEach, describe, expect, it} from 'vitest';
 import {createCodeIndex} from '../src/core/generation/codeIndex.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {testAdaptersFor} from './helpers/adapters.ts';
 import {createFixtureConfig, silentLogger} from './helpers/fixture.ts';
 import {createGenerationFactSeed} from './helpers/generationFacts.ts';
 import {openFixture, textOf, type ConnectionType, type EnvelopeType} from './helpers/mcpClient.ts';
@@ -53,7 +54,7 @@ const openMediumConnection = async (): Promise<MediumConnectionType> => {
 			...createGenerationFactSeed({symbolCount: 2000, path: 'src/medium.ts'}),
 		});
 		database.publish(generation.id);
-		const index = createCodeIndex(fixture.config, database, silentLogger, {watch: false});
+		const index = createCodeIndex(fixture.config, database, silentLogger, {watch: false, adapters: testAdaptersFor(fixture.config).adapters});
 		const connection = await openServer({index, maxResultBytes});
 
 		return {

@@ -2,8 +2,10 @@ import {DatabaseSync} from 'node:sqlite';
 import {afterAll, describe, expect, it} from 'vitest';
 import {createFixtureIndex} from './helpers/fixture.ts';
 
+const partitionFixture = await createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+
 describe('reference partition completeness', () => {
-	const fixture = createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+	const fixture = partitionFixture;
 
 	afterAll(() => {
 		fixture.cleanup();

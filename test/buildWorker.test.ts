@@ -1,11 +1,23 @@
 import {describe, expect, it} from 'vitest';
 import {isBuildWorkerData, runBuildWorker} from '../src/core/generation/buildWorker.ts';
-import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {scanTypeScriptProject, typeScriptExtractor} from '../src/adapters/typescript/index.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
+
+const descriptors = [
+	{
+		id: 'typescript',
+		moduleUrl: 'builtin:typescript',
+		protocolVersion: 1,
+		implementationVersion: typeScriptExtractor.version,
+		packageName: '@codeindex/adapter-typescript',
+		packageVersion: typeScriptExtractor.version,
+	},
+];
 
 type MutablePayloadType = {
 	kind: string;
 	config: Record<string, unknown>;
+	descriptors: readonly Record<string, unknown>[];
 	scans: [Record<string, unknown>, ...Record<string, unknown>[]];
 	force: boolean;
 	ownerId: string;
@@ -21,6 +33,7 @@ const validPayload = (): MutablePayloadType => ({
 		projects: [],
 		extractorId: 'typescript',
 	},
+	descriptors,
 	scans: [
 		{
 			adapterId: 'typescript',
@@ -84,21 +97,22 @@ describe('build worker payload', () => {
 		}
 	});
 
-	it('reports build failures as a bounded structured envelope', () => {
+	it('reports build failures as a bounded structured envelope', async () => {
 		const {config, cleanup} = createFixtureConfig('simple-project');
 
 		try {
-			const scan = typeScriptExtractor.scan(config, []);
+			const scan = scanTypeScriptProject(config, []);
 			const payload = {
 				kind: 'code-index-build' as const,
 				config: {...config, databasePath: '/dev/null/index.sqlite'},
 				scans: [{adapterId: 'typescript', coverage: 'present' as const, absenceReason: null, scan}],
+				descriptors,
 				force: false,
 				ownerId: 'owner',
 				debug: false,
 			};
 
-			const message = runBuildWorker(payload);
+			const message = await runBuildWorker(payload);
 
 			expect(message).toMatchObject({
 				ok: false,

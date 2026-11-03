@@ -46,7 +46,14 @@ const doubles = vi.hoisted(() => {
 		buildMcpServer: vi.fn<(...args: unknown[]) => typeof mcpServer>(() => mcpServer),
 		databaseOpen: vi.fn<(...args: unknown[]) => typeof database>(() => database),
 		readVcsProvenance: vi.fn<(...args: unknown[]) => {available: boolean}>(() => ({available: false})),
-		extractorFor: vi.fn<(id: string) => {discoveryText: string}>(() => ({discoveryText: 'TypeScript discovery'})),
+		loadAdapters: vi.fn<() => Promise<unknown>>(async () => {
+			const value = await Promise.resolve({
+				adapters: [],
+				descriptors: [],
+				byId: new Map([['typescript', {discoveryText: 'TypeScript discovery'}]]),
+			});
+			return value;
+		}),
 	};
 });
 
@@ -70,7 +77,7 @@ vi.mock(import('../src/core/logging/logger.ts'), () => ({createLogger: doubles.c
 vi.mock(import('../src/transports/mcp/buildMcpServer.ts'), () => ({buildMcpServer: doubles.buildMcpServer}) as unknown as never);
 vi.mock(import('../src/core/storage/database.ts'), () => ({IndexDatabase: {open: doubles.databaseOpen}}) as unknown as never);
 vi.mock(import('../src/adapters/vcs/vcsProvenance.ts'), () => ({readVcsProvenance: doubles.readVcsProvenance}) as unknown as never);
-vi.mock(import('../src/adapters/registry.ts'), () => ({extractorFor: doubles.extractorFor}) as unknown as never);
+vi.mock(import('../src/adapters/loader.ts'), () => ({loadConfiguredAdapters: doubles.loadAdapters}) as unknown as never);
 
 const config: ConfigType = {
 	projectName: 'mcp-project',
@@ -123,10 +130,10 @@ const listenerOf = (event: string): ListenerType => {
 	return entry.listener;
 };
 
-const start = (options: Parameters<typeof runServer>[0] = {}): void => {
+const start = async (options: Parameters<typeof runServer>[0] = {}): Promise<void> => {
 	const before = new Map<string, readonly ListenerType[]>(lifecycleEvents.map((event) => [event, process.listeners(event) as ListenerType[]]));
 
-	runServer(options);
+	await runServer(options);
 	captureListeners(before);
 };
 
@@ -139,7 +146,7 @@ const resetRuntime = (): void => {
 	doubles.buildMcpServer.mockReturnValue(doubles.mcpServer);
 	doubles.databaseOpen.mockReturnValue(doubles.database);
 	doubles.readVcsProvenance.mockReturnValue({available: false});
-	doubles.extractorFor.mockReturnValue({discoveryText: 'TypeScript discovery'});
+	doubles.loadAdapters.mockResolvedValue({adapters: [], descriptors: [], byId: new Map([['typescript', {discoveryText: 'TypeScript discovery'}]])});
 	doubles.database.getWorkingCopy.mockReturnValue({id: 'working-copy'});
 	doubles.index.close.mockResolvedValue(undefined);
 	doubles.stdio.handle.close.mockResolvedValue(undefined);
@@ -167,8 +174,8 @@ describe('MCP server startup', () => {
 	beforeEach(resetRuntime);
 	afterEach(cleanupRuntime);
 
-	it('starts the watched index and MCP transport', () => {
-		start({workerEntry: '/app/worker.js'});
+	it('starts the watched index and MCP transport', async () => {
+		await start({workerEntry: '/app/worker.js'});
 
 		expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('codeindex-mcp'));
 		expect(doubles.loadConfig).toHaveBeenCalledWith(process.env);
@@ -196,6 +203,8 @@ describe('MCP server startup', () => {
 		expect(doubles.createCodeIndex).toHaveBeenCalledWith(config, doubles.database, doubles.logger, {
 			workerEntry: '/app/worker.js',
 			analytics: doubles.analytics,
+			adapters: [],
+			adapterDescriptors: [],
 		});
 		expect(doubles.logger.info).toHaveBeenCalledWith('code_index_starting', expect.objectContaining({workingCopyId: 'working-copy'}));
 		expect(doubles.analytics.record).toHaveBeenCalledWith('process_start', expect.objectContaining({schemaVersion: expect.any(String)}));
@@ -205,8 +214,8 @@ describe('MCP server startup', () => {
 		expect(lifecycleEvents.every((event) => registered.has(event))).toBe(true);
 	});
 
-	it('builds the MCP server from the running index', () => {
-		start();
+	it('builds the MCP server from the running index', async () => {
+		await start();
 		const {factory} = doubles.stdio;
 
 		if (factory === null) {
@@ -221,13 +230,13 @@ describe('MCP server startup', () => {
 			maxResultBytes: config.maxResultBytes,
 			extractorDiscoveryText: 'TypeScript discovery',
 		});
-		expect(doubles.extractorFor).toHaveBeenCalledWith(config.extractorId);
+		expect(doubles.loadAdapters).toHaveBeenCalledWith(config);
 	});
 
-	it('reports a missing working copy', () => {
+	it('reports a missing working copy', async () => {
 		doubles.database.getWorkingCopy.mockReturnValue(undefined);
 
-		start();
+		await start();
 
 		expect(doubles.createAnalyticsRecorder).toHaveBeenCalledWith(expect.objectContaining({workingCopyId: null}));
 		expect(doubles.logger.info).toHaveBeenCalledWith('code_index_starting', expect.objectContaining({workingCopyId: null}));
@@ -239,7 +248,7 @@ describe('MCP server lifecycle', () => {
 	afterEach(cleanupRuntime);
 
 	it('closes the transport and index on a shutdown signal', async () => {
-		start();
+		await start();
 
 		listenerOf('SIGINT')();
 
@@ -254,7 +263,7 @@ describe('MCP server lifecycle', () => {
 	});
 
 	it('ignores repeated shutdown signals', async () => {
-		start();
+		await start();
 		const shutdown = listenerOf('SIGTERM');
 
 		shutdown();
@@ -271,7 +280,7 @@ describe('MCP server lifecycle', () => {
 	it('still closes the index when the transport close fails', async () => {
 		doubles.stdio.handle.close.mockRejectedValueOnce(new Error('close failed'));
 
-		start();
+		await start();
 		listenerOf('SIGINT')();
 
 		await vi.waitFor(() => {
@@ -282,8 +291,8 @@ describe('MCP server lifecycle', () => {
 		expect(doubles.index.close.mock.calls).toStrictEqual([[]]);
 	});
 
-	it('logs uncaught exceptions and exits with failure', () => {
-		start();
+	it('logs uncaught exceptions and exits with failure', async () => {
+		await start();
 
 		listenerOf('uncaughtException')(new Error('boom'));
 
@@ -291,8 +300,8 @@ describe('MCP server lifecycle', () => {
 		expect(exitCodes).toStrictEqual([1]);
 	});
 
-	it('logs unhandled rejections for errors and values', () => {
-		start();
+	it('logs unhandled rejections for errors and values', async () => {
+		await start();
 		const rejection = listenerOf('unhandledRejection');
 
 		rejection(new Error('rejected'));
@@ -303,9 +312,13 @@ describe('MCP server lifecycle', () => {
 		expect(exitCodes).toStrictEqual([1, 1]);
 	});
 
-	it('passes no worker entry when none is configured', () => {
-		start();
+	it('passes no worker entry when none is configured', async () => {
+		await start();
 
-		expect(doubles.createCodeIndex).toHaveBeenCalledWith(config, doubles.database, doubles.logger, {analytics: doubles.analytics});
+		expect(doubles.createCodeIndex).toHaveBeenCalledWith(config, doubles.database, doubles.logger, {
+			analytics: doubles.analytics,
+			adapters: [],
+			adapterDescriptors: [],
+		});
 	});
 });

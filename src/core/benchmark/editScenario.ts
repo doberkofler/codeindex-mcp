@@ -1,6 +1,8 @@
 import {appendFileSync, existsSync} from 'node:fs';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
+import {type ExtractorType} from '../../adapters/types.ts';
+import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
 import {createCodeIndex} from '../generation/codeIndex.ts';
 import {createLogger} from '../logging/logger.ts';
@@ -108,6 +110,8 @@ export const runEditScenario = async (
 		timeoutMs?: number;
 		targetPath?: string;
 		debounceMs?: number;
+		adapters: readonly ExtractorType[];
+		descriptors?: readonly ResolvedAdapterDescriptorType[];
 		workerEntry?: string | undefined;
 		onProgress?: ((progress: BenchmarkEditProgressType) => void) | undefined;
 	}>,
@@ -127,6 +131,8 @@ export const runEditScenario = async (
 	const index = createCodeIndex(input.config, database, LOGGER, {
 		watch: true,
 		debounceMs,
+		adapters: input.adapters,
+		adapterDescriptors: input.descriptors ?? [],
 		...(input.workerEntry === undefined ? {} : {workerEntry: input.workerEntry}),
 	});
 

@@ -36,7 +36,7 @@
 
 		/* Emit */
 		"noEmitOnError": true /* Disable emitting files if any type checking errors are reported. */,
-		"rootDir": "./src" /* Specify the root folder containing source files. */,
+		"rootDir": "." /* Specify the root folder containing source files. */,
 		"outDir": "./dist" /* Specify an output folder for all emitted files. */,
 		"sourceMap": true /* Create source map files for emitted JavaScript files. */,
 		"declaration": false /* Do not emit declaration files. */,
@@ -45,6 +45,6 @@
 		"skipLibCheck": true /* Skip type checking all .d.ts files. */,
 		"forceConsistentCasingInFileNames": true /* Ensure that casing is correct in imports. */
 	},
-	"include": ["src/**/*"],
+	"include": ["src/**/*", "packages/*/src/**/*"],
 	"exclude": ["src/ui/**"]
 }

@@ -19,7 +19,7 @@ export const openFixture = async (
 	projects?: readonly FixtureProjectType[],
 	extractorId = 'typescript',
 ): Promise<ConnectionType> => {
-	const fixture = createFixtureIndex(fixtureName, projects, extractorId);
+	const fixture = await createFixtureIndex(fixtureName, projects, extractorId);
 	const connection = await openServer({index: fixture.index, maxResultBytes});
 
 	return {

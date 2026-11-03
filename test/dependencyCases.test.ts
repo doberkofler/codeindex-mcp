@@ -38,8 +38,8 @@ const dependencyKey = (item: DependencyConsumerItemType): string => `${item.dire
 const useDependencyFixture = (): (() => FixtureContextType) => {
 	let fixture: FixtureContextType | undefined;
 
-	beforeAll(() => {
-		fixture = createFixtureIndex('dependency-cases');
+	beforeAll(async () => {
+		fixture = await createFixtureIndex('dependency-cases');
 	});
 
 	afterAll(() => {

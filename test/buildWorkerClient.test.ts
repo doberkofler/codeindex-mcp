@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {scanTypeScriptProject} from '../src/adapters/typescript/index.ts';
 import {runBuildWorkerThread} from '../src/core/generation/buildWorkerClient.ts';
 import {type ScanResultType} from '../src/core/model.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
@@ -14,10 +14,19 @@ const runWorkerScript = async (script: string): Promise<unknown> => {
 
 	try {
 		writeFileSync(workerEntry, `${script}\n`, {encoding: 'utf8'});
-		const scan: ScanResultType = typeScriptExtractor.scan(config, []);
+		const scan: ScanResultType = scanTypeScriptProject(config, []);
 		const scans = [{adapterId: 'typescript', coverage: 'present' as const, absenceReason: null, scan}];
 
-		return await runBuildWorkerThread({workerEntry, config, scans, force: false, ownerId: 'test-owner', startedAtEpoch: Date.now(), debug: false});
+		return await runBuildWorkerThread({
+			workerEntry,
+			config,
+			scans,
+			descriptors: [],
+			force: false,
+			ownerId: 'test-owner',
+			startedAtEpoch: Date.now(),
+			debug: false,
+		});
 	} finally {
 		rmSync(directory, {recursive: true, force: true});
 		cleanup();

@@ -6,7 +6,7 @@ import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
 import {loadTypeScriptProject} from '../src/adapters/typescript/loadProject.ts';
 import {isAuthoredSourceFile, scanProject} from '../src/adapters/typescript/scanProject.ts';
 import {type ConfigType} from '../src/core/config/config.ts';
-import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
+import {createFixtureConfig, createFixtureIndex, type FixtureContextType} from './helpers/fixture.ts';
 
 const directories: string[] = [];
 const {join} = path;
@@ -36,7 +36,7 @@ const configOf = (rootDir: string, projectFilePath: string): ConfigType => ({
 	configPath: null,
 });
 
-const publishedPaths = (fixture: ReturnType<typeof createFixtureIndex>): readonly string[] => {
+const publishedPaths = (fixture: FixtureContextType): readonly string[] => {
 	const generation = fixture.database.getPublishedGeneration();
 
 	if (generation === null) {
@@ -122,8 +122,8 @@ describe('TypeScript project configuration inheritance', () => {
 		expect(watched).toContain('tsconfig.json');
 	});
 
-	it('publishes an excluded imported file through the resolved program', () => {
-		const fixture = createFixtureIndex('typescript-extends');
+	it('publishes an excluded imported file through the resolved program', async () => {
+		const fixture = await createFixtureIndex('typescript-extends');
 
 		try {
 			const scan = scanProject(fixture.config);
@@ -139,8 +139,8 @@ describe('TypeScript project configuration inheritance', () => {
 		}
 	});
 
-	it('publishes files roots plus authored imports, but not unrelated authored files', () => {
-		const fixture = createFixtureIndex('typescript-files');
+	it('publishes files roots plus authored imports, but not unrelated authored files', async () => {
+		const fixture = await createFixtureIndex('typescript-files');
 
 		try {
 			expect(scanProject(fixture.config).files.map((file) => file.path)).toStrictEqual(['src/selected.ts']);
@@ -159,8 +159,8 @@ describe('TypeScript CommonJS require dependencies', () => {
 		}
 	});
 
-	it('emits package and authored require edges with variable bindings, destructured bindings, and usage bits', () => {
-		const fixture = createFixtureIndex('typescript-require');
+	it('emits package and authored require edges with variable bindings, destructured bindings, and usage bits', async () => {
+		const fixture = await createFixtureIndex('typescript-require');
 
 		try {
 			const generation = fixture.database.getPublishedGeneration();
@@ -260,7 +260,7 @@ describe('TypeScript unsupported construct diagnostics', () => {
 		}
 	});
 
-	it('publishes one complete generation carrying the bounded parser diagnostic', () => {
+	it('publishes one complete generation carrying the bounded parser diagnostic', async () => {
 		const {config, cleanup} = createFixtureConfig('typescript-invalid');
 
 		try {
@@ -270,7 +270,7 @@ describe('TypeScript unsupported construct diagnostics', () => {
 			expect(loaded.diagnostics[0]).toMatchObject({category: 'error', code: 1110, path: 'src/broken.ts'});
 			expect(loaded.diagnosticCount).toBe(1);
 
-			const fixture = createFixtureIndex('typescript-invalid');
+			const fixture = await createFixtureIndex('typescript-invalid');
 
 			try {
 				const verification = fixture.index.verify();

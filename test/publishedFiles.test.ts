@@ -21,8 +21,8 @@ describe('published files', () => {
 		}
 	});
 
-	it('resolves published paths against the workspace root', () => {
-		fixture = createFixtureIndex('simple-project');
+	it('resolves published paths against the workspace root', async () => {
+		fixture = await createFixtureIndex('simple-project');
 		const files = publishedFiles(fixture.database, fixture.config.rootDir);
 
 		expect(files.length).toBeGreaterThan(0);

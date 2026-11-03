@@ -1,5 +1,6 @@
 import {once} from 'node:events';
 import {Worker} from 'node:worker_threads';
+import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
 import {type BuildReportType, type BuildStagesType, type GenerationStateType} from '../model.ts';
 import {type AdapterScanPlanType} from './adapterBuild.ts';
@@ -109,6 +110,7 @@ export const runBuildWorkerThread = async (
 		workerEntry: string;
 		config: ConfigType;
 		scans: readonly AdapterScanPlanType[];
+		descriptors: readonly ResolvedAdapterDescriptorType[];
 		force: boolean;
 		ownerId: string;
 		startedAtEpoch: number;
@@ -120,6 +122,7 @@ export const runBuildWorkerThread = async (
 			kind: 'code-index-build',
 			config: input.config,
 			scans: input.scans,
+			descriptors: input.descriptors,
 			force: input.force,
 			ownerId: input.ownerId,
 			startedAtEpoch: input.startedAtEpoch,

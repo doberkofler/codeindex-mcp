@@ -3,8 +3,9 @@ import {createAnalyticsRecorder, type AnalyticsRecorderType} from '../../core/an
 import {buildAnalyticsDashboard} from '../../core/analytics/dashboard.ts';
 import {runBenchmarkReport} from '../../core/benchmark/runBenchmark.ts';
 import {runMcpCommand} from '../cli/mcpCommand.ts';
+import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
+import {type ExtractorType} from '../../adapters/types.ts';
 import {configuredAdapters, type ConfigType} from '../../core/config/config.ts';
-import {extractorFor} from '../../adapters/registry.ts';
 import {createCodeIndex, type CodeIndex} from '../../core/generation/codeIndex.ts';
 import {type IndexStatusType} from '../../core/model.ts';
 import {createLogger, type LoggerType} from '../../core/logging/logger.ts';
@@ -40,6 +41,8 @@ type MutableJobType = {
 
 export type ConsoleServiceOptionsType = Readonly<{
 	config: ConfigType;
+	adapters?: readonly ExtractorType[];
+	adapterDescriptors?: readonly ResolvedAdapterDescriptorType[];
 	logger?: LoggerType;
 	mcpPath?: string;
 }>;
@@ -66,6 +69,7 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  */
 export class ConsoleService {
 	readonly #config: ConfigType;
+	readonly #adapters: ReadonlyMap<string, ExtractorType>;
 	readonly #index: CodeIndex;
 	readonly #logger: LoggerType;
 	readonly #analytics: AnalyticsRecorderType;
@@ -75,9 +79,14 @@ export class ConsoleService {
 	#draining = false;
 	#closed = false;
 
-	private constructor(config: ConfigType, index: CodeIndex, runtime: Readonly<{logger: LoggerType; analytics: AnalyticsRecorderType; mcpPath: string | null}>) {
+	private constructor(
+		config: ConfigType,
+		index: CodeIndex,
+		runtime: Readonly<{logger: LoggerType; analytics: AnalyticsRecorderType; mcpPath: string | null; adapters: ReadonlyMap<string, ExtractorType>}>,
+	) {
 		this.#config = config;
 		this.#index = index;
+		this.#adapters = runtime.adapters;
 		this.#logger = runtime.logger;
 		this.#analytics = runtime.analytics;
 		this.#mcpPath = runtime.mcpPath;
@@ -110,8 +119,19 @@ export class ConsoleService {
 			programVersion: PROGRAM_VERSION,
 			workingCopyId: database.getWorkingCopy()?.id ?? null,
 		});
-		const index = createCodeIndex(config, database, logger, {analytics, watch: true});
-		const service = new ConsoleService(config, index, {logger, analytics, mcpPath: options.mcpPath ?? null});
+		const adapters = options.adapters ?? [];
+		const index = createCodeIndex(config, database, logger, {
+			analytics,
+			watch: true,
+			adapters,
+			...(options.adapterDescriptors === undefined ? {} : {adapterDescriptors: options.adapterDescriptors}),
+		});
+		const service = new ConsoleService(config, index, {
+			logger,
+			analytics,
+			mcpPath: options.mcpPath ?? null,
+			adapters: new Map(adapters.map((adapter) => [adapter.id, adapter])),
+		});
 		service.start();
 		return service;
 	}
@@ -125,7 +145,7 @@ export class ConsoleService {
 			projectName: this.#config.projectName,
 			rootDir: this.#config.rootDir,
 			extractorId: this.#config.extractorId,
-			extractorVersion: extractorFor(this.#config.extractorId).version,
+			extractorVersion: this.#adapters.get(this.#config.extractorId)?.version ?? 'unknown',
 			projectFilePath: this.#config.projectFilePath,
 			databasePath: this.#config.databasePath,
 			analyticsPath: this.#config.analyticsPath,

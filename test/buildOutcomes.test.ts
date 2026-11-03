@@ -1,12 +1,13 @@
 import {appendFileSync} from 'node:fs';
 import path from 'node:path';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
+import {buildTypeScriptFacts, scanTypeScriptProject, typeScriptExtractor} from '../src/adapters/typescript/index.ts';
 import {type ExtractorType} from '../src/adapters/types.ts';
 import {type AnalyticsRecorderType} from '../src/core/analytics/recorder.ts';
 import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
 import {createCodeIndex, type CodeIndex} from '../src/core/generation/codeIndex.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {adapterSetOf} from './helpers/adapters.ts';
 import {createFixtureConfig, silentLogger} from './helpers/fixture.ts';
 
 const {join} = path;
@@ -21,8 +22,8 @@ const openDatabase = (config: ReturnType<typeof createFixtureConfig>['config']):
 
 const driftingExtractor = (shouldDrift: () => boolean): ExtractorType => ({
 	...typeScriptExtractor,
-	build: (config, scan, cache) => {
-		const facts = typeScriptExtractor.build(config, scan, cache);
+	build: (config, scan, _cache) => {
+		const facts = buildTypeScriptFacts(config, scan);
 
 		return shouldDrift()
 			? {
@@ -64,15 +65,15 @@ describe('closed build outcomes', () => {
 		cleanup = undefined;
 	});
 
-	it('distinguishes reuse, publication, and supersession', () => {
+	it('distinguishes reuse, publication, and supersession', async () => {
 		const fixture = createFixtureConfig('simple-project');
 		({cleanup} = fixture);
 		const database = openDatabase(fixture.config);
 		let drift = false;
 
 		try {
-			const first = buildGeneration({config: fixture.config, database, logger: silentLogger, force: true});
-			const reused = buildGeneration({config: fixture.config, database, logger: silentLogger});
+			const first = await buildGeneration({adapters: adapterSetOf(typeScriptExtractor), config: fixture.config, database, logger: silentLogger, force: true});
+			const reused = await buildGeneration({adapters: adapterSetOf(typeScriptExtractor), config: fixture.config, database, logger: silentLogger});
 
 			expect(first.outcome).toBe('published');
 			expect(reused.outcome).toBe('reused');
@@ -86,9 +87,10 @@ describe('closed build outcomes', () => {
 			expect(database.extractionArtifactCount()).toBe(0);
 			const firstStartedAt = database.getPublishedGeneration()?.startedAt;
 
-			const staleScan = typeScriptExtractor.scan(fixture.config, []);
+			const staleScan = scanTypeScriptProject(fixture.config, []);
 			drift = true;
-			const superseded = buildGeneration({
+			const superseded = await buildGeneration({
+				adapters: adapterSetOf(typeScriptExtractor),
 				config: fixture.config,
 				database,
 				logger: silentLogger,
@@ -103,7 +105,7 @@ describe('closed build outcomes', () => {
 			expect(database.getPublishedGeneration()).toMatchObject({id: first.generationId, revision: first.revision, state: 'published'});
 
 			appendFileSync(join(fixture.config.rootDir, 'src', 'models.ts'), '\nexport const afterDrift = 1;\n');
-			const published = buildGeneration({config: fixture.config, database, logger: silentLogger});
+			const published = await buildGeneration({adapters: adapterSetOf(typeScriptExtractor), config: fixture.config, database, logger: silentLogger});
 
 			expect(published.outcome).toBe('published');
 			expect(published.revision).toBe(first.revision + 1);
@@ -118,14 +120,15 @@ describe('closed build outcomes', () => {
 		}
 	});
 
-	it('discards a first superseded candidate instead of persisting a building row', () => {
+	it('discards a first superseded candidate instead of persisting a building row', async () => {
 		const fixture = createFixtureConfig('simple-project');
 		({cleanup} = fixture);
 		const database = openDatabase(fixture.config);
 
 		try {
-			const scan = typeScriptExtractor.scan(fixture.config, []);
-			const superseded = buildGeneration({
+			const scan = scanTypeScriptProject(fixture.config, []);
+			const superseded = await buildGeneration({
+				adapters: adapterSetOf(typeScriptExtractor),
 				config: fixture.config,
 				database,
 				logger: silentLogger,
@@ -160,7 +163,7 @@ describe('mid-build supersession', () => {
 		let editOnNextBuild = false;
 		const extractor: ExtractorType = {
 			...typeScriptExtractor,
-			build: (config, scan, cache) => {
+			build: (config, scan, _cache) => {
 				buildCalls += 1;
 
 				if (editOnNextBuild) {
@@ -168,12 +171,13 @@ describe('mid-build supersession', () => {
 					appendFileSync(join(config.rootDir, 'src', 'models.ts'), '\nexport const midBuildEdit = 1;\n');
 				}
 
-				return typeScriptExtractor.build(config, scan, cache);
+				return buildTypeScriptFacts(config, scan);
 			},
 		};
 		const index = createCodeIndex(fixture.config, database, silentLogger, {
 			watch: false,
 			extractor,
+			adapters: [extractor],
 			analytics: recordingAnalytics(events),
 			debounceMs: 100,
 		});

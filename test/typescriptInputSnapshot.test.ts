@@ -7,6 +7,7 @@ import {scanProject} from '../src/adapters/typescript/scanProject.ts';
 import {verifyTypeScriptReferences} from '../src/adapters/typescript/verifyReferences.ts';
 import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
+import {testAdaptersFor} from './helpers/adapters.ts';
 import {createFixtureConfig, silentLogger} from './helpers/fixture.ts';
 
 const {join} = path;
@@ -92,7 +93,7 @@ describe('TypeScript input manifest', () => {
 		}
 	});
 
-	it('invalidates reuse when only a non-authored input changes', () => {
+	it('invalidates reuse when only a non-authored input changes', async () => {
 		const {config, cleanup} = prepare();
 
 		try {
@@ -104,21 +105,21 @@ describe('TypeScript input manifest', () => {
 			});
 
 			try {
-				const first = buildGeneration({config, database, logger: silentLogger});
-				const unchanged = buildGeneration({config, database, logger: silentLogger});
+				const first = await buildGeneration({config, database, logger: silentLogger, adapters: testAdaptersFor(config)});
+				const unchanged = await buildGeneration({config, database, logger: silentLogger, adapters: testAdaptersFor(config)});
 
 				expect(first.reused).toBe(false);
 				expect(unchanged.reused).toBe(true);
 
 				appendFileSync(join(config.rootDir, 'pnpm-lock.yaml'), '\n# edited\n');
-				const lockfileChanged = buildGeneration({config, database, logger: silentLogger});
+				const lockfileChanged = await buildGeneration({config, database, logger: silentLogger, adapters: testAdaptersFor(config)});
 
 				expect(lockfileChanged.reused).toBe(false);
 				expect(lockfileChanged.generationId).toBe(first.generationId);
 				expect(lockfileChanged.revision).toBe(first.revision + 1);
 
 				writeFileSync(join(config.rootDir, 'src', 'ambient.d.ts'), 'declare const BUILD_ID: number;\n');
-				const declarationChanged = buildGeneration({config, database, logger: silentLogger});
+				const declarationChanged = await buildGeneration({config, database, logger: silentLogger, adapters: testAdaptersFor(config)});
 
 				expect(declarationChanged.reused).toBe(false);
 				expect(declarationChanged.revision).toBe(lockfileChanged.revision + 1);

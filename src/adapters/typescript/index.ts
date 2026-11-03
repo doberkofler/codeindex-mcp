@@ -1,4 +1,4 @@
-import {type ConfigType, type ProjectContextConfigType} from '../../core/config/config.ts';
+import {ADAPTER_PROTOCOL_VERSION, type AdapterConfigType, type ProjectContextConfigType, defineAdapter} from '@codeindex/adapter-sdk';
 import {
 	type AdapterStatType,
 	type ExtractedBindingContextType,
@@ -175,7 +175,7 @@ const mergePublicationFacts = (contexts: readonly ExtractedContextType[]): Extra
 };
 
 const extractContext = (
-	config: ConfigType,
+	config: AdapterConfigType,
 	scan: ScanResultType,
 	context: ProjectContextConfigType,
 	snapshot: TypeScriptInputSnapshotType,
@@ -261,7 +261,7 @@ const authoredInputsMatch = (scan: ScanResultType, snapshot: TypeScriptInputSnap
 	return scan.files.every((file) => captured.get(file.absolutePath) === file.sha256);
 };
 
-const build = (config: ConfigType, scan: ScanResultType): ExtractorBuildType => {
+export const buildTypeScriptFacts = (config: AdapterConfigType, scan: ScanResultType): ExtractorBuildType => {
 	const extractionStartedAt = performance.now();
 	const {snapshot} = createTypeScriptInputSnapshot(
 		config,
@@ -301,7 +301,24 @@ export const typeScriptExtractor: ExtractorType = {
 	ignoredSegments: TYPESCRIPT_IGNORED_SEGMENTS,
 	limitations: LIMITATIONS,
 	scan: scanProject,
-	build,
+	build: buildTypeScriptFacts,
 	configFiles: (config) => [...new Set(config.projects.flatMap((project) => collectConfigFiles(project.projectFilePath, config.rootDir)))],
 	isSourceFile: isAuthoredSourceFile,
 };
+
+export {scanProject as scanTypeScriptProject} from './scanProject.ts';
+
+/**
+ * Explicit package module for the TypeScript / JavaScript adapter.
+ *
+ * @public
+ */
+export const codeIndexAdapter = defineAdapter({
+	manifest: {
+		protocolVersion: ADAPTER_PROTOCOL_VERSION,
+		id: TYPESCRIPT_EXTRACTOR_ID,
+		implementationVersion: TYPESCRIPT_EXTRACTOR_VERSION,
+		displayName: typeScriptExtractor.displayName,
+	},
+	create: () => ({...typeScriptExtractor}),
+});

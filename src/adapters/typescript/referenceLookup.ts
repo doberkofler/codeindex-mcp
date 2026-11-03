@@ -1,5 +1,5 @@
 import ts from 'typescript';
-import {type ConfigType} from '../../core/config/config.ts';
+import {type AdapterConfigType} from '@codeindex/adapter-sdk';
 import {type IndexedSymbolType, type SourceFileType} from '../../core/model.ts';
 import {candidateNameNode} from './extractSymbols.ts';
 import {referenceLocationKey, toLocationPath, type ReferenceLocationType} from './referenceLocations.ts';
@@ -71,7 +71,7 @@ export const buildDefinitionIndex = (
  * @param program - Extraction program.
  * @returns A language service for reference queries.
  */
-export const createLanguageService = (config: ConfigType, program: ts.Program): ts.LanguageService => {
+export const createLanguageService = (config: AdapterConfigType, program: ts.Program): ts.LanguageService => {
 	const rootNames = [...program.getRootFileNames()];
 	const options = program.getCompilerOptions();
 
@@ -154,7 +154,7 @@ const symbolIdentity = (checker: ts.TypeChecker, symbol: ts.Symbol): string => {
 
 const collectGroupLocations = (
 	input: Readonly<{
-		config: ConfigType;
+		config: AdapterConfigType;
 		program: ts.Program;
 		checker: ts.TypeChecker;
 		constructs: ReferenceConstructIndexType;
@@ -223,7 +223,7 @@ const collectGroupLocations = (
  */
 export const lookupReferences = (
 	input: Readonly<{
-		config: ConfigType;
+		config: AdapterConfigType;
 		checker: ts.TypeChecker;
 		service: ts.LanguageService;
 		constructs: ReferenceConstructIndexType;

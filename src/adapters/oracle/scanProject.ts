@@ -1,7 +1,8 @@
 import {createHash} from 'node:crypto';
 import {realpathSync} from 'node:fs';
 import path from 'node:path';
-import {type ConfigType, toRepositoryPath} from '../../core/config/config.ts';
+import {type AdapterConfigType} from '@codeindex/adapter-sdk';
+import {toRepositoryPath} from '../../core/config/config.ts';
 import {createSourceFileRecord, computeSourceHash} from '../../core/generation/sourceFiles.ts';
 import {type ScanProjectResultType, type ScanResultType, type SourceFileType} from '../../core/model.ts';
 import {discoverOracleFiles, isOracleSourcePath, oracleArtifactContextHash, oracleManifestHash, readOracleManifest} from './manifest.ts';
@@ -59,7 +60,7 @@ type ContextScanType = Readonly<{
 	artifactContextHash: string;
 }>;
 
-const scanContext = (config: ConfigType, context: ConfigType['projects'][number]): ContextScanType => {
+const scanContext = (config: AdapterConfigType, context: AdapterConfigType['projects'][number]): ContextScanType => {
 	const manifest = readOracleManifest(context.projectFilePath);
 	const discovery = discoverOracleFiles(config.rootDir, manifest.manifest);
 	const files = discovery.files.map((file) => createSourceFileRecord(file.absolutePath, config.rootDir));
@@ -98,7 +99,7 @@ const scanContext = (config: ConfigType, context: ConfigType['projects'][number]
  * @param _knownPaths - Previously indexed paths; manifests remain authoritative.
  * @returns The scanned source manifest, per-context digests, and fingerprints.
  */
-export const scanOracleProject = (config: ConfigType, _knownPaths: readonly string[] = []): ScanResultType => {
+export const scanOracleProject = (config: AdapterConfigType, _knownPaths: readonly string[] = []): ScanResultType => {
 	const startedAt = performance.now();
 	const identity = oracleParserIdentityOf(oracleParserIdOfConfig(config));
 	const contexts = config.projects.map((context) => scanContext(config, context));
@@ -151,5 +152,5 @@ export const scanOracleProject = (config: ConfigType, _knownPaths: readonly stri
  * @param config - Resolved project configuration.
  * @returns Absolute manifest paths in deterministic order.
  */
-export const collectOracleConfigFiles = (config: ConfigType): readonly string[] =>
+export const collectOracleConfigFiles = (config: AdapterConfigType): readonly string[] =>
 	[...new Set(config.projects.map((project) => realpathSync(project.projectFilePath)))].sort();

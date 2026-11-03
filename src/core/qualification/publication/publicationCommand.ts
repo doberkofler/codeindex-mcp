@@ -1,4 +1,5 @@
 import {Command} from 'commander';
+import {loadConfiguredAdapters} from '../../../adapters/loader.ts';
 import {loadConfig} from '../../config/config.ts';
 import {enableDebug} from '../../logging/debug.ts';
 import {configureCommand, parseCommandAsync} from '../../../transports/cli/commanderSupport.ts';
@@ -73,14 +74,16 @@ const publicationCommand = (environment: NodeJS.ProcessEnv, io: PublicationRepor
 		.option('--skip-prototypes', 'skip TypeScript P-1/P-2/P-3 prototypes', false)
 		.option('--json', 'emit the aggregate report on stdout', false)
 		.option('--debug', 'enable codeindex:* trace output', false)
-		.action((options: PublicationReportOptionsType) => {
+		.action(async (options: PublicationReportOptionsType) => {
 			if (options.debug) {
 				enableDebug();
 			}
 
 			const config = loadConfig(environmentFor(environment, options));
-			const {report, diagnostics} = createPublicationReport({
+			const adapters = await loadConfiguredAdapters(config);
+			const {report, diagnostics} = await createPublicationReport({
 				config,
+				adapters: adapters.byId,
 				provisionalCeiling: ceilingOf(options.maxSurfaceBindingsPerRoot, '--max-surface-bindings-per-root'),
 				projectionBudget: {
 					maxAddressesPerRoot: ceilingOf(options.probeMaxAddressesPerRoot, '--probe-max-addresses-per-root'),

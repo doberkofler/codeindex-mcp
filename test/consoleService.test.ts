@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {typeScriptExtractor} from '../src/adapters/typescript/index.ts';
 import {type ReferenceComparisonType, type ReferenceVerificationReportType} from '../src/adapters/typescript/referenceGate.ts';
 import {type BenchmarkReportType} from '../src/core/benchmark/benchTypes.ts';
 import {type ConfigType} from '../src/core/config/config.ts';
@@ -40,7 +41,6 @@ const doubles = vi.hoisted(() => {
 			getWorkingCopy: () => ({id: 'working-copy'}),
 		})),
 		readVcsProvenance: vi.fn<(...args: unknown[]) => unknown>((): unknown => ({available: false})),
-		extractorFor: vi.fn<(...args: unknown[]) => {id: string; version: string}>((): {id: string; version: string} => ({id: 'typescript', version: '9.9.9'})),
 		runBenchmarkReport: vi.fn<(...args: unknown[]) => Promise<BenchmarkReportType>>(),
 		verifyTypeScriptReferences: vi.fn<(...args: unknown[]) => ReferenceVerificationReportType>(),
 		runMcpCommand: vi.fn<(...args: unknown[]) => number>((...args: unknown[]) => {
@@ -58,7 +58,6 @@ vi.mock(import('../src/core/analytics/recorder.ts'), () => ({createAnalyticsReco
 vi.mock(import('../src/core/analytics/dashboard.ts'), () => ({buildAnalyticsDashboard: doubles.buildAnalyticsDashboard}));
 vi.mock(import('../src/core/benchmark/runBenchmark.ts'), () => ({runBenchmarkReport: doubles.runBenchmarkReport}));
 vi.mock(import('../src/transports/cli/mcpCommand.ts'), () => ({runMcpCommand: doubles.runMcpCommand}));
-vi.mock(import('../src/adapters/registry.ts'), () => ({extractorFor: doubles.extractorFor}) as unknown as never);
 vi.mock(import('../src/core/generation/codeIndex.ts'), () => ({createCodeIndex: doubles.createCodeIndex}) as unknown as never);
 vi.mock(import('../src/core/logging/logger.ts'), () => ({createLogger: doubles.createLogger}));
 vi.mock(import('../src/core/storage/database.ts'), () => ({IndexDatabase: {open: doubles.databaseOpen}}) as unknown as never);
@@ -199,6 +198,7 @@ const qualificationReport: ReferenceVerificationReportType = {
 const openService = (options: Readonly<{logger?: LoggerType; mcpPath?: string; config?: ConfigType}> = {}): ConsoleService =>
 	ConsoleService.open({
 		config: options.config ?? config,
+		adapters: [{...typeScriptExtractor, version: '9.9.9'}],
 		...(options.logger === undefined ? {} : {logger: options.logger}),
 		...(options.mcpPath === undefined ? {} : {mcpPath: options.mcpPath}),
 	});
@@ -235,7 +235,6 @@ describe('console service wiring', () => {
 		doubles.createCodeIndex.mockReturnValue(doubles.index);
 		doubles.createAnalyticsRecorder.mockReturnValue(doubles.analytics);
 		doubles.readVcsProvenance.mockReturnValue({available: false});
-		doubles.extractorFor.mockReturnValue({id: 'typescript', version: '9.9.9'});
 		doubles.index.close.mockResolvedValue(undefined);
 		doubles.index.getStatus.mockReturnValue(status);
 		doubles.index.ensureReady.mockResolvedValue(verification);
@@ -275,7 +274,11 @@ describe('console service wiring', () => {
 			programVersion: expect.any(String),
 			workingCopyId: 'working-copy',
 		});
-		expect(doubles.createCodeIndex).toHaveBeenCalledWith(config, expect.anything(), doubles.logger, {analytics: doubles.analytics, watch: true});
+		expect(doubles.createCodeIndex).toHaveBeenCalledWith(config, expect.anything(), doubles.logger, {
+			analytics: doubles.analytics,
+			watch: true,
+			adapters: [{...typeScriptExtractor, version: '9.9.9'}],
+		});
 		expect(doubles.index.start).toHaveBeenCalledWith();
 		expect(doubles.logger.info).toHaveBeenCalledWith('console_starting', expect.objectContaining({rootDir: config.rootDir}));
 		expect(doubles.analytics.record).toHaveBeenCalledWith('console_start');
@@ -335,7 +338,6 @@ const resetJobs = (): void => {
 	doubles.createCodeIndex.mockReturnValue(doubles.index);
 	doubles.createAnalyticsRecorder.mockReturnValue(doubles.analytics);
 	doubles.readVcsProvenance.mockReturnValue({available: false});
-	doubles.extractorFor.mockReturnValue({id: 'typescript', version: '9.9.9'});
 	doubles.index.close.mockResolvedValue(undefined);
 	doubles.index.getStatus.mockReturnValue(status);
 	doubles.index.ensureReady.mockResolvedValue(verification);

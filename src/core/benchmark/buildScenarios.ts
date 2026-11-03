@@ -1,3 +1,5 @@
+import {type ExtractorType} from '../../adapters/types.ts';
+import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
 import {createCodeIndex} from '../generation/codeIndex.ts';
 import {createLogger} from '../logging/logger.ts';
@@ -42,6 +44,8 @@ export const runBuildScenario = async (
 		config: ConfigType;
 		name: 'cold_build' | 'warm_reuse' | 'warm_rebuild';
 		force: boolean;
+		adapters: readonly ExtractorType[];
+		descriptors?: readonly ResolvedAdapterDescriptorType[];
 		workerEntry?: string | undefined;
 	}>,
 ): Promise<BenchmarkBuildScenarioType> => {
@@ -54,7 +58,12 @@ export const runBuildScenario = async (
 	});
 	const beforeContent = new Set(database.contentHashes());
 	const artifactRowsBefore = database.extractionArtifactCount();
-	const index = createCodeIndex(input.config, database, LOGGER, {watch: false, ...(input.workerEntry === undefined ? {} : {workerEntry: input.workerEntry})});
+	const index = createCodeIndex(input.config, database, LOGGER, {
+		watch: false,
+		adapters: input.adapters,
+		adapterDescriptors: input.descriptors ?? [],
+		...(input.workerEntry === undefined ? {} : {workerEntry: input.workerEntry}),
+	});
 
 	try {
 		const startedAt = performance.now();

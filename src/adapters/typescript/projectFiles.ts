@@ -1,4 +1,5 @@
-import {type ConfigType, toRepositoryPath} from '../../core/config/config.ts';
+import {type AdapterConfigType} from '@codeindex/adapter-sdk';
+import {toRepositoryPath} from '../../core/config/config.ts';
 import {createCapturedSourceFileRecord} from '../../core/generation/sourceFiles.ts';
 import {type ScanResultType, type SourceFileType} from '../../core/model.ts';
 import {type LoadedProjectType} from './loadProject.ts';
@@ -27,7 +28,7 @@ export type SourceBytesReaderType = (absolutePath: string) => Uint8Array | undef
  * @throws {Error} When an imported authored file disappeared before capture.
  */
 export const mergeProjectFiles = (
-	config: ConfigType,
+	config: AdapterConfigType,
 	scan: ScanResultType,
 	project: LoadedProjectType,
 	readBytes: SourceBytesReaderType,

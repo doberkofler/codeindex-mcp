@@ -1,3 +1,5 @@
+import {type ExtractorType} from '../../adapters/types.ts';
+import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
 import {createCodeIndex} from '../generation/codeIndex.ts';
 import {createLogger} from '../logging/logger.ts';
@@ -194,6 +196,8 @@ export const runCursorScenario = async (
 		config: ConfigType;
 		maxDepth?: number | undefined;
 		pageLimit?: number | undefined;
+		adapters: readonly ExtractorType[];
+		descriptors?: readonly ResolvedAdapterDescriptorType[];
 		outlinePath?: string | undefined;
 		workerEntry?: string | undefined;
 	}>,
@@ -209,7 +213,12 @@ export const runCursorScenario = async (
 		extractorId: input.config.extractorId,
 		projectId: input.config.projectId,
 	});
-	const index = createCodeIndex(input.config, database, LOGGER, {watch: false, ...(input.workerEntry === undefined ? {} : {workerEntry: input.workerEntry})});
+	const index = createCodeIndex(input.config, database, LOGGER, {
+		watch: false,
+		adapters: input.adapters,
+		adapterDescriptors: input.descriptors ?? [],
+		...(input.workerEntry === undefined ? {} : {workerEntry: input.workerEntry}),
+	});
 
 	try {
 		const {generationId} = await index.ensureReady();

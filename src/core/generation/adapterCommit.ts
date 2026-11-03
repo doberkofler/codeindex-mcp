@@ -5,7 +5,7 @@ import {debugFor} from '../logging/debug.ts';
 import {type GenerationAdapterType, type GenerationRowType, type ScanResultType} from '../model.ts';
 import {type AdapterCommitCountsType, type AdapterCommitType, type IndexDatabase} from '../storage/database.ts';
 import {artifactKeyOf, createExtractorCache} from './buildArtifacts.ts';
-import {runBuildStage} from './buildFailure.ts';
+import {runBuildStage, runBuildStageAsync} from './buildFailure.ts';
 import {type AdapterScanPlanType} from './adapterBuild.ts';
 import {computeSourceHash} from './sourceFiles.ts';
 
@@ -52,7 +52,7 @@ const configMatches = (adapter: GenerationAdapterType, scan: ScanResultType, ext
  * manifest, and artifact cache.
  * @returns True when persisted facts can be reused without extraction.
  */
-const adapterFactsAreReusable = (
+const adapterFactsAreReusable = async (
 	input: Readonly<{
 		extractor: ExtractorType;
 		config: ConfigType;
@@ -61,13 +61,13 @@ const adapterFactsAreReusable = (
 		cache: ExtractorArtifactCacheType;
 		publishedFiles: readonly Readonly<{path: string; sha256: string}>[];
 	}>,
-): boolean => {
+): Promise<boolean> => {
 	if (input.extractor.canReusePublishedFacts === undefined) {
 		return false;
 	}
 
 	const startedAt = performance.now();
-	const reusable = input.extractor.canReusePublishedFacts({
+	const reusable = await input.extractor.canReusePublishedFacts({
 		config: input.config,
 		scan: input.scan,
 		publishedFiles: input.publishedFiles,
@@ -99,7 +99,7 @@ const previousCountsOf = (adapter: GenerationAdapterType): AdapterCommitCountsTy
  * @param input - Plan, target, previous row, configuration, and persist callback.
  * @returns The adapter contribution.
  */
-export const adapterCommitOf = (
+export const adapterCommitOf = async (
 	input: Readonly<{
 		plan: AdapterScanPlanType;
 		target: Readonly<{adapter: AdapterConfigType; extractor: ExtractorType}>;
@@ -111,7 +111,7 @@ export const adapterCommitOf = (
 		override: ExtractorType | undefined;
 		persist: (cache: ReturnType<typeof createExtractorCache>) => void;
 	}>,
-): AdapterCommitType => {
+): Promise<AdapterCommitType> => {
 	const {plan, target, previous} = input;
 	const adapterVersion = target.extractor.version;
 
@@ -162,21 +162,24 @@ export const adapterCommitOf = (
 		input.published !== null &&
 		previous !== undefined &&
 		configMatches(previous, scan, target.extractor) &&
-		adapterFactsAreReusable({
+		(await adapterFactsAreReusable({
 			extractor: target.extractor,
 			config: scoped,
 			scan,
 			database: input.database,
 			cache: cache.cache,
 			publishedFiles: input.database.listFiles(input.published.id, plan.adapterId),
-		});
+		}));
 
 	if (reusableFacts) {
 		input.persist(cache);
 		return {...base, counts: previousCountsOf(previous)};
 	}
 
-	const extracted = runBuildStage('extraction', () => target.extractor.build(scoped, scan, cache.cache));
+	const extracted = await runBuildStageAsync('extraction', async () => {
+		const result = await target.extractor.build(scoped, scan, cache.cache);
+		return result;
+	});
 	const finalized = finalizePublication(extracted, input.override === undefined ? plan.adapterId : null);
 	runBuildStage('validation', () => extracted.validate?.());
 	input.persist(cache);

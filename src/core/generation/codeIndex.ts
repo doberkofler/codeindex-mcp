@@ -3,7 +3,7 @@ import {existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {type AnalyticsRecorderType} from '../analytics/recorder.ts';
 import {type ConfigType} from '../config/config.ts';
-import {extractorFor} from '../../adapters/registry.ts';
+import {type AdapterSetType, type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
@@ -11,7 +11,7 @@ import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
 import {buildFailureOf, buildProjectContextOfScan} from './buildFailure.ts';
 import {buildGeneration} from './buildGeneration.ts';
 import {recordFailedRefresh, recordPublishedRefresh, recordSupersededRefresh} from './refreshTelemetry.ts';
-import {type CodeIndexOptionsType} from './codeIndexOptions.ts';
+import {adapterSetOf, type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
 import {adapterTargets, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
 import {adapterConfigFiles, adapterIgnoredSegments, adapterSourceExtensions, planAdapterScans} from './adapterRefresh.ts';
@@ -68,6 +68,8 @@ export type {CodeIndexOptionsType} from './codeIndexOptions.ts';
 /** Deep module owning indexing, freshness, persistence, and bounded queries. */
 export class CodeIndex {
 	readonly #config: ConfigType;
+	readonly #adapterSet: AdapterSetType;
+	readonly #descriptors: readonly ResolvedAdapterDescriptorType[];
 	readonly #targets: readonly AdapterTargetType[];
 	readonly #database: IndexDatabase;
 	readonly #logger: LoggerType;
@@ -86,16 +88,23 @@ export class CodeIndex {
 	#refreshing: Promise<BuildReportType> | null = null;
 	#closed = false;
 	public constructor(config: ConfigType, database: IndexDatabase, logger: LoggerType, options: CodeIndexOptionsType = {}) {
+		const adapterSet = adapterSetOf(options);
+
 		this.#config = config;
 		this.#override = options.extractor;
-		this.#targets = adapterTargets(config, extractorFor, options.extractor);
+		this.#adapterSet = adapterSet;
+		this.#descriptors = adapterSet.descriptors;
+		this.#targets = adapterTargets(config, adapterSet, options.extractor);
 		this.#database = database;
 		this.#logger = logger;
 		this.#analytics = options.analytics ?? null;
 		this.#published = database.getPublishedGeneration();
 		this.#watchEnabled = options.watch ?? true;
 		const workerPath = fileURLToPath(new URL('buildWorker.js', import.meta.url));
-		this.#workerEntry = options.extractor === undefined ? (options.workerEntry ?? (existsSync(workerPath) ? workerPath : null)) : null;
+		// A worker cannot rebuild without the parent's module descriptors, so an
+		// adapter set without them stays in process instead of failing dispatch.
+		this.#workerEntry =
+			options.extractor === undefined && adapterSet.descriptors.length > 0 ? (options.workerEntry ?? (existsSync(workerPath) ? workerPath : null)) : null;
 		this.#coordinator = new RefreshCoordinator({
 			logger,
 			...(options.clock === undefined ? {} : {clock: options.clock}),
@@ -206,7 +215,7 @@ export class CodeIndex {
 		try {
 			const published = this.#database.getPublishedGeneration();
 			this.#published = published;
-			plans = planAdapterScans({
+			plans = await planAdapterScans({
 				config: this.#config,
 				targets: this.#targets,
 				database: this.#database,
@@ -274,6 +283,7 @@ export class CodeIndex {
 			this.#published = published;
 			const status = collectStatus({
 				config: this.#config,
+				adapters: this.#adapterSet.byId,
 				database: this.#database,
 				published,
 				refresh: this.#coordinator.getSnapshot(),
@@ -456,6 +466,7 @@ export class CodeIndex {
 				config: this.#config,
 				database: this.#database,
 				logger: this.#logger,
+				adapters: this.#adapterSet,
 				scans: plans,
 				force,
 				ownerId: this.#ownerId,
@@ -467,6 +478,7 @@ export class CodeIndex {
 			workerEntry: workerPath,
 			config: this.#config,
 			scans: plans,
+			descriptors: this.#descriptors,
 			force,
 			ownerId: this.#ownerId,
 			startedAtEpoch,

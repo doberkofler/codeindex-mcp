@@ -4,6 +4,7 @@ import {DEFAULT_EXTRACTOR_ID, DEFAULT_PROJECT_FILE, assertFile, derivedProjectNa
 type ExtractorEntryInputType = Readonly<{
 	id?: string | undefined;
 	required?: boolean | undefined;
+	module?: string | undefined;
 	project?: string | undefined;
 	projects?: readonly Readonly<{name?: string | undefined; project: string}>[] | undefined;
 	options?: Readonly<Record<string, unknown>> | undefined;
@@ -20,6 +21,7 @@ type ResolveAdaptersInputType = Readonly<{
 type ExtractorEntryType = Readonly<{
 	id: string;
 	required: boolean;
+	module?: string | undefined;
 	project: string | undefined;
 	projects: readonly Readonly<{name: string | undefined; project: string}>[] | undefined;
 	options: Readonly<Record<string, unknown>>;
@@ -77,6 +79,7 @@ const entryOfSchema = (entry: ExtractorEntryInputType, fallbackId: string, label
 	return {
 		id,
 		required: entry.required ?? true,
+		...(entry.module === undefined ? {} : {module: entry.module}),
 		project: entry.project,
 		projects: entry.projects?.map((project) => ({name: project.name, project: project.project})),
 		options: entry.options ?? {},
@@ -107,6 +110,7 @@ const resolveAdapter = (
 	return {
 		id: entry.id,
 		required: entry.required,
+		...(entry.module === undefined ? {} : {module: entry.module}),
 		options: entry.options,
 		projectFilePath: firstProject.projectFilePath,
 		projects,
@@ -139,6 +143,7 @@ export const resolveAdapters = (input: ResolveAdaptersInputType): readonly Adapt
 					entryOfSchema(
 						{
 							id: environment.CODE_INDEX_EXTRACTOR ?? extractor?.id ?? DEFAULT_EXTRACTOR_ID,
+							module: extractor?.module,
 							project: extractor?.project,
 							projects: extractor?.projects,
 							options: extractor?.options,

@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {oracleExtractor} from '../src/adapters/oracle/index.ts';
+import {buildOracleFacts, scanOracleFacts} from '../src/adapters/oracle/index.ts';
 import {parseOracleUnits} from '../src/adapters/oracle/parseUnits.ts';
 import {extractOracleSymbols} from '../src/adapters/oracle/extractSymbols.ts';
 import {resolveOracleReferences} from '../src/adapters/oracle/resolveReferences.ts';
@@ -16,8 +16,8 @@ const ORACLE_PROJECTS = [{name: 'app', project: 'oracle-index.json'}] as const;
 
 const buildFacts = (): Readonly<{facts: FinalizedFactSetType; cleanup: () => void}> => {
 	const {config, cleanup} = createFixtureConfig('oracle-publication-project', ORACLE_PROJECTS, 'oracle');
-	const scan = oracleExtractor.scan(config, []);
-	const extracted = oracleExtractor.build(config, scan);
+	const scan = scanOracleFacts(config, []);
+	const extracted = buildOracleFacts(config, scan);
 
 	return {facts: finalizeFacts(extracted, {mode: 'enforce', maxBindingsPerRoot: 2000}), cleanup};
 };
@@ -160,8 +160,8 @@ describe('Oracle publication vertical slice', () => {
 });
 
 describe('Oracle compact publication projection', () => {
-	it('keeps compact specification outline locations in the specification', () => {
-		const fixture = createFixtureIndex('oracle-publication-project', ORACLE_PROJECTS, 'oracle');
+	it('keeps compact specification outline locations in the specification', async () => {
+		const fixture = await createFixtureIndex('oracle-publication-project', ORACLE_PROJECTS, 'oracle');
 
 		try {
 			const outline = fixture.index.getOutline({path: 'database/feature_api.pks', limit: 100});
@@ -367,8 +367,8 @@ describe('Oracle publication usage and queries', () => {
 		const {config, cleanup} = createFixtureConfig('oracle-publication-project', ORACLE_PROJECTS, 'oracle');
 
 		try {
-			const scan = oracleExtractor.scan(config, []);
-			const extracted = oracleExtractor.build(config, scan);
+			const scan = scanOracleFacts(config, []);
+			const extracted = buildOracleFacts(config, scan);
 			const facts = finalizeFacts(extracted, {mode: 'enforce', maxBindingsPerRoot: 2000});
 			const invariants = measureInvariants(extracted, facts, 'oracle');
 
@@ -382,8 +382,8 @@ describe('Oracle publication usage and queries', () => {
 		}
 	});
 
-	it('serves Oracle bindings, exposure filters, usage filters, and primary source', () => {
-		const fixture = createFixtureIndex('oracle-publication-project', ORACLE_PROJECTS, 'oracle');
+	it('serves Oracle bindings, exposure filters, usage filters, and primary source', async () => {
+		const fixture = await createFixtureIndex('oracle-publication-project', ORACLE_PROJECTS, 'oracle');
 
 		try {
 			const writeItem = fixture.index.findSymbols({query: 'WRITE_ITEM', exposure: 'published', limit: 5}).items.at(0);
