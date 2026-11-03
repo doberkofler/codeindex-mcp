@@ -316,6 +316,7 @@ codeindex-cli rebuild    # force extraction and publication
 codeindex-cli status     # generation, scope, counts, and freshness
 codeindex-cli verify     # SQLite integrity, foreign keys, and stored counts
 codeindex-cli analytics  # report local privacy-safe analytics
+codeindex-cli audit      # inventory managed storage and generated artifacts
 codeindex-cli clean      # list the current database; add --yes to remove it
 ```
 
@@ -378,6 +379,15 @@ absolute paths. Set `CODE_INDEX_ANALYTICS=false` to disable writes.
 
 Git and SVN provenance is recorded when available. An unversioned workspace is
 fully supported; freshness is hash-based, not VCS-based.
+
+`codeindex-cli audit` inventories managed indexes, analytics, schema backups,
+repository-generated output, benchmark caches, evidence bundles, and evaluation
+state without deleting or modifying anything. It discovers XDG and repository
+storage locations, reports active index owners and dirty Git worktrees, and
+normalizes retained paths to `$HOME` and `$REPO`. `.git` and worktree
+registrations are reported separately and excluded from artifact totals. On
+macOS, byte totals use APFS allocated blocks; other platforms use logical file
+size. OpenCode session storage is never inspected.
 
 ## Troubleshooting
 

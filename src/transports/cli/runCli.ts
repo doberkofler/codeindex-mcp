@@ -16,6 +16,7 @@ import {IndexDatabase} from '../../core/storage/database.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {readVcsProvenance} from '../../adapters/vcs/vcsProvenance.ts';
 import {addAnalyticsCommand} from './analyticsCommand.ts';
+import {addStorageAuditCommand} from './storageAuditCommand.ts';
 import {messageOf, parseCommandAsync} from './commanderSupport.ts';
 
 const debug = debugFor('cli');
@@ -326,6 +327,7 @@ const buildProgram = (context: CliContextType): Command => {
 	);
 
 	addAnalyticsCommand(program, context.environment, context.io);
+	addStorageAuditCommand(program, context.environment, context.io);
 	addBenchmarkCommand(program, context.environment, context.io);
 	addBenchmarkSuiteCommand(program, context.environment, context.io, {cliPath: process.argv[1] ?? ''});
 	addBenchmarkPrepareCommand(program, context.io);

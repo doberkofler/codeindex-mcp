@@ -44,6 +44,7 @@ trees, and external connections never cross the adapter seam.
 | `src/core/freshness/` | Watcher hints, deterministic reconciliation, and freshness state |
 | `src/core/facts/` | Language-neutral identity, exposure, finalization, and invariant checks |
 | `src/core/storage/` | SQLite schema, transactions, snapshots, and persistence |
+| `src/core/storageAudit*.ts` | Read-only inventory of managed storage, generated artifacts, Git worktrees, and normalized totals |
 | `src/core/query/` | Bounded symbol, occurrence, dependency, source, and position queries |
 | `src/core/analytics/` | Privacy-safe local events and reports |
 | `src/core/benchmark/` | Model-free benchmark and soak machinery |
@@ -416,6 +417,24 @@ migrations because every row is derivable from configured source.
 Persisted source paths are workspace-relative POSIX paths. Query output contains
 no absolute source paths except configured paths within full `index_status.scope`.
 Unexpected failures are sanitized before crossing the MCP boundary.
+
+### Storage audit
+
+`codeindex-cli audit` is a read-only inventory. It discovers the XDG data and
+cache roots, historical home-relative defaults, the repository configuration
+storage directory, and configured evidence/evaluation roots. It classifies
+only known artifact categories: index databases, analytics, schema backups,
+repository-generated outputs, benchmark caches, evidence bundles, and evaluation
+state. Entries are disjoint, so category totals sum without nested
+double-counting.
+
+Owner markers are re-read immediately before eligibility is reported; an index
+with a live owner is never described as cleanable. Git worktrees and `.git` size
+are reported separately and excluded from artifact totals; dirty worktrees are
+never marked removable automatically. OpenCode session storage is never
+inspected. Retained paths are normalized to `$HOME` and `$REPO`. Byte totals use
+macOS allocated blocks on Darwin and logical size elsewhere; the report records
+which semantics apply.
 
 ## Query and MCP contract
 
