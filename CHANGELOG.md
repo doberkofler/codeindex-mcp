@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.13.0...v0.14.0) (2026-11-04)
+
+### Added
+
+* **freshness:** make the refresh debounce configurable ([e4f3afa](https://github.com/doberkofler/codeindex-mcp/commit/e4f3afa874ef40903f73f097d32d40a190812a4d))
+
+### Fixed
+
+* **freshness:** stop rescanning an idle workspace ([84e381a](https://github.com/doberkofler/codeindex-mcp/commit/84e381a217419ca7d0455be9f47b7cd95107f7a8))
+
 ## [0.13.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.12.0...v0.13.0) (2026-11-04)
 
 ### Added
