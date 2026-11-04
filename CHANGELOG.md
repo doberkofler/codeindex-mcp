@@ -12,6 +12,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+* **benchmark:** raise the `find_symbol` cursor-per-item gate from 1.5 ms to 5 ms.
+  Hosted-runner measurements for the same build span 1.289–2.193 ms, so the old
+  limit failed on variance rather than on a regression; the same-runner
+  `regression.deep_cursor` ratio remains the failure guard.
+
 * **freshness:** stop rescanning an idle workspace ([84e381a](https://github.com/doberkofler/codeindex-mcp/commit/84e381a217419ca7d0455be9f47b7cd95107f7a8))
 
 ## [0.13.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.12.0...v0.13.0) (2026-11-04)
