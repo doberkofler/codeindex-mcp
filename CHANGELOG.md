@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.12.0...v0.13.0) (2026-11-04)
+
+### Added
+
+* **adapter-typescript:** migrate to the TypeScript 7.1 API ([fc06da0](https://github.com/doberkofler/codeindex-mcp/commit/fc06da02cdfdf579298e8e548d8d92ea23806510)), references [#name](https://github.com/doberkofler/codeindex-mcp/issues/name) [#name](https://github.com/doberkofler/codeindex-mcp/issues/name)
+
+### Fixed
+
+* **status:** preserve recorded adapter absence state ([c2c2ff3](https://github.com/doberkofler/codeindex-mcp/commit/c2c2ff37f88c670e26279c83a73e72a084816e9b)), closes [#135](https://github.com/doberkofler/codeindex-mcp/issues/135)
+
+### Changed
+
+* **adapter-typescript:** cut repeated compiler requests ([ea8f1fd](https://github.com/doberkofler/codeindex-mcp/commit/ea8f1fd61b37a3946c267be52076b98f4c58729e))
+
 ## Unreleased
 
 ### Fixed
