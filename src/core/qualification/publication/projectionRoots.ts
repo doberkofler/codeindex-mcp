@@ -1,6 +1,6 @@
-import ts from 'typescript';
+import * as ts from '@codeindex/adapter-typescript/compiler';
 import {type ConfigType} from '../../config/config.ts';
-import {loadTypeScriptProject} from '@codeindex/adapter-typescript/internals';
+import {type LoadedProjectType, loadTypeScriptProject} from '@codeindex/adapter-typescript/internals';
 import {
 	addAddress,
 	authoredDeclarationsOf,
@@ -49,7 +49,7 @@ const expandNamespace = (state: ProjectionStateType, symbol: ts.Symbol, path: re
 			continue;
 		}
 
-		const childPath = [...path, exported.getName()];
+		const childPath = [...path, exported.name];
 		addAddress(state, childPath, exported, {anonymous: false, inherited: false, depthOne: childPath.length === path.length + 1});
 		markSymbolReachable(state, exported);
 
@@ -109,6 +109,36 @@ const projectRoot = (state: ProjectionStateType, exported: ts.Symbol, rootName: 
 	}
 };
 
+const projectFileRoots = (
+	project: LoadedProjectType,
+	input: Readonly<{
+		authoredPaths: ReadonlySet<string>;
+		pathByAbsolute: ReadonlyMap<string, string>;
+		budget: ProjectionBudgetType;
+	}>,
+	sourceFile: ts.SourceFile,
+): readonly RootResultType[] => {
+	const results: RootResultType[] = [];
+
+	for (const exported of rootSymbolsOf(project.checker, sourceFile)) {
+		const state = createProjectionState(project.checker, input.authoredPaths, input.pathByAbsolute, input.budget);
+
+		try {
+			projectRoot(state, exported, exported.name);
+		} catch (error) {
+			if (!(error instanceof ProjectionBudgetError)) {
+				throw error;
+			}
+
+			state.exceeded = true;
+		}
+
+		results.push({addresses: state.addresses, steps: state.steps, exceeded: state.exceeded, depthLimited: state.depthLimited});
+	}
+
+	return results;
+};
+
 export const projectContext = (
 	input: Readonly<{
 		config: ConfigType;
@@ -121,26 +151,14 @@ export const projectContext = (
 	const project = loadTypeScriptProject(input.config, input.context.projectFilePath);
 	const results: RootResultType[] = [];
 
-	for (const sourceFile of project.program.getSourceFiles()) {
-		if (sourceFile.isDeclarationFile || !input.authoredPaths.has(sourceFile.fileName)) {
-			continue;
-		}
-
-		for (const exported of rootSymbolsOf(project.checker, sourceFile)) {
-			const state = createProjectionState(project.checker, input.authoredPaths, input.pathByAbsolute, input.budget);
-
-			try {
-				projectRoot(state, exported, exported.getName());
-			} catch (error) {
-				if (!(error instanceof ProjectionBudgetError)) {
-					throw error;
-				}
-
-				state.exceeded = true;
+	try {
+		for (const sourceFile of ts.sourceFilesOf(project.program)) {
+			if (!sourceFile.isDeclarationFile && input.authoredPaths.has(sourceFile.fileName)) {
+				results.push(...projectFileRoots(project, input, sourceFile));
 			}
-
-			results.push({addresses: state.addresses, steps: state.steps, exceeded: state.exceeded, depthLimited: state.depthLimited});
 		}
+	} finally {
+		project.dispose();
 	}
 
 	return results;

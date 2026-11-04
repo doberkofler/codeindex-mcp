@@ -191,26 +191,31 @@ const extractContext = (
 	const {projectFilePath} = context;
 	const compilerStartedAt = performance.now();
 	const project = loadTypeScriptProject(config, projectFilePath, snapshot);
-	const files = mergeProjectFiles(config, scan, project, (absolutePath) => snapshot.readBytes(absolutePath));
-	const compilerMs = Math.round(performance.now() - compilerStartedAt);
-	const facts = extractSymbolFacts({
-		project,
-		files,
-		projectId: config.projectId,
-		rootDir: config.rootDir,
-		context: context.name,
-	});
-	const dependencies = extractDependencyFacts({
-		project,
-		files,
-		projectId: config.projectId,
-		rootDir: config.rootDir,
-		context: context.name,
-	});
 
-	// Only serializable facts leave this scope. The compiler program and its
-	// syntax trees stay collectable while insertion and artifact persistence run.
-	return {context: {files, facts, dependencies, diagnostics: project.diagnostics}, compilerMs};
+	try {
+		const files = mergeProjectFiles(config, scan, project, (absolutePath) => snapshot.readBytes(absolutePath));
+		const compilerMs = Math.round(performance.now() - compilerStartedAt);
+		const facts = extractSymbolFacts({
+			project,
+			files,
+			projectId: config.projectId,
+			rootDir: config.rootDir,
+			context: context.name,
+		});
+		const dependencies = extractDependencyFacts({
+			project,
+			files,
+			projectId: config.projectId,
+			rootDir: config.rootDir,
+			context: context.name,
+		});
+
+		// Only serializable facts leave this scope. The compiler program and its
+		// syntax trees stay collectable while insertion and artifact persistence run.
+		return {context: {files, facts, dependencies, diagnostics: project.diagnostics}, compilerMs};
+	} finally {
+		project.dispose();
+	}
 };
 
 const mergeAdapterStats = (contexts: readonly ExtractedContextType[]): readonly AdapterStatType[] => {
@@ -276,23 +281,29 @@ export const buildTypeScriptFacts = (config: AdapterConfigType, scan: ScanResult
 		scan.files.map((file) => file.path),
 	);
 
-	if ((scan.inputHash !== undefined && scan.inputHash !== snapshot.manifest.inputHash) || !authoredInputsMatch(scan, snapshot)) {
-		throw new Error('TypeScript inputs changed before the build started');
+	try {
+		if ((scan.inputHash !== undefined && scan.inputHash !== snapshot.manifest.inputHash) || !authoredInputsMatch(scan, snapshot)) {
+			throw new Error('TypeScript inputs changed before the build started');
+		}
+
+		const extracted = config.projects.map((context) => extractContext(config, scan, context, snapshot));
+		const compilerMs = extracted.reduce((total, context) => total + context.compilerMs, 0);
+		const merged = mergeContexts(extracted.map((context) => context.context));
+		const extractionMs = Math.max(0, Math.round(performance.now() - extractionStartedAt) - compilerMs);
+
+		return {
+			...merged,
+			compilerMs,
+			extractionMs,
+			validate: (): void => {
+				snapshot.validate();
+			},
+		};
+	} finally {
+		// The recorder still answers `validate`; the compiler process and its
+		// resolvers are no longer needed once facts are serializable.
+		snapshot.dispose();
 	}
-
-	const extracted = config.projects.map((context) => extractContext(config, scan, context, snapshot));
-	const compilerMs = extracted.reduce((total, context) => total + context.compilerMs, 0);
-	const merged = mergeContexts(extracted.map((context) => context.context));
-	const extractionMs = Math.max(0, Math.round(performance.now() - extractionStartedAt) - compilerMs);
-
-	return {
-		...merged,
-		compilerMs,
-		extractionMs,
-		validate: (): void => {
-			snapshot.validate();
-		},
-	};
 };
 
 /**

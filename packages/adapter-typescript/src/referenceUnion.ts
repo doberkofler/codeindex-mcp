@@ -1,12 +1,12 @@
-import {readFileSync} from 'node:fs';
+import {readFileSync, realpathSync} from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {type AdapterConfigType, type IndexedSymbolType, type ScanResultType, type SourceFileType} from '@codeindex/adapter-sdk';
 import {loadTypeScriptProject, type LoadedProjectType} from './loadProject.ts';
 import {mergeProjectFiles} from './projectFiles.ts';
 import {createReferenceConstructIndex, type ReferenceConstructIndexType} from './referenceConstructs.ts';
 import {normalizeReferenceLocations, type ReferenceLocationType} from './referenceLocations.ts';
-import {buildDefinitionIndex, createLanguageService, lookupReferences, type LocatedDeclarationType, type ReferenceLookupType} from './referenceLookup.ts';
+import {buildDefinitionIndex, languageServiceOf, lookupReferences, type LocatedDeclarationType, type ReferenceLookupType} from './referenceLookup.ts';
 import {type ReferenceSkipReasonType} from './referenceGate.ts';
 
 /** One production project context used as a language-service truth source. */
@@ -26,7 +26,17 @@ export type ReferenceUnionType = Readonly<{
 	readonly files: readonly SourceFileType[];
 	readonly authoredPaths: ReadonlySet<string>;
 	readonly authoredAbsolutePaths: ReadonlySet<string>;
+	/** Releases every context's compiler program and resolution resources. */
+	readonly dispose: () => void;
 }>;
+
+const realPathOrSelf = (fileName: string): string => {
+	try {
+		return realpathSync(fileName);
+	} catch {
+		return fileName;
+	}
+};
 
 const sourceBytes = (absolutePath: string): Uint8Array | undefined => {
 	try {
@@ -48,20 +58,31 @@ const sourceBytes = (absolutePath: string): Uint8Array | undefined => {
  * @returns Contexts, the union of authored files, and lookup sets.
  */
 export const createReferenceUnion = (config: AdapterConfigType, scan: ScanResultType, symbols: readonly IndexedSymbolType[]): ReferenceUnionType => {
-	const contexts = config.projects.map((context): ReferenceUnionContextType => {
-		const project = loadTypeScriptProject(config, context.projectFilePath);
-		const files = mergeProjectFiles(config, scan, project, sourceBytes);
-		const authoredAbsolutePaths = new Set(files.map((file) => file.absolutePath));
+	const contexts: ReferenceUnionContextType[] = [];
 
-		return {
-			name: context.name,
-			project,
-			service: createLanguageService(config, project.program),
-			constructs: createReferenceConstructIndex(project.program, config.rootDir, authoredAbsolutePaths),
-			files,
-			locatedBySymbol: buildDefinitionIndex(project.program, symbols, files),
-		};
-	});
+	try {
+		for (const context of config.projects) {
+			const project = loadTypeScriptProject(config, context.projectFilePath);
+			const files = mergeProjectFiles(config, scan, project, sourceBytes);
+			const authoredAbsolutePaths = new Set(files.map((file) => file.absolutePath));
+
+			contexts.push({
+				name: context.name,
+				project,
+				service: languageServiceOf(project),
+				constructs: createReferenceConstructIndex(project, config.rootDir, authoredAbsolutePaths),
+				files,
+				locatedBySymbol: buildDefinitionIndex(project.program, symbols, files),
+			});
+		}
+	} catch (error) {
+		for (const context of contexts) {
+			context.project.dispose();
+		}
+
+		throw error;
+	}
+
 	const mergedFiles = new Map<string, SourceFileType>();
 
 	for (const context of contexts) {
@@ -78,6 +99,11 @@ export const createReferenceUnion = (config: AdapterConfigType, scan: ScanResult
 		files,
 		authoredPaths: new Set(files.map((file) => file.path)),
 		authoredAbsolutePaths: new Set(files.map((file) => file.absolutePath)),
+		dispose: (): void => {
+			for (const context of contexts) {
+				context.project.dispose();
+			}
+		},
 	};
 };
 
@@ -142,7 +168,7 @@ export const lookupUnionReferences = (
 
 type SyntaxClassType = 'direct_external' | 'namespace_import' | null;
 
-const realName = (fileName: string): string => ts.sys.realpath?.(fileName) ?? fileName;
+const realName = (fileName: string): string => realPathOrSelf(fileName);
 
 const namespaceNamesOf = (sourceFile: ts.SourceFile): ReadonlySet<string> => {
 	const names = new Set<string>();
@@ -215,9 +241,9 @@ export const createReferenceSyntaxClassifier = (union: ReferenceUnionType): ((pa
 
 			const raw = context.project.checker.getSymbolAtLocation(node);
 			const target = raw === undefined || (raw.flags & ts.SymbolFlags.Alias) === 0 ? raw : context.project.checker.getAliasedSymbol(raw);
-			const declarations = target?.declarations ?? [];
+			const declarations = target === undefined ? [] : ts.declarationsOf(target);
 
-			if (declarations.length > 0 && declarations.every((declaration) => !authored.has(realName(declaration.getSourceFile().fileName)))) {
+			if (declarations.length > 0 && declarations.every((declaration) => !authored.has(realName(ts.declarationFileNameOf(declaration))))) {
 				return 'direct_external';
 			}
 

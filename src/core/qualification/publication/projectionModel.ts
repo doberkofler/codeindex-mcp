@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from '@codeindex/adapter-typescript/compiler';
 
 /** Per-root probe budget. Reaching it marks the root incomplete instead of truncating it. */
 export type ProjectionBudgetType = Readonly<{
@@ -73,20 +73,20 @@ export const locationKey = (path: string, offset: number): string => `${path}\u0
 
 export const hasAnyFlag = (flags: number, candidates: readonly number[]): boolean => candidates.some((flag) => (flags & flag) !== 0);
 
-export const isObjectType = (type: ts.Type): type is ts.ObjectType => 'objectFlags' in type;
+export const isObjectType = (type: ts.Type): type is ts.ObjectType => type.isObjectType();
 
-export const isTypeReference = (type: ts.Type): type is ts.TypeReference => 'target' in type && 'typeArguments' in type;
+export const isTypeReference = (type: ts.Type): type is ts.TypeReference => type.isTypeReference();
 
-export const isInterfaceType = (type: ts.Type): type is ts.InterfaceType => 'typeParameters' in type;
+export const isInterfaceType = (type: ts.Type): type is ts.InterfaceType => type.isClassOrInterface();
 
 export const authoredDeclarationsOf = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): readonly ts.Declaration[] =>
-	(symbol.declarations ?? []).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
+	ts.declarationsOf(symbol).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
 
 export const isExternalSymbol = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean =>
-	(symbol.declarations ?? []).every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
+	ts.declarationsOf(symbol).length > 0 && ts.declarationsOf(symbol).every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
 
 export const isExternalType = (type: ts.Type, authoredPaths: ReadonlySet<string>): boolean => {
-	for (const candidate of [type.aliasSymbol, type.getSymbol()]) {
+	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
 		if (candidate !== undefined && isExternalSymbol(candidate, authoredPaths)) {
 			return true;
 		}
@@ -108,15 +108,15 @@ export const resolveAlias = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Sym
 };
 
 export const isPrivateProperty = (property: ts.Symbol): boolean => {
-	if (property.getName().startsWith('#')) {
+	if (property.name.startsWith('#')) {
 		return true;
 	}
 
-	return (property.declarations ?? []).some((declaration) => (ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Private) !== 0);
+	return ts.declarationsOf(property).some((declaration) => (ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Private) !== 0);
 };
 
 const terminalLocation = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>, pathByAbsolute: ReadonlyMap<string, string>): string | null => {
-	for (const declaration of symbol.declarations ?? []) {
+	for (const declaration of ts.declarationsOf(symbol)) {
 		const {fileName} = declaration.getSourceFile();
 		const path = pathByAbsolute.get(fileName);
 
@@ -129,7 +129,7 @@ const terminalLocation = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>,
 };
 
 export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>): ts.Symbol | null => {
-	for (const candidate of [type.aliasSymbol, type.getSymbol()]) {
+	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
 		if (candidate !== undefined && authoredDeclarationsOf(candidate, authoredPaths).length > 0) {
 			return candidate;
 		}
@@ -142,7 +142,7 @@ export const isAnonymousShape = (type: ts.Type, authoredPaths: ReadonlySet<strin
 	(type.flags & ts.TypeFlags.Object) !== 0 && namedSymbolOf(type, authoredPaths) === null;
 
 export const isInheritedProperty = (property: ts.Symbol, rootDeclarations: readonly ts.Node[]): boolean => {
-	const declarations = property.declarations ?? [];
+	const declarations = ts.declarationsOf(property);
 
 	if (declarations.length === 0 || rootDeclarations.length === 0) {
 		return false;
@@ -182,7 +182,7 @@ export const addAddress = (state: ProjectionStateType, path: readonly string[], 
 };
 
 export const symbolTypeOf = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Type | null => {
-	const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0];
+	const declaration = ts.valueDeclarationOf(symbol) ?? ts.declarationsOf(symbol)[0];
 
 	if (declaration === undefined) {
 		return null;

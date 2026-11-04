@@ -1,6 +1,16 @@
-import {existsSync, realpathSync} from 'node:fs';
+import {existsSync, readFileSync, realpathSync} from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
+import {parse as parseJsonc} from 'jsonc-parser';
+import {z} from 'zod';
+
+const ConfigChainSchema = z.looseObject({
+	extends: z.union([z.string(), z.array(z.string())]).optional(),
+});
+
+const PackageTsconfigSchema = z.looseObject({
+	tsconfig: z.string().optional(),
+	main: z.string().optional(),
+});
 
 const {dirname, isAbsolute, join, relative, resolve, sep} = path;
 
@@ -107,6 +117,53 @@ const findPackageJson = (startDirectory: string, rootDir: string): string | null
 	}
 };
 
+const readJsonObject = (fileName: string): unknown => {
+	try {
+		return parseJsonc(readFileSync(fileName, 'utf8'), [], {allowTrailingComma: true});
+	} catch {
+		return undefined;
+	}
+};
+
+const resolveConfigCandidate = (candidate: string): string | null =>
+	[`${candidate}.json`, candidate, join(candidate, 'tsconfig.json')].find((fileName) => existsSync(fileName) && !fileName.endsWith(path.sep)) ?? null;
+
+const resolvePackageExtends = (specifier: string, fromDirectory: string, addFile: (fileName: string) => string | null): string | null => {
+	let directory = fromDirectory;
+
+	for (;;) {
+		const base = join(directory, 'node_modules', specifier);
+		const direct = resolveConfigCandidate(base);
+		const manifestPath = join(base, 'package.json');
+
+		if (existsSync(manifestPath)) {
+			addFile(manifestPath);
+			const parsed = PackageTsconfigSchema.safeParse(readJsonObject(manifestPath));
+			const configured = parsed.success ? (parsed.data.tsconfig ?? parsed.data.main) : undefined;
+
+			if (configured !== undefined) {
+				const target = resolveConfigCandidate(join(base, configured));
+
+				if (target !== null) {
+					return addFile(target);
+				}
+			}
+		}
+
+		if (direct !== null) {
+			return addFile(direct);
+		}
+
+		const parent = dirname(directory);
+
+		if (parent === directory) {
+			return null;
+		}
+
+		directory = parent;
+	}
+};
+
 /**
  * Resolves the effective TypeScript configuration file chain.
  *
@@ -122,31 +179,43 @@ const findPackageJson = (startDirectory: string, rootDir: string): string | null
 export const collectConfigFiles = (projectFilePath: string, rootDir?: string): readonly string[] => {
 	const rootFile = resolve(projectFilePath);
 	const files = new Set<string>();
-	const addFile = (fileName: string): void => {
+	const addFile = (fileName: string): string | null => {
 		const resolved = resolve(fileName);
 
-		if (existsSync(resolved)) {
-			files.add(realpathSync(resolved));
+		if (!existsSync(resolved)) {
+			return null;
+		}
+
+		const canonical = realpathSync(resolved);
+		files.add(canonical);
+		return canonical;
+	};
+
+	const visit = (fileName: string, visited: Set<string>): void => {
+		const canonical = addFile(fileName);
+
+		if (canonical === null || visited.has(canonical)) {
+			return;
+		}
+
+		visited.add(canonical);
+		const parsed = ConfigChainSchema.safeParse(readJsonObject(canonical));
+		const extended = parsed.success ? parsed.data.extends : undefined;
+		const specifiers = extended === undefined ? [] : typeof extended === 'string' ? [extended] : extended;
+
+		for (const specifier of specifiers) {
+			const resolved =
+				specifier.startsWith('.') || isAbsolute(specifier)
+					? resolveConfigCandidate(resolve(dirname(canonical), specifier))
+					: resolvePackageExtends(specifier, dirname(canonical), addFile);
+
+			if (resolved !== null) {
+				visit(resolved, visited);
+			}
 		}
 	};
-	const host: ts.ParseConfigFileHost = {
-		...ts.sys,
-		readFile: (fileName): string | undefined => {
-			addFile(fileName);
-			return ts.sys.readFile(fileName);
-		},
-		onUnRecoverableConfigFileDiagnostic: (): void => {
-			// The scanner reports configuration diagnostics; watching still works.
-		},
-	};
 
-	try {
-		ts.getParsedCommandLineOfConfigFile(rootFile, undefined, host);
-	} catch {
-		// Invalid configuration is reported by the scanner; watching the file still helps.
-	}
-
-	addFile(rootFile);
+	visit(rootFile, new Set());
 
 	const packageRoot = rootDir === undefined ? path.parse(rootFile).root : resolve(rootDir);
 	const packageJson = findPackageJson(dirname(rootFile), packageRoot);

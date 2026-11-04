@@ -329,7 +329,7 @@ const groupOccurrences = (occurrences: readonly IndexedOccurrenceType[]): Readon
  * Compares persisted occurrences with language-service references over every
  * configured production context.
  *
- * Truth is loaded from a fresh `typescript@6.0.3` program per context, with the
+ * Truth is loaded from a fresh TypeScript 7.1 program per context, with the
  * same imported authored files the production extractor merges. The actual side
  * is read back from an isolated persisted generation through paginated
  * `find_references`, never from the adapter's in-memory facts. Every unmatched
@@ -355,75 +355,79 @@ export const verifyTypeScriptReferences = (config: AdapterConfigType, runPersist
 	facts.validate?.();
 	const union = createReferenceUnion(config, scan, facts.symbols);
 
-	if (!unionFilesMatch(facts.files, union.files)) {
-		throw new Error('Reference verification contexts do not reproduce the production authored file union');
-	}
-
-	const stored = createStoredLocationIndex(facts.occurrences);
-	const syntaxClassifier = createReferenceSyntaxClassifier(union);
-	const occurrencesBySymbol = groupOccurrences(facts.occurrences);
-	const locatedSymbols = facts.symbols.filter((symbol) => union.contexts.some((context) => (context.locatedBySymbol.get(symbol.id) ?? null) !== null));
-	const candidates = locatedSymbols.flatMap((symbol) => {
-		const located = firstLocated(union.contexts, symbol.id);
-
-		if (located === null) {
-			return [];
+	try {
+		if (!unionFilesMatch(facts.files, union.files)) {
+			throw new Error('Reference verification contexts do not reproduce the production authored file union');
 		}
 
-		return [
-			{
-				symbol,
-				tags: located.context.constructs.infer({
+		const stored = createStoredLocationIndex(facts.occurrences);
+		const syntaxClassifier = createReferenceSyntaxClassifier(union);
+		const occurrencesBySymbol = groupOccurrences(facts.occurrences);
+		const locatedSymbols = facts.symbols.filter((symbol) => union.contexts.some((context) => (context.locatedBySymbol.get(symbol.id) ?? null) !== null));
+		const candidates = locatedSymbols.flatMap((symbol) => {
+			const located = firstLocated(union.contexts, symbol.id);
+
+			if (located === null) {
+				return [];
+			}
+
+			return [
+				{
 					symbol,
-					declarationNode: located.declaration.declarationNode,
-					occurrences: occurrencesBySymbol.get(symbol.id) ?? [],
+					tags: located.context.constructs.infer({
+						symbol,
+						declarationNode: located.declaration.declarationNode,
+						occurrences: occurrencesBySymbol.get(symbol.id) ?? [],
+					}),
+				},
+			];
+		});
+		const sample = selectReferenceSample(candidates);
+		const groups = aliasGroupsOf(facts.symbols);
+		const {value, persistence} = runPersisted({config, scan, facts}, (reader) => {
+			const comparisons = sample.map((candidate) =>
+				compareSymbol({
+					symbol: candidate.symbol,
+					tags: candidate.tags,
+					actual: reader.readAll(candidate.symbol.id),
+					union,
+					config,
+					stored,
+					syntaxClassOf: (location) => syntaxClassifier(location.path, location.startOffset, location.endOffset),
 				}),
-			},
-		];
-	});
-	const sample = selectReferenceSample(candidates);
-	const groups = aliasGroupsOf(facts.symbols);
-	const {value, persistence} = runPersisted({config, scan, facts}, (reader) => {
-		const comparisons = sample.map((candidate) =>
-			compareSymbol({
-				symbol: candidate.symbol,
-				tags: candidate.tags,
-				actual: reader.readAll(candidate.symbol.id),
-				union,
-				config,
-				stored,
-				syntaxClassOf: (location) => syntaxClassifier(location.path, location.startOffset, location.endOffset),
-			}),
-		);
-		const aliasGroups = groups.map((group) => verifyAliasGroup(group, reader, comparisons));
+			);
+			const aliasGroups = groups.map((group) => verifyAliasGroup(group, reader, comparisons));
 
-		return {comparisons, aliasGroups};
-	});
-	const {comparisons, aliasGroups} = value;
+			return {comparisons, aliasGroups};
+		});
+		const {comparisons, aliasGroups} = value;
 
-	facts.validate?.();
+		facts.validate?.();
 
-	const verification: ReferenceVerificationFactsType = {
-		coverage: coverageOf({indexedSymbols: facts.symbols.length, locatedSymbols: locatedSymbols.length}, comparisons),
-		accuracy: accuracyOf(comparisons),
-		persistence,
-		aliasGroups,
-		comparisons,
-	};
-	const gate = evaluateReferenceGate(verification);
+		const verification: ReferenceVerificationFactsType = {
+			coverage: coverageOf({indexedSymbols: facts.symbols.length, locatedSymbols: locatedSymbols.length}, comparisons),
+			accuracy: accuracyOf(comparisons),
+			persistence,
+			aliasGroups,
+			comparisons,
+		};
+		const gate = evaluateReferenceGate(verification);
 
-	debug('reference verification complete', {
-		indexedSymbols: verification.coverage.indexedSymbols,
-		sampledSymbols: verification.coverage.sampledSymbols,
-		skipped: verification.coverage.skipped.length,
-		expected: verification.accuracy.expected,
-		actual: verification.accuracy.actual,
-		matched: verification.accuracy.matched,
-		unexplained: verification.accuracy.unexplained,
-		aliasGroups: verification.aliasGroups.length,
-		pages: verification.persistence.pages,
-		gate: gate.ok,
-	});
+		debug('reference verification complete', {
+			indexedSymbols: verification.coverage.indexedSymbols,
+			sampledSymbols: verification.coverage.sampledSymbols,
+			skipped: verification.coverage.skipped.length,
+			expected: verification.accuracy.expected,
+			actual: verification.accuracy.actual,
+			matched: verification.accuracy.matched,
+			unexplained: verification.accuracy.unexplained,
+			aliasGroups: verification.aliasGroups.length,
+			pages: verification.persistence.pages,
+			gate: gate.ok,
+		});
 
-	return {...verification, gate};
+		return {...verification, gate};
+	} finally {
+		union.dispose();
+	}
 };

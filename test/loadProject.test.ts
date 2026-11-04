@@ -63,10 +63,15 @@ describe('TypeScript project loading', () => {
 		writeFileSync(projectFilePath, JSON.stringify({compilerOptions: {strict: true}, files: ['../outside.ts']}), {encoding: 'utf8'});
 
 		const loaded = loadTypeScriptProject(configOf(workspace, projectFilePath));
-		const diagnostic = loaded.diagnostics.find((item) => item.path === null);
 
-		expect(loaded.diagnosticCount).toBeGreaterThan(0);
-		expect(diagnostic).toMatchObject({category: 'error', path: null});
+		try {
+			const diagnostic = loaded.diagnostics.find((item) => item.path === null);
+
+			expect(loaded.diagnosticCount).toBeGreaterThan(0);
+			expect(diagnostic).toMatchObject({category: 'error', path: null});
+		} finally {
+			loaded.dispose();
+		}
 	});
 
 	it('includes semantic diagnostics only when configured', () => {
@@ -80,8 +85,13 @@ describe('TypeScript project loading', () => {
 		const syntactic = loadTypeScriptProject(configOf(workspace, projectFilePath));
 		const semantic = loadTypeScriptProject(configOf(workspace, projectFilePath, true));
 
-		expect(syntactic.diagnostics).toStrictEqual([]);
-		expect(semantic.diagnosticCount).toBeGreaterThan(0);
-		expect(semantic.diagnostics.some((item) => item.code === 2322)).toBe(true);
+		try {
+			expect(syntactic.diagnostics).toStrictEqual([]);
+			expect(semantic.diagnosticCount).toBeGreaterThan(0);
+			expect(semantic.diagnostics.some((item) => item.code === 2322)).toBe(true);
+		} finally {
+			syntactic.dispose();
+			semantic.dispose();
+		}
 	});
 });

@@ -43,7 +43,7 @@ describe('build telemetry', () => {
 	it('describes the latest revision with runtime and declared compiler versions', async () => {
 		const fixture = createFixtureConfig('simple-project');
 		({cleanup} = fixture);
-		writeFileSync(join(fixture.config.rootDir, 'package.json'), JSON.stringify({devDependencies: {typescript: '7.0.2'}}), {encoding: 'utf8'});
+		writeFileSync(join(fixture.config.rootDir, 'package.json'), JSON.stringify({devDependencies: {typescript: '8.0.0'}}), {encoding: 'utf8'});
 		const database = openDatabase(fixture.config);
 		const events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[] = [];
 		index = createCodeIndex(fixture.config, database, silentLogger, {
@@ -57,7 +57,7 @@ describe('build telemetry', () => {
 
 		expect(firstStatus.scope.extractor).toMatchObject({
 			compilerVersion: expect.any(String),
-			declaredCompilerVersion: '7.0.2',
+			declaredCompilerVersion: '8.0.0',
 			compilerDrift: true,
 		});
 		expect(first.stages).not.toBeNull();
@@ -89,7 +89,7 @@ describe('build telemetry', () => {
 	it('emits compiler drift once per observed version pair', async () => {
 		const fixture = createFixtureConfig('simple-project');
 		({cleanup} = fixture);
-		writeFileSync(join(fixture.config.rootDir, 'package.json'), JSON.stringify({devDependencies: {typescript: '7.0.2'}}), {encoding: 'utf8'});
+		writeFileSync(join(fixture.config.rootDir, 'package.json'), JSON.stringify({devDependencies: {typescript: '8.0.0'}}), {encoding: 'utf8'});
 		const database = openDatabase(fixture.config);
 		const events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[] = [];
 		index = createCodeIndex(fixture.config, database, silentLogger, {
@@ -104,6 +104,6 @@ describe('build telemetry', () => {
 		const drift = events.filter((entry) => entry.event === 'compiler_drift');
 
 		expect(drift).toHaveLength(1);
-		expect(drift[0]?.fields).toMatchObject({extractorVersion: expect.any(String), declaredVersion: '7.0.2'});
+		expect(drift[0]?.fields).toMatchObject({extractorVersion: expect.any(String), declaredVersion: '8.0.0'});
 	});
 });

@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {type FactRangeType} from '@codeindex/adapter-sdk';
 import {declarationKindOf, definitionMetadataOf} from './occurrenceMetadata.ts';
 import {type CandidateDefinitionType, type CandidateInputType, type CandidateScopeType} from './publicationCandidateTypes.ts';
@@ -54,7 +54,7 @@ export const defaultTokenOf = (sourceFile: ts.SourceFile, node: ts.Node): ts.Nod
 };
 
 export const authoredOf = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): readonly ts.Declaration[] =>
-	(symbol.declarations ?? []).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
+	ts.declarationsOf(symbol).filter((declaration) => authoredPaths.has(ts.declarationFileNameOf(declaration)));
 
 const enclosingScope = (node: ts.Node): CandidateScopeType | null => {
 	if (ts.isSourceFile(node)) {
@@ -172,6 +172,10 @@ export const nameNodeOf = (node: ts.Node): ts.Node | undefined => {
 	if (ts.isVariableDeclaration(node) || ts.isBindingElement(node) || ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node)) {
 		const {name} = node;
 
+		if (name === undefined) {
+			return undefined;
+		}
+
 		if (ts.isComputedPropertyName(name)) {
 			return name;
 		}
@@ -215,7 +219,7 @@ const importTargetOf = (node: ts.ImportDeclaration, importedName: string): strin
 };
 
 const externalTargetOf = (target: ts.Symbol, sourceFile: ts.SourceFile, localName?: string): string | null => {
-	for (const declaration of target.declarations ?? []) {
+	for (const declaration of ts.declarationsOf(target)) {
 		if (ts.isImportSpecifier(declaration) || ts.isImportClause(declaration) || ts.isNamespaceImport(declaration)) {
 			const importDeclaration = ts.findAncestor(declaration, ts.isImportDeclaration);
 
@@ -225,7 +229,7 @@ const externalTargetOf = (target: ts.Symbol, sourceFile: ts.SourceFile, localNam
 		}
 	}
 
-	const importedName = localName ?? target.getName();
+	const importedName = localName ?? target.name;
 	let found: string | null = null;
 	const visit = (node: ts.Node): void => {
 		if (found !== null) {
@@ -248,7 +252,7 @@ const exportAssignmentLocalName = (node: ts.Node): string | undefined =>
 
 export const externalAliasOf = (node: ts.Node, target: ts.Symbol, sourceFile: ts.SourceFile): Readonly<{target: string; name: string}> | null => {
 	let moduleTarget: string | null = null;
-	let externalName = target.getName();
+	let externalName = target.name;
 
 	if (ts.isExportSpecifier(node)) {
 		const declaration = node.parent.parent;

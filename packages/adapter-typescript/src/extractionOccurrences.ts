@@ -1,9 +1,9 @@
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {type ExtractedOccurrenceType, type FactRangeType} from '@codeindex/adapter-sdk';
 import {definitionMetadataOf} from './occurrenceMetadata.ts';
 import {type ExtractionRuntimeType, lexicalSegmentsOf, symbolForTsSymbol} from './extractionRuntime.ts';
 import {addSite, bindingKey, ensureBinding, type FactSinkType} from './extractionRoots.ts';
-import {resolveCanonical, resolveOccurrenceSymbol} from './resolveSymbols.ts';
+import {needsOccurrenceResolution, resolveOccurrenceSymbol} from './resolveSymbols.ts';
 import {usageOfReference} from './usage.ts';
 
 const rangeOfNode = (sourceFile: ts.SourceFile, node: ts.Node): FactRangeType => {
@@ -167,7 +167,7 @@ export const addDefinitionFacts = (
 };
 
 /**
- * Recognises the TypeScript 6 type-query anomaly that parses `this` as an
+ * Recognises the type-query anomaly that parses `this` as an
  * identifier.
  *
  * In `typeof this.member` the expression name is a `QualifiedName` whose left
@@ -240,15 +240,21 @@ export const collectReferenceFacts = (
 			const nextEnclosingId = declarationSymbol ?? enclosingId;
 
 			if (ts.isIdentifier(node) && !definitionNodes.has(node) && !isTypeQueryThis(node)) {
-				const raw = runtime.checker.getSymbolAtLocation(node);
-				const symbolId =
-					symbolForTsSymbol(runtime, raw) ??
-					symbolForTsSymbol(runtime, resolveOccurrenceSymbol(runtime.checker, node)) ??
-					symbolForTsSymbol(runtime, resolveCanonical(runtime.checker, node));
+				const raw = runtime.identifierSymbols.get(node);
+				let symbolId = symbolForTsSymbol(runtime, raw);
+
+				if (symbolId === null && (raw === undefined || needsOccurrenceResolution(node))) {
+					// Contextual members and unresolved identifiers need the
+					// occurrence resolver; every other identifier already
+					// resolved through `raw`.
+					symbolId = symbolForTsSymbol(runtime, resolveOccurrenceSymbol(runtime.checker, node));
+				}
 
 				if (symbolId === null) {
 					const target = aliasTargetOf(runtime, raw);
-					const authored = (target?.declarations ?? []).some((declaration) => runtime.authoredPaths.has(declaration.getSourceFile().fileName));
+					const authored = (target === undefined ? [] : ts.declarationsOf(target)).some((declaration) =>
+						runtime.authoredPaths.has(ts.declarationFileNameOf(declaration)),
+					);
 					dropped[authored ? 'ephemeral_target' : 'external_target'] += 1;
 				} else {
 					const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));

@@ -1,4 +1,5 @@
 import {type AdapterConfigType, toRepositoryPath, createCapturedSourceFileRecord, type ScanResultType, type SourceFileType} from '@codeindex/adapter-sdk';
+import {sourceFilesOf} from './compiler.ts';
 import {type LoadedProjectType} from './loadProject.ts';
 import {isAuthoredSourceFile} from './sourcePaths.ts';
 
@@ -32,7 +33,7 @@ export const mergeProjectFiles = (
 ): readonly SourceFileType[] => {
 	const mergedFiles = new Map(scan.files.map((file) => [file.path, file]));
 
-	for (const sourceFile of project.program.getSourceFiles()) {
+	for (const sourceFile of sourceFilesOf(project.program)) {
 		if (!isAuthoredSourceFile(sourceFile.fileName, config.rootDir)) {
 			continue;
 		}

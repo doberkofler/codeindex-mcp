@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from '@codeindex/adapter-typescript/compiler';
 
 const countTypeNodes = (sourceFile: ts.SourceFile): Readonly<{unionCases: number; intersectionCases: number}> => {
 	let unionCases = 0;
@@ -31,12 +31,22 @@ const countTypeNodes = (sourceFile: ts.SourceFile): Readonly<{unionCases: number
 export const countUnionIntersection = (sources: ReadonlyMap<string, string>): Readonly<{unionCases: number; intersectionCases: number}> => {
 	let unionCases = 0;
 	let intersectionCases = 0;
+	const api = new ts.API({cwd: process.cwd()});
 
-	for (const [filePath, source] of sources) {
-		const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
-		const counts = countTypeNodes(sourceFile);
-		unionCases += counts.unionCases;
-		intersectionCases += counts.intersectionCases;
+	try {
+		for (const [filePath, source] of sources) {
+			const retained = api.createSourceFile(filePath, source);
+
+			try {
+				const counts = countTypeNodes(retained.sourceFile);
+				unionCases += counts.unionCases;
+				intersectionCases += counts.intersectionCases;
+			} finally {
+				retained[Symbol.dispose]();
+			}
+		}
+	} finally {
+		api[Symbol.dispose]();
 	}
 
 	return {unionCases, intersectionCases};

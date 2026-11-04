@@ -52,36 +52,41 @@ const compareContext = (
 	finalized: FinalizedFactSetType,
 ): ReachabilityTruthContextType => {
 	const project = loadTypeScriptProject(config, context.projectFilePath);
-	const state: TruthStateType = {
-		checker: project.checker,
-		authoredPaths: new Set(facts.files.map((file) => file.absolutePath)),
-		pathByAbsolute: new Map(facts.files.map((file) => [file.absolutePath, file.path])),
-		declarations: new Map(),
-		seenSymbols: new Set(),
-		seenTypes: new Set(),
-		pendingSymbols: [],
-		pendingTypes: [],
-		roots: 0,
-		addresses: 0,
-		ambiguous: 0,
-	};
 
-	addProgramRoots(state, project.program);
+	try {
+		const state: TruthStateType = {
+			checker: project.checker,
+			authoredPaths: new Set(facts.files.map((file) => file.absolutePath)),
+			pathByAbsolute: new Map(facts.files.map((file) => [file.absolutePath, file.path])),
+			declarations: new Map(),
+			seenSymbols: new Set(),
+			seenTypes: new Set(),
+			pendingSymbols: [],
+			pendingTypes: [],
+			roots: 0,
+			addresses: 0,
+			ambiguous: 0,
+		};
 
-	const truthKeys = new Set(state.declarations.keys());
-	const visibleKeys = visibleDeclarationKeysOf(context.name, finalized);
-	const missing = [...truthKeys].filter((key) => !visibleKeys.has(key));
-	const extra = [...visibleKeys].filter((key) => !truthKeys.has(key));
+		addProgramRoots(state, project.program);
 
-	return {
-		roots: state.roots,
-		addresses: state.addresses,
-		truthDeclarations: truthKeys.size,
-		visibleDeclarations: visibleKeys.size,
-		missingDeclarations: missing.length,
-		extraDeclarations: extra.length,
-		ambiguousDeclarations: state.ambiguous,
-	};
+		const truthKeys = new Set(state.declarations.keys());
+		const visibleKeys = visibleDeclarationKeysOf(context.name, finalized);
+		const missing = [...truthKeys].filter((key) => !visibleKeys.has(key));
+		const extra = [...visibleKeys].filter((key) => !truthKeys.has(key));
+
+		return {
+			roots: state.roots,
+			addresses: state.addresses,
+			truthDeclarations: truthKeys.size,
+			visibleDeclarations: visibleKeys.size,
+			missingDeclarations: missing.length,
+			extraDeclarations: extra.length,
+			ambiguousDeclarations: state.ambiguous,
+		};
+	} finally {
+		project.dispose();
+	}
 };
 
 /**

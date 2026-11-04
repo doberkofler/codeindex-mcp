@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {type ExtractedOccurrenceType, type FactRangeType} from '@codeindex/adapter-sdk';
 
 export type DefinitionMetadataType = Pick<ExtractedOccurrenceType, 'declarationKind' | 'forwardDefinition' | 'extent' | 'anchorRank' | 'primaryRank'>;

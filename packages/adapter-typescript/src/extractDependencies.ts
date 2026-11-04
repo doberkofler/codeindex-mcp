@@ -1,5 +1,5 @@
 import path from 'node:path';
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {
 	toRepositoryPath,
 	debugFor,
@@ -175,14 +175,16 @@ const requireBindings = (node: ts.CallExpression): readonly PendingBindingType[]
 	}
 
 	return declaration.name.elements.flatMap((element) => {
-		if (element.dotDotDotToken !== undefined || !ts.isIdentifier(element.name)) {
+		const localName = element.name;
+
+		if (element.dotDotDotToken !== undefined || localName === undefined || !ts.isIdentifier(localName)) {
 			return [];
 		}
 
-		const imported = element.propertyName ?? element.name;
+		const imported = element.propertyName ?? localName;
 
 		return ts.isIdentifier(imported)
-			? [binding({kind: 'require', importedName: imported.text, exportedName: null, localName: element.name.text, compileTimeOnly: false})]
+			? [binding({kind: 'require', importedName: imported.text, exportedName: null, localName: localName.text, compileTimeOnly: false})]
 			: [];
 	});
 };
@@ -250,36 +252,49 @@ const packageNameOf = (specifier: string): string | null => {
 
 const aliasPrefixesOf = (options: ts.CompilerOptions): readonly string[] => Object.keys(options.paths ?? {}).map((pattern) => pattern.replace(/\/\*$/u, ''));
 
+/**
+ * Resolved authored target path, keyed by mode, directory, and specifier.
+ *
+ * The same specifier is imported from many files and commonly several times in
+ * one file. TypeScript 7 answers each resolution with one synchronous API
+ * round trip, so repeated identical lookups are memoised for the duration of
+ * dependency extraction.
+ */
+type ResolutionCacheType = Map<string, string | null>;
+
 const resolvedTargetPath = (
 	input: Readonly<{
 		project: LoadedProjectType;
 		authoredPaths: ReadonlySet<string>;
 		rootDir: string;
 		sourceFile: ts.SourceFile;
-		cache: ts.ModuleResolutionCache;
+		resolutions: ResolutionCacheType;
 	}>,
 	literal: ts.StringLiteralLike,
 ): string | null => {
-	const mode = input.project.program.getModeForUsageLocation(input.sourceFile, literal);
-	const resolved = ts.resolveModuleName(
-		literal.text,
-		input.sourceFile.fileName,
-		input.project.program.getCompilerOptions(),
-		ts.sys,
-		input.cache,
-		undefined,
-		mode,
-	).resolvedModule?.resolvedFileName;
+	const directory = path.dirname(input.sourceFile.fileName);
+	const mode = input.project.program.getModeForUsageLocation(input.sourceFile.fileName, literal);
+	const resolutionMode = mode === ts.ModuleKind.CommonJS || mode === ts.ModuleKind.ESNext ? mode : undefined;
+	const key = `${resolutionMode === undefined ? 'default' : String(resolutionMode)}\u0000${directory}\u0000${literal.text}`;
+	const cached = input.resolutions.get(key);
 
-	if (resolved === undefined || !input.authoredPaths.has(path.resolve(resolved))) {
-		return null;
+	if (cached !== undefined) {
+		return cached;
 	}
 
-	try {
-		return toRepositoryPath(input.rootDir, resolved);
-	} catch {
-		return null;
+	const resolved = input.project.moduleResolver.resolveModuleName(literal.text, directory, resolutionMode).resolvedModule?.resolvedFileName;
+	let target: string | null = null;
+
+	if (resolved !== undefined && input.authoredPaths.has(path.resolve(resolved))) {
+		try {
+			target = toRepositoryPath(input.rootDir, resolved);
+		} catch {
+			target = null;
+		}
 	}
+
+	input.resolutions.set(key, target);
+	return target;
 };
 
 /**
@@ -296,7 +311,7 @@ export const extractDependencyFacts = (input: DependencyInputType): DependencyEx
 	const startedAt = performance.now();
 	const authoredPaths = new Set(input.files.map((file) => path.resolve(file.absolutePath)));
 	const aliasPrefixes = aliasPrefixesOf(input.project.program.getCompilerOptions());
-	const cache = ts.createModuleResolutionCache(input.rootDir, (fileName) => fileName, input.project.program.getCompilerOptions());
+	const resolutions: ResolutionCacheType = new Map();
 	const edges: IndexedDependencyEdgeType[] = [];
 	const bindings: IndexedDependencyBindingType[] = [];
 
@@ -311,7 +326,7 @@ export const extractDependencyFacts = (input: DependencyInputType): DependencyEx
 			const found = foundDependency(node);
 
 			if (found !== null) {
-				const targetPath = resolvedTargetPath({project: input.project, authoredPaths, rootDir: input.rootDir, sourceFile, cache}, found.literal);
+				const targetPath = resolvedTargetPath({project: input.project, authoredPaths, rootDir: input.rootDir, sourceFile, resolutions}, found.literal);
 				const alias = aliasPrefixes.find((prefix) => found.literal.text === prefix || found.literal.text.startsWith(`${prefix}/`));
 				const targetIdentifier = targetPath !== null || alias !== undefined ? null : packageNameOf(found.literal.text);
 				const start = sourceFile.getLineAndCharacterOfPosition(found.literal.getStart(sourceFile));

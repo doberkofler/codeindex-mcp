@@ -1,10 +1,11 @@
-import ts from 'typescript';
 import {type AdapterConfigType, type IndexedSymbolType, type SourceFileType} from '@codeindex/adapter-sdk';
+import * as ts from './compiler.ts';
 import {candidateNameNode} from './extractSymbols.ts';
 import {referenceLocationKey, toLocationPath, type ReferenceLocationType} from './referenceLocations.ts';
 import {resolveOccurrenceSymbol} from './resolveSymbols.ts';
 import {type ReferenceConstructIndexType} from './referenceConstructs.ts';
 import {type ReferenceSkipReasonType} from './referenceGate.ts';
+import {type LoadedProjectType} from './loadProject.ts';
 
 export type LocatedDeclarationType = Readonly<{
 	readonly declarationNode: ts.Node;
@@ -63,49 +64,22 @@ export const buildDefinitionIndex = (
 };
 
 /**
- * Creates a language service over the same root names and compiler options as
- * the extraction program.
+ * Returns the language service of the loaded project.
  *
- * @param config - Resolved project configuration.
- * @param program - Extraction program.
- * @returns A language service for reference queries.
+ * TypeScript 7 binds a language service to the project created by the
+ * synchronous API, so the extraction program and reference truth share one
+ * project instead of constructing a second host.
+ *
+ * @param project - Loaded extraction project.
+ * @returns The project's language service.
  */
-export const createLanguageService = (config: AdapterConfigType, program: ts.Program): ts.LanguageService => {
-	const rootNames = [...program.getRootFileNames()];
-	const options = program.getCompilerOptions();
-
-	const host: ts.LanguageServiceHost = {
-		getScriptFileNames: () => rootNames,
-		getScriptVersion: () => '0',
-		getScriptSnapshot: (fileName) => {
-			const text = ts.sys.readFile(fileName);
-
-			if (text === undefined) {
-				throw new Error(`Language Service source is unavailable: ${fileName}`);
-			}
-
-			return ts.ScriptSnapshot.fromString(text);
-		},
-		getCurrentDirectory: () => config.rootDir,
-		getCompilationSettings: () => options,
-		getDefaultLibFileName: (compilerOptions) => ts.getDefaultLibFilePath(compilerOptions),
-		fileExists: (fileName) => ts.sys.fileExists(fileName),
-		readFile: (fileName) => ts.sys.readFile(fileName),
-		readDirectory: (...args: Parameters<typeof ts.sys.readDirectory>) => ts.sys.readDirectory(...args),
-		// The extraction program resolves symlinked workspace files through their
-		// real path. Without the same hook the service reports canonical paths that
-		// never match the authored set.
-		realpath: (fileName) => ts.sys.realpath?.(fileName) ?? fileName,
-	};
-
-	return ts.createLanguageService(host);
-};
+export const languageServiceOf = (project: LoadedProjectType): ts.LanguageService => project.project.languageService;
 
 const canonicalDefinitions = (checker: ts.TypeChecker, located: LocatedDeclarationType, rootDir: string): readonly ReferenceLocationType[] => {
 	const symbol = checker.getSymbolAtLocation(located.nameNode);
 	const definitions: ReferenceLocationType[] = [];
 
-	for (const declaration of symbol?.declarations ?? []) {
+	for (const declaration of symbol === undefined ? [] : ts.declarationsOf(symbol)) {
 		const nameNode = candidateNameNode(declaration);
 
 		if (nameNode === undefined) {
@@ -131,15 +105,15 @@ const canonicalDefinitions = (checker: ts.TypeChecker, located: LocatedDeclarati
 };
 
 const symbolIdentity = (checker: ts.TypeChecker, symbol: ts.Symbol): string => {
-	const seen = new Set<ts.Symbol>();
+	const seen = new Set<number>();
 	let current = symbol;
 
-	while ((current.flags & ts.SymbolFlags.Alias) !== 0 && !seen.has(current)) {
-		seen.add(current);
+	while ((current.flags & ts.SymbolFlags.Alias) !== 0 && !seen.has(current.id)) {
+		seen.add(current.id);
 		current = checker.getAliasedSymbol(current);
 	}
 
-	const declarations = current.declarations ?? [];
+	const declarations = ts.declarationsOf(current);
 
 	if (declarations.length > 0) {
 		return declarations
@@ -164,7 +138,15 @@ const collectGroupLocations = (
 		locations: ReferenceLocationType[];
 	}>,
 ): void => {
-	const add = (fileName: string, span: ts.TextSpan): void => {
+	const add = (resolved: ts.Node | undefined, definition: boolean): void => {
+		if (resolved === undefined) {
+			return;
+		}
+
+		const nameNode = definition ? (candidateNameNode(resolved) ?? resolved) : resolved;
+		const sourceFile = resolved.getSourceFile();
+		const {fileName} = sourceFile;
+
 		// A language-service location must belong to the Program that produced
 		// it. A missing file means the service and the compiler disagreed about
 		// the project, so the comparison is invalid rather than merely incomplete.
@@ -178,10 +160,11 @@ const collectGroupLocations = (
 			return;
 		}
 
+		const startOffset = nameNode.getStart(sourceFile);
 		const location = {
 			path: relativePath,
-			startOffset: span.start,
-			endOffset: span.start + span.length,
+			startOffset,
+			endOffset: nameNode.end,
 			role: 'definition' as const,
 		};
 
@@ -189,23 +172,23 @@ const collectGroupLocations = (
 			return;
 		}
 
-		const node = input.constructs.identifierAt(relativePath, span.start, span.start + span.length);
-		const resolved = node === undefined ? undefined : resolveOccurrenceSymbol(input.checker, node);
+		const node = input.constructs.identifierAt(relativePath, startOffset, nameNode.end);
+		const resolvedSymbol = node === undefined ? undefined : resolveOccurrenceSymbol(input.checker, node);
 
 		// The language service groups related symbols, such as overrides and
 		// destructuring initializers, with the symbol under test. Keep only
 		// locations that actually resolve to that symbol.
-		if (resolved === undefined || symbolIdentity(input.checker, resolved) !== input.testedIdentity) {
+		if (resolvedSymbol === undefined || symbolIdentity(input.checker, resolvedSymbol) !== input.testedIdentity) {
 			return;
 		}
 
 		input.locations.push({...location, role: 'reference'});
 	};
 
-	add(input.group.definition.fileName, input.group.definition.textSpan);
+	add(input.group.definition.resolve(), true);
 
 	for (const reference of input.group.references) {
-		add(reference.fileName, reference.textSpan);
+		add(reference.resolve(), false);
 	}
 };
 
@@ -247,15 +230,15 @@ export const lookupReferences = (
 	const definitions = canonicalDefinitions(input.checker, input.located, input.config.rootDir).filter((definition) => input.authoredPaths.has(definition.path));
 	const definitionKeys = new Set(definitions.map((definition) => referenceLocationKey(definition)));
 	const sourceFile = input.located.nameNode.getSourceFile();
-	let groups: readonly ts.ReferencedSymbol[] | undefined;
+	let groups: readonly ts.ReferencedSymbol[];
 
 	try {
-		groups = input.service.findReferences(sourceFile.fileName, input.located.nameNode.getStart(sourceFile));
+		groups = input.service.getReferencedSymbolsForNode(input.located.nameNode, input.located.nameNode.getStart(sourceFile));
 	} catch (error) {
 		throw new Error(`Language Service reference lookup failed for ${input.symbol.path}:${String(input.symbol.startOffset)}`, {cause: error});
 	}
 
-	if (groups === undefined || groups.length === 0) {
+	if (groups.length === 0) {
 		return {skip: 'reference_lookup_failed'};
 	}
 

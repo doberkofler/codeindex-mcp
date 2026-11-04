@@ -1,66 +1,44 @@
 import path from 'node:path';
-import ts from 'typescript';
-import {isResolutionSource, type RecorderType} from './snapshotRecorder.ts';
+import type * as ts from './compiler.ts';
+import {type RecorderType} from './snapshotRecorder.ts';
 import {type TypeScriptSnapshotProjectType} from './snapshotTypes.ts';
 
 const {dirname, join} = path;
 const MAX_PACKAGE_WALK = 32;
 
-const moduleSpecifiersOf = (sourceFile: ts.SourceFile): readonly string[] => {
-	const specifiers = new Set<string>();
-	const add = (literal: ts.StringLiteralLike | undefined): void => {
-		if (literal !== undefined) {
-			specifiers.add(literal.text);
-		}
-	};
-	const visit = (node: ts.Node): void => {
-		if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier !== undefined && ts.isStringLiteralLike(node.moduleSpecifier)) {
-			add(node.moduleSpecifier);
-		} else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteralLike(node.argument.literal)) {
-			add(node.argument.literal);
-		} else if (ts.isCallExpression(node)) {
-			const [first] = node.arguments;
+const nearestPackageJson = (recorder: RecorderType, startDirectory: string, cache: Map<string, string | null>): string | null => {
+	const cached = cache.get(startDirectory);
 
-			if (
-				first !== undefined &&
-				ts.isStringLiteralLike(first) &&
-				(node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
-			) {
-				add(first);
-			}
-		}
+	if (cached !== undefined) {
+		return cached;
+	}
 
-		ts.forEachChild(node, visit);
-	};
-
-	visit(sourceFile);
-	return [...specifiers];
-};
-
-const nearestPackageJson = (recorder: RecorderType, startDirectory: string): string | null => {
 	let directory = startDirectory;
+	let result: string | null = null;
 
 	for (let depth = 0; depth < MAX_PACKAGE_WALK; depth += 1) {
 		const candidate = join(directory, 'package.json');
 
 		if (recorder.fileExists(candidate)) {
-			return candidate;
+			result = candidate;
+			break;
 		}
 
 		const parent = dirname(directory);
 
 		if (parent === directory) {
-			return null;
+			break;
 		}
 
 		directory = parent;
 	}
 
-	return null;
+	cache.set(startDirectory, result);
+	return result;
 };
 
-const addPackageManifest = (recorder: RecorderType, absolutePath: string): void => {
-	const manifest = nearestPackageJson(recorder, dirname(absolutePath));
+const addPackageManifest = (recorder: RecorderType, absolutePath: string, cache: Map<string, string | null>): void => {
+	const manifest = nearestPackageJson(recorder, dirname(absolutePath), cache);
 
 	if (manifest !== null) {
 		recorder.addInput(manifest);
@@ -68,78 +46,37 @@ const addPackageManifest = (recorder: RecorderType, absolutePath: string): void 
 };
 
 /**
- * Resolves every module specifier reachable from one project and records the
- * resolved files, package manifests, and lookup probes.
+ * Materialises one project's program through the recorder filesystem.
  *
+ * Program construction is the authoritative resolution pass: the compiler
+ * parses every reachable source file and probes every candidate path through
+ * the recorder, so the captured manifest describes exactly what the facts
+ * depend on. The program is retained on the snapshot so extraction queries one
+ * program instead of rebuilding it. Walking files by hand would repeat the same
+ * parse and resolution work as one synchronous API request per import.
+ *
+ * @param api - Compiler API bound to the recorder filesystem.
  * @param recorder - Capturing filesystem.
- * @param projects - Parsed project configurations.
- * @param authoredPaths - Authored source and declaration files to walk.
+ * @param project - Parsed project configuration.
+ * @returns The materialised program, owned by the caller.
  */
-export const collectReachableInputs = (recorder: RecorderType, projects: readonly TypeScriptSnapshotProjectType[], authoredPaths: readonly string[]): void => {
-	for (const project of projects) {
-		const cache = ts.createModuleResolutionCache(dirname(project.projectFilePath), (fileName) => recorder.realpath(fileName), project.parsed.options);
-		const host: ts.ModuleResolutionHost = {
-			fileExists: (fileName) => recorder.fileExists(fileName),
-			readFile: (fileName) => recorder.readFile(fileName),
-			directoryExists: (directoryName) => recorder.directoryExists(directoryName),
-			realpath: (fileName) => recorder.realpath(fileName),
-			getCurrentDirectory: () => recorder.snapshot.rootDir,
-			getDirectories: (directoryName) => [...recorder.getDirectories(directoryName)],
-		};
-		const visited = new Set<string>();
-		const queue = [...project.parsed.fileNames, ...authoredPaths];
+export const materializeProjectProgram = (api: ts.API, recorder: RecorderType, project: TypeScriptSnapshotProjectType): ts.Program => {
+	const manifestCache = new Map<string, string | null>();
+	const program = api.createProgram(
+		project.parsed.fileNames,
+		project.parsed.options,
+		project.parsed.projectReferences === undefined ? undefined : {projectReferences: project.parsed.projectReferences},
+	);
 
-		while (queue.length > 0) {
-			const current = queue.pop();
-
-			if (current === undefined) {
-				continue;
-			}
-
-			const canonical = recorder.realpath(current);
-
-			if (visited.has(canonical) || !isResolutionSource(canonical)) {
-				continue;
-			}
-
-			visited.add(canonical);
-			recorder.addInput(canonical);
-
-			const text = recorder.readFile(canonical);
-
-			if (text === undefined) {
-				continue;
-			}
-
-			const sourceFile = ts.createSourceFile(canonical, text, ts.ScriptTarget.Latest, true);
-
-			for (const specifier of moduleSpecifiersOf(sourceFile)) {
-				const resolved = ts.resolveModuleName(specifier, canonical, project.parsed.options, host, cache).resolvedModule;
-
-				if (resolved !== undefined) {
-					const resolvedPath = recorder.realpath(resolved.resolvedFileName);
-					recorder.addInput(resolvedPath);
-					queue.push(resolvedPath);
-					addPackageManifest(recorder, resolvedPath);
-				}
-			}
-
-			for (const reference of sourceFile.referencedFiles) {
-				const resolved = ts.resolveTripleslashReference(reference.fileName, canonical);
-				recorder.addInput(resolved);
-				queue.push(resolved);
-			}
-
-			for (const reference of sourceFile.typeReferenceDirectives) {
-				const resolvedPath = ts.resolveTypeReferenceDirective(reference.fileName, canonical, project.parsed.options, host).resolvedTypeReferenceDirective
-					?.resolvedFileName;
-
-				if (resolvedPath !== undefined) {
-					recorder.addInput(resolvedPath);
-					queue.push(resolvedPath);
-					addPackageManifest(recorder, resolvedPath);
-				}
-			}
+	try {
+		for (const fileName of program.getSourceFileNames()) {
+			recorder.addInput(fileName);
+			addPackageManifest(recorder, fileName, manifestCache);
 		}
+
+		return program;
+	} catch (error) {
+		program[Symbol.dispose]();
+		throw error;
 	}
 };

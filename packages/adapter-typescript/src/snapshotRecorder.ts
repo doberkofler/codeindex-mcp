@@ -1,9 +1,8 @@
 import {createHash} from 'node:crypto';
 import {readdirSync, readFileSync, realpathSync, statSync} from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
 import {decodeSourceBytes} from '@codeindex/adapter-sdk';
-import {isAuthoredSourceFile, isDeclarationFile, isInsideRoot, PUBLISHABLE_EXTENSIONS} from './sourcePaths.ts';
+import {isAuthoredSourceFile, isDeclarationFile, isInsideRoot} from './sourcePaths.ts';
 import {type TypeScriptSnapshotProjectType} from './snapshotTypes.ts';
 
 const {relative, resolve, sep} = path;
@@ -31,7 +30,7 @@ export type SnapshotInputType = Readonly<{
 	readonly sha256: string;
 }>;
 
-type SnapshotProbeKindType = 'file' | 'directory' | 'directory-list' | 'read-directory';
+type SnapshotProbeKindType = 'file' | 'directory' | 'directory-list' | 'stat';
 
 export type SnapshotProbeType = Readonly<{
 	readonly key: string;
@@ -53,13 +52,11 @@ type MutableSnapshotType = {
 	readonly projectByPath: Map<string, TypeScriptSnapshotProjectType>;
 };
 
-export type ReadDirectoryInputType = readonly [
-	directory: string,
-	extensions: readonly string[],
-	excludes: readonly string[] | undefined,
-	includes: readonly string[],
-	depth?: number,
-];
+export type DirectoryEntriesType = Readonly<{
+	readonly files: readonly string[];
+	readonly directories: readonly string[];
+	readonly symlinks: readonly string[];
+}>;
 
 export type RecorderType = Readonly<{
 	snapshot: MutableSnapshotType;
@@ -68,9 +65,22 @@ export type RecorderType = Readonly<{
 	readBytes: (absolutePath: string) => Uint8Array | undefined;
 	fileExists: (absolutePath: string) => boolean;
 	directoryExists: (absolutePath: string) => boolean;
+	entriesOf: (absolutePath: string) => DirectoryEntriesType;
+	stat: (absolutePath: string) => Readonly<{mode: number; size: number; mtime: Date}> | undefined;
 	getDirectories: (absolutePath: string) => readonly string[];
-	readDirectory: (...input: ReadDirectoryInputType) => string[];
 	realpath: (absolutePath: string) => string;
+	/**
+	 * Replaces incidental probes with a deterministic closure over the captured
+	 * inputs.
+	 *
+	 * The compiler consults the filesystem through callbacks whose ordering and
+	 * coverage vary between otherwise identical runs. Hashing that raw traffic
+	 * would make the manifest identity unstable. After capture, the probe set is
+	 * rebuilt from the inputs: each input exists, and its directory listing is
+	 * observed, so a newly created sibling still invalidates the manifest while
+	 * unchanged inputs always produce the same hash.
+	 */
+	sealProbes: () => void;
 }>;
 
 export const canonicalPath = (absolutePath: string): string => {
@@ -107,8 +117,10 @@ const probeValueOf = (kind: SnapshotProbeKindType, absolutePath: string): string
 		case 'directory-list': {
 			return directoryListingOf(absolutePath);
 		}
-		case 'read-directory': {
-			return 'absent';
+		case 'stat': {
+			const stats = statSync(absolutePath, {throwIfNoEntry: false});
+
+			return stats === undefined ? 'absent' : stats.isDirectory() ? 'directory' : stats.isFile() ? 'file' : 'other';
 		}
 		default: {
 			return 'absent';
@@ -153,9 +165,6 @@ const classifyOf = (rootDir: string, absolutePath: string): SnapshotInputKindTyp
 	return 'external-source';
 };
 
-export const isResolutionSource = (absolutePath: string): boolean =>
-	!isCompilerLib(absolutePath) && (PUBLISHABLE_EXTENSIONS.some((extension) => absolutePath.endsWith(extension)) || isDeclarationFile(absolutePath));
-
 const recordProbe = (snapshot: MutableSnapshotType, absolutePath: string, kind: SnapshotProbeKindType): void => {
 	const key = probeKeyOf(snapshot.rootDir, absolutePath);
 	snapshot.probes.set(`${kind}\u0000${key}`, {
@@ -165,6 +174,46 @@ const recordProbe = (snapshot: MutableSnapshotType, absolutePath: string, kind: 
 		absolutePath: resolve(absolutePath),
 		recompute: () => probeValueOf(kind, absolutePath),
 	});
+};
+
+/**
+ * Replaces incidental probes with a deterministic closure over the inputs.
+ *
+ * Each input is probed for existence and its directory is listed, so a newly
+ * created sibling still invalidates the manifest while unchanged inputs always
+ * produce the same set.
+ *
+ * @param snapshot - Mutable snapshot whose probe set is replaced.
+ */
+const sealSnapshotProbes = (snapshot: MutableSnapshotType): void => {
+	const derived = new Map<string, SnapshotProbeInternalType>();
+	const add = (absolutePath: string, kind: SnapshotProbeKindType): void => {
+		const key = probeKeyOf(snapshot.rootDir, absolutePath);
+		const mapKey = `${kind}\u0000${key}`;
+
+		if (derived.has(mapKey)) {
+			return;
+		}
+
+		derived.set(mapKey, {
+			key,
+			kind,
+			value: probeValueOf(kind, absolutePath),
+			absolutePath: resolve(absolutePath),
+			recompute: () => probeValueOf(kind, absolutePath),
+		});
+	};
+
+	for (const input of snapshot.inputs.values()) {
+		add(input.absolutePath, 'file');
+		add(path.dirname(input.absolutePath), 'directory-list');
+	}
+
+	snapshot.probes.clear();
+
+	for (const [key, probe] of derived) {
+		snapshot.probes.set(key, probe);
+	}
 };
 
 /**
@@ -235,34 +284,50 @@ export const createRecorder = (rootDir: string): RecorderType => {
 		return statSync(absolutePath, {throwIfNoEntry: false})?.isDirectory() === true;
 	};
 
-	const getDirectories = (absolutePath: string): readonly string[] => {
+	const entriesOf = (absolutePath: string): DirectoryEntriesType => {
 		recordProbe(snapshot, absolutePath, 'directory-list');
 
 		try {
-			return readdirSync(absolutePath, {withFileTypes: true})
-				.filter((entry) => entry.isDirectory())
-				.map((entry) => entry.name)
-				.sort();
+			const entries = readdirSync(absolutePath, {withFileTypes: true});
+			const files: string[] = [];
+			const directories: string[] = [];
+			const symlinks: string[] = [];
+
+			for (const entry of entries) {
+				const candidate = resolve(absolutePath, entry.name);
+				const isLink = entry.isSymbolicLink();
+				const target = isLink ? statSync(candidate, {throwIfNoEntry: false}) : undefined;
+
+				if (entry.isDirectory() || target?.isDirectory() === true) {
+					directories.push(entry.name);
+				} else if (entry.isFile() || target?.isFile() === true) {
+					files.push(entry.name);
+				}
+
+				if (isLink) {
+					symlinks.push(entry.name);
+				}
+			}
+
+			return {files: files.sort(), directories: directories.sort(), symlinks: symlinks.sort()};
 		} catch {
-			return [];
+			return {files: [], directories: [], symlinks: []};
 		}
 	};
 
-	const readDirectory = (...[directory, extensions, excludes, includes, depth]: ReadDirectoryInputType): string[] => {
-		const files = ts.sys.readDirectory(directory, extensions, excludes, includes, depth);
-		const key = hash(JSON.stringify({directory, extensions, excludes, includes, depth}));
-		const value = hash([...files].sort().join('\u0000'));
+	const getDirectories = (absolutePath: string): readonly string[] => entriesOf(absolutePath).directories;
 
-		snapshot.probes.set(`read-directory\u0000${key}`, {
-			key,
-			kind: 'read-directory',
-			value,
-			absolutePath: resolve(directory),
-			recompute: () => hash([...ts.sys.readDirectory(directory, extensions, excludes, includes, depth)].sort().join('\u0000')),
-		});
+	const stat = (absolutePath: string): Readonly<{mode: number; size: number; mtime: Date}> | undefined => {
+		recordProbe(snapshot, absolutePath, 'stat');
 
-		return files;
+		const stats = statSync(absolutePath, {throwIfNoEntry: false});
+
+		return stats === undefined ? undefined : {mode: stats.mode, size: stats.size, mtime: stats.mtime};
 	};
 
-	return {snapshot, addInput, readFile, readBytes, fileExists, directoryExists, getDirectories, readDirectory, realpath: canonicalPath};
+	const sealProbes = (): void => {
+		sealSnapshotProbes(snapshot);
+	};
+
+	return {snapshot, addInput, readFile, readBytes, fileExists, directoryExists, entriesOf, stat, getDirectories, realpath: canonicalPath, sealProbes};
 };

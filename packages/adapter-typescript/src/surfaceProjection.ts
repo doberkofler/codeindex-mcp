@@ -1,27 +1,28 @@
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {type FactAddressType} from '@codeindex/adapter-sdk';
+import {authoredDeclarationsOf, isExternalSymbol, isInheritedProperty, isPrivateProperty, resolveAlias} from './projectionPredicates.ts';
 import {
 	addStep,
-	authoredDeclarationsOf,
-	declaredTypeOf,
+	cachedAwaitedTypeOf,
+	cachedDeclaredTypeOf,
+	cachedIsAnonymousShape,
+	cachedIsArrayType,
+	cachedIsExternalType,
+	cachedIsTupleType,
+	cachedNamedSymbolOf,
+	cachedPropertiesOfType,
+	cachedSymbolTypeOf,
+	cachedTypeArguments,
 	enqueueProjection,
 	hasAnyFlag,
-	isAnonymousShape,
-	isExternalSymbol,
-	isExternalType,
-	isInheritedProperty,
-	isPrivateProperty,
 	isTypeReference,
 	MAX_PROJECTION_DEPTH,
 	markSymbolReachable,
 	markTypeReachable,
-	namedSymbolOf,
 	type ProjectionNodeType,
 	type ProjectionStateType,
 	SurfaceProjectionError,
-	resolveAlias,
 	symbolIdOf,
-	symbolTypeOf,
 	type SurfaceProjectionHostType,
 } from './surfaceCore.ts';
 
@@ -71,17 +72,17 @@ const addSurface = (
 };
 
 const projectProperties = (state: ProjectionStateType, node: ProjectionNodeType, anonymous: boolean): void => {
-	const properties = state.host.checker.getPropertiesOfType(node.type);
+	const properties = cachedPropertiesOfType(state.host, node.type);
 
 	for (const property of properties) {
 		if (
 			isPrivateProperty(property) ||
-			(property.declarations ?? []).every((declaration) => !state.host.authoredPaths.has(declaration.getSourceFile().fileName))
+			ts.declarationsOf(property).every((declaration) => !state.host.authoredPaths.has(ts.declarationFileNameOf(declaration)))
 		) {
 			continue;
 		}
 
-		const childPath: FactAddressType = [...node.path, ['member', property.getName()]];
+		const childPath: FactAddressType = [...node.path, ['member', property.name]];
 		addSurface(state, property, childPath, {
 			anonymous,
 			inherited: isInheritedProperty(property, node.rootDeclarations),
@@ -92,7 +93,7 @@ const projectProperties = (state: ProjectionStateType, node: ProjectionNodeType,
 			continue;
 		}
 
-		const propertyType = symbolTypeOf(state.host.checker, property);
+		const propertyType = cachedSymbolTypeOf(state.host, property);
 
 		if (propertyType !== null) {
 			enqueueProjection(state, {
@@ -117,7 +118,7 @@ const projectCallSignatures = (state: ProjectionStateType, node: ProjectionNodeT
 				continue;
 			}
 
-			const parameterType = symbolTypeOf(state.host.checker, parameter);
+			const parameterType = cachedSymbolTypeOf(state.host, parameter);
 
 			if (parameterType !== null) {
 				enqueueProjection(state, {
@@ -155,7 +156,7 @@ const projectConstructSignatures = (state: ProjectionStateType, node: Projection
 				continue;
 			}
 
-			const parameterType = symbolTypeOf(state.host.checker, parameter);
+			const parameterType = cachedSymbolTypeOf(state.host, parameter);
 
 			if (parameterType !== null) {
 				enqueueProjection(state, {
@@ -187,7 +188,7 @@ const projectTuple = (state: ProjectionStateType, node: ProjectionNodeType): voi
 		return;
 	}
 
-	for (const [index, element] of state.host.checker.getTypeArguments(node.type).entries()) {
+	for (const [index, element] of cachedTypeArguments(state.host, node.type).entries()) {
 		enqueueProjection(state, {
 			type: element,
 			path: [...node.path, ['element', index]],
@@ -203,7 +204,7 @@ const projectArray = (state: ProjectionStateType, node: ProjectionNodeType): voi
 		return;
 	}
 
-	const [element] = state.host.checker.getTypeArguments(node.type);
+	const [element] = cachedTypeArguments(state.host, node.type);
 
 	if (element !== undefined) {
 		enqueueProjection(state, {
@@ -229,24 +230,24 @@ const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeT
 		return;
 	}
 
-	if (node.type.isUnionOrIntersection()) {
+	if (node.type.isUnionType() || node.type.isIntersectionType()) {
 		markTypeReachable(state, node.type);
 		return;
 	}
 
-	if (state.host.checker.isTupleType(node.type)) {
+	if (cachedIsTupleType(state.host, node.type)) {
 		projectTuple(state, node);
 		return;
 	}
 
-	if (state.host.checker.isArrayType(node.type)) {
+	if (cachedIsArrayType(state.host, node.type)) {
 		projectArray(state, node);
 		return;
 	}
 
-	const awaited = state.host.checker.getAwaitedType(node.type);
+	const awaited = cachedAwaitedTypeOf(state.host, node.type);
 
-	if (awaited !== undefined && awaited !== node.type) {
+	if (awaited !== null && awaited !== node.type) {
 		enqueueProjection(state, {
 			type: awaited,
 			path: [...node.path, ['awaited', null]],
@@ -257,7 +258,7 @@ const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeT
 		return;
 	}
 
-	if (isExternalType(node.type, state.host.authoredPaths)) {
+	if (cachedIsExternalType(state.host, node.type)) {
 		return;
 	}
 
@@ -268,14 +269,14 @@ const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeT
 		return;
 	}
 
-	const named = namedSymbolOf(node.type, state.host.authoredPaths);
+	const named = cachedNamedSymbolOf(state.host, node.type);
 
 	if (node.depth > 0 && named !== null) {
 		markSymbolReachable(state, named);
 		return;
 	}
 
-	projectProperties(state, node, isAnonymousShape(node.type, state.host.authoredPaths));
+	projectProperties(state, node, cachedIsAnonymousShape(state.host, node.type));
 };
 
 const drainProjection = (state: ProjectionStateType): void => {
@@ -314,7 +315,7 @@ const expandNamespace = (state: ProjectionStateType, symbol: ts.Symbol, path: Fa
 			continue;
 		}
 
-		const childPath: FactAddressType = [...path, ['member', exported.getName()]];
+		const childPath: FactAddressType = [...path, ['member', exported.name]];
 		addSurface(state, exported, childPath, {anonymous: false, inherited: false, depthOne: true});
 		markSymbolReachable(state, exported);
 
@@ -392,15 +393,15 @@ export const projectPublishedRoot = (
 
 	if (!isEnum && !isNamespace) {
 		const type = hasAnyFlag(target.flags, [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias])
-			? declaredTypeOf(host.checker, target)
-			: symbolTypeOf(host.checker, target);
+			? cachedDeclaredTypeOf(host, target)
+			: cachedSymbolTypeOf(host, target);
 
 		if (type !== null) {
 			projectType(state, {type, path: rootSegments, depth: 0, rootDeclarations: state.rootDeclarations});
 		}
 
 		if ((target.flags & ts.SymbolFlags.Class) !== 0) {
-			const staticType = symbolTypeOf(host.checker, target);
+			const staticType = cachedSymbolTypeOf(host, target);
 
 			if (staticType !== null) {
 				enqueueProjection(state, {type: staticType, path: rootSegments, depth: 0, rootDeclarations: state.rootDeclarations, ancestors: new Set([target])});

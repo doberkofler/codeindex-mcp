@@ -5,9 +5,8 @@
 		"moduleResolution": "NodeNext",
 		"strict": true,
 		"noEmit": true,
-		"baseUrl": ".",
 		"paths": {
-			"@base/*": ["src/*"]
+			"@base/*": ["./src/*"]
 		}
 	},
 	"include": ["src/**/*.ts"]

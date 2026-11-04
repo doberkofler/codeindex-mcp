@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from '@codeindex/adapter-typescript/compiler';
 import {
 	addDeclaration,
 	authoredDeclarationsOf,
@@ -47,8 +47,8 @@ const drainType = (state: TruthStateType, type: ts.Type): void => {
 		return;
 	}
 
-	if (type.isUnionOrIntersection()) {
-		for (const constituent of type.types) {
+	if (type.isUnionType() || type.isIntersectionType()) {
+		for (const constituent of type.getTypes()) {
 			enqueueType(state, constituent);
 		}
 
@@ -74,7 +74,7 @@ const drainType = (state: TruthStateType, type: ts.Type): void => {
 	}
 
 	for (const index of state.checker.getIndexInfosOfType(type)) {
-		enqueueType(state, index.type);
+		enqueueType(state, index.valueType);
 	}
 };
 
@@ -193,7 +193,7 @@ const projectType: ProjectTypeFnType = (state, type, depth) => {
 		return;
 	}
 
-	if (type.isUnionOrIntersection()) {
+	if (type.isUnionType() || type.isIntersectionType()) {
 		enqueueType(state, type);
 		drainReachability(state);
 		return;
@@ -293,7 +293,7 @@ const addRoot = (state: TruthStateType, symbol: ts.Symbol): void => {
 		return;
 	}
 
-	const moduleOnly = (target.declarations ?? []).every((declaration) => ts.isSourceFile(declaration));
+	const moduleOnly = ts.declarationsOf(target).every((declaration) => ts.isSourceFile(declaration));
 
 	if ((target.flags & ts.SymbolFlags.ValueModule) !== 0 && moduleOnly) {
 		state.addresses += 1;
@@ -354,7 +354,7 @@ const addScriptRoots = (state: TruthStateType, sourceFile: ts.SourceFile): void 
 };
 
 export const addProgramRoots = (state: TruthStateType, program: ts.Program): void => {
-	for (const sourceFile of program.getSourceFiles()) {
+	for (const sourceFile of ts.sourceFilesOf(program)) {
 		if (!state.authoredPaths.has(sourceFile.fileName) || sourceFile.isDeclarationFile) {
 			continue;
 		}

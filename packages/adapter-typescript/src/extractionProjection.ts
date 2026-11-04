@@ -22,6 +22,13 @@ export const projectPublishedRoots = (runtime: ExtractionRuntimeType, sink: Fact
 		maxReachabilityStepsPerRoot: PUBLICATION_REACHABILITY_STEPS_PER_ROOT,
 		symbolForTsSymbol: (symbol) => symbolForTsSymbol(runtime, symbol),
 		symbolForDeclaration: (declaration) => symbolForDeclaration(runtime, declaration),
+		symbolTypes: new Map(),
+		declaredTypes: new Map(),
+		typeProperties: new Map(),
+		typeIndexes: new Map(),
+		typeBases: new Map(),
+		typeArguments: new Map(),
+		typeClassifications: new Map(),
 		markReachable: (symbolId) => {
 			sink.reachable.add(symbolId);
 		},
@@ -73,7 +80,7 @@ export const projectPublishedRoots = (runtime: ExtractionRuntimeType, sink: Fact
 			sink.maxSteps = Math.max(sink.maxSteps, projected.steps);
 		} catch (error) {
 			if (error instanceof SurfaceProjectionError) {
-				debug('surface projection failed', {root: root.segments, symbol: root.tsSymbol.getName()});
+				debug('surface projection failed', {root: root.segments, symbol: root.tsSymbol.name});
 				throw new TypeError(error.message, {cause: error});
 			}
 

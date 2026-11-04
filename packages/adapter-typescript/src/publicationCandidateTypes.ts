@@ -1,4 +1,4 @@
-import {type Node, type Program, type SourceFile, type Symbol as TsSymbol, type TypeChecker} from 'typescript';
+import {type Node, type Program, type SourceFile, type Symbol as TsSymbol, type TypeChecker} from './compiler.ts';
 import {type FactRangeType} from '@codeindex/adapter-sdk';
 
 export type CandidateScopeType = Readonly<{kind: 'module'; path: string}> | Readonly<{kind: 'global'}> | Readonly<{kind: 'external_module'; target: string}>;
@@ -61,4 +61,11 @@ export type CandidateInputType = Readonly<{
 	readonly context: string;
 	readonly authoredPaths: ReadonlySet<string>;
 	readonly pathByAbsolute: ReadonlyMap<string, string>;
+	/**
+	 * Identifier-to-symbol lookup, preferring the shared batched map.
+	 *
+	 * Non-identifier names such as string literals are not in the map, so the
+	 * lookup falls back to the checker.
+	 */
+	readonly symbolAt: (node: Node) => TsSymbol | undefined;
 }>;

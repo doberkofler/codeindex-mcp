@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {type FactAddressType, type FactExposureType, type FactRangeType, type FactSiteKindType, type SourceFileType} from '@codeindex/adapter-sdk';
 import {nameNodeOf} from './publicationAddress.ts';
 import {type ExtractionRuntimeType, lexicalSegmentsOf, symbolForDeclaration, symbolForTsSymbol} from './extractionRuntime.ts';
@@ -179,7 +179,7 @@ const explicitExportNames = (sourceFile: ts.SourceFile): ReadonlySet<string> => 
 			continue;
 		}
 
-		if (ts.isExportAssignment(statement) && statement.isExportEquals !== true) {
+		if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
 			names.add('default');
 			continue;
 		}
@@ -263,7 +263,7 @@ const rootSiteOf = (
 	runtime: ExtractionRuntimeType,
 	input: Readonly<{exported: ts.Symbol; name: string; explicitNames: ReadonlySet<string>; stars: readonly ts.ExportDeclaration[]}>,
 ): Readonly<{kind: FactSiteKindType; path: string; range: FactRangeType}> | null => {
-	const declarations = input.exported.declarations ?? [];
+	const declarations = ts.declarationsOf(input.exported);
 	const star = starSiteOf(runtime, input.name, input.explicitNames, input.stars);
 
 	if (star !== null) {
@@ -282,7 +282,7 @@ const rootSiteOf = (
 };
 
 const moduleTargetIsExternal = (runtime: ExtractionRuntimeType, target: ts.Symbol): boolean => {
-	const declarations = target.declarations ?? [];
+	const declarations = ts.declarationsOf(target);
 
 	if (declarations.length === 0) {
 		return false;
@@ -320,7 +320,7 @@ const externalStarNamesOf = (runtime: ExtractionRuntimeType, stars: readonly ts.
 		}
 
 		for (const exported of runtime.checker.getExportsOfModule(target)) {
-			names.add(exported.getName());
+			names.add(exported.name);
 		}
 	}
 
@@ -330,7 +330,10 @@ const externalStarNamesOf = (runtime: ExtractionRuntimeType, stars: readonly ts.
 const rootSymbolIdOf = (runtime: ExtractionRuntimeType, exported: ts.Symbol, pathName: string, name: string): string | null =>
 	symbolForTsSymbol(runtime, exported) ??
 	runtime.symbolIdByPathAndName.get(`${pathName}\u0000${name}`) ??
-	(exported.declarations ?? []).map((declaration) => symbolForDeclaration(runtime, declaration)).find((id) => id !== null) ??
+	ts
+		.declarationsOf(exported)
+		.map((declaration) => symbolForDeclaration(runtime, declaration))
+		.find((id) => id !== null) ??
 	null;
 
 const addModuleRoots = (runtime: ExtractionRuntimeType, sink: FactSinkType, file: SourceFileType, sourceFile: ts.SourceFile): void => {
@@ -340,7 +343,7 @@ const addModuleRoots = (runtime: ExtractionRuntimeType, sink: FactSinkType, file
 	const externalStarNames = externalStarNamesOf(runtime, stars);
 
 	for (const exported of moduleSymbol === undefined ? [] : runtime.checker.getExportsOfModule(moduleSymbol)) {
-		const name = exported.getName();
+		const {name} = exported;
 
 		if (externalStarNames.has(name) && !explicitNames.has(name)) {
 			continue;

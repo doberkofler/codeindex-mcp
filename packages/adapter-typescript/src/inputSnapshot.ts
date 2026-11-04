@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {type Dirent, readdirSync, readFileSync, statSync} from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {z} from 'zod';
 import {type AdapterConfigType, type ProjectContextConfigType, debugFor} from '@codeindex/adapter-sdk';
 import {isAuthoredSourceFile, isDeclarationFile, isExcludedSegment, isInsideRoot, TYPESCRIPT_IGNORED_SEGMENTS} from './sourcePaths.ts';
@@ -15,7 +15,8 @@ import {
 	type SnapshotInputType,
 	type SnapshotProbeType,
 } from './snapshotRecorder.ts';
-import {collectReachableInputs} from './snapshotResolution.ts';
+import {recorderFileSystem} from './compilerFileSystem.ts';
+import {materializeProjectProgram} from './snapshotResolution.ts';
 import {
 	type CreatedTypeScriptInputSnapshotType,
 	type TypeScriptInputManifestType,
@@ -77,31 +78,24 @@ const readDeclaredCompiler = (recorder: RecorderType, projectFilePath: string, r
 	return null;
 };
 
-const parseProject = (recorder: RecorderType, rootDir: string, context: ProjectContextConfigType): TypeScriptSnapshotProjectType => {
+const parseProject = (api: ts.API, recorder: RecorderType, rootDir: string, context: ProjectContextConfigType): TypeScriptSnapshotProjectType => {
 	const projectFileBytes = recorder.readFile(context.projectFilePath);
 
 	if (projectFileBytes === undefined) {
 		throw new Error(`TypeScript configuration does not exist: ${context.name}`);
 	}
 
-	const configFile = ts.readConfigFile(context.projectFilePath, (fileName) => recorder.readFile(fileName));
+	const configFile = api.readConfigFile(context.projectFilePath);
 
 	if (configFile.error !== undefined) {
-		throw new Error(`Cannot read TypeScript configuration ${context.name}: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
+		throw new Error(`Cannot read TypeScript configuration ${context.name}: ${ts.diagnosticText(configFile.error)}`);
 	}
 
-	const parseHost: ts.ParseConfigHost = {
-		useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
-		fileExists: (fileName): boolean => recorder.fileExists(fileName),
-		readFile: (fileName): string | undefined => recorder.readFile(fileName),
-		readDirectory: (...args): string[] => recorder.readDirectory(...args),
-		getDirectories: (directory): string[] => [...recorder.getDirectories(directory)],
-	};
-	const parsed = ts.parseJsonConfigFileContent(configFile.config, parseHost, dirname(context.projectFilePath), undefined, context.projectFilePath);
-	const fatalErrors = parsed.errors.filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
+	const parsed = api.parseJsonConfigFileContent(configFile.config, {configFileName: context.projectFilePath});
+	const fatalErrors = parsed.errors.filter((diagnostic) => diagnostic.category === ts.ERROR_DIAGNOSTIC_CATEGORY);
 
 	if (fatalErrors.length > 0) {
-		const messages = fatalErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')).join('; ');
+		const messages = fatalErrors.map((diagnostic) => ts.diagnosticText(diagnostic)).join('; ');
 		throw new Error(`TypeScript configuration is invalid (${context.name}): ${messages}`);
 	}
 
@@ -262,44 +256,69 @@ const authoredCandidates = (
  */
 export const createTypeScriptInputSnapshot = (config: AdapterConfigType, knownPaths: readonly string[] = []): CreatedTypeScriptInputSnapshotType => {
 	const recorder = createRecorder(config.rootDir);
+	const api = new ts.API({cwd: config.rootDir, fs: recorderFileSystem(recorder)});
+	const programs = new Map<string, ts.Program>();
 
-	collectRootMetadata(recorder, config.rootDir);
-	const projects = config.projects.map((context) => parseProject(recorder, config.rootDir, context));
-	collectWorkspaceManifests(recorder, config.rootDir);
+	try {
+		collectRootMetadata(recorder, config.rootDir);
+		const projects = config.projects.map((context) => parseProject(api, recorder, config.rootDir, context));
+		collectWorkspaceManifests(recorder, config.rootDir);
 
-	const authoredPaths = authoredCandidates(config, projects, knownPaths);
+		const authoredPaths = authoredCandidates(config, projects, knownPaths);
 
-	for (const absolutePath of authoredPaths) {
-		recorder.addInput(absolutePath);
+		for (const absolutePath of authoredPaths) {
+			recorder.addInput(absolutePath);
+		}
+
+		for (const project of projects) {
+			programs.set(project.projectFilePath, materializeProjectProgram(api, recorder, project));
+		}
+
+		recorder.sealProbes();
+
+		const manifest = publicManifest(recorder);
+
+		debug('snapshot captured', {
+			projects: projects.length,
+			authored: authoredPaths.length,
+			inputs: manifest.inputs.length,
+			probes: manifest.probes.length,
+			inputHash: manifest.inputHash,
+		});
+
+		const snapshot: TypeScriptInputSnapshotType = {
+			manifest,
+			readFile: recorder.readFile,
+			readBytes: recorder.readBytes,
+			fileExists: recorder.fileExists,
+			directoryExists: recorder.directoryExists,
+			getDirectories: recorder.getDirectories,
+			realpath: recorder.realpath,
+			projectOf: (projectFilePath) => recorder.snapshot.projectByPath.get(projectFilePath),
+			programOf: (projectFilePath) => programs.get(projectFilePath),
+			api,
+			validate: (): void => {
+				validateSnapshot(recorder);
+			},
+			dispose: (): void => {
+				for (const program of programs.values()) {
+					program[Symbol.dispose]();
+				}
+
+				programs.clear();
+				api[Symbol.dispose]();
+			},
+		};
+
+		return {snapshot, projects};
+	} catch (error) {
+		for (const program of programs.values()) {
+			program[Symbol.dispose]();
+		}
+
+		api[Symbol.dispose]();
+		throw error;
 	}
-
-	collectReachableInputs(recorder, projects, authoredPaths);
-	const manifest = publicManifest(recorder);
-
-	debug('snapshot captured', {
-		projects: projects.length,
-		authored: authoredPaths.length,
-		inputs: manifest.inputs.length,
-		probes: manifest.probes.length,
-		inputHash: manifest.inputHash,
-	});
-
-	const snapshot: TypeScriptInputSnapshotType = {
-		manifest,
-		readFile: recorder.readFile,
-		readBytes: recorder.readBytes,
-		fileExists: recorder.fileExists,
-		directoryExists: recorder.directoryExists,
-		getDirectories: recorder.getDirectories,
-		readDirectory: recorder.readDirectory,
-		realpath: recorder.realpath,
-		projectOf: (projectFilePath) => recorder.snapshot.projectByPath.get(projectFilePath),
-		validate: (): void => {
-			validateSnapshot(recorder);
-		},
-	};
-
-	return {snapshot, projects};
 };
 
 /**
