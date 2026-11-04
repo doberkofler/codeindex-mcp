@@ -57,6 +57,7 @@ export const createFixtureConfig = (
 		maxResultBytes: 32_768,
 		maxReadLines: 200,
 		semanticDiagnostics: false,
+		freshnessDebounceMs: 1000,
 		projectId: `fixture-${fixtureName}`,
 		logLevel: 'error',
 		configPath: null,

@@ -27,6 +27,7 @@ const configOf = (rootDir: string, projectFilePath: string, semanticDiagnostics 
 	maxResultBytes: 32_768,
 	maxReadLines: 200,
 	semanticDiagnostics,
+	freshnessDebounceMs: 1000,
 	projectId: 'project',
 	logLevel: 'error',
 	configPath: null,

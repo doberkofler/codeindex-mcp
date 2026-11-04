@@ -75,6 +75,7 @@ export const createMultiAdapterWorkspace = async (typescriptFixture = 'simple-pr
 		maxResultBytes: 32_768,
 		maxReadLines: 200,
 		semanticDiagnostics: false,
+		freshnessDebounceMs: 1000,
 		projectId: 'multi-adapter-query',
 		logLevel: 'error',
 		configPath: null,

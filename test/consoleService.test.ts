@@ -77,6 +77,7 @@ const config: ConfigType = {
 	maxResultBytes: 32_768,
 	maxReadLines: 200,
 	semanticDiagnostics: false,
+	freshnessDebounceMs: 1000,
 	projectId: 'console-project',
 	logLevel: 'error',
 	configPath: null,

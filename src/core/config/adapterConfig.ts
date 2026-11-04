@@ -35,6 +35,14 @@ export type ConfigType = Readonly<{
 	readonly maxResultBytes: number;
 	readonly maxReadLines: number;
 	readonly semanticDiagnostics: boolean;
+	/**
+	 * Quiet period after the last filesystem event before a rebuild starts.
+	 *
+	 * Trailing-edge debounce: every new event restarts the window, so a burst of
+	 * editor saves becomes one rebuild. One shared watcher and coordinator serve
+	 * every adapter, so this is a workspace-level value, not a per-adapter one.
+	 */
+	readonly freshnessDebounceMs: number;
 	readonly projectId: string;
 	readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
 	readonly configPath: string | null;

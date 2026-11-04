@@ -108,7 +108,7 @@ export class CodeIndex {
 		this.#coordinator = new RefreshCoordinator({
 			logger,
 			...(options.clock === undefined ? {} : {clock: options.clock}),
-			...(options.debounceMs === undefined ? {} : {debounceMs: options.debounceMs}),
+			debounceMs: options.debounceMs ?? config.freshnessDebounceMs,
 			...(options.reconcileIntervalMs === undefined ? {} : {reconcileIntervalMs: options.reconcileIntervalMs}),
 			runRefresh: async (reason): Promise<BuildOutcomeType> => {
 				const report = await this.#refresh(reason, false);

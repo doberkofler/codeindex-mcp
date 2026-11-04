@@ -336,3 +336,42 @@ describe('multi-adapter storage identity', () => {
 		).toThrow(/cannot be combined with extractors/u);
 	});
 });
+
+describe('freshness configuration', () => {
+	let cleanup: (() => void) | undefined;
+
+	afterEach(() => {
+		cleanup?.();
+		cleanup = undefined;
+	});
+
+	const loadWithFreshness = (freshness: unknown): ReturnType<typeof loadConfig> => {
+		const fixture = createFixtureConfig('simple-project');
+		({cleanup} = fixture);
+		const configPath = path.join(path.dirname(fixture.config.rootDir), 'freshness.config.json');
+		writeFileSync(
+			configPath,
+			JSON.stringify({
+				project: {name: 'freshness', root: fixture.config.rootDir},
+				extractor: {id: 'typescript', project: 'tsconfig.json'},
+				storage: {directory: fixture.config.storageDirectory, analyticsEnabled: false},
+				freshness,
+			}),
+		);
+
+		return loadConfig({CODE_INDEX_CONFIG: configPath});
+	};
+
+	it('defaults the refresh debounce to one second', () => {
+		expect(loadWithFreshness(undefined).freshnessDebounceMs).toBe(1000);
+	});
+
+	it('accepts a configured refresh debounce', () => {
+		expect(loadWithFreshness({debounceMs: 2500}).freshnessDebounceMs).toBe(2500);
+	});
+
+	it('rejects a debounce outside the supported range', () => {
+		expect(() => loadWithFreshness({debounceMs: 99})).toThrow(/failed validation/u);
+		expect(() => loadWithFreshness({debounceMs: 10_001})).toThrow(/failed validation/u);
+	});
+});

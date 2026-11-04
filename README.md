@@ -125,6 +125,9 @@ For explicit or multi-project configuration, create `codeindex.config.json`:
 	"limits": {
 		"maxResultBytes": 32768,
 		"maxReadLines": 200
+	},
+	"freshness": {
+		"debounceMs": 1000
 	}
 }
 ```
@@ -133,6 +136,12 @@ The legacy singular `extractor` object remains valid and normalizes to one requi
 adapter. With `extractors`, every adapter shares one database, build lease, and
 published generation; `required` defaults to `true`, and only an optional adapter
 may report declared absence. The two forms are mutually exclusive.
+
+`freshness.debounceMs` is the quiet period after the last filesystem event before a
+rebuild starts (100–10000 ms, default 1000). Events keep restarting the window, so a
+burst of editor saves becomes one rebuild. Raise it for expensive builds or
+generators; lower it for small, interactive workspaces. One shared watcher serves
+every adapter, so this is a workspace-level setting.
 
 Each entry may name an adapter `module`. A bare package name resolves from the
 configuration-file directory; a relative path resolves from the same directory.

@@ -374,11 +374,14 @@ directory can change the indexed file set without naming a source file.
 
 `RefreshCoordinator` debounces bursts, allows one refresh at a time, coalesces
 changes arriving during a build into one follow-up, and retries a failed refresh
-with capped exponential backoff. It performs **no periodic rescan of an idle
-workspace**: a healthy watcher is the change detector, and a timer that rescans
-unchanged content burns CPU without discovering anything. A full reconciliation
-still runs at startup, after a watcher error, after a failure retry, and on
-`codeindex-cli update`. The scanner remains authoritative.
+with capped exponential backoff. The debounce is a trailing edge: every event
+restarts the quiet window, which is `freshness.debounceMs` (default 1000 ms,
+range 100–10000). It is one workspace-level value because one coordinator serves
+every adapter. It performs **no periodic rescan of an idle workspace**: a healthy
+watcher is the change detector, and a timer that rescans unchanged content burns
+CPU without discovering anything. A full reconciliation still runs at startup,
+after a watcher error, after a failure retry, and on `codeindex-cli update`. The
+scanner remains authoritative.
 
 `reconcileIntervalMs` exists only as an opt-in safety interval for filesystems
 whose events are known to be unreliable. It is disabled by default, and when set

@@ -62,6 +62,18 @@ const DiagnosticsSchema = z.object({
 	semantic: z.boolean().optional(),
 });
 
+/**
+ * Watcher freshness tuning.
+ *
+ * `debounceMs` is the quiet period after the last filesystem event before a
+ * rebuild starts. A trailing debounce already coalesces bursts, so the setting
+ * only decides how long a multi-file save may still be in progress. Larger
+ * values trade latency for fewer rebuilds on expensive workspaces.
+ */
+const FreshnessSchema = z.object({
+	debounceMs: z.number().int().min(100).max(10_000).optional(),
+});
+
 const FileConfigSchema = z
 	.object({
 		project: ProjectSchema.optional(),
@@ -70,6 +82,7 @@ const FileConfigSchema = z
 		storage: StorageSchema.optional(),
 		limits: LimitsSchema.optional(),
 		diagnostics: DiagnosticsSchema.optional(),
+		freshness: FreshnessSchema.optional(),
 	})
 	.superRefine((value, context) => {
 		const declared = Number(value.extractor !== undefined) + Number(value.extractors !== undefined);
@@ -364,6 +377,7 @@ export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): Conf
 		maxResultBytes: environment.environment.CODE_INDEX_MAX_RESULT_BYTES ?? environment.config.limits?.maxResultBytes ?? 32_768,
 		maxReadLines: environment.environment.CODE_INDEX_MAX_READ_LINES ?? environment.config.limits?.maxReadLines ?? 200,
 		semanticDiagnostics: environment.environment.CODE_INDEX_SEMANTIC_DIAGNOSTICS ?? environment.config.diagnostics?.semantic ?? false,
+		freshnessDebounceMs: environment.config.freshness?.debounceMs ?? 1000,
 		projectId,
 		logLevel: environment.environment.CODE_INDEX_LOG_LEVEL,
 		configPath: environment.configPath,

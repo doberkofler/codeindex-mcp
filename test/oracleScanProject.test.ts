@@ -40,6 +40,7 @@ const configOf = (rootDir: string, projectFilePath: string, projects: readonly s
 	maxResultBytes: 32_768,
 	maxReadLines: 200,
 	semanticDiagnostics: false,
+	freshnessDebounceMs: 1000,
 	projectId: 'project',
 	logLevel: 'error',
 	configPath: null,

@@ -4,7 +4,7 @@ import {type BuildOutcomeType, type QueryFreshnessType, type RefreshStateType} f
 
 const debug = debugFor('refresh');
 
-const DEFAULT_DEBOUNCE_MS = 500;
+const DEFAULT_DEBOUNCE_MS = 1000;
 const DEFAULT_SUPERSEDED_BACKOFF_MAX_MS = 30_000;
 const DEFAULT_FAILED_RETRY_MAX_MS = 300_000;
 

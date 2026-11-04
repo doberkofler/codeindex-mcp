@@ -75,6 +75,7 @@ const createFixture = (modules: Readonly<Record<string, string>>, specs: readonl
 		maxResultBytes: 32_768,
 		maxReadLines: 200,
 		semanticDiagnostics: false,
+		freshnessDebounceMs: 1000,
 		projectId: 'loader-fixture',
 		logLevel: 'error',
 		configPath: join(root, 'codeindex.config.json'),

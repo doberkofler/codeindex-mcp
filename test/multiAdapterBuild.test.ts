@@ -63,6 +63,7 @@ const configOf = (workspace: WorkspaceType, adapters: readonly [AdapterConfigTyp
 		maxResultBytes: 32_768,
 		maxReadLines: 200,
 		semanticDiagnostics: false,
+		freshnessDebounceMs: 1000,
 		projectId: 'multi-adapter',
 		logLevel: 'error',
 		configPath: null,

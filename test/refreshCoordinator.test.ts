@@ -373,6 +373,27 @@ describe('RefreshCoordinator publication timing', () => {
 });
 
 describe('RefreshCoordinator idle scheduling', () => {
+	it('defaults the refresh debounce to one second', async () => {
+		const {clock, advance} = createClock();
+		let calls = 0;
+		const coordinator = new RefreshCoordinator({
+			runRefresh: async (): Promise<BuildOutcomeType> => {
+				await Promise.resolve();
+				calls += 1;
+				return 'published';
+			},
+			logger: silentLogger,
+			clock,
+		});
+
+		coordinator.start();
+		await advance(999);
+		expect(calls).toBe(0);
+		await advance(1);
+		expect(calls).toBe(1);
+		await coordinator.close();
+	});
+
 	it('performs no periodic rescan while the workspace is idle', async () => {
 		const {clock, advance} = createClock();
 		let calls = 0;

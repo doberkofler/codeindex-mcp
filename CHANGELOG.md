@@ -20,6 +20,12 @@ All notable changes to this project are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+
+* **freshness:** the refresh debounce now defaults to one second, up from 500 ms,
+  and is configurable with `freshness.debounceMs` (100–10000 ms). The setting is
+  workspace-level because one watcher and coordinator serve every adapter.
+
 ### Fixed
 
 * **freshness:** stop rescanning every 60 seconds when nothing changed. A healthy
