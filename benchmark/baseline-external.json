@@ -7,7 +7,7 @@
 		"fileCountToleranceRatio": 0.05,
 		"symbolCountToleranceRatio": 0.05
 	},
-	"requiredScenarios": ["cold_build", "warm_reuse", "warm_rebuild", "deep_cursor"],
+	"requiredScenarios": ["cold_build", "warm_reuse", "warm_rebuild", "edit_to_fresh", "deep_cursor"],
 	"thresholds": {
 		"buildWarningRatio": 2,
 		"buildFailureRatio": 5,

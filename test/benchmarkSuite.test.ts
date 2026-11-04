@@ -1,4 +1,4 @@
-import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
@@ -8,6 +8,7 @@ import {failureDetail} from '../src/core/benchmark/suiteCommand.ts';
 import {estimateStep, formatDuration, remainingEstimate} from '../src/core/benchmark/suiteProgress.ts';
 import {benchmarkCorpusCounts} from '../src/core/benchmark/corpus.ts';
 import {installCommandFor, runBenchmarkPrepareCommand} from '../src/core/benchmark/suitePrepare.ts';
+import {resolveStepPaths} from '../src/core/benchmark/suiteSteps.ts';
 
 const suitePath = (name: string): string => path.resolve(import.meta.dirname, '..', 'benchmark', 'suites', `${name}.json`);
 
@@ -49,7 +50,8 @@ describe('benchmark suite', () => {
 
 		for (const project of publicProjects.publicProjects) {
 			expect(project.revision).toMatch(/^[0-9a-f]{40}$/u);
-			expect(project.scenarios).not.toContain('edit');
+			expect(project.scenarios).toContain('edit');
+			expect(project.editTarget).not.toBeNull();
 		}
 	});
 
@@ -70,22 +72,33 @@ describe('benchmark suite', () => {
 		expect(result.success).toBe(false);
 	});
 
-	it('rejects edit scenarios for public projects', () => {
-		const result = BenchmarkSuiteSchema.safeParse({
+	it('requires an explicit edit target for public edit scenarios', () => {
+		const project = {
+			name: 'example',
+			repository: 'https://example.com/example.git',
+			revision: '0'.repeat(40),
+			directory: 'example',
+			projectFile: 'tsconfig.json',
+			scenarios: ['cold', 'edit'],
+		};
+		const accepted = BenchmarkSuiteSchema.safeParse({
 			...validSuite,
-			publicProjects: [
-				{
-					name: 'example',
-					repository: 'https://example.com/example.git',
-					revision: '0'.repeat(40),
-					directory: 'example',
-					projectFile: 'tsconfig.json',
-					scenarios: ['cold', 'edit'],
-				},
-			],
+			publicProjects: [{...project, editTarget: 'src/example.ts'}],
+		});
+		const missing = BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [project]});
+		const escaping = BenchmarkSuiteSchema.safeParse({
+			...validSuite,
+			publicProjects: [{...project, editTarget: '../example.ts'}],
+		});
+		const unused = BenchmarkSuiteSchema.safeParse({
+			...validSuite,
+			publicProjects: [{...project, scenarios: ['cold'], editTarget: 'src/example.ts'}],
 		});
 
-		expect(result.success).toBe(false);
+		expect(accepted.success).toBe(true);
+		expect(missing.success).toBe(false);
+		expect(escaping.success).toBe(false);
+		expect(unused.success).toBe(false);
 	});
 
 	it('rejects first-run references without a baseline', () => {
@@ -202,5 +215,57 @@ describe('benchmark suite progress', () => {
 		expect(remainingEstimate([large, xl], history)).toBeCloseTo(20_000 + expected);
 		expect(estimateStep({id: 'public:vscode:run:01', kind: 'public'}, history)).toBeNull();
 		expect(estimateStep(large, new Map([['generated:large:cold', [2000]]]))).toBe(20_000);
+	});
+});
+
+describe('benchmark suite public workspaces', () => {
+	it('plans public runs in a disposable copy that carries the edit target', () => {
+		const root = mkdtempSync(path.join(tmpdir(), 'codeindex-suite-step-'));
+		const projectsRoot = path.join(root, 'projects');
+		const source = path.join(projectsRoot, 'example');
+
+		try {
+			mkdirSync(path.join(source, 'src'), {recursive: true});
+			mkdirSync(path.join(source, '.git'), {recursive: true});
+			writeFileSync(path.join(source, 'src', 'example.ts'), 'export const value = 1;\n', {encoding: 'utf8'});
+
+			const suite = BenchmarkSuiteSchema.parse({
+				...validSuite,
+				publicProjects: [
+					{
+						name: 'example',
+						repository: 'https://example.com/example.git',
+						revision: '0'.repeat(40),
+						directory: 'example',
+						projectFile: 'tsconfig.json',
+						scenarios: ['cold', 'edit'],
+						editTarget: 'src/example.ts',
+					},
+				],
+			});
+			const outputDir = path.join(root, 'out');
+			const steps = resolveStepPaths({suite, repositoryRoot: root, outputDir, projectsRoot});
+			const step = steps.at(0);
+
+			if (step === undefined) {
+				throw new Error('public benchmark step was not planned');
+			}
+
+			const args = step.args({cliPath: 'cli', baselinePath: null, referencePath: null});
+
+			expect(args).toContain('--disposable');
+			expect(args).toContain('--edit-target');
+			expect(args).toContain('src/example.ts');
+			expect(step.cleanupPaths).toStrictEqual([path.join(outputDir, 'work', 'public', 'example-01')]);
+
+			step.prepare?.();
+
+			const copy = path.join(outputDir, 'work', 'public', 'example-01');
+
+			expect(existsSync(path.join(copy, 'src', 'example.ts'))).toBe(true);
+			expect(existsSync(path.join(copy, '.git'))).toBe(false);
+		} finally {
+			rmSync(root, {recursive: true, force: true});
+		}
 	});
 });

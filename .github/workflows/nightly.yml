@@ -207,7 +207,7 @@ jobs:
 
       - name: Measure pinned public corpus
         id: measure
-        timeout-minutes: 180
+        timeout-minutes: 240
         # The pinned VS Code project exceeds the default worker heap. The build
         # worker inherits this limit from the parent process; 8 GiB is the
         # declared budget for the largest pinned project, not a product default.

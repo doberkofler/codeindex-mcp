@@ -11,11 +11,13 @@
 			"revision": "050880ce59e30b356b686bd3144efe24f875ebc8",
 			"directory": "typescript",
 			"projectFile": "src/compiler/tsconfig.json",
-			"scenarios": ["cold", "warm", "rebuild", "deep", "queries"],
+			"scenarios": ["cold", "warm", "rebuild", "edit", "deep", "queries"],
 			"iterations": 20,
 			"runs": 2,
 			"baseline": "benchmark/baseline-external.json",
-			"reference": "first-run"
+			"reference": "first-run",
+			"editTarget": "src/compiler/parser.ts",
+			"editRounds": 3
 		},
 		{
 			"name": "vscode",
@@ -23,11 +25,13 @@
 			"revision": "072586267e68ece9a47aa43f8c108e0dcbf44622",
 			"directory": "vscode",
 			"projectFile": "src/tsconfig.json",
-			"scenarios": ["cold", "warm", "rebuild", "deep", "queries"],
+			"scenarios": ["cold", "warm", "rebuild", "edit", "deep", "queries"],
 			"iterations": 20,
 			"runs": 2,
 			"baseline": "benchmark/baseline-external.json",
-			"reference": "first-run"
+			"reference": "first-run",
+			"editTarget": "src/vs/base/common/strings.ts",
+			"editRounds": 3
 		},
 		{
 			"name": "material-ui",
@@ -35,11 +39,13 @@
 			"revision": "28eadba9ec2899226ecbf4058b8fba1ddeab9e6d",
 			"directory": "material-ui",
 			"projectFile": "packages/mui-material/tsconfig.json",
-			"scenarios": ["cold", "warm", "rebuild", "deep", "queries"],
+			"scenarios": ["cold", "warm", "rebuild", "edit", "deep", "queries"],
 			"iterations": 20,
 			"runs": 2,
 			"baseline": "benchmark/baseline-external.json",
-			"reference": "first-run"
+			"reference": "first-run",
+			"editTarget": "packages/mui-material/src/Button/Button.js",
+			"editRounds": 3
 		}
 	]
 }

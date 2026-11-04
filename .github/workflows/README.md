@@ -34,8 +34,10 @@ cannot silently change the reference platform. Absolute latency, memory, storage
 and correctness gates apply. The one exception is generated-corpus edit-to-fresh latency:
 those corpora deliberately concentrate shared surface types, so the absolute p95 is
 advisory and only warns. The retained-reference ratio remains the blocking regression
-guard, and external-workspace baselines keep the absolute edit p95 blocking. Relative
-regression gates are capped to warnings whenever the retained reference was produced on
+guard, and external-workspace baselines keep the absolute edit p95 blocking. Pinned public
+projects run edit-to-fresh in a disposable copy of the prepared checkout, so the pin is
+never mutated; a missing edit target fails the step instead of silently skipping the gate.
+Relative regression gates are capped to warnings whenever the retained reference was produced on
 another platform or architecture, so the first run on a new platform establishes that
 platform's reference and later runs compare like against like.
 

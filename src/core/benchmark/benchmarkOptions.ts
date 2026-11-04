@@ -160,7 +160,14 @@ const numericOptions = (values: BenchmarkOptionValuesType): Readonly<{iterations
 	return options;
 };
 
-const parseEditTarget = (value: string | undefined): string | null => {
+/**
+ * Validates a workspace-relative edit target.
+ *
+ * @param value - Candidate path, as supplied by a suite or the CLI.
+ * @returns The normalized POSIX path.
+ * @throws {Error} When the path is absolute or escapes the workspace.
+ */
+export const parseEditTarget = (value: string | undefined): string | null => {
 	if (value === undefined) {
 		return null;
 	}

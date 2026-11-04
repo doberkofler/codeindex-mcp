@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+* **benchmark:** measure edit-to-fresh on pinned public projects. Each run copies
+  the prepared checkout into a disposable workspace, so the pin is never mutated
+  and `benchmark/baseline-external.json` can require the edit scenario it already
+  claimed to gate. The absolute edit p95 gate now executes on the external
+  baselines instead of being unreachable.
+
 ## [0.14.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.13.0...v0.14.0) (2026-11-04)
 
 ### Added

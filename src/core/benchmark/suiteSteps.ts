@@ -1,10 +1,10 @@
-import {existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs';
+import {cpSync, existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {type SuiteStepResultType} from './suiteManifest.ts';
 import {cleanChildEnvironment, failureDetail, runCommand} from './suiteCommand.ts';
 import {type BenchmarkSuiteGeneratedType, type BenchmarkSuitePublicProjectType, type BenchmarkSuiteType} from './suiteTypes.ts';
 
-const {dirname, join, relative, resolve, sep} = path;
+const {basename, dirname, join, relative, resolve, sep} = path;
 
 export type PlannedStepType = Readonly<{
 	id: string;
@@ -20,6 +20,8 @@ export type PlannedStepType = Readonly<{
 	stdoutPath?: string;
 	cwd?: string;
 	cleanupPaths?: readonly string[];
+	/** Runs before the measured command; used to create a disposable workspace copy. */
+	prepare?: () => void;
 }>;
 
 const relativePosix = (root: string, filePath: string): string => relative(root, filePath).split(sep).join('/');
@@ -141,9 +143,37 @@ const generatedSteps = (
 	return steps;
 };
 
+const publicCopyOf = (input: Readonly<{outputDir: string; entry: BenchmarkSuitePublicProjectType; suffix: string}>): string =>
+	join(input.outputDir, 'work', 'public', `${input.entry.name}-${input.suffix}`);
+
+/**
+ * Copies a prepared checkout into a disposable workspace.
+ *
+ * Public checkouts are pinned and shared, so the edit scenario never mutates
+ * them. Git history is excluded; package-manager symlinks are copied verbatim
+ * so the copy resolves dependencies exactly like the prepared checkout.
+ *
+ * @param input - Prepared checkout, destination, and project name.
+ * @throws {Error} When the prepared checkout is missing.
+ */
+const copyPublicWorkspace = (input: Readonly<{source: string; destination: string; name: string}>): void => {
+	if (!existsSync(input.source)) {
+		throw new Error(`Prepared checkout for ${input.name} is missing: ${input.source}. Run benchmark-prepare first`);
+	}
+
+	rmSync(input.destination, {recursive: true, force: true});
+	mkdirSync(dirname(input.destination), {recursive: true});
+	cpSync(input.source, input.destination, {
+		recursive: true,
+		verbatimSymlinks: true,
+		filter: (entry) => basename(entry) !== '.git',
+	});
+};
+
 const publicRunStep = (
 	input: Readonly<{
 		entry: BenchmarkSuitePublicProjectType;
+		source: string;
 		workspace: string;
 		outputDir: string;
 		suffix: string;
@@ -171,11 +201,18 @@ const publicRunStep = (
 				input.entry.scenarios.join(','),
 				'--iterations',
 				String(input.entry.iterations),
+				'--edit-rounds',
+				String(input.entry.editRounds),
+				'--disposable',
 				'--output',
 				runPath,
 				'--summary',
 				summaryPath,
 			];
+
+			if (input.entry.editTarget !== null) {
+				args.push('--edit-target', input.entry.editTarget);
+			}
 
 			if (baselinePath !== null) {
 				args.push('--baseline', baselinePath, '--evaluation', evaluationPath);
@@ -191,6 +228,10 @@ const publicRunStep = (
 		referencePath: input.referencePath,
 		artifacts: input.baselinePath === null ? [runPath, summaryPath] : [runPath, summaryPath, evaluationPath],
 		logPath: join(input.outputDir, 'logs', `public-${input.entry.name}-${input.suffix}.log`),
+		prepare: () => {
+			copyPublicWorkspace({source: input.source, destination: input.workspace, name: input.entry.name});
+		},
+		cleanupPaths: [input.workspace],
 	};
 };
 
@@ -203,15 +244,16 @@ const publicSteps = (
 	}>,
 ): readonly PlannedStepType[] => {
 	const steps: PlannedStepType[] = [];
-	const workspace = join(input.projectsRoot, input.entry.directory);
+	const source = join(input.projectsRoot, input.entry.directory);
 	const baselinePath = input.entry.baseline === null ? null : resolve(input.repositoryRoot, input.entry.baseline);
 
 	for (let run = 1; run <= input.entry.runs; run += 1) {
 		const suffix = String(run).padStart(2, '0');
 		const firstRunPath = join(input.outputDir, 'public', input.entry.name, 'run-01.json');
 		const referencePath = input.entry.reference === 'first-run' && run > 1 ? firstRunPath : null;
+		const workspace = publicCopyOf({outputDir: input.outputDir, entry: input.entry, suffix});
 
-		steps.push(publicRunStep({entry: input.entry, workspace, outputDir: input.outputDir, suffix, baselinePath, referencePath}));
+		steps.push(publicRunStep({entry: input.entry, source, workspace, outputDir: input.outputDir, suffix, baselinePath, referencePath}));
 	}
 
 	return steps;
@@ -306,32 +348,38 @@ export const executeStep = async (
 	const referencePath = input.step.referencePath !== null && existsSync(input.step.referencePath) ? input.step.referencePath : null;
 	const args = input.step.args({cliPath: input.cliPath, baselinePath: input.step.baselinePath, referencePath});
 	const environment = {...cleanChildEnvironment(input.environment), ...input.step.environment};
-	const result = await runCommand({
-		command: process.execPath,
-		args,
-		cwd: input.step.cwd ?? input.repositoryRoot,
-		environment,
-		logPath: input.step.logPath,
-		...(input.onLine === undefined ? {} : {onLine: input.onLine}),
-	});
 
-	if (input.step.stdoutPath !== undefined && result.stdout.length > 0) {
-		mkdirSync(dirname(input.step.stdoutPath), {recursive: true});
-		writeFileSync(input.step.stdoutPath, result.stdout, {encoding: 'utf8'});
+	try {
+		input.step.prepare?.();
+
+		const result = await runCommand({
+			command: process.execPath,
+			args,
+			cwd: input.step.cwd ?? input.repositoryRoot,
+			environment,
+			logPath: input.step.logPath,
+			...(input.onLine === undefined ? {} : {onLine: input.onLine}),
+		});
+
+		if (input.step.stdoutPath !== undefined && result.stdout.length > 0) {
+			mkdirSync(dirname(input.step.stdoutPath), {recursive: true});
+			writeFileSync(input.step.stdoutPath, result.stdout, {encoding: 'utf8'});
+		}
+
+		return {
+			id: input.step.id,
+			kind: input.step.kind,
+			title: input.step.title,
+			status: result.exitCode === 0 ? 'passed' : 'failed',
+			exitCode: result.exitCode,
+			durationMs: result.durationMs,
+			artifacts: input.step.artifacts.map((artifact) => relativePosix(input.outputDir, artifact)),
+			detail: result.exitCode === 0 ? null : failureDetail(result.stderr),
+		};
+	} finally {
+		// A disposable copy is large; remove it on success, failure, and interrupt.
+		for (const cleanupPath of input.step.cleanupPaths ?? []) {
+			rmSync(cleanupPath, {recursive: true, force: true});
+		}
 	}
-
-	for (const cleanupPath of input.step.cleanupPaths ?? []) {
-		rmSync(cleanupPath, {force: true});
-	}
-
-	return {
-		id: input.step.id,
-		kind: input.step.kind,
-		title: input.step.title,
-		status: result.exitCode === 0 ? 'passed' : 'failed',
-		exitCode: result.exitCode,
-		durationMs: result.durationMs,
-		artifacts: input.step.artifacts.map((artifact) => relativePosix(input.outputDir, artifact)),
-		detail: result.exitCode === 0 ? null : failureDetail(result.stderr),
-	};
 };

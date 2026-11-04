@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {z} from 'zod';
+import {parseEditTarget} from './benchmarkOptions.ts';
 
 const SCENARIO_NAMES = ['cold', 'warm', 'rebuild', 'edit', 'deep', 'queries'] as const;
 const PROFILE_NAMES = ['small', 'medium', 'large', 'xl'] as const;
@@ -40,6 +41,15 @@ const GeneratedProfilesSchema = z
 		message: 'generated profiles must be unique',
 	});
 
+const isWorkspaceRelativePath = (value: string): boolean => {
+	try {
+		parseEditTarget(value);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
 const PublicProjectsSchema = z
 	.array(
 		z
@@ -54,10 +64,21 @@ const PublicProjectsSchema = z
 				runs: z.number().int().min(1).max(20).default(1),
 				baseline: z.string().min(1).nullable().default(null),
 				reference: z.enum(['first-run', 'none']).default('none'),
+				/** Workspace-relative source file changed by edit-to-fresh; required by the `edit` scenario. */
+				editTarget: z.string().min(1).nullable().default(null),
+				editRounds: z.number().int().min(1).max(100).default(3),
 			})
 			.superRefine((value, context) => {
-				if (value.scenarios.includes('edit')) {
-					context.addIssue({code: 'custom', path: ['scenarios'], message: 'edit mutates source and is not allowed for public projects'});
+				if (value.editTarget !== null && !isWorkspaceRelativePath(value.editTarget)) {
+					context.addIssue({code: 'custom', path: ['editTarget'], message: 'editTarget must be a workspace-relative source path'});
+				}
+
+				if (value.scenarios.includes('edit') && value.editTarget === null) {
+					context.addIssue({code: 'custom', path: ['editTarget'], message: 'edit requires an explicit editTarget'});
+				}
+
+				if (!value.scenarios.includes('edit') && value.editTarget !== null) {
+					context.addIssue({code: 'custom', path: ['scenarios'], message: 'editTarget requires the edit scenario'});
 				}
 
 				if (!value.scenarios.includes('cold')) {
