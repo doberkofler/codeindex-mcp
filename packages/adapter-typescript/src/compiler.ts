@@ -353,6 +353,26 @@ export const diagnosticText = (diagnostic: Diagnostic): string => {
 };
 
 /**
+ * Resolved declarations per symbol.
+ *
+ * Declaration resolution accepts node handles from the compiler process, so a
+ * repeated call costs more than an array lookup. Symbols are immutable for the
+ * life of a program, so one resolution per symbol is enough; the cache is keyed
+ * weakly to keep it bounded by the loaded program.
+ */
+const declarationCache = new WeakMap<CompilerSymbol, readonly Declaration[]>();
+
+/**
+ * Decoded file names per source file.
+ *
+ * TypeScript 7 stores a source file name in the transferable string table and
+ * decodes it on every read of `fileName`. Reachability and publication ask for
+ * the same file name thousands of times per build, so the decoded value is
+ * retained per source file.
+ */
+const sourceFileNameCache = new WeakMap<SourceFile, string>();
+
+/**
  * Resolves the declarations of a symbol.
  *
  * TypeScript 7 returns node handles; the adapter works with resolved nodes.
@@ -361,6 +381,12 @@ export const diagnosticText = (diagnostic: Diagnostic): string => {
  * @returns Resolved declaration nodes, skipping handles that no longer resolve.
  */
 export const declarationsOf = (symbol: CompilerSymbol): readonly Declaration[] => {
+	const cached = declarationCache.get(symbol);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
 	const declarations: Declaration[] = [];
 
 	for (const handle of symbol.declarations) {
@@ -371,8 +397,35 @@ export const declarationsOf = (symbol: CompilerSymbol): readonly Declaration[] =
 		}
 	}
 
+	declarationCache.set(symbol, declarations);
 	return declarations;
 };
+
+/**
+ * Returns the decoded file name of a source file.
+ *
+ * @param sourceFile - Source file.
+ * @returns Absolute file name.
+ */
+export const fileNameOf = (sourceFile: SourceFile): string => {
+	const cached = sourceFileNameCache.get(sourceFile);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const {fileName} = sourceFile;
+	sourceFileNameCache.set(sourceFile, fileName);
+	return fileName;
+};
+
+/**
+ * Returns the decoded file name of a declaration's source file.
+ *
+ * @param declaration - Declaration node.
+ * @returns Absolute file name.
+ */
+export const declarationFileNameOf = (declaration: Declaration): string => fileNameOf(declaration.getSourceFile());
 
 /**
  * Resolves the value declaration of a symbol.

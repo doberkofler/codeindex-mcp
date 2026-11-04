@@ -54,12 +54,13 @@ const toDiagnostic = (diagnostic: ts.Diagnostic, config: AdapterConfigType): Dia
 };
 
 const collectDiagnostics = (program: ts.Program, config: AdapterConfigType): Readonly<{items: readonly DiagnosticType[]; total: number}> => {
-	// Global diagnostics force a full check of the default library. They only
-	// add value when the caller asked for semantic checking; requesting them for
-	// a syntax-only build dominated construction time on large projects.
+	// Global diagnostics are always collected, including when semantic checking
+	// is disabled. They report failures such as a missing default library, which
+	// callers observed before the TypeScript 7 migration; suppressing them for
+	// speed would silently change the reported diagnostic contract.
 	const diagnostics: readonly ts.Diagnostic[] = config.semanticDiagnostics
 		? [...program.getProgramDiagnostics(), ...program.getGlobalDiagnostics(), ...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()]
-		: [...program.getProgramDiagnostics(), ...program.getSyntacticDiagnostics()];
+		: [...program.getProgramDiagnostics(), ...program.getGlobalDiagnostics(), ...program.getSyntacticDiagnostics()];
 
 	const stored: DiagnosticType[] = [];
 

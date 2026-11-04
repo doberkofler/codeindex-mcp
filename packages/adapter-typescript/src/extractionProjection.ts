@@ -28,6 +28,7 @@ export const projectPublishedRoots = (runtime: ExtractionRuntimeType, sink: Fact
 		typeIndexes: new Map(),
 		typeBases: new Map(),
 		typeArguments: new Map(),
+		typeClassifications: new Map(),
 		markReachable: (symbolId) => {
 			sink.reachable.add(symbolId);
 		},

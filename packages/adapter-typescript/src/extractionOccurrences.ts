@@ -253,7 +253,7 @@ export const collectReferenceFacts = (
 				if (symbolId === null) {
 					const target = aliasTargetOf(runtime, raw);
 					const authored = (target === undefined ? [] : ts.declarationsOf(target)).some((declaration) =>
-						runtime.authoredPaths.has(declaration.getSourceFile().fileName),
+						runtime.authoredPaths.has(ts.declarationFileNameOf(declaration)),
 					);
 					dropped[authored ? 'ephemeral_target' : 'external_target'] += 1;
 				} else {

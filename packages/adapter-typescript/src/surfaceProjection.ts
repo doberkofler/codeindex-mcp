@@ -1,28 +1,27 @@
 import * as ts from './compiler.ts';
 import {type FactAddressType} from '@codeindex/adapter-sdk';
+import {authoredDeclarationsOf, isExternalSymbol, isInheritedProperty, isPrivateProperty, resolveAlias} from './projectionPredicates.ts';
 import {
 	addStep,
-	authoredDeclarationsOf,
+	cachedAwaitedTypeOf,
 	cachedDeclaredTypeOf,
+	cachedIsAnonymousShape,
+	cachedIsArrayType,
+	cachedIsExternalType,
+	cachedIsTupleType,
+	cachedNamedSymbolOf,
 	cachedPropertiesOfType,
 	cachedSymbolTypeOf,
 	cachedTypeArguments,
 	enqueueProjection,
 	hasAnyFlag,
-	isAnonymousShape,
-	isExternalSymbol,
-	isExternalType,
-	isInheritedProperty,
-	isPrivateProperty,
 	isTypeReference,
 	MAX_PROJECTION_DEPTH,
 	markSymbolReachable,
 	markTypeReachable,
-	namedSymbolOf,
 	type ProjectionNodeType,
 	type ProjectionStateType,
 	SurfaceProjectionError,
-	resolveAlias,
 	symbolIdOf,
 	type SurfaceProjectionHostType,
 } from './surfaceCore.ts';
@@ -78,7 +77,7 @@ const projectProperties = (state: ProjectionStateType, node: ProjectionNodeType,
 	for (const property of properties) {
 		if (
 			isPrivateProperty(property) ||
-			ts.declarationsOf(property).every((declaration) => !state.host.authoredPaths.has(declaration.getSourceFile().fileName))
+			ts.declarationsOf(property).every((declaration) => !state.host.authoredPaths.has(ts.declarationFileNameOf(declaration)))
 		) {
 			continue;
 		}
@@ -236,19 +235,19 @@ const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeT
 		return;
 	}
 
-	if (state.host.checker.isTupleType(node.type)) {
+	if (cachedIsTupleType(state.host, node.type)) {
 		projectTuple(state, node);
 		return;
 	}
 
-	if (state.host.checker.isArrayType(node.type)) {
+	if (cachedIsArrayType(state.host, node.type)) {
 		projectArray(state, node);
 		return;
 	}
 
-	const awaited = state.host.checker.getAwaitedType(node.type);
+	const awaited = cachedAwaitedTypeOf(state.host, node.type);
 
-	if (awaited !== undefined && awaited !== node.type) {
+	if (awaited !== null && awaited !== node.type) {
 		enqueueProjection(state, {
 			type: awaited,
 			path: [...node.path, ['awaited', null]],
@@ -259,7 +258,7 @@ const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeT
 		return;
 	}
 
-	if (isExternalType(node.type, state.host.authoredPaths)) {
+	if (cachedIsExternalType(state.host, node.type)) {
 		return;
 	}
 
@@ -270,14 +269,14 @@ const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeT
 		return;
 	}
 
-	const named = namedSymbolOf(node.type, state.host.authoredPaths);
+	const named = cachedNamedSymbolOf(state.host, node.type);
 
 	if (node.depth > 0 && named !== null) {
 		markSymbolReachable(state, named);
 		return;
 	}
 
-	projectProperties(state, node, isAnonymousShape(node.type, state.host.authoredPaths));
+	projectProperties(state, node, cachedIsAnonymousShape(state.host, node.type));
 };
 
 const drainProjection = (state: ProjectionStateType): void => {

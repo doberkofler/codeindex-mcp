@@ -69,8 +69,8 @@ const addDefinition = (
 ): void => {
 	const {canonical, declaration, nameNode} = entry;
 	const definition = definitionOf(input, declaration, nameNode);
-	const canonicalPaths = new Set(ts.declarationsOf(canonical).map((entryDeclaration) => entryDeclaration.getSourceFile().fileName));
-	const aliasShadowed = !canonicalPaths.has(declaration.getSourceFile().fileName);
+	const canonicalPaths = new Set(ts.declarationsOf(canonical).map((entryDeclaration) => ts.declarationFileNameOf(entryDeclaration)));
+	const aliasShadowed = !canonicalPaths.has(ts.fileNameOf(declaration.getSourceFile()));
 
 	if (aliasShadowed) {
 		const key = `shadow:${definition.path}:${String(definition.range.startOffset)}`;

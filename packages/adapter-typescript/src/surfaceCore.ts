@@ -1,6 +1,6 @@
 import * as ts from './compiler.ts';
 import {type FactAddressType} from '@codeindex/adapter-sdk';
-import {isPrivateMemberSymbol} from './symbolName.ts';
+import {isAnonymousShape, isExternalSymbol, isExternalType, isPrivateProperty, namedSymbolOf, resolveAlias} from './projectionPredicates.ts';
 
 type SurfaceAddressType = Readonly<{
 	readonly symbolId: string;
@@ -34,7 +34,25 @@ export type SurfaceProjectionHostType = Readonly<{
 	readonly typeBases: Map<number, readonly ts.Type[]>;
 	/** Cached type arguments keyed by compiler type identifier. */
 	readonly typeArguments: Map<number, readonly ts.Type[]>;
+	/** Cached per-type classification facts used by projection. */
+	readonly typeClassifications: Map<number, TypeClassificationType>;
 }>;
+
+/**
+ * Lazily filled classification of one compiler type.
+ *
+ * Projection asks the same shape, externality, and naming questions about the
+ * same type from many roots. Every one of those questions is a synchronous
+ * compiler request, so each answer is retained for the run.
+ */
+export type TypeClassificationType = {
+	tuple: boolean | undefined;
+	array: boolean | undefined;
+	awaited: ts.Type | null | undefined;
+	external: boolean | undefined;
+	named: ts.Symbol | null | undefined;
+	anonymous: boolean | undefined;
+};
 
 type ReachabilityNodeType = Readonly<{kind: 'symbol'; symbol: ts.Symbol}> | Readonly<{kind: 'type'; type: ts.Type}>;
 
@@ -66,82 +84,6 @@ export const MAX_PROJECTION_DEPTH = 64;
 export class SurfaceProjectionError extends Error {
 	public override readonly name = 'SurfaceProjectionError';
 }
-
-export const authoredDeclarationsOf = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): readonly ts.Declaration[] =>
-	ts.declarationsOf(symbol).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
-
-export const isExternalSymbol = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean => {
-	const declarations = ts.declarationsOf(symbol);
-
-	return declarations.length > 0 && declarations.every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
-};
-
-export const resolveAlias = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Symbol => {
-	if ((symbol.flags & ts.SymbolFlags.Alias) === 0) {
-		return symbol;
-	}
-
-	try {
-		return checker.getAliasedSymbol(symbol);
-	} catch {
-		return symbol;
-	}
-};
-
-export const isExternalType = (type: ts.Type, authoredPaths: ReadonlySet<string>): boolean => {
-	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
-		if (candidate !== undefined && isExternalSymbol(candidate, authoredPaths)) {
-			return true;
-		}
-	}
-
-	return false;
-};
-
-const isAnonymousClassExpression = (symbol: ts.Symbol): boolean =>
-	ts.declarationsOf(symbol).some((declaration) => ts.isClassExpression(declaration) && declaration.name === undefined);
-
-export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>): ts.Symbol | null => {
-	const namedFlags = [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias, ts.SymbolFlags.Enum];
-
-	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
-		if (
-			candidate !== undefined &&
-			namedFlags.some((flag) => (candidate.flags & flag) !== 0) &&
-			authoredDeclarationsOf(candidate, authoredPaths).length > 0 &&
-			!isAnonymousClassExpression(candidate)
-		) {
-			return candidate;
-		}
-	}
-
-	return null;
-};
-
-export const isAnonymousShape = (type: ts.Type, authoredPaths: ReadonlySet<string>): boolean =>
-	(type.flags & ts.TypeFlags.Object) !== 0 && namedSymbolOf(type, authoredPaths) === null;
-
-const isPrivateDeclaration = (declaration: ts.Declaration): boolean =>
-	(ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Private) !== 0 ||
-	(ts.canHaveModifiers(declaration) && (ts.getModifiers(declaration)?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword) ?? false));
-
-export const isPrivateProperty = (property: ts.Symbol): boolean => {
-	if (isPrivateMemberSymbol(property)) {
-		return true;
-	}
-
-	return ts.declarationsOf(property).some((declaration) => isPrivateDeclaration(declaration));
-};
-
-export const isInheritedProperty = (property: ts.Symbol, rootDeclarations: readonly ts.Node[]): boolean => {
-	const declarations = ts.declarationsOf(property);
-
-	if (declarations.length === 0 || rootDeclarations.length === 0) {
-		return false;
-	}
-
-	return declarations.every((declaration) => ts.findAncestor(declaration, (ancestor) => rootDeclarations.includes(ancestor)) === undefined);
-};
 
 const isObjectType = (type: ts.Type): type is ts.ObjectType => type.isObjectType();
 
@@ -267,6 +209,108 @@ export const cachedBaseTypesOfType = (host: SurfaceProjectionHostType, type: ts.
 export const cachedTypeArguments = (host: SurfaceProjectionHostType, type: ts.TypeReference): readonly ts.Type[] =>
 	memoized(host.typeArguments, type.id, () => host.checker.getTypeArguments(type));
 
+const classificationOf = (host: SurfaceProjectionHostType, type: ts.Type): TypeClassificationType => {
+	const cached = host.typeClassifications.get(type.id);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const created: TypeClassificationType = {tuple: undefined, array: undefined, awaited: undefined, external: undefined, named: undefined, anonymous: undefined};
+	host.typeClassifications.set(type.id, created);
+	return created;
+};
+
+/**
+ * Reports whether a type is a tuple type, caching the compiler answer.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Compiler type.
+ * @returns True for tuple types.
+ */
+export const cachedIsTupleType = (host: SurfaceProjectionHostType, type: ts.Type): boolean => {
+	const classification = classificationOf(host, type);
+
+	classification.tuple ??= host.checker.isTupleType(type);
+	return classification.tuple;
+};
+
+/**
+ * Reports whether a type is an array type, caching the compiler answer.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Compiler type.
+ * @returns True for array types.
+ */
+export const cachedIsArrayType = (host: SurfaceProjectionHostType, type: ts.Type): boolean => {
+	const classification = classificationOf(host, type);
+
+	classification.array ??= host.checker.isArrayType(type);
+	return classification.array;
+};
+
+/**
+ * Returns a type's awaited type, caching the compiler answer.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Compiler type.
+ * @returns The awaited type, or null when there is none.
+ */
+export const cachedAwaitedTypeOf = (host: SurfaceProjectionHostType, type: ts.Type): ts.Type | null => {
+	const classification = classificationOf(host, type);
+
+	if (classification.awaited === undefined) {
+		classification.awaited = host.checker.getAwaitedType(type) ?? null;
+	}
+
+	return classification.awaited;
+};
+
+/**
+ * Reports whether a type resolves only to external declarations.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Compiler type.
+ * @returns True for external types.
+ */
+export const cachedIsExternalType = (host: SurfaceProjectionHostType, type: ts.Type): boolean => {
+	const classification = classificationOf(host, type);
+
+	classification.external ??= isExternalType(type, host.authoredPaths);
+	return classification.external;
+};
+
+/**
+ * Returns the authored named symbol of a type, caching the compiler answer.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Compiler type.
+ * @returns The named symbol, or null.
+ */
+export const cachedNamedSymbolOf = (host: SurfaceProjectionHostType, type: ts.Type): ts.Symbol | null => {
+	const classification = classificationOf(host, type);
+
+	if (classification.named === undefined) {
+		classification.named = namedSymbolOf(type, host.authoredPaths);
+	}
+
+	return classification.named;
+};
+
+/**
+ * Reports whether a type is an anonymous object shape.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Compiler type.
+ * @returns True for anonymous object shapes.
+ */
+export const cachedIsAnonymousShape = (host: SurfaceProjectionHostType, type: ts.Type): boolean => {
+	const classification = classificationOf(host, type);
+
+	classification.anonymous ??= isAnonymousShape(type, host.authoredPaths);
+	return classification.anonymous;
+};
+
 export const addStep = (state: ProjectionStateType): void => {
 	state.steps += 1;
 
@@ -300,7 +344,10 @@ export const symbolIdOf = (state: ProjectionStateType, symbol: ts.Symbol): strin
 };
 
 const enqueueSymbol = (state: ProjectionStateType, symbol: ts.Symbol): void => {
-	if (isPrivateProperty(symbol) || isExternalSymbol(symbol, state.host.authoredPaths) || state.reachableSymbols.has(symbol)) {
+	// Visited symbols are the common case: reachability reaches the same symbol
+	// from many types. Checking that first avoids re-running the privacy and
+	// externality predicates, which resolve declarations through the compiler.
+	if (state.reachableSymbols.has(symbol) || isPrivateProperty(symbol) || isExternalSymbol(symbol, state.host.authoredPaths)) {
 		return;
 	}
 

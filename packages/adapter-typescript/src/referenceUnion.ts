@@ -243,7 +243,7 @@ export const createReferenceSyntaxClassifier = (union: ReferenceUnionType): ((pa
 			const target = raw === undefined || (raw.flags & ts.SymbolFlags.Alias) === 0 ? raw : context.project.checker.getAliasedSymbol(raw);
 			const declarations = target === undefined ? [] : ts.declarationsOf(target);
 
-			if (declarations.length > 0 && declarations.every((declaration) => !authored.has(realName(declaration.getSourceFile().fileName)))) {
+			if (declarations.length > 0 && declarations.every((declaration) => !authored.has(realName(ts.declarationFileNameOf(declaration))))) {
 				return 'direct_external';
 			}
 

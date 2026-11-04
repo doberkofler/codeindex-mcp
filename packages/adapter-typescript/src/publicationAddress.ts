@@ -54,7 +54,7 @@ export const defaultTokenOf = (sourceFile: ts.SourceFile, node: ts.Node): ts.Nod
 };
 
 export const authoredOf = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): readonly ts.Declaration[] =>
-	ts.declarationsOf(symbol).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
+	ts.declarationsOf(symbol).filter((declaration) => authoredPaths.has(ts.declarationFileNameOf(declaration)));
 
 const enclosingScope = (node: ts.Node): CandidateScopeType | null => {
 	if (ts.isSourceFile(node)) {
