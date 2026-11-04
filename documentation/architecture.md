@@ -220,10 +220,12 @@ queries, or transports.
 
 ### TypeScript and JavaScript
 
-The TypeScript adapter uses the TypeScript compiler API independently for each
-configured `tsconfig.json` or `jsconfig.json` context. It publishes authored
-`.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` files reachable
-from those programs. JavaScript requires `allowJs`.
+The TypeScript adapter uses the TypeScript 7 synchronous compiler API
+independently for each configured `tsconfig.json` or `jsconfig.json` context. The
+compiler runs in its own process; the adapter owns that process per input
+snapshot and disposes it, its programs, and its module resolvers explicitly. It
+publishes authored `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and
+`.cjs` files reachable from those programs. JavaScript requires `allowJs`.
 
 Declaration files, dependencies, and generated output may participate in
 resolution but are not published as authored symbols. The adapter emits

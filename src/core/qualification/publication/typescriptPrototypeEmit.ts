@@ -1,7 +1,8 @@
+import {type Dirent, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
+import * as ts from '@codeindex/adapter-typescript/compiler';
 import {type ConfigType} from '../../config/config.ts';
-import {loadTypeScriptProject} from '@codeindex/adapter-typescript/internals';
+import {type LoadedProjectType, loadTypeScriptProject} from '@codeindex/adapter-typescript/internals';
 
 export const posixRelative = (rootDir: string, filePath: string): string | null => {
 	const relative = path.relative(rootDir, filePath).split(path.sep).join('/');
@@ -9,73 +10,117 @@ export const posixRelative = (rootDir: string, filePath: string): string | null 
 	return relative.length === 0 || relative.startsWith('../') || path.isAbsolute(relative) ? null : relative;
 };
 
-export const emitDeclarations = (
-	config: ConfigType,
-	context: ConfigType['projects'][number],
-	outputDirectory: string,
-	authoredFiles: readonly string[],
-): Readonly<{emittedFiles: readonly string[]; declarationMapFiles: readonly string[]; emitErrors: number; compilerOptions: ts.CompilerOptions}> => {
-	const project = loadTypeScriptProject(config, context.projectFilePath);
-	const options: ts.CompilerOptions = {
-		...project.program.getCompilerOptions(),
-		rootDir: config.rootDir,
-		outDir: outputDirectory,
-		allowJs: true,
-		declaration: true,
-		emitDeclarationOnly: true,
-		declarationMap: true,
-		incremental: false,
-		composite: false,
-		noEmit: false,
-		noEmitOnError: false,
+const filesWithSuffixes = (directory: string, suffixes: readonly string[]): readonly string[] => {
+	const found: string[] = [];
+	const walk = (current: string): void => {
+		let entries: readonly Dirent[];
+
+		try {
+			entries = readdirSync(current, {withFileTypes: true});
+		} catch {
+			return;
+		}
+
+		for (const entry of entries) {
+			const candidate = path.join(current, entry.name);
+
+			if (entry.isDirectory()) {
+				walk(candidate);
+			} else if (entry.isFile() && suffixes.some((suffix) => entry.name.endsWith(suffix))) {
+				found.push(candidate);
+			}
+		}
 	};
-	const rootNames = [...new Set([...project.program.getRootFileNames(), ...authoredFiles])];
-	const program = ts.createProgram({rootNames, options});
-	const emit = program.emit(
-		undefined,
-		(fileName, text) => {
-			ts.sys.writeFile(fileName, text);
-		},
-		undefined,
-		true,
-	);
-	const emittedFiles = ts.sys.readDirectory(outputDirectory, ['.d.ts', '.d.mts', '.d.cts']).sort();
-	const declarationMapFiles = ts.sys.readDirectory(outputDirectory, ['.d.ts.map', '.d.mts.map', '.d.cts.map']).sort();
-	const emitErrors = emit.diagnostics.filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error).length;
 
-	for (const sourceFile of program.getSourceFiles()) {
-		if (!sourceFile.isDeclarationFile) {
-			continue;
-		}
+	walk(directory);
+	return found.sort();
+};
 
-		const relative = posixRelative(config.rootDir, sourceFile.fileName);
-
-		if (relative === null || relative.includes('/node_modules/')) {
-			continue;
-		}
-
-		const destination = path.join(outputDirectory, relative);
-
-		if (!ts.sys.fileExists(destination)) {
-			ts.sys.writeFile(destination, ts.sys.readFile(sourceFile.fileName) ?? '');
-		}
+const copyMissingDeclaration = (source: string, destination: string): void => {
+	if (!existsSync(destination)) {
+		mkdirSync(path.dirname(destination), {recursive: true});
+		writeFileSync(destination, readFileSync(source));
 	}
+};
 
-	for (const fileName of ts.sys.readDirectory(config.rootDir, ['.d.ts', '.d.mts', '.d.cts'], undefined, ['**/node_modules/**'])) {
-		const relative = posixRelative(config.rootDir, fileName);
+/**
+ * Emits declaration output for one project context.
+ *
+ * TypeScript 7 keeps emission inside the compiler process, so the API writes
+ * through its host filesystem. The emitted program is disposed before the
+ * caller builds the comparison program over the same compiler API.
+ *
+ * @param input - Compiler API, configuration, and emit destination.
+ * @returns Emitted files, declaration maps, and the effective options.
+ */
+export const emitDeclarations = (
+	input: Readonly<{
+		api: ts.API;
+		config: ConfigType;
+		context: ConfigType['projects'][number];
+		outputDirectory: string;
+		authoredFiles: readonly string[];
+	}>,
+): Readonly<{emittedFiles: readonly string[]; declarationMapFiles: readonly string[]; emitErrors: number; compilerOptions: ts.CompilerOptions}> => {
+	const {api, config, context, outputDirectory, authoredFiles} = input;
+	const project: LoadedProjectType = loadTypeScriptProject(config, context.projectFilePath);
 
-		if (relative === null) {
-			continue;
+	try {
+		const options: ts.CompilerOptions = {
+			...project.program.getCompilerOptions(),
+			rootDir: ts.rootedDirectory(config.rootDir),
+			outDir: ts.rootedDirectory(outputDirectory),
+			allowJs: true,
+			declaration: true,
+			emitDeclarationOnly: true,
+			declarationMap: true,
+			incremental: false,
+			composite: false,
+			noEmit: false,
+			noEmitOnError: false,
+		};
+		const rootNames = [...new Set([...project.rootFileNames, ...authoredFiles])];
+		const program = api.createProgram(rootNames, options);
+		let emitErrors = 0;
+
+		try {
+			const emit = program.emit();
+			emitErrors = emit.diagnostics.filter((diagnostic) => diagnostic.category === ts.ERROR_DIAGNOSTIC_CATEGORY).length;
+		} finally {
+			program[Symbol.dispose]();
 		}
 
-		const destination = path.join(outputDirectory, relative);
+		const emittedFiles = filesWithSuffixes(outputDirectory, ['.d.ts', '.d.mts', '.d.cts']);
+		const declarationMapFiles = filesWithSuffixes(outputDirectory, ['.d.ts.map', '.d.mts.map', '.d.cts.map']);
 
-		if (!ts.sys.fileExists(destination)) {
-			ts.sys.writeFile(destination, ts.sys.readFile(fileName) ?? '');
+		for (const sourceFile of ts.sourceFilesOf(project.program)) {
+			if (!sourceFile.isDeclarationFile) {
+				continue;
+			}
+
+			const relative = posixRelative(config.rootDir, sourceFile.fileName);
+
+			if (relative === null || relative.includes('/node_modules/')) {
+				continue;
+			}
+
+			copyMissingDeclaration(sourceFile.fileName, path.join(outputDirectory, relative));
 		}
+
+		for (const fileName of filesWithSuffixes(config.rootDir, ['.d.ts', '.d.mts', '.d.cts'])) {
+			const relative = posixRelative(config.rootDir, fileName);
+
+			if (relative === null || relative.includes('/node_modules/')) {
+				continue;
+			}
+
+			copyMissingDeclaration(fileName, path.join(outputDirectory, relative));
+		}
+
+		return {emittedFiles, declarationMapFiles, emitErrors, compilerOptions: options};
+	} finally {
+		project.dispose();
 	}
-
-	return {emittedFiles, declarationMapFiles, emitErrors, compilerOptions: options};
 };
 
 export const rewrittenEmittedPaths = (options: ts.CompilerOptions, rootDir: string, outputDirectory: string): Record<string, string[]> | undefined => {

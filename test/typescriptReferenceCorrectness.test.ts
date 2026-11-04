@@ -26,13 +26,20 @@ const loadFixture = (name: string): Readonly<{fixture: ExtractedFixtureType; cle
 
 	const scan = scanProject({...config, projects: [context], projectFilePath: context.projectFilePath});
 	const project = loadTypeScriptProject(config, context.projectFilePath);
-	const facts = extractSymbolFacts({
-		project,
-		files: scan.files,
-		projectId: config.projectId,
-		rootDir: config.rootDir,
-		context: context.name,
-	});
+	let facts: ReturnType<typeof extractSymbolFacts>;
+
+	try {
+		facts = extractSymbolFacts({
+			project,
+			files: scan.files,
+			projectId: config.projectId,
+			rootDir: config.rootDir,
+			context: context.name,
+		});
+	} finally {
+		project.dispose();
+	}
+
 	const contents = new Map(scan.files.map((file) => [file.path, readFileSync(path.join(config.rootDir, file.path), 'utf8')] as const));
 
 	return {

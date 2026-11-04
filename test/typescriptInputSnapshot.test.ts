@@ -1,6 +1,7 @@
 import {appendFileSync, cpSync, mkdirSync, realpathSync, renameSync, symlinkSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
+import {sourceFilesOf} from '@codeindex/adapter-typescript/compiler';
 import {createTypeScriptInputSnapshot} from '@codeindex/adapter-typescript/inputSnapshot';
 import {loadTypeScriptProject} from '@codeindex/adapter-typescript/loadProject';
 import {scanProject} from '@codeindex/adapter-typescript/scanProject';
@@ -142,13 +143,23 @@ describe('TypeScript input manifest', () => {
 			symlinkSync(store, join(config.rootDir, 'node_modules', 'external-package'), 'dir');
 
 			const {snapshot} = createTypeScriptInputSnapshot(config);
-			const loaded = loadTypeScriptProject(config, config.projectFilePath, snapshot);
-			const canonicalHelper = realpathSync(join(store, 'lib', 'helper.d.ts'));
-			const helper = loaded.program.getSourceFiles().find((sourceFile) => sourceFile.fileName.endsWith('helper.d.ts'));
 
-			expect(helper?.fileName).toBe(canonicalHelper);
-			expect(scanProject(config).inputHash).toBe(snapshot.manifest.inputHash);
-			expect(() => verifyTypeScriptReferences(config)).not.toThrow();
+			try {
+				const loaded = loadTypeScriptProject(config, config.projectFilePath, snapshot);
+
+				try {
+					const canonicalHelper = realpathSync(join(store, 'lib', 'helper.d.ts'));
+					const helper = sourceFilesOf(loaded.program).find((sourceFile) => sourceFile.fileName.endsWith('helper.d.ts'));
+
+					expect(helper?.fileName).toBe(canonicalHelper);
+					expect(scanProject(config).inputHash).toBe(snapshot.manifest.inputHash);
+					expect(() => verifyTypeScriptReferences(config)).not.toThrow();
+				} finally {
+					loaded.dispose();
+				}
+			} finally {
+				snapshot.dispose();
+			}
 		} finally {
 			cleanup();
 		}

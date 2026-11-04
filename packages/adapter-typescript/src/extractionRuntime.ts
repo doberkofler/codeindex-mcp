@@ -1,11 +1,14 @@
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {type FactAddressType, type IndexedSymbolType, type SourceFileType} from '@codeindex/adapter-sdk';
 import {type LoadedProjectType} from './loadProject.ts';
 import {definitionMetadataOf} from './occurrenceMetadata.ts';
 import {collectTypeScriptCandidates} from './publicationCandidates.ts';
 import {type CandidateCollectionType, type CandidateScopeType, type CandidateType, type DeferredCandidateType} from './publicationCandidateTypes.ts';
+import {createIdentifierSymbols, type IdentifierSymbolsType} from './identifierSymbols.ts';
 import {candidateSymbolOf} from './publicationCandidateSymbol.ts';
 import {createSymbolId} from './symbolIdentity.ts';
+import {symbolNameOf} from './symbolName.ts';
+import {sourceCandidatesForDeclarationFile as sourceCandidatesOf} from './sourceCandidates.ts';
 
 export type ExtractionInputType = Readonly<{
 	readonly project: LoadedProjectType;
@@ -22,6 +25,7 @@ export type ExtractionRuntimeType = {
 	readonly program: ts.Program;
 	readonly pathByAbsolute: ReadonlyMap<string, string>;
 	readonly authoredPaths: ReadonlySet<string>;
+	readonly identifierSymbols: IdentifierSymbolsType;
 	readonly collection: CandidateCollectionType;
 	readonly symbolsByKey: Map<string, IndexedSymbolType>;
 	readonly symbolsById: Map<string, IndexedSymbolType>;
@@ -34,6 +38,7 @@ export type ExtractionRuntimeType = {
 	readonly deferredByCanonical: Map<ts.Symbol, DeferredCandidateType[]>;
 	readonly deferredIdByNode: Map<ts.Node, string>;
 	readonly deferredNodeBySymbolId: Map<string, ts.Node>;
+	readonly aliasTargets: Map<number, Readonly<{target: ts.Symbol; immediateId: string | null}> | null>;
 	promotionEnabled: boolean;
 };
 
@@ -76,6 +81,12 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 	const {checker, program} = input.project;
 	const pathByAbsolute = new Map(input.files.map((file) => [file.absolutePath, file.path]));
 	const authoredPaths = new Set(input.files.map((file) => file.absolutePath));
+	const identifierSymbols = createIdentifierSymbols(
+		checker,
+		program,
+		input.files.map((file) => file.absolutePath),
+	);
+	const symbolAt = (node: ts.Node): ts.Symbol | undefined => (ts.isIdentifier(node) ? identifierSymbols.get(node) : checker.getSymbolAtLocation(node));
 	const collection = collectTypeScriptCandidates({
 		checker,
 		program,
@@ -85,6 +96,7 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		context: input.context,
 		authoredPaths,
 		pathByAbsolute,
+		symbolAt,
 	});
 	const runtime: ExtractionRuntimeType = {
 		input,
@@ -92,6 +104,7 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		program,
 		pathByAbsolute,
 		authoredPaths,
+		identifierSymbols,
 		collection,
 		symbolsByKey: new Map(),
 		symbolsById: new Map(),
@@ -104,12 +117,23 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		deferredByCanonical: new Map(),
 		deferredIdByNode: new Map(),
 		deferredNodeBySymbolId: new Map(),
+		aliasTargets: new Map(),
 		promotionEnabled: true,
 	};
 
 	for (const candidate of collection.candidates.values()) {
 		const symbol = candidateSymbolOf(
-			{checker, program, files: input.files, rootDir: input.rootDir, projectId: input.projectId, context: input.context, authoredPaths, pathByAbsolute},
+			{
+				checker,
+				program,
+				files: input.files,
+				rootDir: input.rootDir,
+				projectId: input.projectId,
+				context: input.context,
+				authoredPaths,
+				pathByAbsolute,
+				symbolAt,
+			},
 			candidate,
 		);
 
@@ -172,7 +196,7 @@ const promoteDeferred = (runtime: ExtractionRuntimeType, deferred: DeferredCandi
 		}
 	}
 
-	const name = deferred.canonical.getName();
+	const name = symbolNameOf(deferred.canonical);
 	const metadata = definitionMetadataOf(deferred.sourceFile, deferred.declaration);
 	const extent = metadata.extent ?? {
 		startLine: 1,
@@ -249,10 +273,18 @@ const resolveAliasTarget = (
 	symbol: ts.Symbol,
 	mergedAliasValue: boolean,
 ): Readonly<{target: ts.Symbol; immediateId: string | null}> | null => {
+	const cached = runtime.aliasTargets.get(symbol.id);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
 	let target = symbol;
 
 	if ((target.flags & ts.SymbolFlags.Alias) === 0) {
-		return {target, immediateId: null};
+		const result = {target, immediateId: null};
+		runtime.aliasTargets.set(symbol.id, result);
+		return result;
 	}
 
 	try {
@@ -261,46 +293,20 @@ const resolveAliasTarget = (
 			const immediateId = immediate === undefined ? undefined : runtime.symbolIdByCanonical.get(immediate);
 
 			if (immediateId !== undefined) {
-				return {target, immediateId};
+				const result = {target, immediateId};
+				runtime.aliasTargets.set(symbol.id, result);
+				return result;
 			}
 		}
 
 		target = runtime.checker.getAliasedSymbol(target);
-		return {target, immediateId: null};
+		const result = {target, immediateId: null};
+		runtime.aliasTargets.set(symbol.id, result);
+		return result;
 	} catch {
+		runtime.aliasTargets.set(symbol.id, null);
 		return null;
 	}
-};
-
-const sourceCandidatesForDeclarationFile = (runtime: ExtractionRuntimeType, symbol: ts.Symbol): string | null => {
-	const extensions = ['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs'];
-
-	for (const declaration of symbol.declarations ?? []) {
-		const sourceFile = declaration.getSourceFile();
-
-		if (!sourceFile.isDeclarationFile) {
-			continue;
-		}
-
-		const base = sourceFile.fileName.replace(/\.d\.(?:ts|mts|cts)$/u, '');
-
-		for (const extension of extensions) {
-			const absolute = `${base}${extension}`;
-			const relative = runtime.pathByAbsolute.get(absolute);
-
-			if (relative === undefined) {
-				continue;
-			}
-
-			const symbolId = runtime.symbolIdByPathAndName.get(`${relative}\u0000${symbol.getName()}`);
-
-			if (symbolId !== undefined) {
-				return symbolId;
-			}
-		}
-	}
-
-	return null;
 };
 
 /**
@@ -333,7 +339,7 @@ export const symbolForTsSymbol = (runtime: ExtractionRuntimeType, symbol: ts.Sym
 
 	const {target} = alias;
 
-	for (const declaration of target.declarations ?? []) {
+	for (const declaration of ts.declarationsOf(target)) {
 		const declared = storedIdForDeclaration(runtime, declaration);
 
 		if (declared !== undefined) {
@@ -353,7 +359,7 @@ export const symbolForTsSymbol = (runtime: ExtractionRuntimeType, symbol: ts.Sym
 		return direct;
 	}
 
-	const sourceCandidate = sourceCandidatesForDeclarationFile(runtime, target);
+	const sourceCandidate = sourceCandidatesOf(runtime, target);
 
 	if (sourceCandidate !== null) {
 		return sourceCandidate;
@@ -363,7 +369,7 @@ export const symbolForTsSymbol = (runtime: ExtractionRuntimeType, symbol: ts.Sym
 		return null;
 	}
 
-	const promoted = promoteDeferredForDeclaration(runtime, target.declarations ?? []);
+	const promoted = promoteDeferredForDeclaration(runtime, ts.declarationsOf(target));
 
 	if (promoted !== null) {
 		return promoted;

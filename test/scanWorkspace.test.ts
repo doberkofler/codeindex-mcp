@@ -112,10 +112,10 @@ describe('scanWorkspace', () => {
 		const fixture = createFixtureConfig('simple-project');
 		({cleanup} = fixture);
 		const baseline = scanProject(fixture.config);
-		writeFileSync(path.join(fixture.config.rootDir, 'package.json'), JSON.stringify({devDependencies: {typescript7: 'npm:typescript@7.0.2'}}));
+		writeFileSync(path.join(fixture.config.rootDir, 'package.json'), JSON.stringify({devDependencies: {typescript7: 'npm:typescript@8.0.0'}}));
 		const drifted = scanProject(fixture.config);
 
-		expect(drifted.declaredCompilerVersion).toBe('7.0.2');
+		expect(drifted.declaredCompilerVersion).toBe('8.0.0');
 		expect(drifted.compilerDrift).toBe(true);
 		expect(drifted.configHash).not.toBe(baseline.configHash);
 	});

@@ -1,7 +1,8 @@
 import {createHash} from 'node:crypto';
 import {existsSync, readFileSync} from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
+import {version as compilerVersion} from 'typescript';
+import type * as ts from './compiler.ts';
 import {
 	type AdapterConfigType,
 	toRepositoryPath,
@@ -13,7 +14,7 @@ import {
 	type SourceFileType,
 } from '@codeindex/adapter-sdk';
 import {isAuthoredSourceFile, TYPESCRIPT_IGNORED_SEGMENTS} from './sourcePaths.ts';
-import {createTypeScriptInputSnapshot, snapshotWatchInputs, type TypeScriptSnapshotProjectType} from './inputSnapshot.ts';
+import {createTypeScriptInputSnapshot, snapshotWatchInputs, type TypeScriptInputSnapshotType, type TypeScriptSnapshotProjectType} from './inputSnapshot.ts';
 
 export {collectConfigFiles, isAuthoredSourceFile, TYPESCRIPT_IGNORED_SEGMENTS} from './sourcePaths.ts';
 
@@ -35,7 +36,7 @@ const projectConfigHash = (project: TypeScriptSnapshotProjectType): string =>
 		[
 			`context:${project.name}`,
 			`extractor:${TYPESCRIPT_EXTRACTOR_ID}@${TYPESCRIPT_EXTRACTOR_VERSION}`,
-			`typescript:${ts.version}`,
+			`typescript:${compilerVersion}`,
 			`declared-compiler:${project.declaredCompilerVersion ?? 'unknown'}`,
 			`project-file:${hash(project.projectFileBytes)}`,
 			`options:${hashCompilerOptions(project.parsed.options)}`,
@@ -43,29 +44,15 @@ const projectConfigHash = (project: TypeScriptSnapshotProjectType): string =>
 		].join('\n'),
 	);
 
-/**
- * Discovers, hashes, and fingerprints every configured TypeScript project.
- *
- * Each project keeps its own parsed options and configuration digest. Source
- * files are the union of all project file sets plus previously indexed imports,
- * so shared declarations appear once while retaining one context per program.
- *
- * The adapter also captures every non-authored input that can change compiler
- * facts: declaration files, configuration chains, package manifests, lockfiles,
- * and module-resolution probes. Their identity is returned as `inputHash` and
- * published source records carry the exact captured bytes.
- *
- * @param config - Resolved project configuration.
- * @param knownPaths - Files indexed by the current generation. They keep
- * imported files outside the project include in the freshness set.
- * @returns The scanned source manifest, per-project digests, and fingerprints.
- * @throws {@link Error} When a project file cannot be read or contains fatal
- * configuration diagnostics.
- */
-export const scanProject = (config: AdapterConfigType, knownPaths: readonly string[] = []): ScanResultType => {
-	const startedAt = performance.now();
-	debug('scan start', {rootDir: config.rootDir, projects: config.projects.map((project) => project.projectFilePath), knownPaths: knownPaths.length});
-	const {snapshot, projects} = createTypeScriptInputSnapshot(config, knownPaths);
+type ScanSnapshotInputType = Readonly<{
+	config: AdapterConfigType;
+	snapshot: TypeScriptInputSnapshotType;
+	projects: readonly TypeScriptSnapshotProjectType[];
+	knownPaths: readonly string[];
+	startedAt: number;
+}>;
+
+const scanSnapshot = ({config, snapshot, projects, knownPaths, startedAt}: ScanSnapshotInputType): ScanResultType => {
 	let excludedFileCount = 0;
 	const candidates = new Set<string>();
 
@@ -105,7 +92,7 @@ export const scanProject = (config: AdapterConfigType, knownPaths: readonly stri
 	const sourceHash = computeSourceHash(files);
 	const declaredCompilerVersion = projects.find((project) => project.declaredCompilerVersion !== null)?.declaredCompilerVersion ?? null;
 	const compilerDrift = projects.some(
-		(project) => project.declaredCompilerVersion !== null && majorOf(project.declaredCompilerVersion) !== majorOf(ts.version),
+		(project) => project.declaredCompilerVersion !== null && majorOf(project.declaredCompilerVersion) !== majorOf(compilerVersion),
 	);
 	const projectResults: readonly ScanProjectResultType[] = projects.map((project) => ({
 		name: project.name,
@@ -145,7 +132,7 @@ export const scanProject = (config: AdapterConfigType, knownPaths: readonly stri
 		projectId: config.projectId,
 		extractorId: TYPESCRIPT_EXTRACTOR_ID,
 		extractorVersion: TYPESCRIPT_EXTRACTOR_VERSION,
-		compilerVersion: ts.version,
+		compilerVersion,
 		declaredCompilerVersion,
 		compilerDrift,
 		files,
@@ -159,4 +146,35 @@ export const scanProject = (config: AdapterConfigType, knownPaths: readonly stri
 		configDiagnosticCount,
 		scanMs: Math.round(performance.now() - startedAt),
 	};
+};
+
+/**
+ * Discovers, hashes, and fingerprints every configured TypeScript project.
+ *
+ * Each project keeps its own parsed options and configuration digest. Source
+ * files are the union of all project file sets plus previously indexed imports,
+ * so shared declarations appear once while retaining one context per program.
+ *
+ * The adapter also captures every non-authored input that can change compiler
+ * facts: declaration files, configuration chains, package manifests, lockfiles,
+ * and module-resolution probes. Their identity is returned as `inputHash` and
+ * published source records carry the exact captured bytes.
+ *
+ * @param config - Resolved project configuration.
+ * @param knownPaths - Files indexed by the current generation. They keep
+ * imported files outside the project include in the freshness set.
+ * @returns The scanned source manifest, per-project digests, and fingerprints.
+ * @throws {@link Error} When a project file cannot be read or contains fatal
+ * configuration diagnostics.
+ */
+export const scanProject = (config: AdapterConfigType, knownPaths: readonly string[] = []): ScanResultType => {
+	const startedAt = performance.now();
+	debug('scan start', {rootDir: config.rootDir, projects: config.projects.map((project) => project.projectFilePath), knownPaths: knownPaths.length});
+	const {snapshot, projects} = createTypeScriptInputSnapshot(config, knownPaths);
+
+	try {
+		return scanSnapshot({config, snapshot, projects, knownPaths, startedAt});
+	} finally {
+		snapshot.dispose();
+	}
 };

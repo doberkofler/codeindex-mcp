@@ -59,15 +59,16 @@ describe('TypeScript project configuration inheritance', () => {
 		try {
 			const loaded = loadTypeScriptProject(config);
 			const options = loaded.program.getCompilerOptions();
-			const roots = loaded.program.getRootFileNames().map((file) => path.relative(config.rootDir, file).split(path.sep).join('/'));
+			const roots = loaded.rootFileNames.map((file) => path.relative(config.rootDir, file).split(path.sep).join('/'));
 			const scan = scanProject(config);
 
 			expect(options).toMatchObject({strict: true, target: 9, noUnusedLocals: false});
-			expect(options.paths?.['@base/*']).toStrictEqual(['src/*']);
+			expect(options.paths?.['@base/*']).toStrictEqual(['./src/*']);
 			expect(roots).toStrictEqual(['src/entry.ts']);
 			expect(scan.files.map((file) => file.path)).toStrictEqual(['src/entry.ts']);
 			expect(scan.projectFileCount).toBe(1);
 			expect(scan.excludedFileCount).toBe(0);
+			loaded.dispose();
 		} finally {
 			cleanup();
 		}
@@ -115,11 +116,12 @@ describe('TypeScript project configuration inheritance', () => {
 		const watched = typeScriptExtractor.configFiles(config).map((file) => path.relative(root, file).split(path.sep).join('/'));
 
 		expect(loaded.program.getCompilerOptions()).toMatchObject({strict: true, target: 9});
-		expect(loaded.program.getRootFileNames().map((file) => path.basename(file))).toStrictEqual(['main.ts']);
+		expect(loaded.rootFileNames.map((file) => path.basename(file))).toStrictEqual(['main.ts']);
 		expect(watched).toContain('node_modules/@fixture/base/package.json');
 		expect(watched).toContain('node_modules/@fixture/base/tsconfig.json');
 		expect(watched).toContain('package.json');
 		expect(watched).toContain('tsconfig.json');
+		loaded.dispose();
 	});
 
 	it('publishes an excluded imported file through the resolved program', async () => {
@@ -269,6 +271,7 @@ describe('TypeScript unsupported construct diagnostics', () => {
 			expect(loaded.diagnostics).toHaveLength(1);
 			expect(loaded.diagnostics[0]).toMatchObject({category: 'error', code: 1110, path: 'src/broken.ts'});
 			expect(loaded.diagnosticCount).toBe(1);
+			loaded.dispose();
 
 			const fixture = await createFixtureIndex('typescript-invalid');
 

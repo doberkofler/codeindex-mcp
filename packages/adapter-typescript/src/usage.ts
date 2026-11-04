@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 
 const CALL = 1;
 const READ = 2;

@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from '@codeindex/adapter-typescript/compiler';
 
 export const MAX_TRUTH_DEPTH = 64;
 
@@ -36,23 +36,24 @@ export const resolveAlias = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Sym
 };
 
 export const authoredDeclarationsOf = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): readonly ts.Declaration[] =>
-	(symbol.declarations ?? []).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
+	ts.declarationsOf(symbol).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
 
-export const isExternalSymbol = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean =>
-	symbol.declarations !== undefined &&
-	symbol.declarations.length > 0 &&
-	symbol.declarations.every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
+export const isExternalSymbol = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean => {
+	const declarations = ts.declarationsOf(symbol);
+
+	return declarations.length > 0 && declarations.every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
+};
 
 const isPrivateDeclaration = (declaration: ts.Declaration): boolean =>
 	(ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Private) !== 0 ||
 	(ts.canHaveModifiers(declaration) && (ts.getModifiers(declaration)?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword) ?? false));
 
 export const isPrivateSymbol = (symbol: ts.Symbol): boolean => {
-	if (symbol.getName().startsWith('#')) {
+	if (symbol.name.startsWith('#')) {
 		return true;
 	}
 
-	return (symbol.declarations ?? []).some((declaration) => isPrivateDeclaration(declaration));
+	return ts.declarationsOf(symbol).some((declaration) => isPrivateDeclaration(declaration));
 };
 
 const defaultTokenOf = (sourceFile: ts.SourceFile, node: ts.Node): ts.Node | null => {
@@ -199,7 +200,7 @@ export const addDeclaration = (state: TruthStateType, symbol: ts.Symbol): void =
 			continue;
 		}
 
-		if (ts.isComputedPropertyName(nameNode) && symbol.getName().startsWith('__computed')) {
+		if (ts.isComputedPropertyName(nameNode) && symbol.name.startsWith('__computed')) {
 			continue;
 		}
 
@@ -212,7 +213,7 @@ export const addDeclaration = (state: TruthStateType, symbol: ts.Symbol): void =
 		if (ts.isShorthandPropertyAssignment(declaration)) {
 			const value = state.checker.getShorthandAssignmentValueSymbol(declaration);
 
-			if (value !== undefined && value !== symbol && (value.declarations ?? []).some((entry) => isTopLevelVariableDeclaration(entry))) {
+			if (value !== undefined && value !== symbol && ts.declarationsOf(value).some((entry) => isTopLevelVariableDeclaration(entry))) {
 				addDeclaration(state, value);
 			}
 		}
@@ -228,7 +229,7 @@ export const declaredTypeOf = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.T
 };
 
 export const symbolTypeOf = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Type | null => {
-	const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0];
+	const declaration = ts.valueDeclarationOf(symbol) ?? ts.declarationsOf(symbol)[0];
 
 	if (declaration === undefined) {
 		return null;
@@ -246,13 +247,13 @@ export const hasSymbolFlag = (symbol: ts.Symbol, flags: readonly ts.SymbolFlags[
 export const hasTypeFlag = (flags: ts.TypeFlags, candidates: readonly ts.TypeFlags[]): boolean => candidates.some((flag) => (flags & flag) !== 0);
 
 const isAnonymousClassExpression = (symbol: ts.Symbol): boolean =>
-	(symbol.declarations ?? []).some((declaration) => ts.isClassExpression(declaration) && declaration.name === undefined);
+	ts.declarationsOf(symbol).some((declaration) => ts.isClassExpression(declaration) && declaration.name === undefined);
 
 export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>): ts.Symbol | null => {
 	const namedFlags = [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias, ts.SymbolFlags.Enum];
 	const valueFlags = [ts.SymbolFlags.Function, ts.SymbolFlags.Class, ts.SymbolFlags.BlockScopedVariable];
 
-	for (const candidate of [type.aliasSymbol, type.getSymbol()]) {
+	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
 		if (candidate === undefined || authoredDeclarationsOf(candidate, authoredPaths).length === 0) {
 			continue;
 		}
@@ -268,7 +269,7 @@ export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>)
 };
 
 export const isExternalType = (type: ts.Type, authoredPaths: ReadonlySet<string>): boolean => {
-	for (const candidate of [type.aliasSymbol, type.getSymbol()]) {
+	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
 		if (candidate !== undefined && isExternalSymbol(candidate, authoredPaths)) {
 			return true;
 		}
@@ -277,7 +278,7 @@ export const isExternalType = (type: ts.Type, authoredPaths: ReadonlySet<string>
 	return false;
 };
 
-export const isTypeReference = (type: ts.Type): type is ts.TypeReference => 'target' in type && 'typeArguments' in type;
+export const isTypeReference = (type: ts.Type): type is ts.TypeReference => type.isTypeReference();
 
 const isInterfaceType = (type: ts.Type): type is ts.InterfaceType => 'typeParameters' in type;
 

@@ -1,5 +1,6 @@
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {type FactAddressType} from '@codeindex/adapter-sdk';
+import {isPrivateMemberSymbol} from './symbolName.ts';
 
 type SurfaceAddressType = Readonly<{
 	readonly symbolId: string;
@@ -21,6 +22,18 @@ export type SurfaceProjectionHostType = Readonly<{
 	readonly symbolForDeclaration: (declaration: ts.Node) => string | null;
 	readonly addSurface: (address: SurfaceAddressType) => void;
 	readonly markReachable: (symbolId: string) => void;
+	/** Cached value types keyed by compiler symbol identifier. */
+	readonly symbolTypes: Map<number, ts.Type | null>;
+	/** Cached declared types keyed by compiler symbol identifier. */
+	readonly declaredTypes: Map<number, ts.Type | null>;
+	/** Cached property lists keyed by compiler type identifier. */
+	readonly typeProperties: Map<number, readonly ts.Symbol[]>;
+	/** Cached index information keyed by compiler type identifier. */
+	readonly typeIndexes: Map<number, readonly ts.IndexInfo[]>;
+	/** Cached base types keyed by compiler type identifier. */
+	readonly typeBases: Map<number, readonly ts.Type[]>;
+	/** Cached type arguments keyed by compiler type identifier. */
+	readonly typeArguments: Map<number, readonly ts.Type[]>;
 }>;
 
 type ReachabilityNodeType = Readonly<{kind: 'symbol'; symbol: ts.Symbol}> | Readonly<{kind: 'type'; type: ts.Type}>;
@@ -55,12 +68,13 @@ export class SurfaceProjectionError extends Error {
 }
 
 export const authoredDeclarationsOf = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): readonly ts.Declaration[] =>
-	(symbol.declarations ?? []).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
+	ts.declarationsOf(symbol).filter((declaration) => authoredPaths.has(declaration.getSourceFile().fileName));
 
-export const isExternalSymbol = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean =>
-	symbol.declarations !== undefined &&
-	symbol.declarations.length > 0 &&
-	symbol.declarations.every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
+export const isExternalSymbol = (symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean => {
+	const declarations = ts.declarationsOf(symbol);
+
+	return declarations.length > 0 && declarations.every((declaration) => !authoredPaths.has(declaration.getSourceFile().fileName));
+};
 
 export const resolveAlias = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Symbol => {
 	if ((symbol.flags & ts.SymbolFlags.Alias) === 0) {
@@ -75,7 +89,7 @@ export const resolveAlias = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Sym
 };
 
 export const isExternalType = (type: ts.Type, authoredPaths: ReadonlySet<string>): boolean => {
-	for (const candidate of [type.aliasSymbol, type.getSymbol()]) {
+	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
 		if (candidate !== undefined && isExternalSymbol(candidate, authoredPaths)) {
 			return true;
 		}
@@ -85,12 +99,12 @@ export const isExternalType = (type: ts.Type, authoredPaths: ReadonlySet<string>
 };
 
 const isAnonymousClassExpression = (symbol: ts.Symbol): boolean =>
-	(symbol.declarations ?? []).some((declaration) => ts.isClassExpression(declaration) && declaration.name === undefined);
+	ts.declarationsOf(symbol).some((declaration) => ts.isClassExpression(declaration) && declaration.name === undefined);
 
 export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>): ts.Symbol | null => {
 	const namedFlags = [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias, ts.SymbolFlags.Enum];
 
-	for (const candidate of [type.aliasSymbol, type.getSymbol()]) {
+	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
 		if (
 			candidate !== undefined &&
 			namedFlags.some((flag) => (candidate.flags & flag) !== 0) &&
@@ -112,15 +126,15 @@ const isPrivateDeclaration = (declaration: ts.Declaration): boolean =>
 	(ts.canHaveModifiers(declaration) && (ts.getModifiers(declaration)?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword) ?? false));
 
 export const isPrivateProperty = (property: ts.Symbol): boolean => {
-	if (property.getName().startsWith('#')) {
+	if (isPrivateMemberSymbol(property)) {
 		return true;
 	}
 
-	return (property.declarations ?? []).some((declaration) => isPrivateDeclaration(declaration));
+	return ts.declarationsOf(property).some((declaration) => isPrivateDeclaration(declaration));
 };
 
 export const isInheritedProperty = (property: ts.Symbol, rootDeclarations: readonly ts.Node[]): boolean => {
-	const declarations = property.declarations ?? [];
+	const declarations = ts.declarationsOf(property);
 
 	if (declarations.length === 0 || rootDeclarations.length === 0) {
 		return false;
@@ -129,16 +143,16 @@ export const isInheritedProperty = (property: ts.Symbol, rootDeclarations: reado
 	return declarations.every((declaration) => ts.findAncestor(declaration, (ancestor) => rootDeclarations.includes(ancestor)) === undefined);
 };
 
-const isObjectType = (type: ts.Type): type is ts.ObjectType => 'objectFlags' in type;
+const isObjectType = (type: ts.Type): type is ts.ObjectType => type.isObjectType();
 
 export const hasAnyFlag = (flags: number, candidates: readonly number[]): boolean => candidates.some((flag) => (flags & flag) !== 0);
 
-export const isTypeReference = (type: ts.Type): type is ts.TypeReference => 'target' in type && 'typeArguments' in type;
+export const isTypeReference = (type: ts.Type): type is ts.TypeReference => type.isTypeReference();
 
-const isInterfaceType = (type: ts.Type): type is ts.InterfaceType => 'typeParameters' in type;
+const isInterfaceType = (type: ts.Type): type is ts.InterfaceType => type.isClassOrInterface();
 
 export const symbolTypeOf = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Type | null => {
-	const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0];
+	const declaration = ts.valueDeclarationOf(symbol) ?? ts.declarationsOf(symbol)[0];
 
 	if (declaration === undefined) {
 		return null;
@@ -158,6 +172,100 @@ export const declaredTypeOf = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.T
 		return null;
 	}
 };
+
+/**
+ * Returns a symbol's value type, caching it for the current projection run.
+ *
+ * TypeScript 7 answers every checker query over a process boundary. The type of
+ * a symbol is stable for the lifetime of a project, so the same query is never
+ * repeated within one extraction.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param symbol - Compiler symbol.
+ * @returns The symbol's value type, or null.
+ */
+export const cachedSymbolTypeOf = (host: SurfaceProjectionHostType, symbol: ts.Symbol): ts.Type | null => {
+	const cached = host.symbolTypes.get(symbol.id);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const type = symbolTypeOf(host.checker, symbol);
+	host.symbolTypes.set(symbol.id, type);
+	return type;
+};
+
+/**
+ * Returns a symbol's declared type, caching it for the current projection run.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param symbol - Compiler symbol.
+ * @returns The symbol's declared type, or null.
+ */
+export const cachedDeclaredTypeOf = (host: SurfaceProjectionHostType, symbol: ts.Symbol): ts.Type | null => {
+	const cached = host.declaredTypes.get(symbol.id);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const type = declaredTypeOf(host.checker, symbol);
+	host.declaredTypes.set(symbol.id, type);
+	return type;
+};
+
+const memoized = <ValueType>(cache: Map<number, ValueType>, key: number, compute: () => ValueType): ValueType => {
+	const cached = cache.get(key);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const value = compute();
+	cache.set(key, value);
+	return value;
+};
+
+/**
+ * Returns a type's properties, cached for the current projection run.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Compiler type.
+ * @returns The type's properties.
+ */
+export const cachedPropertiesOfType = (host: SurfaceProjectionHostType, type: ts.Type): readonly ts.Symbol[] =>
+	memoized(host.typeProperties, type.id, () => host.checker.getPropertiesOfType(type));
+
+/**
+ * Returns a type's index information, cached for the current projection run.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Compiler type.
+ * @returns The type's index signatures.
+ */
+export const cachedIndexInfosOfType = (host: SurfaceProjectionHostType, type: ts.Type): readonly ts.IndexInfo[] =>
+	memoized(host.typeIndexes, type.id, () => host.checker.getIndexInfosOfType(type));
+
+/**
+ * Returns a type's base types, cached for the current projection run.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Class or interface type.
+ * @returns The type's base types.
+ */
+export const cachedBaseTypesOfType = (host: SurfaceProjectionHostType, type: ts.InterfaceType): readonly ts.Type[] =>
+	memoized(host.typeBases, type.id, () => host.checker.getBaseTypes(type));
+
+/**
+ * Returns a type's type arguments, cached for the current projection run.
+ *
+ * @param host - Projection host that owns the cache.
+ * @param type - Type reference.
+ * @returns The reference's type arguments.
+ */
+export const cachedTypeArguments = (host: SurfaceProjectionHostType, type: ts.TypeReference): readonly ts.Type[] =>
+	memoized(host.typeArguments, type.id, () => host.checker.getTypeArguments(type));
 
 export const addStep = (state: ProjectionStateType): void => {
 	state.steps += 1;
@@ -180,7 +288,7 @@ export const symbolIdOf = (state: ProjectionStateType, symbol: ts.Symbol): strin
 		return direct;
 	}
 
-	for (const declaration of target.declarations ?? []) {
+	for (const declaration of ts.declarationsOf(target)) {
 		const declared = state.host.symbolForDeclaration(declaration);
 
 		if (declared !== null) {
@@ -220,7 +328,7 @@ const enqueueType = (state: ProjectionStateType, type: ts.Type): void => {
 
 const enqueueExternalTypeArguments = (state: ProjectionStateType, type: ts.Type): void => {
 	if (isTypeReference(type) && (type.objectFlags & ts.ObjectFlags.Reference) !== 0) {
-		for (const argument of state.host.checker.getTypeArguments(type)) {
+		for (const argument of cachedTypeArguments(state.host, type)) {
 			enqueueType(state, argument);
 		}
 	}
@@ -234,20 +342,20 @@ const enqueueObjectReachability = (state: ProjectionStateType, type: ts.Type): v
 	}
 
 	if (isInterfaceType(type) && isObjectType(type) && (type.objectFlags & ts.ObjectFlags.ClassOrInterface) !== 0) {
-		for (const base of state.host.checker.getBaseTypes(type)) {
+		for (const base of cachedBaseTypesOfType(state.host, type)) {
 			enqueueType(state, base);
 		}
 	}
 
-	for (const property of state.host.checker.getPropertiesOfType(type)) {
+	for (const property of cachedPropertiesOfType(state.host, type)) {
 		enqueueSymbol(state, property);
 	}
 };
 
 const processReachabilitySymbol = (state: ProjectionStateType, symbol: ts.Symbol): void => {
 	const type = hasAnyFlag(symbol.flags, [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias, ts.SymbolFlags.Enum])
-		? declaredTypeOf(state.host.checker, symbol)
-		: symbolTypeOf(state.host.checker, symbol);
+		? cachedDeclaredTypeOf(state.host, symbol)
+		: cachedSymbolTypeOf(state.host, symbol);
 
 	if (type !== null) {
 		enqueueType(state, type);
@@ -260,12 +368,14 @@ const processReachabilityType = (state: ProjectionStateType, type: ts.Type): voi
 		return;
 	}
 
-	if (hasAnyFlag(type.flags, [ts.TypeFlags.Conditional, ts.TypeFlags.IndexedAccess]) && type.aliasSymbol !== undefined) {
-		enqueueSymbol(state, type.aliasSymbol);
+	const aliasSymbol = type.getAliasSymbol();
+
+	if (hasAnyFlag(type.flags, [ts.TypeFlags.Conditional, ts.TypeFlags.IndexedAccess]) && aliasSymbol !== undefined) {
+		enqueueSymbol(state, aliasSymbol);
 	}
 
-	if (type.isUnionOrIntersection()) {
-		for (const constituent of type.types) {
+	if (type.isUnionType() || type.isIntersectionType()) {
+		for (const constituent of type.getTypes()) {
 			enqueueType(state, constituent);
 		}
 
@@ -273,7 +383,7 @@ const processReachabilityType = (state: ProjectionStateType, type: ts.Type): voi
 	}
 
 	if (isTypeReference(type) && (type.objectFlags & ts.ObjectFlags.Reference) !== 0) {
-		for (const argument of state.host.checker.getTypeArguments(type)) {
+		for (const argument of cachedTypeArguments(state.host, type)) {
 			enqueueType(state, argument);
 		}
 	}
@@ -282,8 +392,8 @@ const processReachabilityType = (state: ProjectionStateType, type: ts.Type): voi
 		enqueueObjectReachability(state, type);
 	}
 
-	for (const index of state.host.checker.getIndexInfosOfType(type)) {
-		enqueueType(state, index.type);
+	for (const index of cachedIndexInfosOfType(state.host, type)) {
+		enqueueType(state, index.valueType);
 	}
 };
 

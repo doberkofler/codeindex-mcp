@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from '@codeindex/adapter-typescript/compiler';
 import {
 	addAddress,
 	addStep,
@@ -83,8 +83,8 @@ const processReachabilityType = (state: ProjectionStateType, type: ts.Type): voi
 		return;
 	}
 
-	if (type.isUnionOrIntersection()) {
-		for (const constituent of type.types) {
+	if (type.isUnionType() || type.isIntersectionType()) {
+		for (const constituent of type.getTypes()) {
 			enqueueType(state, constituent);
 		}
 
@@ -102,7 +102,7 @@ const processReachabilityType = (state: ProjectionStateType, type: ts.Type): voi
 	}
 
 	for (const index of state.checker.getIndexInfosOfType(type)) {
-		enqueueType(state, index.type);
+		enqueueType(state, index.valueType);
 	}
 };
 
@@ -156,11 +156,11 @@ const projectProperties = (context: TraversalContextType, type: ts.Type, anonymo
 	const {state, path, depth, rootDeclarations, ancestors} = context;
 
 	for (const property of state.checker.getPropertiesOfType(type)) {
-		if (isPrivateProperty(property) || (property.declarations ?? []).every((declaration) => !state.authoredPaths.has(declaration.getSourceFile().fileName))) {
+		if (isPrivateProperty(property) || ts.declarationsOf(property).every((declaration) => !state.authoredPaths.has(declaration.getSourceFile().fileName))) {
 			continue;
 		}
 
-		const childPath = [...path, property.getName()];
+		const childPath = [...path, property.name];
 		addAddress(state, childPath, property, {
 			anonymous,
 			inherited: isInheritedProperty(property, rootDeclarations),
@@ -299,7 +299,7 @@ const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeT
 
 	const context: TraversalContextType = {state, path, depth, rootDeclarations, ancestors};
 
-	if (type.isUnionOrIntersection()) {
+	if (type.isUnionType() || type.isIntersectionType()) {
 		markTypeReachable(state, type);
 		return;
 	}

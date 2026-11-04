@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {
 	authoredOf,
 	defaultTokenOf,
@@ -17,7 +17,8 @@ import {
 	type CandidateType,
 	type DeferredCandidateType,
 } from './publicationCandidateTypes.ts';
-import {resolveCanonical} from './resolveSymbols.ts';
+import {resolveCanonicalFrom} from './resolveSymbols.ts';
+import {symbolNameOf} from './symbolName.ts';
 
 const keyForSymbol = (definition: CandidateDefinitionType): string => `symbol:${definition.path}:${String(definition.range.startOffset)}`;
 
@@ -68,7 +69,7 @@ const addDefinition = (
 ): void => {
 	const {canonical, declaration, nameNode} = entry;
 	const definition = definitionOf(input, declaration, nameNode);
-	const canonicalPaths = new Set((canonical.declarations ?? []).map((entryDeclaration) => entryDeclaration.getSourceFile().fileName));
+	const canonicalPaths = new Set(ts.declarationsOf(canonical).map((entryDeclaration) => entryDeclaration.getSourceFile().fileName));
 	const aliasShadowed = !canonicalPaths.has(declaration.getSourceFile().fileName);
 
 	if (aliasShadowed) {
@@ -80,7 +81,7 @@ const addDefinition = (
 				input,
 				canonical: null,
 				key,
-				name: canonical.getName(),
+				name: symbolNameOf(canonical),
 				kind: definition.kind,
 				declaration,
 				nameNode,
@@ -101,7 +102,7 @@ const addDefinition = (
 			input,
 			canonical,
 			key,
-			name: canonical.getName(),
+			name: symbolNameOf(canonical),
 			kind: definition.kind,
 			declaration,
 			nameNode,
@@ -158,7 +159,7 @@ const syntheticDefaultOf = (input: CandidateInputType, node: ts.Node): Candidate
 		});
 	}
 
-	if (!ts.isExportAssignment(node) || node.isExportEquals === true || ts.isIdentifier(node.expression)) {
+	if (!ts.isExportAssignment(node) || node.isExportEquals || ts.isIdentifier(node.expression)) {
 		return null;
 	}
 
@@ -193,9 +194,9 @@ const collectDeferredMember = (input: CandidateInputType, state: CollectorStateT
 	const sourceFile = node.getSourceFile();
 	const pathName = input.pathByAbsolute.get(sourceFile.fileName);
 	const nameNode = nameNodeOf(node);
-	const canonical = nameNode === undefined ? undefined : input.checker.getSymbolAtLocation(nameNode);
+	const canonical = nameNode === undefined ? undefined : input.symbolAt(nameNode);
 
-	if (nameNode !== undefined && canonical !== undefined && pathName !== undefined && !canonical.getName().startsWith('__computed')) {
+	if (nameNode !== undefined && canonical !== undefined && pathName !== undefined && !canonical.name.startsWith('__computed')) {
 		state.deferred.set(node, {
 			canonical,
 			declaration: node,
@@ -273,7 +274,7 @@ const addExternalAliasCandidate = ({input, state, node, nameNode, resolved, dire
 };
 
 const isDynamicComputedName = (nameNode: ts.Node, resolved: ts.Symbol): boolean =>
-	ts.isComputedPropertyName(nameNode) && resolved.getName().startsWith('__computed');
+	ts.isComputedPropertyName(nameNode) && resolved.name.startsWith('__computed');
 
 type AuthoredCandidateInputType = Readonly<{
 	input: CandidateInputType;
@@ -313,8 +314,8 @@ const collectNamedCandidate = (input: CandidateInputType, state: CollectorStateT
 		return;
 	}
 
-	const direct = input.checker.getSymbolAtLocation(nameNode);
-	const resolved = resolveCanonical(input.checker, nameNode);
+	const direct = input.symbolAt(nameNode);
+	const resolved = resolveCanonicalFrom(input.symbolAt, input.checker, nameNode);
 
 	if (resolved === undefined) {
 		return;
@@ -372,11 +373,11 @@ const collectExternalDefaultAliases = (input: CandidateInputType, state: Collect
 		}
 
 		for (const statement of sourceFile.statements) {
-			if (!ts.isExportAssignment(statement) || statement.isExportEquals === true || !ts.isIdentifier(statement.expression)) {
+			if (!ts.isExportAssignment(statement) || statement.isExportEquals || !ts.isIdentifier(statement.expression)) {
 				continue;
 			}
 
-			const target = resolveCanonical(input.checker, statement.expression);
+			const target = resolveCanonicalFrom(input.symbolAt, input.checker, statement.expression);
 
 			if (target === undefined || authoredOf(target, input.authoredPaths).length > 0) {
 				continue;
@@ -460,7 +461,7 @@ export const collectTypeScriptCandidates = (input: CandidateInputType): Candidat
 				continue;
 			}
 
-			const target = input.checker.getSymbolAtLocation(statement.moduleSpecifier);
+			const target = input.symbolAt(statement.moduleSpecifier);
 
 			if (target !== undefined && authoredOf(target, input.authoredPaths).length === 0) {
 				externalStars += 1;

@@ -1,7 +1,7 @@
 import {mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import ts from 'typescript';
+import * as ts from '@codeindex/adapter-typescript/compiler';
 import {z} from 'zod';
 import {type ConfigType} from '../../config/config.ts';
 import {type ExtractedFactSetType} from '../../facts/index.ts';
@@ -77,7 +77,7 @@ const publishedRootsByPath = (finalized: FinalizedFactSetType): ReadonlyMap<stri
 const moduleExportsOf = (checker: ts.TypeChecker, sourceFile: ts.SourceFile): readonly string[] => {
 	const moduleSymbol = checker.getSymbolAtLocation(sourceFile);
 
-	return moduleSymbol === undefined ? [] : checker.getExportsOfModule(moduleSymbol).map((symbol) => symbol.getName());
+	return moduleSymbol === undefined ? [] : checker.getExportsOfModule(moduleSymbol).map((symbol) => symbol.name);
 };
 
 const sourcePathOfDeclarationMap = (mapPath: string, rootDir: string): string | null => {
@@ -131,49 +131,57 @@ const addP1Context = (
 	}>,
 ): void => {
 	const contextOutput = path.join(input.directory, `context-${String(input.index)}`);
-	const emitted = emitDeclarations(input.config, input.context, contextOutput, input.authoredFiles);
+	const api = new ts.API({cwd: input.config.rootDir});
 
-	accumulator.emittedFiles += emitted.emittedFiles.length;
-	accumulator.declarationMapFiles += emitted.declarationMapFiles.length;
-	accumulator.emitErrors += emitted.emitErrors;
+	try {
+		const emitted = emitDeclarations({api, config: input.config, context: input.context, outputDirectory: contextOutput, authoredFiles: input.authoredFiles});
 
-	if (emitted.emittedFiles.length === 0) {
-		return;
-	}
+		accumulator.emittedFiles += emitted.emittedFiles.length;
+		accumulator.declarationMapFiles += emitted.declarationMapFiles.length;
+		accumulator.emitErrors += emitted.emitErrors;
 
-	const paths = rewrittenEmittedPaths(emitted.compilerOptions, input.config.rootDir, contextOutput);
-	const program = ts.createProgram({
-		rootNames: emitted.emittedFiles,
-		options: {
+		if (emitted.emittedFiles.length === 0) {
+			return;
+		}
+
+		const paths = rewrittenEmittedPaths(emitted.compilerOptions, input.config.rootDir, contextOutput);
+		const program = api.createProgram(emitted.emittedFiles, {
 			...emitted.compilerOptions,
 			...(paths === undefined ? {} : {paths}),
 			noEmit: true,
 			allowJs: true,
 			skipLibCheck: true,
-		},
-	});
-	const checker = program.getTypeChecker();
-	const emittedPaths = new Set(emitted.emittedFiles);
+		});
 
-	for (const sourceFile of program.getSourceFiles()) {
-		if (!emittedPaths.has(sourceFile.fileName) || !sourceFile.isDeclarationFile) {
-			continue;
+		try {
+			const {checker} = program.getProject();
+			const emittedPaths = new Set(emitted.emittedFiles);
+
+			for (const sourceFile of ts.sourceFilesOf(program)) {
+				if (!emittedPaths.has(sourceFile.fileName) || !sourceFile.isDeclarationFile) {
+					continue;
+				}
+
+				const compared = compareEmittedFile(checker, sourceFile, input.config.rootDir, input.publishedByPath);
+
+				if (compared.sourcePath === null || !input.authoredPaths.has(compared.sourcePath)) {
+					continue;
+				}
+
+				accumulator.emittedModules += 1;
+				accumulator.emittedExports += compared.emittedExports;
+
+				if (compared.mapped) {
+					accumulator.mappedModules += 1;
+					accumulator.missingPublishedRoots += compared.missing;
+					accumulator.extraPublishedRoots += compared.extra;
+				}
+			}
+		} finally {
+			program[Symbol.dispose]();
 		}
-
-		const compared = compareEmittedFile(checker, sourceFile, input.config.rootDir, input.publishedByPath);
-
-		if (compared.sourcePath === null || !input.authoredPaths.has(compared.sourcePath)) {
-			continue;
-		}
-
-		accumulator.emittedModules += 1;
-		accumulator.emittedExports += compared.emittedExports;
-
-		if (compared.mapped) {
-			accumulator.mappedModules += 1;
-			accumulator.missingPublishedRoots += compared.missing;
-			accumulator.extraPublishedRoots += compared.extra;
-		}
+	} finally {
+		api[Symbol.dispose]();
 	}
 };
 
@@ -241,13 +249,13 @@ const isAuthoredFile = (sourceFile: ts.SourceFile, authoredPaths: ReadonlySet<st
 
 const isExternalSymbol = (checker: ts.TypeChecker, symbol: ts.Symbol, authoredPaths: ReadonlySet<string>): boolean => {
 	const target = (symbol.flags & ts.SymbolFlags.Alias) === 0 ? symbol : checker.getAliasedSymbol(symbol);
-	const declarations = target.declarations ?? [];
+	const declarations = ts.declarationsOf(target);
 
 	return declarations.length > 0 && declarations.every((declaration) => !isAuthoredFile(declaration.getSourceFile(), authoredPaths));
 };
 
 const exportKind = (symbol: ts.Symbol): 'named' | 'namespace' | 'default' => {
-	if (symbol.getName() === 'default') {
+	if (symbol.name === 'default') {
 		return 'default';
 	}
 
@@ -260,7 +268,7 @@ const sourceHasExportEquals = (sourceFile: ts.SourceFile): Readonly<{modules: bo
 	let expressions = false;
 
 	const visit = (node: ts.Node): void => {
-		if (ts.isExportAssignment(node) && node.isExportEquals === true) {
+		if (ts.isExportAssignment(node) && node.isExportEquals) {
 			modules = true;
 
 			if (ts.isIdentifier(node.expression)) {
@@ -320,7 +328,7 @@ const addP2Export = (
 		accumulator.namespaceExternalAliases += 1;
 	}
 
-	if (!input.publishedNames.has(input.exported.getName())) {
+	if (!input.publishedNames.has(input.exported.name)) {
 		accumulator.missingPublishedAliases += 1;
 		accumulator.missingPublishedAliasesByKind[kind] = (accumulator.missingPublishedAliasesByKind[kind] ?? 0) + 1;
 	}
@@ -375,31 +383,36 @@ const addP2Context = (
 ): void => {
 	const authoredPaths = new Set(input.facts.files.map((file) => file.absolutePath));
 	const project = loadTypeScriptProject(input.config, input.context.projectFilePath);
-	const {checker} = project;
-	const authoredInContext = new Set(
-		project.program
-			.getSourceFiles()
-			.filter((sourceFile) => isAuthoredFile(sourceFile, authoredPaths))
-			.map((sourceFile) => sourceFile.fileName),
-	);
 
-	for (const sourceFile of project.program.getSourceFiles()) {
-		if (!isAuthoredFile(sourceFile, authoredPaths) || sourceFile.isDeclarationFile) {
-			continue;
+	try {
+		const {checker} = project;
+		const authoredInContext = new Set(
+			ts
+				.sourceFilesOf(project.program)
+				.filter((sourceFile) => isAuthoredFile(sourceFile, authoredPaths))
+				.map((sourceFile) => sourceFile.fileName),
+		);
+
+		for (const sourceFile of ts.sourceFilesOf(project.program)) {
+			if (!isAuthoredFile(sourceFile, authoredPaths) || sourceFile.isDeclarationFile) {
+				continue;
+			}
+
+			const sourcePath = input.facts.files.find((file) => file.absolutePath === sourceFile.fileName)?.path;
+
+			if (sourcePath === undefined) {
+				continue;
+			}
+
+			addP2SourceFile(accumulator, {
+				checker,
+				sourceFile,
+				authoredPaths: authoredInContext,
+				publishedNames: input.publishedByPath.get(sourcePath) ?? new Set<string>(),
+			});
 		}
-
-		const sourcePath = input.facts.files.find((file) => file.absolutePath === sourceFile.fileName)?.path;
-
-		if (sourcePath === undefined) {
-			continue;
-		}
-
-		addP2SourceFile(accumulator, {
-			checker,
-			sourceFile,
-			authoredPaths: authoredInContext,
-			publishedNames: input.publishedByPath.get(sourcePath) ?? new Set<string>(),
-		});
+	} finally {
+		project.dispose();
 	}
 };
 

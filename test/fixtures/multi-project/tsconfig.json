@@ -5,9 +5,8 @@
 		"moduleResolution": "bundler",
 		"strict": true,
 		"noEmit": true,
-		"baseUrl": ".",
 		"paths": {
-			"@contracts/*": ["contracts/src/*"]
+			"@contracts/*": ["./contracts/src/*"]
 		}
 	},
 	"include": ["src/**/*.ts"]

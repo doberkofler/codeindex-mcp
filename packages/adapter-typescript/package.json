@@ -30,6 +30,10 @@
 				"types": "./dist/internals.d.ts",
 				"default": "./dist/internals.js"
 			},
+			"./compiler": {
+				"types": "./dist/compiler.d.ts",
+				"default": "./dist/compiler.js"
+			},
 			"./package.json": "./package.json"
 		}
 	},
@@ -38,6 +42,6 @@
 	},
 	"dependencies": {
 		"@codeindex/adapter-sdk": "workspace:*",
-		"typescript": "6.0.3"
+		"typescript": "7.1.0-beta"
 	}
 }

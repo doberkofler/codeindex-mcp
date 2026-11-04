@@ -1,8 +1,9 @@
 import path from 'node:path';
-import ts from 'typescript';
+import * as ts from './compiler.ts';
 import {type IndexedOccurrenceType, type IndexedSymbolType} from '@codeindex/adapter-sdk';
+import {type LoadedProjectType} from './loadProject.ts';
 
-const {resolve} = path;
+const {dirname, resolve} = path;
 
 /**
  * Language constructs the reference gate must cover.
@@ -72,7 +73,7 @@ const isNode = (value: unknown): value is ts.Node =>
 
 const nameNodeOfDeclaration = (node: ts.Node): ts.Identifier | undefined => {
 	if (ts.isVariableDeclaration(node) || ts.isBindingElement(node)) {
-		return ts.isIdentifier(node.name) ? node.name : undefined;
+		return node.name !== undefined && ts.isIdentifier(node.name) ? node.name : undefined;
 	}
 
 	if (ts.isExportSpecifier(node) || ts.isImportSpecifier(node)) {
@@ -85,7 +86,7 @@ const nameNodeOfDeclaration = (node: ts.Node): ts.Identifier | undefined => {
 
 	const {name} = node;
 
-	return isNode(name) && ts.isIdentifier(name) ? name : undefined;
+	return name !== undefined && isNode(name) && ts.isIdentifier(name) ? name : undefined;
 };
 
 const isTypePosition = (node: ts.Identifier): boolean => {
@@ -239,7 +240,7 @@ const declarationTags = (checker: ts.TypeChecker, symbol: IndexedSymbolType, dec
 	const nameNode = nameNodeOfDeclaration(declarationNode);
 	const declarationSymbol = checker.getSymbolAtLocation(nameNode ?? declarationNode);
 
-	if ((declarationSymbol?.declarations?.length ?? 0) > 1) {
+	if ((declarationSymbol === undefined ? 0 : declarationSymbol.declarations.length) > 1) {
 		tags.add('declaration-merging');
 	}
 
@@ -293,17 +294,17 @@ const classifyUsageOccurrence = (node: ts.Identifier, isNamespaceAccess: (candid
  * All information is derived from the compiler program; no source text is
  * retained and no consumer-specific identifiers are encoded.
  *
- * @param program - Loaded TypeScript program.
+ * @param project - Loaded TypeScript project.
  * @param rootDir - Absolute indexed workspace root.
  * @param authoredAbsolutePaths - Exact authored files supplied to extraction.
  * @returns A construct index with a single deterministic inference entry point.
  */
 export const createReferenceConstructIndex = (
-	program: ts.Program,
+	project: LoadedProjectType,
 	rootDir: string,
 	authoredAbsolutePaths: ReadonlySet<string>,
 ): ReferenceConstructIndexType => {
-	const checker = program.getTypeChecker();
+	const {checker, program, moduleResolver} = project;
 	const compilerOptions = program.getCompilerOptions();
 	const aliasPatterns = Object.keys(compilerOptions.paths ?? {});
 	const identifiersByFile = new Map<string, ReadonlyMap<string, ts.Identifier>>();
@@ -364,7 +365,7 @@ export const createReferenceConstructIndex = (
 		}
 
 		const {fileName} = node.getSourceFile();
-		const {resolvedModule} = ts.resolveModuleName(text, fileName, compilerOptions, ts.sys);
+		const {resolvedModule} = moduleResolver.resolveModuleName(text, dirname(fileName));
 		const resolvedFile = resolvedModule === undefined ? undefined : resolve(resolvedModule.resolvedFileName);
 		const flags = resolvedFile === undefined ? undefined : flagsByFile.get(resolvedFile);
 
