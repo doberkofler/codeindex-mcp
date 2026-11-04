@@ -5,8 +5,8 @@ import {type BuildOutcomeType, type QueryFreshnessType, type RefreshStateType} f
 const debug = debugFor('refresh');
 
 const DEFAULT_DEBOUNCE_MS = 500;
-const DEFAULT_RECONCILE_INTERVAL_MS = 60_000;
 const DEFAULT_SUPERSEDED_BACKOFF_MAX_MS = 30_000;
+const DEFAULT_FAILED_RETRY_MAX_MS = 300_000;
 
 export type ClockType = Readonly<{
 	now: () => number;
@@ -47,9 +47,20 @@ export type RefreshCoordinatorOptionsType = Readonly<{
 	logger: LoggerType;
 	clock?: ClockType;
 	debounceMs?: number;
+	/**
+	 * Optional safety interval for a full reconciliation scan.
+	 *
+	 * Disabled by default: a healthy watcher is the change detector, and rescans
+	 * on a timer burn CPU on an idle workspace without detecting anything new.
+	 * Set it only for platforms or filesystems where filesystem events are known
+	 * to be unreliable. The interval is measured from the end of the previous
+	 * refresh, so a slow scan cannot delay the next one.
+	 */
 	reconcileIntervalMs?: number;
 	/** Upper bound for exponential retry after repeated superseded attempts. */
 	supersededBackoffMaxMs?: number;
+	/** Upper bound for retrying a failed refresh with no new event. */
+	failedRetryMaxMs?: number;
 	record?: (event: string, fields?: Readonly<Record<string, unknown>>) => void;
 }>;
 
@@ -71,6 +82,7 @@ export class RefreshCoordinator {
 	readonly #debounceMs: number;
 	readonly #reconcileIntervalMs: number;
 	readonly #supersededBackoffMaxMs: number;
+	readonly #failedRetryMaxMs: number;
 	readonly #record: (event: string, fields?: Readonly<Record<string, unknown>>) => void;
 	#state: RefreshStateType = 'unknown';
 	readonly #dirtyPaths = new Set<string>();
@@ -78,7 +90,9 @@ export class RefreshCoordinator {
 	#refreshAgain = false;
 	#running: Promise<void> | null = null;
 	#debounceTimer: ReturnType<typeof setTimeout> | null = null;
-	#reconcileTimer: ReturnType<typeof setInterval> | null = null;
+	#reconcileTimer: ReturnType<typeof setTimeout> | null = null;
+	#failureRetryTimer: ReturnType<typeof setTimeout> | null = null;
+	#failureAttempts = 0;
 	#checkedAt = new Date().toISOString();
 	#lastRefreshStartedAt: string | null = null;
 	#lastRefreshCompletedAt: string | null = null;
@@ -93,8 +107,9 @@ export class RefreshCoordinator {
 		this.#logger = options.logger;
 		this.#clock = options.clock ?? systemClock;
 		this.#debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-		this.#reconcileIntervalMs = options.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
+		this.#reconcileIntervalMs = options.reconcileIntervalMs ?? 0;
 		this.#supersededBackoffMaxMs = options.supersededBackoffMaxMs ?? DEFAULT_SUPERSEDED_BACKOFF_MAX_MS;
+		this.#failedRetryMaxMs = options.failedRetryMaxMs ?? DEFAULT_FAILED_RETRY_MAX_MS;
 		this.#record = options.record ?? noRecord;
 	}
 
@@ -104,10 +119,7 @@ export class RefreshCoordinator {
 		}
 
 		debug('coordinator start');
-		this.#reconcileTimer = this.#clock.setInterval(() => {
-			this.requestReconcile();
-		}, this.#reconcileIntervalMs);
-		this.#reconcileTimer.unref();
+		this.#armReconcile();
 		this.#firstEventAt ??= this.#clock.now();
 		this.#schedule('startup');
 	}
@@ -185,6 +197,8 @@ export class RefreshCoordinator {
 		this.#firstEventAt = null;
 		this.#supersededAttempts = 0;
 		this.#supersededBackoffMs = 0;
+		this.#failureAttempts = 0;
+		this.#clearFailureRetry();
 		this.#lastRefreshCompletedAt = new Date(this.#clock.now()).toISOString();
 	}
 
@@ -254,11 +268,8 @@ export class RefreshCoordinator {
 	public async close(): Promise<void> {
 		this.#state = 'stopping';
 		this.#clearDebounce();
-
-		if (this.#reconcileTimer !== null) {
-			this.#clock.clearInterval(this.#reconcileTimer);
-			this.#reconcileTimer = null;
-		}
+		this.#clearReconcile();
+		this.#clearFailureRetry();
 
 		if (this.#running !== null) {
 			try {
@@ -286,6 +297,67 @@ export class RefreshCoordinator {
 		}
 	}
 
+	/**
+	 * Arms the optional safety reconciliation from now.
+	 *
+	 * One-shot by design: the next timer starts only after a refresh finishes, so
+	 * a scan that takes longer than the interval cannot queue overlapping checks.
+	 */
+	#armReconcile(): void {
+		this.#clearReconcile();
+
+		if (this.#reconcileIntervalMs <= 0 || this.#state === 'stopping') {
+			return;
+		}
+
+		this.#reconcileTimer = this.#clock.setTimeout(() => {
+			this.#reconcileTimer = null;
+			this.requestReconcile();
+		}, this.#reconcileIntervalMs);
+		this.#reconcileTimer.unref();
+	}
+
+	#armFailureRetry(): void {
+		this.#clearFailureRetry();
+
+		if (this.#state === 'stopping') {
+			return;
+		}
+
+		this.#failureAttempts += 1;
+		const delayMs = Math.min(this.#debounceMs * 2 ** (this.#failureAttempts - 1), this.#failedRetryMaxMs);
+		this.#failureRetryTimer = this.#clock.setTimeout(() => {
+			this.#failureRetryTimer = null;
+
+			if (this.#state === 'stopping' || this.#state === 'building' || this.#state === 'dirty') {
+				return;
+			}
+
+			// The backoff already absorbed the debounce window, so the retry runs
+			// immediately instead of waiting a second time.
+			this.#checkedAt = new Date().toISOString();
+			this.#firstEventAt ??= this.#clock.now();
+			this.#state = 'dirty';
+			this.#record('watcher_reconcile');
+			void this.#run('reconcile');
+		}, delayMs);
+		this.#failureRetryTimer.unref();
+	}
+
+	#clearFailureRetry(): void {
+		if (this.#failureRetryTimer !== null) {
+			this.#clock.clearTimeout(this.#failureRetryTimer);
+			this.#failureRetryTimer = null;
+		}
+	}
+
+	#clearReconcile(): void {
+		if (this.#reconcileTimer !== null) {
+			this.#clock.clearTimeout(this.#reconcileTimer);
+			this.#reconcileTimer = null;
+		}
+	}
+
 	async #run(reason: RefreshReasonType): Promise<void> {
 		if (this.#state === 'stopping' || this.#running !== null) {
 			return;
@@ -293,6 +365,7 @@ export class RefreshCoordinator {
 
 		this.#refreshAgain = false;
 		this.#supersededBackoffMs = 0;
+		this.#clearFailureRetry();
 		this.#state = 'building';
 		this.#lastReason = reason;
 		this.#lastRefreshStartedAt = new Date(this.#clock.now()).toISOString();
@@ -332,6 +405,8 @@ export class RefreshCoordinator {
 	#completePublished(startedAt: number, completedAt: number): void {
 		this.#supersededAttempts = 0;
 		this.#supersededBackoffMs = 0;
+		this.#failureAttempts = 0;
+		this.#clearFailureRetry();
 		this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
 		this.#lastError = null;
 		this.#record('refresh_published', {
@@ -393,6 +468,15 @@ export class RefreshCoordinator {
 
 			this.#state = 'failed';
 			this.#firstEventAt = null;
+			// A transient failure must recover without waiting for an unrelated
+			// edit: the failure itself never produces a filesystem event. The retry
+			// is bounded and backs off, so a permanently broken workspace costs a
+			// scan per backoff instead of spinning.
+			this.#armFailureRetry();
+		} finally {
+			// The safety interval restarts from completion, never from start, so a
+			// slow scan cannot shorten the gap between scans.
+			this.#armReconcile();
 		}
 	}
 }

@@ -403,8 +403,8 @@ size. OpenCode session storage is never inspected.
   published revision remains available when one exists.
 - **`file_not_indexed`:** confirm that the file is reachable from a configured
   TypeScript project or included by the Oracle manifest.
-- **`stale_file`:** wait for watcher reconciliation or run `codeindex-cli update`;
-  never treat previously returned source as current.
+- **`stale_file`:** wait for the watcher to publish the change, or run
+  `codeindex-cli update`; never treat previously returned source as current.
 - **Oracle configuration failure:** Oracle requires `extractor.project` or
   `extractor.projects`; it never guesses a manifest.
 - **No MCP output:** stdout is protocol-only. Read stderr, or enable

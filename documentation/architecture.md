@@ -366,9 +366,24 @@ by partial facts.
 
 `WorkspaceWatcher` observes the union of configured adapter source extensions and
 watch inputs. Ignored directory segments are the intersection across adapters, so
-one adapter's ignore rule cannot hide another adapter's source. `RefreshCoordinator` debounces bursts, allows one refresh at a time, coalesces
-changes arriving during a build into one follow-up, and schedules periodic full
-reconciliation. The scanner remains authoritative if an event is missed.
+one adapter's ignore rule cannot hide another adapter's source. Watching is
+recursive from the covering directories that hold indexed files, so files created
+in new subdirectories and removed directory trees are reported without waiting for
+a rescan. Directory events request a project-wide scan because a new or removed
+directory can change the indexed file set without naming a source file.
+
+`RefreshCoordinator` debounces bursts, allows one refresh at a time, coalesces
+changes arriving during a build into one follow-up, and retries a failed refresh
+with capped exponential backoff. It performs **no periodic rescan of an idle
+workspace**: a healthy watcher is the change detector, and a timer that rescans
+unchanged content burns CPU without discovering anything. A full reconciliation
+still runs at startup, after a watcher error, after a failure retry, and on
+`codeindex-cli update`. The scanner remains authoritative.
+
+`reconcileIntervalMs` exists only as an opt-in safety interval for filesystems
+whose events are known to be unreliable. It is disabled by default, and when set
+it is measured from the end of the previous refresh so a slow scan cannot delay
+the next one.
 
 Internal refresh states map to query freshness as follows:
 
@@ -510,7 +525,8 @@ rather than malformed partial data.
 
 `codeindex-mcp` uses stdio. Stdout is exclusively MCP transport data; the version
 banner, diagnostics, analytics diagnostics, and `DEBUG=codeindex:*` traces stay on
-stderr. MCP starts continuous watching and reconciliation.
+stderr. MCP starts continuous watching; reconciliation happens at startup, on
+watcher failure, on a failed-refresh retry, and on explicit `update`.
 
 ### CLI
 

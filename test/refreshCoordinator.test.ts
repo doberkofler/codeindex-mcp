@@ -278,6 +278,69 @@ describe('RefreshCoordinator failure recovery', () => {
 		expect(coordinator.getSnapshot().state).toBe('current');
 		await coordinator.close();
 	});
+
+	it('retries a failed refresh without waiting for a new event', async () => {
+		const {clock, advance} = createClock();
+		let calls = 0;
+		const runRefresh = async (): Promise<BuildOutcomeType> => {
+			calls += 1;
+			await Promise.resolve();
+
+			if (calls === 1) {
+				throw new Error('transient read failure');
+			}
+
+			return 'published';
+		};
+		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
+
+		coordinator.start();
+		await advance(500);
+		expect(calls).toBe(1);
+		expect(coordinator.getSnapshot().state).toBe('failed');
+
+		// The failure produces no filesystem event, so recovery must come from the
+		// bounded retry rather than from an unrelated edit.
+		await advance(500);
+		expect(calls).toBe(2);
+		expect(coordinator.getSnapshot().state).toBe('current');
+		expect(coordinator.getSnapshot().lastError).toBeNull();
+		await coordinator.close();
+	});
+
+	it('backs off repeated failures without spinning', async () => {
+		const {clock, advance} = createClock();
+		let calls = 0;
+		const coordinator = new RefreshCoordinator({
+			runRefresh: async (): Promise<BuildOutcomeType> => {
+				calls += 1;
+				await Promise.resolve();
+				throw new Error('persistent read failure');
+			},
+			logger: silentLogger,
+			clock,
+			debounceMs: 500,
+			failedRetryMaxMs: 4000,
+		});
+
+		coordinator.start();
+		await advance(500);
+		expect(calls).toBe(1);
+
+		await advance(500);
+		expect(calls).toBe(2);
+		await advance(1000);
+		expect(calls).toBe(3);
+		await advance(2000);
+		expect(calls).toBe(4);
+		await advance(4000);
+		expect(calls).toBe(5);
+		await advance(4000);
+		expect(calls).toBe(6);
+
+		expect(coordinator.getSnapshot().state).toBe('failed');
+		await coordinator.close();
+	});
 });
 
 describe('RefreshCoordinator publication timing', () => {
@@ -305,6 +368,32 @@ describe('RefreshCoordinator publication timing', () => {
 		const published = events.find((entry) => entry.event === 'refresh_published');
 		const {eventToPublicationMs} = published?.fields ?? {};
 		expect(eventToPublicationMs).toBe(500);
+		await coordinator.close();
+	});
+});
+
+describe('RefreshCoordinator idle scheduling', () => {
+	it('performs no periodic rescan while the workspace is idle', async () => {
+		const {clock, advance} = createClock();
+		let calls = 0;
+		const runRefresh = async (): Promise<BuildOutcomeType> => {
+			calls += 1;
+			await Promise.resolve();
+			return 'published';
+		};
+		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
+
+		coordinator.start();
+		await advance(500);
+		expect(calls).toBe(1);
+
+		// Ten idle minutes with no filesystem event: the startup refresh is the
+		// only work the coordinator may schedule. A healthy watcher is the change
+		// detector; rescanning the whole workspace on a timer burns idle CPU.
+		await advance(600_000);
+
+		expect(calls).toBe(1);
+		expect(coordinator.getSnapshot().state).toBe('current');
 		await coordinator.close();
 	});
 });

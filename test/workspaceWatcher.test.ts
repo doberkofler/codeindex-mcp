@@ -139,3 +139,71 @@ describe('WorkspaceWatcher', () => {
 		expect(workspace.changes).toStrictEqual([]);
 	});
 });
+
+describe('WorkspaceWatcher directory changes', () => {
+	let directory: string | undefined;
+	let watcher: WorkspaceWatcher | undefined;
+
+	afterEach(() => {
+		watcher?.close();
+		watcher = undefined;
+
+		if (directory !== undefined) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		directory = undefined;
+	});
+
+	it('reports a file created in a previously unknown nested directory', async () => {
+		const workspace = createWorkspace();
+		({directory} = workspace);
+		watcher = startWatcher(workspace);
+		await delay(100);
+
+		const nestedDirectory = path.join(workspace.directory, 'src', 'deep', 'deeper');
+		mkdirSync(nestedDirectory, {recursive: true});
+		writeFileSync(path.join(nestedDirectory, 'later.ts'), 'export const nested = 1;\n');
+
+		await vi.waitFor(
+			() => {
+				expect(workspace.changes.length).toBeGreaterThan(0);
+			},
+			{timeout: 3000, interval: 25},
+		);
+	});
+
+	it('reports an existing file changed inside a nested directory', async () => {
+		const workspace = createWorkspace();
+		({directory} = workspace);
+		const nestedDirectory = path.join(workspace.directory, 'src', 'nested');
+		const nestedPath = path.join(nestedDirectory, 'existing.ts');
+		mkdirSync(nestedDirectory, {recursive: true});
+		writeFileSync(nestedPath, 'export const existing = 1;\n');
+		watcher = startWatcher(workspace);
+		await delay(100);
+
+		appendFileSync(nestedPath, 'export const changed = 2;\n');
+		await waitForPath(workspace, 'src/nested/existing.ts');
+		expect(workspace.changes.some((paths) => includesPath(paths, 'src/nested/existing.ts'))).toBe(true);
+	});
+
+	it('reports removal of a directory tree', async () => {
+		const workspace = createWorkspace();
+		({directory} = workspace);
+		const removedDirectory = path.join(workspace.directory, 'src', 'removed');
+		mkdirSync(removedDirectory, {recursive: true});
+		writeFileSync(path.join(removedDirectory, 'gone.ts'), 'export const gone = 1;\n');
+		watcher = startWatcher(workspace);
+		await delay(100);
+
+		rmSync(removedDirectory, {recursive: true, force: true});
+
+		await vi.waitFor(
+			() => {
+				expect(workspace.changes.length).toBeGreaterThan(0);
+			},
+			{timeout: 3000, interval: 25},
+		);
+	});
+});

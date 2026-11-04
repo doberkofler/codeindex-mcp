@@ -22,6 +22,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+* **freshness:** stop rescanning every 60 seconds when nothing changed. A healthy
+  watcher is the change detector; the periodic full scan consumed roughly 45% of
+  an idle large-workspace server's CPU. Reconciliation now runs at startup, after
+  a watcher error, after a failed-refresh retry, and on explicit `update`; the
+  safety interval is opt-in and measured from completion.
+* **freshness:** watch covering directories recursively instead of one
+  non-recursive watcher per known directory, and treat `addDir`/`unlinkDir` as a
+  project-wide change. Files created in new subdirectories and deleted directory
+  trees were previously invisible until the next periodic scan.
+* **freshness:** retry a failed refresh with capped exponential backoff so a
+  transient read failure recovers without an unrelated edit or a timer rescan.
 * **status:** preserve a recorded adapter's absence reason, including `null`, instead of reporting that the adapter is missing ([#135](https://github.com/doberkofler/codeindex-mcp/issues/135))
 
 ## [0.12.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.11.0...v0.12.0) (2026-11-03)
