@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+* **status:** preserve a recorded adapter's absence reason, including `null`, instead of reporting that the adapter is missing ([#135](https://github.com/doberkofler/codeindex-mcp/issues/135))
+
 ## [0.12.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.11.0...v0.12.0) (2026-11-03)
 
 ### Added

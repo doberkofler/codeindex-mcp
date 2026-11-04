@@ -83,7 +83,7 @@ const adapterStatusEntry = (input: AdapterStatusInputType): IndexStatusType['sco
 		id: adapter.id,
 		version: row?.adapterVersion ?? extractor?.version ?? 'unknown',
 		coverage: row?.coverage ?? 'absent',
-		absenceReason: row?.absenceReason ?? missingCoverageReason(published),
+		absenceReason: row === undefined ? missingCoverageReason(published) : row.absenceReason,
 		...compilerProvenanceOf(row),
 		contexts: adapter.projects.map((project) => project.name),
 		limitations: extractor?.limitations ?? [],

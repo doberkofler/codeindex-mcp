@@ -1,7 +1,7 @@
-import {afterAll, describe, expect, it} from 'vitest';
+import {afterAll, afterEach, describe, expect, it, vi} from 'vitest';
 import {collectStatus, summaryStatusOf, type StatusInputType} from '../src/core/freshness/indexStatus.ts';
 import {type RefreshCoordinatorSnapshotType} from '../src/core/freshness/refreshCoordinator.ts';
-import {type GenerationRowType, type RefreshStateType} from '../src/core/model.ts';
+import {type GenerationAdapterType, type GenerationRowType, type RefreshStateType} from '../src/core/model.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
 import {testAdaptersFor} from './helpers/adapters.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
@@ -22,6 +22,30 @@ const generation = (overrides: Partial<GenerationRowType> = {}): GenerationRowTy
 	diagnosticCount: 6,
 	stages: null,
 	error: null,
+	...overrides,
+});
+
+const generationAdapter = (overrides: Partial<GenerationAdapterType> = {}): GenerationAdapterType => ({
+	adapterId: 'typescript',
+	protocolVersion: 1,
+	adapterVersion: '0.1.0',
+	packageName: '@codeindex/adapter-typescript',
+	packageVersion: '0.1.0',
+	compilerVersion: '6.0.3',
+	declaredCompilerVersion: '6.0.3',
+	compilerDrift: false,
+	coverage: 'present',
+	absenceReason: null,
+	sourceHash: 'source',
+	configHash: 'config',
+	inputHash: 'input',
+	fileCount: 1,
+	symbolCount: 2,
+	occurrenceCount: 3,
+	dependencyEdgeCount: 4,
+	dependencyBindingCount: 5,
+	diagnosticCount: 6,
+	stages: null,
 	...overrides,
 });
 
@@ -52,6 +76,28 @@ const statusOf = (overrides: Partial<StatusInputType> = {}): ReturnType<typeof c
 		lastError: null,
 		...overrides,
 	});
+
+describe('adapter status', () => {
+	const adapterDatabase = IndexDatabase.open(':memory:');
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	afterAll(() => {
+		adapterDatabase.close();
+	});
+
+	it('preserves the recorded adapter coverage reason', () => {
+		const storedAdapters = vi.spyOn(adapterDatabase, 'getGenerationAdapters');
+
+		storedAdapters.mockReturnValue([generationAdapter()]);
+		expect(statusOf({database: adapterDatabase}).scope.adapters).toMatchObject([{id: 'typescript', coverage: 'present', absenceReason: null}]);
+
+		storedAdapters.mockReturnValue([generationAdapter({coverage: 'absent', absenceReason: 'tool-missing'})]);
+		expect(statusOf({database: adapterDatabase}).scope.adapters).toMatchObject([{id: 'typescript', coverage: 'absent', absenceReason: 'tool-missing'}]);
+	});
+});
 
 describe('index status', () => {
 	afterAll(() => {
@@ -136,7 +182,7 @@ describe('index status', () => {
 		expect(summary.scope.adapters).toStrictEqual([
 			{id: 'typescript', coverage: 'absent', absenceReason: 'adapter is not recorded in the published generation', contexts: ['root']},
 		]);
-		expect(Buffer.byteLength(JSON.stringify({ok: true, data: summary}), 'utf8')).toBeLessThanOrEqual(800);
+		expect(new TextEncoder().encode(JSON.stringify({ok: true, data: summary})).length).toBeLessThanOrEqual(800);
 	});
 
 	it('reports absent and incomplete generations', () => {
