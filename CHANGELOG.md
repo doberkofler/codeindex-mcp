@@ -12,6 +12,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+* **benchmark:** keep generated-corpus edit p95 advisory. The generated corpora
+  concentrate shared surface types and expose TypeScript 7's out-of-process API
+  cost rather than representative use, so the absolute limit now warns while the
+  retained-reference ratio remains the blocking guard. External-workspace
+  baselines keep the absolute gate blocking.
+
 * **benchmark:** raise the `find_symbol` cursor-per-item gate from 1.5 ms to 5 ms.
   Hosted-runner measurements for the same build span 1.289–2.193 ms, so the old
   limit failed on variance rather than on a regression; the same-runner

@@ -249,6 +249,28 @@ on that project set is not claimed: the runs exceeded the harness timeout while
 an unrelated long-running process held a CPU, and no controlled pair was
 obtained.
 
+### Release-gate interpretation
+
+The generated benchmark corpus is an adversarial stress shape, not a model of a
+real repository. Its 2,500 feature files all import one shared hub type and
+10,000 outline symbols, so surface projection exposes roughly 287,000
+synchronous compiler API requests per build. TypeScript 7 answers each request
+across a process boundary, while TypeScript 6 answered it in-process. On the
+hosted large profile the same workload measured 11.9 s edit-to-fresh p95 on
+TypeScript 6 and 27.2 s on TypeScript 7, despite identical file, symbol, and
+source hashes.
+
+Per-root frontier batching was measured as a candidate fix and reverted: the
+frontiers contained about one type per root, batches averaged 1.5 requests, and
+the run went from 286,668 to 289,182 requests and from 7.72 s to 8.16 s. Batching
+across roots remains untested and is not part of this release.
+
+The generated baselines therefore keep absolute edit p95 advisory: the value is
+still measured, reported, and warned on, while the retained-reference ratio
+remains the blocking regression guard. External-workspace baselines keep the
+absolute gate blocking. The release basis is the controlled real-repository
+evidence above, where TypeScript 7 was faster in every measured comparison.
+
 ### LJS consumer
 
 `/Users/doberkofler/MyDev/ljs_app/trunk`, the consumer's own

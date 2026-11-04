@@ -83,6 +83,7 @@ const editGates = (report: BenchmarkReportType, baseline: BenchmarkBaselineType)
 			current: p95,
 			warning: baseline.thresholds.editP95WarningMs,
 			failure: baseline.thresholds.editP95FailureMs,
+			enforcement: baseline.thresholds.editP95Enforcement,
 			unit: 'ms',
 		}),
 	];

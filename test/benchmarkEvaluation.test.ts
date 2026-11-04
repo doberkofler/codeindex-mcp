@@ -10,7 +10,7 @@ import {
 	type BenchmarkBaselineType,
 	type BenchmarkReferenceType,
 } from '../src/core/benchmark/baseline.ts';
-import {type BenchmarkCursorSampleType, type BenchmarkReportType} from '../src/core/benchmark/benchTypes.ts';
+import {type BenchmarkCursorSampleType, type BenchmarkEditScenarioType, type BenchmarkReportType} from '../src/core/benchmark/benchTypes.ts';
 import {benchmarkCorpusCounts} from '../src/core/benchmark/corpus.ts';
 import {runBenchmarkCommand, runBenchmarkReport} from '../src/core/benchmark/runBenchmark.ts';
 import {evaluateBenchmark} from '../src/core/benchmark/evaluate.ts';
@@ -50,6 +50,30 @@ const withFindSymbolSample = (report: BenchmarkReportType, sample: BenchmarkCurs
 	scenarios: report.scenarios.map((scenario) =>
 		scenario.kind === 'cursor' ? {...scenario, samples: [...scenario.samples.filter((entry) => entry.kind !== 'find_symbol'), sample]} : scenario,
 	),
+});
+
+const editScenarioOf = (p95Ms: number): BenchmarkEditScenarioType => ({
+	kind: 'edit',
+	name: 'edit_to_fresh',
+	wallMs: p95Ms,
+	rounds: 1,
+	debounceMs: 1000,
+	samples: [{iteration: 1, latencyMs: p95Ms, generationId: 'generation'}],
+	percentiles: {count: 1, p50Ms: p95Ms, p95Ms, p99Ms: p95Ms, maxMs: p95Ms},
+	build: null,
+	resources: {cpuUserMs: 1, cpuSystemMs: 1, rssStartBytes: 1, rssPeakBytes: 1, rssEndBytes: 1, lifetimeMaxRssBytes: 1},
+	storage: {databaseBytes: 1, walBytes: 0, shmBytes: 0, totalBytes: 1, contentVersions: 1, extractionArtifacts: 0},
+	reuse: {
+		generationReused: false,
+		filesTotal: 1,
+		filesReused: 0,
+		contentReuseRatio: 0,
+		artifactRowsBefore: 0,
+		artifactRowsAfter: 0,
+		artifactRowsRead: 0,
+		artifactReuseRatio: 0,
+		artifactConsumption: 'none',
+	},
 });
 
 const referenceOf = (report: BenchmarkReportType): BenchmarkReferenceType =>
@@ -94,6 +118,7 @@ describe('benchmark baseline', () => {
 
 			expect(baseline.schemaVersion).toBe(1);
 			expect(baseline.thresholds.buildFailureRatio).toBe(5);
+			expect(baseline.thresholds.editP95Enforcement).toBe('blocking');
 			expect(baseline.requiredScenarios).toContain('edit_to_fresh');
 
 			writeJson(baselinePath, {schemaVersion: 2});
@@ -167,6 +192,25 @@ describe('benchmark evaluation', () => {
 				status: 'failure',
 				actual: 3,
 			});
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
+	it('honors advisory edit latency while blocking remains the default', async () => {
+		const fixture = createFixtureConfig('simple-project');
+
+		try {
+			const report = await runBenchmarkReport({config: fixture.config, iterations: 1, force: false, scenarios: ['warm_reuse']});
+			const withEdit: BenchmarkReportType = {...report, scenarios: [...report.scenarios, editScenarioOf(20_000)]};
+			const thresholds = {editP95WarningMs: 5000, editP95FailureMs: 15_000};
+			const advisory = evaluateBenchmark(withEdit, baselineOf({requiredScenarios: [], thresholds: {...thresholds, editP95Enforcement: 'advisory'}}));
+			const blocking = evaluateBenchmark(withEdit, baselineOf({requiredScenarios: [], thresholds}));
+
+			expect(advisory.gates.find((entry) => entry.code === 'absolute.edit.p95')?.status).toBe('warning');
+			expect(advisory.status).not.toBe('failure');
+			expect(blocking.gates.find((entry) => entry.code === 'absolute.edit.p95')?.status).toBe('failure');
+			expect(blocking.status).toBe('failure');
 		} finally {
 			fixture.cleanup();
 		}

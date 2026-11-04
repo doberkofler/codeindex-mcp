@@ -15,6 +15,7 @@
 		"editFailureRatio": 5,
 		"editP95WarningMs": 20000,
 		"editP95FailureMs": 40000,
+		"editP95Enforcement": "advisory",
 		"queryWarningRatio": 5,
 		"queryFailureRatio": 20,
 		"queryP95WarningMs": 25,

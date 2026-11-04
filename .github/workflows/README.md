@@ -31,10 +31,13 @@ self-hosted runner is required.
 
 `stable.yml` and `nightly.yml` are pinned to `ubuntu-24.04` so a hosted image update
 cannot silently change the reference platform. Absolute latency, memory, storage, plan,
-and correctness gates always apply. Relative regression gates are capped to warnings
-whenever the retained reference was produced on another platform or architecture, so the
-first run on a new platform establishes that platform's reference and later runs compare
-like against like.
+and correctness gates apply. The one exception is generated-corpus edit-to-fresh latency:
+those corpora deliberately concentrate shared surface types, so the absolute p95 is
+advisory and only warns. The retained-reference ratio remains the blocking regression
+guard, and external-workspace baselines keep the absolute edit p95 blocking. Relative
+regression gates are capped to warnings whenever the retained reference was produced on
+another platform or architecture, so the first run on a new platform establishes that
+platform's reference and later runs compare like against like.
 
 ## `nightly.yml`
 
@@ -101,12 +104,13 @@ workspaces, and databases are excluded.
 
 | Failed observation | Failure class | Interpretation |
 | --- | --- | --- |
-| Retained-reference or absolute gate | **Performance gate** | Regression against the retained report or a violated absolute gate |
+| Retained-reference or blocking absolute gate | **Performance gate** | Regression against the retained report or a violated blocking absolute gate |
 | Soak or built-process lifecycle | **Deterministic system** | Wiring, worker, watcher, restart, recovery, or process-lifecycle defect |
 | Verify, build, or qualification | **Static verification** or **Semantic qualification** | Build/tool defect or adapter divergence |
 
 A reference-platform or architecture mismatch downgrades relative gates to warnings.
-Absolute gates and invalid deep-cursor plans still fail.
+Blocking absolute gates and invalid deep-cursor plans still fail; generated-corpus edit
+p95 is advisory.
 
 ## `release.yml`
 

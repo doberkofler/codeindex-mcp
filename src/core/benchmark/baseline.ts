@@ -103,6 +103,14 @@ const ThresholdsSchema = z.object({
 	editFailureRatio: z.number().min(1).default(5),
 	editP95WarningMs: z.number().min(0).default(5000),
 	editP95FailureMs: z.number().min(0).default(15_000),
+	/**
+	 * Whether exceeding the edit p95 failure limit fails the run.
+	 *
+	 * Generated corpora deliberately concentrate shared surface types, so their
+	 * edit latency measures an adversarial stress shape rather than normal use.
+	 * Those baselines stay advisory; real workspaces keep the blocking gate.
+	 */
+	editP95Enforcement: z.enum(['blocking', 'advisory']).default('blocking'),
 	queryWarningRatio: z.number().min(1).default(5),
 	queryFailureRatio: z.number().min(1).default(20),
 	queryP95WarningMs: z.number().min(0).default(25),

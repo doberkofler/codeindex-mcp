@@ -32,12 +32,16 @@ export const absoluteGate = (
 		warning: number;
 		failure: number;
 		unit: BenchmarkGateUnitType;
+		/** Treat a failure threshold breach as a warning while retaining the measurement. */
+		enforcement?: 'blocking' | 'advisory';
 	}>,
 ): BenchmarkGateType => {
-	const status = input.current > input.failure ? 'failure' : input.current > input.warning ? 'warning' : 'pass';
+	const breached = input.current > input.failure;
+	const advisory = breached && input.enforcement === 'advisory';
+	const status = breached ? (advisory ? 'warning' : 'failure') : input.current > input.warning ? 'warning' : 'pass';
 
 	return gate(status, input.code, 'absolute', {
-		message: `${input.message}; warning above ${String(input.warning)}, failure above ${String(input.failure)}`,
+		message: `${input.message}; warning above ${String(input.warning)}, failure above ${String(input.failure)}${advisory ? ' (advisory)' : ''}`,
 		actual: input.current,
 		expected: input.failure,
 		unit: input.unit,
