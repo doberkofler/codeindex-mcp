@@ -106,9 +106,11 @@ const ThresholdsSchema = z.object({
 	/**
 	 * Whether exceeding the edit p95 failure limit fails the run.
 	 *
-	 * Generated corpora deliberately concentrate shared surface types, so their
-	 * edit latency measures an adversarial stress shape rather than normal use.
-	 * Those baselines stay advisory; real workspaces keep the blocking gate.
+	 * An edit currently republishes a full generation, so edit-to-fresh latency
+	 * is bounded by warm-rebuild latency and cannot meet a fixed absolute limit.
+	 * Every checked-in baseline therefore measures and warns on the absolute
+	 * value; the retained-reference ratio is the blocking regression guard until
+	 * incremental refresh exists.
 	 */
 	editP95Enforcement: z.enum(['blocking', 'advisory']).default('blocking'),
 	queryWarningRatio: z.number().min(1).default(5),

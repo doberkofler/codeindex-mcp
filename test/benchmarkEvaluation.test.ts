@@ -128,6 +128,15 @@ describe('benchmark baseline', () => {
 		}
 	});
 
+	it('keeps every checked-in baseline advisory for absolute edit latency', () => {
+		const repositoryRoot = path.resolve(import.meta.dirname, '..');
+
+		for (const name of ['baseline', 'baseline-small', 'baseline-medium', 'baseline-xl', 'baseline-external']) {
+			const baseline = loadBenchmarkBaseline(path.join(repositoryRoot, 'benchmark', `${name}.json`));
+			expect(baseline.thresholds.editP95Enforcement).toBe('advisory');
+		}
+	});
+
 	it('loads a raw benchmark report as a relative reference', async () => {
 		const fixture = createFixtureConfig('simple-project');
 		const directory = tempDirectory('codeindex-benchmark-report-reference-');

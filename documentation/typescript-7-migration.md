@@ -267,9 +267,11 @@ across roots remains untested and is not part of this release.
 
 The generated baselines therefore keep absolute edit p95 advisory: the value is
 still measured, reported, and warned on, while the retained-reference ratio
-remains the blocking regression guard. External-workspace baselines keep the
-absolute gate blocking. The release basis is the controlled real-repository
-evidence above, where TypeScript 7 was faster in every measured comparison.
+remains the blocking regression guard. External-workspace baselines now do the
+same, because an edit republishes a full generation and its latency is bounded
+by warm rebuild rather than by incremental work. The release basis is the
+controlled real-repository evidence above, where TypeScript 7 was faster in
+every measured comparison.
 
 ### LJS consumer
 

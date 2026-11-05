@@ -21,6 +21,13 @@ All notable changes to this project are documented here. The format follows
   claimed to gate. The absolute edit p95 gate now executes on the external
   baselines instead of being unreachable.
 
+* **benchmark:** keep external-workspace edit p95 advisory. The first execution on
+  the pinned TypeScript checkout measured 26.2 s p95 against the 15 s blocking
+  limit. An edit republishes a full generation, so edit-to-fresh latency is bounded
+  by warm rebuild (25.6 s) and no absolute limit below that can pass. The value is
+  still measured, reported, and warned on; the retained-reference ratio remains the
+  blocking regression guard until incremental refresh exists.
+
 ## [0.14.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.13.0...v0.14.0) (2026-11-04)
 
 ### Added
