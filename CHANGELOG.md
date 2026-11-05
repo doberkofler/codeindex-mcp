@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.15.0...v0.16.0) (2026-11-05)
+
+### Added
+
+* **retention:** bound derived artifacts and evidence ([699f802](https://github.com/doberkofler/codeindex-mcp/commit/699f802cfcacd127974e96cbe3638949b816a78a))
+
 ## [0.15.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.14.0...v0.15.0) (2026-11-05)
 
 ### Added
