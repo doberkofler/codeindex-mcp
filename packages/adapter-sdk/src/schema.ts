@@ -32,6 +32,7 @@ const AdapterSurfaceSchema = z
 		canReusePublishedFacts: callable<NonNullable<AdapterType['canReusePublishedFacts']>>().optional(),
 		configFiles: callable<AdapterType['configFiles']>(),
 		isSourceFile: callable<AdapterType['isSourceFile']>(),
+		dispose: callable<NonNullable<AdapterType['dispose']>>().optional(),
 	})
 	.loose();
 
@@ -87,5 +88,6 @@ export const parseAdapterSurface = (value: unknown): AdapterType => {
 		...(parsed.canReusePublishedFacts === undefined ? {} : {canReusePublishedFacts: parsed.canReusePublishedFacts}),
 		configFiles: parsed.configFiles,
 		isSourceFile: parsed.isSourceFile,
+		...(parsed.dispose === undefined ? {} : {dispose: parsed.dispose}),
 	};
 };

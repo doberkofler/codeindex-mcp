@@ -81,6 +81,12 @@ export type RecorderType = Readonly<{
 	 * unchanged inputs always produce the same hash.
 	 */
 	sealProbes: () => void;
+	/** Clears recorded inputs and probes before one warm refresh. */
+	resetMetadata: () => void;
+	/** Drops captured bytes for files that changed, appeared, or disappeared. */
+	invalidate: (absolutePaths: readonly string[]) => void;
+	/** Drops captured bytes no input refers to any longer. */
+	retainOnly: (absolutePaths: readonly string[]) => void;
 }>;
 
 export const canonicalPath = (absolutePath: string): string => {
@@ -216,6 +222,97 @@ const sealSnapshotProbes = (snapshot: MutableSnapshotType): void => {
 	}
 };
 
+const invalidateContents = (snapshot: MutableSnapshotType, absolutePaths: readonly string[]): void => {
+	for (const absolutePath of absolutePaths) {
+		snapshot.contents.delete(canonicalPath(absolutePath));
+	}
+};
+
+const retainOnlyContents = (snapshot: MutableSnapshotType, absolutePaths: readonly string[]): void => {
+	const retained = new Set(absolutePaths.map((absolutePath) => canonicalPath(absolutePath)));
+
+	for (const absolutePath of snapshot.contents.keys()) {
+		if (!retained.has(absolutePath)) {
+			snapshot.contents.delete(absolutePath);
+		}
+	}
+};
+
+const readBytesOf = (snapshot: MutableSnapshotType, absolutePath: string): Uint8Array | undefined => {
+	const canonical = canonicalPath(absolutePath);
+	const cached = snapshot.contents.get(canonical);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	if (statSync(canonical, {throwIfNoEntry: false})?.isFile() !== true) {
+		return undefined;
+	}
+
+	const bytes = readFileSync(canonical);
+	snapshot.contents.set(canonical, bytes);
+	return bytes;
+};
+
+const addInputOf = (snapshot: MutableSnapshotType, absolutePath: string): void => {
+	const canonical = canonicalPath(absolutePath);
+	const bytes = readBytesOf(snapshot, canonical);
+
+	if (bytes === undefined || snapshot.inputs.has(canonical)) {
+		return;
+	}
+
+	snapshot.inputs.set(canonical, {
+		absolutePath: canonical,
+		key: keyOf(snapshot.rootDir, canonical),
+		kind: classifyOf(snapshot.rootDir, canonical),
+		sha256: hash(bytes),
+	});
+};
+
+const readFileOf = (snapshot: MutableSnapshotType, absolutePath: string): string | undefined => {
+	const bytes = readBytesOf(snapshot, absolutePath);
+
+	if (bytes === undefined) {
+		return undefined;
+	}
+
+	addInputOf(snapshot, absolutePath);
+	return decodeSourceBytes(bytes);
+};
+
+const entriesOfSnapshot = (snapshot: MutableSnapshotType, absolutePath: string): DirectoryEntriesType => {
+	recordProbe(snapshot, absolutePath, 'directory-list');
+
+	try {
+		const entries = readdirSync(absolutePath, {withFileTypes: true});
+		const files: string[] = [];
+		const directories: string[] = [];
+		const symlinks: string[] = [];
+
+		for (const entry of entries) {
+			const candidate = resolve(absolutePath, entry.name);
+			const isLink = entry.isSymbolicLink();
+			const target = isLink ? statSync(candidate, {throwIfNoEntry: false}) : undefined;
+
+			if (entry.isDirectory() || target?.isDirectory() === true) {
+				directories.push(entry.name);
+			} else if (entry.isFile() || target?.isFile() === true) {
+				files.push(entry.name);
+			}
+
+			if (isLink) {
+				symlinks.push(entry.name);
+			}
+		}
+
+		return {files: files.sort(), directories: directories.sort(), symlinks: symlinks.sort()};
+	} catch {
+		return {files: [], directories: [], symlinks: []};
+	}
+};
+
 /**
  * Creates the mutable recorder shared by configuration, resolution, and
  * compiler reads.
@@ -233,46 +330,11 @@ export const createRecorder = (rootDir: string): RecorderType => {
 		projectByPath: new Map(),
 	};
 
-	const readBytes = (absolutePath: string): Uint8Array | undefined => {
-		const canonical = canonicalPath(absolutePath);
-		const cached = snapshot.contents.get(canonical);
-
-		if (cached !== undefined) {
-			return cached;
-		}
-
-		if (statSync(canonical, {throwIfNoEntry: false})?.isFile() !== true) {
-			return undefined;
-		}
-
-		const bytes = readFileSync(canonical);
-		snapshot.contents.set(canonical, bytes);
-		return bytes;
-	};
-
+	const readBytes = (absolutePath: string): Uint8Array | undefined => readBytesOf(snapshot, absolutePath);
 	const addInput = (absolutePath: string): void => {
-		const canonical = canonicalPath(absolutePath);
-		const bytes = readBytes(canonical);
-
-		if (bytes === undefined) {
-			return;
-		}
-
-		if (!snapshot.inputs.has(canonical)) {
-			snapshot.inputs.set(canonical, {absolutePath: canonical, key: keyOf(rootDir, canonical), kind: classifyOf(rootDir, canonical), sha256: hash(bytes)});
-		}
+		addInputOf(snapshot, absolutePath);
 	};
-
-	const readFile = (absolutePath: string): string | undefined => {
-		const bytes = readBytes(absolutePath);
-
-		if (bytes === undefined) {
-			return undefined;
-		}
-
-		addInput(absolutePath);
-		return decodeSourceBytes(bytes);
-	};
+	const readFile = (absolutePath: string): string | undefined => readFileOf(snapshot, absolutePath);
 
 	const fileExists = (absolutePath: string): boolean => {
 		recordProbe(snapshot, absolutePath, 'file');
@@ -284,36 +346,7 @@ export const createRecorder = (rootDir: string): RecorderType => {
 		return statSync(absolutePath, {throwIfNoEntry: false})?.isDirectory() === true;
 	};
 
-	const entriesOf = (absolutePath: string): DirectoryEntriesType => {
-		recordProbe(snapshot, absolutePath, 'directory-list');
-
-		try {
-			const entries = readdirSync(absolutePath, {withFileTypes: true});
-			const files: string[] = [];
-			const directories: string[] = [];
-			const symlinks: string[] = [];
-
-			for (const entry of entries) {
-				const candidate = resolve(absolutePath, entry.name);
-				const isLink = entry.isSymbolicLink();
-				const target = isLink ? statSync(candidate, {throwIfNoEntry: false}) : undefined;
-
-				if (entry.isDirectory() || target?.isDirectory() === true) {
-					directories.push(entry.name);
-				} else if (entry.isFile() || target?.isFile() === true) {
-					files.push(entry.name);
-				}
-
-				if (isLink) {
-					symlinks.push(entry.name);
-				}
-			}
-
-			return {files: files.sort(), directories: directories.sort(), symlinks: symlinks.sort()};
-		} catch {
-			return {files: [], directories: [], symlinks: []};
-		}
-	};
+	const entriesOf = (absolutePath: string): DirectoryEntriesType => entriesOfSnapshot(snapshot, absolutePath);
 
 	const getDirectories = (absolutePath: string): readonly string[] => entriesOf(absolutePath).directories;
 
@@ -329,5 +362,34 @@ export const createRecorder = (rootDir: string): RecorderType => {
 		sealSnapshotProbes(snapshot);
 	};
 
-	return {snapshot, addInput, readFile, readBytes, fileExists, directoryExists, entriesOf, stat, getDirectories, realpath: canonicalPath, sealProbes};
+	const resetMetadata = (): void => {
+		snapshot.inputs.clear();
+		snapshot.probes.clear();
+		snapshot.projectByPath.clear();
+	};
+
+	const invalidate = (absolutePaths: readonly string[]): void => {
+		invalidateContents(snapshot, absolutePaths);
+	};
+
+	const retainOnly = (absolutePaths: readonly string[]): void => {
+		retainOnlyContents(snapshot, absolutePaths);
+	};
+
+	return {
+		snapshot,
+		addInput,
+		readFile,
+		readBytes,
+		fileExists,
+		directoryExists,
+		entriesOf,
+		stat,
+		getDirectories,
+		realpath: canonicalPath,
+		sealProbes,
+		resetMetadata,
+		invalidate,
+		retainOnly,
+	};
 };

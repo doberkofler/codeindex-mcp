@@ -1,9 +1,7 @@
 import {randomUUID} from 'node:crypto';
-import {existsSync} from 'node:fs';
-import {fileURLToPath} from 'node:url';
 import {type AnalyticsRecorderType} from '../analytics/recorder.ts';
 import {type ConfigType} from '../config/config.ts';
-import {type AdapterSetType, type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
+import {type AdapterSetType} from '../../adapters/loader.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
@@ -13,7 +11,8 @@ import {buildGeneration} from './buildGeneration.ts';
 import {recordFailedRefresh, recordRefreshOutcome} from './refreshTelemetry.ts';
 import {adapterSetOf, type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {buildQueryContext} from './codeIndexQueryContext.ts';
-import {runBuildWorkerThread} from './buildWorkerClient.ts';
+import {type PersistentBuildWorker} from './persistentBuildWorker.ts';
+import {buildWorkerOf} from './buildWorkerSetup.ts';
 import {adapterTargets, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
 import {adapterIgnoredSegments, adapterTargetsForScope, adapterWatchInputs, planAdapterScans, watchRoutesOf} from './adapterRefresh.ts';
 import {
@@ -70,12 +69,12 @@ export type {CodeIndexOptionsType} from './codeIndexOptions.ts';
 export class CodeIndex {
 	readonly #config: ConfigType;
 	readonly #adapterSet: AdapterSetType;
-	readonly #descriptors: readonly ResolvedAdapterDescriptorType[];
 	readonly #targets: readonly AdapterTargetType[];
 	readonly #database: IndexDatabase;
 	readonly #logger: LoggerType;
 	readonly #analytics: AnalyticsRecorderType | null;
 	readonly #workerEntry: string | null;
+	readonly #buildWorker: PersistentBuildWorker | null;
 	readonly #watchEnabled: boolean;
 	readonly #coordinator: RefreshCoordinator;
 	readonly #watcher: WorkspaceWatcher;
@@ -96,18 +95,15 @@ export class CodeIndex {
 		this.#config = config;
 		this.#override = options.extractor;
 		this.#adapterSet = adapterSet;
-		this.#descriptors = adapterSet.descriptors;
 		this.#targets = adapterTargets(config, adapterSet, options.extractor);
 		this.#database = database;
 		this.#logger = logger;
 		this.#analytics = options.analytics ?? null;
 		this.#published = database.getPublishedGeneration();
 		this.#watchEnabled = options.watch ?? true;
-		const workerPath = fileURLToPath(new URL('buildWorker.js', import.meta.url));
-		// A worker cannot rebuild without the parent's module descriptors, so an
-		// adapter set without them stays in process instead of failing dispatch.
-		this.#workerEntry =
-			options.extractor === undefined && adapterSet.descriptors.length > 0 ? (options.workerEntry ?? (existsSync(workerPath) ? workerPath : null)) : null;
+		const worker = buildWorkerOf(config, options, adapterSet);
+		this.#workerEntry = worker.entry;
+		this.#buildWorker = worker.worker;
 		this.#coordinator = new RefreshCoordinator({
 			logger,
 			...(options.clock === undefined ? {} : {clock: options.clock}),
@@ -421,6 +417,10 @@ export class CodeIndex {
 				// The refresh failure is already recorded on the index.
 			}
 		}
+		await this.#buildWorker?.close();
+		for (const adapter of this.#adapterSet.adapters) {
+			adapter.dispose?.();
+		}
 		this.#database.releaseBuildLease(this.#ownerId);
 		this.#analytics?.close();
 		this.#database.close();
@@ -436,8 +436,9 @@ export class CodeIndex {
 	}
 	async #rebuild(plans: readonly AdapterScanPlanType[], force: boolean, startedAtEpoch: number, signal?: AbortSignal): Promise<BuildReportType> {
 		const workerPath = this.#workerEntry;
+		const buildWorker = this.#buildWorker;
 		debug('rebuild requested', {force, worker: workerPath, adapters: plans.length});
-		if (workerPath === null) {
+		if (workerPath === null || buildWorker === null) {
 			debug('building in process');
 			return buildGeneration({
 				config: this.#config,
@@ -452,15 +453,12 @@ export class CodeIndex {
 				...(signal === undefined ? {} : {isCancelled: () => signal.aborted}),
 			});
 		}
-		const report = await runBuildWorkerThread({
-			workerEntry: workerPath,
+		const report = await buildWorker.run({
 			config: this.#config,
 			scans: plans,
-			descriptors: this.#descriptors,
 			force,
 			ownerId: this.#ownerId,
 			startedAtEpoch,
-			debug: debug.enabled,
 			...(signal === undefined ? {} : {signal}),
 		});
 		return report;

@@ -35,6 +35,10 @@ export type SoakResourceType = Readonly<{
 	rssStartBytes: number;
 	rssPeakBytes: number;
 	rssEndBytes: number;
+	/** Whole process-tree resident memory, including compiler child processes. */
+	processTreeRssStartBytes?: number;
+	processTreeRssPeakBytes?: number;
+	processTreeRssEndBytes?: number;
 }>;
 
 /** One completed edit event and its edit-to-fresh measurement. */

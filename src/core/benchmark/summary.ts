@@ -89,14 +89,14 @@ const scenarioReuse = (scenario: BenchmarkScenarioResultType): string => (scenar
 const scenarioSection = (report: BenchmarkReportType): string => {
 	const rows = report.scenarios.map(
 		(scenario) =>
-			`| ${scenario.name} | ${scenario.kind} | ${String(scenario.wallMs)} ms | ${scenarioLatency(scenario)} | ${formatBytes(scenario.resources.rssPeakBytes)} | ${formatBytes(scenario.storage.totalBytes)} | ${scenarioReuse(scenario)} |`,
+			`| ${scenario.name} | ${scenario.kind} | ${String(scenario.wallMs)} ms | ${scenarioLatency(scenario)} | ${formatBytes(scenario.resources.rssPeakBytes)} | ${formatBytes(scenario.resources.processTreeRssPeakBytes ?? scenario.resources.rssPeakBytes)} | ${formatBytes(scenario.storage.totalBytes)} | ${scenarioReuse(scenario)} |`,
 	);
 
 	return [
 		'## Scenarios',
 		'',
-		'| Scenario | Kind | Wall | P95 / max | RSS peak | Database | Content reuse |',
-		'| --- | --- | ---: | ---: | ---: | ---: | ---: |',
+		'| Scenario | Kind | Wall | P95 / max | RSS peak | Tree RSS peak | Database | Content reuse |',
+		'| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |',
 		...rows,
 	].join('\n');
 };

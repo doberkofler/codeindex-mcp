@@ -95,6 +95,32 @@ Every disposable compiler resource is released on success and failure paths.
 - `read_symbol`-style consumers never retain compiler objects; only serializable
   facts leave the adapter.
 
+## Persistent worker and warm snapshot
+
+The adapter and the build worker now keep compiler state across refreshes.
+
+- One persistent build worker per index stays alive between attempts. Its
+  adapter modules are loaded once, so the TypeScript session and compiler child
+  process survive an authored edit.
+- `compilerSession.ts` owns one `ts.API`, one `ts.Snapshot`, and the parsed
+  projects per workspace. `createTypeScriptInputSnapshot` acquires a lease on
+  that session instead of starting a new compiler for every scan and build.
+- Authored changes are applied with `snapshot.update({fileNotifications,
+  ensurePrograms: true})`. The previous snapshot is disposed as soon as the
+  replacement exists, and the content cache is trimmed to the manifest inputs.
+- The session is rebuilt from scratch when the project file, project file set,
+  compiler identity, lockfiles, workspace configuration, or any declaration or
+  external input changes. Authored source is the only category allowed to reach
+  the update path.
+- The worker is stopped after `freshness.workerIdleMs` without requests. A
+  process-tree RSS sample, which includes compiler child processes, restarts the
+  worker when it exceeds `freshness.workerMaxRssBytes`. The adapter session has
+  its own `options.warmIdleMs` eviction.
+- Benchmark resources now report process-tree RSS next to process RSS, so the
+  compiler child process is included in the memory figures. Stage timings,
+  event-to-publication p50/p95, and edit-to-fresh latencies keep their existing
+  report fields.
+
 ## Fact parity
 
 Separate databases and separate worktrees were used. The TypeScript 6 baseline is
@@ -254,6 +280,38 @@ on that project set is not claimed: the runs exceeded the harness timeout while
 an unrelated long-running process held a CPU, and no controlled pair was
 obtained.
 
+### Persistent worker measurement
+
+Local Apple silicon, Node.js 26.12.1. The generated `small` profile (34 files)
+was measured with the same command from commit `1f311e2` (one worker and one
+compiler per attempt) and from the persistent-worker change:
+
+```bash
+codeindex-cli benchmark --profile small --scenarios cold,warm,rebuild,edit \
+  --iterations 5 --edit-rounds 3
+```
+
+| Metric | Before (`1f311e2`) | Persistent worker |
+| --- | ---: | ---: |
+| Cold build scan | 557 ms | 61 ms |
+| Edit build `compilerMs` | 30 ms | 3 ms |
+| Edit build `extractionMs` | 137 ms | 78 ms |
+| Edit-to-fresh p50 | 859 ms | 759 ms |
+| Edit-to-fresh p95 | 900 ms | 838 ms |
+| Process-tree RSS peak, external sample | 407 MB | 475 MB |
+
+The edit path still republishes a complete generation. The gain is the retained
+compiler process and snapshot, not delta extraction. Peak process-tree RSS is
+higher because the worker and its compiler child stay resident; the idle timeout
+and RSS ceiling bound that cost.
+
+A 102-event soak on the same profile (100 single edits plus one burst) passed all
+gates with p50 1,275 ms and p95 1,285 ms. Process-tree RSS moved from 450 MB at
+the first event to 533 MB at the last and peaked at 533 MB, below the 2 GiB
+ceiling; the idle window then releases the session. This is a small generated
+corpus, not the pinned public corpus, so the release-reference campaign in
+"Outstanding before merge" still applies.
+
 ### Release-gate interpretation
 
 The generated benchmark corpus is an adversarial stress shape, not a model of a
@@ -322,8 +380,10 @@ include that cost.
 ### Not claimed
 
 - TypeScript 7.1 RC or final: the pin is `7.1.0-beta` and nothing newer exists.
-- A warm edit-to-fresh path that reuses a compiler snapshot. Every build still
-  starts a one-shot worker with a fresh compiler process and a fresh program.
+- A release-reference before/after comparison for the persistent worker. The
+  adapter now keeps the compiler session and updates it with `snapshot.update()`,
+  but the pinned-public edit-to-fresh table above was measured before that
+  change, so it must not be read as evidence for the warm path.
 - `getContextualType`, `getPropertyOfType`, and signature queries remain serial.
   They account for roughly 300 ms of the large-corpus build; batching them in
   bounded frontiers is the next measured optimisation if it is needed.
@@ -332,5 +392,6 @@ include that cost.
 
 - Re-pin to the first TypeScript 7.1 release and re-run these gates. The beta pin
   is deliberate but must not ship as a stable dependency without revalidation.
-- A persistent build worker with `snapshot.update()` is the only route to a
-  materially faster edit-to-fresh path. It is a separate change.
+- Re-run the pinned-corpus before/after campaign for the persistent worker on
+  the release-reference machine. The previous edit-to-fresh numbers measured a
+  fresh worker and a fresh compiler per edit.

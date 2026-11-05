@@ -87,7 +87,7 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 	};
 };
 
-const buildReportFromWorkerMessage = (raw: unknown): BuildReportType | null => (isRecord(raw) ? asBuildReport(raw['report']) : null);
+export const buildReportFromWorkerMessage = (raw: unknown): BuildReportType | null => (isRecord(raw) ? asBuildReport(raw['report']) : null);
 
 const projectContextOf = (plans: readonly AdapterScanPlanType[]): BuildProjectContextType | null => {
 	const project = plans.find((plan) => plan.scan !== null)?.scan?.projects.at(0);

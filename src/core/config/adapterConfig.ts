@@ -43,6 +43,10 @@ export type ConfigType = Readonly<{
 	 * every adapter, so this is a workspace-level value, not a per-adapter one.
 	 */
 	readonly freshnessDebounceMs: number;
+	/** Milliseconds an idle build worker is retained between refreshes. */
+	readonly buildWorkerIdleMs?: number;
+	/** Whole process-tree RSS ceiling; an oversized worker is restarted. */
+	readonly buildWorkerMaxRssBytes?: number;
 	readonly projectId: string;
 	readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
 	readonly configPath: string | null;

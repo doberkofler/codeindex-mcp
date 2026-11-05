@@ -19,7 +19,7 @@ import {
 } from '@codeindex/adapter-sdk';
 import {extractDependencyFacts} from './extractDependencies.ts';
 import {extractSymbolFacts} from './extractSymbols.ts';
-import {createTypeScriptInputSnapshot, type TypeScriptInputSnapshotType} from './inputSnapshot.ts';
+import {createTypeScriptInputSnapshot, disposeTypeScriptSessions, type TypeScriptInputSnapshotType} from './inputSnapshot.ts';
 import {loadTypeScriptProject} from './loadProject.ts';
 import {mergeProjectFiles} from './projectFiles.ts';
 import {
@@ -323,6 +323,7 @@ export const typeScriptExtractor: AdapterType = {
 	build: buildTypeScriptFacts,
 	configFiles: (config) => [...new Set(config.projects.flatMap((project) => collectConfigFiles(project.projectFilePath, config.rootDir)))],
 	isSourceFile: isAuthoredSourceFile,
+	dispose: disposeTypeScriptSessions,
 };
 
 export {scanProject as scanTypeScriptProject} from './scanProject.ts';

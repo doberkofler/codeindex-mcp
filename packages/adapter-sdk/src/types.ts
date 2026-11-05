@@ -466,6 +466,13 @@ export type AdapterType = Readonly<{
 	configFiles: (config: AdapterConfigType) => readonly string[];
 	/** Reports whether a path is publishable authored source. */
 	isSourceFile: (absolutePath: string, rootDir: string) => boolean;
+	/**
+	 * Releases process-wide adapter state, such as a retained compiler session.
+	 *
+	 * Called when the owning worker or index shuts down. Optional adapters that
+	 * keep no process-wide state omit it.
+	 */
+	dispose?: () => void;
 }>;
 
 /** Metadata exported by one adapter module. */

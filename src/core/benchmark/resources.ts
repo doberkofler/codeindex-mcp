@@ -1,8 +1,10 @@
 import {statSync} from 'node:fs';
 import {type IndexDatabase} from '../storage/database.ts';
+import {processTreeRssBytes} from '../resources/processTree.ts';
 import {type BenchmarkResourceType, type BenchmarkStorageType} from './benchTypes.ts';
 
 const RSS_SAMPLE_INTERVAL_MS = 25;
+const TREE_RSS_SAMPLE_INTERVAL_MS = 250;
 const BYTES_PER_KILOBYTE = 1024;
 
 export type ResourceSamplerType = Readonly<{
@@ -33,8 +35,11 @@ const bytesOf = (filePath: string): number => {
 export const startResourceSampler = (): ResourceSamplerType => {
 	const cpuStart = process.cpuUsage();
 	const rssStart = process.memoryUsage().rss;
+	const treeStart = processTreeRssBytes();
 	let rssPeak = rssStart;
+	let treePeak = treeStart;
 	let timer: ReturnType<typeof setInterval> | null = null;
+	let treeTimer: ReturnType<typeof setInterval> | null = null;
 	const sample = (): void => {
 		rssPeak = Math.max(rssPeak, process.memoryUsage().rss);
 	};
@@ -49,6 +54,10 @@ export const startResourceSampler = (): ResourceSamplerType => {
 		sample();
 		timer = setInterval(sample, RSS_SAMPLE_INTERVAL_MS);
 		timer.unref();
+		treeTimer = setInterval(() => {
+			treePeak = Math.max(treePeak, processTreeRssBytes());
+		}, TREE_RSS_SAMPLE_INTERVAL_MS);
+		treeTimer.unref();
 	};
 	const pause = (): void => {
 		if (timer === null) {
@@ -57,6 +66,11 @@ export const startResourceSampler = (): ResourceSamplerType => {
 
 		clearInterval(timer);
 		timer = null;
+
+		if (treeTimer !== null) {
+			clearInterval(treeTimer);
+			treeTimer = null;
+		}
 	};
 
 	resume();
@@ -68,6 +82,7 @@ export const startResourceSampler = (): ResourceSamplerType => {
 			pause();
 			const cpu = process.cpuUsage(cpuStart);
 			const rssEnd = process.memoryUsage().rss;
+			const treeEnd = processTreeRssBytes();
 			const usage = process.resourceUsage();
 
 			return {
@@ -77,6 +92,9 @@ export const startResourceSampler = (): ResourceSamplerType => {
 				rssPeakBytes: Math.max(rssPeak, rssEnd),
 				rssEndBytes: rssEnd,
 				lifetimeMaxRssBytes: usage.maxRSS * BYTES_PER_KILOBYTE,
+				processTreeRssStartBytes: treeStart,
+				processTreeRssPeakBytes: Math.max(treePeak, treeEnd),
+				processTreeRssEndBytes: treeEnd,
 			};
 		},
 	};

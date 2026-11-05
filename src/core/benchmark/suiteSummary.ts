@@ -26,7 +26,7 @@ const ReportSummarySchema = z.object({
 			name: z.string(),
 			kind: z.string(),
 			wallMs: z.number(),
-			resources: z.object({rssPeakBytes: z.number()}),
+			resources: z.object({rssPeakBytes: z.number(), processTreeRssPeakBytes: z.number().optional()}),
 			storage: z.object({totalBytes: z.number()}),
 			percentiles: z.object({p95Ms: z.number().nullable()}).optional(),
 		}),
@@ -108,7 +108,7 @@ const gateSection = (input: Readonly<{outputDir: string; steps: readonly SuiteSt
 const metricBlock = (input: Readonly<{stepId: string; report: z.infer<typeof ReportSummarySchema>}>): string => {
 	const scenarioRows = input.report.scenarios.map(
 		(scenario) =>
-			`| ${scenario.name} | ${scenario.kind} | ${String(scenario.wallMs)} ms | ${formatMs(scenario.percentiles?.p95Ms ?? null)} | ${formatBytes(scenario.resources.rssPeakBytes)} | ${formatBytes(scenario.storage.totalBytes)} |`,
+			`| ${scenario.name} | ${scenario.kind} | ${String(scenario.wallMs)} ms | ${formatMs(scenario.percentiles?.p95Ms ?? null)} | ${formatBytes(scenario.resources.rssPeakBytes)} | ${formatBytes(scenario.resources.processTreeRssPeakBytes ?? scenario.resources.rssPeakBytes)} | ${formatBytes(scenario.storage.totalBytes)} |`,
 	);
 	const queryRows = Object.entries(input.report.queries).map(([name, percentile]) => `| ${name} | ${formatMs(percentile.p95Ms)} |`);
 
@@ -117,8 +117,8 @@ const metricBlock = (input: Readonly<{stepId: string; report: z.infer<typeof Rep
 		'',
 		`- Workspace: ${input.report.workspace.kind}/${input.report.workspace.profile ?? 'external'}, ${String(input.report.workspace.fileCount)} files, ${String(input.report.workspace.symbolCount)} symbols, ${String(input.report.workspace.occurrenceCount)} occurrences`,
 		'',
-		'| Scenario | Kind | Wall | P95 | RSS peak | Database |',
-		'| --- | --- | ---: | ---: | ---: | ---: |',
+		'| Scenario | Kind | Wall | P95 | RSS peak | Tree RSS peak | Database |',
+		'| --- | --- | ---: | ---: | ---: | ---: | ---: |',
 		...scenarioRows,
 		'',
 		...(queryRows.length === 0 ? [] : ['| Query | p95 |', '| --- | ---: |', ...queryRows, '']),

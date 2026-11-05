@@ -5,6 +5,10 @@ import {type ClockType} from '../freshness/refreshCoordinator.ts';
 
 export type CodeIndexOptionsType = Readonly<{
 	readonly workerEntry?: string;
+	/** Milliseconds an idle build worker is retained between refreshes. */
+	readonly buildWorkerIdleMs?: number;
+	/** Whole process-tree RSS ceiling; an oversized worker is restarted. */
+	readonly buildWorkerMaxRssBytes?: number;
 	readonly clock?: ClockType;
 	readonly watch?: boolean;
 	readonly debounceMs?: number;

@@ -127,7 +127,9 @@ For explicit or multi-project configuration, create `codeindex.config.json`:
 		"maxReadLines": 200
 	},
 	"freshness": {
-		"debounceMs": 1000
+		"debounceMs": 1000,
+		"workerIdleMs": 60000,
+		"workerMaxRssBytes": 2147483648
 	}
 }
 ```
@@ -145,6 +147,13 @@ every adapter, so this is a workspace-level setting. Events are routed to the
 adapter that owns the changed path; a targeted refresh probes, scans, extracts, and
 writes only that adapter. Shared configuration changes and ambiguous paths still
 invalidate every adapter.
+
+`freshness.workerIdleMs` and `freshness.workerMaxRssBytes` bound the persistent
+build worker. The worker and its compiler session stay warm between refreshes, are
+stopped after the idle timeout, and are restarted when the whole process tree,
+including compiler child processes, exceeds the RSS ceiling. TypeScript sessions
+also accept `extractors[].options.warmIdleMs` to override their own idle timeout
+(default 60000 ms; `0` keeps the session until shutdown).
 
 Each entry may name an adapter `module`. A bare package name resolves from the
 configuration-file directory; a relative path resolves from the same directory.
@@ -379,6 +388,8 @@ port.
 | `CODE_INDEX_LOG` | Legacy alias for the analytics path |
 | `CODE_INDEX_MAX_RESULT_BYTES` | Maximum MCP response size |
 | `CODE_INDEX_MAX_READ_LINES` | Maximum source lines returned by `read_symbol` |
+| `CODE_INDEX_BUILD_WORKER_IDLE_MS` | Idle timeout for the persistent build worker |
+| `CODE_INDEX_BUILD_WORKER_MAX_RSS_BYTES` | Process-tree RSS ceiling before the worker restarts |
 | `CODE_INDEX_SEMANTIC_DIAGNOSTICS` | `1` or `true` enables TypeScript semantic diagnostics |
 | `CODE_INDEX_PROJECT_ID` | Reported stable logical project ID |
 | `CODE_INDEX_LOG_LEVEL` | `debug`, `info`, `warn`, or `error` |

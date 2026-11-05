@@ -21,6 +21,10 @@ export type BenchmarkResourceType = Readonly<{
 	readonly rssPeakBytes: number;
 	readonly rssEndBytes: number;
 	readonly lifetimeMaxRssBytes: number;
+	/** Whole process-tree resident memory, including compiler child processes. */
+	readonly processTreeRssStartBytes?: number;
+	readonly processTreeRssPeakBytes?: number;
+	readonly processTreeRssEndBytes?: number;
 }>;
 
 export type BenchmarkStorageType = Readonly<{

@@ -72,6 +72,15 @@ const DiagnosticsSchema = z.object({
  */
 const FreshnessSchema = z.object({
 	debounceMs: z.number().int().min(100).max(10_000).optional(),
+	/** Milliseconds an idle build worker is retained. Zero keeps it alive until shutdown. */
+	workerIdleMs: z.number().int().min(0).max(3_600_000).optional(),
+	/** Whole process-tree RSS ceiling in bytes. */
+	workerMaxRssBytes: z
+		.number()
+		.int()
+		.min(64 * 1024 * 1024)
+		.max(64 * 1024 * 1024 * 1024)
+		.optional(),
 });
 
 const FileConfigSchema = z
@@ -109,6 +118,13 @@ const EnvironmentSchema = z.object({
 	CODE_INDEX_LOG: z.string().min(1).optional(),
 	CODE_INDEX_MAX_RESULT_BYTES: z.coerce.number().int().positive().max(4_194_304).optional(),
 	CODE_INDEX_MAX_READ_LINES: z.coerce.number().int().positive().max(2000).optional(),
+	CODE_INDEX_BUILD_WORKER_IDLE_MS: z.coerce.number().int().min(0).max(3_600_000).optional(),
+	CODE_INDEX_BUILD_WORKER_MAX_RSS_BYTES: z.coerce
+		.number()
+		.int()
+		.min(64 * 1024 * 1024)
+		.max(64 * 1024 * 1024 * 1024)
+		.optional(),
 	CODE_INDEX_SEMANTIC_DIAGNOSTICS: z
 		.string()
 		.optional()
@@ -330,6 +346,14 @@ const resolveStorage = (
 	};
 };
 
+const freshnessConfigOf = (
+	source: FileConfigSourceType,
+): Readonly<{freshnessDebounceMs: number; buildWorkerIdleMs: number; buildWorkerMaxRssBytes: number}> => ({
+	freshnessDebounceMs: source.config.freshness?.debounceMs ?? 1000,
+	buildWorkerIdleMs: source.environment.CODE_INDEX_BUILD_WORKER_IDLE_MS ?? source.config.freshness?.workerIdleMs ?? 60_000,
+	buildWorkerMaxRssBytes: source.environment.CODE_INDEX_BUILD_WORKER_MAX_RSS_BYTES ?? source.config.freshness?.workerMaxRssBytes ?? 2 * 1024 * 1024 * 1024,
+});
+
 /**
  * Parses the environment and optional project configuration file.
  *
@@ -351,6 +375,7 @@ export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): Conf
 		cwd,
 	);
 	const {storageDirectory, databasePath, analyticsPath, analyticsEnabled} = resolveStorage(environment, cwd, {rawRootDir, realRootDir, storageKey});
+	const freshness = freshnessConfigOf(environment);
 
 	debug('configuration resolved', {
 		configPath: environment.configPath,
@@ -377,7 +402,7 @@ export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): Conf
 		maxResultBytes: environment.environment.CODE_INDEX_MAX_RESULT_BYTES ?? environment.config.limits?.maxResultBytes ?? 32_768,
 		maxReadLines: environment.environment.CODE_INDEX_MAX_READ_LINES ?? environment.config.limits?.maxReadLines ?? 200,
 		semanticDiagnostics: environment.environment.CODE_INDEX_SEMANTIC_DIAGNOSTICS ?? environment.config.diagnostics?.semantic ?? false,
-		freshnessDebounceMs: environment.config.freshness?.debounceMs ?? 1000,
+		...freshness,
 		projectId,
 		logLevel: environment.environment.CODE_INDEX_LOG_LEVEL,
 		configPath: environment.configPath,

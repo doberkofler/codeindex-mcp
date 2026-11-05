@@ -51,6 +51,17 @@ type MaterializedProjectsType = Readonly<{
 	readonly programs: ReadonlyMap<string, ts.Program>;
 }>;
 
+export const recordProgramInputs = (recorder: RecorderType, programs: Iterable<ts.Program>): void => {
+	const manifestCache = new Map<string, string | null>();
+
+	for (const program of programs) {
+		for (const fileName of program.getSourceFileNames()) {
+			recorder.addInput(fileName);
+			addPackageManifest(recorder, fileName, manifestCache);
+		}
+	}
+};
+
 /**
  * Materialises every configured project's program through the recorder
  * filesystem.
@@ -78,7 +89,6 @@ export const materializeProjectPrograms = (
 	recorder: RecorderType,
 	projects: readonly TypeScriptSnapshotProjectType[],
 ): MaterializedProjectsType => {
-	const manifestCache = new Map<string, string | null>();
 	const snapshot = api.createSnapshot({
 		openProjects: projects.map((project) => project.projectFilePath),
 		ensurePrograms: true,
@@ -95,12 +105,9 @@ export const materializeProjectPrograms = (
 			}
 
 			programs.set(project.projectFilePath, configured.program);
-
-			for (const fileName of configured.program.getSourceFileNames()) {
-				recorder.addInput(fileName);
-				addPackageManifest(recorder, fileName, manifestCache);
-			}
 		}
+
+		recordProgramInputs(recorder, programs.values());
 
 		return {snapshot, programs};
 	} catch (error) {

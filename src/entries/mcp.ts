@@ -1,6 +1,6 @@
 import {isMainThread, workerData} from 'node:worker_threads';
 import {Command, CommanderError} from 'commander';
-import {isBuildWorkerData, runBuildWorker} from '../core/generation/buildWorker.ts';
+import {isBuildWorkerData, isBuildWorkerHostData, runBuildWorker, runBuildWorkerHost} from '../core/generation/buildWorker.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../core/version.ts';
 import {run as runMcp} from '../transports/mcp/runServer.ts';
 import {messageOf} from '../transports/cli/commanderSupport.ts';
@@ -74,6 +74,8 @@ if (isMainThread) {
 	if (applyArguments()) {
 		await runMcp({workerEntry: import.meta.filename});
 	}
+} else if (isBuildWorkerHostData(workerData)) {
+	await runBuildWorkerHost(workerData);
 } else if (isBuildWorkerData(workerData)) {
 	await runBuildWorker(workerData);
 } else {
