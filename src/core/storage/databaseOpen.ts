@@ -2,8 +2,10 @@ import {existsSync, mkdirSync, renameSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {debugFor} from '../logging/debug.ts';
+import {verifyDatabaseIntegrity} from './databaseIntegrity.ts';
 import {asString} from './databaseRows.ts';
 import {applyWalPolicy} from './databaseWal.ts';
+import {pruneSchemaBackups} from './schemaBackup.ts';
 import {SCHEMA_SQL, SCHEMA_VERSION} from './schema.ts';
 import {assertWorkspaceBinding} from './workspaceBinding.ts';
 
@@ -95,17 +97,16 @@ const backupIncompatibleDatabase = (databasePath: string, version: string | null
  *
  * @param databasePath - SQLite file path.
  * @param expectedVersion - Required schema version.
+ * @returns The recovery file created for an incompatible database, if any.
  */
-const recreateIfIncompatible = (databasePath: string, expectedVersion: string): void => {
+const recreateIfIncompatible = (databasePath: string, expectedVersion: string): string | null => {
 	if (databasePath === ':memory:' || !existsSync(databasePath)) {
-		return;
+		return null;
 	}
 
 	const version = existingSchemaVersion(databasePath);
 
-	if (version !== expectedVersion) {
-		backupIncompatibleDatabase(databasePath, version);
-	}
+	return version === expectedVersion ? null : backupIncompatibleDatabase(databasePath, version);
 };
 
 /**
@@ -120,10 +121,12 @@ const recreateIfIncompatible = (databasePath: string, expectedVersion: string): 
  * @throws {@link Error} When the database belongs to a different workspace root.
  */
 export const openDatabaseConnections = (databasePath: string, rootDir?: string): Readonly<{writer: DatabaseSync; reader: DatabaseSync}> => {
+	let recoveryPath: string | null = null;
+
 	if (databasePath !== ':memory:') {
 		mkdirSync(path.dirname(databasePath), {recursive: true});
 		assertWorkspaceBinding(databasePath, rootDir);
-		recreateIfIncompatible(databasePath, SCHEMA_VERSION);
+		recoveryPath = recreateIfIncompatible(databasePath, SCHEMA_VERSION);
 	}
 
 	const writer = new DatabaseSync(databasePath);
@@ -135,6 +138,14 @@ export const openDatabaseConnections = (databasePath: string, rootDir?: string):
 	writer.exec('pragma cache_size = -32768');
 	writer.exec(SCHEMA_SQL);
 	applyWalPolicy(writer);
+
+	// A superseded recovery point is removed only after the replacement schema
+	// has been created and passes its integrity check. A failed replacement keeps
+	// every recovery point so the operator still has a usable fallback.
+	if (recoveryPath !== null) {
+		verifyDatabaseIntegrity(writer);
+		pruneSchemaBackups(databasePath, recoveryPath);
+	}
 
 	const reader = databasePath === ':memory:' ? writer : new DatabaseSync(databasePath, {readOnly: true});
 

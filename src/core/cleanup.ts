@@ -1,8 +1,13 @@
-import {existsSync, lstatSync, readdirSync, rmSync, type Dirent} from 'node:fs';
+import {existsSync, lstatSync, readdirSync, rmSync} from 'node:fs';
 import {homedir} from 'node:os';
 import path from 'node:path';
 import {Command} from 'commander';
 import {type CommandIoType, configureCommand, parseCommand} from '../transports/cli/commanderSupport.ts';
+import {benchmarkCheckoutPlan, benchmarkResiduePlan} from './retentionBenchmark.ts';
+import {oracleEvidencePlan} from './retentionEvidence.ts';
+import {evaluationPlan} from './retentionEvaluation.ts';
+import {RETENTION_POLICY, type RetentionCategoryType, type RetentionDecisionType, type RetentionPlanType, type RetentionReasonType} from './retentionPolicy.ts';
+import {footprintBytes, pruneWorktreeRegistrations} from './retentionSupport.ts';
 import {activeProcessOwnersInDirectory} from './storage/processOwnership.ts';
 
 const {basename, dirname, isAbsolute, join, relative, resolve} = path;
@@ -12,19 +17,60 @@ export type CleanupRootsType = Readonly<{
 	/** Current workspace database, or `null` when cleaning every managed project. */
 	databasePath: string | null;
 	protectedPaths: readonly string[];
+	/** Repository root used for benchmark residue and worktree registration cleanup. */
+	repository?: string | undefined;
+	/** Parent of process temporary benchmark workspaces and scratch databases. */
+	temporaryDirectory?: string | undefined;
+	/** Benchmark cache roots, including the prepared project checkout root. */
+	cacheRoots?: readonly string[] | undefined;
+	/** Roots that may contain Oracle evidence bundles. */
+	evidenceRoots?: readonly string[] | undefined;
+	/** Roots that may contain disposable evaluation state. */
+	evaluationRoots?: readonly string[] | undefined;
+	/** Committed Oracle descriptors whose bundles must be retained. */
+	oracleBundleDescriptors?: readonly string[] | undefined;
+	/** Deterministic clock for retention bounds. */
+	now?: Date | undefined;
 }>;
 
 export type CleanupOptionsType = Readonly<{
 	yes: boolean;
 	all: boolean;
+	/** Remove every prepared benchmark project checkout, not only stale ones. */
+	benchmarkProjects?: boolean | undefined;
+	/** Approve removal of dirty Git checkouts and worktrees. */
+	discardDirty?: boolean | undefined;
 }>;
 
 /** Resolves cleanup roots; the `all` flag selects every managed database. */
 export type CleanupRootsResolverType = (all: boolean) => CleanupRootsType;
 
+type CleanupCategoryType = 'index_database' | RetentionCategoryType;
+
 export type CleanupTargetType = Readonly<{
 	path: string;
 	bytes: number;
+	category?: CleanupCategoryType | undefined;
+}>;
+
+type CleanupRefusalType = Readonly<{
+	path: string;
+	bytes: number;
+	category: CleanupCategoryType;
+	reason: RetentionReasonType;
+}>;
+
+type CleanupDeclinedType = Readonly<{
+	category: 'repository_output';
+	reason: string;
+}>;
+
+export type CleanupPlanType = Readonly<{
+	targets: readonly CleanupTargetType[];
+	refused: readonly CleanupRefusalType[];
+	retained: readonly CleanupRefusalType[];
+	declined: readonly CleanupDeclinedType[];
+	worktreeRoots: readonly string[];
 }>;
 
 const INDEX_PATTERN = /^[0-9a-f]{16}$/u;
@@ -65,35 +111,7 @@ const assertSafeRoot = (root: string, label: string, protectedPaths: readonly st
 	}
 };
 
-const directorySize = (directory: string): number => {
-	let entries: readonly Dirent[];
-
-	try {
-		entries = readdirSync(directory, {withFileTypes: true});
-	} catch {
-		// A directory that disappears or denies listing contributes no bytes.
-		return 0;
-	}
-
-	return entries.reduce((total, entry) => {
-		const entryPath = join(directory, entry.name);
-
-		if (entry.isSymbolicLink()) {
-			return total;
-		}
-
-		if (entry.isDirectory()) {
-			return total + directorySize(entryPath);
-		}
-
-		try {
-			return total + lstatSync(entryPath).size;
-		} catch {
-			// A file that disappears between listing and stat contributes no bytes.
-			return total;
-		}
-	}, 0);
-};
+const directorySize = footprintBytes;
 
 const protectedTarget = (target: string, protectedPaths: readonly string[]): boolean => protectedPaths.some((protectedPath) => isWithin(target, protectedPath));
 
@@ -123,7 +141,7 @@ const childTargets = (root: string, protectedPaths: readonly string[]): readonly
 			return [];
 		}
 
-		return [{path: target, bytes: directorySize(target)}];
+		return [{path: target, bytes: directorySize(target), category: 'index_database' as const}];
 	});
 };
 
@@ -160,7 +178,7 @@ const databaseArtifacts = (databasePath: string, protectedPaths: readonly string
 		}
 
 		try {
-			return [{path: target, bytes: lstatSync(target).size}];
+			return [{path: target, bytes: lstatSync(target).size, category: 'index_database' as const}];
 		} catch {
 			return [];
 		}
@@ -195,7 +213,7 @@ const currentTargets = (roots: CleanupRootsType): readonly CleanupTargetType[] =
 		return [];
 	}
 
-	return [{path: projectDirectory, bytes: directorySize(projectDirectory)}];
+	return [{path: projectDirectory, bytes: directorySize(projectDirectory), category: 'index_database'}];
 };
 
 const assertNoActiveProcesses = (targets: readonly CleanupTargetType[]): void => {
@@ -208,6 +226,96 @@ const assertNoActiveProcesses = (targets: readonly CleanupTargetType[]): void =>
 	if (active.length > 0) {
 		throw new Error(`Refusing to clean while code index processes are active:\n${active.map((owner) => `${owner.pid}: ${owner.file}`).join('\n')}`);
 	}
+};
+
+const emptyRetentionPlan = (): RetentionPlanType => ({targets: [], refused: [], retained: [], worktreeRoots: []});
+
+const retentionPlanOf = (roots: CleanupRootsType, options: CleanupOptionsType): RetentionPlanType => {
+	const shared = {
+		protectedPaths: roots.protectedPaths,
+		now: roots.now,
+		discardDirty: options.discardDirty,
+	};
+	const plans: RetentionPlanType[] = [];
+
+	if (options.all) {
+		plans.push(
+			benchmarkResiduePlan({...shared, temporaryDirectory: roots.temporaryDirectory, repository: roots.repository}),
+			oracleEvidencePlan({
+				...shared,
+				storageRoots: [roots.storage],
+				evidenceRoots: roots.evidenceRoots ?? [],
+				descriptorPaths: roots.oracleBundleDescriptors ?? [],
+			}),
+			evaluationPlan({...shared, evaluationRoots: roots.evaluationRoots ?? []}),
+		);
+	}
+
+	if (options.all || (options.benchmarkProjects ?? false)) {
+		plans.push(benchmarkCheckoutPlan({...shared, cacheRoots: roots.cacheRoots ?? [], removeAll: options.benchmarkProjects ?? false}));
+	}
+
+	return plans.length === 0
+		? emptyRetentionPlan()
+		: {
+				targets: plans.flatMap((plan) => plan.targets),
+				refused: plans.flatMap((plan) => plan.refused),
+				retained: plans.flatMap((plan) => plan.retained),
+				worktreeRoots: plans.flatMap((plan) => plan.worktreeRoots),
+			};
+};
+
+const declinedOf = (roots: CleanupRootsType, options: CleanupOptionsType): readonly CleanupDeclinedType[] =>
+	options.all && roots.repository !== undefined ? [{category: 'repository_output', reason: RETENTION_POLICY.repository_output.reason}] : [];
+
+const dedupe = (targets: readonly CleanupTargetType[]): readonly CleanupTargetType[] => {
+	const seen = new Set<string>();
+
+	return targets.filter((target) => {
+		const key = resolve(target.path);
+
+		if (seen.has(key)) {
+			return false;
+		}
+
+		seen.add(key);
+		return true;
+	});
+};
+
+const refusalOf = (decision: RetentionDecisionType): CleanupRefusalType => ({
+	path: decision.path,
+	bytes: decision.bytes,
+	category: decision.category,
+	reason: decision.reason,
+});
+
+/**
+ * Collects every cleanup candidate, refusal, retained entry, and declined category.
+ *
+ * Index databases are always selected. Benchmark residue, prepared checkouts,
+ * Oracle evidence, and evaluation state are selected by `--all`; prepared
+ * checkouts can also be removed explicitly with `--benchmark-projects`.
+ *
+ * @param roots - Storage root, current database, protection, and retention roots.
+ * @param options - Whether to target every managed database and retention category.
+ * @returns The complete cleanup plan.
+ * @throws {Error} When the root is unsafe, contains a protected path, or a live
+ * process still owns a target database.
+ */
+export const collectCleanupPlan = (roots: CleanupRootsType, options: CleanupOptionsType): CleanupPlanType => {
+	assertSafeRoot(roots.storage, 'storage root', roots.protectedPaths);
+	const databaseTargets = options.all ? childTargets(roots.storage, roots.protectedPaths) : currentTargets(roots);
+	assertNoActiveProcesses(databaseTargets);
+	const retention = retentionPlanOf(roots, options);
+
+	return {
+		targets: dedupe([...databaseTargets, ...retention.targets]),
+		refused: retention.refused.map(refusalOf),
+		retained: retention.retained.map(refusalOf),
+		declined: declinedOf(roots, options),
+		worktreeRoots: retention.worktreeRoots,
+	};
 };
 
 /**
@@ -223,13 +331,8 @@ const assertNoActiveProcesses = (targets: readonly CleanupTargetType[]): void =>
  * @throws {Error} When the root is unsafe, contains a protected path, or a live
  * process still owns a target database.
  */
-export const collectCleanupTargets = (roots: CleanupRootsType, options: CleanupOptionsType): readonly CleanupTargetType[] => {
-	assertSafeRoot(roots.storage, 'storage root', roots.protectedPaths);
-	const targets = options.all ? childTargets(roots.storage, roots.protectedPaths) : currentTargets(roots);
-	assertNoActiveProcesses(targets);
-
-	return targets;
-};
+export const collectCleanupTargets = (roots: CleanupRootsType, options: CleanupOptionsType): readonly CleanupTargetType[] =>
+	collectCleanupPlan(roots, options).targets;
 
 /**
  * Deletes collected targets.
@@ -268,45 +371,99 @@ export const formatSize = (bytes: number): string => {
 	return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit] ?? 'B'}`;
 };
 
-export const executeCleanup = (options: CleanupOptionsType, rootsOf: CleanupRootsResolverType, io: CommandIoType = processIo): void => {
-	const targets = collectCleanupTargets(rootsOf(options.all), options);
-	const total = targets.reduce((sum, target) => sum + target.bytes, 0);
+const printDecisions = (plan: CleanupPlanType, io: CommandIoType): void => {
+	for (const retained of plan.retained) {
+		io.stdout(`retain ${retained.path} (${retained.reason})`);
+	}
 
-	if (targets.length === 0) {
-		io.stdout('Nothing to clean.');
+	for (const refused of plan.refused) {
+		io.stdout(`refuse ${refused.path} (${refused.reason})`);
+	}
+
+	for (const declined of plan.declined) {
+		io.stdout(`decline ${declined.category} (${declined.reason})`);
+	}
+};
+
+const pruneWorktrees = (roots: CleanupRootsType, plan: CleanupPlanType): void => {
+	for (const root of [roots.repository, ...plan.worktreeRoots]) {
+		if (root !== undefined) {
+			pruneWorktreeRegistrations([root]);
+		}
+	}
+};
+
+export const executeCleanup = (options: CleanupOptionsType, rootsOf: CleanupRootsResolverType, io: CommandIoType = processIo): void => {
+	const roots = rootsOf(options.all);
+	const plan = collectCleanupPlan(roots, options);
+	const total = plan.targets.reduce((sum, target) => sum + target.bytes, 0);
+
+	if (plan.targets.length === 0) {
+		if (options.yes) {
+			pruneWorktrees(roots, plan);
+		}
+
+		printDecisions(plan, io);
+
+		if (plan.retained.length === 0 && plan.refused.length === 0 && plan.declined.length === 0) {
+			io.stdout('Nothing to clean.');
+		} else {
+			io.stdout('Nothing to remove.');
+		}
+
 		return;
 	}
 
-	for (const target of targets) {
+	for (const target of plan.targets) {
 		io.stdout(`${options.yes ? 'remove' : 'would remove'} ${target.path} (${formatSize(target.bytes)})`);
 	}
 
+	printDecisions(plan, io);
+
 	if (!options.yes) {
-		io.stdout(`Dry run: ${formatSize(total)} in ${targets.length} target(s). Pass --yes to delete.`);
+		io.stdout(`Dry run: ${formatSize(total)} in ${plan.targets.length} target(s). Pass --yes to delete.`);
 		return;
 	}
 
-	const removed = removeCleanupTargets(targets, io);
-	io.stdout(`Removed ${targets.length} target(s), ${formatSize(removed)}.`);
+	const removed = removeCleanupTargets(plan.targets, io);
+	pruneWorktrees(roots, plan);
+	io.stdout(`Removed ${plan.targets.length} target(s), ${formatSize(removed)}.`);
 };
 
 const cleanupCommand = (rootsOf: CleanupRootsResolverType, io: CommandIoType): Command => {
 	const command = configureCommand(
 		new Command('clean')
-			.description('Remove the current project index database. The repository and dist are never touched. The default is a dry run.')
+			.description(
+				'Remove the current project index database and, with --all, stale benchmark and evaluation residue. The repository and dist are never touched. The default is a dry run.',
+			)
 			.option('--yes', 'delete the listed targets')
-			.option('--all', 'remove every managed project database under the default index root')
+			.option('--all', 'remove every managed project database and bounded benchmark, evidence, and evaluation residue')
+			.option('--benchmark-projects', 'remove every prepared benchmark project checkout (retained while a suite needs them by default)')
+			.option('--discard-dirty', 'approve removal of dirty Git checkouts and worktrees')
 			.allowExcessArguments(true),
 		io,
-	).action((options: Readonly<{yes?: boolean | undefined; all?: boolean | undefined}>) => {
-		const [unexpected] = command.args;
+	).action(
+		(
+			options: Readonly<{yes?: boolean | undefined; all?: boolean | undefined; benchmarkProjects?: boolean | undefined; discardDirty?: boolean | undefined}>,
+		) => {
+			const [unexpected] = command.args;
 
-		if (unexpected !== undefined) {
-			throw new Error(`Unexpected argument: ${unexpected}\n\n${command.helpInformation().trimEnd()}`);
-		}
+			if (unexpected !== undefined) {
+				throw new Error(`Unexpected argument: ${unexpected}\n\n${command.helpInformation().trimEnd()}`);
+			}
 
-		executeCleanup({yes: options.yes === true, all: options.all === true}, rootsOf, io);
-	});
+			executeCleanup(
+				{
+					yes: options.yes === true,
+					all: options.all === true,
+					benchmarkProjects: options.benchmarkProjects === true,
+					discardDirty: options.discardDirty === true,
+				},
+				rootsOf,
+				io,
+			);
+		},
+	);
 
 	return command;
 };

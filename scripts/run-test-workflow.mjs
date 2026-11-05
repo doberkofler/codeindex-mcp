@@ -59,7 +59,7 @@ const workflows = {
 		budgetMs: 120_000,
 		steps: [
 			{arguments: ['run', 'build']},
-			{arguments: ['exec', 'node', 'dist/cli.mjs', 'oracle-preflight']},
+			{arguments: ['exec', 'node', '--experimental-strip-types', 'src/entries/qualify.ts', 'oracle-preflight']},
 			{
 				arguments: ['exec', 'vitest', 'run', 'test/oracleEvidenceBundleReplay.test.ts', '--coverage.enabled=false'],
 				environment: {CODE_INDEX_ORACLE_BUNDLE_REQUIRED: '1'},

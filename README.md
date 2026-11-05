@@ -421,6 +421,14 @@ registrations are reported separately and excluded from artifact totals. On
 macOS, byte totals use APFS allocated blocks; other platforms use logical file
 size. OpenCode session storage is never inspected.
 
+Every managed category has one documented bound. `codeindex-cli clean --all`
+reclaims stale benchmark workspaces and scratch databases, unreferenced benchmark
+project checkouts, superseded Oracle evidence bundles, and old evaluation state.
+It keeps the Oracle bundle the bundle gate requires, refuses active owners,
+protected paths, and dirty worktrees, and prunes stale Git worktree
+registrations. See [retention](./documentation/retention.md) for the bound and
+enforcement path of each category.
+
 ## Troubleshooting
 
 - **`index_not_ready`:** the initial background build has not published. Run

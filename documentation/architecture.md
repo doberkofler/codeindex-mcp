@@ -466,6 +466,21 @@ inspected. Retained paths are normalized to `$HOME` and `$REPO`. Byte totals use
 macOS allocated blocks on Darwin and logical size elsewhere; the report records
 which semantics apply.
 
+### Retention
+
+Each artifact category has one documented bound in
+[retention](./retention.md) and one enforcing code path. The analytics recorder
+bounds files, age, and active-file bytes. The database keeps one published and
+one superseded generation, applies the WAL policy, and retains one schema
+recovery point; a superseded recovery point is removed only after the replacement
+schema passes its integrity check. `codeindex-cli clean --all` bounds benchmark
+workspaces and scratch databases by count and age, retains prepared project
+checkouts while `prepare.json` names them at the pinned revision, retains Oracle
+bundles referenced by committed descriptors, and bounds evaluation workspaces and
+reports. Cleanup refuses active owners, protected paths, and dirty worktrees
+unless discard is explicit, reports every candidate and refusal, and prunes stale
+Git worktree registrations after removal.
+
 ## Query and MCP contract
 
 The MCP transport registers seven read-only, idempotent tools:

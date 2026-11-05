@@ -8,6 +8,8 @@ import {addBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
 import {addSoakCommand} from '../../core/benchmark/soakCommand.ts';
 import {type CleanupRootsType} from '../../core/cleanup.ts';
 import {configuredAdapters, indexRootDirectory, loadConfig} from '../../core/config/config.ts';
+import {discoverOracleDescriptorPaths} from '../../core/retentionEvidence.ts';
+import {discoverStorageAuditRoots} from '../../core/storageAuditRoots.ts';
 import {isCodeIndexError} from '../../core/errors/errors.ts';
 import {createCodeIndex, type CodeIndex, type CodeIndexOptionsType} from '../../core/generation/codeIndex.ts';
 import {debugFor, enableDebug} from '../../core/logging/debug.ts';
@@ -56,13 +58,28 @@ type CliContextType = Readonly<{
  * @returns Cleanup storage root and current database.
  */
 export const cleanupRootsOf = (all: boolean, environment: NodeJS.ProcessEnv, cwd = process.cwd()): CleanupRootsType => {
+	const discovered = discoverStorageAuditRoots({home: environment['HOME'] ?? cwd, repository: cwd, environment});
+	const retentionRoots = {
+		repository: discovered.repository,
+		temporaryDirectory: discovered.temporaryDirectory,
+		cacheRoots: discovered.cacheRoots,
+		evidenceRoots: discovered.evidenceRoots,
+		evaluationRoots: discovered.evaluationRoots,
+		oracleBundleDescriptors: discoverOracleDescriptorPaths(discovered.repository),
+	};
+
 	if (all) {
-		return {storage: indexRootDirectory(), databasePath: null, protectedPaths: [cwd]};
+		return {storage: indexRootDirectory(), databasePath: null, protectedPaths: [cwd], ...retentionRoots};
 	}
 
 	const config = loadConfig(environment, cwd);
 
-	return {storage: config.storageDirectory, databasePath: config.databasePath, protectedPaths: [cwd, config.rootDir]};
+	return {
+		storage: config.storageDirectory,
+		databasePath: config.databasePath,
+		protectedPaths: [cwd, config.rootDir],
+		...retentionRoots,
+	};
 };
 
 const writeJson = (value: unknown, io: CliIoType): void => {

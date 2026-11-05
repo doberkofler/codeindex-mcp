@@ -1,4 +1,4 @@
-import {chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
+import {chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
 import {homedir, tmpdir} from 'node:os';
 import {indexRootDirectory} from '../src/core/config/config.ts';
 import {cleanupRootsOf} from '../src/transports/cli/runCli.ts';
@@ -448,6 +448,11 @@ describe('cleanup presentation', () => {
 		const cwd = mkdtempSync(join(tmpdir(), 'codeindex-cleanup-roots-'));
 		temporaryDirectories.push(cwd);
 
-		expect(cleanupRootsOf(true, {}, cwd)).toStrictEqual({storage: indexRootDirectory(), databasePath: null, protectedPaths: [cwd]});
+		expect(cleanupRootsOf(true, {}, cwd)).toMatchObject({
+			storage: indexRootDirectory(),
+			databasePath: null,
+			protectedPaths: [cwd],
+			repository: realpathSync(cwd),
+		});
 	});
 });

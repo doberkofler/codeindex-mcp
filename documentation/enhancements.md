@@ -9,7 +9,6 @@ open repository work.
 
 ### Operations and observability
 
-- [#121 — Enforce bounded retention for derived artifacts and evidence](https://github.com/doberkofler/codeindex-mcp/issues/121)
 - [#110 — Add privacy-safe lookup and navigation analytics](https://github.com/doberkofler/codeindex-mcp/issues/110)
 - [#119 — Simplify Oracle qualification version identities](https://github.com/doberkofler/codeindex-mcp/issues/119)
 

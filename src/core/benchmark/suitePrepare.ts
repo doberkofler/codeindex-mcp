@@ -131,6 +131,7 @@ const writePreparedManifest = (
 
 					return {
 						name: project.name,
+						directory: project.directory,
 						repository: project.repository,
 						revision: project.revision,
 						lockfile: lockfile === null ? null : path.basename(lockfile),
