@@ -223,6 +223,7 @@ export type {
 	ReferencedSymbolEntry,
 	ResolutionMode,
 	Signature,
+	Snapshot,
 	StringLiteralType,
 	StringMappingType,
 	SubstitutionType,

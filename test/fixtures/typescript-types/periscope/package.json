@@ -1,0 +1,7 @@
+{
+	"name": "fixture-typescript-types",
+	"private": true,
+	"devDependencies": {
+		"typescript": "7.1.0-beta"
+	}
+}

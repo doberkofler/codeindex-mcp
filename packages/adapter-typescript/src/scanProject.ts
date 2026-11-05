@@ -27,8 +27,6 @@ const hash = (value: string | Uint8Array): string => createHash('sha256').update
 
 const hashCompilerOptions = (options: ts.CompilerOptions): string => hash(JSON.stringify(options, Object.keys(options).sort()));
 
-const majorOf = (version: string | null): string | null => (version === null ? null : (/^(?<major>\d+)/u.exec(version)?.groups?.['major'] ?? null));
-
 const sortByPath = (left: SourceFileType, right: SourceFileType): number => left.path.localeCompare(right.path);
 
 const projectConfigHash = (project: TypeScriptSnapshotProjectType): string =>
@@ -91,9 +89,10 @@ const scanSnapshot = ({config, snapshot, projects, knownPaths, startedAt}: ScanS
 		.sort(sortByPath);
 	const sourceHash = computeSourceHash(files);
 	const declaredCompilerVersion = projects.find((project) => project.declaredCompilerVersion !== null)?.declaredCompilerVersion ?? null;
-	const compilerDrift = projects.some(
-		(project) => project.declaredCompilerVersion !== null && majorOf(project.declaredCompilerVersion) !== majorOf(compilerVersion),
-	);
+	// A different build of the same major version still changes resolution and
+	// diagnostics, so drift compares the declared version with the compiler the
+	// extractor actually loaded rather than only its major component.
+	const compilerDrift = projects.some((project) => project.declaredCompilerVersion !== null && project.declaredCompilerVersion !== compilerVersion);
 	const projectResults: readonly ScanProjectResultType[] = projects.map((project) => ({
 		name: project.name,
 		projectFile: toRepositoryPath(config.rootDir, project.projectFilePath),

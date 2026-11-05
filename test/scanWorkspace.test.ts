@@ -119,4 +119,14 @@ describe('scanWorkspace', () => {
 		expect(drifted.compilerDrift).toBe(true);
 		expect(drifted.configHash).not.toBe(baseline.configHash);
 	});
+
+	it('detects drift between different builds of the same major version', () => {
+		const fixture = createFixtureConfig('simple-project');
+		({cleanup} = fixture);
+		writeFileSync(path.join(fixture.config.rootDir, 'package.json'), JSON.stringify({devDependencies: {typescript: '7.0.2'}}));
+		const drifted = scanProject(fixture.config);
+
+		expect(drifted.declaredCompilerVersion).toBe('7.0.2');
+		expect(drifted.compilerDrift).toBe(true);
+	});
 });

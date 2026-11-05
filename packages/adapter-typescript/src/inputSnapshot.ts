@@ -16,7 +16,7 @@ import {
 	type SnapshotProbeType,
 } from './snapshotRecorder.ts';
 import {recorderFileSystem} from './compilerFileSystem.ts';
-import {materializeProjectProgram} from './snapshotResolution.ts';
+import {materializeProjectPrograms} from './snapshotResolution.ts';
 import {
 	type CreatedTypeScriptInputSnapshotType,
 	type TypeScriptInputManifestType,
@@ -257,7 +257,8 @@ const authoredCandidates = (
 export const createTypeScriptInputSnapshot = (config: AdapterConfigType, knownPaths: readonly string[] = []): CreatedTypeScriptInputSnapshotType => {
 	const recorder = createRecorder(config.rootDir);
 	const api = new ts.API({cwd: config.rootDir, fs: recorderFileSystem(recorder)});
-	const programs = new Map<string, ts.Program>();
+	let compilerSnapshot: ts.Snapshot | undefined;
+	let programs: ReadonlyMap<string, ts.Program> = new Map<string, ts.Program>();
 
 	try {
 		collectRootMetadata(recorder, config.rootDir);
@@ -270,9 +271,9 @@ export const createTypeScriptInputSnapshot = (config: AdapterConfigType, knownPa
 			recorder.addInput(absolutePath);
 		}
 
-		for (const project of projects) {
-			programs.set(project.projectFilePath, materializeProjectProgram(api, recorder, project));
-		}
+		const {snapshot: loadedSnapshot, programs: loadedPrograms} = materializeProjectPrograms(api, recorder, projects);
+		compilerSnapshot = loadedSnapshot;
+		programs = loadedPrograms;
 
 		recorder.sealProbes();
 
@@ -301,21 +302,16 @@ export const createTypeScriptInputSnapshot = (config: AdapterConfigType, knownPa
 				validateSnapshot(recorder);
 			},
 			dispose: (): void => {
-				for (const program of programs.values()) {
-					program[Symbol.dispose]();
-				}
-
-				programs.clear();
+				compilerSnapshot?.[Symbol.dispose]();
+				compilerSnapshot = undefined;
+				programs = new Map<string, ts.Program>();
 				api[Symbol.dispose]();
 			},
 		};
 
 		return {snapshot, projects};
 	} catch (error) {
-		for (const program of programs.values()) {
-			program[Symbol.dispose]();
-		}
-
+		compilerSnapshot?.[Symbol.dispose]();
 		api[Symbol.dispose]();
 		throw error;
 	}

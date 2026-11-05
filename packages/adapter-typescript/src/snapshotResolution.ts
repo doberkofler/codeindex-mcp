@@ -45,38 +45,66 @@ const addPackageManifest = (recorder: RecorderType, absolutePath: string, cache:
 	}
 };
 
+/** Programs materialised from one compiler snapshot, keyed by project file. */
+type MaterializedProjectsType = Readonly<{
+	readonly snapshot: ts.Snapshot;
+	readonly programs: ReadonlyMap<string, ts.Program>;
+}>;
+
 /**
- * Materialises one project's program through the recorder filesystem.
+ * Materialises every configured project's program through the recorder
+ * filesystem.
+ *
+ * The compiler opens the projects as configured projects, so each program
+ * resolves compiler options against its own project directory instead of the
+ * API process working directory. That distinction matters outside the
+ * workspace root: a nested project's `types` entries resolve from the nested
+ * project, exactly as the project's own type check does.
  *
  * Program construction is the authoritative resolution pass: the compiler
  * parses every reachable source file and probes every candidate path through
  * the recorder, so the captured manifest describes exactly what the facts
- * depend on. The program is retained on the snapshot so extraction queries one
- * program instead of rebuilding it. Walking files by hand would repeat the same
- * parse and resolution work as one synchronous API request per import.
+ * depend on. Walking files by hand would repeat the same parse and resolution
+ * work as one synchronous API request per import.
  *
  * @param api - Compiler API bound to the recorder filesystem.
  * @param recorder - Capturing filesystem.
- * @param project - Parsed project configuration.
- * @returns The materialised program, owned by the caller.
+ * @param projects - Parsed project configurations.
+ * @returns The compiler snapshot, its programs keyed by project file, and the
+ * snapshot's ownership handle.
  */
-export const materializeProjectProgram = (api: ts.API, recorder: RecorderType, project: TypeScriptSnapshotProjectType): ts.Program => {
+export const materializeProjectPrograms = (
+	api: ts.API,
+	recorder: RecorderType,
+	projects: readonly TypeScriptSnapshotProjectType[],
+): MaterializedProjectsType => {
 	const manifestCache = new Map<string, string | null>();
-	const program = api.createProgram(
-		project.parsed.fileNames,
-		project.parsed.options,
-		project.parsed.projectReferences === undefined ? undefined : {projectReferences: project.parsed.projectReferences},
-	);
+	const snapshot = api.createSnapshot({
+		openProjects: projects.map((project) => project.projectFilePath),
+		ensurePrograms: true,
+	});
 
 	try {
-		for (const fileName of program.getSourceFileNames()) {
-			recorder.addInput(fileName);
-			addPackageManifest(recorder, fileName, manifestCache);
+		const programs = new Map<string, ts.Program>();
+
+		for (const project of projects) {
+			const configured = snapshot.getConfiguredProject(project.projectFilePath);
+
+			if (configured === undefined) {
+				throw new Error(`TypeScript did not load configured project ${project.name}`);
+			}
+
+			programs.set(project.projectFilePath, configured.program);
+
+			for (const fileName of configured.program.getSourceFileNames()) {
+				recorder.addInput(fileName);
+				addPackageManifest(recorder, fileName, manifestCache);
+			}
 		}
 
-		return program;
+		return {snapshot, programs};
 	} catch (error) {
-		program[Symbol.dispose]();
+		snapshot[Symbol.dispose]();
 		throw error;
 	}
 };

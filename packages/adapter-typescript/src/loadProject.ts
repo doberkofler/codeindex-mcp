@@ -1,8 +1,10 @@
 import {existsSync} from 'node:fs';
+import path from 'node:path';
 import {type AdapterConfigType, toRepositoryPath, debugFor, type DiagnosticType} from '@codeindex/adapter-sdk';
 import * as ts from './compiler.ts';
 import {type TypeScriptInputSnapshotType} from './inputSnapshot.ts';
 
+const {dirname} = path;
 const debug = debugFor('project');
 const MAX_STORED_DIAGNOSTICS = 500;
 
@@ -40,20 +42,39 @@ const repositoryPathOrNull = (config: AdapterConfigType, fileName: string): stri
 	}
 };
 
-const toDiagnostic = (diagnostic: ts.Diagnostic, config: AdapterConfigType): DiagnosticType => {
+const toDiagnostic = (diagnostic: ts.Diagnostic, config: AdapterConfigType, projectFilePath: string): DiagnosticType => {
 	const position = diagnostic.startPosition;
+	// Project-scope diagnostics (a missing `types` entry, for example) carry no
+	// source file. Attributing them to the owning project file keeps them
+	// actionable and lets callers distinguish the same diagnostic in two
+	// configured projects.
+	const fileName = diagnostic.fileName ?? projectFilePath;
 
 	return {
 		category: categoryName(diagnostic.category),
 		code: diagnostic.code,
 		message: ts.diagnosticText(diagnostic),
-		path: diagnostic.fileName === undefined ? null : repositoryPathOrNull(config, diagnostic.fileName),
+		path: repositoryPathOrNull(config, fileName),
 		startLine: position === undefined ? null : position.line + 1,
 		startColumn: position === undefined ? null : position.character + 1,
 	};
 };
 
-const collectDiagnostics = (program: ts.Program, config: AdapterConfigType): Readonly<{items: readonly DiagnosticType[]; total: number}> => {
+const diagnosticKey = (diagnostic: DiagnosticType): string =>
+	[
+		diagnostic.category,
+		String(diagnostic.code),
+		diagnostic.message,
+		diagnostic.path ?? '',
+		String(diagnostic.startLine ?? 0),
+		String(diagnostic.startColumn ?? 0),
+	].join('\u0000');
+
+const collectDiagnostics = (
+	program: ts.Program,
+	config: AdapterConfigType,
+	projectFilePath: string,
+): Readonly<{items: readonly DiagnosticType[]; total: number}> => {
 	// Global diagnostics are always collected, including when semantic checking
 	// is disabled. They report failures such as a missing default library, which
 	// callers observed before the TypeScript 7 migration; suppressing them for
@@ -61,14 +82,14 @@ const collectDiagnostics = (program: ts.Program, config: AdapterConfigType): Rea
 	const diagnostics: readonly ts.Diagnostic[] = config.semanticDiagnostics
 		? [...program.getProgramDiagnostics(), ...program.getGlobalDiagnostics(), ...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()]
 		: [...program.getProgramDiagnostics(), ...program.getGlobalDiagnostics(), ...program.getSyntacticDiagnostics()];
+	const unique = new Map<string, DiagnosticType>();
 
-	const stored: DiagnosticType[] = [];
-
-	for (const diagnostic of diagnostics.slice(0, MAX_STORED_DIAGNOSTICS)) {
-		stored.push(toDiagnostic(diagnostic, config));
+	for (const diagnostic of diagnostics) {
+		const mapped = toDiagnostic(diagnostic, config, projectFilePath);
+		unique.set(diagnosticKey(mapped), mapped);
 	}
 
-	return {items: stored, total: diagnostics.length};
+	return {items: [...unique.values()].slice(0, MAX_STORED_DIAGNOSTICS), total: unique.size};
 };
 
 const parseProjectFile = (api: ts.API, projectFilePath: string, snapshot: TypeScriptInputSnapshotType | undefined): ts.ParsedCommandLine => {
@@ -100,6 +121,11 @@ const createProgramFor = (api: ts.API, parsed: ts.ParsedCommandLine): ts.Program
  * project therefore observes one immutable version even if the filesystem
  * changes during the build.
  *
+ * A load without a snapshot binds the compiler API process to the project
+ * directory. Compiler options are resolved relative to that directory, so a
+ * nested project's `types` entries resolve exactly as the project's own type
+ * check resolves them.
+ *
  * @param config - Resolved project configuration.
  * @param projectFilePath - Project file to load; defaults to the first configured project.
  * @param snapshot - Optional captured input snapshot.
@@ -119,7 +145,7 @@ export const loadTypeScriptProject = (
 	}
 
 	const ownsApi = snapshot === undefined;
-	const api = snapshot?.api ?? new ts.API({cwd: config.rootDir});
+	const api = snapshot?.api ?? new ts.API({cwd: dirname(projectFilePath)});
 	const capturedProgram = snapshot?.programOf(projectFilePath);
 	const ownsProgram = capturedProgram === undefined;
 	let program: ts.Program | undefined = capturedProgram;
@@ -135,7 +161,7 @@ export const loadTypeScriptProject = (
 
 		const project = createdProgram.getProject();
 		const {checker} = project;
-		const diagnostics = collectDiagnostics(createdProgram, config);
+		const diagnostics = collectDiagnostics(createdProgram, config, projectFilePath);
 		const rootFileNames = [...parsed.fileNames];
 
 		debug('project loaded', {

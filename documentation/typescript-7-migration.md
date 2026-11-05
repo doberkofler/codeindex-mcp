@@ -37,12 +37,16 @@ read the captured bytes, so extraction still observes one immutable version.
 
 - Configuration: `API.readConfigFile` followed by
   `API.parseJsonConfigFileContent` through the recorder filesystem.
-- Program construction: `API.createProgram` is the authoritative resolution
-  pass. It parses every reachable file and probes every candidate path through
-  the recorder, so the manifest describes exactly what the facts depend on.
-- Program retention: the snapshot keeps that program and `loadTypeScriptProject`
-  reuses it. Extraction therefore queries one program instead of building a
-  second one.
+- Program construction: `API.createSnapshot` opens every configured project and
+  builds its program. Each configured project owns its current directory, so
+  options such as `types` resolve from the project file rather than from the
+  workspace root. Building the programs is the authoritative resolution pass:
+  the compiler parses every reachable file and probes every candidate path
+  through the recorder, so the manifest describes exactly what the facts depend
+  on.
+- Program retention: the snapshot keeps the configured project programs and
+  `loadTypeScriptProject` reuses them. Extraction therefore queries one program
+  per project instead of building a second one.
 - `API.createModuleResolver` remains available for dependency-edge and
   reference-construct queries.
 - `/// <reference path>` resolution is performed by program construction.
@@ -80,8 +84,9 @@ normalisation, so private members no longer leak into published surfaces.
 
 Every disposable compiler resource is released on success and failure paths.
 
-- The snapshot owns one compiler API process and one program per project.
-  `snapshot.dispose()` releases the programs and the API process.
+- The snapshot owns one compiler API process and one configured project per
+  project. `snapshot.dispose()` releases the compiler snapshot and the API
+  process.
 - `loadTypeScriptProject` returns a `dispose` handle that releases the module
   resolver, releases the program only when it created it, and closes the API
   process only when it created it.
