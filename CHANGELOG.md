@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.14.0...v0.15.0) (2026-11-05)
+
+### Added
+
+* **benchmark:** gate multi-adapter edit-to-fresh ([3b53ed0](https://github.com/doberkofler/codeindex-mcp/commit/3b53ed009b43e2bcfc84101513e747269cfe026d)), closes [#144](https://github.com/doberkofler/codeindex-mcp/issues/144)
+
+### Fixed
+
+* **benchmark:** gate edit latency on pinned public projects ([6e1a5d8](https://github.com/doberkofler/codeindex-mcp/commit/6e1a5d87cf9a2f7195b5619f1a8a1377f627b9ad))
+* **benchmark:** keep external edit latency advisory ([1c1e5fa](https://github.com/doberkofler/codeindex-mcp/commit/1c1e5fa39a7364d3013d145c21103da8b8c2f10e)), references [#15](https://github.com/doberkofler/codeindex-mcp/issues/15)
+* **freshness:** scope refresh work to invalidated adapters ([1f311e2](https://github.com/doberkofler/codeindex-mcp/commit/1f311e20b7b4fda45a3463af2cb904d175934052))
+* **mcp:** install an absolute cwd for nested OpenCode sessions ([36aad88](https://github.com/doberkofler/codeindex-mcp/commit/36aad88c5f59cffcdf49bdc80dedb3ac69b5ed26)), closes [#140](https://github.com/doberkofler/codeindex-mcp/issues/140)
+* **storage:** bound and reclaim the write-ahead log ([c696da1](https://github.com/doberkofler/codeindex-mcp/commit/c696da150d832548e4c5312d20661406303888dd)), closes [#141](https://github.com/doberkofler/codeindex-mcp/issues/141)
+* **typescript:** resolve project types from the project directory ([9f0f514](https://github.com/doberkofler/codeindex-mcp/commit/9f0f514813fd5b7f1dde2e71039122fcd795a65f))
+
+### Changed
+
+* **typescript:** retain compiler state across refreshes ([af5c3e8](https://github.com/doberkofler/codeindex-mcp/commit/af5c3e89ff25a8e598950634e6dd85f1efcbd92b))
+
 ## [Unreleased]
 
 ### Added
