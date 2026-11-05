@@ -6,7 +6,7 @@ import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {type BuildReportType, type BuildStagesType, type GenerationAdapterType, type GenerationRowType, type ScanResultType} from '../model.ts';
 import {type AdapterCommitCountsType, type IndexDatabase} from '../storage/database.ts';
-import {createReport, durationOf} from './buildReport.ts';
+import {adapterActivityOf, createReport, durationOf} from './buildReport.ts';
 import {type createExtractorCache} from './buildArtifacts.ts';
 import {runAdapterStageAsync, runBuildStage, runBuildStageAsync} from './buildFailure.ts';
 import {hashEntriesOf, plansMatchPrevious, preservedHashEntries} from './buildHashes.ts';
@@ -390,6 +390,7 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 		durationMs,
 		counts: commit.counts,
 		stages: commit.stages,
+		adapterActivity: adapterActivityOf(adapters),
 	});
 };
 

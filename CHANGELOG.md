@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+* **benchmark:** add a blocking multi-adapter edit-to-fresh gate. Five TypeScript
+  project contexts and one Oracle context are measured together; the gate records
+  per-adapter probe, scan, extraction, and fact-write isolation, superseded-chain
+  composition, peak and idle process-tree RSS, and event-to-publication p95. A
+  missing metric fails closed. Closes
+  [#144](https://github.com/doberkofler/codeindex-mcp/issues/144).
+
 ### Fixed
 
 * **mcp:** install an absolute project-root `cwd` with the OpenCode server entry.

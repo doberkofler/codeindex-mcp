@@ -47,6 +47,24 @@ const machineOf = (): BenchmarkMachineType => ({
 	totalMemoryBytes: os.totalmem(),
 });
 
+/**
+ * Builds a benchmark configuration for one explicit workspace and database.
+ *
+ * The helper lives beside the other benchmark entry points so configuration
+ * loading stays in the existing composition path.
+ *
+ * @param input - Corpus configuration, workspace root, and disposable database.
+ * @returns Resolved benchmark configuration.
+ */
+export const benchmarkConfigOf = (input: Readonly<{configPath: string; rootDir: string; databasePath: string}>): ConfigType =>
+	loadConfig({
+		CODE_INDEX_CONFIG: input.configPath,
+		CODE_INDEX_ROOT: input.rootDir,
+		CODE_INDEX_DATABASE: input.databasePath,
+		CODE_INDEX_ANALYTICS: 'false',
+		CODE_INDEX_LOG_LEVEL: 'error',
+	});
+
 const databaseContextOf = (config: ConfigType): Readonly<{rootDir: string; projectFilePath: string; extractorId: string; projectId: string}> => ({
 	rootDir: config.rootDir,
 	projectFilePath: config.projectFilePath,

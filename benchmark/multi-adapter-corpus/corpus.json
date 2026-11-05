@@ -1,0 +1,17 @@
+{
+	"schemaVersion": 1,
+	"id": "multi-adapter",
+	"description": "Five TypeScript project contexts and one Oracle manifest used by the multi-adapter edit-to-fresh gate.",
+	"typescriptProjectContexts": 5,
+	"oracleProjectContexts": 1,
+	"editTargets": [
+		{
+			"adapterId": "typescript",
+			"path": "typescript/platform/src/index.ts"
+		},
+		{
+			"adapterId": "oracle",
+			"path": "oracle/database/hr_api.pkb"
+		}
+	]
+}

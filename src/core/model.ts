@@ -132,6 +132,21 @@ export type FindDependenciesInputType = Readonly<{
 /** Stages measured per adapter; publication stages are generation-wide. */
 export type AdapterStagesType = Pick<BuildStagesType, 'scanMs' | 'compilerMs' | 'extractionMs'>;
 
+/**
+ * Work one adapter performed for one build attempt.
+ *
+ * The parent process scans adapters; extraction runs inside the build worker.
+ * Carrying these counters on the report keeps adapter-isolation evidence
+ * available to the process that observes publication.
+ */
+export type AdapterActivityType = Readonly<{
+	readonly adapterId: string;
+	/** One when the adapter extracted a fresh fact bundle; zero when it reused facts. */
+	readonly extractions: number;
+	/** Symbol, occurrence, dependency, and diagnostic rows the adapter emitted. */
+	readonly factWrites: number;
+}>;
+
 /** Persisted provenance for one adapter within one generation. */
 export type GenerationAdapterType = Readonly<{
 	readonly adapterId: string;
@@ -197,6 +212,8 @@ export type BuildReportType = Readonly<{
 	readonly dependencyBindingCount: number;
 	readonly diagnosticCount: number;
 	readonly stages: BuildStagesType | null;
+	/** Per-adapter extraction work for this attempt; absent when facts were reused or the attempt did not commit. */
+	readonly adapterActivity?: readonly AdapterActivityType[];
 }>;
 
 export type IndexVerificationType = Readonly<{

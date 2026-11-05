@@ -76,6 +76,7 @@ describe('operational CLI', () => {
 		const commands: readonly (readonly string[])[] = [
 			['analytics', '--help'],
 			['benchmark', '--help'],
+			['benchmark-multi-adapter', '--help'],
 			['benchmark-suite', '--help'],
 			['benchmark-prepare', '--help'],
 			['soak', '--help'],

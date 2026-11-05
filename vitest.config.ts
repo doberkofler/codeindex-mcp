@@ -10,6 +10,7 @@ const MODULE_TESTS = [
 	'test/analytics.test.ts',
 	'test/analyticsCommand.test.ts',
 	'test/analyticsSummary.test.ts',
+	'test/benchmarkMultiAdapter.test.ts',
 	'test/benchmarkResources.test.ts',
 	'test/benchmarkSuite.test.ts',
 	'test/benchmarkSuiteReporting.test.ts',

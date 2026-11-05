@@ -1,0 +1,43 @@
+{
+	"project": {
+		"name": "multi-adapter-benchmark",
+		"root": "."
+	},
+	"extractors": [
+		{
+			"id": "typescript",
+			"required": true,
+			"projects": [
+				{
+					"name": "platform",
+					"project": "typescript/platform/tsconfig.json"
+				},
+				{
+					"name": "billing",
+					"project": "typescript/billing/tsconfig.json"
+				},
+				{
+					"name": "catalog",
+					"project": "typescript/catalog/tsconfig.json"
+				},
+				{
+					"name": "identity",
+					"project": "typescript/identity/tsconfig.json"
+				},
+				{
+					"name": "reporting",
+					"project": "typescript/reporting/tsconfig.json"
+				}
+			]
+		},
+		{
+			"id": "oracle",
+			"required": true,
+			"project": "oracle/oracle-index.json"
+		}
+	],
+	"freshness": {
+		"debounceMs": 100,
+		"workerIdleMs": 60000
+	}
+}

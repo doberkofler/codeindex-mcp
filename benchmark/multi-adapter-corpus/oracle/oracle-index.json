@@ -1,0 +1,15 @@
+{
+	"schemaVersion": 1,
+	"dialect": "19c",
+	"defaultSchema": "APP",
+	"extensions": [".pks", ".pkg", ".pkb", ".prc", ".fnc", ".sql"],
+	"include": [
+		"oracle/database/**/*.pks",
+		"oracle/database/**/*.pkg",
+		"oracle/database/**/*.pkb",
+		"oracle/database/**/*.prc",
+		"oracle/database/**/*.fnc",
+		"oracle/database/**/*.sql"
+	],
+	"exclude": ["**/generated/**"]
+}

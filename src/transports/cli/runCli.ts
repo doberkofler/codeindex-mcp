@@ -1,6 +1,7 @@
 import {Command} from 'commander';
 import {loadConfiguredAdapters} from '../../adapters/loader.ts';
 import {createAnalyticsRecorder} from '../../core/analytics/recorder.ts';
+import {addMultiAdapterBenchmarkCommand} from '../../core/benchmark/multiAdapterCommand.ts';
 import {addBenchmarkCommand} from '../../core/benchmark/runBenchmark.ts';
 import {addBenchmarkSuiteCommand} from '../../core/benchmark/suite.ts';
 import {addBenchmarkPrepareCommand} from '../../core/benchmark/suitePrepare.ts';
@@ -330,6 +331,7 @@ const buildProgram = (context: CliContextType): Command => {
 	addStorageAuditCommand(program, context.environment, context.io);
 	addBenchmarkCommand(program, context.environment, context.io);
 	addBenchmarkSuiteCommand(program, context.environment, context.io, {cliPath: process.argv[1] ?? ''});
+	addMultiAdapterBenchmarkCommand(program, context.io, {cwd: process.cwd(), workerEntry: context.workerEntry});
 	addBenchmarkPrepareCommand(program, context.io);
 	addSoakCommand(program, context.io, {
 		workerEntry: context.workerEntry,

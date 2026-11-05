@@ -1,0 +1,21 @@
+{
+	"schemaVersion": 1,
+	"reportSchemaVersion": 1,
+	"corpus": {
+		"id": "multi-adapter",
+		"sha256": "a2b10bd177eeaea274cc196dcb984301ee4ed2b504eb0ecd41f624f04aacbd1e",
+		"typescriptProjectContexts": 5,
+		"oracleProjectContexts": 1
+	},
+	"thresholds": {
+		"editP95WarningMs": 5000,
+		"editP95FailureMs": 15000,
+		"minimumEditSamples": 10,
+		"maxSupersededAttempts": 5,
+		"maxSupersededDiscardedMs": 15000,
+		"processTreeRssWarningBytes": 2147483648,
+		"processTreeRssFailureBytes": 3221225472,
+		"idleProcessTreeRssWarningBytes": 1073741824,
+		"idleProcessTreeRssFailureBytes": 2147483648
+	}
+}

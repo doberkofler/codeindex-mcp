@@ -124,6 +124,7 @@ export class RefreshCoordinator {
 			projectWide: fullScope,
 			pathCount: paths === null ? null : paths.length,
 			adapterCount: fullScope ? null : adapterIds.length,
+			adapterIds: fullScope ? null : adapterIds,
 		});
 
 		if (this.#state === 'building' || this.#running !== null) {
@@ -363,6 +364,7 @@ export class RefreshCoordinator {
 			reason,
 			dirtyFileCount: this.#dirtyFileCount(),
 			adapterCount: adapterIds === null ? null : adapterIds.length,
+			adapterIds,
 		});
 		debug('refresh run', {reason, adapters: adapterIds, dirtyPaths: this.#activeDirtyPaths.size, projectWide: this.#activeProjectWideInvalidation});
 		this.#running = this.#execute(startedAt, abort.signal);
@@ -395,6 +397,7 @@ export class RefreshCoordinator {
 			backoffMs,
 			dirtyFileCount: this.#dirtyFileCount(),
 			adapterCount: this.#activeAdapterIds === null ? null : this.#activeAdapterIds.length,
+			adapterIds: this.#activeAdapterIds,
 		});
 		// A superseded candidate is discarded, not failed. Exactly one follow-up
 		// runs, delayed by a capped exponential backoff so sustained churn cannot
@@ -415,6 +418,7 @@ export class RefreshCoordinator {
 			eventToPublicationMs: Math.round(completedAt - (this.#firstEventAt ?? startedAt)),
 			dirtyFileCount: this.#dirtyFileCount(),
 			adapterCount: this.#activeAdapterIds === null ? null : this.#activeAdapterIds.length,
+			adapterIds: this.#activeAdapterIds,
 		});
 		this.#activeDirtyPaths.clear();
 		this.#activeProjectWideInvalidation = false;
@@ -460,6 +464,7 @@ export class RefreshCoordinator {
 				durationMs: Math.round(completedAt - startedAt),
 				eventToPublicationMs: Math.round(eventToPublicationMs),
 				dirtyFileCount: this.#dirtyFileCount(),
+				adapterIds: this.#activeAdapterIds,
 			});
 			this.#logger.error('refresh_failed', {message: this.#lastError});
 

@@ -2,7 +2,7 @@ import {once} from 'node:events';
 import {Worker} from 'node:worker_threads';
 import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
-import {type BuildReportType, type BuildStagesType, type GenerationStateType} from '../model.ts';
+import {type AdapterActivityType, type BuildReportType, type BuildStagesType, type GenerationStateType} from '../model.ts';
 import {type AdapterScanPlanType} from './adapterBuild.ts';
 import {BuildFailureEnvelopeError, buildFailureFromWorkerPayload, buildFailureOf, type BuildFailureType, type BuildProjectContextType} from './buildFailure.ts';
 
@@ -47,6 +47,27 @@ const asStages = (value: unknown): BuildStagesType | null => {
 	};
 };
 
+const asAdapterActivity = (value: unknown): readonly AdapterActivityType[] | null => {
+	if (!Array.isArray(value)) {
+		return null;
+	}
+
+	const activity: AdapterActivityType[] = [];
+
+	for (const entry of value) {
+		if (!isRecord(entry) || typeof entry['adapterId'] !== 'string' || typeof entry['extractions'] !== 'number' || typeof entry['factWrites'] !== 'number') {
+			return null;
+		}
+
+		activity.push({adapterId: entry['adapterId'], extractions: entry['extractions'], factWrites: entry['factWrites']});
+	}
+
+	return activity;
+};
+
+// The worker payload has many independently optional fields; each scalar guard
+// is one branch and removing any would weaken the boundary check.
+// oxlint-disable-next-line eslint/complexity -- Bounded worker payload validation is inherently branch-per-field.
 const asBuildReport = (value: unknown): BuildReportType | null => {
 	if (!isRecord(value) || !isGenerationState(value['state']) || !isReportOutcome(value['outcome'])) {
 		return null;
@@ -70,6 +91,8 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 		return null;
 	}
 
+	const adapterActivity = value['adapterActivity'] === undefined ? undefined : asAdapterActivity(value['adapterActivity']);
+
 	return {
 		generationId,
 		revision,
@@ -84,6 +107,7 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 		dependencyBindingCount,
 		diagnosticCount,
 		stages: asStages(value['stages']),
+		...(adapterActivity === undefined || adapterActivity === null ? {} : {adapterActivity}),
 	};
 };
 

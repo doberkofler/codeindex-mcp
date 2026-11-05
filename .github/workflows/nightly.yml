@@ -201,6 +201,17 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Measure multi-adapter edit-to-fresh gate
+        id: multi_adapter
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
+          mkdir -p "$evidence_root/multi-adapter"
+          node dist/cli.mjs benchmark-multi-adapter \
+            --output "$evidence_root/multi-adapter/report.json" \
+            --summary "$evidence_root/multi-adapter/summary.md"
+
       - name: Prepare pinned public projects
         timeout-minutes: 120
         run: node dist/cli.mjs benchmark-prepare --suite benchmark/suites/typescript-public.json
@@ -233,6 +244,9 @@ jobs:
         if: always()
         run: |
           evidence_root="$RUNNER_TEMP/codeindex-evidence/nightly"
+          if [ -f "$evidence_root/multi-adapter/summary.md" ]; then
+            cat "$evidence_root/multi-adapter/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [ -f "$evidence_root/public/summary.md" ]; then
             cat "$evidence_root/public/summary.md" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -253,6 +267,9 @@ jobs:
           done
           if [ -d "$evidence/public" ]; then
             cp -R "$evidence/public" "$stage/public"
+          fi
+          if [ -d "$evidence_root/multi-adapter" ]; then
+            cp -R "$evidence_root/multi-adapter" "$stage/multi-adapter"
           fi
           if [ -f "$evidence_root/qualification/report.json" ]; then
             cp "$evidence_root/qualification/report.json" "$stage/qualification.json"
@@ -277,21 +294,23 @@ jobs:
           if [ "${{ steps.qualify.outcome }}" = "failure" ]; then
             class="**Semantic qualification**"
           else
-            class="**Performance gate** (pinned public corpus)"
+            class="**Performance gate** (multi-adapter or pinned public corpus)"
           fi
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-          ## Nightly failure interpretation: pinned public corpus
+          ## Nightly failure interpretation: performance gates
 
           Failure class: ${class}
 
           | Observation | Failure class |
           | --- | --- |
-          | Benchmark gate failed | **Performance gate** (pinned public corpus) |
+          | Multi-adapter or public benchmark gate failed | **Performance gate** |
           | Compiler differential failed | **Semantic qualification** |
           | Checkout, prepare, install, or build failed | **Static verification** |
 
           A failed public gate means a compatibility or relative-regression problem on a
-          pinned project. Do not replace the pinned revision to make the gate pass.
+          pinned project. Do not replace the pinned revision to make the gate pass. A
+          failed multi-adapter gate means edit-to-fresh or adapter isolation regressed;
+          keep the gate blocking and fix the refresh path.
           EOF
 
       - name: Upload bounded evidence
