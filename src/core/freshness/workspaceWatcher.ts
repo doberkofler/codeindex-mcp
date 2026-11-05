@@ -8,14 +8,38 @@ import {type LoggerType} from '../logging/logger.ts';
 const {basename, dirname, resolve, sep} = path;
 const debug = debugFor('watch');
 
+/**
+ * One logical adapter subscription over the shared filesystem watcher.
+ *
+ * The watcher owns one physical subscription per directory tree. Routes only
+ * describe which adapter owns a changed path, so an event for one adapter never
+ * invalidates another adapter's capture.
+ */
+export type WatchRouteType = Readonly<{
+	/** Adapter identifier, or any stable subscriber identity. */
+	readonly id: string;
+	/** File extensions this route publishes. */
+	readonly sourceExtensions: readonly string[];
+	/** Absolute authored files currently owned by this route. */
+	readonly files: readonly string[];
+	/** Absolute configuration files and non-source inputs that invalidate this route. */
+	readonly configFiles: readonly string[];
+}>;
+
 export type WorkspaceWatcherOptionsType = Readonly<{
 	rootDir: string;
 	logger: LoggerType;
-	/** File extensions the configured adapters publish. */
-	sourceExtensions: readonly string[];
 	/** Directory segments every configured adapter ignores. */
 	ignoredSegments: readonly string[];
-	onChange: (paths: readonly string[] | null) => void;
+	routes: readonly WatchRouteType[];
+	/**
+	 * Reports changed workspace-relative paths and the adapters they belong to.
+	 *
+	 * `paths === null` means the file set changed without naming a source file.
+	 * `adapterIds === null` means every adapter is invalidated, either because
+	 * the event is ambiguous or because it changed shared state.
+	 */
+	onChange: (paths: readonly string[] | null, adapterIds: readonly string[] | null) => void;
 }>;
 
 const UNIVERSAL_IGNORED_SEGMENTS = new Set(['.git', '.svn', '.hg']);
@@ -36,8 +60,11 @@ const isIgnoredAbsolutePath = (rootDir: string, ignoredSegments: readonly string
 	return isIgnoredPath(relativePath.split(path.sep).join('/'), ignoredSegments);
 };
 
-const isPublishable = (filePath: string, extensions: readonly string[]): boolean =>
-	!filePath.endsWith('.d.ts') && !filePath.endsWith('.d.mts') && !filePath.endsWith('.d.cts') && extensions.some((extension) => filePath.endsWith(extension));
+const isPublishable = (filePath: string, extensions: ReadonlySet<string>): boolean =>
+	!filePath.endsWith('.d.ts') &&
+	!filePath.endsWith('.d.mts') &&
+	!filePath.endsWith('.d.cts') &&
+	[...extensions].some((extension) => filePath.endsWith(extension));
 
 const isFileEvent = (event: string): boolean => event === 'add' || event === 'change' || event === 'unlink';
 
@@ -70,13 +97,29 @@ const coveringRoots = (directories: Iterable<string>, rootDir: string): readonly
 	return roots;
 };
 
+const ownersOf = (owners: ReadonlyMap<string, Set<string>>, key: string): readonly string[] | null => {
+	const found = owners.get(key);
+	return found === undefined || found.size === 0 ? null : [...found].sort();
+};
+
+const addOwner = (owners: Map<string, Set<string>>, key: string, id: string): void => {
+	const current = owners.get(key);
+
+	if (current === undefined) {
+		owners.set(key, new Set([id]));
+		return;
+	}
+
+	current.add(id);
+};
+
 /**
  * Watches indexed directories and extractor configuration files.
  *
- * Watching is recursive where it can be: Chokidar reports nested file changes,
- * newly created directories, and removed directory trees with native filesystem
- * events. Directory events request a project-wide scan because a new or removed
- * directory can change the indexed file set without naming a source file.
+ * One physical watcher serves every adapter. Events are routed to the adapters
+ * that own the changed path, so a TypeScript edit cannot invalidate an Oracle
+ * capture and the reverse. Directory events, watcher errors, and ambiguous
+ * paths still invalidate every adapter.
  *
  * Events are hints. The coordinator still runs a deterministic scan, and that
  * scan remains authoritative; no timer rescans an idle workspace.
@@ -84,49 +127,52 @@ const coveringRoots = (directories: Iterable<string>, rootDir: string): readonly
 export class WorkspaceWatcher {
 	readonly #rootDir: string;
 	readonly #logger: LoggerType;
-	#sourceExtensions: readonly string[];
 	readonly #ignoredSegments: readonly string[];
-	readonly #onChange: (paths: readonly string[] | null) => void;
+	readonly #onChange: (paths: readonly string[] | null, adapterIds: readonly string[] | null) => void;
 	readonly #watchers = new Map<string, FSWatcher>();
 	#watchedFiles = new Set<string>();
+	#configOwners = new Map<string, Set<string>>();
+	#fileOwners = new Map<string, Set<string>>();
+	#extensionOwners = new Map<string, Set<string>>();
+	#sourceExtensions = new Set<string>();
 	#started = false;
 
 	public constructor(options: WorkspaceWatcherOptionsType) {
 		this.#rootDir = options.rootDir;
 		this.#logger = options.logger;
-		this.#sourceExtensions = options.sourceExtensions;
 		this.#ignoredSegments = options.ignoredSegments;
 		this.#onChange = options.onChange;
+		this.update(options.routes);
 	}
 
-	public start(files: readonly Readonly<{absolutePath: string}>[], configFiles: readonly string[]): void {
+	public start(routes: readonly WatchRouteType[]): void {
 		this.#started = true;
-		this.update(files, configFiles);
+		this.update(routes);
 	}
 
-	public update(files: readonly Readonly<{absolutePath: string}>[], configFiles: readonly string[], sourceExtensions?: readonly string[]): void {
+	public update(routes: readonly WatchRouteType[]): void {
+		this.#indexRoutes(routes);
+
 		if (!this.#started) {
 			return;
 		}
 
-		if (sourceExtensions !== undefined) {
-			this.#sourceExtensions = sourceExtensions;
-		}
-
 		const directoryRoots = coveringRoots(
-			files.map((file) => dirname(file.absolutePath)),
+			routes.flatMap((route) => route.files.map((file) => dirname(resolve(file)))),
 			this.#rootDir,
 		);
 		const watchedFiles = new Set<string>();
 
-		for (const configFile of configFiles) {
-			const absolutePath = resolve(configFile);
+		for (const route of routes) {
+			for (const configFile of route.configFiles) {
+				const absolutePath = resolve(configFile);
 
-			// A configuration file inside a watched tree already produces events.
-			// Watching a path that does not exist would subscribe to its parent
-			// directory instead, so only existing files are watched directly.
-			if (existsSync(absolutePath) && !directoryRoots.some((root) => absolutePath.startsWith(`${root}${sep}`))) {
-				watchedFiles.add(absolutePath);
+				// A configuration file inside a watched tree already produces events.
+				// Watching a path that does not exist would subscribe to its parent
+				// directory instead, so only existing files are watched directly.
+				if (existsSync(absolutePath) && !directoryRoots.some((root) => absolutePath.startsWith(`${root}${sep}`))) {
+					watchedFiles.add(absolutePath);
+				}
 			}
 		}
 
@@ -156,7 +202,7 @@ export class WorkspaceWatcher {
 		}
 
 		this.#watchedFiles = watchedFiles;
-		debug('watch set updated', {trees: this.#watchers.size - this.#watchedFiles.size, files: this.#watchedFiles.size, knownFiles: files.length});
+		debug('watch set updated', {trees: this.#watchers.size - this.#watchedFiles.size, files: this.#watchedFiles.size});
 	}
 
 	public close(): void {
@@ -168,6 +214,37 @@ export class WorkspaceWatcher {
 
 		this.#watchers.clear();
 		this.#watchedFiles.clear();
+		this.#configOwners.clear();
+		this.#fileOwners.clear();
+		this.#extensionOwners.clear();
+		this.#sourceExtensions.clear();
+	}
+
+	#indexRoutes(routes: readonly WatchRouteType[]): void {
+		const configOwners = new Map<string, Set<string>>();
+		const fileOwners = new Map<string, Set<string>>();
+		const extensionOwners = new Map<string, Set<string>>();
+		const sourceExtensions = new Set<string>();
+
+		for (const route of routes) {
+			for (const configFile of route.configFiles) {
+				addOwner(configOwners, resolve(configFile), route.id);
+			}
+
+			for (const file of route.files) {
+				addOwner(fileOwners, resolve(file), route.id);
+			}
+
+			for (const extension of route.sourceExtensions) {
+				sourceExtensions.add(extension);
+				addOwner(extensionOwners, extension, route.id);
+			}
+		}
+
+		this.#configOwners = configOwners;
+		this.#fileOwners = fileOwners;
+		this.#extensionOwners = extensionOwners;
+		this.#sourceExtensions = sourceExtensions;
 	}
 
 	#watch(target: string, kind: 'tree' | 'file'): void {
@@ -185,26 +262,27 @@ export class WorkspaceWatcher {
 			});
 			watcher.on('error', (error) => {
 				this.#logger.warn('watcher_error', {message: error instanceof Error ? error.message : String(error)});
-				this.#onChange(null);
+				this.#onChange(null, null);
 			});
 			this.#watchers.set(target, watcher);
 		} catch (error) {
 			this.#logger.warn('watcher_unavailable', {message: error instanceof Error ? error.message : String(error)});
-			this.#onChange(null);
+			this.#onChange(null, null);
 		}
 	}
 
 	#handleEvent(event: string, changedPath: string): void {
 		if (changedPath === '') {
-			this.#onChange(null);
+			this.#onChange(null, null);
 			return;
 		}
 
 		const absolutePath = resolve(changedPath);
+		const configAdapters = ownersOf(this.#configOwners, absolutePath);
 
-		if (this.#watchedFiles.has(absolutePath)) {
-			debug('config changed', {file: basename(absolutePath)});
-			this.#onChange(null);
+		if (configAdapters !== null) {
+			debug('adapter input changed', {file: basename(absolutePath), adapters: configAdapters});
+			this.#onChange(null, configAdapters);
 			return;
 		}
 
@@ -214,7 +292,7 @@ export class WorkspaceWatcher {
 			// names a source file, so the file set must be rescanned.
 			if (!isIgnoredAbsolutePath(this.#rootDir, this.#ignoredSegments, absolutePath)) {
 				debug('directory changed', {event});
-				this.#onChange(null);
+				this.#onChange(null, null);
 			}
 
 			return;
@@ -224,7 +302,10 @@ export class WorkspaceWatcher {
 			return;
 		}
 
-		if (!isPublishable(absolutePath, this.#sourceExtensions)) {
+		const ownedAdapters = ownersOf(this.#fileOwners, absolutePath);
+		const extensionAdapters = this.#adaptersForExtensions(absolutePath);
+
+		if (ownedAdapters === null && extensionAdapters === null) {
 			return;
 		}
 
@@ -240,6 +321,24 @@ export class WorkspaceWatcher {
 			return;
 		}
 
-		this.#onChange([relativePath]);
+		this.#onChange([relativePath], ownedAdapters ?? extensionAdapters);
+	}
+
+	#adaptersForExtensions(filePath: string): readonly string[] | null {
+		if (!isPublishable(filePath, this.#sourceExtensions)) {
+			return null;
+		}
+
+		const owners = new Set<string>();
+
+		for (const [extension, adapterIds] of this.#extensionOwners) {
+			if (filePath.endsWith(extension)) {
+				for (const adapterId of adapterIds) {
+					owners.add(adapterId);
+				}
+			}
+		}
+
+		return owners.size === 0 ? null : [...owners].sort();
 	}
 }

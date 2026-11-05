@@ -18,6 +18,7 @@ import {checkpointWal} from './databaseWal.ts';
 import {analyzeDatabase} from './databaseStatistics.ts';
 import {transaction} from './databaseTransaction.ts';
 import {deleteAdapterRows, upsertAdapterRow} from './databaseAdapterRows.ts';
+import {persistedAdapterCounts, persistedAdapterStages} from './databaseCommitAggregates.ts';
 import {
 	type AdapterCommitCountsType,
 	type AdapterCommitType,
@@ -142,19 +143,6 @@ const verifyAdapters = (writer: DatabaseSync, validations: readonly GenerationFa
 	}
 };
 
-const sumCounts = (adapters: readonly Readonly<{counts: AdapterCommitCountsType}>[]): AdapterCommitCountsType =>
-	adapters.reduce<AdapterCommitCountsType>(
-		(total, adapter) => ({
-			files: total.files + adapter.counts.files,
-			symbols: total.symbols + adapter.counts.symbols,
-			occurrences: total.occurrences + adapter.counts.occurrences,
-			dependencyEdges: total.dependencyEdges + adapter.counts.dependencyEdges,
-			dependencyBindings: total.dependencyBindings + adapter.counts.dependencyBindings,
-			diagnostics: total.diagnostics + adapter.counts.diagnostics,
-		}),
-		ZERO_COUNTS,
-	);
-
 const sumStages = (adapters: readonly AdapterCommitType[]): Readonly<{scanMs: number; compilerMs: number; extractionMs: number}> =>
 	adapters.reduce(
 		(total, adapter) => ({
@@ -169,12 +157,14 @@ const publishPhase = (
 	writer: DatabaseSync,
 	input: Readonly<{
 		generationId: string;
-		adapters: readonly Readonly<{adapter: AdapterCommitType; counts: AdapterCommitCountsType}>[];
 		sourceHash: string;
 		configHash: string;
 		inputHash: string;
 		startedAt: string | undefined;
+		/** Stages measured by this attempt; returned to the caller. */
 		stages: Readonly<{scanMs: number; compilerMs: number; extractionMs: number; insertionMs: number; verificationMs: number}>;
+		/** Whole-generation stage totals persisted on the generation row. */
+		aggregateStages: Readonly<{scanMs: number; compilerMs: number; extractionMs: number}>;
 	}>,
 ): GenerationCommitType => {
 	const previous = readGeneration(writer, input.generationId);
@@ -183,9 +173,9 @@ const publishPhase = (
 		throw new Error('Published generation disappeared before publication');
 	}
 
-	const counts = sumCounts(input.adapters);
+	const counts = persistedAdapterCounts(writer, input.generationId);
 
-	if (input.adapters.length === 0) {
+	if (counts === null) {
 		throw new Error('A generation requires at least one adapter');
 	}
 
@@ -211,9 +201,9 @@ const publishPhase = (
 			counts.dependencyEdges,
 			counts.dependencyBindings,
 			counts.diagnostics,
-			input.stages.scanMs,
-			input.stages.compilerMs,
-			input.stages.extractionMs,
+			input.aggregateStages.scanMs,
+			input.aggregateStages.compilerMs,
+			input.aggregateStages.extractionMs,
 			input.stages.insertionMs,
 			input.stages.verificationMs,
 			null,
@@ -300,12 +290,12 @@ export const commitAdapters = (connection: CommitConnectionType, input: MultiGen
 		const publicationStartedAt = performance.now();
 		const report = publishPhase(writer, {
 			generationId: input.generationId,
-			adapters: written.map((entry) => ({adapter: entry.adapter, counts: entry.write.counts})),
 			sourceHash: input.sourceHash,
 			configHash: input.configHash,
 			inputHash: input.inputHash,
 			startedAt: input.startedAt,
 			stages: {...sumStages(input.adapters), insertionMs, verificationMs},
+			aggregateStages: persistedAdapterStages(writer, input.generationId),
 		});
 
 		publicationMs = Math.round(performance.now() - publicationStartedAt);

@@ -59,6 +59,7 @@ const refresh = (overrides: Partial<RefreshCoordinatorSnapshotType> = {}): Refre
 	lastRefreshCompletedAt: null,
 	lastError: null,
 	lastReason: null,
+	refreshAdapterIds: null,
 	...overrides,
 });
 

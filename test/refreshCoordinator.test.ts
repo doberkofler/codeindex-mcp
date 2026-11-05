@@ -171,6 +171,54 @@ describe('RefreshCoordinator', () => {
 	});
 });
 
+describe('RefreshCoordinator adapter scope', () => {
+	it('keeps disjoint adapter events from cancelling the running build', async () => {
+		const {clock, advance} = createClock();
+		const gate = new EventTarget();
+		const calls: {adapterIds: readonly string[] | null; signal: AbortSignal}[] = [];
+		const coordinator = new RefreshCoordinator({
+			runRefresh: async (_reason, adapterIds, signal): Promise<BuildOutcomeType> => {
+				calls.push({adapterIds, signal});
+
+				if (calls.length === 2) {
+					await once(gate, 'release');
+				}
+
+				return signal.aborted ? 'superseded' : 'published';
+			},
+			logger: silentLogger,
+			clock,
+			debounceMs: 500,
+		});
+
+		coordinator.start();
+		await advance(500);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.adapterIds).toBeNull();
+
+		coordinator.notify(['src/a.ts'], ['typescript']);
+		await advance(500);
+		expect(calls).toHaveLength(2);
+		expect(calls[1]?.adapterIds).toStrictEqual(['typescript']);
+
+		coordinator.notify(['db/package.pkb'], ['oracle']);
+		expect(calls[1]?.signal.aborted).toBe(false);
+		expect(coordinator.getSnapshot().refreshAgain).toBe(true);
+
+		coordinator.notify(['src/c.ts'], ['typescript']);
+		expect(calls[1]?.signal.aborted).toBe(true);
+
+		gate.dispatchEvent(new Event('release'));
+		await flush();
+		expect(coordinator.getSnapshot().state).toBe('dirty');
+
+		await advance(500);
+		expect(calls).toHaveLength(3);
+		expect(calls[2]?.adapterIds).toStrictEqual(['oracle', 'typescript']);
+		await coordinator.close();
+	});
+});
+
 describe('RefreshCoordinator supersession', () => {
 	it('supersedes once and publishes the single follow-up', async () => {
 		const {clock, advance} = createClock();

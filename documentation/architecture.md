@@ -332,10 +332,12 @@ or ceiling overrun fails the candidate instead of truncating it.
 2. **Acquire or observe.** A process acquires the expiring build lease. A
    non-owner remains a reader and waits for the owner to publish or lose its
    lease.
-3. **Scan.** Every configured adapter deterministically discovers its configured
-   files, hashes source and configuration inputs, and records compiler/parser
-   identity. Filesystem events only schedule this scan; they are never the source
-   of truth.
+3. **Scan.** A filesystem event names the adapter that owns the changed path, and
+   only that adapter is probed and scanned. Startup, reconciliation, manual
+   rebuilds, shared configuration changes, and ambiguous paths still scan every
+   configured adapter. Each scan deterministically discovers its configured files,
+   hashes source and configuration inputs, and records compiler/parser identity.
+   Filesystem events only schedule this scan; they are never the source of truth.
 4. **Reuse.** Each adapter has its own source, configuration, and input hashes. An
    adapter whose complete reuse key matches the publication is not re-extracted,
    even when another adapter changed. An adapter may also prove that changed
@@ -347,8 +349,10 @@ or ceiling overrun fails the candidate instead of truncating it.
 6. **Commit.** The first build inserts a private `building` generation and
    atomically publishes every adapter after persistence and verification. Later
    refreshes keep the published generation ID, atomically increment its revision,
-   and rewrite only path groups whose fact digest changed. Removed and absent
-   adapters lose their facts in the same transaction.
+   and write only the adapters captured by the attempt. Untouched adapter rows stay
+   in place; generation-level counts and hashes are recomputed from every persisted
+   adapter row. Removed and absent adapters lose their facts in the same
+   transaction.
 7. **Serve.** Each query pins one SQLite read snapshot and resolves one published
    generation. A reader sees either the old revision or the complete new revision,
    never a partial write.
@@ -364,20 +368,26 @@ by partial facts.
 
 ## Freshness
 
-`WorkspaceWatcher` observes the union of configured adapter source extensions and
-watch inputs. Ignored directory segments are the intersection across adapters, so
-one adapter's ignore rule cannot hide another adapter's source. Watching is
-recursive from the covering directories that hold indexed files, so files created
-in new subdirectories and removed directory trees are reported without waiting for
-a rescan. Directory events request a project-wide scan because a new or removed
-directory can change the indexed file set without naming a source file.
+`WorkspaceWatcher` keeps one physical subscription over the union of configured
+adapter source extensions and watch inputs, but routes each event to the adapters
+that own the changed path. An owned file or adapter-specific configuration input
+reaches only its adapter; an unknown file reaches every adapter whose extension
+matches; directory events and watcher errors invalidate every adapter. Ignored
+directory segments are the intersection across adapters, so one adapter's ignore
+rule cannot hide another adapter's source. Watching is recursive from the covering
+directories that hold indexed files, so files created in new subdirectories and
+removed directory trees are reported without waiting for a rescan. Directory
+events request a project-wide scan because a new or removed directory can change
+the indexed file set without naming a source file.
 
 `RefreshCoordinator` debounces bursts, allows one refresh at a time, coalesces
 changes arriving during a build into one follow-up, and retries a failed refresh
-with capped exponential backoff. The debounce is a trailing edge: every event
-restarts the quiet window, which is `freshness.debounceMs` (default 1000 ms,
-range 100–10000). It is one workspace-level value because one coordinator serves
-every adapter. It performs **no periodic rescan of an idle workspace**: a healthy
+with capped exponential backoff. It tracks the adapters captured by the running
+attempt: an event for another adapter is queued as follow-up work, while an event
+for the captured adapter aborts the attempt cooperatively at the next safe
+checkpoint. The debounce is a trailing edge: every event restarts the quiet
+window, which is `freshness.debounceMs` (default 1000 ms, range 100–10000). It is
+one workspace-level value because one coordinator serves every adapter. It performs **no periodic rescan of an idle workspace**: a healthy
 watcher is the change detector, and a timer that rescans unchanged content burns
 CPU without discovering anything. A full reconciliation still runs at startup,
 after a watcher error, after a failure retry, and on `codeindex-cli update`. The

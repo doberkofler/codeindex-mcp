@@ -14,6 +14,7 @@ type WorkspaceType = Readonly<{
 	sourcePath: string;
 	configPath: string;
 	changes: (readonly string[] | null)[];
+	routedAdapters: (readonly string[] | null)[];
 }>;
 
 const createWorkspace = (): WorkspaceType => {
@@ -25,20 +26,29 @@ const createWorkspace = (): WorkspaceType => {
 	writeFileSync(sourcePath, 'export const value = 1;\n');
 	writeFileSync(configPath, '{"compilerOptions":{}}\n');
 
-	return {directory, sourcePath, configPath, changes: []};
+	return {directory, sourcePath, configPath, changes: [], routedAdapters: []};
 };
 
 const startWatcher = (workspace: WorkspaceType, ignoredSegments: readonly string[] = DEFAULT_IGNORED_SEGMENTS): WorkspaceWatcher => {
+	const routes = [
+		{
+			id: 'typescript',
+			sourceExtensions: ['.ts'],
+			files: [workspace.sourcePath],
+			configFiles: [workspace.configPath],
+		},
+	];
 	const watcher = new WorkspaceWatcher({
 		rootDir: workspace.directory,
 		logger: silentLogger,
-		sourceExtensions: ['.ts'],
 		ignoredSegments,
-		onChange: (paths): void => {
+		routes,
+		onChange: (paths, adapterIds): void => {
 			workspace.changes.push(paths);
+			workspace.routedAdapters.push(adapterIds);
 		},
 	});
-	watcher.start([{absolutePath: workspace.sourcePath}], [workspace.configPath]);
+	watcher.start(routes);
 
 	return watcher;
 };
@@ -49,6 +59,15 @@ const waitForPath = async (workspace: WorkspaceType, target: string): Promise<vo
 	await vi.waitFor(
 		() => {
 			expect(workspace.changes.some((paths) => includesPath(paths, target))).toBe(true);
+		},
+		{timeout: 3000, interval: 25},
+	);
+};
+
+const waitForRoute = async (workspace: WorkspaceType, expected: readonly string[] | null): Promise<void> => {
+	await vi.waitFor(
+		() => {
+			expect(workspace.routedAdapters.some((adapterIds) => JSON.stringify(adapterIds) === JSON.stringify(expected))).toBe(true);
 		},
 		{timeout: 3000, interval: 25},
 	);
@@ -121,22 +140,89 @@ describe('WorkspaceWatcher', () => {
 		const ignoredPath = path.join(ignoredDirectory, 'example.ts');
 		mkdirSync(ignoredDirectory, {recursive: true});
 		writeFileSync(ignoredPath, 'export const value = 1;\n');
+		const routes = [
+			{
+				id: 'typescript',
+				sourceExtensions: ['.ts'],
+				files: [ignoredPath],
+				configFiles: [],
+			},
+		];
 		watcher = new WorkspaceWatcher({
 			rootDir: workspace.directory,
 			logger: silentLogger,
-			sourceExtensions: ['.ts'],
 			ignoredSegments: DEFAULT_IGNORED_SEGMENTS,
-			onChange: (paths): void => {
+			routes,
+			onChange: (paths, adapterIds): void => {
 				workspace.changes.push(paths);
+				workspace.routedAdapters.push(adapterIds);
 			},
 		});
-		watcher.start([{absolutePath: ignoredPath}], []);
+		watcher.start(routes);
 		await delay(100);
 
 		writeFileSync(ignoredPath, 'export const value = 2;\n');
 		await delay(500);
 
 		expect(workspace.changes).toStrictEqual([]);
+	});
+});
+
+describe('WorkspaceWatcher routing', () => {
+	let directory: string | undefined;
+	let watcher: WorkspaceWatcher | undefined;
+
+	afterEach(() => {
+		watcher?.close();
+		watcher = undefined;
+
+		if (directory !== undefined) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+
+		directory = undefined;
+	});
+
+	it('routes each change to the adapter that owns it', async () => {
+		const workspace = createWorkspace();
+		({directory} = workspace);
+		const databaseDirectory = path.join(workspace.directory, 'db');
+		const oraclePath = path.join(databaseDirectory, 'package.pkb');
+		mkdirSync(databaseDirectory, {recursive: true});
+		writeFileSync(oraclePath, 'create or replace package body demo is end demo;\n');
+		const routes = [
+			{id: 'typescript', sourceExtensions: ['.ts'], files: [workspace.sourcePath], configFiles: [workspace.configPath]},
+			{id: 'oracle', sourceExtensions: ['.pkb', '.sql'], files: [oraclePath], configFiles: []},
+		];
+		watcher = new WorkspaceWatcher({
+			rootDir: workspace.directory,
+			logger: silentLogger,
+			ignoredSegments: DEFAULT_IGNORED_SEGMENTS,
+			routes,
+			onChange: (paths, adapterIds): void => {
+				workspace.changes.push(paths);
+				workspace.routedAdapters.push(adapterIds);
+			},
+		});
+		watcher.start(routes);
+		await delay(100);
+
+		workspace.routedAdapters.length = 0;
+		appendFileSync(workspace.sourcePath, 'export const later = 3;\n');
+		await waitForRoute(workspace, ['typescript']);
+
+		workspace.routedAdapters.length = 0;
+		appendFileSync(oraclePath, '-- later\n');
+		await waitForRoute(workspace, ['oracle']);
+
+		workspace.routedAdapters.length = 0;
+		writeFileSync(workspace.configPath, '{"compilerOptions":{"strict":true}}\n');
+		await waitForRoute(workspace, ['typescript']);
+
+		workspace.routedAdapters.length = 0;
+		mkdirSync(path.join(workspace.directory, 'src', 'created'));
+		await waitForRoute(workspace, null);
+		expect(workspace.routedAdapters).toContainEqual(null);
 	});
 });
 

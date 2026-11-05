@@ -141,7 +141,10 @@ may report declared absence. The two forms are mutually exclusive.
 rebuild starts (100–10000 ms, default 1000). Events keep restarting the window, so a
 burst of editor saves becomes one rebuild. Raise it for expensive builds or
 generators; lower it for small, interactive workspaces. One shared watcher serves
-every adapter, so this is a workspace-level setting.
+every adapter, so this is a workspace-level setting. Events are routed to the
+adapter that owns the changed path; a targeted refresh probes, scans, extracts, and
+writes only that adapter. Shared configuration changes and ambiguous paths still
+invalidate every adapter.
 
 Each entry may name an adapter `module`. A bare package name resolves from the
 configuration-file directory; a relative path resolves from the same directory.

@@ -31,7 +31,15 @@ const finalizePublication = (facts: ExtractorBuildType, extractorId: string | nu
 	return publication;
 };
 
-const hashesMatch = (adapter: GenerationAdapterType, scan: ScanResultType, target: AdapterTargetType): boolean =>
+/**
+ * Reports whether one persisted adapter row still guarantees the scanned facts.
+ *
+ * @param adapter - Persisted adapter provenance.
+ * @param scan - Current scan result.
+ * @param target - Loaded adapter implementation.
+ * @returns True when extraction and file rewrites can be skipped.
+ */
+export const adapterMatchesScan = (adapter: GenerationAdapterType, scan: ScanResultType, target: AdapterTargetType): boolean =>
 	adapter.coverage === 'present' &&
 	adapter.sourceHash === scan.sourceHash &&
 	adapter.configHash === scan.configHash &&
@@ -161,7 +169,7 @@ export const adapterCommitOf = async (
 		projects: scan.projects,
 	};
 
-	if (input.force !== true && previous !== undefined && hashesMatch(previous, scan, target)) {
+	if (input.force !== true && previous !== undefined && adapterMatchesScan(previous, scan, target)) {
 		return {...base, counts: previousCountsOf(previous)};
 	}
 

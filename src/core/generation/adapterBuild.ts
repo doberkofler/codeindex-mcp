@@ -179,50 +179,6 @@ export const combinedAdapterHashesOf = (entries: readonly AdapterHashEntryType[]
 };
 
 /**
- * Combines per-adapter fingerprints into one generation fingerprint.
- *
- * An absent optional adapter contributes a stable marker, so a later successful
- * probe invalidates whole-generation reuse.
- *
- * @param plans - Adapter scan plans.
- * @returns Combined source, configuration, and input hashes.
- */
-export const combinedHashesOf = (plans: readonly AdapterScanPlanType[]): Readonly<{sourceHash: string; configHash: string; inputHash: string}> => {
-	if (plans.length === 1) {
-		const [plan] = plans;
-
-		if (plan !== undefined) {
-			if (plan.coverage === 'absent' || plan.scan === null) {
-				const marker = `absent:${plan.absenceReason ?? 'unknown'}`;
-				return {sourceHash: marker, configHash: marker, inputHash: marker};
-			}
-
-			return {
-				sourceHash: plan.scan.sourceHash,
-				configHash: plan.scan.configHash,
-				inputHash: plan.scan.inputHash ?? plan.scan.configHash,
-			};
-		}
-	}
-
-	const entry = (
-		plan: AdapterScanPlanType,
-		hash: string | undefined,
-	): Readonly<{adapterId: string; coverage: AdapterCoverageType; reason: string | null; hash: string}> => ({
-		adapterId: plan.adapterId,
-		coverage: plan.coverage,
-		reason: plan.absenceReason,
-		hash: hash ?? '',
-	});
-
-	return {
-		sourceHash: hashOf(plans.map((plan) => entry(plan, plan.scan?.sourceHash))),
-		configHash: hashOf(plans.map((plan) => entry(plan, plan.scan?.configHash))),
-		inputHash: hashOf(plans.map((plan) => entry(plan, plan.scan?.inputHash ?? plan.scan?.configHash))),
-	};
-};
-
-/**
  * Records one path owner, rejecting a second adapter for the same identity.
  *
  * @param owners - Identity to adapter map.

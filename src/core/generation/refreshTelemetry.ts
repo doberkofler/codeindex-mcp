@@ -20,7 +20,7 @@ const recordSafely = (analytics: AnalyticsRecorderType | null, event: string, fi
  *
  * @param input - Logger, analytics sink, refresh reason, report, and resources.
  */
-export const recordPublishedRefresh = (input: RefreshTelemetryInputType & Readonly<{report: BuildReportType}>): void => {
+const recordPublishedRefresh = (input: RefreshTelemetryInputType & Readonly<{report: BuildReportType}>): void => {
 	const {report} = input;
 	input.logger.info('index_ready', {
 		generationId: report.generationId,
@@ -50,7 +50,7 @@ export const recordPublishedRefresh = (input: RefreshTelemetryInputType & Readon
  *
  * @param input - Logger, analytics sink, refresh reason, report, and resources.
  */
-export const recordSupersededRefresh = (input: RefreshTelemetryInputType & Readonly<{report: BuildReportType}>): void => {
+const recordSupersededRefresh = (input: RefreshTelemetryInputType & Readonly<{report: BuildReportType}>): void => {
 	const {report} = input;
 	input.logger.info('index_superseded', {
 		generationId: report.generationId,
@@ -65,6 +65,20 @@ export const recordSupersededRefresh = (input: RefreshTelemetryInputType & Reado
 		occurrenceCount: report.occurrenceCount,
 		...input.resources,
 	});
+};
+
+/**
+ * Records one completed attempt under its actual outcome.
+ *
+ * @param input - Logger, analytics sink, reason, report, and resources.
+ */
+export const recordRefreshOutcome = (input: RefreshTelemetryInputType & Readonly<{report: BuildReportType}>): void => {
+	if (input.report.outcome === 'superseded') {
+		recordSupersededRefresh(input);
+		return;
+	}
+
+	recordPublishedRefresh(input);
 };
 
 /**

@@ -1,22 +1,15 @@
+import path from 'node:path';
 import {adapterConfigFor, type ConfigType} from '../config/config.ts';
 import {extractorSourceExtensions} from '../../adapters/types.ts';
 import {type AnalyticsRecorderType} from '../analytics/recorder.ts';
+import {type WatchRouteType} from '../freshness/workspaceWatcher.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {type GenerationRowType} from '../model.ts';
 import {type IndexDatabase} from '../storage/database.ts';
 import {probeAdapter, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
 import {recordCompilerDrift} from './compilerDriftTelemetry.ts';
 
-/**
- * Unions the source extensions every configured adapter publishes.
- *
- * @param config - Resolved configuration.
- * @param targets - Configured adapters and implementations.
- * @returns Deduplicated extension list.
- */
-export const adapterSourceExtensions = (config: ConfigType, targets: readonly AdapterTargetType[]): readonly string[] => [
-	...new Set(targets.flatMap((target) => extractorSourceExtensions(target.extractor, adapterConfigFor(config, target.adapter)))),
-];
+const {resolve} = path;
 
 /**
  * Intersects ignored directory segments across adapters.
@@ -38,15 +31,100 @@ export const adapterIgnoredSegments = (targets: readonly AdapterTargetType[]): r
 };
 
 /**
- * Unions every adapter configuration file and watch input.
+ * Projects the shared watcher configuration into logical adapter routes.
+ *
+ * The watcher keeps one physical subscription. Routes only decide which adapter
+ * a changed path invalidates. Published file rows are authoritative after a
+ * refresh; a scan plan supplies the same identities before the first
+ * publication and contributes watch inputs that are not persisted.
+ *
+ * @param input - Configuration, targets, optional scan plans, published
+ * generation, and remembered adapter watch inputs.
+ * @returns One route per configured adapter.
+ */
+const adapterWatchRoutes = (
+	input: Readonly<{
+		config: ConfigType;
+		targets: readonly AdapterTargetType[];
+		plans?: readonly AdapterScanPlanType[];
+		database?: IndexDatabase;
+		published?: GenerationRowType | null;
+		watchInputs?: ReadonlyMap<string, readonly string[]>;
+	}>,
+): readonly WatchRouteType[] =>
+	input.targets.map((target) => {
+		const adapterId = target.adapter.id;
+		const scoped = adapterConfigFor(input.config, target.adapter);
+		const plan = input.plans?.find((candidate) => candidate.adapterId === adapterId);
+		const publishedFiles =
+			plan?.scan?.files.map((file) => file.absolutePath) ??
+			(input.database === undefined || input.published === undefined || input.published === null
+				? []
+				: input.database.listFiles(input.published.id, adapterId).map((file) => resolve(input.config.rootDir, file.path)));
+
+		return {
+			id: adapterId,
+			sourceExtensions: extractorSourceExtensions(target.extractor, scoped),
+			files: publishedFiles,
+			configFiles: [...new Set([...target.extractor.configFiles(scoped), ...(plan?.scan?.watchInputs ?? input.watchInputs?.get(adapterId) ?? [])])],
+		};
+	});
+
+/**
+ * Narrows configured adapters to the event scope.
+ *
+ * @param targets - Every configured adapter.
+ * @param adapterIds - Adapters that changed, or null for every adapter.
+ * @returns The scoped targets, or every target when the scope names none.
+ */
+export const adapterTargetsForScope = (targets: readonly AdapterTargetType[], adapterIds: readonly string[] | null): readonly AdapterTargetType[] => {
+	if (adapterIds === null) {
+		return targets;
+	}
+
+	const scoped = targets.filter((target) => adapterIds.includes(target.adapter.id));
+	// An empty scope would mean an event named no configured adapter. Treat it
+	// as unknown invalidation rather than pretending the index is current.
+	return scoped.length === 0 ? targets : scoped;
+};
+
+/**
+ * Merges non-source watch inputs discovered by the latest scan.
+ *
+ * @param plans - Scan plans from this attempt.
+ * @param previous - Inputs remembered from earlier attempts.
+ * @returns A map covering scanned adapters plus untouched ones.
+ */
+export const adapterWatchInputs = (
+	plans: readonly AdapterScanPlanType[],
+	previous: ReadonlyMap<string, readonly string[]>,
+): ReadonlyMap<string, readonly string[]> => {
+	const merged = new Map(previous);
+
+	for (const plan of plans) {
+		if (plan.scan !== null) {
+			merged.set(plan.adapterId, plan.scan.watchInputs ?? []);
+		}
+	}
+
+	return merged;
+};
+
+/**
+ * Builds watcher routes from the currently published generation.
  *
  * @param config - Resolved configuration.
  * @param targets - Configured adapters.
- * @returns Deduplicated absolute paths.
+ * @param database - Open index database.
+ * @param watchInputs - Remembered non-source inputs per adapter.
+ * @returns One logical watcher route per adapter.
  */
-export const adapterConfigFiles = (config: ConfigType, targets: readonly AdapterTargetType[]): readonly string[] => [
-	...new Set(targets.flatMap((target) => target.extractor.configFiles(adapterConfigFor(config, target.adapter)))),
-];
+export const watchRoutesOf = (
+	config: ConfigType,
+	targets: readonly AdapterTargetType[],
+	database: IndexDatabase,
+	watchInputs: ReadonlyMap<string, readonly string[]>,
+): readonly WatchRouteType[] => adapterWatchRoutes({config, targets, database, published: database.getPublishedGeneration(), watchInputs});
 
 /**
  * Probes and scans every configured adapter.

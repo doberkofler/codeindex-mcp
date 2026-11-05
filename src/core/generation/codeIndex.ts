@@ -10,11 +10,12 @@ import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
 import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
 import {buildFailureOf, buildProjectContextOfScan} from './buildFailure.ts';
 import {buildGeneration} from './buildGeneration.ts';
-import {recordFailedRefresh, recordPublishedRefresh, recordSupersededRefresh} from './refreshTelemetry.ts';
+import {recordFailedRefresh, recordRefreshOutcome} from './refreshTelemetry.ts';
 import {adapterSetOf, type CodeIndexOptionsType} from './codeIndexOptions.ts';
+import {buildQueryContext} from './codeIndexQueryContext.ts';
 import {runBuildWorkerThread} from './buildWorkerClient.ts';
 import {adapterTargets, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
-import {adapterConfigFiles, adapterIgnoredSegments, adapterSourceExtensions, planAdapterScans} from './adapterRefresh.ts';
+import {adapterIgnoredSegments, adapterTargetsForScope, adapterWatchInputs, planAdapterScans, watchRoutesOf} from './adapterRefresh.ts';
 import {
 	findDependencies as queryDependencies,
 	findReferences as queryReferences,
@@ -23,7 +24,7 @@ import {
 } from '../query/queryService.ts';
 import {CodeIndexError, IndexNotReadyError} from '../errors/errors.ts';
 import {acquireOrObserveBuildLease, EXTERNAL_BUILD_TIMEOUT_MS} from './externalBuild.ts';
-import {collectStatus} from '../freshness/indexStatus.ts';
+import {readIndexStatus} from './codeIndexStatus.ts';
 import {
 	type BuildReportType,
 	type BuildOutcomeType,
@@ -51,14 +52,14 @@ import {
 	type SymbolAtInputType,
 	type SymbolAtResultType,
 } from '../model.ts';
-import {publishedFiles} from './publishedFiles.ts';
 import {startProcessSample} from '../resources/processSample.ts';
 import {queryOutline} from '../query/outlineQuery.ts';
 import {verifyPublishedIndex} from './verifyIndex.ts';
 import {queryReadSymbol} from '../query/readSymbolQuery.ts';
 import {selectReadSymbol} from '../query/readSymbolSelection.ts';
 import {querySymbolAt} from '../query/symbolAtQuery.ts';
-import {RefreshCoordinator, type RefreshReasonType} from '../freshness/refreshCoordinator.ts';
+import {RefreshCoordinator} from '../freshness/refreshCoordinator.ts';
+import {type RefreshRequestType} from '../freshness/refreshTypes.ts';
 import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
 
 const debug = debugFor('index');
@@ -81,6 +82,8 @@ export class CodeIndex {
 	readonly #override: AdapterTargetType['extractor'] | undefined;
 	readonly #ownerId = randomUUID();
 	readonly #compilerDriftObserved = new Set<string>();
+	/** Per-adapter non-source inputs discovered by the latest scan. */
+	#watchInputs: ReadonlyMap<string, readonly string[]> = new Map();
 	readonly #recordExactName = (presence: ExactNamePresenceType): void => {
 		this.#analytics?.record('find_symbol_outcome', {presence});
 	};
@@ -110,8 +113,8 @@ export class CodeIndex {
 			...(options.clock === undefined ? {} : {clock: options.clock}),
 			debounceMs: options.debounceMs ?? config.freshnessDebounceMs,
 			...(options.reconcileIntervalMs === undefined ? {} : {reconcileIntervalMs: options.reconcileIntervalMs}),
-			runRefresh: async (reason): Promise<BuildOutcomeType> => {
-				const report = await this.#refresh(reason, false);
+			runRefresh: async (reason, adapterIds, signal): Promise<BuildOutcomeType> => {
+				const report = await this.#refresh({reason, force: false, adapterIds, signal});
 				return report.outcome;
 			},
 			record: (event, fields): void => {
@@ -121,10 +124,10 @@ export class CodeIndex {
 		this.#watcher = new WorkspaceWatcher({
 			rootDir: config.rootDir,
 			logger,
-			sourceExtensions: adapterSourceExtensions(this.#config, this.#targets),
 			ignoredSegments: adapterIgnoredSegments(this.#targets),
-			onChange: (paths): void => {
-				this.#coordinator.notify(paths);
+			routes: watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs),
+			onChange: (paths, adapterIds): void => {
+				this.#coordinator.notify(paths, adapterIds);
 			},
 		});
 		if (this.#published !== null) {
@@ -148,7 +151,7 @@ export class CodeIndex {
 			return;
 		}
 		if (this.#watchEnabled) {
-			this.#watcher.start(publishedFiles(this.#database, this.#config.rootDir), adapterConfigFiles(this.#config, this.#targets));
+			this.#watcher.start(watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs));
 		}
 		debug('startup refresh requested');
 		this.#coordinator.notify([]);
@@ -162,7 +165,7 @@ export class CodeIndex {
 	 * @throws {@link Error} When scanning or building fails.
 	 */
 	public async ensureReady(options: Readonly<{force?: boolean}> = {}): Promise<BuildReportType> {
-		const report = await this.#refresh('manual', options.force === true);
+		const report = await this.#refresh({reason: 'manual', force: options.force === true});
 		if (report.outcome === 'superseded') {
 			this.#coordinator.noteSuperseded(report.durationMs);
 		} else {
@@ -170,12 +173,12 @@ export class CodeIndex {
 		}
 		return report;
 	}
-	async #refresh(reason: RefreshReasonType, force: boolean): Promise<BuildReportType> {
+	async #refresh(request: RefreshRequestType): Promise<BuildReportType> {
 		if (this.#refreshing !== null) {
-			debug('refresh already in progress', {reason});
+			debug('refresh already in progress', {reason: request.reason});
 			return this.#refreshing;
 		}
-		const refreshing = this.#performRefresh(reason, force);
+		const refreshing = this.#performRefresh(request);
 		this.#refreshing = refreshing;
 		try {
 			return await refreshing;
@@ -185,10 +188,12 @@ export class CodeIndex {
 			}
 		}
 	}
-	async #performRefresh(reason: RefreshReasonType, force: boolean): Promise<BuildReportType> {
-		debug('refresh start', {reason, force});
+	async #performRefresh(request: RefreshRequestType): Promise<BuildReportType> {
+		const {reason, force, adapterIds = null, signal} = request;
+		debug('refresh start', {reason, force, adapters: adapterIds});
 		const startedAt = performance.now();
 		const startedAtEpoch = Date.now();
+		const targets = adapterTargetsForScope(this.#targets, adapterIds);
 		const leaseOutcome = await acquireOrObserveBuildLease({
 			database: this.#database,
 			previous: this.#published,
@@ -217,21 +222,16 @@ export class CodeIndex {
 			this.#published = published;
 			plans = await planAdapterScans({
 				config: this.#config,
-				targets: this.#targets,
+				targets,
 				database: this.#database,
 				published,
 				logger: this.#logger,
 				analytics: this.#analytics,
 				observed: this.#compilerDriftObserved,
 			});
-			const report = await this.#rebuild(plans, force, startedAtEpoch);
-			if (this.#watchEnabled) {
-				this.#watcher.update(
-					plans.flatMap((plan) => plan.scan?.files ?? []),
-					[...new Set([...plans.flatMap((plan) => plan.scan?.watchInputs ?? []), ...adapterConfigFiles(this.#config, this.#targets)])],
-					adapterSourceExtensions(this.#config, this.#targets),
-				);
-			}
+			this.#watchInputs = adapterWatchInputs(plans, this.#watchInputs);
+			const report = await this.#rebuild(plans, force, startedAtEpoch, signal);
+			this.#watcher.update(watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs));
 			this.#published = this.#database.getPublishedGeneration();
 			const telemetry = {
 				logger: this.#logger,
@@ -240,13 +240,8 @@ export class CodeIndex {
 				durationMs: report.durationMs,
 				resources: resources(),
 			};
-			if (report.outcome === 'superseded') {
-				debug('refresh superseded', {generationId: report.generationId, durationMs: report.durationMs});
-				recordSupersededRefresh({...telemetry, report});
-				return report;
-			}
-			debug('refresh complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
-			recordPublishedRefresh({...telemetry, report});
+			debug('refresh complete', {generationId: report.generationId, outcome: report.outcome, durationMs: report.durationMs});
+			recordRefreshOutcome({...telemetry, report});
 			return report;
 		} catch (error) {
 			recordFailedRefresh({
@@ -278,21 +273,14 @@ export class CodeIndex {
 		}
 	}
 	public getStatus(): IndexStatusType {
-		return this.#database.readSnapshot(() => {
-			const published = this.#database.getPublishedGeneration();
-			this.#published = published;
-			const status = collectStatus({
-				config: this.#config,
-				adapters: this.#adapterSet.byId,
-				database: this.#database,
-				published,
-				refresh: this.#coordinator.getSnapshot(),
-				workingCopyId: this.#database.getWorkingCopy()?.id ?? null,
-				lastError: null,
-			});
-			debug('status', {state: status.state, refresh: status.refresh, published: published?.id ?? null, dirtyFiles: status.freshness.dirtyFileCount});
-			return status;
+		const {status, published} = readIndexStatus({
+			config: this.#config,
+			adapters: this.#adapterSet.byId,
+			database: this.#database,
+			refresh: this.#coordinator.getSnapshot(),
 		});
+		this.#published = published;
+		return status;
 	}
 	public getFreshness(): QueryFreshnessType {
 		return this.#coordinator.getFreshness();
@@ -438,26 +426,15 @@ export class CodeIndex {
 		this.#database.close();
 	}
 	#queryContext(): QueryContextType {
-		const normalizers = new Map<string, (text: string) => string>();
-
-		for (const target of this.#targets) {
-			const normalize = target.extractor.normalizeQueryName;
-
-			if (normalize !== undefined) {
-				normalizers.set(target.adapter.id, normalize);
-			}
-		}
-
-		return {
+		return buildQueryContext({
 			database: this.#database,
 			generationId: this.#generation().id,
 			freshness: this.getFreshness(),
-			adapters: this.#targets.map((target) => target.adapter.id),
-			normalizers,
+			targets: this.#targets,
 			...(this.#analytics === null ? {} : {exactNameTelemetry: this.#recordExactName}),
-		};
+		});
 	}
-	async #rebuild(plans: readonly AdapterScanPlanType[], force: boolean, startedAtEpoch: number): Promise<BuildReportType> {
+	async #rebuild(plans: readonly AdapterScanPlanType[], force: boolean, startedAtEpoch: number, signal?: AbortSignal): Promise<BuildReportType> {
 		const workerPath = this.#workerEntry;
 		debug('rebuild requested', {force, worker: workerPath, adapters: plans.length});
 		if (workerPath === null) {
@@ -472,6 +449,7 @@ export class CodeIndex {
 				ownerId: this.#ownerId,
 				startedAtEpoch,
 				...(this.#override === undefined ? {} : {extractor: this.#override}),
+				...(signal === undefined ? {} : {isCancelled: () => signal.aborted}),
 			});
 		}
 		const report = await runBuildWorkerThread({
@@ -483,13 +461,13 @@ export class CodeIndex {
 			ownerId: this.#ownerId,
 			startedAtEpoch,
 			debug: debug.enabled,
+			...(signal === undefined ? {} : {signal}),
 		});
 		return report;
 	}
 	#generation(): GenerationRowType {
 		const published = this.#database.getPublishedGeneration();
 		if (published === null) {
-			debug('no published generation');
 			throw new IndexNotReadyError();
 		}
 		this.#published = published;

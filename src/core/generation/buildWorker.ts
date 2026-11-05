@@ -112,6 +112,13 @@ export const runBuildWorker = async (data: BuildWorkerDataType): Promise<BuildWo
 
 	let database: IndexDatabase | undefined;
 	let message: BuildWorkerMessageType;
+	let cancelled = false;
+	const onMessage = (value: unknown): void => {
+		if (isRecord(value) && value['kind'] === 'code-index-cancel') {
+			cancelled = true;
+		}
+	};
+	parentPort?.on('message', onMessage);
 	debug('build worker start', {rootDir: data.config.rootDir, adapters: data.scans.length, force: data.force});
 
 	try {
@@ -143,6 +150,7 @@ export const runBuildWorker = async (data: BuildWorkerDataType): Promise<BuildWo
 			scans: data.scans,
 			force: data.force,
 			ownerId: data.ownerId,
+			isCancelled: () => cancelled,
 			...(data.startedAtEpoch === undefined ? {} : {startedAtEpoch: data.startedAtEpoch}),
 		});
 		debug('build worker complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
@@ -153,6 +161,7 @@ export const runBuildWorker = async (data: BuildWorkerDataType): Promise<BuildWo
 		const [firstScan] = scans;
 		message = {ok: false, failure: buildFailureOf(error, 'unknown', projectContextOf(scans), scans.length === 1 ? (firstScan?.adapterId ?? null) : null)};
 	} finally {
+		parentPort?.off('message', onMessage);
 		// Completion is reported only after the worker's connections are closed.
 		// The parent closes and reopens the same database as soon as it observes
 		// the report, so an overlap would race the last-connection WAL checkpoint.

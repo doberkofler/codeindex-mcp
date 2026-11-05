@@ -115,6 +115,8 @@ export const runBuildWorkerThread = async (
 		ownerId: string;
 		startedAtEpoch: number;
 		debug: boolean;
+		/** Cooperative cancellation; the worker discards the candidate at a safe checkpoint. */
+		signal?: AbortSignal | undefined;
 	}>,
 ): Promise<BuildReportType> => {
 	const worker = new Worker(input.workerEntry, {
@@ -134,6 +136,22 @@ export const runBuildWorkerThread = async (
 	const complete = (): void => {
 		completion.dispatchEvent(new Event('done'));
 	};
+	const cancel = (): void => {
+		try {
+			worker.postMessage({kind: 'code-index-cancel'}, []);
+		} catch {
+			// The worker may have completed between the abort and this message.
+		}
+	};
+	const {signal} = input;
+
+	if (signal !== undefined) {
+		if (signal.aborted) {
+			cancel();
+		} else {
+			signal.addEventListener('abort', cancel, {once: true});
+		}
+	}
 
 	worker.once('message', (value: unknown) => {
 		state.message = value;
@@ -156,6 +174,7 @@ export const runBuildWorkerThread = async (
 	});
 
 	await once(completion, 'done');
+	signal?.removeEventListener('abort', cancel);
 	const project = projectContextOf(input.scans);
 
 	if (state.failure !== null) {
