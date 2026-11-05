@@ -1,4 +1,5 @@
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {parse, type ParseError} from 'jsonc-parser';
@@ -116,7 +117,7 @@ describe('mcp command', () => {
 
 		expect(config.$schema).toBeUndefined();
 		expect(serverOf(config)).toStrictEqual({
-			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
+			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs'], cwd: root},
 		});
 		expect(captured.stdout.join('\n')).toContain('Installed codeindex MCP server');
 	});
@@ -144,7 +145,7 @@ describe('mcp command', () => {
 		expect(config.model).toBe('provider/model');
 		expect(serverOf(config)).toStrictEqual({
 			other: {type: 'local', command: ['other']},
-			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
+			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs'], cwd: root},
 		});
 	});
 
@@ -174,6 +175,24 @@ describe('mcp command', () => {
 		const second = createIo();
 		expect(runMcpCommand(['uninstall', '--root', root], second.io, {mcpPath})).toBe(0);
 		expect(second.stdout.join('\n')).toContain('is not configured');
+	});
+
+	it('installs a workspace-independent cwd for nested sessions', () => {
+		const {root, mcpPath, configPath} = fixture();
+		writeFileSync(mcpPath, 'process.stdout.write(process.cwd());\n');
+		const nested = path.join(root, 'tools', 'oracle_client_monitor');
+		mkdirSync(nested, {recursive: true});
+		expect(runMcpCommand(['install', '--root', root], createIo().io, {mcpPath})).toBe(0);
+		const config = parseConfig(readFileSync(configPath, 'utf8'));
+		const servers = serverOf(config);
+		const entry = z
+			.object({type: z.literal('local'), command: z.array(z.string()).min(1), cwd: z.string()})
+			.parse(isObject(servers) ? servers['codeindex'] : undefined);
+		expect(entry).toStrictEqual({type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs'], cwd: root});
+		const started = spawnSync(process.execPath, entry.command.slice(1), {cwd: entry.cwd, encoding: 'utf8'});
+
+		expect(started.status).toBe(0);
+		expect(started.stdout).toBe(realpathSync(root));
 	});
 
 	it('fails before writing when the MCP bundle is missing', () => {
@@ -210,7 +229,7 @@ describe('mcp command schema hint', () => {
 		const config = parseConfig(readFileSync(configPath, 'utf8'));
 		expect(config.$schema).toBeUndefined();
 		expect(serverOf(config)).toStrictEqual({
-			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs']},
+			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs'], cwd: root},
 		});
 	});
 
@@ -256,6 +275,7 @@ describe('mcp command with a CodeIndex configuration', () => {
 			codeindex: {
 				type: 'local',
 				command: ['node', 'tools/code_index/dist/mcp.mjs', '--config', 'tools/code_index/codeindex.config.json'],
+				cwd: root,
 			},
 		});
 	});
@@ -272,6 +292,7 @@ describe('mcp command with a CodeIndex configuration', () => {
 			codeindex: {
 				type: 'local',
 				command: ['node', 'tools/code_index/dist/mcp.mjs', '--config', 'tools/code_index/codeindex.config.json'],
+				cwd: root,
 			},
 		});
 		expect(captured.stdout.join('\n')).toContain('Installed codeindex MCP server');
@@ -296,6 +317,7 @@ describe('mcp command with a CodeIndex configuration', () => {
 			codeindex: {
 				type: 'local',
 				command: ['node', 'vendor/mcp.mjs', '--config', 'tools/code_index/codeindex.config.json'],
+				cwd: root,
 			},
 		});
 	});
@@ -367,6 +389,7 @@ describe('mcp command legacy registration', () => {
 			codeindex: {
 				type: 'local',
 				command: ['node', 'tools/code_index/dist/mcp.mjs', '--config', 'tools/code_index/codeindex.config.json'],
+				cwd: root,
 			},
 		});
 	});

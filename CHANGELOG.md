@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+* **mcp:** install an absolute project-root `cwd` with the OpenCode server entry.
+  OpenCode discovers a project configuration from ancestor directories but starts
+  the server in the session workspace, so a session opened in a nested monorepo
+  directory resolved the relative bundle and configuration paths against that
+  directory and the transport failed. Install now validates the bundle from the
+  recorded `cwd`; re-run `mcp install` after moving the checkout.
+
 * **benchmark:** measure edit-to-fresh on pinned public projects. Each run copies
   the prepared checkout into a disposable workspace, so the pin is never mutated
   and `benchmark/baseline-external.json` can require the edit scenario it already

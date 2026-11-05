@@ -55,7 +55,9 @@ Options:
   --help                     Print this message.
 
 --config selects the OpenCode configuration file to edit. To make the installed
-server use a CodeIndex configuration file, pass --codeindex-config. Legacy proof
+server use a CodeIndex configuration file, pass --codeindex-config. The entry
+records an absolute cwd for the project root, so sessions started in a nested
+directory still resolve the relative bundle and configuration paths. Legacy proof
 compares the registered command with the one this invocation would write.
 `;
 
@@ -133,6 +135,8 @@ const configPathOf = (input: InputType): string => {
 	return resolve(root, ...DEFAULT_CONFIG_PATH);
 };
 
+const serverDirectoryOf = (root: string): string => resolve(root);
+
 const commandPathOf = (root: string, mcpPath: string): string => relative(resolve(root), resolve(mcpPath)).split(sep).join('/');
 
 const relativeInsideRoot = (root: string, filePath: string, option: string): string => {
@@ -171,7 +175,15 @@ const serverCommandOf = (root: string, mcpPath: string, codeIndexConfig: string 
 	return command;
 };
 
-const serverEntryOf = (command: readonly string[]): Readonly<Record<string, unknown>> => ({type: 'local', command: [...command]});
+// OpenCode resolves a relative `cwd` from the session workspace, which is a
+// nested directory when a monorepo session starts below the repository root.
+// An absolute cwd keeps the relative bundle and configuration paths independent
+// of the workspace that discovered the configuration file.
+const serverEntryOf = (command: readonly string[], directory: string): Readonly<Record<string, unknown>> => ({
+	type: 'local',
+	command: [...command],
+	cwd: directory,
+});
 
 // A legacy entry is provable only when its registered command equals the one
 // this invocation would write; extra properties do not weaken that proof.
@@ -192,9 +204,11 @@ const readConfig = (configPath: string): string => (existsSync(configPath) ? rea
 
 type InstallResultType = Readonly<{text: string; migrated: readonly string[]}>;
 
-const install = (input: InputType, configPath: string, command: readonly string[], migrateLegacy: boolean): InstallResultType => {
-	if (!existsSync(input.mcpPath)) {
-		throw new Error(`MCP bundle not found: ${input.mcpPath}. Run "pnpm build" first.`);
+const install = (configPath: string, command: readonly string[], directory: string, migrateLegacy: boolean): InstallResultType => {
+	const bundlePath = resolve(directory, command[1] ?? '');
+
+	if (!existsSync(bundlePath)) {
+		throw new Error(`MCP bundle not found: ${bundlePath}. Run "pnpm build" first.`);
 	}
 
 	const text = readConfig(configPath);
@@ -219,7 +233,7 @@ const install = (input: InputType, configPath: string, command: readonly string[
 		next = applyPath(next, ['mcp', 'servers', serverName], REMOVE);
 	}
 
-	next = applyPath(next, ['mcp', 'servers', SERVER_NAME], serverEntryOf(command));
+	next = applyPath(next, ['mcp', 'servers', SERVER_NAME], serverEntryOf(command, directory));
 	parseJsonc(next, configPath);
 	return {text: next, migrated: legacy};
 };
@@ -317,9 +331,10 @@ const applyAction = (
 	options: Pick<CliOptionsType, 'legacy' | 'migrateLegacy'>,
 ): ActionOutcomeType => {
 	const command = serverCommandOf(input.root, input.mcpPath, codeIndexConfigPathOf(input.root, input.codeIndexConfig));
+	const directory = serverDirectoryOf(input.root);
 
 	if (action === 'install') {
-		const result = install(input, configPath, command, options.migrateLegacy);
+		const result = install(configPath, command, directory, options.migrateLegacy);
 		return {changed: true, text: result.text, removedCanonical: false, removedLegacy: result.migrated};
 	}
 

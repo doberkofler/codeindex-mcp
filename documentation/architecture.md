@@ -541,7 +541,11 @@ maintainer-only and live in `src/entries/qualify.ts`, not in the production CLI.
 
 `mcp install` and `mcp uninstall` manage one project-local OpenCode entry named
 `codeindex`, independent of the configured adapter set. The entry preserves
-unrelated JSONC content. Releases before multi-adapter support registered one key
+unrelated JSONC content. It records the absolute project root as `cwd`, because
+OpenCode discovers a project configuration from ancestor directories but starts
+the server in the session workspace; without the absolute `cwd`, a session below
+the repository root would resolve the relative bundle and configuration paths
+against the nested directory. Releases before multi-adapter support registered one key
 per adapter (`codeindex-<extractor.id>`); install refuses to write while those
 legacy keys exist. Migration removes a legacy entry only when its registered
 command and arguments equal the command this invocation would write, so an entry

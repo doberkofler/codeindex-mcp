@@ -193,8 +193,11 @@ codeindex-cli mcp install \
 
 This writes exactly one `mcp.servers.codeindex` entry to the existing project
 OpenCode configuration, or creates `.opencode/opencode.jsonc`. The key does not
-change with the configured adapters. Reconnect the MCP server after installation
-or an upgrade.
+change with the configured adapters. The entry records the absolute project root
+as its `cwd`, so OpenCode resolves the relative bundle and CodeIndex configuration
+paths from the repository root even when a session starts in a nested directory of
+a monorepo. Re-run `mcp install` after moving the checkout, because that `cwd` is
+an absolute path. Reconnect the MCP server after installation or an upgrade.
 
 Older releases registered one key per adapter, such as `codeindex-oracle`.
 `mcp install` refuses to write while such legacy keys remain. When the registered
