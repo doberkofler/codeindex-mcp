@@ -1,4 +1,5 @@
 import {isBuildFailureCause} from '../generation/buildFailureCause.ts';
+import {walSizeLimitBytes} from '../storage/walPolicy.ts';
 import {type SoakGateType, type SoakReportType} from './soakTypes.ts';
 
 export type SoakReportBaseType = Omit<SoakReportType, 'gates' | 'passed' | 'blocking'>;
@@ -64,8 +65,18 @@ const restartGateOf = (report: SoakReportBaseType): SoakGateType => ({
 const retentionGateOf = (report: SoakReportBaseType): SoakGateType => ({
 	id: 'soak.retention-policy',
 	result: report.retention.satisfied ? 'pass' : 'fail',
-	detail: `max generations ${String(report.retention.maxima.generations)}, content ${String(report.retention.maxima.contentVersions)}/${String(report.retention.bounds.contentVersions)}`,
+	detail: `max generations ${String(report.retention.maxima.generations)}, content ${String(report.retention.maxima.contentVersions)}/${String(report.retention.bounds.contentVersions)}, WAL ${String(report.retention.maxima.walBytes)}/${String(report.retention.bounds.walBytes)}`,
 });
+
+const walGateOf = (report: SoakReportBaseType): SoakGateType => {
+	const breaches = report.retention.observations.filter((observation) => observation.walBytes > walSizeLimitBytes(observation.databaseBytes));
+
+	return {
+		id: 'soak.wal-bound',
+		result: breaches.length === 0 ? 'pass' : 'fail',
+		detail: `${String(report.retention.maxima.walBytes)} bytes peak WAL against ${String(report.retention.bounds.walBytes)} byte bound`,
+	};
+};
 
 const publicationGateOf = (report: SoakReportBaseType): SoakGateType => ({
 	id: 'soak.publication-preserved',
@@ -117,6 +128,7 @@ export const gatesOf = (report: SoakReportBaseType, requireBuildOverlap: boolean
 	recoveryGateOf(report),
 	restartGateOf(report),
 	retentionGateOf(report),
+	walGateOf(report),
 	publicationGateOf(report),
 	durationGate(report.elapsedMs, report.plan.durationMs),
 	idleGate(report.idle),

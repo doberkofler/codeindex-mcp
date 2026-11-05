@@ -14,6 +14,7 @@ import {
 import {BUILD_LEASE_TTL_MS, renewLeaseStrict} from './databaseLease.ts';
 import {readGeneration} from './databaseRead.ts';
 import {asNumber, asString} from './databaseRows.ts';
+import {checkpointWal} from './databaseWal.ts';
 import {analyzeDatabase} from './databaseStatistics.ts';
 import {transaction} from './databaseTransaction.ts';
 import {deleteAdapterRows, upsertAdapterRow} from './databaseAdapterRows.ts';
@@ -49,6 +50,23 @@ const ZERO_COUNTS: AdapterCommitCountsType = {
 };
 
 const zeroStages = (): Readonly<{scanMs: number; compilerMs: number; extractionMs: number}> => ({scanMs: 0, compilerMs: 0, extractionMs: 0});
+
+const checkpointAfterPublication = (writer: DatabaseSync): void => {
+	try {
+		const state = checkpointWal(writer);
+		debug('publication wal checkpoint', {
+			mode: state.mode,
+			busy: state.busy,
+			logFrames: state.logFrames,
+			checkpointedFrames: state.checkpointedFrames,
+			truncated: state.truncated,
+		});
+	} catch (error) {
+		// Publication already committed; a failed checkpoint must not turn a
+		// successful build into a failed one.
+		debug('publication wal checkpoint skipped', {message: error instanceof Error ? error.message : String(error)});
+	}
+};
 
 const adapterRowCounts = (row: Readonly<Record<string, unknown>>): AdapterCommitCountsType => ({
 	files: asNumber(row, 'file_count'),
@@ -301,6 +319,7 @@ export const commitAdapters = (connection: CommitConnectionType, input: MultiGen
 	}
 
 	writer.prepare('update generation set publication_ms = ? where id = ?').run(publicationMs, input.generationId);
+	checkpointAfterPublication(writer);
 	debug('generation committed', {generationId: input.generationId, revision: report.revision, changedPaths: report.changedPaths.length});
 	return {...report, stages: {...report.stages, publicationMs}};
 };
@@ -463,6 +482,7 @@ export const publishNewGeneration = (
 
 	const publicationMs = Math.round(performance.now() - publicationStartedAt);
 	writer.prepare('update generation set publication_ms = ? where id = ?').run(publicationMs, generationId);
+	checkpointAfterPublication(writer);
 	debug('generation published', {generationId, counts, publicationMs});
 	return publicationMs;
 };

@@ -4,7 +4,7 @@ import {type BenchmarkPercentilesType, type BenchmarkProfileType} from './benchT
 import {type BenchmarkCorpusCountsType} from './corpus.ts';
 
 /** Version of the operational soak report. */
-export const SOAK_SCHEMA_VERSION = 2 as const;
+export const SOAK_SCHEMA_VERSION = 3 as const;
 
 /** One real file write in a soak event. */
 export type SoakEditType = Readonly<{
@@ -106,6 +106,7 @@ export type SoakRetentionObservationType = Readonly<{
 	contentVersions: number;
 	extractionArtifacts: number;
 	databaseBytes: number;
+	walBytes: number;
 	totalBytes: number;
 }>;
 
@@ -136,11 +137,13 @@ export type SoakRetentionType = Readonly<{
 		contentVersions: number;
 		extractionArtifacts: number;
 		databaseBytes: number;
+		walBytes: number;
 	}>;
 	bounds: Readonly<{
 		generations: number;
 		contentVersions: number;
 		extractionArtifacts: number;
+		walBytes: number;
 	}>;
 	satisfied: boolean;
 }>;

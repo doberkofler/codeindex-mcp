@@ -2,6 +2,7 @@ import {existsSync, readdirSync, statSync, type Dirent} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import path from 'node:path';
 import {activeProcessOwnersInDirectory, type ActiveProcessOwnerType} from './storage/processOwnership.ts';
+import {walSizeLimitBytes} from './storage/walPolicy.ts';
 import {normalizeAuditPath} from './storageAuditRoots.ts';
 import {
 	type StorageAuditCategoryType,
@@ -9,6 +10,7 @@ import {
 	type StorageAuditInventoryType,
 	type StorageAuditReasonType,
 	type StorageAuditRootsType,
+	type StorageAuditWalDatabaseType,
 	type StorageAuditWorktreeType,
 } from './storageAuditTypes.ts';
 
@@ -19,6 +21,14 @@ const DATABASE_NAME = 'index.sqlite';
 const EVIDENCE_DIRECTORY = 'oracle-live';
 const GIT_TIMEOUT_MS = 10_000;
 
+type WalMeasurementType = Readonly<{
+	readonly databaseBytes: number;
+	readonly walBytes: number;
+	readonly shmBytes: number;
+	readonly limitBytes: number;
+	readonly withinLimit: boolean;
+}>;
+
 type InternalEntryType = {
 	readonly category: StorageAuditCategoryType;
 	readonly absolutePath: string;
@@ -26,6 +36,7 @@ type InternalEntryType = {
 	readonly logicalBytes: number;
 	readonly files: number;
 	readonly projectDirectory: string | null;
+	readonly wal: WalMeasurementType | null;
 	cleanupEligible: boolean;
 	reason: StorageAuditReasonType | null;
 };
@@ -135,17 +146,33 @@ const entryOf = (
 	category: StorageAuditCategoryType,
 	absolutePath: string,
 	footprint: FootprintType,
-	projectDirectory: string | null = null,
+	details: Readonly<{projectDirectory?: string | null; wal?: WalMeasurementType | null}> = {},
 ): InternalEntryType => ({
 	category,
 	absolutePath,
 	bytes: footprint.bytes,
 	logicalBytes: footprint.logicalBytes,
 	files: footprint.files,
-	projectDirectory,
+	projectDirectory: details.projectDirectory ?? null,
+	wal: details.wal ?? null,
 	cleanupEligible: true,
 	reason: null,
 });
+
+const walMeasurementOf = (projectDirectory: string): WalMeasurementType | null => {
+	const databasePath = join(projectDirectory, DATABASE_NAME);
+
+	if (!existsSync(databasePath)) {
+		return null;
+	}
+
+	const databaseBytes = fileSize(databasePath).logicalBytes;
+	const walBytes = existsSync(`${databasePath}-wal`) ? fileSize(`${databasePath}-wal`).logicalBytes : 0;
+	const shmBytes = existsSync(`${databasePath}-shm`) ? fileSize(`${databasePath}-shm`).logicalBytes : 0;
+	const limitBytes = walSizeLimitBytes(databaseBytes);
+
+	return {databaseBytes, walBytes, shmBytes, limitBytes, withinLimit: walBytes <= limitBytes};
+};
 
 const indexEntriesOf = (projectDirectory: string): readonly InternalEntryType[] => {
 	const files = directFilesOf(projectDirectory);
@@ -155,15 +182,15 @@ const indexEntriesOf = (projectDirectory: string): readonly InternalEntryType[] 
 	const entries: InternalEntryType[] = [];
 
 	if (indexFiles.length > 0) {
-		entries.push(entryOf('index_database', projectDirectory, footprintOfFiles(indexFiles), projectDirectory));
+		entries.push(entryOf('index_database', projectDirectory, footprintOfFiles(indexFiles), {projectDirectory, wal: walMeasurementOf(projectDirectory)}));
 	}
 
 	if (existsSync(analyticsDirectory)) {
-		entries.push(entryOf('analytics', analyticsDirectory, footprintOfDirectory(analyticsDirectory), projectDirectory));
+		entries.push(entryOf('analytics', analyticsDirectory, footprintOfDirectory(analyticsDirectory), {projectDirectory}));
 	}
 
 	if (backupFiles.length > 0) {
-		entries.push(entryOf('schema_backup', projectDirectory, footprintOfFiles(backupFiles), projectDirectory));
+		entries.push(entryOf('schema_backup', projectDirectory, footprintOfFiles(backupFiles), {projectDirectory}));
 	}
 
 	return entries;
@@ -370,6 +397,20 @@ export const collectStorageAuditInventory = (roots: StorageAuditRootsType): Stor
 	const gitDirectory = join(roots.repository, '.git');
 	const gitFootprint = footprintOfDirectory(gitDirectory);
 	const worktrees = worktreesOf(roots);
+	const walDatabases = entries.flatMap((entry): readonly StorageAuditWalDatabaseType[] =>
+		entry.wal === null
+			? []
+			: [
+					{
+						path: normalizeAuditPath(entry.absolutePath, roots),
+						databaseBytes: entry.wal.databaseBytes,
+						walBytes: entry.wal.walBytes,
+						shmBytes: entry.wal.shmBytes,
+						limitBytes: entry.wal.limitBytes,
+						withinLimit: entry.wal.withinLimit,
+					},
+				],
+	);
 
 	return {
 		entries: publicEntries,
@@ -379,6 +420,7 @@ export const collectStorageAuditInventory = (roots: StorageAuditRootsType): Stor
 			path: normalizeAuditPath(owner.file, roots),
 		})),
 		worktrees,
+		walDatabases,
 		commit: gitOutput(roots.repository, ['rev-parse', 'HEAD']),
 		gitDirectoryBytes: gitFootprint.bytes,
 		gitDirectoryLogicalBytes: gitFootprint.logicalBytes,

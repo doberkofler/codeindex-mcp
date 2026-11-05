@@ -213,6 +213,23 @@ describe('storage audit inventory', () => {
 	});
 });
 
+describe('storage audit write-ahead log', () => {
+	afterEach(removeTemporaryDirectories);
+
+	it('reports database, WAL, shared-memory, and the applied bound per index', () => {
+		const fixture = createFixture();
+		const report = auditStorage({home: fixture.home, repository: fixture.repository, temporaryDirectory: fixture.temporary, environment: {}});
+
+		expect(report.wal.databases).toHaveLength(2);
+		expect(report.wal.databaseBytes).toBe(2048 + 110);
+		expect(report.wal.walBytes).toBe(128);
+		expect(report.wal.shmBytes).toBe(0);
+		expect(report.wal.withinLimit).toBe(true);
+		expect(report.wal.databases.every((database) => database.walBytes <= database.limitBytes)).toBe(true);
+		expect(report.wal.policy.maxDatabaseFraction).toBe(0.1);
+	});
+});
+
 describe('storage audit Git reporting', () => {
 	afterEach(removeTemporaryDirectories);
 
@@ -270,6 +287,8 @@ describe('storage audit command', () => {
 		expect(text.join('\n')).toContain('Storage audit:');
 		expect(text.join('\n')).toContain('size semantics:');
 		expect(text.join('\n')).toContain('reported separately');
+		expect(text.join('\n')).toContain('wal policy:');
+		expect(text.join('\n')).toContain('within bound');
 		expect(report.categories).toHaveLength(7);
 	});
 

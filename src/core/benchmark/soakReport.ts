@@ -59,7 +59,7 @@ export const soakMarkdown = (report: SoakReportType): string => {
 		'',
 		`- declared policy: ${String(report.retention.policy.publishedGenerations)} published + ${String(report.retention.policy.supersededGenerations)} superseded generation; ${String(report.retention.policy.contentVersionsPerGeneration)} content versions per generation; ${String(report.retention.policy.extractionArtifactsPerContentVersion)} extraction artifacts per content version`,
 		`- observed maxima: generations ${String(report.retention.maxima.generations)}/${String(report.retention.bounds.generations)}, content ${String(report.retention.maxima.contentVersions)}/${String(report.retention.bounds.contentVersions)}, artifacts ${String(report.retention.maxima.extractionArtifacts)}/${String(report.retention.bounds.extractionArtifacts)}`,
-		`- peak database bytes: ${String(report.retention.maxima.databaseBytes)}; result: ${report.retention.satisfied ? 'bounded' : 'unbounded'}`,
+		`- peak database bytes: ${String(report.retention.maxima.databaseBytes)}; peak WAL bytes: ${String(report.retention.maxima.walBytes)}/${String(report.retention.bounds.walBytes)}; result: ${report.retention.satisfied ? 'bounded' : 'unbounded'}`,
 		'',
 		'## Gates',
 		'',

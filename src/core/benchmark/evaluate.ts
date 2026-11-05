@@ -1,6 +1,7 @@
 import {type BenchmarkBaselineType, type BenchmarkReferenceScenarioType, type BenchmarkReferenceType} from './baseline.ts';
 import {type BenchmarkReportType, type BenchmarkScenarioResultType} from './benchTypes.ts';
 import {compatibilityGates} from './compatibility.ts';
+import {walSizeLimitBytes} from '../storage/walPolicy.ts';
 import {type BenchmarkEvaluationSummaryType, type BenchmarkEvaluationType, type BenchmarkGateType} from './evaluationTypes.ts';
 import {absoluteGate, gate, ratioGate, skipped} from './gates.ts';
 
@@ -131,6 +132,27 @@ const hygieneGates = (report: BenchmarkReportType): readonly BenchmarkGateType[]
 			: gate(unconsumed.length === 0 ? 'pass' : 'warning', 'hygiene.artifact_consumption', 'hygiene', {
 					message: unconsumed.length === 0 ? 'Extraction artifacts were consumed' : 'Extraction artifacts are persisted but not consumed',
 					actual: unconsumed.length,
+					expected: 0,
+					unit: 'count',
+				}),
+	);
+
+	const wal = report.scenarios.map((scenario) => ({
+		name: scenario.name,
+		walBytes: scenario.storage.walBytes,
+		limitBytes: walSizeLimitBytes(scenario.storage.databaseBytes),
+	}));
+	const walBreaches = wal.filter((entry) => entry.walBytes > entry.limitBytes);
+
+	gates.push(
+		wal.length === 0
+			? skipped('hygiene.wal', 'No scenario measured write-ahead-log storage', 'hygiene')
+			: gate(walBreaches.length === 0 ? 'pass' : 'failure', 'hygiene.wal', 'hygiene', {
+					message:
+						walBreaches.length === 0
+							? 'Retained write-ahead log is within the declared bound'
+							: `Write-ahead log exceeds the declared bound for ${walBreaches.map((entry) => entry.name).join(', ')}`,
+					actual: walBreaches.length,
 					expected: 0,
 					unit: 'count',
 				}),

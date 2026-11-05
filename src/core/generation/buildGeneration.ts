@@ -288,6 +288,11 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 		});
 	}
 
+	// Artifact persistence happens after the publication transaction and can add
+	// one build's extraction footprint to the WAL. Reclaim it only after both
+	// publication and derived writes are complete.
+	context.database.tryCheckpoint();
+
 	logBuild({
 		logger: context.logger,
 		generationId: context.generationId,

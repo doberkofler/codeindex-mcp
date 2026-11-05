@@ -11,6 +11,7 @@ import {createCodeIndex, type CodeIndex} from '../generation/codeIndex.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {type IndexStatusType} from '../model.ts';
 import {IndexDatabase} from '../storage/database.ts';
+import {walSizeLimitBytes} from '../storage/walPolicy.ts';
 import {readStorage} from './resources.ts';
 import {
 	type SoakEditType,
@@ -287,15 +288,21 @@ export const retentionOf = (input: Readonly<{observations: readonly SoakRetentio
 		generations: 2,
 		contentVersions: input.fileCount * 2,
 		extractionArtifacts: input.fileCount * 2 * 2,
+		walBytes: Math.max(0, ...input.observations.map((entry) => walSizeLimitBytes(entry.databaseBytes))),
 	};
 	const maxima = {
 		generations: Math.max(0, ...input.observations.map((entry) => entry.generations)),
 		contentVersions: Math.max(0, ...input.observations.map((entry) => entry.contentVersions)),
 		extractionArtifacts: Math.max(0, ...input.observations.map((entry) => entry.extractionArtifacts)),
 		databaseBytes: Math.max(0, ...input.observations.map((entry) => entry.databaseBytes)),
+		walBytes: Math.max(0, ...input.observations.map((entry) => entry.walBytes)),
 	};
+	const walWithinBound = input.observations.every((entry) => entry.walBytes <= walSizeLimitBytes(entry.databaseBytes));
 	const satisfied =
-		maxima.generations <= bounds.generations && maxima.contentVersions <= bounds.contentVersions && maxima.extractionArtifacts <= bounds.extractionArtifacts;
+		maxima.generations <= bounds.generations &&
+		maxima.contentVersions <= bounds.contentVersions &&
+		maxima.extractionArtifacts <= bounds.extractionArtifacts &&
+		walWithinBound;
 
 	return {
 		policy: {
@@ -349,6 +356,7 @@ export const observationOf = (sequence: number, database: IndexDatabase, databas
 		contentVersions: storage.contentVersions,
 		extractionArtifacts: storage.extractionArtifacts,
 		databaseBytes: storage.databaseBytes,
+		walBytes: storage.walBytes,
 		totalBytes: storage.totalBytes,
 	};
 };

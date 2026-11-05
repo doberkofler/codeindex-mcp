@@ -85,6 +85,8 @@ describe('operational soak', () => {
 		expect(report.idle).toBeNull();
 		expect(report.gates.map((gate) => gate.id)).toContain('soak.duration-completed');
 		expect(report.gates.map((gate) => gate.id)).toContain('soak.idle-cpu');
+		expect(report.gates.find((gate) => gate.id === 'soak.wal-bound')?.result).toBe('pass');
+		expect(report.retention.maxima.walBytes).toBeLessThanOrEqual(report.retention.bounds.walBytes);
 		expect(report.events).toHaveLength(PLAN.rounds + 2);
 		expect(report.events.flatMap((event) => event.edits).every((edit) => edit.contentChanged)).toBe(true);
 		expect(report.staleRefusal).toMatchObject({refused: true, errorCode: 'stale_file', contentChanged: true});

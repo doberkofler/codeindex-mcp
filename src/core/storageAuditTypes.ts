@@ -1,3 +1,5 @@
+import {type WalPolicyType} from './storage/walPolicy.ts';
+
 /** Closed artifact categories reported by the storage audit. */
 export const STORAGE_AUDIT_CATEGORIES = [
 	'index_database',
@@ -50,6 +52,26 @@ export type StorageAuditWorktreeType = Readonly<{
 	readonly removable: false;
 }>;
 
+export type StorageAuditWalDatabaseType = Readonly<{
+	/** `$HOME`/`$REPO`-normalized index directory. */
+	readonly path: string;
+	readonly databaseBytes: number;
+	readonly walBytes: number;
+	readonly shmBytes: number;
+	readonly limitBytes: number;
+	readonly withinLimit: boolean;
+}>;
+
+type StorageAuditWalType = Readonly<{
+	readonly policy: WalPolicyType;
+	readonly databases: readonly StorageAuditWalDatabaseType[];
+	readonly databaseBytes: number;
+	readonly walBytes: number;
+	readonly shmBytes: number;
+	readonly limitBytes: number;
+	readonly withinLimit: boolean;
+}>;
+
 type StorageAuditGitType = Readonly<{
 	readonly commit: string | null;
 	readonly directoryBytes: number;
@@ -60,7 +82,7 @@ type StorageAuditGitType = Readonly<{
 }>;
 
 export type StorageAuditReportType = Readonly<{
-	readonly schemaVersion: 1;
+	readonly schemaVersion: 2;
 	readonly generatedAt: string;
 	readonly sizeSemantics: 'allocated' | 'logical';
 	readonly repository: string;
@@ -76,6 +98,7 @@ export type StorageAuditReportType = Readonly<{
 	readonly entries: readonly StorageAuditEntryType[];
 	readonly activeOwners: readonly StorageAuditActiveOwnerType[];
 	readonly worktrees: readonly StorageAuditWorktreeType[];
+	readonly wal: StorageAuditWalType;
 	readonly git: StorageAuditGitType;
 	readonly excluded: readonly string[];
 	/** Stable digest of the normalized inventory, ignoring the generated timestamp. */
@@ -105,6 +128,7 @@ export type StorageAuditInventoryType = Readonly<{
 	readonly entries: readonly StorageAuditEntryType[];
 	readonly activeOwners: readonly StorageAuditActiveOwnerType[];
 	readonly worktrees: readonly StorageAuditWorktreeType[];
+	readonly walDatabases: readonly StorageAuditWalDatabaseType[];
 	readonly commit: string | null;
 	readonly gitDirectoryBytes: number;
 	readonly gitDirectoryLogicalBytes: number;

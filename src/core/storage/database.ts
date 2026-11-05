@@ -44,6 +44,7 @@ import {
 import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContextType} from './databaseIdentity.ts';
 import {acquireLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
 import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
+import {checkpointWal, type WalCheckpointType} from './databaseWal.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readGenerationAdapters, readPublishedGeneration} from './databaseRead.ts';
 import {asNumber} from './databaseRows.ts';
@@ -93,6 +94,7 @@ export type {
 	MultiGenerationCommitInputType,
 } from './databaseCommit.ts';
 export {BUILD_LEASE_TTL_MS} from './databaseLease.ts';
+export type {WalCheckpointType} from './databaseWal.ts';
 
 /**
  * Opens and owns the SQLite index.
@@ -131,6 +133,7 @@ export class IndexDatabase {
 			ensureIdentity({writer, reader, context});
 			database.discardIncompleteGenerations();
 			ensureStatistics(reader, writer);
+			database.checkpoint();
 			debug('database opened', {path: databasePath, projectId});
 			return database;
 		} catch (error) {
@@ -438,6 +441,27 @@ export class IndexDatabase {
 	public databaseSizeBytes(): number {
 		return readDatabaseSizeBytes(this.#reader);
 	}
+	/**
+	 * Applies the declared WAL policy and reclaims the write-ahead log.
+	 *
+	 * Call this after a publication and after derived-artifact persistence so a
+	 * quiescent index does not retain one build's full insertion footprint.
+	 *
+	 * @returns The measured passive or truncating checkpoint state.
+	 */
+	public checkpoint(): WalCheckpointType {
+		const state = checkpointWal(this.#writer);
+		debug('wal checkpoint', state);
+		return state;
+	}
+	/** Reclaims the WAL without failing a completed publication or query path. */
+	public tryCheckpoint(): void {
+		try {
+			this.checkpoint();
+		} catch (error) {
+			debug('wal checkpoint skipped', {message: error instanceof Error ? error.message : String(error)});
+		}
+	}
 	public contentVersionCount(): number {
 		return countContentVersions(this.#reader);
 	}
@@ -461,6 +485,11 @@ export class IndexDatabase {
 		try {
 			if (this.#reader !== this.#writer) {
 				this.#reader.close();
+			}
+			try {
+				this.checkpoint();
+			} catch (error) {
+				debug('wal checkpoint on close failed', {message: error instanceof Error ? error.message : String(error)});
 			}
 			this.#writer.close();
 		} finally {

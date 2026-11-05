@@ -15,6 +15,7 @@ import {benchmarkCorpusCounts} from '../src/core/benchmark/corpus.ts';
 import {runBenchmarkCommand, runBenchmarkReport} from '../src/core/benchmark/runBenchmark.ts';
 import {evaluateBenchmark} from '../src/core/benchmark/evaluate.ts';
 import {buildBenchmarkSummary} from '../src/core/benchmark/summary.ts';
+import {walSizeLimitBytes} from '../src/core/storage/walPolicy.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 const tempDirectory = (prefix: string): string => mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -262,6 +263,29 @@ describe('benchmark evaluation', () => {
 
 			expect(evaluation.gates.find((entry) => entry.code === 'compatibility.file_count')?.status).toBe('failure');
 			expect(evaluation.gates.find((entry) => entry.code === 'compatibility.symbol_count')?.status).toBe('pass');
+		} finally {
+			fixture.cleanup();
+		}
+	});
+});
+
+describe('benchmark storage hygiene', () => {
+	it('fails a retained write-ahead log above the declared bound', async () => {
+		const fixture = createFixtureConfig('simple-project');
+
+		try {
+			const report = await runBenchmarkReport({config: fixture.config, iterations: 1, force: false, scenarios: ['warm_reuse']});
+			const overBound: BenchmarkReportType = {
+				...report,
+				scenarios: report.scenarios.map((scenario) => ({
+					...scenario,
+					storage: {...scenario.storage, walBytes: walSizeLimitBytes(scenario.storage.databaseBytes) + 1},
+				})),
+			};
+			const evaluation = evaluateBenchmark(overBound, baselineOf({requiredScenarios: []}));
+
+			expect(evaluation.gates.find((entry) => entry.code === 'hygiene.wal')).toMatchObject({status: 'failure', actual: 1});
+			expect(evaluation.status).toBe('failure');
 		} finally {
 			fixture.cleanup();
 		}

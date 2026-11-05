@@ -3,6 +3,7 @@ import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {debugFor} from '../logging/debug.ts';
 import {asString} from './databaseRows.ts';
+import {applyWalPolicy} from './databaseWal.ts';
 import {SCHEMA_SQL, SCHEMA_VERSION} from './schema.ts';
 import {assertWorkspaceBinding} from './workspaceBinding.ts';
 
@@ -133,6 +134,7 @@ export const openDatabaseConnections = (databasePath: string, rootDir?: string):
 	writer.exec('pragma mmap_size = 1073741824');
 	writer.exec('pragma cache_size = -32768');
 	writer.exec(SCHEMA_SQL);
+	applyWalPolicy(writer);
 
 	const reader = databasePath === ':memory:' ? writer : new DatabaseSync(databasePath, {readOnly: true});
 

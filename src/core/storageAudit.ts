@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {WAL_POLICY} from './storage/walPolicy.ts';
 import {collectStorageAuditInventory} from './storageAuditInventory.ts';
 import {discoverStorageAuditRoots, normalizeAuditPath} from './storageAuditRoots.ts';
 import {
@@ -56,11 +57,21 @@ export const auditStorage = (input: StorageAuditInputType): StorageAuditReportTy
 	const roots = discoverStorageAuditRoots(input);
 	const inventory = collectStorageAuditInventory(roots);
 	const categories = categoryTotalsOf(inventory.entries);
-	const {worktrees} = inventory;
+	const {worktrees, walDatabases} = inventory;
 	const totalBytes = categories.reduce((total, category) => total + category.bytes, 0);
+	const walTotals = walDatabases.reduce(
+		(total, database) => ({
+			databaseBytes: total.databaseBytes + database.databaseBytes,
+			walBytes: total.walBytes + database.walBytes,
+			shmBytes: total.shmBytes + database.shmBytes,
+			limitBytes: total.limitBytes + database.limitBytes,
+			withinLimit: total.withinLimit && database.withinLimit,
+		}),
+		{databaseBytes: 0, walBytes: 0, shmBytes: 0, limitBytes: 0, withinLimit: true},
+	);
 
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		generatedAt: (input.now ?? new Date()).toISOString(),
 		sizeSemantics: process.platform === 'darwin' ? 'allocated' : 'logical',
 		repository: normalizeAuditPath(roots.repository, roots),
@@ -76,6 +87,11 @@ export const auditStorage = (input: StorageAuditInputType): StorageAuditReportTy
 		entries: inventory.entries,
 		activeOwners: inventory.activeOwners,
 		worktrees,
+		wal: {
+			policy: WAL_POLICY,
+			databases: walDatabases,
+			...walTotals,
+		},
 		git: {
 			commit: inventory.commit,
 			directoryBytes: inventory.gitDirectoryBytes,
@@ -118,6 +134,12 @@ export const formatStorageAudit = (report: StorageAuditReportType): readonly str
 				`${category.category}: ${binarySize(category.bytes)} (${category.rawKiB} KiB, ${category.files} file(s), ${category.entries} entr${category.entries === 1 ? 'y' : 'ies'})`,
 		),
 		`total: ${binarySize(report.totals.bytes)} (${report.totals.rawKiB} KiB)`,
+		`wal: database ${binarySize(report.wal.databaseBytes)}, wal ${binarySize(report.wal.walBytes)}, shm ${binarySize(report.wal.shmBytes)}, bound ${binarySize(report.wal.limitBytes)} (${report.wal.withinLimit ? 'within bound' : 'over bound'})`,
+		`wal policy: journal_size_limit ${(report.wal.policy.maxDatabaseFraction * 100).toFixed(0)}% of database, ${binarySize(report.wal.policy.minimumSizeLimitBytes)} floor, ${binarySize(report.wal.policy.maximumSizeLimitBytes)} ceiling, autocheckpoint ${String(report.wal.policy.autocheckpointPages)} pages`,
+		...report.wal.databases.map(
+			(database) =>
+				`  ${database.withinLimit ? 'within' : 'over'} ${database.path}: database ${binarySize(database.databaseBytes)}, wal ${binarySize(database.walBytes)}, shm ${binarySize(database.shmBytes)}, bound ${binarySize(database.limitBytes)}`,
+		),
 		`active owners: ${report.activeOwners.length}`,
 		...report.activeOwners.map((owner) => `  pid ${owner.pid} ${owner.path}`),
 		`worktrees: ${report.git.worktreeCount} (${report.git.dirtyWorktreeCount} dirty, never removable automatically)`,

@@ -69,7 +69,7 @@ const latency = (p95Ms: number | null = 12): SoakReportType['latency'] => ({coun
 
 const reportOf = (overrides: Partial<SoakReportType> = {}): SoakReportType => ({
 	recordType: 'operational-soak',
-	schemaVersion: 2,
+	schemaVersion: 3,
 	planHash: 'a'.repeat(64),
 	editScriptHash: 'b'.repeat(64),
 	generatedAt: '2026-10-24T00:00:00.000Z',
@@ -97,8 +97,8 @@ const reportOf = (overrides: Partial<SoakReportType> = {}): SoakReportType => ({
 	retention: {
 		policy: {publishedGenerations: 1, supersededGenerations: 1, contentVersionsPerGeneration: 1, extractionArtifactsPerContentVersion: 2},
 		observations: [],
-		maxima: {generations: 1, contentVersions: 1, extractionArtifacts: 1, databaseBytes: 1},
-		bounds: {generations: 2, contentVersions: 3, extractionArtifacts: 6},
+		maxima: {generations: 1, contentVersions: 1, extractionArtifacts: 1, databaseBytes: 1, walBytes: 0},
+		bounds: {generations: 2, contentVersions: 3, extractionArtifacts: 6, walBytes: 1},
 		satisfied: true,
 	},
 	idle: {windowMs: 1000, cpuUserMs: 1, cpuSystemMs: 0, averagePercent: 0.1, medianPercent: 0.1, samplesPercent: [0.1]},
