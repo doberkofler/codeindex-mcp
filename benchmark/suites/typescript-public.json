@@ -30,7 +30,8 @@
 			"iterations": 20,
 			"runs": 2,
 			"baseline": "benchmark/baseline-external.json",
-			"reference": "first-run"
+			"reference": "first-run",
+			"requiredScenarios": ["cold_build", "warm_reuse", "warm_rebuild", "deep_cursor"]
 		},
 		{
 			"name": "material-ui",

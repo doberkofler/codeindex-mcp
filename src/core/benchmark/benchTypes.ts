@@ -155,3 +155,11 @@ export type BenchmarkReportType = Readonly<{
 export const BENCHMARK_SCENARIO_NAMES = ['cold_build', 'warm_reuse', 'warm_rebuild', 'edit_to_fresh', 'deep_cursor'] as const;
 
 export type BenchmarkScenarioNameType = (typeof BENCHMARK_SCENARIO_NAMES)[number];
+
+/**
+ * Narrows a string to a benchmark scenario name.
+ *
+ * @param value - Candidate name.
+ * @returns True when the value names a scenario.
+ */
+export const isBenchmarkScenarioName = (value: string): value is BenchmarkScenarioNameType => (BENCHMARK_SCENARIO_NAMES as readonly string[]).includes(value);

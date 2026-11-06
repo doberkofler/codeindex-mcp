@@ -44,7 +44,9 @@ the step instead of silently skipping the gate. Each project declares its own
 `vscode` does not run edit-to-fresh. Its 1.37 million occurrences make the in-place
 revision pass exceed any budget that fits the job, and a gate that can never finish is
 not a gate. The scenario stays blocking on `typescript` and `material-ui` until the
-revision pass stops scaling with occurrence count.
+revision pass stops scaling with occurrence count. Each public project declares
+`requiredScenarios` when it intentionally differs from the baseline's list, so the
+status is explicit rather than a silently missing measurement.
 Relative regression gates are capped to warnings whenever the retained reference was produced on
 another platform or architecture, so the first run on a new platform establishes that
 platform's reference and later runs compare like against like.

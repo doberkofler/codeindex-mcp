@@ -19,8 +19,14 @@ All notable changes to this project are documented here. The format follows
   checkout added gigabytes of I/O per run; the edited file is restored byte-for-byte
   after the scenario and restored through git before every run.
 
+* **benchmark:** require a filled page before applying the find_symbol per-item cursor
+  gate. Dividing the first query's cold-start cost by a handful of rows measured
+  overhead, not throughput, and failed a healthy page.
+
 ### Changed
 
+* **benchmark:** public projects declare `requiredScenarios`; the evaluated baseline
+  list is narrowed per project instead of shared verbatim.
 * **benchmark:** the pinned `vscode` project no longer runs edit-to-fresh. Its 1.37
   million occurrences make the in-place revision pass exceed the job budget; the gate
   stays blocking on `typescript` and `material-ui`. Restoring it requires fixing the

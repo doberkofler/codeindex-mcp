@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {z} from 'zod';
+import {BENCHMARK_SCENARIO_NAMES} from './benchTypes.ts';
 import {parseEditTarget} from './benchmarkOptions.ts';
 
 const SCENARIO_NAMES = ['cold', 'warm', 'rebuild', 'edit', 'deep', 'queries'] as const;
@@ -73,6 +74,11 @@ const PublicProjectsSchema = z
 				 * failing on an arbitrary constant.
 				 */
 				editTimeoutMs: z.number().int().min(1000).max(3_600_000).default(60_000),
+				/**
+				 * Scenarios the report must contain. Null keeps the baseline's list; a
+				 * project that intentionally runs fewer declares the remainder here.
+				 */
+				requiredScenarios: z.array(z.enum(BENCHMARK_SCENARIO_NAMES)).min(1).nullable().default(null),
 			})
 			.superRefine((value, context) => {
 				if (value.editTarget !== null && !isWorkspaceRelativePath(value.editTarget)) {

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import {type Command} from 'commander';
-import {type BenchmarkProfileType, type BenchmarkScenarioNameType} from './benchTypes.ts';
+import {BENCHMARK_SCENARIO_NAMES, isBenchmarkScenarioName, type BenchmarkProfileType, type BenchmarkScenarioNameType} from './benchTypes.ts';
 import {isBenchmarkProfile} from './corpus.ts';
 
 const {join} = path;
@@ -21,6 +21,7 @@ export const addBenchmarkOptions = (command: Command): Command =>
 		.option('--edit-rounds <n>', 'one-file edits measured', '5')
 		.option('--edit-target <path>', 'workspace-relative source file changed by edit-to-fresh')
 		.option('--edit-timeout <ms>', 'milliseconds allowed for one edit publication', '60000')
+		.option('--required-scenarios <list>', 'comma-separated scenario names the report must contain; defaults to the baseline')
 		.option('--disposable', 'acknowledge that --root, the database, and edited source are disposable')
 		.option('--max-depth <n>', 'deep cursor maximum offset', '10000')
 		.option('--page-limit <n>', 'deep cursor page size', '200')
@@ -82,6 +83,7 @@ export type BenchmarkOptionValuesType = Readonly<{
 	editRounds: string;
 	editTarget?: string | undefined;
 	editTimeout: string;
+	requiredScenarios?: string | undefined;
 	disposable: boolean;
 	maxDepth: string;
 	pageLimit: string;
@@ -138,12 +140,45 @@ export type BenchmarkOptionsType = Readonly<{
 	editTarget: string | null;
 	/** Wall-clock bound for one edit publication, including the rebuild it triggers. */
 	editTimeoutMs: number;
+	/** Scenarios the report must contain, or null to keep the baseline's list. */
+	requiredScenarios: readonly BenchmarkScenarioNameType[] | null;
 	maxDepth: number;
 	pageLimit: number;
 }>;
 
 const MIN_EDIT_TIMEOUT_MS = 1000;
 const MAX_EDIT_TIMEOUT_MS = 3_600_000;
+
+const requiredScenariosOf = (value: string | undefined): readonly BenchmarkScenarioNameType[] | null => {
+	if (value === undefined) {
+		return null;
+	}
+
+	const names = value
+		.split(',')
+		.map((name) => name.trim())
+		.filter((name) => name.length > 0);
+
+	if (names.length === 0) {
+		throw new Error('--required-scenarios must name at least one scenario');
+	}
+
+	for (const name of names) {
+		if (!isBenchmarkScenarioName(name)) {
+			throw new Error(`--required-scenarios accepts: ${BENCHMARK_SCENARIO_NAMES.join(', ')}`);
+		}
+	}
+
+	const unique: BenchmarkScenarioNameType[] = [];
+
+	for (const name of names) {
+		if (isBenchmarkScenarioName(name) && !unique.includes(name)) {
+			unique.push(name);
+		}
+	}
+
+	return unique;
+};
 
 const editTimeoutOf = (values: BenchmarkOptionValuesType): number => {
 	const value = Number(values.editTimeout);
@@ -257,5 +292,12 @@ export const parseBenchmarkOptions = (values: BenchmarkOptionValuesType): Benchm
 	const numbers = numericOptions(values);
 	validateScenarios(profile, scenarios, values);
 
-	return {profile, scenarios, editTarget: parseEditTarget(values.editTarget), editTimeoutMs: editTimeoutOf(values), ...numbers};
+	return {
+		profile,
+		scenarios,
+		editTarget: parseEditTarget(values.editTarget),
+		editTimeoutMs: editTimeoutOf(values),
+		requiredScenarios: requiredScenariosOf(values.requiredScenarios),
+		...numbers,
+	};
 };

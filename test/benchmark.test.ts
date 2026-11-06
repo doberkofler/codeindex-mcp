@@ -422,6 +422,13 @@ describe('benchmark disposable options', () => {
 		disposable: false,
 	};
 
+	it('narrows the required scenarios explicitly', () => {
+		expect(parseBenchmarkOptions({...options, requiredScenarios: 'cold_build,deep_cursor'}).requiredScenarios).toStrictEqual(['cold_build', 'deep_cursor']);
+		expect(parseBenchmarkOptions(options).requiredScenarios).toBeNull();
+		expect(() => parseBenchmarkOptions({...options, requiredScenarios: ''})).toThrow(/at least one/u);
+		expect(() => parseBenchmarkOptions({...options, requiredScenarios: 'cold'})).toThrow(/accepts/u);
+	});
+
 	it('bounds the edit publication timeout', () => {
 		const parsed = parseBenchmarkOptions({
 			...options,

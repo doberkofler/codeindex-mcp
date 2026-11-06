@@ -29,7 +29,10 @@ const planGates = (report: BenchmarkReportType, baseline: BenchmarkBaselineType)
 		.slice(0, 5)
 		.map((sample) => `${sample.kind}@${String(sample.depth)}`)
 		.join(', ');
-	const symbolPages = cursor.samples.filter((sample) => sample.kind === 'find_symbol' && sample.items >= 10);
+	// Per-item latency is only meaningful for a page that filled: dividing the
+	// first query's cold-start cost by a handful of rows reports overhead, not
+	// throughput, and the threshold is too small for that.
+	const symbolPages = cursor.samples.filter((sample) => sample.kind === 'find_symbol' && sample.items >= sample.limit);
 	const worstItemMs = symbolPages.length === 0 ? null : Math.max(...symbolPages.map((sample) => Math.round((sample.elapsedMs / sample.items) * 1000) / 1000));
 
 	return [

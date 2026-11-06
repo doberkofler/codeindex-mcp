@@ -51,18 +51,6 @@ describe('benchmark suite', () => {
 		for (const project of publicProjects.publicProjects) {
 			expect(project.revision).toMatch(/^[0-9a-f]{40}$/u);
 		}
-
-		// Edit-to-fresh stays blocking on the two corpora that publish an edit
-		// inside the nightly budget. The pinned VS Code project is deferred until
-		// the in-place revision pass stops scaling with occurrence count.
-		const edited = publicProjects.publicProjects.filter((project) => project.scenarios.includes('edit'));
-
-		expect(edited.map((project) => project.name)).toStrictEqual(['typescript', 'material-ui']);
-
-		for (const project of edited) {
-			expect(project.editTarget).not.toBeNull();
-			expect(project.editTimeoutMs).toBeGreaterThanOrEqual(60_000);
-		}
 	});
 
 	it('rejects an unpinned public revision', () => {
@@ -249,6 +237,7 @@ describe('benchmark suite public workspaces', () => {
 						projectFile: 'tsconfig.json',
 						scenarios: ['cold', 'edit'],
 						editTarget: 'src/example.ts',
+						requiredScenarios: ['cold_build', 'deep_cursor'],
 					},
 				],
 			});
@@ -265,6 +254,8 @@ describe('benchmark suite public workspaces', () => {
 			expect(args).toContain('--disposable');
 			expect(args).toContain('--edit-target');
 			expect(args).toContain('src/example.ts');
+			expect(args).toContain('--required-scenarios');
+			expect(args).toContain('cold_build,deep_cursor');
 			expect(args).toContain('--edit-timeout');
 			expect(args).toContain('60000');
 			// The prepared checkout is measured in place; no second copy is made.
@@ -293,5 +284,27 @@ describe('benchmark suite public workspaces', () => {
 		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 1_800_000}]}).success).toBe(true);
 		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 999}]}).success).toBe(false);
 		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 3_600_001}]}).success).toBe(false);
+	});
+});
+
+describe('benchmark suite public gates', () => {
+	it('gates edit-to-fresh only where the nightly budget can complete it', () => {
+		const publicProjects = loadBenchmarkSuite(suitePath('typescript-public'));
+
+		// Edit-to-fresh stays blocking on the two corpora that publish an edit
+		// inside the nightly budget. The pinned VS Code project is deferred until
+		// the in-place revision pass stops scaling with occurrence count.
+		const edited = publicProjects.publicProjects.filter((project) => project.scenarios.includes('edit'));
+
+		expect(edited.map((project) => project.name)).toStrictEqual(['typescript', 'material-ui']);
+
+		for (const project of edited) {
+			expect(project.editTarget).not.toBeNull();
+			expect(project.editTimeoutMs).toBeGreaterThanOrEqual(60_000);
+		}
+
+		const vscode = publicProjects.publicProjects.find((project) => project.name === 'vscode');
+
+		expect(vscode?.requiredScenarios).toStrictEqual(['cold_build', 'warm_reuse', 'warm_rebuild', 'deep_cursor']);
 	});
 });

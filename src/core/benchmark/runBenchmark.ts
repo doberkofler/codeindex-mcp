@@ -323,7 +323,16 @@ const executeBenchmark = async (values: BenchmarkOptionValuesType, environment: 
 	const {keepWorkspace} = values;
 	const loadedBaseline = values.baseline === undefined ? null : loadBenchmarkBaseline(path.resolve(values.baseline));
 	const reference = values.reference === undefined ? (loadedBaseline?.reference ?? null) : loadBenchmarkReference(path.resolve(values.reference));
-	const baseline = loadedBaseline === null ? null : {...loadedBaseline, reference};
+	// The suite narrows the baseline's required scenarios per project: a pinned
+	// project that does not run edit-to-fresh must not be failed for its absence.
+	const baseline =
+		loadedBaseline === null
+			? null
+			: {
+					...loadedBaseline,
+					reference,
+					...(options.requiredScenarios === null ? {} : {requiredScenarios: [...options.requiredScenarios]}),
+				};
 	const {workspaceRoot, databasePath} = prepareBenchmarkPaths({values, profile: options.profile, keepWorkspace, cleanup});
 	const sourceEnvironment = prepareEnvironment({values, environment, profile: options.profile, workspaceRoot, databasePath});
 	const config = {...loadConfig(sourceEnvironment), analyticsEnabled: false, databasePath};

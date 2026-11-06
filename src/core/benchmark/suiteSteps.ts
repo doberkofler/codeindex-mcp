@@ -213,6 +213,10 @@ const publicRunStep = (
 				args.push('--edit-target', input.entry.editTarget);
 			}
 
+			if (input.entry.requiredScenarios !== null) {
+				args.push('--required-scenarios', input.entry.requiredScenarios.join(','));
+			}
+
 			if (baselinePath !== null) {
 				args.push('--baseline', baselinePath, '--evaluation', evaluationPath);
 			}
