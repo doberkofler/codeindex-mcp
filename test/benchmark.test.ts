@@ -140,12 +140,15 @@ describe('benchmark edit-to-fresh', () => {
 			createBenchmarkCorpus({directory: root, profile: 'small'});
 			const config = generatedConfig(root, path.join(databaseDirectory, 'index.sqlite'));
 			const progress: number[] = [];
+			const targetPath = 'src/features/feature00001.ts';
+			const absoluteTarget = path.join(root, targetPath);
+			const originalBytes = readFileSync(absoluteTarget);
 			const scenario = await runEditScenario({
 				config,
 				adapters: testAdaptersFor(config).adapters,
 				rounds: 1,
 				timeoutMs: 30_000,
-				targetPath: 'src/features/feature00001.ts',
+				targetPath,
 				onProgress: (sample) => {
 					progress.push(sample.iteration);
 				},
@@ -156,6 +159,9 @@ describe('benchmark edit-to-fresh', () => {
 			expect(scenario.samples[0]?.latencyMs).toBeGreaterThanOrEqual(0);
 			expect(scenario.percentiles.p50Ms).not.toBeNull();
 			expect(scenario.storage.totalBytes).toBeGreaterThan(0);
+			// The measured workspace is restored, so the next run starts from the
+			// same corpus the scan described.
+			expect(readFileSync(absoluteTarget)).toStrictEqual(originalBytes);
 		} finally {
 			rmSync(root, {recursive: true, force: true});
 			rmSync(databaseDirectory, {recursive: true, force: true});
@@ -408,12 +414,30 @@ describe('benchmark disposable options', () => {
 	const options = {
 		iterations: '1',
 		editRounds: '1',
+		editTimeout: '60000',
 		maxDepth: '1',
 		pageLimit: '1',
 		rebuild: false,
 		keepWorkspace: false,
 		disposable: false,
 	};
+
+	it('bounds the edit publication timeout', () => {
+		const parsed = parseBenchmarkOptions({
+			...options,
+			root: '/tmp/workspace',
+			scenarios: 'edit',
+			editTarget: 'src/a.pkb',
+			disposable: true,
+			editTimeout: '1800000',
+		});
+
+		expect(parsed.editTimeoutMs).toBe(1_800_000);
+
+		for (const editTimeout of ['0', '999', '3600001', 'nope', '1.5']) {
+			expect(() => parseBenchmarkOptions({...options, editTimeout})).toThrow(/--edit-timeout/u);
+		}
+	});
 
 	it('refuses external edit-to-fresh without an explicit disposable copy and target', () => {
 		expect(() => parseBenchmarkOptions({...options, root: '/tmp/workspace', scenarios: 'edit'})).toThrow(/requires --edit-target/u);

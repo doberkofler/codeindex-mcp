@@ -17,7 +17,8 @@
 			"baseline": "benchmark/baseline-external.json",
 			"reference": "first-run",
 			"editTarget": "src/compiler/parser.ts",
-			"editRounds": 3
+			"editRounds": 3,
+			"editTimeoutMs": 600000
 		},
 		{
 			"name": "vscode",
@@ -31,7 +32,8 @@
 			"baseline": "benchmark/baseline-external.json",
 			"reference": "first-run",
 			"editTarget": "src/vs/base/common/strings.ts",
-			"editRounds": 3
+			"editRounds": 3,
+			"editTimeoutMs": 1800000
 		},
 		{
 			"name": "material-ui",
@@ -45,7 +47,8 @@
 			"baseline": "benchmark/baseline-external.json",
 			"reference": "first-run",
 			"editTarget": "packages/mui-material/src/Button/Button.js",
-			"editRounds": 3
+			"editRounds": 3,
+			"editTimeoutMs": 600000
 		}
 	]
 }

@@ -67,6 +67,12 @@ const PublicProjectsSchema = z
 				/** Workspace-relative source file changed by edit-to-fresh; required by the `edit` scenario. */
 				editTarget: z.string().min(1).nullable().default(null),
 				editRounds: z.number().int().min(1).max(100).default(3),
+				/**
+				 * Wall-clock bound for one edit publication. The default matches the CLI; a
+				 * project whose incremental rebuild is slower must raise it instead of
+				 * failing on an arbitrary constant.
+				 */
+				editTimeoutMs: z.number().int().min(1000).max(3_600_000).default(60_000),
 			})
 			.superRefine((value, context) => {
 				if (value.editTarget !== null && !isWorkspaceRelativePath(value.editTarget)) {

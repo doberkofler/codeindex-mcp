@@ -1,4 +1,4 @@
-import {appendFileSync, existsSync} from 'node:fs';
+import {appendFileSync, existsSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {type ExtractorType} from '../../adapters/types.ts';
@@ -35,6 +35,8 @@ const waitFor = async <ValueType>(
 		attempt: () => ValueType | null;
 		timeoutMs: number;
 		label: string;
+		/** Compact state included in the timeout error; a bare timeout is undiagnosable. */
+		describe?: (() => string) | undefined;
 	}>,
 ): Promise<ValueType> => {
 	const deadline = performance.now() + input.timeoutMs;
@@ -46,7 +48,8 @@ const waitFor = async <ValueType>(
 		}
 
 		if (performance.now() >= deadline) {
-			throw new Error(`Timed out waiting for ${input.label}`);
+			const state = input.describe?.();
+			throw new Error(`Timed out after ${String(input.timeoutMs)} ms waiting for ${input.label}${state === undefined ? '' : `; ${state}`}`);
 		}
 
 		await delay(POLL_INTERVAL_MS);
@@ -95,6 +98,63 @@ const absoluteTargetPath = (rootDir: string, targetPath: string): string => {
 	return absolutePath;
 };
 
+type EditSamplingInputType = Readonly<{
+	index: ReturnType<typeof createCodeIndex>;
+	absolutePath: string;
+	rounds: number;
+	timeoutMs: number;
+	describe: () => string;
+	onProgress?: ((progress: BenchmarkEditProgressType) => void) | undefined;
+}>;
+
+/**
+ * Appends one line per round and waits for each publication.
+ *
+ * @param input - Live index, edit target, rounds, timeout, and progress sink.
+ * @returns One sample per completed round.
+ */
+const sampleEdits = async (input: EditSamplingInputType): Promise<readonly BenchmarkEditSampleType[]> => {
+	const samples: BenchmarkEditSampleType[] = [];
+	const runRound = async (iteration: number): Promise<void> => {
+		if (iteration > input.rounds) {
+			return;
+		}
+
+		const previous = input.index.getStatus().revision;
+		appendFileSync(input.absolutePath, '\n', {encoding: 'utf8'});
+		const startedAt = performance.now();
+		const status = await waitFor({
+			attempt: () => {
+				const current = input.index.getStatus();
+				// Publication revises the stable generation; the revision is the
+				// observable freshness boundary.
+				return current.refresh === 'current' && current.revision !== previous ? current : null;
+			},
+			timeoutMs: input.timeoutMs,
+			label: `edit ${String(iteration)} publication`,
+			describe: input.describe,
+		});
+		const sample = {
+			iteration,
+			latencyMs: Math.round(performance.now() - startedAt),
+			generationId: status.generationId ?? '',
+		};
+		samples.push(sample);
+		const elapsedMs = samples.reduce((sum, entry) => sum + entry.latencyMs, 0);
+		const averageMs = elapsedMs / samples.length;
+		input.onProgress?.({
+			iteration,
+			rounds: input.rounds,
+			latencyMs: sample.latencyMs,
+			etaMs: Math.round(averageMs * (input.rounds - samples.length)),
+		});
+		return runRound(iteration + 1);
+	};
+
+	await runRound(1);
+	return samples;
+};
+
 /**
  * Measures wall time from one source write until a fresh generation is current.
  *
@@ -128,6 +188,12 @@ export const runEditScenario = async (
 	});
 	const beforeContent = new Set(database.contentHashes());
 	const artifactRowsBefore = database.extractionArtifactCount();
+	// The prepared checkout is measured in place: the edit scenario appends to one
+	// tracked file and restores its exact bytes when the scenario ends. Copying the
+	// checkout doubled gigabytes of I/O on a shared runner without changing what
+	// was measured.
+	let editedPath: string | null = null;
+	let originalBytes: Buffer | null = null;
 	const index = createCodeIndex(input.config, database, LOGGER, {
 		watch: true,
 		debounceMs,
@@ -135,53 +201,31 @@ export const runEditScenario = async (
 		adapterDescriptors: input.descriptors ?? [],
 		...(input.workerEntry === undefined ? {} : {workerEntry: input.workerEntry}),
 	});
+	const freshnessState = (): string => JSON.stringify(index.getFreshness());
 
 	try {
 		const initial = await index.ensureReady();
 		index.start();
 		await delay(debounceMs + 200);
-		await waitFor({attempt: () => (index.getStatus().refresh === 'current' ? true : null), timeoutMs, label: 'initial watcher refresh'});
+		await waitFor({
+			attempt: () => (index.getStatus().refresh === 'current' ? true : null),
+			timeoutMs,
+			label: 'initial watcher refresh',
+			describe: freshnessState,
+		});
 		const generationId = index.getStatus().generationId ?? initial.generationId;
 		const targetPath = targetPathOf({database, generationId, explicit: input.targetPath});
 		const absolutePath = absoluteTargetPath(input.config.rootDir, targetPath);
-		const samples: BenchmarkEditSampleType[] = [];
-		const runRound = async (iteration: number): Promise<void> => {
-			if (iteration > input.rounds) {
-				return;
-			}
-
-			const previous = index.getStatus().revision;
-			appendFileSync(absolutePath, '\n', {encoding: 'utf8'});
-			const startedAt = performance.now();
-			const status = await waitFor({
-				attempt: () => {
-					const current = index.getStatus();
-					// Publication revises the stable generation; the revision is the
-					// observable freshness boundary.
-					return current.refresh === 'current' && current.revision !== previous ? current : null;
-				},
-				timeoutMs,
-				label: `edit ${String(iteration)} publication`,
-			});
-
-			const sample = {
-				iteration,
-				latencyMs: Math.round(performance.now() - startedAt),
-				generationId: status.generationId ?? '',
-			};
-			samples.push(sample);
-			const elapsedMs = samples.reduce((sum, entry) => sum + entry.latencyMs, 0);
-			const averageMs = elapsedMs / samples.length;
-			input.onProgress?.({
-				iteration,
-				rounds: input.rounds,
-				latencyMs: sample.latencyMs,
-				etaMs: Math.round(averageMs * (input.rounds - samples.length)),
-			});
-			return runRound(iteration + 1);
-		};
-
-		await runRound(1);
+		editedPath = absolutePath;
+		originalBytes = readFileSync(absolutePath);
+		const samples = await sampleEdits({
+			index,
+			absolutePath,
+			rounds: input.rounds,
+			timeoutMs,
+			describe: freshnessState,
+			...(input.onProgress === undefined ? {} : {onProgress: input.onProgress}),
+		});
 
 		const status = index.getStatus();
 		const files = status.generationId === null ? [] : database.listFiles(status.generationId);
@@ -208,6 +252,12 @@ export const runEditScenario = async (
 			}),
 		};
 	} finally {
+		// Restore after the watcher is closed, so the restore itself cannot queue
+		// another measured rebuild.
 		await index.close();
+
+		if (editedPath !== null && originalBytes !== null) {
+			writeFileSync(editedPath, originalBytes);
+		}
 	}
 };

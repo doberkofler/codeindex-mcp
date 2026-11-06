@@ -20,6 +20,7 @@ export const addBenchmarkOptions = (command: Command): Command =>
 		.option('--iterations <n>', 'query iterations', '20')
 		.option('--edit-rounds <n>', 'one-file edits measured', '5')
 		.option('--edit-target <path>', 'workspace-relative source file changed by edit-to-fresh')
+		.option('--edit-timeout <ms>', 'milliseconds allowed for one edit publication', '60000')
 		.option('--disposable', 'acknowledge that --root, the database, and edited source are disposable')
 		.option('--max-depth <n>', 'deep cursor maximum offset', '10000')
 		.option('--page-limit <n>', 'deep cursor page size', '200')
@@ -80,6 +81,7 @@ export type BenchmarkOptionValuesType = Readonly<{
 	iterations: string;
 	editRounds: string;
 	editTarget?: string | undefined;
+	editTimeout: string;
 	disposable: boolean;
 	maxDepth: string;
 	pageLimit: string;
@@ -134,9 +136,24 @@ export type BenchmarkOptionsType = Readonly<{
 	iterations: number;
 	editRounds: number;
 	editTarget: string | null;
+	/** Wall-clock bound for one edit publication, including the rebuild it triggers. */
+	editTimeoutMs: number;
 	maxDepth: number;
 	pageLimit: number;
 }>;
+
+const MIN_EDIT_TIMEOUT_MS = 1000;
+const MAX_EDIT_TIMEOUT_MS = 3_600_000;
+
+const editTimeoutOf = (values: BenchmarkOptionValuesType): number => {
+	const value = Number(values.editTimeout);
+
+	if (!Number.isInteger(value) || value < MIN_EDIT_TIMEOUT_MS || value > MAX_EDIT_TIMEOUT_MS) {
+		throw new Error(`--edit-timeout must be an integer between ${String(MIN_EDIT_TIMEOUT_MS)} and ${String(MAX_EDIT_TIMEOUT_MS)} milliseconds`);
+	}
+
+	return value;
+};
 
 const numericOptions = (values: BenchmarkOptionValuesType): Readonly<{iterations: number; editRounds: number; maxDepth: number; pageLimit: number}> => {
 	const options = {
@@ -240,5 +257,5 @@ export const parseBenchmarkOptions = (values: BenchmarkOptionValuesType): Benchm
 	const numbers = numericOptions(values);
 	validateScenarios(profile, scenarios, values);
 
-	return {profile, scenarios, editTarget: parseEditTarget(values.editTarget), ...numbers};
+	return {profile, scenarios, editTarget: parseEditTarget(values.editTarget), editTimeoutMs: editTimeoutOf(values), ...numbers};
 };

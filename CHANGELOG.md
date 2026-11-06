@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+* **benchmark:** bound edit-to-fresh per project instead of by one 60-second constant.
+  `--edit-timeout` and the suite's `editTimeoutMs` set the wall-clock bound for one edit
+  publication, and a timeout now reports the freshness state it observed.
+* **benchmark:** measure pinned public projects in the prepared checkout. Copying the
+  checkout added gigabytes of I/O per run; the edited file is restored byte-for-byte
+  after the scenario and restored through git before every run.
+
 ## [0.16.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.15.0...v0.16.0) (2026-11-05)
 
 ### Added

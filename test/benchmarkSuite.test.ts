@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
@@ -219,14 +219,13 @@ describe('benchmark suite progress', () => {
 });
 
 describe('benchmark suite public workspaces', () => {
-	it('plans public runs in a disposable copy that carries the edit target', () => {
+	it('plans public runs in the prepared checkout with an explicit edit timeout', () => {
 		const root = mkdtempSync(path.join(tmpdir(), 'codeindex-suite-step-'));
 		const projectsRoot = path.join(root, 'projects');
 		const source = path.join(projectsRoot, 'example');
 
 		try {
 			mkdirSync(path.join(source, 'src'), {recursive: true});
-			mkdirSync(path.join(source, '.git'), {recursive: true});
 			writeFileSync(path.join(source, 'src', 'example.ts'), 'export const value = 1;\n', {encoding: 'utf8'});
 
 			const suite = BenchmarkSuiteSchema.parse({
@@ -256,16 +255,33 @@ describe('benchmark suite public workspaces', () => {
 			expect(args).toContain('--disposable');
 			expect(args).toContain('--edit-target');
 			expect(args).toContain('src/example.ts');
-			expect(step.cleanupPaths).toStrictEqual([path.join(outputDir, 'work', 'public', 'example-01')]);
+			expect(args).toContain('--edit-timeout');
+			expect(args).toContain('60000');
+			// The prepared checkout is measured in place; no second copy is made.
+			expect(args[args.indexOf('--root') + 1]).toBe(source);
+			expect(step.cleanupPaths).toBeUndefined();
 
-			step.prepare?.();
-
-			const copy = path.join(outputDir, 'work', 'public', 'example-01');
-
-			expect(existsSync(path.join(copy, 'src', 'example.ts'))).toBe(true);
-			expect(existsSync(path.join(copy, '.git'))).toBe(false);
+			// The safety-net restore tolerates a checkout without git history.
+			expect(() => step.prepare?.()).not.toThrow();
+			expect(readFileSync(path.join(source, 'src', 'example.ts'), 'utf8')).toBe('export const value = 1;\n');
 		} finally {
 			rmSync(root, {recursive: true, force: true});
 		}
+	});
+
+	it('requires a positive per-project edit timeout', () => {
+		const project = {
+			name: 'example',
+			repository: 'https://example.com/example.git',
+			revision: '0'.repeat(40),
+			directory: 'example',
+			projectFile: 'tsconfig.json',
+			scenarios: ['cold', 'edit'],
+			editTarget: 'src/example.ts',
+		};
+
+		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 1_800_000}]}).success).toBe(true);
+		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 999}]}).success).toBe(false);
+		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 3_600_001}]}).success).toBe(false);
 	});
 });

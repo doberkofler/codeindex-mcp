@@ -35,9 +35,12 @@ and correctness gates apply. Absolute edit-to-fresh latency is the one exception
 generated corpora concentrate shared surface types, and every workspace currently
 republishes a full generation per edit, so the absolute p95 is advisory and only warns.
 The retained-reference ratio remains the blocking regression guard for edit latency.
-Pinned public projects run edit-to-fresh in a disposable copy of the prepared
-checkout, so the pin is never mutated; a missing edit target fails the step instead
-of silently skipping the gate.
+Pinned public projects run edit-to-fresh in place: the edit target is appended to and
+restored byte-for-byte when the scenario ends, and each run restores it through git
+first, so a killed run cannot move the next measurement. A missing edit target fails
+the step instead of silently skipping the gate. Each project declares its own
+`editTimeoutMs`; one publication bound cannot cover a 77-file corpus and a
+5,000-file corpus at the same time.
 Relative regression gates are capped to warnings whenever the retained reference was produced on
 another platform or architecture, so the first run on a new platform establishes that
 platform's reference and later runs compare like against like.

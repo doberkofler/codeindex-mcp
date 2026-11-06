@@ -1,10 +1,10 @@
-import {cpSync, existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
-import {type SuiteStepResultType} from './suiteManifest.ts';
+import {type SuiteStepResultType, git} from './suiteManifest.ts';
 import {cleanChildEnvironment, failureDetail, runCommand} from './suiteCommand.ts';
 import {type BenchmarkSuiteGeneratedType, type BenchmarkSuitePublicProjectType, type BenchmarkSuiteType} from './suiteTypes.ts';
 
-const {basename, dirname, join, relative, resolve, sep} = path;
+const {dirname, join, relative, resolve, sep} = path;
 
 export type PlannedStepType = Readonly<{
 	id: string;
@@ -143,37 +143,34 @@ const generatedSteps = (
 	return steps;
 };
 
-const publicCopyOf = (input: Readonly<{outputDir: string; entry: BenchmarkSuitePublicProjectType; suffix: string}>): string =>
-	join(input.outputDir, 'work', 'public', `${input.entry.name}-${input.suffix}`);
-
 /**
- * Copies a prepared checkout into a disposable workspace.
+ * Verifies the prepared checkout and restores its edit target.
  *
- * Public checkouts are pinned and shared, so the edit scenario never mutates
- * them. Git history is excluded; package-manager symlinks are copied verbatim
- * so the copy resolves dependencies exactly like the prepared checkout.
+ * The edit scenario appends to one tracked source file and restores it
+ * afterwards. This is the safety net for a run that was killed before it could
+ * restore: the checkout is disposable, but a stale append would silently move
+ * the next measurement.
  *
- * @param input - Prepared checkout, destination, and project name.
+ * @param input - Prepared checkout, project name, and workspace-relative edit target.
  * @throws {Error} When the prepared checkout is missing.
  */
-const copyPublicWorkspace = (input: Readonly<{source: string; destination: string; name: string}>): void => {
-	if (!existsSync(input.source)) {
-		throw new Error(`Prepared checkout for ${input.name} is missing: ${input.source}. Run benchmark-prepare first`);
+const preparePublicWorkspace = (input: Readonly<{workspace: string; name: string; editTarget: string | null}>): void => {
+	if (!existsSync(input.workspace)) {
+		throw new Error(`Prepared checkout for ${input.name} is missing: ${input.workspace}. Run benchmark-prepare first`);
 	}
 
-	rmSync(input.destination, {recursive: true, force: true});
-	mkdirSync(dirname(input.destination), {recursive: true});
-	cpSync(input.source, input.destination, {
-		recursive: true,
-		verbatimSymlinks: true,
-		filter: (entry) => basename(entry) !== '.git',
-	});
+	if (input.editTarget === null) {
+		return;
+	}
+
+	// A checkout without git history cannot be restored here; the scenario's own
+	// byte-exact restore still applies. Never fail the step on the safety net.
+	git(input.workspace, ['checkout', '--', input.editTarget]);
 };
 
 const publicRunStep = (
 	input: Readonly<{
 		entry: BenchmarkSuitePublicProjectType;
-		source: string;
 		workspace: string;
 		outputDir: string;
 		suffix: string;
@@ -203,6 +200,8 @@ const publicRunStep = (
 				String(input.entry.iterations),
 				'--edit-rounds',
 				String(input.entry.editRounds),
+				'--edit-timeout',
+				String(input.entry.editTimeoutMs),
 				'--disposable',
 				'--output',
 				runPath,
@@ -229,9 +228,8 @@ const publicRunStep = (
 		artifacts: input.baselinePath === null ? [runPath, summaryPath] : [runPath, summaryPath, evaluationPath],
 		logPath: join(input.outputDir, 'logs', `public-${input.entry.name}-${input.suffix}.log`),
 		prepare: () => {
-			copyPublicWorkspace({source: input.source, destination: input.workspace, name: input.entry.name});
+			preparePublicWorkspace({workspace: input.workspace, name: input.entry.name, editTarget: input.entry.editTarget});
 		},
-		cleanupPaths: [input.workspace],
 	};
 };
 
@@ -251,9 +249,8 @@ const publicSteps = (
 		const suffix = String(run).padStart(2, '0');
 		const firstRunPath = join(input.outputDir, 'public', input.entry.name, 'run-01.json');
 		const referencePath = input.entry.reference === 'first-run' && run > 1 ? firstRunPath : null;
-		const workspace = publicCopyOf({outputDir: input.outputDir, entry: input.entry, suffix});
 
-		steps.push(publicRunStep({entry: input.entry, source, workspace, outputDir: input.outputDir, suffix, baselinePath, referencePath}));
+		steps.push(publicRunStep({entry: input.entry, workspace: source, outputDir: input.outputDir, suffix, baselinePath, referencePath}));
 	}
 
 	return steps;
@@ -377,7 +374,8 @@ export const executeStep = async (
 			detail: result.exitCode === 0 ? null : failureDetail(result.stderr),
 		};
 	} finally {
-		// A disposable copy is large; remove it on success, failure, and interrupt.
+		// Step-owned scratch paths (a disposable database) are removed on success,
+		// failure, and interrupt.
 		for (const cleanupPath of input.step.cleanupPaths ?? []) {
 			rmSync(cleanupPath, {recursive: true, force: true});
 		}

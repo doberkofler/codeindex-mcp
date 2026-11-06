@@ -157,6 +157,7 @@ export type BenchmarkReportInputType = Readonly<{
 	readonly profile?: BenchmarkProfileType | null;
 	readonly editRounds?: number;
 	readonly editTarget?: string | null;
+	readonly editTimeoutMs?: number;
 	readonly maxDepth?: number;
 	readonly pageLimit?: number;
 	readonly workerEntry?: string | undefined;
@@ -224,6 +225,7 @@ const runOptionalScenarios = async (
 					descriptors: runtime.descriptors,
 					rounds: input.editRounds ?? 5,
 					...(editTarget === null ? {} : {targetPath: editTarget}),
+					...(input.editTimeoutMs === undefined ? {} : {timeoutMs: input.editTimeoutMs}),
 					workerEntry,
 					onProgress: input.onProgress,
 				}),

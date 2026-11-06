@@ -147,7 +147,7 @@ jobs:
             "failureClass": "Performance gate"
           }
           EOF
-          find "$stage" -type f \( -name '*.json' -o -name '*.md' \) -print0 |
+          find "$stage" -type f \( -name '*.json' -o -name '*.md' -o -name '*.log' \) -print0 |
             xargs -0 perl -pi -e 's/\Q$ENV{GITHUB_WORKSPACE}\E/<workspace>/g; s/\Q$ENV{RUNNER_TEMP}\E/<runner-temp>/g; s/\Q$ENV{HOME}\E/<home>/g'
 
       - name: Publish failure interpretation
@@ -274,6 +274,15 @@ jobs:
           if [ -f "$evidence_root/qualification/report.json" ]; then
             cp "$evidence_root/qualification/report.json" "$stage/qualification.json"
           fi
+          # Bounded step logs: a failed child process is undiagnosable without them.
+          if [ -d "$evidence/logs" ]; then
+            mkdir -p "$stage/logs"
+            for log in "$evidence"/logs/*.log; do
+              if [ -f "$log" ]; then
+                tail -n 4000 "$log" > "$stage/logs/$(basename "$log")"
+              fi
+            done
+          fi
           cat > "$stage/context.json" <<EOF
           {
             "workflow": "nightly",
@@ -285,7 +294,7 @@ jobs:
             "failureClass": "Performance gate or Semantic qualification"
           }
           EOF
-          find "$stage" -type f \( -name '*.json' -o -name '*.md' \) -print0 |
+          find "$stage" -type f \( -name '*.json' -o -name '*.md' -o -name '*.log' \) -print0 |
             xargs -0 perl -pi -e 's/\Q$ENV{GITHUB_WORKSPACE}\E/<workspace>/g; s/\Q$ENV{RUNNER_TEMP}\E/<runner-temp>/g; s/\Q$ENV{HOME}\E/<home>/g'
 
       - name: Publish failure interpretation
