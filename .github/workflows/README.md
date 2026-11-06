@@ -41,6 +41,10 @@ first, so a killed run cannot move the next measurement. A missing edit target f
 the step instead of silently skipping the gate. Each project declares its own
 `editTimeoutMs`; one publication bound cannot cover a 77-file corpus and a
 5,000-file corpus at the same time.
+`vscode` does not run edit-to-fresh. Its 1.37 million occurrences make the in-place
+revision pass exceed any budget that fits the job, and a gate that can never finish is
+not a gate. The scenario stays blocking on `typescript` and `material-ui` until the
+revision pass stops scaling with occurrence count.
 Relative regression gates are capped to warnings whenever the retained reference was produced on
 another platform or architecture, so the first run on a new platform establishes that
 platform's reference and later runs compare like against like.

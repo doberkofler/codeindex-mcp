@@ -26,14 +26,11 @@
 			"revision": "072586267e68ece9a47aa43f8c108e0dcbf44622",
 			"directory": "vscode",
 			"projectFile": "src/tsconfig.json",
-			"scenarios": ["cold", "warm", "rebuild", "edit", "deep", "queries"],
+			"scenarios": ["cold", "warm", "rebuild", "deep", "queries"],
 			"iterations": 20,
 			"runs": 2,
 			"baseline": "benchmark/baseline-external.json",
-			"reference": "first-run",
-			"editTarget": "src/vs/base/common/strings.ts",
-			"editRounds": 3,
-			"editTimeoutMs": 1800000
+			"reference": "first-run"
 		},
 		{
 			"name": "material-ui",

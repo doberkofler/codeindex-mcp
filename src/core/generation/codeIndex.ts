@@ -408,6 +408,11 @@ export class CodeIndex {
 	public async close(): Promise<void> {
 		debug('close');
 		this.#closed = true;
+		// Stop the build worker before waiting for the coordinator. Build
+		// cancellation is cooperative and only observed between adapters, so a
+		// build inside one adapter would otherwise pin close() for its full
+		// duration. Closing the worker rejects the pending attempt.
+		await this.#buildWorker?.close();
 		await this.#coordinator.close();
 		this.#watcher.close();
 		if (this.#refreshing !== null) {
@@ -417,7 +422,6 @@ export class CodeIndex {
 				// The refresh failure is already recorded on the index.
 			}
 		}
-		await this.#buildWorker?.close();
 		for (const adapter of this.#adapterSet.adapters) {
 			adapter.dispose?.();
 		}

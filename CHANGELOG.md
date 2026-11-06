@@ -8,12 +8,23 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+* **index:** stop a pending build before waiting for the coordinator on `close`.
+  Cancellation is cooperative and only observed between adapters, so a build inside
+  one adapter pinned `close()` for its full duration; a 30-minute benchmark timeout
+  then spent another 53 minutes shutting down.
 * **benchmark:** bound edit-to-fresh per project instead of by one 60-second constant.
   `--edit-timeout` and the suite's `editTimeoutMs` set the wall-clock bound for one edit
   publication, and a timeout now reports the freshness state it observed.
 * **benchmark:** measure pinned public projects in the prepared checkout. Copying the
   checkout added gigabytes of I/O per run; the edited file is restored byte-for-byte
   after the scenario and restored through git before every run.
+
+### Changed
+
+* **benchmark:** the pinned `vscode` project no longer runs edit-to-fresh. Its 1.37
+  million occurrences make the in-place revision pass exceed the job budget; the gate
+  stays blocking on `typescript` and `material-ui`. Restoring it requires fixing the
+  revision pass, not a larger timeout.
 
 ## [0.16.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.15.0...v0.16.0) (2026-11-05)
 
