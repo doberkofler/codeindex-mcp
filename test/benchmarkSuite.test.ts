@@ -217,7 +217,7 @@ describe('benchmark suite progress', () => {
 });
 
 describe('benchmark suite public workspaces', () => {
-	it('plans public runs in the prepared checkout with an explicit edit timeout', () => {
+	it('plans public runs in the prepared checkout with explicit edit and run timeouts', () => {
 		const root = mkdtempSync(path.join(tmpdir(), 'codeindex-suite-step-'));
 		const projectsRoot = path.join(root, 'projects');
 		const source = path.join(projectsRoot, 'example');
@@ -258,6 +258,7 @@ describe('benchmark suite public workspaces', () => {
 			expect(args).toContain('cold_build,deep_cursor');
 			expect(args).toContain('--edit-timeout');
 			expect(args).toContain('60000');
+			expect(step.timeoutMs).toBe(1_800_000);
 			// The prepared checkout is measured in place; no second copy is made.
 			expect(args[args.indexOf('--root') + 1]).toBe(source);
 			expect(step.cleanupPaths).toBeUndefined();
@@ -284,6 +285,20 @@ describe('benchmark suite public workspaces', () => {
 		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 1_800_000}]}).success).toBe(true);
 		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 999}]}).success).toBe(false);
 		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 3_600_001}]}).success).toBe(false);
+	});
+
+	it('bounds each public-project run', () => {
+		const project = {
+			name: 'example',
+			repository: 'https://example.com/example.git',
+			revision: '0'.repeat(40),
+			directory: 'example',
+			projectFile: 'tsconfig.json',
+		};
+
+		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, runTimeoutMs: 1_200_000}]}).success).toBe(true);
+		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, runTimeoutMs: 999}]}).success).toBe(false);
+		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, runTimeoutMs: 14_400_001}]}).success).toBe(false);
 	});
 });
 

@@ -3,6 +3,12 @@ import {type BenchmarkScenarioNameType} from './benchTypes.ts';
 /** Benchmark step that can fail, named as it appears in reports. */
 export type BenchmarkPhaseType = BenchmarkScenarioNameType | 'queries';
 
+export type BenchmarkPhaseProgressType = Readonly<{
+	phase: BenchmarkPhaseType;
+	status: 'started' | 'completed' | 'failed';
+	elapsedMs: number;
+}>;
+
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null;
 
 /**
@@ -49,13 +55,25 @@ const phaseFailure = (phase: BenchmarkPhaseType, error: unknown): Error => {
  *
  * @param phase - Scenario or measurement being run.
  * @param pending - Already running step.
+ * @param onProgress - Optional phase lifecycle sink.
  * @returns The step's result.
  * @throws {@link Error} When the step rejects, labelled with the phase.
  */
-export const phaseOf = async <ValueType>(phase: BenchmarkPhaseType, pending: Promise<ValueType>): Promise<ValueType> => {
+
+export const phaseOf = async <ValueType>(
+	phase: BenchmarkPhaseType,
+	pending: Promise<ValueType>,
+	onProgress?: (progress: BenchmarkPhaseProgressType) => void,
+): Promise<ValueType> => {
+	const startedAt = performance.now();
+	onProgress?.({phase, status: 'started', elapsedMs: 0});
+
 	try {
-		return await pending;
+		const result = await pending;
+		onProgress?.({phase, status: 'completed', elapsedMs: performance.now() - startedAt});
+		return result;
 	} catch (error) {
+		onProgress?.({phase, status: 'failed', elapsedMs: performance.now() - startedAt});
 		throw phaseFailure(phase, error);
 	}
 };

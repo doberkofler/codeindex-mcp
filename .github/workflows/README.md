@@ -47,6 +47,10 @@ not a gate. The scenario stays blocking on `typescript` and `material-ui` until 
 revision pass stops scaling with occurrence count. Each public project declares
 `requiredScenarios` when it intentionally differs from the baseline's list, so the
 status is explicit rather than a silently missing measurement.
+Each public project also declares `runTimeoutMs`. The suite reports every phase start
+and completion, writes the bounded child log while the process is running, and
+terminates the child process group at the deadline. A stalled large-corpus phase
+therefore remains attributable and cannot consume the workflow's outer budget.
 Relative regression gates are capped to warnings whenever the retained reference was produced on
 another platform or architecture, so the first run on a new platform establishes that
 platform's reference and later runs compare like against like.
@@ -79,8 +83,8 @@ failure.
 
 **Artifacts:** `nightly-generated-<run-id>` and `nightly-public-<run-id>`, retained 30
 days. Only the JSON report, evaluation sidecars, Markdown summaries, suite manifest,
-qualification report, and run context are uploaded. Logs, generated corpora, databases,
-dependency checkouts, and work directories are excluded.
+qualification report, bounded child logs, and run context are uploaded. Generated
+corpora, databases, dependency checkouts, and work directories are excluded.
 
 **Failure meaning:**
 

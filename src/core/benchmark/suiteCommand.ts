@@ -1,4 +1,4 @@
-import {spawn} from 'node:child_process';
+import {spawn, type ChildProcess} from 'node:child_process';
 import {once} from 'node:events';
 import {mkdirSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
@@ -12,7 +12,63 @@ export type CliResultType = Readonly<{
 	durationMs: number;
 }>;
 
+type RunCommandInputType = Readonly<{
+	command: string;
+	args: readonly string[];
+	cwd: string;
+	environment: NodeJS.ProcessEnv;
+	logPath: string;
+	timeoutMs?: number;
+	onLine?: (line: string) => void;
+}>;
+
+type CommandLogStateType = Readonly<{
+	started: number;
+	stdout: string;
+	stderr: string;
+	extra: string | null;
+	exitCode: number | null;
+}>;
+
 const appendBounded = (current: string, chunk: string): string => (current.length >= MAX_LOG_BYTES ? current : (current + chunk).slice(0, MAX_LOG_BYTES));
+
+const finalStderrOf = (stderr: string, extra: string | null): string =>
+	extra === null ? stderr : `${stderr}${stderr.endsWith('\n') || stderr.length === 0 ? '' : '\n'}${extra}`;
+
+const persistCommandLog = (input: RunCommandInputType, state: CommandLogStateType): void => {
+	writeFileSync(
+		input.logPath,
+		[
+			`$ ${input.command} ${input.args.join(' ')}`,
+			`cwd: ${input.cwd}`,
+			`exit: ${state.exitCode === null ? 'running' : String(state.exitCode)}`,
+			`duration: ${(performance.now() - state.started).toFixed(1)} ms`,
+			'',
+			'--- stdout ---',
+			state.stdout,
+			'--- stderr ---',
+			finalStderrOf(state.stderr, state.extra),
+			'',
+		].join('\n'),
+		{encoding: 'utf8'},
+	);
+};
+
+const terminateChild = (child: ChildProcess, detached: boolean, signal: NodeJS.Signals): void => {
+	if (child.pid === undefined) {
+		return;
+	}
+
+	try {
+		if (detached) {
+			process.kill(-child.pid, signal);
+		} else {
+			child.kill(signal);
+		}
+	} catch {
+		// The process may have exited between the deadline and signal delivery.
+	}
+};
 
 /**
  * Runs one child process and persists a bounded log.
@@ -25,30 +81,33 @@ const appendBounded = (current: string, chunk: string): string => (current.lengt
  * @param input - Command, working directory, environment, log path, and progress sink.
  * @returns Exit code, captured output, and duration.
  */
-export const runCommand = async (
-	input: Readonly<{
-		command: string;
-		args: readonly string[];
-		cwd: string;
-		environment: NodeJS.ProcessEnv;
-		logPath: string;
-		onLine?: (line: string) => void;
-	}>,
-): Promise<CliResultType> => {
+export const runCommand = async (input: RunCommandInputType): Promise<CliResultType> => {
 	const started = performance.now();
+	const detached = process.platform !== 'win32';
+	mkdirSync(path.dirname(input.logPath), {recursive: true});
 	const child = spawn(input.command, [...input.args], {
 		cwd: input.cwd,
 		env: input.environment,
+		detached,
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
 	let stdout = '';
 	let stderr = '';
 	let pending = '';
+	let extra: string | null = null;
+	let exitCode: number | null = null;
+
+	const persistLog = (): void => {
+		persistCommandLog(input, {started, stdout, stderr, extra, exitCode});
+	};
+
+	persistLog();
 
 	child.stdout.setEncoding('utf8');
 	child.stderr.setEncoding('utf8');
 	child.stdout.on('data', (chunk: string) => {
 		stdout = appendBounded(stdout, chunk);
+		persistLog();
 	});
 	child.stderr.on('data', (chunk: string) => {
 		stderr = appendBounded(stderr, chunk);
@@ -59,16 +118,30 @@ export const runCommand = async (
 		for (const line of lines) {
 			input.onLine?.(line);
 		}
+
+		persistLog();
 	});
 
-	let exitCode = 1;
-	let extra: string | null = null;
+	const timeout =
+		input.timeoutMs === undefined
+			? null
+			: setTimeout(() => {
+					extra = `Timed out after ${String(input.timeoutMs)} ms`;
+					persistLog();
+					terminateChild(child, detached, 'SIGTERM');
+				}, input.timeoutMs);
+	timeout?.unref();
 
 	try {
 		await once(child, 'close');
 		exitCode = child.exitCode ?? 1;
 	} catch (error) {
-		extra = error instanceof Error ? error.message : String(error);
+		extra ??= error instanceof Error ? error.message : String(error);
+		exitCode = 1;
+	} finally {
+		if (timeout !== null) {
+			clearTimeout(timeout);
+		}
 	}
 
 	const durationMs = performance.now() - started;
@@ -77,25 +150,8 @@ export const runCommand = async (
 		input.onLine?.(pending);
 	}
 
-	const finalStderr = extra === null ? stderr : `${stderr}\n${extra}`;
-
-	mkdirSync(path.dirname(input.logPath), {recursive: true});
-	writeFileSync(
-		input.logPath,
-		[
-			`$ ${input.command} ${input.args.join(' ')}`,
-			`cwd: ${input.cwd}`,
-			`exit: ${String(exitCode)}`,
-			`duration: ${durationMs.toFixed(1)} ms`,
-			'',
-			'--- stdout ---',
-			stdout,
-			'--- stderr ---',
-			finalStderr,
-			'',
-		].join('\n'),
-		{encoding: 'utf8'},
-	);
+	const finalStderr = finalStderrOf(stderr, extra);
+	persistLog();
 
 	return {exitCode, stdout, stderr: finalStderr, durationMs};
 };

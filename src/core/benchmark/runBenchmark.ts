@@ -13,7 +13,7 @@ import {createLogger} from '../logging/logger.ts';
 import {IndexDatabase} from '../storage/database.ts';
 import {loadBenchmarkBaseline, loadBenchmarkReference} from './baseline.ts';
 import {addBenchmarkOptions, type BenchmarkOptionValuesType, parseBenchmarkOptions, prepareEnvironment} from './benchmarkOptions.ts';
-import {phaseOf} from './benchmarkPhase.ts';
+import {phaseOf, type BenchmarkPhaseProgressType} from './benchmarkPhase.ts';
 import {
 	type BenchmarkMachineType,
 	type BenchmarkPercentilesType,
@@ -162,6 +162,7 @@ export type BenchmarkReportInputType = Readonly<{
 	readonly pageLimit?: number;
 	readonly workerEntry?: string | undefined;
 	readonly onProgress?: ((progress: BenchmarkEditProgressType) => void) | undefined;
+	readonly onPhaseProgress?: ((progress: BenchmarkPhaseProgressType) => void) | undefined;
 }>;
 
 const runInitialBuild = async (
@@ -175,6 +176,7 @@ const runInitialBuild = async (
 		const report = await phaseOf(
 			'cold_build',
 			runBuildScenario({config: input.config, name: 'cold_build', force: false, workerEntry, adapters: runtime.adapters, descriptors: runtime.descriptors}),
+			input.onPhaseProgress,
 		);
 		return report;
 	}
@@ -183,6 +185,7 @@ const runInitialBuild = async (
 	const report = await phaseOf(
 		name,
 		runBuildScenario({config: input.config, name, force: input.force, workerEntry, adapters: runtime.adapters, descriptors: runtime.descriptors}),
+		input.onPhaseProgress,
 	);
 	return report;
 };
@@ -200,6 +203,7 @@ const runOptionalScenarios = async (
 			await phaseOf(
 				'warm_reuse',
 				runBuildScenario({config: input.config, name: 'warm_reuse', force: false, workerEntry, adapters: runtime.adapters, descriptors: runtime.descriptors}),
+				input.onPhaseProgress,
 			),
 		);
 	}
@@ -209,6 +213,7 @@ const runOptionalScenarios = async (
 			await phaseOf(
 				'warm_rebuild',
 				runBuildScenario({config: input.config, name: 'warm_rebuild', force: true, workerEntry, adapters: runtime.adapters, descriptors: runtime.descriptors}),
+				input.onPhaseProgress,
 			),
 		);
 	}
@@ -229,6 +234,7 @@ const runOptionalScenarios = async (
 					workerEntry,
 					onProgress: input.onProgress,
 				}),
+				input.onPhaseProgress,
 			),
 		);
 	}
@@ -245,6 +251,7 @@ const runOptionalScenarios = async (
 					adapters: runtime.adapters,
 					descriptors: runtime.descriptors,
 				}),
+				input.onPhaseProgress,
 			),
 		);
 	}
@@ -269,7 +276,7 @@ export const runBenchmarkReport = async (input: BenchmarkReportInputType): Promi
 	const {adapters, descriptors} = loaded;
 	const initial = await runInitialBuild(input, selected, workerEntry, {adapters, descriptors});
 	const results = [initial, ...(await runOptionalScenarios(input, selected, workerEntry, {adapters, descriptors}))];
-	const measured = await phaseOf('queries', measureQueryScenario(input.config, input.iterations, workerEntry, {adapters, descriptors}));
+	const measured = await phaseOf('queries', measureQueryScenario(input.config, input.iterations, workerEntry, {adapters, descriptors}), input.onPhaseProgress);
 
 	return {
 		schemaVersion: 2,
@@ -344,6 +351,10 @@ const executeBenchmark = async (values: BenchmarkOptionValuesType, environment: 
 			...options,
 			onProgress: (progress): void => {
 				io.stderr(editProgressMessage(progress));
+			},
+			onPhaseProgress: (progress): void => {
+				const elapsed = progress.status === 'started' ? '' : ` in ${(progress.elapsedMs / 1000).toFixed(1)} s`;
+				io.stderr(`[benchmark] phase ${progress.phase} ${progress.status}${elapsed}`);
 			},
 		});
 

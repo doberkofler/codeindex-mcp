@@ -444,7 +444,11 @@ describe('benchmark workspace retention', () => {
 			database = stdout.find((line) => line.startsWith('Database: '))?.slice('Database: '.length);
 
 			expect(exitCode).toBe(0);
-			expect(stderr).toStrictEqual([]);
+			expect(stderr).toHaveLength(4);
+			expect(stderr[0]).toBe('[benchmark] phase cold_build started');
+			expect(stderr[1]).toMatch(/^\[benchmark\] phase cold_build completed in \d+\.\d s$/u);
+			expect(stderr[2]).toBe('[benchmark] phase queries started');
+			expect(stderr[3]).toMatch(/^\[benchmark\] phase queries completed in \d+\.\d s$/u);
 			expect(existsSync(output)).toBe(true);
 			expect(existsSync(evaluationPath)).toBe(true);
 			expect(existsSync(summaryPath)).toBe(true);

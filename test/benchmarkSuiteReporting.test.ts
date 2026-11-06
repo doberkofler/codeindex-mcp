@@ -1,5 +1,5 @@
 import {spawnSync} from 'node:child_process';
-import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
@@ -272,6 +272,23 @@ describe('benchmark suite command', () => {
 		expect(result.stdout).toBe('out');
 		expect(lines).toStrictEqual(['first', 'second']);
 		expect(failureDetail('message | value')).toBe(String.raw`message \| value`);
+	});
+
+	it('terminates a child that exceeds its deadline and preserves its progress log', async () => {
+		const directory = temporaryDirectory();
+		const logPath = join(directory, 'timed-out.log');
+		const result = await runCommand({
+			command: process.execPath,
+			args: ['-e', String.raw`process.stderr.write('[benchmark] phase cold_build started\n'); setInterval(() => {}, 1000);`],
+			cwd: directory,
+			environment: {},
+			logPath,
+			timeoutMs: 100,
+		});
+
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain('Timed out after 100 ms');
+		expect(readFileSync(logPath, 'utf8')).toContain('[benchmark] phase cold_build started');
 	});
 
 	it('cleans inherited CodeIndex overrides', () => {

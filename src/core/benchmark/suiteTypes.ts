@@ -74,6 +74,8 @@ const PublicProjectsSchema = z
 				 * failing on an arbitrary constant.
 				 */
 				editTimeoutMs: z.number().int().min(1000).max(3_600_000).default(60_000),
+				/** Wall-clock bound for one complete project run. */
+				runTimeoutMs: z.number().int().min(1000).max(14_400_000).default(1_800_000),
 				/**
 				 * Scenarios the report must contain. Null keeps the baseline's list; a
 				 * project that intentionally runs fewer declares the remainder here.
