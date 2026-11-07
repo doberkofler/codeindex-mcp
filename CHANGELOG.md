@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1](https://github.com/doberkofler/codeindex-mcp/compare/v0.16.0...v0.16.1) (2026-11-07)
+
+### Fixed
+
+* **benchmark:** bound edit-to-fresh per project ([ac82959](https://github.com/doberkofler/codeindex-mcp/commit/ac82959d159f326aae22415599c7989f9ed8ae6f))
+* **benchmark:** bound public project runs ([addff29](https://github.com/doberkofler/codeindex-mcp/commit/addff294b11a2daf23dc13dfdc70fd241989e733))
+* **benchmark:** fail on stalled public runs, not slow ones ([f4d186c](https://github.com/doberkofler/codeindex-mcp/commit/f4d186ce4adec8ff5b05e2274158008ea1166a9e))
+* **benchmark:** narrow required scenarios per project ([c944eb3](https://github.com/doberkofler/codeindex-mcp/commit/c944eb3ae5b919665f4a4f990781f47657b920eb))
+* **index:** stop a pending build on close ([953bd25](https://github.com/doberkofler/codeindex-mcp/commit/953bd257ae4b6d6b584d56713c91dc7aec348b97))
+* **typescript:** bound TypeScript 7 extraction memory ([327a2e5](https://github.com/doberkofler/codeindex-mcp/commit/327a2e578acb4de486e64887368c3618a1d2d161))
+* **typescript:** exclude JSDoc type nodes from authored facts ([639b757](https://github.com/doberkofler/codeindex-mcp/commit/639b7572716463d33e87de9b3463146749d7d452))
+* **typescript:** stabilize oversized TypeScript 7 indexing ([79f51bb](https://github.com/doberkofler/codeindex-mcp/commit/79f51bb715a0b0bd8ffefbe98cef03cf349d6738))
+
 ## [Unreleased]
 
 ### Fixed
