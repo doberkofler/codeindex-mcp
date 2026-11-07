@@ -18,7 +18,15 @@ type RunCommandInputType = Readonly<{
 	cwd: string;
 	environment: NodeJS.ProcessEnv;
 	logPath: string;
-	timeoutMs?: number;
+	/**
+	 * Wall-clock bound for silence. Any stdout or stderr output resets it.
+	 *
+	 * A legitimate large-corpus build may run for many minutes without emitting
+	 * anything, so a bound on total duration would fail slow work. A bound on
+	 * silence fails the observed failure mode instead: a build that stops making
+	 * progress and never finishes.
+	 */
+	stallTimeoutMs?: number;
 	onLine?: (line: string) => void;
 }>;
 
@@ -103,11 +111,34 @@ export const runCommand = async (input: RunCommandInputType): Promise<CliResultT
 
 	persistLog();
 
+	let stallTimer: ReturnType<typeof setTimeout> | null = null;
+	const clearStallTimer = (): void => {
+		if (stallTimer !== null) {
+			clearTimeout(stallTimer);
+			stallTimer = null;
+		}
+	};
+	const armStallTimer = (): void => {
+		if (input.stallTimeoutMs === undefined) {
+			return;
+		}
+
+		clearStallTimer();
+		stallTimer = setTimeout(() => {
+			extra = `Stalled: no output for ${String(input.stallTimeoutMs)} ms`;
+			persistLog();
+			terminateChild(child, detached, 'SIGTERM');
+		}, input.stallTimeoutMs);
+		stallTimer.unref();
+	};
+	armStallTimer();
+
 	child.stdout.setEncoding('utf8');
 	child.stderr.setEncoding('utf8');
 	child.stdout.on('data', (chunk: string) => {
 		stdout = appendBounded(stdout, chunk);
 		persistLog();
+		armStallTimer();
 	});
 	child.stderr.on('data', (chunk: string) => {
 		stderr = appendBounded(stderr, chunk);
@@ -120,17 +151,8 @@ export const runCommand = async (input: RunCommandInputType): Promise<CliResultT
 		}
 
 		persistLog();
+		armStallTimer();
 	});
-
-	const timeout =
-		input.timeoutMs === undefined
-			? null
-			: setTimeout(() => {
-					extra = `Timed out after ${String(input.timeoutMs)} ms`;
-					persistLog();
-					terminateChild(child, detached, 'SIGTERM');
-				}, input.timeoutMs);
-	timeout?.unref();
 
 	try {
 		await once(child, 'close');
@@ -139,9 +161,7 @@ export const runCommand = async (input: RunCommandInputType): Promise<CliResultT
 		extra ??= error instanceof Error ? error.message : String(error);
 		exitCode = 1;
 	} finally {
-		if (timeout !== null) {
-			clearTimeout(timeout);
-		}
+		clearStallTimer();
 	}
 
 	const durationMs = performance.now() - started;

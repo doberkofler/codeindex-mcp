@@ -19,7 +19,7 @@
 			"editTarget": "src/compiler/parser.ts",
 			"editRounds": 3,
 			"editTimeoutMs": 600000,
-			"runTimeoutMs": 600000
+			"stallTimeoutMs": 1200000
 		},
 		{
 			"name": "vscode",
@@ -33,7 +33,7 @@
 			"baseline": "benchmark/baseline-external.json",
 			"reference": "first-run",
 			"requiredScenarios": ["cold_build", "warm_reuse", "warm_rebuild", "deep_cursor"],
-			"runTimeoutMs": 1200000
+			"stallTimeoutMs": 1200000
 		},
 		{
 			"name": "material-ui",
@@ -49,7 +49,7 @@
 			"editTarget": "packages/mui-material/src/Button/Button.js",
 			"editRounds": 3,
 			"editTimeoutMs": 600000,
-			"runTimeoutMs": 600000
+			"stallTimeoutMs": 1200000
 		}
 	]
 }

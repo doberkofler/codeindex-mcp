@@ -8,9 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
-* **benchmark:** bound each pinned public-project run and report every phase. Child
-  logs are persisted while the process runs, so a timeout or cancellation retains the
-  last observed phase instead of leaving an empty artifact.
+* **benchmark:** report every phase and bound silence instead of total duration for
+  pinned public projects. A large corpus legitimately runs for ten minutes inside one
+  phase, so a total-duration cap failed slow work; a stall bound fails the observed
+  hang instead. Child logs are persisted while the process runs, so a stall or
+  cancellation retains the last observed phase instead of leaving an empty artifact.
 * **index:** stop a pending build before waiting for the coordinator on `close`.
   Cancellation is cooperative and only observed between adapters, so a build inside
   one adapter pinned `close()` for its full duration; a 30-minute benchmark timeout

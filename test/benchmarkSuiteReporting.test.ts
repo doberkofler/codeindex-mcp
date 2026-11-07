@@ -274,7 +274,7 @@ describe('benchmark suite command', () => {
 		expect(failureDetail('message | value')).toBe(String.raw`message \| value`);
 	});
 
-	it('terminates a child that exceeds its deadline and preserves its progress log', async () => {
+	it('terminates a silent child and preserves its progress log', async () => {
 		const directory = temporaryDirectory();
 		const logPath = join(directory, 'timed-out.log');
 		const result = await runCommand({
@@ -283,12 +283,30 @@ describe('benchmark suite command', () => {
 			cwd: directory,
 			environment: {},
 			logPath,
-			timeoutMs: 100,
+			stallTimeoutMs: 100,
 		});
 
 		expect(result.exitCode).toBe(1);
-		expect(result.stderr).toContain('Timed out after 100 ms');
+		expect(result.stderr).toContain('Stalled: no output for 100 ms');
 		expect(readFileSync(logPath, 'utf8')).toContain('[benchmark] phase cold_build started');
+	});
+
+	it('does not treat steady progress as a stall', async () => {
+		const directory = temporaryDirectory();
+		const result = await runCommand({
+			command: process.execPath,
+			args: [
+				'-e',
+				String.raw`let n = 0; const timer = setInterval(() => { n += 1; process.stderr.write('tick ' + n + '\n'); if (n === 6) { clearInterval(timer); } }, 40);`,
+			],
+			cwd: directory,
+			environment: {},
+			logPath: join(directory, 'steady.log'),
+			stallTimeoutMs: 150,
+		});
+
+		expect(result.exitCode).toBe(0);
+		expect(result.stderr).toContain('tick 6');
 	});
 
 	it('cleans inherited CodeIndex overrides', () => {

@@ -17,7 +17,7 @@ export type PlannedStepType = Readonly<{
 	environment?: Readonly<Record<string, string>>;
 	artifacts: readonly string[];
 	logPath: string;
-	timeoutMs?: number;
+	stallTimeoutMs?: number;
 	stdoutPath?: string;
 	cwd?: string;
 	cleanupPaths?: readonly string[];
@@ -232,7 +232,7 @@ const publicRunStep = (
 		referencePath: input.referencePath,
 		artifacts: input.baselinePath === null ? [runPath, summaryPath] : [runPath, summaryPath, evaluationPath],
 		logPath: join(input.outputDir, 'logs', `public-${input.entry.name}-${input.suffix}.log`),
-		timeoutMs: input.entry.runTimeoutMs,
+		stallTimeoutMs: input.entry.stallTimeoutMs,
 		prepare: () => {
 			preparePublicWorkspace({workspace: input.workspace, name: input.entry.name, editTarget: input.entry.editTarget});
 		},
@@ -361,7 +361,7 @@ export const executeStep = async (
 			cwd: input.step.cwd ?? input.repositoryRoot,
 			environment,
 			logPath: input.step.logPath,
-			...(input.step.timeoutMs === undefined ? {} : {timeoutMs: input.step.timeoutMs}),
+			...(input.step.stallTimeoutMs === undefined ? {} : {stallTimeoutMs: input.step.stallTimeoutMs}),
 			...(input.onLine === undefined ? {} : {onLine: input.onLine}),
 		});
 

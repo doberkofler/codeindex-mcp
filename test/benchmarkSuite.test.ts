@@ -258,7 +258,7 @@ describe('benchmark suite public workspaces', () => {
 			expect(args).toContain('cold_build,deep_cursor');
 			expect(args).toContain('--edit-timeout');
 			expect(args).toContain('60000');
-			expect(step.timeoutMs).toBe(1_800_000);
+			expect(step.stallTimeoutMs).toBe(1_200_000);
 			// The prepared checkout is measured in place; no second copy is made.
 			expect(args[args.indexOf('--root') + 1]).toBe(source);
 			expect(step.cleanupPaths).toBeUndefined();
@@ -287,7 +287,7 @@ describe('benchmark suite public workspaces', () => {
 		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, editTimeoutMs: 3_600_001}]}).success).toBe(false);
 	});
 
-	it('bounds each public-project run', () => {
+	it('bounds silence within each public-project run', () => {
 		const project = {
 			name: 'example',
 			repository: 'https://example.com/example.git',
@@ -296,9 +296,9 @@ describe('benchmark suite public workspaces', () => {
 			projectFile: 'tsconfig.json',
 		};
 
-		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, runTimeoutMs: 1_200_000}]}).success).toBe(true);
-		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, runTimeoutMs: 999}]}).success).toBe(false);
-		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, runTimeoutMs: 14_400_001}]}).success).toBe(false);
+		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, stallTimeoutMs: 1_200_000}]}).success).toBe(true);
+		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, stallTimeoutMs: 999}]}).success).toBe(false);
+		expect(BenchmarkSuiteSchema.safeParse({...validSuite, publicProjects: [{...project, stallTimeoutMs: 7_200_001}]}).success).toBe(false);
 	});
 });
 

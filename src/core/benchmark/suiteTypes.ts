@@ -74,8 +74,13 @@ const PublicProjectsSchema = z
 				 * failing on an arbitrary constant.
 				 */
 				editTimeoutMs: z.number().int().min(1000).max(3_600_000).default(60_000),
-				/** Wall-clock bound for one complete project run. */
-				runTimeoutMs: z.number().int().min(1000).max(14_400_000).default(1_800_000),
+				/**
+				 * Wall-clock bound for silence within one project run. Any child
+				 * output resets it. A total-duration bound would fail legitimately
+				 * slow corpora; a silence bound fails a build that stopped making
+				 * progress, which is the failure the nightly actually observed.
+				 */
+				stallTimeoutMs: z.number().int().min(1000).max(7_200_000).default(1_200_000),
 				/**
 				 * Scenarios the report must contain. Null keeps the baseline's list; a
 				 * project that intentionally runs fewer declares the remainder here.

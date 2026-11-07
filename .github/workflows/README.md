@@ -47,10 +47,13 @@ not a gate. The scenario stays blocking on `typescript` and `material-ui` until 
 revision pass stops scaling with occurrence count. Each public project declares
 `requiredScenarios` when it intentionally differs from the baseline's list, so the
 status is explicit rather than a silently missing measurement.
-Each public project also declares `runTimeoutMs`. The suite reports every phase start
-and completion, writes the bounded child log while the process is running, and
-terminates the child process group at the deadline. A stalled large-corpus phase
-therefore remains attributable and cannot consume the workflow's outer budget.
+Each public project declares `stallTimeoutMs`, a bound on silence rather than on total
+duration: a large corpus legitimately spends ten minutes inside one phase with no
+output, while a hang emits nothing at all. The suite reports every phase start and
+completion, writes the bounded child log while the process is running, and terminates
+the child process group once the stall bound expires. Slow work therefore completes,
+and a stalled phase remains attributable with its last observed phase in the log.
+The step's own `timeout-minutes` remains the outer backstop.
 Relative regression gates are capped to warnings whenever the retained reference was produced on
 another platform or architecture, so the first run on a new platform establishes that
 platform's reference and later runs compare like against like.
