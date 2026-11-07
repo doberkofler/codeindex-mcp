@@ -1,18 +1,54 @@
-import {appendFileSync, writeFileSync} from 'node:fs';
+import {appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {disposeTypeScriptSessions, typeScriptWarmSessionMetrics} from '@codeindex/adapter-typescript/internals';
 import {createTypeScriptInputSnapshot} from '@codeindex/adapter-typescript/inputSnapshot';
 import {buildTypeScriptFacts} from '@codeindex/adapter-typescript/index';
 import {scanProject} from '@codeindex/adapter-typescript/scanProject';
+import {z} from 'zod';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 const {join} = path;
+const DECLARATION_HEAVY_DECLARATIONS = 1000;
+const DECLARATION_HEAVY_REFERENCES = 249_001;
+const MAX_DECLARATION_HEAVY_REQUESTS = 500;
+const TimingDumpSchema = z.object({timing: z.object({totals: z.object({requestCount: z.number().int().nonnegative()})})});
+
+const assertDeclarationHeavyRequestBound = (): void => {
+	const {config, cleanup} = createFixtureConfig('simple-project');
+	const timingDirectory = join(config.storageDirectory, 'typescript-timing');
+
+	try {
+		mkdirSync(timingDirectory, {recursive: true});
+		vi.stubEnv('TS_API_TIMING_DIR', timingDirectory);
+		const declarations = Array.from({length: DECLARATION_HEAVY_DECLARATIONS}, (_, index) => `export const value${String(index)} = ${String(index)};`).join(
+			'\n',
+		);
+		const references = Array.from({length: DECLARATION_HEAVY_REFERENCES}, (_, index) => `value${String(index % DECLARATION_HEAVY_DECLARATIONS)};`).join('\n');
+		writeFileSync(join(config.rootDir, 'src', 'large.ts'), `${declarations}\n${references}\n`, 'utf8');
+
+		const scan = scanProject(config);
+		const build = buildTypeScriptFacts(config, scan);
+		const timingFile = readdirSync(timingDirectory).at(0);
+
+		expect(build.symbols.filter((symbol) => symbol.path === 'src/large.ts')).toHaveLength(DECLARATION_HEAVY_DECLARATIONS);
+
+		if (timingFile === undefined) {
+			throw new Error('TypeScript timing dump was not written');
+		}
+
+		const timing = TimingDumpSchema.parse(JSON.parse(readFileSync(join(timingDirectory, timingFile), 'utf8')));
+		expect(timing.timing.totals.requestCount).toBeLessThanOrEqual(MAX_DECLARATION_HEAVY_REQUESTS);
+	} finally {
+		cleanup();
+	}
+};
 
 describe('TypeScript warm compiler session', () => {
 	afterEach(() => {
 		disposeTypeScriptSessions();
+		vi.unstubAllEnvs();
 	});
 
 	it('reuses one session for unchanged and authored-only scans', () => {
@@ -108,5 +144,10 @@ describe('TypeScript warm compiler session', () => {
 		} finally {
 			cleanup();
 		}
+	}, 60_000);
+
+	it('bounds compiler requests for declaration-heavy oversized projects', () => {
+		expect.hasAssertions();
+		assertDeclarationHeavyRequestBound();
 	}, 60_000);
 });

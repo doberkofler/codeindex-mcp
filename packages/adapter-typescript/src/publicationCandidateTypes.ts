@@ -68,4 +68,6 @@ export type CandidateInputType = Readonly<{
 	 * lookup falls back to the checker.
 	 */
 	readonly symbolAt: (node: Node) => TsSymbol | undefined;
+	/** Canonical alias target from the shared batched candidate lookup. */
+	readonly canonicalAt: (node: Node) => TsSymbol | undefined;
 }>;

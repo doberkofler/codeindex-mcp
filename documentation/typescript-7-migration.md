@@ -350,10 +350,28 @@ Extraction fell from about 4,950 ms to 3,272–3,360 ms and passes the unchanged
 3,500 ms TypeScript 6 envelope. No benchmark threshold, timeout, or heap limit
 changed.
 
+The oversized-project path also retains only syntax-planned candidate symbols
+after the 250,000-identifier ceiling. A declaration-heavy 250,001-identifier
+regression previously made 2,223 compiler requests because candidate collection
+fell back to scalar lookups; planned lookup and batched candidate aliases reduce
+that case to 176 requests without changing its facts.
+
+TypeScript 7 names computed unique-symbol members as
+`__@name@<compiler-instance-id>`. Two otherwise identical VS Code extractions
+therefore changed 25 path digests, and the in-place revision cascade rewrote most
+of the reference graph. Candidate names and surface addresses now remove the
+instance suffix only for symbols carrying `CheckFlags.Late`; an authored quoted
+name with the same textual shape remains unchanged. Two fresh VS Code digest
+reports are byte-identical after normalization.
+
 The final clean VS Code run used a fresh database and the production benchmark
-path. Cold build completed in 211.2 s (78.9 s extraction); forced rebuild
-completed in 574.8 s (84.1 s extraction). Both published 4,935 files, 165,591
-symbols, 1,377,975 occurrences, 63,373 dependency edges, and no diagnostics.
+path. Cold build completed in 202.2 s; forced rebuild completed in 99.5 s. The
+rebuild spent 65.2 s extracting, 9.5 s inserting, and 9.3 s verifying. Before
+unique-symbol normalization, the same local run spent 369.5 s inserting and
+499.7 s overall. Both revisions published 4,935 files, 165,591 symbols,
+1,377,975 occurrences, 63,373 dependency edges, and no diagnostics. The
+normalization intentionally replaces compiler-instance text; all other checked
+fixture and generated-corpus facts retain their prior serialized form.
 
 ### LJS consumer
 

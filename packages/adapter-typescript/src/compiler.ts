@@ -238,7 +238,7 @@ export type {
 	UnionOrIntersectionType,
 	UnionType,
 } from 'typescript/sync';
-export {API, DiagnosticCategory, ModuleKind, ObjectFlags, SignatureKind, SymbolFlags, TypeFlags} from 'typescript/sync';
+export {API, CheckFlags, DiagnosticCategory, ModuleKind, ObjectFlags, SignatureKind, SymbolFlags, TypeFlags} from 'typescript/sync';
 export {rootedDirectoryPathFromPath, rootedPathFromNormalized, toRootedDirectoryPath, toRootedFilePath, toRootedPath} from 'typescript/path';
 
 /**

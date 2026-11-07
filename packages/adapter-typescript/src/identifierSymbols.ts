@@ -1,6 +1,7 @@
 import * as ts from './compiler.ts';
+import {isCandidateSymbolNode} from './publicationCandidateNodes.ts';
 
-/** Bulk-resolved compiler symbols keyed by identifier node. */
+/** Bulk-resolved compiler symbols keyed by syntax node. */
 export type IdentifierSymbolsType = ReadonlyMap<ts.Node, ts.Symbol | undefined>;
 
 const MAX_RETAINED_IDENTIFIER_SYMBOLS = 250_000;
@@ -17,6 +18,18 @@ const identifiersOf = (sourceFile: ts.SourceFile): readonly ts.Identifier[] => {
 
 	ts.forEachChild(sourceFile, collect);
 	return identifiers;
+};
+
+const resolveNodes = (checker: ts.TypeChecker, nodes: readonly ts.Node[], symbols: Map<ts.Node, ts.Symbol | undefined>): void => {
+	if (nodes.length === 0) {
+		return;
+	}
+
+	const resolved = checker.getSymbolAtLocation(nodes);
+
+	for (const [index, node] of nodes.entries()) {
+		symbols.set(node, resolved[index]);
+	}
 };
 
 /**
@@ -68,9 +81,16 @@ export const createIdentifierSymbols = (
 	checker: ts.TypeChecker,
 	program: ts.Program,
 	absolutePaths: readonly string[],
-): Readonly<{symbols: IdentifierSymbolsType; fullSymbols: IdentifierSymbolsType | null; identifierCount: number}> => {
-	let fullSymbols: Map<ts.Node, ts.Symbol | undefined> | null = new Map();
+): Readonly<{
+	symbols: IdentifierSymbolsType;
+	candidateSymbols: IdentifierSymbolsType;
+	fullSymbols: IdentifierSymbolsType | null;
+	identifierCount: number;
+}> => {
+	const sourceFiles: ts.SourceFile[] = [];
+	const symbols = new Map<ts.Node, ts.Symbol | undefined>();
 	let identifierCount = 0;
+	let retainFullLookup = true;
 
 	for (const absolutePath of absolutePaths) {
 		const sourceFile = program.getSourceFile(absolutePath);
@@ -79,18 +99,39 @@ export const createIdentifierSymbols = (
 			continue;
 		}
 
+		sourceFiles.push(sourceFile);
 		const identifiers = identifiersOf(sourceFile);
-		const resolved = identifiers.length === 0 ? [] : checker.getSymbolAtLocation(identifiers);
 		identifierCount += identifiers.length;
 
-		if (fullSymbols !== null && identifierCount <= MAX_RETAINED_IDENTIFIER_SYMBOLS) {
-			for (const [index, node] of identifiers.entries()) {
-				fullSymbols.set(node, resolved[index]);
-			}
-		} else if (fullSymbols !== null) {
-			fullSymbols = null;
+		if (retainFullLookup && identifierCount <= MAX_RETAINED_IDENTIFIER_SYMBOLS) {
+			resolveNodes(checker, identifiers, symbols);
+		} else if (retainFullLookup) {
+			retainFullLookup = false;
+			symbols.clear();
 		}
 	}
 
-	return {symbols: fullSymbols ?? new Map(), fullSymbols, identifierCount};
+	const candidateSymbols = new Map<ts.Node, ts.Symbol | undefined>();
+
+	if (!retainFullLookup) {
+		for (const sourceFile of sourceFiles) {
+			const candidateNodes = new Set<ts.Node>();
+			const collect = (node: ts.Node): void => {
+				if (isCandidateSymbolNode(node)) {
+					candidateNodes.add(node);
+				}
+
+				ts.forEachChild(node, collect);
+			};
+
+			ts.forEachChild(sourceFile, collect);
+			resolveNodes(checker, [...candidateNodes], symbols);
+
+			for (const candidateNode of candidateNodes) {
+				candidateSymbols.set(candidateNode, symbols.get(candidateNode));
+			}
+		}
+	}
+
+	return {symbols, candidateSymbols, fullSymbols: retainFullLookup ? symbols : null, identifierCount};
 };

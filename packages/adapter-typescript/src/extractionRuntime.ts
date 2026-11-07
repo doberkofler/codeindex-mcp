@@ -1,11 +1,12 @@
 import * as ts from './compiler.ts';
 import {type FactAddressType, type IndexedSymbolType, type SourceFileType} from '@codeindex/adapter-sdk';
 import {preloadAliasTargets} from './aliasTargets.ts';
+import {createCandidateResolution} from './candidateResolution.ts';
 import {type LoadedProjectType} from './loadProject.ts';
 import {definitionMetadataOf} from './occurrenceMetadata.ts';
 import {collectTypeScriptCandidates} from './publicationCandidates.ts';
 import {type CandidateCollectionType, type CandidateScopeType, type CandidateType, type DeferredCandidateType} from './publicationCandidateTypes.ts';
-import {createIdentifierSymbols, type IdentifierSymbolsType} from './identifierSymbols.ts';
+import {type IdentifierSymbolsType} from './identifierSymbols.ts';
 import {candidateSymbolOf} from './publicationCandidateSymbol.ts';
 import {createSymbolId} from './symbolIdentity.ts';
 import {symbolNameOf} from './symbolName.ts';
@@ -85,20 +86,8 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 	const {checker, program} = input.project;
 	const pathByAbsolute = new Map(input.files.map((file) => [file.absolutePath, file.path]));
 	const authoredPaths = new Set(input.files.map((file) => file.absolutePath));
-	const identifiers = createIdentifierSymbols(
-		checker,
-		program,
-		input.files.map((file) => file.absolutePath),
-	);
-	const {symbols: identifierSymbols, fullSymbols: fullIdentifierSymbols, identifierCount} = identifiers;
+	const {identifierSymbols, fullIdentifierSymbols, identifierCount, candidateAliasTargets, symbolAt, canonicalAt} = createCandidateResolution(input);
 	input.onCompilerSessionRetention?.(fullIdentifierSymbols !== null);
-	const symbolAt = (node: ts.Node): ts.Symbol | undefined => {
-		if (ts.isIdentifier(node) && identifierSymbols.has(node)) {
-			return identifierSymbols.get(node);
-		}
-
-		return checker.getSymbolAtLocation(node);
-	};
 	const collection = collectTypeScriptCandidates({
 		checker,
 		program,
@@ -109,6 +98,7 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		authoredPaths,
 		pathByAbsolute,
 		symbolAt,
+		canonicalAt,
 	});
 	const runtime: ExtractionRuntimeType = {
 		input,
@@ -147,6 +137,7 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 				authoredPaths,
 				pathByAbsolute,
 				symbolAt,
+				canonicalAt,
 			},
 			candidate,
 		);
@@ -190,7 +181,7 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		}
 	}
 
-	preloadAliasTargets(runtime, identifierSymbols.values());
+	preloadAliasTargets(runtime, identifierSymbols.values(), candidateAliasTargets);
 
 	return runtime;
 };

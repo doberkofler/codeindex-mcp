@@ -27,6 +27,7 @@ import {
 	type ProjectionStateType,
 } from './surfaceReachability.ts';
 import {authoredDeclarationsOf, isExternalSymbol, isInheritedProperty, isPrivateProperty} from './projectionPredicates.ts';
+import {symbolNameOf} from './symbolName.ts';
 
 export {type SurfaceProjectionHostType} from './surfaceProjectionCompiler.ts';
 export {SurfaceProjectionError} from './surfaceReachability.ts';
@@ -75,7 +76,7 @@ const projectProperties = function* projectProperties(state: ProjectionStateType
 			continue;
 		}
 
-		const childPath: FactAddressType = [...node.path, ['member', property.name]];
+		const childPath: FactAddressType = [...node.path, ['member', symbolNameOf(property)]];
 		yield* addSurface(state, property, childPath, {
 			anonymous,
 			inherited: isInheritedProperty(property, node.rootDeclarations),
@@ -263,7 +264,7 @@ const expandNamespace = function* expandNamespace(state: ProjectionStateType, sy
 			continue;
 		}
 
-		const childPath: FactAddressType = [...path, ['member', exported.name]];
+		const childPath: FactAddressType = [...path, ['member', symbolNameOf(exported)]];
 		yield* addSurface(state, exported, childPath, {anonymous: false, inherited: false, depthOne: true});
 		yield* markSymbolReachable(state, exported);
 

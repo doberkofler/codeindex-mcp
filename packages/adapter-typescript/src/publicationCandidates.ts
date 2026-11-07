@@ -17,7 +17,6 @@ import {
 	type CandidateType,
 	type DeferredCandidateType,
 } from './publicationCandidateTypes.ts';
-import {resolveCanonicalFrom} from './resolveSymbols.ts';
 import {symbolNameOf} from './symbolName.ts';
 
 const keyForSymbol = (definition: CandidateDefinitionType): string => `symbol:${definition.path}:${String(definition.range.startOffset)}`;
@@ -315,7 +314,7 @@ const collectNamedCandidate = (input: CandidateInputType, state: CollectorStateT
 	}
 
 	const direct = input.symbolAt(nameNode);
-	const resolved = resolveCanonicalFrom(input.symbolAt, input.checker, nameNode);
+	const resolved = input.canonicalAt(nameNode);
 
 	if (resolved === undefined) {
 		return;
@@ -377,7 +376,7 @@ const collectExternalDefaultAliases = (input: CandidateInputType, state: Collect
 				continue;
 			}
 
-			const target = resolveCanonicalFrom(input.symbolAt, input.checker, statement.expression);
+			const target = input.canonicalAt(statement.expression);
 
 			if (target === undefined || authoredOf(target, input.authoredPaths).length > 0) {
 				continue;

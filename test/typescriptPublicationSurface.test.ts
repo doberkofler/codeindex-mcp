@@ -1,3 +1,6 @@
+import {writeFileSync} from 'node:fs';
+import path from 'node:path';
+
 import {describe, expect, it, vi} from 'vitest';
 import {buildTypeScriptFacts, scanTypeScriptProject} from '@codeindex/adapter-typescript/index';
 import {API} from '@codeindex/adapter-typescript/compiler';
@@ -49,6 +52,36 @@ describe('TypeScript publication vertical slice', () => {
 			expect(batch.mock.calls.some((call) => [...call].length === 3)).toBe(true);
 		} finally {
 			batch.mockRestore();
+			cleanup();
+		}
+	});
+
+	it('removes compiler instance IDs from computed unique-symbol names', () => {
+		const {config, cleanup} = createFixtureConfig('simple-project');
+
+		try {
+			writeFileSync(
+				path.join(config.rootDir, 'src', 'computed.ts'),
+				`export class Values {
+	public ['__@iterator@123'](): void {}
+	public *[Symbol.iterator](): Iterator<number> { yield 1; }
+}
+`,
+				'utf8',
+			);
+			const scan = scanTypeScriptProject(config, []);
+			const extracted = buildTypeScriptFacts(config, scan);
+			const facts = finalizeFacts(extracted, {mode: 'enforce', maxBindingsPerRoot: 2000, extractorId: 'typescript'});
+			const names = extracted.symbols.filter((symbol) => symbol.path === 'src/computed.ts').map((symbol) => symbol.name);
+			const computedSymbol = extracted.symbols.find((symbol) => symbol.name === '__@iterator');
+			const computedBindings = facts.bindings.filter((binding) => binding.symbolId === computedSymbol?.id);
+
+			expect(names).toContain('__@iterator@123');
+			expect(names).toContain('__@iterator');
+			expect(names.filter((name) => /^__@iterator@\d+$/u.test(name))).toStrictEqual(['__@iterator@123']);
+			expect(computedBindings.map((binding) => binding.name)).toStrictEqual(['__@iterator']);
+			expect(computedBindings[0]).toMatchObject({exposure: 'published', hasDeclaredSite: true});
+		} finally {
 			cleanup();
 		}
 	});
