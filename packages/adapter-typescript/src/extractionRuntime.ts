@@ -1,5 +1,6 @@
 import * as ts from './compiler.ts';
 import {type FactAddressType, type IndexedSymbolType, type SourceFileType} from '@codeindex/adapter-sdk';
+import {preloadAliasTargets} from './aliasTargets.ts';
 import {type LoadedProjectType} from './loadProject.ts';
 import {definitionMetadataOf} from './occurrenceMetadata.ts';
 import {collectTypeScriptCandidates} from './publicationCandidates.ts';
@@ -16,6 +17,7 @@ export type ExtractionInputType = Readonly<{
 	readonly projectId: string;
 	readonly rootDir: string;
 	readonly context: string;
+	readonly onCompilerSessionRetention?: (retain: boolean) => void;
 }>;
 
 /** Mutable symbol-table state shared by extraction stages. */
@@ -26,6 +28,8 @@ export type ExtractionRuntimeType = {
 	readonly pathByAbsolute: ReadonlyMap<string, string>;
 	readonly authoredPaths: ReadonlySet<string>;
 	readonly identifierSymbols: IdentifierSymbolsType;
+	readonly fullIdentifierSymbols: IdentifierSymbolsType | null;
+	readonly identifierCount: number;
 	readonly collection: CandidateCollectionType;
 	readonly symbolsByKey: Map<string, IndexedSymbolType>;
 	readonly symbolsById: Map<string, IndexedSymbolType>;
@@ -81,12 +85,20 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 	const {checker, program} = input.project;
 	const pathByAbsolute = new Map(input.files.map((file) => [file.absolutePath, file.path]));
 	const authoredPaths = new Set(input.files.map((file) => file.absolutePath));
-	const identifierSymbols = createIdentifierSymbols(
+	const identifiers = createIdentifierSymbols(
 		checker,
 		program,
 		input.files.map((file) => file.absolutePath),
 	);
-	const symbolAt = (node: ts.Node): ts.Symbol | undefined => (ts.isIdentifier(node) ? identifierSymbols.get(node) : checker.getSymbolAtLocation(node));
+	const {symbols: identifierSymbols, fullSymbols: fullIdentifierSymbols, identifierCount} = identifiers;
+	input.onCompilerSessionRetention?.(fullIdentifierSymbols !== null);
+	const symbolAt = (node: ts.Node): ts.Symbol | undefined => {
+		if (ts.isIdentifier(node) && identifierSymbols.has(node)) {
+			return identifierSymbols.get(node);
+		}
+
+		return checker.getSymbolAtLocation(node);
+	};
 	const collection = collectTypeScriptCandidates({
 		checker,
 		program,
@@ -105,6 +117,8 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		pathByAbsolute,
 		authoredPaths,
 		identifierSymbols,
+		fullIdentifierSymbols,
+		identifierCount,
 		collection,
 		symbolsByKey: new Map(),
 		symbolsById: new Map(),
@@ -175,6 +189,8 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 			updateSymbol(runtime, candidate.key, {...symbol, enclosingId: nearestOwner(runtime, candidate.primary.declaration, symbol.id)});
 		}
 	}
+
+	preloadAliasTargets(runtime, identifierSymbols.values());
 
 	return runtime;
 };

@@ -178,6 +178,15 @@ is now published as `#name` instead of TypeScript's compiler-internal
 `__#<nodeId>@#name`. The identifier is stable across program instances and
 matches the source text.
 
+The request-scheduler correction was compared directly with the scalar adapter
+at `f4d186c`. All serialized fact collections were byte-identical for
+`reference-corpus`, `dependency-cases`, `simple-project`,
+`publication-project`, `typescript-require`, `javascript-project`, and the
+2,704-file generated large corpus. This comparison includes files, symbols,
+occurrences, every publication collection, dependency facts, diagnostics, and
+adapter statistics; timing and the non-serializable validation callback were
+excluded.
+
 ## Measurements
 
 Machine: local Apple silicon, Node.js 26.12.1. The adapter controls below were
@@ -314,27 +323,37 @@ corpus, not the pinned public corpus, so the release-reference campaign in
 
 ### Release-gate interpretation
 
-The generated benchmark corpus is an adversarial stress shape, not a model of a
-real repository. Its 2,500 feature files all import one shared hub type and
-10,000 outline symbols, so surface projection exposes roughly 287,000
-synchronous compiler API requests per build. TypeScript 7 answers each request
-across a process boundary, while TypeScript 6 answered it in-process. On the
-hosted large profile the same workload measured 11.9 s edit-to-fresh p95 on
-TypeScript 6 and 27.2 s on TypeScript 7, despite identical file, symbol, and
-source hashes.
+The generated benchmark corpus exposed an adapter defect rather than a reason to
+weaken the gate. Its 2,500 feature files share enough types to amplify the
+cost of a direct TypeScript 6-style scalar traversal over TypeScript 7's process
+boundary.
 
-Per-root frontier batching was measured as a candidate fix and reverted: the
-frontiers contained about one type per root, batches averaged 1.5 requests, and
-the run went from 286,668 to 289,182 requests and from 7.72 s to 8.16 s. Batching
-across roots remains untested and is not part of this release.
+TypeScript 7's synchronous API provides generator forms of long-running checker
+operations. `API.batch(...)` advances those generators together, deduplicates
+equal requests, and sends each dependency round as one batch. The adapter had
+instead drained one root completely before starting the next. Per-root frontier
+prefetching did not fix that execution model; the correct unit is one resumable
+generator per published root, scheduled together across roots.
 
-The generated baselines therefore keep absolute edit p95 advisory: the value is
-still measured, reported, and warned on, while the retained-reference ratio
-remains the blocking regression guard. External-workspace baselines now do the
-same, because an edit republishes a full generation and its latency is bounded
-by warm rebuild rather than by incremental work. The release basis is the
-controlled real-repository evidence above, where TypeScript 7 was faster in
-every measured comparison.
+The production adapter now uses that model for surface projection and also
+schedules module-export discovery, alias resolution, and bounded contextual
+occurrence resolution in shared rounds. Per-file bulk lookup resolves authored
+identifiers. Projects above 250,000 identifiers preserve that per-file request
+cadence but stop retaining the project-wide occurrence map; references are then
+resolved and consumed in bounded groups. Those projects also evict the retained
+compiler session after extraction so the program graph cannot overlap fact
+insertion; smaller projects keep warm-session reuse. This avoids cold-build and
+forced-rebuild OOM on VS Code's 2.69-million-identifier project without changing
+heap limits. On the generated large corpus, compiler transport requests fell
+from 286,669 to 21,000 and transport overhead from about 2,240 ms to 339 ms.
+Extraction fell from about 4,950 ms to 3,272–3,360 ms and passes the unchanged
+3,500 ms TypeScript 6 envelope. No benchmark threshold, timeout, or heap limit
+changed.
+
+The final clean VS Code run used a fresh database and the production benchmark
+path. Cold build completed in 211.2 s (78.9 s extraction); forced rebuild
+completed in 574.8 s (84.1 s extraction). Both published 4,935 files, 165,591
+symbols, 1,377,975 occurrences, 63,373 dependency edges, and no diagnostics.
 
 ### LJS consumer
 
@@ -384,9 +403,6 @@ include that cost.
   adapter now keeps the compiler session and updates it with `snapshot.update()`,
   but the pinned-public edit-to-fresh table above was measured before that
   change, so it must not be read as evidence for the warm path.
-- `getContextualType`, `getPropertyOfType`, and signature queries remain serial.
-  They account for roughly 300 ms of the large-corpus build; batching them in
-  bounded frontiers is the next measured optimisation if it is needed.
 
 ## Outstanding before merge
 

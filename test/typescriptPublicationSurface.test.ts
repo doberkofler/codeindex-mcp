@@ -1,5 +1,6 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {buildTypeScriptFacts, scanTypeScriptProject} from '@codeindex/adapter-typescript/index';
+import {API} from '@codeindex/adapter-typescript/compiler';
 import {finalizeFacts, type FinalizedFactSetType} from '../src/core/facts/index.ts';
 import {scopedFactIdOf} from '../src/core/storage/factIdentity.ts';
 import {createFixtureConfig, createFixtureIndex} from './helpers/fixture.ts';
@@ -37,6 +38,21 @@ const EXPECTED_BINDINGS: readonly string[] = [
 ];
 
 describe('TypeScript publication vertical slice', () => {
+	it('schedules published roots together through the TypeScript request scheduler', () => {
+		const batch = vi.spyOn(API.prototype, 'batch');
+		const {config, cleanup} = createFixtureConfig('typescript-batch-projection');
+
+		try {
+			const scan = scanTypeScriptProject(config, []);
+			buildTypeScriptFacts(config, scan);
+
+			expect(batch.mock.calls.some((call) => [...call].length === 3)).toBe(true);
+		} finally {
+			batch.mockRestore();
+			cleanup();
+		}
+	});
+
 	it('publishes public constructor parameter properties and excludes private ones', () => {
 		const {facts, cleanup} = buildFacts();
 

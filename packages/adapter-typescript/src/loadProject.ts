@@ -9,6 +9,8 @@ const debug = debugFor('project');
 const MAX_STORED_DIAGNOSTICS = 500;
 
 export type LoadedProjectType = Readonly<{
+	/** Schedules long-running compiler requests in shared dependency rounds. */
+	readonly batch: ts.API['batch'];
 	readonly program: ts.Program;
 	readonly checker: ts.TypeChecker;
 	readonly project: ts.Project;
@@ -173,6 +175,7 @@ export const loadTypeScriptProject = (
 		});
 
 		return {
+			batch: api.batch.bind(api),
 			program: createdProgram,
 			checker,
 			project,

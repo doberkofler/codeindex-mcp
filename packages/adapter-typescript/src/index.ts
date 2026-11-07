@@ -187,10 +187,11 @@ const extractContext = (
 	scan: ScanResultType,
 	context: ProjectContextConfigType,
 	snapshot: TypeScriptInputSnapshotType,
-): Readonly<{context: ExtractedContextType; compilerMs: number}> => {
+): Readonly<{context: ExtractedContextType; compilerMs: number; retainCompilerSession: boolean}> => {
 	const {projectFilePath} = context;
 	const compilerStartedAt = performance.now();
 	const project = loadTypeScriptProject(config, projectFilePath, snapshot);
+	let retainCompilerSession = true;
 
 	try {
 		const files = mergeProjectFiles(config, scan, project, (absolutePath) => snapshot.readBytes(absolutePath));
@@ -201,6 +202,9 @@ const extractContext = (
 			projectId: config.projectId,
 			rootDir: config.rootDir,
 			context: context.name,
+			onCompilerSessionRetention: (retain) => {
+				retainCompilerSession &&= retain;
+			},
 		});
 		const dependencies = extractDependencyFacts({
 			project,
@@ -212,7 +216,7 @@ const extractContext = (
 
 		// Only serializable facts leave this scope. The compiler program and its
 		// syntax trees stay collectable while insertion and artifact persistence run.
-		return {context: {files, facts, dependencies, diagnostics: project.diagnostics}, compilerMs};
+		return {context: {files, facts, dependencies, diagnostics: project.diagnostics}, compilerMs, retainCompilerSession};
 	} finally {
 		project.dispose();
 	}
@@ -276,6 +280,7 @@ const authoredInputsMatch = (scan: ScanResultType, snapshot: TypeScriptInputSnap
 
 export const buildTypeScriptFacts = (config: AdapterConfigType, scan: ScanResultType): AdapterBuildType => {
 	const extractionStartedAt = performance.now();
+	let retainCompilerSession = true;
 	const {snapshot} = createTypeScriptInputSnapshot(
 		config,
 		scan.files.map((file) => file.path),
@@ -287,6 +292,7 @@ export const buildTypeScriptFacts = (config: AdapterConfigType, scan: ScanResult
 		}
 
 		const extracted = config.projects.map((context) => extractContext(config, scan, context, snapshot));
+		retainCompilerSession = extracted.every((context) => context.retainCompilerSession);
 		const compilerMs = extracted.reduce((total, context) => total + context.compilerMs, 0);
 		const merged = mergeContexts(extracted.map((context) => context.context));
 		const extractionMs = Math.max(0, Math.round(performance.now() - extractionStartedAt) - compilerMs);
@@ -300,9 +306,13 @@ export const buildTypeScriptFacts = (config: AdapterConfigType, scan: ScanResult
 			},
 		};
 	} finally {
-		// The recorder still answers `validate`; the compiler process and its
-		// resolvers are no longer needed once facts are serializable.
+		// The recorder still answers `validate`; large projects release compiler
+		// ownership before fact insertion can overlap the retained program graph.
 		snapshot.dispose();
+
+		if (!retainCompilerSession) {
+			disposeTypeScriptSessions();
+		}
 	}
 };
 

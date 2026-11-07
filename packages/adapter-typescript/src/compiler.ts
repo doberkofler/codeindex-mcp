@@ -199,6 +199,7 @@ export type {
 	VariableStatement,
 } from 'typescript/ast';
 export type {
+	APIRequestGenerator,
 	BigIntLiteralType,
 	BooleanLiteralType,
 	Checker as TypeChecker,

@@ -1,10 +1,18 @@
 import * as ts from './compiler.ts';
-import {type ExtractedOccurrenceType, type FactRangeType} from '@codeindex/adapter-sdk';
+import {type ExtractedOccurrenceType, type FactRangeType, type SourceFileType} from '@codeindex/adapter-sdk';
+import {preloadAliasTargets} from './aliasTargets.ts';
+import {resolveIdentifierSymbols} from './identifierSymbols.ts';
 import {definitionMetadataOf} from './occurrenceMetadata.ts';
+import {resolveOccurrenceSymbols} from './occurrenceSymbols.ts';
 import {type ExtractionRuntimeType, lexicalSegmentsOf, symbolForTsSymbol} from './extractionRuntime.ts';
 import {addSite, bindingKey, ensureBinding, type FactSinkType} from './extractionRoots.ts';
 import {needsOccurrenceResolution, resolveOccurrenceSymbol} from './resolveSymbols.ts';
 import {usageOfReference} from './usage.ts';
+
+const REFERENCE_IDENTIFIERS_PER_GROUP = 10_000;
+/** Bounds compiler wrappers retained by TypeScript's batch client on large programs. */
+const MAX_SCHEDULED_CONTEXTUAL_IDENTIFIERS = 10_000;
+const MAX_PROJECT_IDENTIFIERS_FOR_CONTEXTUAL_SCHEDULING = 250_000;
 
 const rangeOfNode = (sourceFile: ts.SourceFile, node: ts.Node): FactRangeType => {
 	const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
@@ -203,10 +211,125 @@ const aliasTargetOf = (runtime: ExtractionRuntimeType, symbol: ts.Symbol | undef
 		return symbol;
 	}
 
+	const cached = runtime.aliasTargets.get(symbol.id);
+
+	if (cached !== undefined) {
+		return cached?.target;
+	}
+
 	try {
 		return runtime.checker.getAliasedSymbol(symbol);
 	} catch {
 		return symbol;
+	}
+};
+
+type ReferenceFileType = Readonly<{
+	file: SourceFileType;
+	sourceFile: ts.SourceFile;
+	contextualIdentifiers: readonly ts.Identifier[];
+	references: readonly Readonly<{node: ts.Identifier; enclosingId: string | null}>[];
+}>;
+
+type ReferenceCollectionStateType = Readonly<{
+	runtime: ExtractionRuntimeType;
+	definitionNodes: ReadonlySet<ts.Node>;
+	occurrences: ExtractedOccurrenceType[];
+	dropped: Record<'external_target' | 'ephemeral_target', number>;
+	seen: Set<string>;
+}>;
+
+const collectFileReferences = (
+	state: ReferenceCollectionStateType,
+	entry: ReferenceFileType,
+	directSymbols: ReadonlyMap<ts.Node, ts.Symbol | undefined>,
+	contextualSymbols: ReadonlyMap<ts.Identifier, ts.Symbol | undefined>,
+): void => {
+	const {runtime} = state;
+	const {file, sourceFile} = entry;
+
+	for (const {node, enclosingId} of entry.references) {
+		const raw = directSymbols.get(node);
+		let symbolId = symbolForTsSymbol(runtime, raw);
+
+		if (symbolId === null && (raw === undefined || needsOccurrenceResolution(node))) {
+			// Contextual members and unresolved identifiers need the
+			// occurrence resolver; every other identifier already resolved
+			// through `raw`.
+			const resolved = contextualSymbols.has(node) ? contextualSymbols.get(node) : resolveOccurrenceSymbol(runtime.checker, node);
+			symbolId = symbolForTsSymbol(runtime, resolved);
+		}
+
+		if (symbolId === null) {
+			const target = aliasTargetOf(runtime, raw);
+			const authored = (target === undefined ? [] : ts.declarationsOf(target)).some((declaration) =>
+				runtime.authoredPaths.has(ts.declarationFileNameOf(declaration)),
+			);
+			state.dropped[authored ? 'ephemeral_target' : 'external_target'] += 1;
+		} else {
+			const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+			const end = sourceFile.getLineAndCharacterOfPosition(node.end);
+			const key = `${symbolId}\u0000${file.path}\u0000${String(node.getStart(sourceFile))}\u0000reference`;
+
+			if (!state.seen.has(key)) {
+				state.seen.add(key);
+				state.occurrences.push({
+					symbolId,
+					path: file.path,
+					startLine: start.line + 1,
+					startColumn: start.character + 1,
+					endLine: end.line + 1,
+					endColumn: end.character + 1,
+					startOffset: node.getStart(sourceFile),
+					endOffset: node.end,
+					role: 'reference',
+					enclosingId,
+					usage: usageOfReference(node),
+					contexts: [runtime.input.context],
+				});
+			}
+		}
+	}
+};
+
+const referenceIdentifiersOf = (
+	runtime: ExtractionRuntimeType,
+	sourceFile: ts.SourceFile,
+	definitionNodes: ReadonlySet<ts.Node>,
+): readonly Readonly<{node: ts.Identifier; enclosingId: string | null}>[] => {
+	const references: Readonly<{node: ts.Identifier; enclosingId: string | null}>[] = [];
+	const visit = (node: ts.Node, enclosingId: string | null): void => {
+		const declarationSymbol = runtime.symbolIdByDeclaration.get(node) ?? runtime.deferredIdByNode.get(node);
+		const nextEnclosingId = declarationSymbol ?? enclosingId;
+
+		if (ts.isIdentifier(node) && !definitionNodes.has(node) && !isTypeQueryThis(node)) {
+			references.push({node, enclosingId: nextEnclosingId});
+		}
+
+		ts.forEachChild(node, (child) => {
+			visit(child, nextEnclosingId);
+		});
+	};
+
+	ts.forEachChild(sourceFile, (node) => {
+		visit(node, null);
+	});
+	return references;
+};
+
+const collectReferenceGroup = (state: ReferenceCollectionStateType, entries: readonly ReferenceFileType[]): void => {
+	const referenceIdentifiers = entries.flatMap((entry) => entry.references.map((reference) => reference.node));
+	const identifierSymbols = resolveIdentifierSymbols(
+		state.runtime.checker,
+		referenceIdentifiers,
+		state.runtime.fullIdentifierSymbols ?? state.runtime.identifierSymbols,
+	);
+	const identifiers = entries.flatMap((entry) => entry.contextualIdentifiers);
+	preloadAliasTargets(state.runtime, identifierSymbols.values());
+	const contextualSymbols = resolveOccurrenceSymbols(state.runtime.input.project.batch, state.runtime.checker, identifierSymbols, identifiers);
+
+	for (const entry of entries) {
+		collectFileReferences(state, entry, identifierSymbols, contextualSymbols);
 	}
 };
 
@@ -226,7 +349,17 @@ export const collectReferenceFacts = (
 	const occurrences: ExtractedOccurrenceType[] = [...definitionsBySymbol.values()].flat();
 	const dropped = {external_target: 0, ephemeral_target: 0};
 	const seen = new Set<string>();
+	const state: ReferenceCollectionStateType = {runtime, definitionNodes, occurrences, dropped, seen};
 	runtime.promotionEnabled = false;
+
+	let group: ReferenceFileType[] = [];
+	let groupIdentifiers = 0;
+	let scheduledContextualIdentifiers = 0;
+	const flush = (): void => {
+		collectReferenceGroup(state, group);
+		group = [];
+		groupIdentifiers = 0;
+	};
 
 	for (const file of runtime.input.files) {
 		const sourceFile = runtime.program.getSourceFile(file.absolutePath);
@@ -235,60 +368,30 @@ export const collectReferenceFacts = (
 			continue;
 		}
 
-		const visit = (node: ts.Node, enclosingId: string | null): void => {
-			const declarationSymbol = runtime.symbolIdByDeclaration.get(node) ?? runtime.deferredIdByNode.get(node);
-			const nextEnclosingId = declarationSymbol ?? enclosingId;
+		const references = referenceIdentifiersOf(runtime, sourceFile, definitionNodes);
+		const contextualCandidates =
+			runtime.identifierCount <= MAX_PROJECT_IDENTIFIERS_FOR_CONTEXTUAL_SCHEDULING
+				? references.filter((reference) => needsOccurrenceResolution(reference.node))
+				: [];
+		const contextualIdentifiers =
+			scheduledContextualIdentifiers + contextualCandidates.length <= MAX_SCHEDULED_CONTEXTUAL_IDENTIFIERS ? contextualCandidates : [];
 
-			if (ts.isIdentifier(node) && !definitionNodes.has(node) && !isTypeQueryThis(node)) {
-				const raw = runtime.identifierSymbols.get(node);
-				let symbolId = symbolForTsSymbol(runtime, raw);
+		if (group.length > 0 && groupIdentifiers + references.length > REFERENCE_IDENTIFIERS_PER_GROUP) {
+			flush();
+		}
 
-				if (symbolId === null && (raw === undefined || needsOccurrenceResolution(node))) {
-					// Contextual members and unresolved identifiers need the
-					// occurrence resolver; every other identifier already
-					// resolved through `raw`.
-					symbolId = symbolForTsSymbol(runtime, resolveOccurrenceSymbol(runtime.checker, node));
-				}
-
-				if (symbolId === null) {
-					const target = aliasTargetOf(runtime, raw);
-					const authored = (target === undefined ? [] : ts.declarationsOf(target)).some((declaration) =>
-						runtime.authoredPaths.has(ts.declarationFileNameOf(declaration)),
-					);
-					dropped[authored ? 'ephemeral_target' : 'external_target'] += 1;
-				} else {
-					const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
-					const end = sourceFile.getLineAndCharacterOfPosition(node.end);
-					const key = `${symbolId}\u0000${file.path}\u0000${String(node.getStart(sourceFile))}\u0000reference`;
-
-					if (!seen.has(key)) {
-						seen.add(key);
-						occurrences.push({
-							symbolId,
-							path: file.path,
-							startLine: start.line + 1,
-							startColumn: start.character + 1,
-							endLine: end.line + 1,
-							endColumn: end.character + 1,
-							startOffset: node.getStart(sourceFile),
-							endOffset: node.end,
-							role: 'reference',
-							enclosingId: nextEnclosingId,
-							usage: usageOfReference(node),
-							contexts: [runtime.input.context],
-						});
-					}
-				}
-			}
-
-			ts.forEachChild(node, (child) => {
-				visit(child, nextEnclosingId);
-			});
-		};
-
-		ts.forEachChild(sourceFile, (node) => {
-			visit(node, null);
+		group.push({
+			file,
+			sourceFile,
+			contextualIdentifiers: contextualIdentifiers.map((reference) => reference.node),
+			references,
 		});
+		groupIdentifiers += references.length;
+		scheduledContextualIdentifiers += contextualIdentifiers.length;
+	}
+
+	if (group.length > 0) {
+		flush();
 	}
 
 	occurrences.sort(

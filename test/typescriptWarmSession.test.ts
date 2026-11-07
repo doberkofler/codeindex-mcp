@@ -1,9 +1,10 @@
-import {appendFileSync} from 'node:fs';
+import {appendFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {afterEach, describe, expect, it} from 'vitest';
 import {disposeTypeScriptSessions, typeScriptWarmSessionMetrics} from '@codeindex/adapter-typescript/internals';
 import {createTypeScriptInputSnapshot} from '@codeindex/adapter-typescript/inputSnapshot';
+import {buildTypeScriptFacts} from '@codeindex/adapter-typescript/index';
 import {scanProject} from '@codeindex/adapter-typescript/scanProject';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
@@ -90,4 +91,22 @@ describe('TypeScript warm compiler session', () => {
 			cleanup();
 		}
 	});
+
+	it('evicts a compiler session when bounded identifier resolution is required', () => {
+		const {config, cleanup} = createFixtureConfig('simple-project');
+
+		try {
+			writeFileSync(join(config.rootDir, 'src', 'large.ts'), `const retained = 1;\n${'retained;\n'.repeat(250_000)}`, 'utf8');
+			const scan = scanProject(config);
+			const before = typeScriptWarmSessionMetrics();
+
+			buildTypeScriptFacts(config, scan);
+			const after = typeScriptWarmSessionMetrics();
+
+			expect(after.evicted - before.evicted).toBe(1);
+			expect(after.sessions).toBe(0);
+		} finally {
+			cleanup();
+		}
+	}, 60_000);
 });

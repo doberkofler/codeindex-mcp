@@ -14,14 +14,8 @@ const debug = debugFor('extract');
  * @throws {TypeError} When a configured projection ceiling is exceeded.
  */
 export const projectPublishedRoots = (runtime: ExtractionRuntimeType, sink: FactSinkType): void => {
-	let projectingRoot: RootDraftType | null = null;
-	const host: SurfaceProjectionHostType = {
-		checker: runtime.checker,
-		authoredPaths: runtime.authoredPaths,
-		maxAddressesPerRoot: PUBLICATION_SURFACE_BINDINGS_PER_ROOT,
-		maxReachabilityStepsPerRoot: PUBLICATION_REACHABILITY_STEPS_PER_ROOT,
-		symbolForTsSymbol: (symbol) => symbolForTsSymbol(runtime, symbol),
-		symbolForDeclaration: (declaration) => symbolForDeclaration(runtime, declaration),
+	const shared = {
+		aliases: new Map(),
 		symbolTypes: new Map(),
 		declaredTypes: new Map(),
 		typeProperties: new Map(),
@@ -29,16 +23,24 @@ export const projectPublishedRoots = (runtime: ExtractionRuntimeType, sink: Fact
 		typeBases: new Map(),
 		typeArguments: new Map(),
 		typeClassifications: new Map(),
+		typeSymbols: new Map(),
+		typeSignatures: new Map(),
+		signatureParameters: new Map(),
+		signatureReturnTypes: new Map(),
+	};
+	const roots = sink.roots.filter((root) => !root.external);
+	const hostFor = (root: RootDraftType): SurfaceProjectionHostType => ({
+		checker: runtime.checker,
+		authoredPaths: runtime.authoredPaths,
+		maxAddressesPerRoot: PUBLICATION_SURFACE_BINDINGS_PER_ROOT,
+		maxReachabilityStepsPerRoot: PUBLICATION_REACHABILITY_STEPS_PER_ROOT,
+		symbolForTsSymbol: (symbol) => symbolForTsSymbol(runtime, symbol),
+		symbolForDeclaration: (declaration) => symbolForDeclaration(runtime, declaration),
+		...shared,
 		markReachable: (symbolId) => {
 			sink.reachable.add(symbolId);
 		},
 		addSurface: (address) => {
-			const root = projectingRoot;
-
-			if (root === null) {
-				return;
-			}
-
 			const fullSegments: FactAddressType = [...root.segments, ...address.relativeSegments];
 			const draft = ensureBinding(sink, address.symbolId, fullSegments);
 			draft.exposure = 'published';
@@ -65,28 +67,21 @@ export const projectPublishedRoots = (runtime: ExtractionRuntimeType, sink: Fact
 				relativeSegments: address.relativeSegments,
 			});
 		},
-	};
+	});
 
-	for (const root of sink.roots) {
-		if (root.external) {
-			continue;
-		}
+	try {
+		const projectedRoots = runtime.input.project.batch(...roots.map((root) => projectPublishedRoot(hostFor(root), root.tsSymbol, root.segments)));
 
-		projectingRoot = root;
-
-		try {
-			const projected = projectPublishedRoot(host, root.tsSymbol, root.segments);
+		for (const projected of projectedRoots) {
 			sink.maxAddresses = Math.max(sink.maxAddresses, projected.addresses + 1);
 			sink.maxSteps = Math.max(sink.maxSteps, projected.steps);
-		} catch (error) {
-			if (error instanceof SurfaceProjectionError) {
-				debug('surface projection failed', {root: root.segments, symbol: root.tsSymbol.name});
-				throw new TypeError(error.message, {cause: error});
-			}
-
-			throw error;
-		} finally {
-			projectingRoot = null;
 		}
+	} catch (error) {
+		if (error instanceof SurfaceProjectionError) {
+			debug('surface projection failed');
+			throw new TypeError(error.message, {cause: error});
+		}
+
+		throw error;
 	}
 };

@@ -336,13 +336,18 @@ const rootSymbolIdOf = (runtime: ExtractionRuntimeType, exported: ts.Symbol, pat
 		.find((id) => id !== null) ??
 	null;
 
-const addModuleRoots = (runtime: ExtractionRuntimeType, sink: FactSinkType, file: SourceFileType, sourceFile: ts.SourceFile): void => {
-	const moduleSymbol = runtime.checker.getSymbolAtLocation(sourceFile);
+const addModuleRoots = (
+	runtime: ExtractionRuntimeType,
+	sink: FactSinkType,
+	entry: Readonly<{file: SourceFileType; sourceFile: ts.SourceFile}>,
+	exports: readonly ts.Symbol[],
+): void => {
+	const {file, sourceFile} = entry;
 	const explicitNames = explicitExportNames(sourceFile);
 	const stars = starDeclarations(sourceFile);
 	const externalStarNames = externalStarNamesOf(runtime, stars);
 
-	for (const exported of moduleSymbol === undefined ? [] : runtime.checker.getExportsOfModule(moduleSymbol)) {
+	for (const exported of exports) {
 		const {name} = exported;
 
 		if (externalStarNames.has(name) && !explicitNames.has(name)) {
@@ -417,15 +422,25 @@ const addScriptRoots = (runtime: ExtractionRuntimeType, sink: FactSinkType, file
  * @param sink - Fact sink.
  */
 export const addPublishedRoots = (runtime: ExtractionRuntimeType, sink: FactSinkType): void => {
-	for (const file of runtime.input.files) {
+	const files = runtime.input.files.flatMap((file) => {
 		const sourceFile = runtime.program.getSourceFile(file.absolutePath);
+		return sourceFile === undefined || sourceFile.isDeclarationFile ? [] : [{file, sourceFile}];
+	});
+	const modules = files.filter((entry) => ts.isExternalModule(entry.sourceFile));
+	const moduleSymbols = runtime.checker.getSymbolAtLocation(modules.map((entry) => entry.sourceFile));
+	const moduleSymbolBySourceFile = new Map(modules.map((entry, index) => [entry.sourceFile, moduleSymbols[index]]));
+	const exportedByModule = runtime.input.project.batch(
+		...moduleSymbols.flatMap((symbol) => (symbol === undefined ? [] : [runtime.checker.getExportsOfModule.gen(symbol)])),
+	);
+	let exportedIndex = 0;
 
-		if (sourceFile === undefined || sourceFile.isDeclarationFile) {
-			continue;
-		}
+	for (const entry of files) {
+		const {file, sourceFile} = entry;
 
 		if (ts.isExternalModule(sourceFile)) {
-			addModuleRoots(runtime, sink, file, sourceFile);
+			const symbol = moduleSymbolBySourceFile.get(sourceFile);
+			const exports = symbol === undefined ? [] : (exportedByModule[exportedIndex++] ?? []);
+			addModuleRoots(runtime, sink, entry, exports);
 		} else {
 			addScriptRoots(runtime, sink, file, sourceFile);
 		}

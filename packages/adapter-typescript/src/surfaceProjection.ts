@@ -1,47 +1,44 @@
 import * as ts from './compiler.ts';
 import {type FactAddressType} from '@codeindex/adapter-sdk';
-import {authoredDeclarationsOf, isExternalSymbol, isInheritedProperty, isPrivateProperty, resolveAlias} from './projectionPredicates.ts';
 import {
-	addStep,
-	cachedAwaitedTypeOf,
-	cachedDeclaredTypeOf,
-	cachedIsAnonymousShape,
-	cachedIsArrayType,
-	cachedIsExternalType,
-	cachedIsTupleType,
-	cachedNamedSymbolOf,
-	cachedPropertiesOfType,
-	cachedSymbolTypeOf,
-	cachedTypeArguments,
-	enqueueProjection,
+	awaitedTypeOf,
+	declaredTypeOf,
 	hasAnyFlag,
-	isTypeReference,
-	MAX_PROJECTION_DEPTH,
+	isAnonymousShape,
+	isArrayType,
+	isExternalType,
+	namedSymbolOf,
+	parametersOf,
+	propertiesOf,
+	resolveAlias,
+	returnTypeOf,
+	signaturesOf,
+	symbolTypeOf,
+	typeArgumentsOf,
+	type SurfaceProjectionHostType,
+} from './surfaceProjectionCompiler.ts';
+import {
+	addProjectionStep,
 	markSymbolReachable,
 	markTypeReachable,
+	symbolIdOf,
+	SurfaceProjectionError,
 	type ProjectionNodeType,
 	type ProjectionStateType,
-	SurfaceProjectionError,
-	symbolIdOf,
-	type SurfaceProjectionHostType,
-} from './surfaceCore.ts';
+} from './surfaceReachability.ts';
+import {authoredDeclarationsOf, isExternalSymbol, isInheritedProperty, isPrivateProperty} from './projectionPredicates.ts';
 
-export {SurfaceProjectionError, type SurfaceProjectionHostType} from './surfaceCore.ts';
+export {type SurfaceProjectionHostType} from './surfaceProjectionCompiler.ts';
+export {SurfaceProjectionError} from './surfaceReachability.ts';
 
-/**
- * Adds one projected surface binding and its origin.
- *
- * @param state - Projection state.
- * @param symbol - Terminal compiler symbol.
- * @param relativePath - Address path after the published root.
- * @param flags - Anonymous, inherited, and depth-one shape flags.
- */
-const addSurface = (
+const MAX_PROJECTION_DEPTH = 64;
+
+const addSurface = function* addSurface(
 	state: ProjectionStateType,
 	symbol: ts.Symbol,
 	relativePath: FactAddressType,
 	flags: Readonly<{anonymous: boolean; inherited: boolean; depthOne: boolean}>,
-): void => {
+): ts.APIRequestGenerator<void> {
 	if (relativePath.length > 0) {
 		state.addresses += 1;
 
@@ -50,7 +47,7 @@ const addSurface = (
 		}
 	}
 
-	const symbolId = symbolIdOf(state, symbol);
+	const symbolId = yield* symbolIdOf(state, symbol);
 
 	if (symbolId === null) {
 		return;
@@ -64,17 +61,13 @@ const addSurface = (
 
 	const relativeSegments = relativePath.slice(state.rootSegments.length);
 
-	if (relativeSegments.length === 0) {
-		return;
+	if (relativeSegments.length > 0) {
+		state.host.addSurface({symbolId, relativeSegments, ...flags});
 	}
-
-	state.host.addSurface({symbolId, relativeSegments, ...flags});
 };
 
-const projectProperties = (state: ProjectionStateType, node: ProjectionNodeType, anonymous: boolean): void => {
-	const properties = cachedPropertiesOfType(state.host, node.type);
-
-	for (const property of properties) {
+const projectProperties = function* projectProperties(state: ProjectionStateType, node: ProjectionNodeType, anonymous: boolean): ts.APIRequestGenerator<void> {
+	for (const property of yield* propertiesOf(state.host, node.type)) {
 		if (
 			isPrivateProperty(property) ||
 			ts.declarationsOf(property).every((declaration) => !state.host.authoredPaths.has(ts.declarationFileNameOf(declaration)))
@@ -83,7 +76,7 @@ const projectProperties = (state: ProjectionStateType, node: ProjectionNodeType,
 		}
 
 		const childPath: FactAddressType = [...node.path, ['member', property.name]];
-		addSurface(state, property, childPath, {
+		yield* addSurface(state, property, childPath, {
 			anonymous,
 			inherited: isInheritedProperty(property, node.rootDeclarations),
 			depthOne: node.depth === 0,
@@ -93,10 +86,10 @@ const projectProperties = (state: ProjectionStateType, node: ProjectionNodeType,
 			continue;
 		}
 
-		const propertyType = cachedSymbolTypeOf(state.host, property);
+		const propertyType = yield* symbolTypeOf(state.host, property);
 
 		if (propertyType !== null) {
-			enqueueProjection(state, {
+			state.projectionPending.push({
 				type: propertyType,
 				path: childPath,
 				depth: node.depth + 1,
@@ -107,21 +100,32 @@ const projectProperties = (state: ProjectionStateType, node: ProjectionNodeType,
 	}
 };
 
-const projectCallSignatures = (state: ProjectionStateType, node: ProjectionNodeType): void => {
-	const signatures = state.host.checker.getSignaturesOfType(node.type, ts.SignatureKind.Call);
+const projectSignatures = function* projectSignatures(
+	state: ProjectionStateType,
+	node: ProjectionNodeType,
+	kind: ts.SignatureKind,
+): ts.APIRequestGenerator<void> {
+	const signatures = yield* signaturesOf(state.host, node.type, kind);
 
 	for (const [index, signature] of signatures.entries()) {
-		const signaturePath: FactAddressType = signatures.length > 1 ? [...node.path, ['sig', index]] : node.path;
+		const signaturePath: FactAddressType =
+			kind === ts.SignatureKind.Call
+				? signatures.length > 1
+					? [...node.path, ['sig', index]]
+					: node.path
+				: signatures.length > 1
+					? [...node.path, ['construct', null], ['sig', index]]
+					: [...node.path, ['construct', null]];
 
-		for (const [parameterIndex, parameter] of signature.getParameters().entries()) {
+		for (const [parameterIndex, parameter] of (yield* parametersOf(state.host, signature)).entries()) {
 			if (node.ancestors.has(parameter) || isPrivateProperty(parameter)) {
 				continue;
 			}
 
-			const parameterType = cachedSymbolTypeOf(state.host, parameter);
+			const parameterType = yield* symbolTypeOf(state.host, parameter);
 
 			if (parameterType !== null) {
-				enqueueProjection(state, {
+				state.projectionPending.push({
 					type: parameterType,
 					path: [...signaturePath, ['param', parameterIndex]],
 					depth: node.depth + 1,
@@ -131,12 +135,12 @@ const projectCallSignatures = (state: ProjectionStateType, node: ProjectionNodeT
 			}
 		}
 
-		const returnType = state.host.checker.getReturnTypeOfSignature(signature);
+		const returnType = yield* returnTypeOf(state.host, signature);
 
 		if (returnType !== node.type) {
-			enqueueProjection(state, {
+			state.projectionPending.push({
 				type: returnType,
-				path: [...signaturePath, ['return', null]],
+				path: kind === ts.SignatureKind.Call ? [...signaturePath, ['return', null]] : signaturePath,
 				depth: node.depth + 1,
 				rootDeclarations: node.rootDeclarations,
 				ancestors: node.ancestors,
@@ -145,51 +149,13 @@ const projectCallSignatures = (state: ProjectionStateType, node: ProjectionNodeT
 	}
 };
 
-const projectConstructSignatures = (state: ProjectionStateType, node: ProjectionNodeType): void => {
-	const signatures = state.host.checker.getSignaturesOfType(node.type, ts.SignatureKind.Construct);
-
-	for (const [index, signature] of signatures.entries()) {
-		const constructPath: FactAddressType = signatures.length > 1 ? [...node.path, ['construct', null], ['sig', index]] : [...node.path, ['construct', null]];
-
-		for (const [parameterIndex, parameter] of signature.getParameters().entries()) {
-			if (node.ancestors.has(parameter) || isPrivateProperty(parameter)) {
-				continue;
-			}
-
-			const parameterType = cachedSymbolTypeOf(state.host, parameter);
-
-			if (parameterType !== null) {
-				enqueueProjection(state, {
-					type: parameterType,
-					path: [...constructPath, ['param', parameterIndex]],
-					depth: node.depth + 1,
-					rootDeclarations: node.rootDeclarations,
-					ancestors: new Set([...node.ancestors, parameter]),
-				});
-			}
-		}
-
-		const returnType = state.host.checker.getReturnTypeOfSignature(signature);
-
-		if (returnType !== node.type) {
-			enqueueProjection(state, {
-				type: returnType,
-				path: constructPath,
-				depth: node.depth + 1,
-				rootDeclarations: node.rootDeclarations,
-				ancestors: node.ancestors,
-			});
-		}
-	}
-};
-
-const projectTuple = (state: ProjectionStateType, node: ProjectionNodeType): void => {
-	if (!isTypeReference(node.type)) {
+const projectTuple = function* projectTuple(state: ProjectionStateType, node: ProjectionNodeType): ts.APIRequestGenerator<void> {
+	if (!node.type.isTypeReference()) {
 		return;
 	}
 
-	for (const [index, element] of cachedTypeArguments(state.host, node.type).entries()) {
-		enqueueProjection(state, {
+	for (const [index, element] of (yield* typeArgumentsOf(state.host, node.type)).entries()) {
+		state.projectionPending.push({
 			type: element,
 			path: [...node.path, ['element', index]],
 			depth: node.depth + 1,
@@ -199,15 +165,15 @@ const projectTuple = (state: ProjectionStateType, node: ProjectionNodeType): voi
 	}
 };
 
-const projectArray = (state: ProjectionStateType, node: ProjectionNodeType): void => {
-	if (!isTypeReference(node.type)) {
+const projectArray = function* projectArray(state: ProjectionStateType, node: ProjectionNodeType): ts.APIRequestGenerator<void> {
+	if (!node.type.isTypeReference()) {
 		return;
 	}
 
-	const [element] = cachedTypeArguments(state.host, node.type);
+	const [element] = yield* typeArgumentsOf(state.host, node.type);
 
 	if (element !== undefined) {
-		enqueueProjection(state, {
+		state.projectionPending.push({
 			type: element,
 			path: [...node.path, ['element', null]],
 			depth: node.depth + 1,
@@ -217,12 +183,12 @@ const projectArray = (state: ProjectionStateType, node: ProjectionNodeType): voi
 	}
 };
 
-const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeType): void => {
-	addStep(state);
+const processProjectionNode = function* processProjectionNode(state: ProjectionStateType, node: ProjectionNodeType): ts.APIRequestGenerator<void> {
+	addProjectionStep(state);
 
 	if (node.depth > MAX_PROJECTION_DEPTH) {
 		state.depthLimited = true;
-		markTypeReachable(state, node.type);
+		yield* markTypeReachable(state, node.type);
 		return;
 	}
 
@@ -231,24 +197,24 @@ const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeT
 	}
 
 	if (node.type.isUnionType() || node.type.isIntersectionType()) {
-		markTypeReachable(state, node.type);
+		yield* markTypeReachable(state, node.type);
 		return;
 	}
 
-	if (cachedIsTupleType(state.host, node.type)) {
-		projectTuple(state, node);
+	if (node.type.isTupleType()) {
+		yield* projectTuple(state, node);
 		return;
 	}
 
-	if (cachedIsArrayType(state.host, node.type)) {
-		projectArray(state, node);
+	if (yield* isArrayType(state.host, node.type)) {
+		yield* projectArray(state, node);
 		return;
 	}
 
-	const awaited = cachedAwaitedTypeOf(state.host, node.type);
+	const awaited = yield* awaitedTypeOf(state.host, node.type);
 
 	if (awaited !== null && awaited !== node.type) {
-		enqueueProjection(state, {
+		state.projectionPending.push({
 			type: awaited,
 			path: [...node.path, ['awaited', null]],
 			depth: node.depth + 1,
@@ -258,84 +224,66 @@ const processProjectionNode = (state: ProjectionStateType, node: ProjectionNodeT
 		return;
 	}
 
-	if (cachedIsExternalType(state.host, node.type)) {
+	if (yield* isExternalType(state.host, node.type)) {
 		return;
 	}
 
-	projectCallSignatures(state, node);
-	projectConstructSignatures(state, node);
+	yield* projectSignatures(state, node, ts.SignatureKind.Call);
+	yield* projectSignatures(state, node, ts.SignatureKind.Construct);
 
 	if ((node.type.flags & ts.TypeFlags.Object) === 0) {
 		return;
 	}
 
-	const named = cachedNamedSymbolOf(state.host, node.type);
+	const named = yield* namedSymbolOf(state.host, node.type);
 
 	if (node.depth > 0 && named !== null) {
-		markSymbolReachable(state, named);
+		yield* markSymbolReachable(state, named);
 		return;
 	}
 
-	projectProperties(state, node, cachedIsAnonymousShape(state.host, node.type));
+	yield* projectProperties(state, node, yield* isAnonymousShape(state.host, node.type));
 };
 
-const drainProjection = (state: ProjectionStateType): void => {
-	if (state.projectionDraining) {
-		return;
-	}
+const drainProjection = function* drainProjection(state: ProjectionStateType): ts.APIRequestGenerator<void> {
+	for (;;) {
+		const node = state.projectionPending.pop();
 
-	state.projectionDraining = true;
-
-	try {
-		for (;;) {
-			const node = state.projectionPending.pop();
-
-			if (node === undefined) {
-				return;
-			}
-
-			processProjectionNode(state, node);
+		if (node === undefined) {
+			return;
 		}
-	} finally {
-		state.projectionDraining = false;
+
+		yield* processProjectionNode(state, node);
 	}
 };
 
-const projectType = (
-	state: ProjectionStateType,
-	input: Readonly<{type: ts.Type; path: FactAddressType; depth: number; rootDeclarations: readonly ts.Node[]}>,
-): void => {
-	enqueueProjection(state, {type: input.type, path: input.path, depth: input.depth, rootDeclarations: input.rootDeclarations, ancestors: new Set()});
-	drainProjection(state);
-};
-
-const expandNamespace = (state: ProjectionStateType, symbol: ts.Symbol, path: FactAddressType): void => {
-	for (const exported of state.host.checker.getExportsOfModule(symbol)) {
+const expandNamespace = function* expandNamespace(state: ProjectionStateType, symbol: ts.Symbol, path: FactAddressType): ts.APIRequestGenerator<void> {
+	for (const exported of yield* state.host.checker.getExportsOfModule.gen(symbol)) {
 		if (isPrivateProperty(exported) || isExternalSymbol(exported, state.host.authoredPaths)) {
 			continue;
 		}
 
 		const childPath: FactAddressType = [...path, ['member', exported.name]];
-		addSurface(state, exported, childPath, {anonymous: false, inherited: false, depthOne: true});
-		markSymbolReachable(state, exported);
+		yield* addSurface(state, exported, childPath, {anonymous: false, inherited: false, depthOne: true});
+		yield* markSymbolReachable(state, exported);
 
 		if ((exported.flags & ts.SymbolFlags.Namespace) !== 0) {
-			expandNamespace(state, exported, childPath);
+			yield* expandNamespace(state, exported, childPath);
 		}
 	}
 };
 
-const expandEnum = (state: ProjectionStateType, symbol: ts.Symbol, path: FactAddressType): void => {
+const expandEnum = function* expandEnum(state: ProjectionStateType, symbol: ts.Symbol, path: FactAddressType): ts.APIRequestGenerator<void> {
 	for (const declaration of authoredDeclarationsOf(symbol, state.host.authoredPaths)) {
 		if (!ts.isEnumDeclaration(declaration)) {
 			continue;
 		}
 
 		for (const member of declaration.members) {
-			const memberSymbol = state.host.checker.getSymbolAtLocation(member.name);
+			const memberSymbol = yield* state.host.checker.getSymbolAtLocation.gen(member.name);
 
 			if (memberSymbol !== undefined) {
-				addSurface(state, memberSymbol, [...path, ['member', member.name.getText()]], {
+				yield* addSurface(state, memberSymbol, [...path, ['member', member.name.getText()]], {
 					anonymous: false,
 					inherited: false,
 					depthOne: true,
@@ -346,22 +294,23 @@ const expandEnum = (state: ProjectionStateType, symbol: ts.Symbol, path: FactAdd
 };
 
 /**
- * Projects one published root binding through compiler-resolved types.
+ * Projects one root as a resumable compiler operation.
  *
- * Addresses are emitted only for authored terminals. Named types below depth
- * zero become reachable declarations instead of projected addresses.
+ * `API.batch` runs one of these generators per published root. Every yielded
+ * dependency round is deduplicated and sent to the native compiler as one
+ * request, instead of blocking once per scalar checker call.
  *
- * @param host - Compiler access, fact sinks, and configured ceilings.
- * @param root - Published root compiler symbol.
- * @param rootSegments - Canonical address of the published root binding.
- * @returns Per-root projection counters.
- * @throws {@link SurfaceProjectionError} When a configured ceiling is exceeded.
+ * @param host - Shared compiler-query caches and fact sinks.
+ * @param root - Published root symbol to traverse.
+ * @param rootSegments - Canonical address of the published root.
+ * @returns Projection bounds observed for this root.
+ * @yields {unknown} Compiler requests consumed by `API.batch`.
  */
-export const projectPublishedRoot = (
+export const projectPublishedRoot = function* projectPublishedRoot(
 	host: SurfaceProjectionHostType,
 	root: ts.Symbol,
 	rootSegments: FactAddressType,
-): Readonly<{addresses: number; steps: number; depthLimited: boolean}> => {
+): ts.APIRequestGenerator<Readonly<{addresses: number; steps: number; depthLimited: boolean}>> {
 	const state: ProjectionStateType = {
 		host,
 		reachableSymbols: new Set(),
@@ -369,43 +318,53 @@ export const projectPublishedRoot = (
 		reachabilityPending: [],
 		projectionPending: [],
 		rootSegments,
-		rootDeclarations: authoredDeclarationsOf(root, host.authoredPaths),
 		addresses: 0,
 		steps: 0,
-		draining: false,
-		projectionDraining: false,
 		depthLimited: false,
 	};
-	const target = resolveAlias(host.checker, root);
+	const target = yield* resolveAlias(host, root);
 
-	markSymbolReachable(state, target);
+	yield* markSymbolReachable(state, target);
 
 	const isEnum = (target.flags & ts.SymbolFlags.Enum) !== 0;
 	const isNamespace = (target.flags & ts.SymbolFlags.Namespace) !== 0;
 
 	if (isEnum) {
-		expandEnum(state, target, rootSegments);
+		yield* expandEnum(state, target, rootSegments);
 	}
 
 	if (isNamespace) {
-		expandNamespace(state, target, rootSegments);
+		yield* expandNamespace(state, target, rootSegments);
 	}
 
 	if (!isEnum && !isNamespace) {
 		const type = hasAnyFlag(target.flags, [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias])
-			? cachedDeclaredTypeOf(host, target)
-			: cachedSymbolTypeOf(host, target);
+			? yield* declaredTypeOf(host, target)
+			: yield* symbolTypeOf(host, target);
 
 		if (type !== null) {
-			projectType(state, {type, path: rootSegments, depth: 0, rootDeclarations: state.rootDeclarations});
+			state.projectionPending.push({
+				type,
+				path: rootSegments,
+				depth: 0,
+				rootDeclarations: authoredDeclarationsOf(root, host.authoredPaths),
+				ancestors: new Set(),
+			});
+			yield* drainProjection(state);
 		}
 
 		if ((target.flags & ts.SymbolFlags.Class) !== 0) {
-			const staticType = cachedSymbolTypeOf(host, target);
+			const staticType = yield* symbolTypeOf(host, target);
 
 			if (staticType !== null) {
-				enqueueProjection(state, {type: staticType, path: rootSegments, depth: 0, rootDeclarations: state.rootDeclarations, ancestors: new Set([target])});
-				drainProjection(state);
+				state.projectionPending.push({
+					type: staticType,
+					path: rootSegments,
+					depth: 0,
+					rootDeclarations: authoredDeclarationsOf(root, host.authoredPaths),
+					ancestors: new Set([target]),
+				});
+				yield* drainProjection(state);
 			}
 		}
 	}

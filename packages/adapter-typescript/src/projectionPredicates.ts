@@ -5,8 +5,7 @@ import {isPrivateMemberSymbol} from './symbolName.ts';
  * Symbol and type predicates used to decide what may be published.
  *
  * Each predicate resolves declarations and file names through the compiler
- * process, so the answers are cached: reachability asks the same questions about
- * the same symbols from many roots.
+ * process, so the answers are cached across roots.
  */
 
 /**
@@ -42,51 +41,6 @@ export const isExternalSymbol = (symbol: ts.Symbol, authoredPaths: ReadonlySet<s
 	externalVerdicts.set(symbol, {paths: authoredPaths, external});
 	return external;
 };
-
-export const resolveAlias = (checker: ts.TypeChecker, symbol: ts.Symbol): ts.Symbol => {
-	if ((symbol.flags & ts.SymbolFlags.Alias) === 0) {
-		return symbol;
-	}
-
-	try {
-		return checker.getAliasedSymbol(symbol);
-	} catch {
-		return symbol;
-	}
-};
-
-export const isExternalType = (type: ts.Type, authoredPaths: ReadonlySet<string>): boolean => {
-	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
-		if (candidate !== undefined && isExternalSymbol(candidate, authoredPaths)) {
-			return true;
-		}
-	}
-
-	return false;
-};
-
-const isAnonymousClassExpression = (symbol: ts.Symbol): boolean =>
-	ts.declarationsOf(symbol).some((declaration) => ts.isClassExpression(declaration) && declaration.name === undefined);
-
-export const namedSymbolOf = (type: ts.Type, authoredPaths: ReadonlySet<string>): ts.Symbol | null => {
-	const namedFlags = [ts.SymbolFlags.Class, ts.SymbolFlags.Interface, ts.SymbolFlags.TypeAlias, ts.SymbolFlags.Enum];
-
-	for (const candidate of [type.getAliasSymbol(), type.getSymbol()]) {
-		if (
-			candidate !== undefined &&
-			namedFlags.some((flag) => (candidate.flags & flag) !== 0) &&
-			authoredDeclarationsOf(candidate, authoredPaths).length > 0 &&
-			!isAnonymousClassExpression(candidate)
-		) {
-			return candidate;
-		}
-	}
-
-	return null;
-};
-
-export const isAnonymousShape = (type: ts.Type, authoredPaths: ReadonlySet<string>): boolean =>
-	(type.flags & ts.TypeFlags.Object) !== 0 && namedSymbolOf(type, authoredPaths) === null;
 
 const isPrivateDeclaration = (declaration: ts.Declaration): boolean =>
 	(ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Private) !== 0 ||
