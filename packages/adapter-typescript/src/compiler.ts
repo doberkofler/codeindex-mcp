@@ -10,7 +10,7 @@
  * @public
  */
 
-import {type Declaration, type ModifierLike, type Node, type SourceFile, type StringLiteralLikeNode, SyntaxKind} from 'typescript/ast';
+import {type Declaration, type ModifierLike, type Node, type SourceFile, type StringLiteralLikeNode, NodeFlags, SyntaxKind} from 'typescript/ast';
 import {rootedDirectoryPathFromPath, rootedPathFromNormalized, type RootedDirectoryPath} from 'typescript/path';
 import {type Diagnostic, type Program, type ReferencedSymbolEntry, type Symbol as CompilerSymbol} from 'typescript/sync';
 
@@ -266,11 +266,28 @@ export type ReferencedSymbol = ReferencedSymbolEntry;
 /**
  * Iterates the direct children of one node.
  *
+ * TypeScript 7 includes JSDoc type nodes in the traversal. Those nodes describe
+ * documentation and are anchored before the declaration they annotate, so they
+ * are not authored declarations and must not become symbols or references.
+ *
  * @param node - Parent node.
- * @param visitor - Called once per direct child.
+ * @param visitor - Called once per direct child outside JSDoc.
  */
 export const forEachChild = (node: Node, visitor: (child: Node) => void): void => {
-	node.forEachChild(visitor);
+	node.forEachChild((child) => {
+		if ((child.flags & NodeFlags.JSDoc) !== 0) {
+			return;
+		}
+
+		// Reparsed nodes come from JSDoc type text and start before the
+		// declaration they annotate. Keep the position guard so a future
+		// authored reparsed node is not dropped.
+		if ((child.flags & NodeFlags.Reparsed) !== 0 && child.getStart(node.getSourceFile()) < node.getStart(node.getSourceFile())) {
+			return;
+		}
+
+		visitor(child);
+	});
 };
 
 type ModifierCarrier = Node & {readonly modifiers?: readonly ModifierLike[] | undefined};

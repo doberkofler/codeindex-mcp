@@ -80,6 +80,17 @@ are now normalised to the authored `#name` before they reach symbol identity,
 projection, or the persisted record. `isPrivateProperty` uses the same
 normalisation, so private members no longer leak into published surfaces.
 
+### JSDoc type nodes
+
+TypeScript 7 exposes the synthesized type nodes that JSDoc comments attach to a
+declaration to `forEachChild`. Those nodes live inside the comment, before the
+declaration they annotate. Emitting them as symbols produced definitions outside
+their owner's extent, so Material UI failed finalization with 13 S3, 13 O2, and
+5 L1 violations. The adapter's `forEachChild` seam skips JSDoc-flagged nodes and
+reparsed JSDoc type nodes that start before their parent, restoring the
+TypeScript 6 traversal contract: documentation types are not authored
+declarations, symbols, or references.
+
 ## Disposal
 
 Every disposable compiler resource is released on success and failure paths.
