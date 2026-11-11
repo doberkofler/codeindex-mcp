@@ -22,7 +22,7 @@ import {
 	type QueryContextType,
 } from '../query/queryService.ts';
 import {CodeIndexError, IndexNotReadyError} from '../errors/errors.ts';
-import {acquireOrObserveBuildLease, EXTERNAL_BUILD_TIMEOUT_MS} from './externalBuild.ts';
+import {acquireOrObserveBuildLease, externalBuildReport} from './externalBuild.ts';
 import {readIndexStatus} from './codeIndexStatus.ts';
 import {
 	type BuildReportType,
@@ -63,6 +63,7 @@ import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
 
 const debug = debugFor('index');
 const LEASE_RENEW_MS = 3000;
+
 export type {CodeIndexOptionsType} from './codeIndexOptions.ts';
 
 /** Deep module owning indexing, freshness, persistence, and bounded queries. */
@@ -194,14 +195,16 @@ export class CodeIndex {
 			database: this.#database,
 			previous: this.#published,
 			startedAt,
-			deadlineAt: Date.now() + EXTERNAL_BUILD_TIMEOUT_MS,
+			...(signal === undefined ? {} : {signal}),
 			tryAcquire: () => this.#database.tryAcquireBuildLease(this.#ownerId, process.pid, BUILD_LEASE_TTL_MS),
 			record: (event, fields) => {
 				this.#analytics?.record(event, fields);
 			},
 		});
-		if (leaseOutcome.state === 'published') {
-			return leaseOutcome.report;
+		const externalReport = externalBuildReport(leaseOutcome, this.#database, startedAtEpoch);
+		if (externalReport !== null) {
+			this.#published = this.#database.getPublishedGeneration();
+			return externalReport;
 		}
 		const stopHeartbeat = startBuildLeaseHeartbeat({
 			renew: () => this.#database.renewBuildLease(this.#ownerId, BUILD_LEASE_TTL_MS),

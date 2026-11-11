@@ -13,6 +13,7 @@ const POLL_INTERVAL_MS = 20;
 const WAIT_TIMEOUT_MS = 30_000;
 const HEARTBEAT_WINDOW_MS = 3500;
 const EXTENDED_LEASE_MS = 60_000;
+const LEGACY_OBSERVER_WINDOW_MS = 15_500;
 const FIXTURE_FILE_COUNT = 1200;
 const SOURCE_FILES = 4;
 const CONTENTION_SYMBOL = 'leaseContention1199';
@@ -425,5 +426,48 @@ describe('build lease contention', () => {
 		await assertStaleLeaseIsNotRenewed(database, deadLease);
 		expireLease(database, deadLease.ownerId);
 		await assertTakeoverPublication(reader, database, seed.revision, seed.generationId);
+	});
+
+	it('observes one in-place publication after a valid lease outlives the legacy deadline', async () => {
+		workspace = createWorkspace();
+		const seed = await seedPublication(workspace);
+		writeContentionSources(workspace);
+
+		const database = inspectorOf(workspace);
+		inspector = database;
+
+		const live = await startFrozenOwner(workspace, database);
+		({owner} = live);
+		reader = await openProcess(workspace);
+		await assertReaderServesPublishedGeneration(reader, database, live, seed.generationId);
+
+		database
+			.prepare('update build_lease set expires_at = ? where owner_id = ?')
+			.run(new Date(Date.now() + EXTENDED_LEASE_MS).toISOString(), live.lease.ownerId);
+		await delay(LEGACY_OBSERVER_WINDOW_MS);
+
+		const waiting = await statusOf(reader.client);
+		expect(waiting).toMatchObject({refresh: 'building', generationId: seed.generationId, revision: seed.revision});
+		expect(leaseRows(database)).toHaveLength(1);
+		expect(reader.transport.stderr).not.toContain('refresh_failed');
+
+		expect(owner.transport.signal('SIGCONT')).toBe(true);
+		const published = await waitForStatus(
+			reader.client,
+			(status) =>
+				status.refresh === 'current' &&
+				status.generationId === seed.generationId &&
+				status.revision !== null &&
+				status.revision > seed.revision &&
+				status.counts.files === SOURCE_FILES + FIXTURE_FILE_COUNT,
+			'external in-place publication',
+		);
+
+		expect(published.generationId).toBe(seed.generationId);
+		expect(generationRows(database)).toStrictEqual([{id: seed.generationId, state: 'published'}]);
+		await waitFor('owner lease release', () => (leaseRows(database).length === 0 ? true : null));
+		expect(reader.transport.stderr).not.toContain('refresh_failed');
+		assertIntegrity(database);
+		assertPublishedGenerationConsistent(database, seed.generationId);
 	});
 });
