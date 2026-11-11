@@ -137,10 +137,7 @@ describe('adapter loader', () => {
 	it('rejects an invalid module export without leaking an absolute path', async () => {
 		const {config, root} = fixture({'adapter.mjs': 'export const other = 1;\n'}, [['fixture', './adapter.mjs']]);
 
-		const error: unknown = await loadConfiguredAdapters(config).then(
-			() => null,
-			(error_: unknown) => error_,
-		);
+		const error: unknown = await loadConfiguredAdapters(config).catch((error_: unknown) => error_);
 
 		expect(error).toMatchObject({code: 'adapter_module_invalid'});
 		expect(error instanceof Error ? error.message : '').not.toContain(root);
