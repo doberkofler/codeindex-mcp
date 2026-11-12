@@ -4,6 +4,7 @@
 		"requireBranch": "main",
 		"requireCleanWorkingDir": true,
 		"requireUpstream": true,
+		"commitArgs": ["--no-verify"],
 		"commitMessage": "chore: release v${version}",
 		"tagName": "v${version}",
 		"tagAnnotation": "Release v${version}"
