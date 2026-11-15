@@ -564,6 +564,37 @@ Benchmark commands reuse the same production seams rather than maintaining a
 second index implementation. Oracle qualification and evidence commands are
 maintainer-only and live in `src/entries/qualify.ts`, not in the production CLI.
 
+Production-scale refresh evidence uses the frozen contract in
+`src/core/benchmark/productionContract.ts`. Its manifest pins control and
+candidate engine revisions and bundles, Node/platform identity, corpus and
+configuration hashes, scenario order, repetitions, and threshold identity. The
+manifest permits only disposable workspace copies and temporary SQLite
+databases, and freezes polling, sampling, timeout, edit, burst, contention, idle,
+and restart controls. The eight required scenarios are cold build, unchanged
+refresh, TypeScript edit,
+Oracle edit, burst/supersession, two-process contention, worker idle retention,
+and shutdown/restart. Reports require owner work and observer wait separately,
+all stage/resource/storage/fact counters, per-adapter activity, and canonical
+fact/query-result digests. Unknown fields and missing metrics fail validation.
+
+Production corpus paths exist only in the consumer-owned manifest. Reports carry
+hashes and closed identifiers, not source text, symbol names, credentials, or
+absolute production paths. The consumer runs control and candidate against
+disposable workspace and SQLite copies, then validates retained reports with:
+
+```bash
+codeindex-cli benchmark-production-compare \
+  --manifest /evidence/manifest.json \
+  --control /evidence/control.json \
+  --candidate /evidence/candidate.json \
+  --output /evidence/comparison.json
+```
+
+Comparison rejects manifest, runtime, corpus, configuration, threshold,
+cardinality, order, expiry, and semantic-digest drift. Performance deltas remain
+descriptive here; the externally retained frozen threshold contract owns their
+release verdict.
+
 `mcp install` and `mcp uninstall` manage one project-local OpenCode entry named
 `codeindex`, independent of the configured adapter set. The entry preserves
 unrelated JSONC content. It records the absolute project root as `cwd`, because
