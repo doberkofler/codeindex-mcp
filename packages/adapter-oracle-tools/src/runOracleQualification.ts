@@ -17,6 +17,7 @@ import {createLogger} from '../../../src/core/logging/logger.ts';
 import {loadConfig, type ConfigType} from '../../../src/core/config/config.ts';
 import {readVcsProvenance} from '../../../src/adapters/vcs/vcsProvenance.ts';
 import {readCsv} from './oracleCsv.ts';
+import {oracleAmbiguityReportOf, type OracleAmbiguityReportType} from './oracleAmbiguity.ts';
 import {objectKey, objectMapping, objectTypeOfPath, type ObjectMappingType} from './oracleMapping.ts';
 import {compareFacts, readOracleTruth, type ComparisonType} from './oracleTruth.ts';
 import {type TruthExclusionCountsType} from './oracleTruthExclusions.ts';
@@ -82,8 +83,10 @@ type ReportType = Readonly<{
 		excludedTotal: number;
 		identifiersSha256: string;
 		dependenciesSha256: string;
+		/** Retained for deterministic replay of contract v4 reports. */
 		ambiguousOverloadDiagnostics: number;
 	}>;
+	ambiguity: OracleAmbiguityReportType;
 	declarations: ComparisonType;
 	references: ComparisonType;
 	declarationStrata: Readonly<Record<string, ComparisonType>>;
@@ -259,7 +262,7 @@ const reportOf = (
 		dependencies: DependencyMetricsType;
 		identifiersSha256: string;
 		dependenciesSha256: string;
-		ambiguousOverloadDiagnostics: number;
+		ambiguity: OracleAmbiguityReportType;
 	}>,
 ): ReportType => ({
 	extractor: 'oracle',
@@ -284,8 +287,9 @@ const reportOf = (
 		excludedTotal: excludedTotalOf(input.truth.excludedByReason),
 		identifiersSha256: input.identifiersSha256,
 		dependenciesSha256: input.dependenciesSha256,
-		ambiguousOverloadDiagnostics: input.ambiguousOverloadDiagnostics,
+		ambiguousOverloadDiagnostics: input.ambiguity.diagnostics,
 	},
+	ambiguity: input.ambiguity,
 	declarations: input.declarations,
 	references: input.references,
 	declarationStrata: input.strata.declarations,
@@ -296,6 +300,11 @@ const reportOf = (
 		references: input.references,
 		dependencies: input.dependencies,
 		identifierRows: input.truth.identifierRows,
+		ambiguity: {
+			count: input.ambiguity.diagnostics,
+			rate: input.ambiguity.rate,
+			rawCalls: input.ambiguity.rawCalls,
+		},
 	}),
 });
 
@@ -332,6 +341,7 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 		const policy = oracleTruthPolicyOf(options.truthPolicy);
 		const ambiguousOverloadPositions = loadAmbiguousOverloadSites(reader, generation.id);
 		const truth = readOracleTruth({rows: readCsv(identifiers), mappings, policy, ambiguousOverloadPositions});
+		const ambiguity = oracleAmbiguityReportOf(truth.calls, ambiguousOverloadPositions);
 		const code = loadCodeFacts(reader, generation.id);
 		const packageNames = packageNamesOf(mappings);
 		const truthDependencies = readTruthDependencies(readCsv(dependencies), mappings, packageNames, {
@@ -357,7 +367,7 @@ export const qualifyOracleConfig = async (config: ConfigType, io: QualifyIoType,
 			dependencies: dependencyMetricsOf(truthDependencies.edges, codeDependencies, truthDependencies.excluded, truthDependencies.excludedByReason),
 			identifiersSha256: fileSha256Of(identifiers),
 			dependenciesSha256: fileSha256Of(dependencies),
-			ambiguousOverloadDiagnostics: ambiguousOverloadPositions.size,
+			ambiguity,
 		});
 		const serialized = `${JSON.stringify(report, null, 2)}\n`;
 

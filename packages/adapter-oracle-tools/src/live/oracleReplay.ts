@@ -13,6 +13,7 @@ const DescriptorSchema = z.object({
 		plan: z.string().min(1),
 	}),
 	snapshot: z.object({projectFile: z.string().min(1)}),
+	ambiguity: z.object({rawCalls: z.number().int().nonnegative()}).optional(),
 });
 
 const PlanSchema = z.object({
@@ -106,6 +107,31 @@ const withoutSamples = (value: unknown): unknown => {
 };
 
 /**
+ * Removes fields that contract v4 could not record. Its frozen identity is
+ * validated by preflight before this comparison runs.
+ *
+ * @param value - Current or retained qualification report.
+ * @returns Report without contract-v5-only fields.
+ */
+const withoutV5ContractFields = (value: unknown): unknown => {
+	if (!isRecord(value)) {
+		return value;
+	}
+
+	const normalized = {...value};
+	delete normalized['contract'];
+	delete normalized['ambiguity'];
+
+	if (isRecord(normalized['gates'])) {
+		const gates = {...normalized['gates']};
+		delete gates['ambiguity'];
+		normalized['gates'] = gates;
+	}
+
+	return normalized;
+};
+
+/**
  * Replays a retained Oracle evidence bundle through the production
  * qualification path and compares the result with the committed report.
  *
@@ -191,7 +217,14 @@ export const replayOracleEvidenceBundle = async (environment: NodeJS.ProcessEnv,
 			return {preflight, report, expectedPath: null, matches: true, differences: [], diagnostics};
 		}
 
-		const differences = diffPaths(withoutSamples(withoutGenerationId(report)), withoutSamples(withoutGenerationId(expected)), '', 20);
+		const actual = withoutSamples(withoutGenerationId(report));
+		const retained = withoutSamples(withoutGenerationId(expected));
+		const differences = diffPaths(
+			descriptor.ambiguity === undefined ? withoutV5ContractFields(actual) : actual,
+			descriptor.ambiguity === undefined ? withoutV5ContractFields(retained) : retained,
+			'',
+			20,
+		);
 
 		return {preflight, report, expectedPath, matches: differences.length === 0, differences, diagnostics};
 	} finally {

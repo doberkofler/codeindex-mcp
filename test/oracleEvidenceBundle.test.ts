@@ -12,6 +12,7 @@ const APPROVAL = '4c82485ae33d80a0c950f0b89a889461ab72092653ee817609eab2cc467b31
 const SOURCE_HASH = 'dfae2b41a2595d3e83065b9c5807b596f1b43e7cf8fd634958e89e86cfebf2d7';
 const CONFIG_HASH = '0f790f4865d3929fdb651968b2558d9309ad49d552bd0f93f10119c7ab74f933';
 const PROJECT_FILE = 'manifests/qualification-index.json';
+const PARSER = {id: 'structural', revision: 'structural@5', compilerVersion: 'oracle19c;parser@structural'} as const;
 
 type PlanFixtureType = Readonly<{
 	version: number;
@@ -29,7 +30,15 @@ type RunFixtureType = Readonly<{
 	approval: string;
 	source: Readonly<{sourceHash: string; configHash: string; files: number}>;
 	contract?: Readonly<{id: string; version: string; hash: string; truthPolicy: string}> | undefined;
+	parser?: Readonly<{id: string; revision: string; compilerVersion: string}> | undefined;
 	truth?: Readonly<{identifiersSha256: string; dependenciesSha256: string}> | undefined;
+	ambiguity?:
+		| Readonly<{
+				rawCalls: number;
+				rawPopulationSha256: string;
+				budget: Readonly<{maximumCount: number; maximumRate: number}>;
+		  }>
+		| undefined;
 }>;
 
 type BundleType = Readonly<{
@@ -81,9 +90,15 @@ const runFixtureOf = (truthHashes: ReadonlyMap<string, string>): RunFixtureType 
 		approval: APPROVAL,
 		source: {sourceHash: SOURCE_HASH, configHash: CONFIG_HASH, files: 1},
 		contract: {id: contract.id, version: contract.version, hash: contract.hash, truthPolicy: contract.truthPolicy},
+		parser: PARSER,
 		truth: {
 			identifiersSha256: truthHashes.get('user-identifiers.csv') ?? '',
 			dependenciesSha256: truthHashes.get('user-dependencies.csv') ?? '',
+		},
+		ambiguity: {
+			rawCalls: 2,
+			rawPopulationSha256: 'f'.repeat(64),
+			budget: {maximumCount: 1474, maximumRate: 737},
 		},
 	};
 };
@@ -94,6 +109,8 @@ const writeDescriptor = (descriptorPath: string): void => {
 		evidence: {externalRoot: 'oracle-live/replacement', snapshotDir: 'workspace', plan: 'plan.json', run: 'run.json', approval: APPROVAL},
 		source: {kind: 'svn', revision: '78950', relativeRoot: '^/ljs_app/trunk/ljs_db/LJS_DB', defaultSchema: 'LJ_UNITTEST'},
 		snapshot: {projectFile: PROJECT_FILE, sourceHash: SOURCE_HASH, configHash: CONFIG_HASH, fileCount: 1, unitCount: 1},
+		ambiguity: {rawCalls: 2, rawPopulationSha256: 'f'.repeat(64), maximumCount: 1474, maximumRate: 737},
+		parser: PARSER,
 		files: {checksums: 'corpus.sha256', units: 'units.json'},
 	});
 };
@@ -173,6 +190,7 @@ describe('Oracle evidence bundle preflight', () => {
 		expect(report.artifacts.every((artifact) => !path.isAbsolute(artifact.path))).toBe(true);
 		expect(statusOf(report, 'run.contract')).toBe('ok');
 		expect(statusOf(report, 'run.truthIdentifiers')).toBe('ok');
+		expect(statusOf(report, 'run.parser')).toBe('ok');
 	});
 
 	it('fails before any database work when an external artifact is absent', async () => {
@@ -235,8 +253,83 @@ describe('Oracle evidence bundle preflight', () => {
 		const report = await preflight(context);
 
 		expect(statusOf(report, 'run.contract')).toBe('mismatch');
-		expect(report.identities.find((identity) => identity.name === 'run.contract')?.expected).toContain('oracle-o1@4');
+		expect(report.identities.find((identity) => identity.name === 'run.contract')?.expected).toContain('oracle-o1@5');
 		expect(report.ok).toBe(false);
+	});
+});
+
+describe('Oracle ambiguity evidence preflight', () => {
+	afterEach(() => {
+		for (const directory of temporaryDirectories.splice(0)) {
+			rmSync(directory, {recursive: true, force: true});
+		}
+	});
+
+	it('fails closed when retained ambiguity evidence is missing', async () => {
+		const context = bundle();
+		const run = runFixtureOf(truthHashesOf(context.root));
+
+		context.writeRun({...run, ambiguity: undefined});
+		context.refresh();
+
+		const report = await preflight(context);
+
+		expect(statusOf(report, 'run.ambiguityRawCalls')).toBe('missing');
+		expect(statusOf(report, 'run.ambiguityPopulation')).toBe('missing');
+		expect(report.ok).toBe(false);
+	});
+
+	it('rejects raw CALL denominator drift', async () => {
+		const context = bundle();
+		const run = runFixtureOf(truthHashesOf(context.root));
+		const {ambiguity} = run;
+
+		if (ambiguity === undefined) {
+			throw new Error('Fixture ambiguity evidence is missing');
+		}
+
+		context.writeRun({...run, ambiguity: {...ambiguity, rawCalls: 1}});
+		context.refresh();
+
+		const report = await preflight(context);
+
+		expect(statusOf(report, 'run.ambiguityRawCalls')).toBe('mismatch');
+		expect(report.ok).toBe(false);
+	});
+
+	it('rejects parser identity drift', async () => {
+		const context = bundle();
+		const run = runFixtureOf(truthHashesOf(context.root));
+
+		context.writeRun({...run, parser: {...PARSER, revision: 'structural@changed'}});
+		context.refresh();
+
+		const report = await preflight(context);
+
+		expect(statusOf(report, 'run.parser')).toBe('mismatch');
+		expect(report.ok).toBe(false);
+	});
+
+	it('rejects an ambiguity budget above the contract', async () => {
+		const context = bundle();
+		const descriptor = JSON.parse(readFileSync(context.descriptor, 'utf8')) as {
+			ambiguity: {rawCalls: number; rawPopulationSha256: string; maximumCount: number; maximumRate: number};
+		};
+
+		writeJson(context.descriptor, {...descriptor, ambiguity: {...descriptor.ambiguity, maximumCount: 1475, maximumRate: 737.5}});
+
+		const report = await preflight(context);
+
+		expect(statusOf(report, 'contract.ambiguityMaximumCount')).toBe('mismatch');
+		expect(report.ok).toBe(false);
+	});
+});
+
+describe('Oracle evidence identity preflight', () => {
+	afterEach(() => {
+		for (const directory of temporaryDirectories.splice(0)) {
+			rmSync(directory, {recursive: true, force: true});
+		}
 	});
 
 	it('rejects truth hashes that differ from the retained exports', async () => {

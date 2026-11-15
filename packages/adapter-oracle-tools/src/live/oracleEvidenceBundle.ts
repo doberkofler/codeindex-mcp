@@ -11,6 +11,12 @@ const EnvironmentSchema = z.object({
 	CODEINDEX_EVIDENCE_ROOT: z.string().min(1).optional(),
 });
 
+const ParserSchema = z.object({
+	id: z.string().min(1),
+	revision: z.string().min(1),
+	compilerVersion: z.string().min(1),
+});
+
 const DescriptorSchema = z.object({
 	schemaVersion: z.literal(1),
 	evidence: z.object({
@@ -33,6 +39,15 @@ const DescriptorSchema = z.object({
 		fileCount: z.number().int().positive(),
 		unitCount: z.number().int().positive(),
 	}),
+	ambiguity: z
+		.object({
+			rawCalls: z.number().int().nonnegative(),
+			rawPopulationSha256: Sha256Schema,
+			maximumCount: z.number().int().nonnegative(),
+			maximumRate: z.number().nonnegative(),
+		})
+		.optional(),
+	parser: ParserSchema.optional(),
 	files: z.object({
 		checksums: z.string().min(1),
 		units: z.string().min(1),
@@ -73,10 +88,18 @@ const RunSchema = z.object({
 		files: z.number().int().nonnegative(),
 	}),
 	contract: ContractSchema.optional(),
+	parser: ParserSchema.optional(),
 	truth: z
 		.object({
 			identifiersSha256: Sha256Schema,
 			dependenciesSha256: Sha256Schema,
+		})
+		.optional(),
+	ambiguity: z
+		.object({
+			rawCalls: z.number().int().nonnegative(),
+			rawPopulationSha256: Sha256Schema,
+			budget: z.object({maximumCount: z.number().int().nonnegative(), maximumRate: z.number().nonnegative()}),
 		})
 		.optional(),
 });
@@ -327,9 +350,17 @@ const truthIdentityOf = (name: string, expected: string | undefined, actual: str
 		? missingIdentityOf(name, expected ?? 'unavailable', actual ?? 'unrecorded')
 		: identityOf(name, expected, actual);
 
-const contractIdentityOf = (run: RunType): OracleEvidenceIdentityType => {
+const LEGACY_CONTRACT_V4 = {
+	id: 'oracle-o1',
+	version: '4',
+	truthPolicy: 'v5',
+	hash: 'ee83f2ece96074969137447c773c42bfc6400261d1ccefd597bd830ed389e95f',
+} as const;
+
+const contractIdentityOf = (descriptor: DescriptorType, run: RunType): OracleEvidenceIdentityType => {
 	const contract = oracleQualificationContractIdentityOf();
-	const expected = `${contract.id}@${contract.version} policy ${contract.truthPolicy} hash ${contract.hash}`;
+	const expectedContract = descriptor.ambiguity === undefined ? LEGACY_CONTRACT_V4 : contract;
+	const expected = `${expectedContract.id}@${expectedContract.version} policy ${expectedContract.truthPolicy} hash ${expectedContract.hash}`;
 	const actual =
 		run.contract === undefined ? 'unrecorded' : `${run.contract.id}@${run.contract.version} policy ${run.contract.truthPolicy} hash ${run.contract.hash}`;
 
@@ -343,15 +374,55 @@ const runIdentitiesOf = (bundle: BundleType): readonly OracleEvidenceIdentityTyp
 		return [missingIdentityOf('run.*', 'verified run metadata', 'missing run metadata')];
 	}
 
-	return [
+	const identities: OracleEvidenceIdentityType[] = [
 		identityOf('run.approval', descriptor.evidence.approval, run.approval),
 		identityOf('run.sourceHash', descriptor.snapshot.sourceHash, run.source.sourceHash),
 		identityOf('run.configHash', descriptor.snapshot.configHash, run.source.configHash),
 		identityOf('run.fileCount', String(descriptor.snapshot.fileCount), String(run.source.files)),
-		contractIdentityOf(run),
+		contractIdentityOf(descriptor, run),
 		truthIdentityOf('run.truthIdentifiers', truthHashes.get('user-identifiers.csv'), run.truth?.identifiersSha256),
 		truthIdentityOf('run.truthDependencies', truthHashes.get('user-dependencies.csv'), run.truth?.dependenciesSha256),
 	];
+
+	if (descriptor.ambiguity === undefined) {
+		return identities;
+	}
+
+	identities.push(
+		truthIdentityOf(
+			'run.parser',
+			descriptor.parser === undefined ? undefined : JSON.stringify(descriptor.parser),
+			run.parser === undefined ? undefined : JSON.stringify(run.parser),
+		),
+		truthIdentityOf('run.ambiguityRawCalls', String(descriptor.ambiguity.rawCalls), run.ambiguity === undefined ? undefined : String(run.ambiguity.rawCalls)),
+		truthIdentityOf('run.ambiguityPopulation', descriptor.ambiguity.rawPopulationSha256, run.ambiguity?.rawPopulationSha256),
+		truthIdentityOf(
+			'run.ambiguityMaximumCount',
+			String(descriptor.ambiguity.maximumCount),
+			run.ambiguity === undefined ? undefined : String(run.ambiguity.budget.maximumCount),
+		),
+		truthIdentityOf(
+			'run.ambiguityMaximumRate',
+			String(descriptor.ambiguity.maximumRate),
+			run.ambiguity === undefined ? undefined : String(run.ambiguity.budget.maximumRate),
+		),
+		identityOf(
+			'contract.ambiguityMaximumCount',
+			String(oracleQualificationContractIdentityOf().ambiguity.budget.maximumCount),
+			String(descriptor.ambiguity.maximumCount),
+		),
+		identityOf(
+			'contract.ambiguityMaximumRate',
+			String(
+				descriptor.ambiguity.rawCalls === 0
+					? 0
+					: oracleQualificationContractIdentityOf().ambiguity.budget.maximumRate.numerator / descriptor.ambiguity.rawCalls,
+			),
+			String(descriptor.ambiguity.maximumRate),
+		),
+	);
+
+	return identities;
 };
 
 /**

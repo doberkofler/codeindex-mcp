@@ -4,6 +4,7 @@ import {ORACLE_QUALIFICATION_CONTRACT, oracleGatesOf, oracleQualificationContrac
 import {DEPENDENCIES_SQL, IDENTIFIERS_SQL} from '@codeindex/adapter-oracle-tools/live/oracleLiveSql';
 import {readOracleTruth} from '@codeindex/adapter-oracle-tools/oracleTruth';
 import {ORACLE_DEPENDENCY_EXCLUSION_REASONS} from '@codeindex/adapter-oracle-tools/oracleDependencyExclusions';
+import {oracleAmbiguityReportOf} from '@codeindex/adapter-oracle-tools/oracleAmbiguity';
 import {ORACLE_TRUTH_EXCLUSION_REASONS, positionKeyOf, type OracleTruthExclusionReasonType} from '@codeindex/adapter-oracle-tools/oracleTruthExclusions';
 import {
 	ORACLE_TRUTH_OBJECT_TYPES,
@@ -54,8 +55,8 @@ describe('Oracle O1 qualification contract identity', () => {
 
 		expect(identity).toStrictEqual({
 			id: 'oracle-o1',
-			version: '4',
-			hash: 'ee83f2ece96074969137447c773c42bfc6400261d1ccefd597bd830ed389e95f',
+			version: '5',
+			hash: '919bdd5ad54374055c2afe186f866b5cf431c90842177cd501ffdf476f81e5ba',
 			truthPolicy: 'v5',
 			thresholds: {declarations: 0.995, references: 0.995, dependencies: 0.995, precision: 1},
 			emptyTruth: 'fail',
@@ -63,7 +64,13 @@ describe('Oracle O1 qualification contract identity', () => {
 			objectTypes: ['FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'PROCEDURE'],
 			exclusionReasons: [...ORACLE_TRUTH_EXCLUSION_REASONS],
 			dependencyExclusions: [...ORACLE_DEPENDENCY_EXCLUSION_REASONS],
-			ambiguity: {diagnosticCode: 9105, usage: 'CALL', positionMatch: 'exact path/line/column'},
+			ambiguity: {
+				diagnosticCode: 9105,
+				usage: 'CALL',
+				positionMatch: 'exact path/line/column',
+				signatureMatch: 'exact',
+				budget: {maximumCount: 1474, maximumRate: {numerator: 1474, denominator: 'raw CALL population'}},
+			},
 			unmappedObject: 'abort',
 		});
 		expect(oracleTruthPolicyOf()).toBe(ORACLE_TRUTH_POLICY_V5);
@@ -290,9 +297,40 @@ describe('Oracle O1 ambiguity policy', () => {
 
 		expect([...facts.references.values()].map((fact) => fact.name).sort()).toStrictEqual(['reference_site', 'retained_call']);
 		expect(facts.excludedByReason.omitted_ambiguous_overload).toBe(1);
+		expect(facts.calls).toStrictEqual([
+			{path: 'source.pkg', line: 2, column: 1, name: 'call_site', signature: 'demo', excluded: true},
+			{path: 'source.pkg', line: 4, column: 1, name: 'retained_call', signature: 'demo', excluded: false},
+		]);
 		expect(facts.excluded).toStrictEqual([
 			{path: 'source.pkg', line: 2, column: 1, name: 'call_site', type: 'PROCEDURE', role: 'reference', reason: 'omitted_ambiguous_overload'},
 		]);
+
+		const ambiguity = oracleAmbiguityReportOf(
+			facts.calls,
+			new Set([positionKeyOf({path: 'source.pkg', line: 2, column: 1}), positionKeyOf({path: 'source.pkg', line: 3, column: 1})]),
+		);
+
+		expect(ambiguity).toMatchObject({
+			diagnostics: 2,
+			ambiguousCalls: 1,
+			rawCalls: 2,
+			excludedCalls: 1,
+			rate: 1,
+			unmatchedDiagnostics: 1,
+			byCallee: [{callee: 'call_site', count: 1}],
+			budget: {maximumCount: 1474, maximumRate: 737},
+		});
+		expect(ambiguity.rawPopulationSha256).toMatch(/^[a-f0-9]{64}$/u);
+		expect(ambiguity.excludedPopulationSha256).toMatch(/^[a-f0-9]{64}$/u);
+
+		const additionalExclusion = oracleAmbiguityReportOf(
+			facts.calls.map((call) => ({...call, excluded: true})),
+			new Set([positionKeyOf({path: 'source.pkg', line: 2, column: 1}), positionKeyOf({path: 'source.pkg', line: 3, column: 1})]),
+		);
+
+		expect(additionalExclusion.rawCalls).toBe(ambiguity.rawCalls);
+		expect(additionalExclusion.rawPopulationSha256).toBe(ambiguity.rawPopulationSha256);
+		expect(additionalExclusion.excludedPopulationSha256).not.toBe(ambiguity.excludedPopulationSha256);
 	});
 
 	it('keeps the row under a historical policy', () => {
@@ -318,12 +356,14 @@ describe('Oracle O1 gate results', () => {
 			references: {recall: 0.995, precision: 1},
 			dependencies: {recall: 0.995, precision: 1},
 			identifierRows: 1,
+			ambiguity: {count: 1474, rate: 0.02, rawCalls: 73_700},
 		});
 
 		expect(gates).toStrictEqual({
 			declarations: {ok: true, recall: true, precision: true},
 			references: {ok: true, recall: true, precision: true},
 			dependencies: {ok: true, recall: true, precision: true},
+			ambiguity: {ok: true, count: true, rate: true},
 			ok: true,
 		});
 	});
@@ -333,7 +373,14 @@ describe('Oracle O1 gate results', () => {
 		const failingRecall = {recall: 0.9949, precision: 1};
 		const failingPrecision = {recall: 1, precision: 0.9999};
 		const gatesOf = (overrides: Partial<Parameters<typeof oracleGatesOf>[0]>): ReturnType<typeof oracleGatesOf> =>
-			oracleGatesOf({declarations: passing, references: passing, dependencies: passing, identifierRows: 1, ...overrides});
+			oracleGatesOf({
+				declarations: passing,
+				references: passing,
+				dependencies: passing,
+				identifierRows: 1,
+				ambiguity: {count: 0, rate: 0, rawCalls: 1},
+				...overrides,
+			});
 
 		expect(gatesOf({declarations: failingRecall}).declarations).toStrictEqual({ok: false, recall: false, precision: true});
 		expect(gatesOf({references: failingRecall}).references).toStrictEqual({ok: false, recall: false, precision: true});
@@ -342,6 +389,9 @@ describe('Oracle O1 gate results', () => {
 		expect(gatesOf({references: failingPrecision}).references).toStrictEqual({ok: false, recall: true, precision: false});
 		expect(gatesOf({dependencies: failingPrecision}).dependencies).toStrictEqual({ok: false, recall: true, precision: false});
 		expect(gatesOf({declarations: failingRecall}).ok).toBe(false);
+		expect(gatesOf({ambiguity: {count: 1475, rate: 0.02, rawCalls: 73_700}}).ambiguity).toStrictEqual({ok: false, count: false, rate: true});
+		expect(gatesOf({ambiguity: {count: 1474, rate: 0.0201, rawCalls: 73_700}}).ambiguity).toStrictEqual({ok: false, count: true, rate: false});
+		expect(gatesOf({ambiguity: {count: 1475, rate: 0.0201, rawCalls: 73_700}}).ok).toBe(false);
 	});
 
 	it('fails every gate for empty truth', () => {
@@ -350,6 +400,7 @@ describe('Oracle O1 gate results', () => {
 			references: {recall: 1, precision: 1},
 			dependencies: {recall: 1, precision: 1},
 			identifierRows: 0,
+			ambiguity: {count: 0, rate: 0, rawCalls: 0},
 		});
 
 		expect(gates.ok).toBe(false);

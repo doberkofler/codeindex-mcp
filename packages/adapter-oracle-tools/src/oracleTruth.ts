@@ -20,6 +20,17 @@ export type PositionedTruthType = Readonly<{
 	type: string;
 }>;
 
+/** Raw PL/Scope CALL evidence before qualification exclusions. */
+export type OracleCallTruthType = Readonly<{
+	path: string;
+	line: number;
+	column: number;
+	name: string;
+	signature: string;
+	/** Whether the exact CALL is excluded by the ambiguity policy. */
+	excluded: boolean;
+}>;
+
 export type CodeOccurrenceType = Readonly<{
 	path: string;
 	line: number;
@@ -68,6 +79,7 @@ export type TruthFactsType = Readonly<{
 	excludedPackageReferences: number;
 	malformedRows: number;
 	outOfScopeObjectRows: number;
+	calls: readonly OracleCallTruthType[];
 }>;
 
 export type CompareOptionsType = Readonly<{
@@ -114,6 +126,7 @@ type TruthStateType = {
 	outOfScopeObjectRows: number;
 	ambiguousOverloadPositions: ReadonlySet<string>;
 	usageById: OracleUsageContextIndexType;
+	calls: OracleCallTruthType[];
 };
 
 const identityOf = (parsed: OracleParsedTruthRowType): Readonly<{name: string; type: string}> => ({name: parsed.name, type: parsed.identifierType});
@@ -206,6 +219,15 @@ const applyTruthRow = (state: TruthStateType, row: readonly string[]): void => {
 	const supportedKind = state.policy.supportedTypes[typeKeyOf(parsed.identifierType)];
 	const decision = ephemeralDecisionOf(state, parsed, kind) ?? exclusionFor({state, parsed, mapping, position, kind, supportedKind});
 
+	if (parsed.usage === 'CALL') {
+		state.calls.push({
+			...position,
+			name: parsed.name,
+			signature: parsed.signature,
+			excluded: decision?.reason === 'omitted_ambiguous_overload',
+		});
+	}
+
 	if (decision !== null) {
 		exclude(state, position, identityOf(parsed), decision);
 		return;
@@ -283,6 +305,7 @@ const factsOf = (state: TruthStateType): TruthFactsType => {
 		excludedPackageReferences: state.excludedPackageReferences,
 		malformedRows: state.malformedRows,
 		outOfScopeObjectRows: state.outOfScopeObjectRows,
+		calls: state.calls,
 	};
 };
 
@@ -319,6 +342,7 @@ export const readOracleTruth = (
 		outOfScopeObjectRows: 0,
 		ambiguousOverloadPositions: input.ambiguousOverloadPositions ?? new Set(),
 		usageById: usageContextIndex(input.rows),
+		calls: [],
 	};
 
 	for (const row of input.rows) {

@@ -44,6 +44,44 @@ const writeCsv = (directory: string, name: string): string => {
 	return filePath;
 };
 
+type QualificationReportType = Readonly<{
+	extractor: string;
+	generationId: string;
+	contract: Readonly<{id: string; version: string; hash: string; truthPolicy: string; emptyTruth: string}>;
+	corpus: Readonly<{files: number; objects: number; sourceHash: string; configHash: string}>;
+	policy: Readonly<{version: string}>;
+	truth: Readonly<{
+		rows: number;
+		invalidDeclarationRows: number;
+		excludedPackageReferences: number;
+		excludedByReason: Readonly<Record<string, number>>;
+		malformedRows: number;
+		outOfScopeObjectRows: number;
+		includedDeclarations: number;
+		includedReferences: number;
+		excludedTotal: number;
+		identifiersSha256: string;
+		dependenciesSha256: string;
+		ambiguousOverloadDiagnostics: number;
+	}>;
+	ambiguity: Readonly<{
+		diagnostics: number;
+		ambiguousCalls: number;
+		rawCalls: number;
+		excludedCalls: number;
+		rate: number;
+		unmatchedDiagnostics: number;
+		rawPopulationSha256: string;
+		excludedPopulationSha256: string;
+		byCallee: readonly unknown[];
+		budget: Readonly<{maximumCount: number; maximumRate: number}>;
+	}>;
+	declarations: Readonly<{truth: number; actual: number; recall: number; precision: number}>;
+	referenceStrata: Readonly<Record<string, Readonly<{truth: number; actual: number}>>>;
+	dependencies: Readonly<{truth: number; actual: number; recall: number; precision: number}>;
+	gates: Readonly<{declarations: Readonly<{ok: boolean}>; ok: boolean}>;
+}>;
+
 describe('Oracle qualification run', () => {
 	afterEach(() => {
 		for (const directory of temporaryDirectories.splice(0)) {
@@ -172,36 +210,12 @@ describe('Oracle qualification report', () => {
 				{identifiers, dependencies, output},
 			);
 
-			const report = JSON.parse(captured.stdout.join('\n')) as {
-				extractor: string;
-				generationId: string;
-				contract: {id: string; version: string; hash: string; truthPolicy: string; emptyTruth: string};
-				corpus: {files: number; objects: number; sourceHash: string; configHash: string};
-				policy: {version: string};
-				truth: {
-					rows: number;
-					invalidDeclarationRows: number;
-					excludedPackageReferences: number;
-					excludedByReason: Record<string, number>;
-					malformedRows: number;
-					outOfScopeObjectRows: number;
-					includedDeclarations: number;
-					includedReferences: number;
-					excludedTotal: number;
-					identifiersSha256: string;
-					dependenciesSha256: string;
-					ambiguousOverloadDiagnostics: number;
-				};
-				declarations: {truth: number; actual: number; recall: number; precision: number};
-				referenceStrata: Record<string, {truth: number; actual: number}>;
-				dependencies: {truth: number; actual: number; recall: number; precision: number};
-				gates: {declarations: {ok: boolean}; ok: boolean};
-			};
+			const report = JSON.parse(captured.stdout.join('\n')) as QualificationReportType;
 
 			expect(code).toBe(1);
 			expect(report.extractor).toBe('oracle');
 			expect(report.generationId.length).toBeGreaterThan(0);
-			expect(report.contract).toMatchObject({id: 'oracle-o1', version: '4', truthPolicy: 'v5', emptyTruth: 'fail'});
+			expect(report.contract).toMatchObject({id: 'oracle-o1', version: '5', truthPolicy: 'v5', emptyTruth: 'fail'});
 			expect(report.contract.hash).toMatch(/^[a-f0-9]{64}$/u);
 			expect(report.corpus.files).toBeGreaterThan(5);
 			expect(report.corpus.objects).toBeGreaterThan(5);
@@ -231,6 +245,18 @@ describe('Oracle qualification report', () => {
 				identifiersSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
 				dependenciesSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
 				ambiguousOverloadDiagnostics: 0,
+			});
+			expect(report.ambiguity).toStrictEqual({
+				diagnostics: 0,
+				ambiguousCalls: 0,
+				rawCalls: 0,
+				excludedCalls: 0,
+				rate: 0,
+				unmatchedDiagnostics: 0,
+				rawPopulationSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+				excludedPopulationSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+				byCallee: [],
+				budget: {maximumCount: 1474, maximumRate: 0},
 			});
 			expect(report.declarations).toMatchObject({truth: 0, recall: 1});
 			expect(report.declarations.actual).toBeGreaterThan(0);

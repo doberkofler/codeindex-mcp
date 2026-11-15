@@ -32,7 +32,16 @@ export type OracleQualificationContractType = Readonly<{
 	/** Stable reason codes for every omitted package-dependency truth row. */
 	dependencyExclusions: readonly string[];
 	/** A policy-visible ambiguity diagnostic omits exactly one CALL truth row. */
-	ambiguity: Readonly<{diagnosticCode: number; usage: 'CALL'; positionMatch: 'exact path/line/column'}>;
+	ambiguity: Readonly<{
+		diagnosticCode: number;
+		usage: 'CALL';
+		positionMatch: 'exact path/line/column';
+		signatureMatch: 'exact';
+		budget: Readonly<{
+			maximumCount: number;
+			maximumRate: Readonly<{numerator: number; denominator: 'raw CALL population'}>;
+		}>;
+	}>;
 	/** An unmapped PL/Scope object aborts the run instead of shrinking truth. */
 	unmappedObject: 'abort';
 	/** Execution identities that a report must record. */
@@ -54,7 +63,7 @@ export type OracleQualificationContractType = Readonly<{
  */
 export const ORACLE_QUALIFICATION_CONTRACT: OracleQualificationContractType = {
 	id: 'oracle-o1',
-	version: '4',
+	version: '5',
 	truthPolicy: ORACLE_TRUTH_POLICY_V5.version,
 	objectTypes: ['FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'PROCEDURE'],
 	thresholds: {declarations: 0.995, references: 0.995, dependencies: 0.995, precision: 1},
@@ -62,7 +71,13 @@ export const ORACLE_QUALIFICATION_CONTRACT: OracleQualificationContractType = {
 	sampleLimit: ORACLE_COMPARISON_SAMPLE_LIMIT,
 	exclusionReasons: [...ORACLE_TRUTH_EXCLUSION_REASONS],
 	dependencyExclusions: [...ORACLE_DEPENDENCY_EXCLUSION_REASONS],
-	ambiguity: {diagnosticCode: ORACLE_DIAGNOSTIC.ambiguousOverload, usage: 'CALL', positionMatch: 'exact path/line/column'},
+	ambiguity: {
+		diagnosticCode: ORACLE_DIAGNOSTIC.ambiguousOverload,
+		usage: 'CALL',
+		positionMatch: 'exact path/line/column',
+		signatureMatch: 'exact',
+		budget: {maximumCount: 1474, maximumRate: {numerator: 1474, denominator: 'raw CALL population'}},
+	},
 	unmappedObject: 'abort',
 	identity: {
 		parser: ['id', 'revision', 'compilerVersion'],
@@ -127,11 +142,13 @@ export const oracleQualificationContractIdentityOf = (): OracleQualificationCont
 });
 
 type OracleGateResultType = Readonly<{ok: boolean; recall: boolean; precision: boolean}>;
+type OracleAmbiguityGateResultType = Readonly<{ok: boolean; count: boolean; rate: boolean}>;
 
 export type OracleGatesType = Readonly<{
 	declarations: OracleGateResultType;
 	references: OracleGateResultType;
 	dependencies: OracleGateResultType;
+	ambiguity: OracleAmbiguityGateResultType;
 	ok: boolean;
 }>;
 
@@ -140,6 +157,7 @@ export type OracleGateInputType = Readonly<{
 	references: Readonly<{recall: number; precision: number}>;
 	dependencies: Readonly<{recall: number; precision: number}>;
 	identifierRows: number;
+	ambiguity: Readonly<{count: number; rate: number; rawCalls: number}>;
 }>;
 
 const gateOf = (metrics: Readonly<{recall: number; precision: number}>, recallThreshold: number): OracleGateResultType => ({
@@ -160,13 +178,22 @@ const gateOf = (metrics: Readonly<{recall: number; precision: number}>, recallTh
 export const oracleGatesOf = (input: OracleGateInputType): OracleGatesType => {
 	if (input.identifierRows === 0) {
 		const failed: OracleGateResultType = {ok: false, recall: false, precision: false};
+		const ambiguity: OracleAmbiguityGateResultType = {ok: false, count: false, rate: false};
 
-		return {declarations: failed, references: failed, dependencies: failed, ok: false};
+		return {declarations: failed, references: failed, dependencies: failed, ambiguity, ok: false};
 	}
 
 	const declarations = gateOf(input.declarations, ORACLE_QUALIFICATION_CONTRACT.thresholds.declarations);
 	const references = gateOf(input.references, ORACLE_QUALIFICATION_CONTRACT.thresholds.references);
 	const dependencies = gateOf(input.dependencies, ORACLE_QUALIFICATION_CONTRACT.thresholds.dependencies);
+	const ambiguityCount = input.ambiguity.count <= ORACLE_QUALIFICATION_CONTRACT.ambiguity.budget.maximumCount;
+	const maximumRate = input.ambiguity.rawCalls === 0 ? 0 : ORACLE_QUALIFICATION_CONTRACT.ambiguity.budget.maximumRate.numerator / input.ambiguity.rawCalls;
+	const ambiguityRate = input.ambiguity.rate <= maximumRate;
+	const ambiguity: OracleAmbiguityGateResultType = {
+		count: ambiguityCount,
+		rate: ambiguityRate,
+		ok: ambiguityCount && ambiguityRate,
+	};
 
-	return {declarations, references, dependencies, ok: declarations.ok && references.ok && dependencies.ok};
+	return {declarations, references, dependencies, ambiguity, ok: declarations.ok && references.ok && dependencies.ok && ambiguity.ok};
 };
