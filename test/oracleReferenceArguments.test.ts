@@ -67,10 +67,32 @@ describe('Oracle argument shape classification', () => {
 		expect(shapeAt(state, plain, plain)).toMatchObject({name: null, leadName: {canonical: 'OTHER'}});
 	});
 
+	it('retains nested terminal-call arguments as serializable expression evidence', () => {
+		const state = stateOf('fn(round(nvl(rec.amount, 0)), items(1), empty());');
+		const shape = shapeAt(state, nthIndex(state, 'round'), nthIndex(state, ')', 3));
+
+		expect(shape.argument).toMatchObject({
+			leadName: {canonical: 'ROUND'},
+			invocation: [
+				{
+					leadName: {canonical: 'NVL'},
+					invocation: [{leadName: {canonical: 'REC.AMOUNT'}}, {literalType: 'NUMBER'}],
+				},
+			],
+		});
+		expect(shapeAt(state, nthIndex(state, 'items'), nthIndex(state, '1')).argument).toMatchObject({
+			leadName: {canonical: 'ITEMS'},
+			invocation: [{literalType: 'NUMBER'}],
+		});
+		expect(shapeAt(state, nthIndex(state, 'empty'), nthIndex(state, ')', 2)).argument).toMatchObject({
+			leadName: {canonical: 'EMPTY'},
+		});
+	});
+
 	it('returns an unknown shape for malformed or literal-leading arguments', () => {
 		const state = stateOf('fn(1, rec.coll(, $x);');
 
-		expect(shapeAt(state, nthIndex(state, '1'), nthIndex(state, '1'))).toStrictEqual({name: null, leadName: undefined, indexed: false, literalType: 'NUMBER'});
+		expect(shapeAt(state, nthIndex(state, '1'), nthIndex(state, '1'))).toMatchObject({name: null, leadName: undefined, indexed: false, literalType: 'NUMBER'});
 		expect(shapeAt(state, nthIndex(state, 'rec'), nthIndex(state, 'rec'))).toMatchObject({leadName: {parts: [{canonical: 'REC'}, {canonical: 'COLL'}]}});
 	});
 });

@@ -195,7 +195,7 @@ const argumentInfo = (
 	}
 
 	const ranges = state.cursor.splitTopLevel(state.cursor.next(open), state.cursor.previous(close), ',');
-	const argumentsWithNames = ranges.map((range) => ({range: rangeOf(state, range.start, range.end), ...argumentShapeOf(state, range)}));
+	const argumentsWithNames = ranges.map((range) => argumentShapeOf(state, range).argument);
 
 	return {
 		count: ranges.length,

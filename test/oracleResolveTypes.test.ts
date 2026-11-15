@@ -121,12 +121,18 @@ const siteOf = (argumentsWithValues: NonNullable<OracleReferenceSiteType['argume
 
 const argumentOf = (
 	value: string,
-	options: Readonly<{literalType?: string; indexed?: boolean; name?: string | null}> = {},
+	options: Readonly<{
+		literalType?: string;
+		indexed?: boolean;
+		name?: string | null;
+		invocation?: readonly NonNullable<OracleReferenceSiteType['arguments']>[number][];
+	}> = {},
 ): NonNullable<OracleReferenceSiteType['arguments']>[number] => ({
 	range: range(),
 	name: options.name ?? null,
 	...(options.literalType === undefined ? {leadName: nameOf(value)} : {literalType: options.literalType}),
 	indexed: options.indexed ?? false,
+	...(options.invocation === undefined ? {} : {invocation: options.invocation}),
 });
 
 const servicesOf = (aliases: Readonly<Record<string, string>> = {}, memberResult: string | null = null): ResolutionServicesType => ({
@@ -214,7 +220,43 @@ describe('Oracle symbolic type filtering', () => {
 			candidate,
 		]);
 	});
+});
 
+describe('Oracle inferred expression types', () => {
+	it('resolves declaration anchors and source function return identities', () => {
+		const environment = environmentOf([
+			{kind: 'variable', name: 'BASE', type: 'NUMBER'},
+			{kind: 'variable', name: 'ANCHORED', type: 'BASE', anchored: true},
+			{kind: 'function', name: 'VALUE_OF', type: 'NUMBER'},
+			{kind: 'procedure', name: 'RUN', parameters: [parameterOf('P_A', 'NUMBER')]},
+		]);
+		const candidate = candidateOf(environment.idOf('RUN'), environment.declarationNamed('RUN'));
+		const services: ResolutionServicesType = {
+			...servicesOf({BASE: environment.idOf('BASE')}),
+			resolveSite: (_state, site) => ({
+				symbolId: environment.idOf(site.name.parts.at(-1)?.canonical ?? ''),
+				outcome: 'resolved',
+			}),
+		};
+
+		expect(filterByTypes(services, environment.state, [candidate], {site: siteOf([argumentOf('ANCHORED')]), exact: true})).toStrictEqual([candidate]);
+		expect(
+			filterByTypes(services, environment.state, [candidate], {site: siteOf([argumentOf('VALUE_OF', {indexed: true, invocation: []})]), exact: true}),
+		).toStrictEqual([candidate]);
+	});
+
+	it('applies only supported built-in return rules and keeps unknown calls unresolved', () => {
+		const environment = environmentOf([{kind: 'procedure', name: 'RUN', parameters: [parameterOf('P_A', 'CLOB')]}]);
+		const candidate = candidateOf(environment.idOf('RUN'), environment.declarationNamed('RUN'));
+		const toClob = argumentOf('TO_CLOB', {indexed: true, invocation: [argumentOf('X', {literalType: 'VARCHAR2'})]});
+		const unsupported = argumentOf('CUSTOM', {indexed: true, invocation: [argumentOf('X', {literalType: 'VARCHAR2'})]});
+
+		expect(filterByTypes(servicesOf(), environment.state, [candidate], {site: siteOf([toClob]), exact: true})).toStrictEqual([candidate]);
+		expect(filterByTypes(servicesOf(), environment.state, [candidate], {site: siteOf([unsupported]), exact: true})).toStrictEqual([candidate]);
+	});
+});
+
+describe('Oracle symbolic type filtering edge cases', () => {
 	it('falls back to the collection identity when the element type is unknown', () => {
 		const environment = environmentOf([
 			{kind: 'collection_type', name: 'ROWS', type: 'UNKNOWN'},

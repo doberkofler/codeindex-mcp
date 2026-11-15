@@ -96,6 +96,8 @@ export type OracleReferenceArgumentType = Readonly<{
 	leadName?: OracleNameType | undefined;
 	/** Whether the value ends with an index expression, so its type is the element type. */
 	indexed?: boolean | undefined;
+	/** Arguments of a terminal call or index expression, when present. */
+	invocation?: readonly OracleReferenceArgumentType[] | undefined;
 	/** Built-in type implied by a literal argument. */
 	literalType?: string | undefined;
 }>;

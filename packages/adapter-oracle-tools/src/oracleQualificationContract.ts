@@ -76,7 +76,7 @@ export const ORACLE_QUALIFICATION_CONTRACT: OracleQualificationContractType = {
 		usage: 'CALL',
 		positionMatch: 'exact path/line/column',
 		signatureMatch: 'exact',
-		budget: {maximumCount: 1474, maximumRate: {numerator: 1474, denominator: 'raw CALL population'}},
+		budget: {maximumCount: 920, maximumRate: {numerator: 920, denominator: 'raw CALL population'}},
 	},
 	unmappedObject: 'abort',
 	identity: {

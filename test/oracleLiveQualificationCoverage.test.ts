@@ -209,7 +209,7 @@ describe('Oracle live qualification apply reporting', () => {
 			expect(metadata.contract).toMatchObject({id: 'oracle-o1', version: '5', truthPolicy: 'v5'});
 			expect(metadata.truth.rows).toBe(0);
 			expect(metadata.truth.excludedByReason).toMatchObject({omitted_ambiguous_overload: 0});
-			expect(metadata.ambiguity).toMatchObject({rawCalls: 0, budget: {maximumCount: 1474, maximumRate: 0}});
+			expect(metadata.ambiguity).toMatchObject({rawCalls: 0, budget: {maximumCount: 920, maximumRate: 0}});
 			expect(metadata.ambiguity.rawPopulationSha256).toMatch(/^[a-f0-9]{64}$/u);
 			expect(metadata.invalidObjects).toStrictEqual({baseline: 1, remainingBaseline: [], restoredBaseline: ['VIEW LEGACY_VIEW']});
 			expect(existsSync(metadata.artifacts.report)).toBe(true);

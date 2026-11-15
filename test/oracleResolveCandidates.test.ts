@@ -281,4 +281,21 @@ describe('Oracle non-call candidate selection', () => {
 			outcome: 'ambiguous-overload',
 		});
 	});
+
+	it('preserves ambiguity for an unsupported call expression', () => {
+		const number = candidateOf('number', 'procedure', 'RUN', {parameters: [parameterOf('P_A', {type: 'NUMBER'})]});
+		const text = candidateOf('text', 'procedure', 'RUN', {parameters: [parameterOf('P_A', {type: 'VARCHAR2'})]});
+		const argument = {
+			range: range(),
+			name: null,
+			leadName: nameOf('CUSTOM'),
+			indexed: true,
+			invocation: [{range: range(), name: null, literalType: 'NUMBER'}],
+		};
+
+		expect(choose([number, text], siteOf({kind: 'call', arguments: [argument]}))).toStrictEqual({
+			choice: null,
+			outcome: 'ambiguous-overload',
+		});
+	});
 });

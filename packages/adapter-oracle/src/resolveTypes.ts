@@ -1,4 +1,5 @@
 import {type OracleFileAnalysisType} from './extractSymbols.ts';
+import {builtInReturnTypeOf} from './builtInReturnTypes.ts';
 import {type ChoiceCandidateType, type ResolutionType, type ResolveStateType} from './resolveReferences.ts';
 import {type OracleDeclarationType, type OracleReferenceSiteType} from './syntax.ts';
 
@@ -133,7 +134,7 @@ type TypeTargetType = Readonly<{
 const typeTargetOf = (services: ResolutionServicesType, state: ResolveStateType, located: LocatedDeclarationType): TypeTargetType | null => {
 	const [reference] = located.declaration.typeReferences;
 
-	if (reference === undefined || reference.anchored || reference.rowType) {
+	if (reference === undefined || reference.rowType) {
 		return null;
 	}
 
@@ -177,6 +178,10 @@ const typeIdentityOf = (services: ResolutionServicesType, state: ResolveStateTyp
 
 	if (target === null) {
 		return null;
+	}
+
+	if (target.reference.anchored) {
+		return target.resolved === null ? null : typeIdentityOf(services, target.state, {symbolId: target.resolved}, depth + 1);
 	}
 
 	if (target.resolved === null) {
@@ -224,56 +229,75 @@ const collectionElementTypeOf = (services: ResolutionServicesType, state: Resolv
 	return declaration?.declaration.kind === 'collection_type' ? typeIdentityOf(services, target.state, {located: declaration}, depth + 1) : null;
 };
 
-/**
- * Resolves the static type of one call argument.
- *
- * @param services - Injected name resolution callbacks.
- * @param state - Resolution state.
- * @param site - Call site that owns the argument.
- * @param argument - Argument shape read by the parser.
- * @returns The canonical type identity, or null when it is unknown.
- */
-const argumentTypeOf = (
-	services: ResolutionServicesType,
-	state: ResolveStateType,
-	site: OracleReferenceSiteType,
-	argument: NonNullable<OracleReferenceSiteType['arguments']>[number],
-): string | null => {
-	if (argument.literalType !== undefined) {
-		return canonicalType(argument.literalType);
-	}
+type ArgumentTypeContextType = Readonly<{
+	services: ResolutionServicesType;
+	state: ResolveStateType;
+	site: OracleReferenceSiteType;
+	depth: number;
+}>;
 
-	const lead = argument.leadName;
-
-	if (lead === undefined) {
+const argumentSiteOf = (site: OracleReferenceSiteType, argument: NonNullable<OracleReferenceSiteType['arguments']>[number]): OracleReferenceSiteType | null => {
+	if (argument.leadName === undefined) {
 		return null;
 	}
 
-	const argumentSite: OracleReferenceSiteType = {
-		name: lead,
+	return {
+		name: argument.leadName,
 		range: argument.range,
 		nameRange: argument.range,
 		unit: site.unit,
 		enclosing: site.enclosing,
-		kind: 'reference',
-		argumentCount: null,
-		argumentNames: [],
+		kind: argument.invocation === undefined ? 'reference' : 'call',
+		argumentCount: argument.invocation?.length ?? null,
+		argumentNames: argument.invocation?.flatMap((value) => (value.name === null ? [] : [value.name])) ?? [],
+		...(argument.invocation === undefined ? {} : {arguments: argument.invocation}),
 		rowType: false,
 	};
-	const resolution = services.resolveSite(state, argumentSite);
+};
+
+const resolvedArgumentTypeOf = (context: ArgumentTypeContextType, argument: NonNullable<OracleReferenceSiteType['arguments']>[number]): string | null => {
+	const argumentSite = argumentSiteOf(context.site, argument);
+
+	if (argumentSite === null) {
+		return null;
+	}
+
+	const resolution = context.services.resolveSite(context.state, argumentSite);
 
 	if (resolution.symbolId === null) {
 		return null;
 	}
 
-	const identity = typeIdentityOf(services, state, {symbolId: resolution.symbolId}, 1);
+	const identity = typeIdentityOf(context.services, context.state, {symbolId: resolution.symbolId}, 1);
 
-	if (argument.indexed !== true || identity === null) {
+	if ((argument.invocation === undefined && argument.indexed !== true) || identity === null) {
 		return identity;
 	}
 
-	// `collection(index)` has the type of the collection's element.
-	return collectionElementTypeOf(services, state, resolution.symbolId, 0) ?? identity;
+	return declarationAt(context.state, resolution.symbolId)?.declaration.kind === 'function'
+		? identity
+		: (collectionElementTypeOf(context.services, context.state, resolution.symbolId, 0) ?? identity);
+};
+
+/**
+ * Resolves the static type of one call argument.
+ *
+ * @param context - Resolution services, owning site, and recursion depth.
+ * @param argument - Argument shape read by the parser.
+ * @returns The canonical type identity, or null when it is unknown.
+ */
+const argumentTypeOf = (context: ArgumentTypeContextType, argument: NonNullable<OracleReferenceSiteType['arguments']>[number]): string | null => {
+	if (context.depth > 4) {
+		return null;
+	}
+
+	if (argument.literalType !== undefined) {
+		return canonicalType(argument.literalType);
+	}
+
+	const builtIn = builtInReturnTypeOf(argument, context.depth, (nested, depth) => argumentTypeOf({...context, depth}, nested));
+
+	return builtIn ?? resolvedArgumentTypeOf(context, argument);
 };
 
 type ParameterMatchType = Readonly<{
@@ -325,6 +349,30 @@ const parameterMatchesOf = (candidate: ChoiceCandidateType, site: OracleReferenc
 	return matches;
 };
 
+const candidateTypeTargetOf = (
+	services: ResolutionServicesType,
+	state: ResolveStateType,
+	candidate: ChoiceCandidateType,
+	reference: NonNullable<OracleDeclarationType['typeReferences']>[number],
+): Readonly<{state: ResolveStateType; symbolId: string | null}> | null => {
+	const location = state.symbolDeclarations.get(candidate.symbolId);
+	const file = location === undefined ? undefined : state.input.files[location.fileIndex];
+
+	if (location === undefined || file === undefined) {
+		return null;
+	}
+
+	const targetState: ResolveStateType = file === state.file ? state : {...state, fileIndex: location.fileIndex, file};
+	const site = services.syntheticSite(candidate.declaration, location.declarationIndex);
+	const [first] = reference.name.parts;
+	const symbolId =
+		reference.name.parts.length === 1
+			? services.resolveSimpleAt(targetState, location.declarationIndex, first?.canonical ?? '', site).symbolId
+			: services.resolveMember(targetState, reference.name.parts, site);
+
+	return {state: targetState, symbolId};
+};
+
 /**
  * Resolves the declared type identity of one candidate parameter.
  *
@@ -342,31 +390,51 @@ const parameterTypeIdentityOf = (
 	state: ResolveStateType,
 	candidate: ChoiceCandidateType,
 	reference: NonNullable<OracleDeclarationType['typeReferences']>[number],
-): string => {
+): string | null => {
 	const canonical = canonicalType(reference.name.parts.at(-1)?.canonical ?? '');
-	const location = state.symbolDeclarations.get(candidate.symbolId);
+	const resolved = candidateTypeTargetOf(services, state, candidate, reference);
 
-	if (location === undefined) {
-		return canonical;
+	if (resolved === null) {
+		return reference.anchored ? null : canonical;
 	}
 
-	const file = state.input.files[location.fileIndex];
+	const target = resolved.symbolId === null ? null : declarationAt(resolved.state, resolved.symbolId);
 
-	if (file === undefined) {
-		return canonical;
+	if (reference.anchored) {
+		return resolved.symbolId === null ? null : typeIdentityOf(services, resolved.state, {symbolId: resolved.symbolId}, 0);
 	}
 
-	const targetState: ResolveStateType = file === state.file ? state : {...state, fileIndex: location.fileIndex, file};
-	const site = services.syntheticSite(candidate.declaration, location.declarationIndex);
-	const [first] = reference.name.parts;
-	const resolved =
-		reference.name.parts.length === 1
-			? services.resolveSimpleAt(targetState, location.declarationIndex, first?.canonical ?? '', site).symbolId
-			: services.resolveMember(targetState, reference.name.parts, site);
+	return target?.declaration.kind === 'subtype' ? (typeIdentityOf(services, resolved.state, {located: target}, 0) ?? canonical) : canonical;
+};
 
-	const target = resolved === null ? null : declarationAt(targetState, resolved);
+const candidateAcceptsTypes = (
+	services: ResolutionServicesType,
+	state: ResolveStateType,
+	candidate: ChoiceCandidateType,
+	input: Readonly<{site: OracleReferenceSiteType; exact: boolean}>,
+): boolean => {
+	for (const {parameter, argument} of parameterMatchesOf(candidate, input.site)) {
+		if (parameter.mode === 'OUT') {
+			continue;
+		}
 
-	return target?.declaration.kind === 'subtype' ? (typeIdentityOf(services, targetState, {located: target}, 0) ?? canonical) : canonical;
+		const argumentType = argumentTypeOf({services, state, site: input.site, depth: 0}, argument);
+		const parameterType = parameter.typeReferences.at(0);
+
+		if (argumentType === null || parameterType === undefined || parameterType.rowType) {
+			continue;
+		}
+
+		const expected = parameterTypeIdentityOf(services, state, candidate, parameterType);
+
+		if (expected === null || expected === '') {
+			continue;
+		} else if (!typesCompatible(argumentType, expected, input.exact)) {
+			return false;
+		}
+	}
+
+	return true;
 };
 
 /**
@@ -388,26 +456,4 @@ export const filterByTypes = (
 	state: ResolveStateType,
 	candidates: readonly ChoiceCandidateType[],
 	input: Readonly<{site: OracleReferenceSiteType; exact: boolean}>,
-): readonly ChoiceCandidateType[] =>
-	candidates.filter((candidate) => {
-		for (const {parameter, argument} of parameterMatchesOf(candidate, input.site)) {
-			if (parameter.mode === 'OUT') {
-				continue;
-			}
-
-			const argumentType = argumentTypeOf(services, state, input.site, argument);
-			const parameterType = parameter.typeReferences.at(0);
-
-			if (argumentType === null || parameterType === undefined || parameterType.anchored || parameterType.rowType) {
-				continue;
-			}
-
-			const expected = parameterTypeIdentityOf(services, state, candidate, parameterType);
-
-			if (expected !== '' && !typesCompatible(argumentType, expected, input.exact)) {
-				return false;
-			}
-		}
-
-		return true;
-	});
+): readonly ChoiceCandidateType[] => candidates.filter((candidate) => candidateAcceptsTypes(services, state, candidate, input));

@@ -256,7 +256,7 @@ describe('Oracle qualification report', () => {
 				rawPopulationSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
 				excludedPopulationSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
 				byCallee: [],
-				budget: {maximumCount: 1474, maximumRate: 0},
+				budget: {maximumCount: 920, maximumRate: 0},
 			});
 			expect(report.declarations).toMatchObject({truth: 0, recall: 1});
 			expect(report.declarations.actual).toBeGreaterThan(0);

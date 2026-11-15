@@ -56,7 +56,7 @@ describe('Oracle O1 qualification contract identity', () => {
 		expect(identity).toStrictEqual({
 			id: 'oracle-o1',
 			version: '5',
-			hash: '919bdd5ad54374055c2afe186f866b5cf431c90842177cd501ffdf476f81e5ba',
+			hash: '5318a3b043cf7db40f2e2cddf8bac0274234766cdc0debab0f63948217db5114',
 			truthPolicy: 'v5',
 			thresholds: {declarations: 0.995, references: 0.995, dependencies: 0.995, precision: 1},
 			emptyTruth: 'fail',
@@ -69,7 +69,7 @@ describe('Oracle O1 qualification contract identity', () => {
 				usage: 'CALL',
 				positionMatch: 'exact path/line/column',
 				signatureMatch: 'exact',
-				budget: {maximumCount: 1474, maximumRate: {numerator: 1474, denominator: 'raw CALL population'}},
+				budget: {maximumCount: 920, maximumRate: {numerator: 920, denominator: 'raw CALL population'}},
 			},
 			unmappedObject: 'abort',
 		});
@@ -318,7 +318,7 @@ describe('Oracle O1 ambiguity policy', () => {
 			rate: 1,
 			unmatchedDiagnostics: 1,
 			byCallee: [{callee: 'call_site', count: 1}],
-			budget: {maximumCount: 1474, maximumRate: 737},
+			budget: {maximumCount: 920, maximumRate: 460},
 		});
 		expect(ambiguity.rawPopulationSha256).toMatch(/^[a-f0-9]{64}$/u);
 		expect(ambiguity.excludedPopulationSha256).toMatch(/^[a-f0-9]{64}$/u);
@@ -356,7 +356,7 @@ describe('Oracle O1 gate results', () => {
 			references: {recall: 0.995, precision: 1},
 			dependencies: {recall: 0.995, precision: 1},
 			identifierRows: 1,
-			ambiguity: {count: 1474, rate: 0.02, rawCalls: 73_700},
+			ambiguity: {count: 920, rate: 0.02, rawCalls: 46_000},
 		});
 
 		expect(gates).toStrictEqual({
@@ -389,9 +389,9 @@ describe('Oracle O1 gate results', () => {
 		expect(gatesOf({references: failingPrecision}).references).toStrictEqual({ok: false, recall: true, precision: false});
 		expect(gatesOf({dependencies: failingPrecision}).dependencies).toStrictEqual({ok: false, recall: true, precision: false});
 		expect(gatesOf({declarations: failingRecall}).ok).toBe(false);
-		expect(gatesOf({ambiguity: {count: 1475, rate: 0.02, rawCalls: 73_700}}).ambiguity).toStrictEqual({ok: false, count: false, rate: true});
-		expect(gatesOf({ambiguity: {count: 1474, rate: 0.0201, rawCalls: 73_700}}).ambiguity).toStrictEqual({ok: false, count: true, rate: false});
-		expect(gatesOf({ambiguity: {count: 1475, rate: 0.0201, rawCalls: 73_700}}).ok).toBe(false);
+		expect(gatesOf({ambiguity: {count: 921, rate: 0.02, rawCalls: 46_000}}).ambiguity).toStrictEqual({ok: false, count: false, rate: true});
+		expect(gatesOf({ambiguity: {count: 920, rate: 0.0201, rawCalls: 46_000}}).ambiguity).toStrictEqual({ok: false, count: true, rate: false});
+		expect(gatesOf({ambiguity: {count: 921, rate: 0.0201, rawCalls: 46_000}}).ok).toBe(false);
 	});
 
 	it('fails every gate for empty truth', () => {

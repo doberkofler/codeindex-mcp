@@ -1,6 +1,6 @@
 {
 	"extractor": "oracle",
-	"generationId": "f7bcf467-8727-42be-bf4b-297b07531591",
+	"generationId": "37be8f5e-021b-40fc-9d79-f4cdb4e207c5",
 	"parser": {
 		"id": "structural",
 		"revision": "structural@5;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/3f1ca793eb1b72d421a016dd05b1d340dfa1a65e",
@@ -8,8 +8,8 @@
 	},
 	"contract": {
 		"id": "oracle-o1",
-		"version": "4",
-		"hash": "ee83f2ece96074969137447c773c42bfc6400261d1ccefd597bd830ed389e95f",
+		"version": "5",
+		"hash": "5318a3b043cf7db40f2e2cddf8bac0274234766cdc0debab0f63948217db5114",
 		"truthPolicy": "v5",
 		"thresholds": {
 			"declarations": 0.995,
@@ -35,7 +35,15 @@
 		"ambiguity": {
 			"diagnosticCode": 9105,
 			"usage": "CALL",
-			"positionMatch": "exact path/line/column"
+			"positionMatch": "exact path/line/column",
+			"signatureMatch": "exact",
+			"budget": {
+				"maximumCount": 920,
+				"maximumRate": {
+					"numerator": 920,
+					"denominator": "raw CALL population"
+				}
+			}
 		},
 		"unmappedObject": "abort"
 	},
@@ -97,17 +105,173 @@
 			"missing_group_declaration": 360973,
 			"declaration_initializer": 13125,
 			"duplicate_fact": 3548,
-			"omitted_ambiguous_overload": 942,
+			"omitted_ambiguous_overload": 916,
 			"ephemeral_declaration": 98687
 		},
 		"malformedRows": 0,
 		"outOfScopeObjectRows": 0,
 		"includedDeclarations": 37170,
-		"includedReferences": 188287,
-		"excludedTotal": 706229,
+		"includedReferences": 188313,
+		"excludedTotal": 706203,
 		"identifiersSha256": "4a980106361b7a336071a4265be22d512549c56b9af3475f2d7ed9b89ab9bc09",
 		"dependenciesSha256": "c6783fb689113c668f7075ffbf358f6f9f8a040bfe26fd1df060e146fd891ce8",
-		"ambiguousOverloadDiagnostics": 944
+		"ambiguousOverloadDiagnostics": 920
+	},
+	"ambiguity": {
+		"diagnostics": 920,
+		"ambiguousCalls": 916,
+		"rawCalls": 70113,
+		"excludedCalls": 916,
+		"rate": 0.01312167501034045,
+		"unmatchedDiagnostics": 4,
+		"rawPopulationSha256": "5d4c98b14e0d0027bae427d788d3f1b657388145a8d4cdc8e61f1cb05e8631a6",
+		"excludedPopulationSha256": "65afa4bf8fcf5ad66d0d1531ff87868788d173bccd3474031e29d18d2f318b01",
+		"byCallee": [
+			{
+				"callee": "add",
+				"count": 1
+			},
+			{
+				"callee": "add_object",
+				"count": 11
+			},
+			{
+				"callee": "addbinding",
+				"count": 109
+			},
+			{
+				"callee": "addparameterboolean",
+				"count": 1
+			},
+			{
+				"callee": "asstring",
+				"count": 5
+			},
+			{
+				"callee": "cell",
+				"count": 67
+			},
+			{
+				"callee": "checkfilled",
+				"count": 3
+			},
+			{
+				"callee": "columndesc",
+				"count": 1
+			},
+			{
+				"callee": "columnvalue",
+				"count": 171
+			},
+			{
+				"callee": "convertcommatoarray",
+				"count": 5
+			},
+			{
+				"callee": "deletereport",
+				"count": 1
+			},
+			{
+				"callee": "errorexc",
+				"count": 30
+			},
+			{
+				"callee": "errorvalidate",
+				"count": 42
+			},
+			{
+				"callee": "existsvalid",
+				"count": 6
+			},
+			{
+				"callee": "getaddinfodatafromjson",
+				"count": 2
+			},
+			{
+				"callee": "getagencylist",
+				"count": 2
+			},
+			{
+				"callee": "isadministratoruser",
+				"count": 4
+			},
+			{
+				"callee": "logactivity",
+				"count": 1
+			},
+			{
+				"callee": "makeobj",
+				"count": 23
+			},
+			{
+				"callee": "notify",
+				"count": 1
+			},
+			{
+				"callee": "p",
+				"count": 5
+			},
+			{
+				"callee": "prn",
+				"count": 3
+			},
+			{
+				"callee": "putjs",
+				"count": 1
+			},
+			{
+				"callee": "replacevariable",
+				"count": 1
+			},
+			{
+				"callee": "setdata",
+				"count": 16
+			},
+			{
+				"callee": "skipview",
+				"count": 1
+			},
+			{
+				"callee": "streportexists",
+				"count": 1
+			},
+			{
+				"callee": "success",
+				"count": 365
+			},
+			{
+				"callee": "tabledata",
+				"count": 4
+			},
+			{
+				"callee": "tonumber",
+				"count": 13
+			},
+			{
+				"callee": "val",
+				"count": 1
+			},
+			{
+				"callee": "valuefromjson",
+				"count": 2
+			},
+			{
+				"callee": "varvaluesta",
+				"count": 3
+			},
+			{
+				"callee": "warning",
+				"count": 11
+			},
+			{
+				"callee": "write_append_",
+				"count": 3
+			}
+		],
+		"budget": {
+			"maximumCount": 920,
+			"maximumRate": 0.01312167501034045
+		}
 	},
 	"declarations": {
 		"truth": 37170,
@@ -118,42 +282,329 @@
 		"ignoredExtra": 0,
 		"recall": 0.9994888350820554,
 		"precision": 1,
+		"samplesMissing": [
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 718,
+				"column": 13,
+				"name": "G",
+				"type": "ITERATOR"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 756,
+				"column": 13,
+				"name": "G",
+				"type": "ITERATOR"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2670,
+				"column": 5,
+				"name": "T_SEG_CNT",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2671,
+				"column": 5,
+				"name": "T_END_OFFS",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2672,
+				"column": 5,
+				"name": "T_START_OFFS",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2673,
+				"column": 5,
+				"name": "T_IDDELTA_OFFS",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2674,
+				"column": 5,
+				"name": "T_IDRANGEOFFSET_OFFS",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2675,
+				"column": 5,
+				"name": "T_TMP",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2676,
+				"column": 5,
+				"name": "T_START",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2683,
+				"column": 9,
+				"name": "SEG",
+				"type": "ITERATOR"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2689,
+				"column": 11,
+				"name": "C",
+				"type": "ITERATOR"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 2696,
+				"column": 11,
+				"name": "C",
+				"type": "ITERATOR"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 3932,
+				"column": 11,
+				"name": "IMG_BLOB",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 3933,
+				"column": 11,
+				"name": "MIN_CODE_SIZE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 3934,
+				"column": 11,
+				"name": "CODE_SIZE",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 3935,
+				"column": 11,
+				"name": "FLAGS",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 3971,
+				"column": 15,
+				"name": "PASS",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 3972,
+				"column": 15,
+				"name": "PASS_IND",
+				"type": "VARIABLE"
+			},
+			{
+				"path": "pkb_ods_uti_pdf.pkb",
+				"line": 3982,
+				"column": 19,
+				"name": "I",
+				"type": "ITERATOR"
+			}
+		],
+		"samplesExtra": [],
 		"extraClasses": {
 			"omitted_by_policy": {
-				"count": 0
+				"count": 0,
+				"samples": []
 			},
 			"location_mismatch": {
-				"count": 0
+				"count": 0,
+				"samples": []
 			},
 			"outside_plscope": {
-				"count": 0
+				"count": 0,
+				"samples": []
 			},
 			"false_positive": {
-				"count": 0
+				"count": 0,
+				"samples": []
 			}
 		}
 	},
 	"references": {
-		"truth": 188287,
-		"actual": 187665,
-		"matched": 187665,
-		"missing": 622,
+		"truth": 188313,
+		"actual": 187738,
+		"matched": 187738,
+		"missing": 575,
 		"extra": 0,
 		"ignoredExtra": 0,
-		"recall": 0.9966965324212506,
+		"recall": 0.9969465729928364,
 		"precision": 1,
+		"samplesMissing": [
+			{
+				"path": "pkb_las_mod_ceheader_json.pkb",
+				"line": 2242,
+				"column": 17,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_ceheader_json.pkb",
+				"line": 2371,
+				"column": 17,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_ceheader_json.pkb",
+				"line": 2623,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_ceheader_json.pkb",
+				"line": 2877,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_ciheader_json.pkb",
+				"line": 3855,
+				"column": 17,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_ciheader_json.pkb",
+				"line": 4232,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_ciheader_json.pkb",
+				"line": 4342,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_ciheader_json.pkb",
+				"line": 4499,
+				"column": 17,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_ciheader_json.pkb",
+				"line": 4797,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_ciheader_json.pkb",
+				"line": 4985,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_job_json.pkb",
+				"line": 1985,
+				"column": 17,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_job_json.pkb",
+				"line": 2047,
+				"column": 17,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_job_json.pkb",
+				"line": 2104,
+				"column": 17,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_job_json.pkb",
+				"line": 2337,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_job_json.pkb",
+				"line": 2501,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_job_json.pkb",
+				"line": 2556,
+				"column": 17,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_job_json.pkb",
+				"line": 2605,
+				"column": 17,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_job_json.pkb",
+				"line": 2668,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_job_json.pkb",
+				"line": 2724,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			},
+			{
+				"path": "pkb_las_mod_order_json.pkb",
+				"line": 2007,
+				"column": 18,
+				"name": "SUCCESS",
+				"type": "PROCEDURE"
+			}
+		],
+		"samplesExtra": [],
 		"extraClasses": {
 			"omitted_by_policy": {
-				"count": 0
+				"count": 0,
+				"samples": []
 			},
 			"location_mismatch": {
-				"count": 0
+				"count": 0,
+				"samples": []
 			},
 			"outside_plscope": {
-				"count": 0
+				"count": 0,
+				"samples": []
 			},
 			"false_positive": {
-				"count": 0
+				"count": 0,
+				"samples": []
 			}
 		}
 	},
@@ -167,18 +618,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -191,18 +648,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -215,18 +678,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -239,18 +708,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -263,18 +738,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -287,18 +768,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -311,18 +798,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -335,18 +828,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -359,18 +858,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -383,18 +888,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -407,18 +918,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -431,44 +948,331 @@
 			"ignoredExtra": 0,
 			"recall": 0.9754838709677419,
 			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 718,
+					"column": 13,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 756,
+					"column": 13,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2670,
+					"column": 5,
+					"name": "T_SEG_CNT",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2671,
+					"column": 5,
+					"name": "T_END_OFFS",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2672,
+					"column": 5,
+					"name": "T_START_OFFS",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2673,
+					"column": 5,
+					"name": "T_IDDELTA_OFFS",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2674,
+					"column": 5,
+					"name": "T_IDRANGEOFFSET_OFFS",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2675,
+					"column": 5,
+					"name": "T_TMP",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2676,
+					"column": 5,
+					"name": "T_START",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2683,
+					"column": 9,
+					"name": "SEG",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2689,
+					"column": 11,
+					"name": "C",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2696,
+					"column": 11,
+					"name": "C",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 3932,
+					"column": 11,
+					"name": "IMG_BLOB",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 3933,
+					"column": 11,
+					"name": "MIN_CODE_SIZE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 3934,
+					"column": 11,
+					"name": "CODE_SIZE",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 3935,
+					"column": 11,
+					"name": "FLAGS",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 3971,
+					"column": 15,
+					"name": "PASS",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 3972,
+					"column": 15,
+					"name": "PASS_IND",
+					"type": "VARIABLE"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 3982,
+					"column": 19,
+					"name": "I",
+					"type": "ITERATOR"
+				}
+			],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		}
 	},
 	"referenceStrata": {
 		"procedural": {
-			"truth": 50698,
-			"actual": 50555,
-			"matched": 50555,
-			"missing": 143,
+			"truth": 50707,
+			"actual": 50559,
+			"matched": 50559,
+			"missing": 148,
 			"extra": 0,
 			"ignoredExtra": 0,
-			"recall": 0.9971793759122648,
+			"recall": 0.9970812708304573,
 			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "pkb_las_sql_jpos_job.pkb",
+					"line": 853,
+					"column": 31,
+					"name": "SORTNOTYPE",
+					"type": "SUBTYPE"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 1974,
+					"column": 96,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 1975,
+					"column": 94,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 1979,
+					"column": 95,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 1980,
+					"column": 99,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 1981,
+					"column": 98,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 1982,
+					"column": 102,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 1986,
+					"column": 99,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 1987,
+					"column": 99,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2002,
+					"column": 102,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2003,
+					"column": 102,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2004,
+					"column": 102,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2005,
+					"column": 102,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2006,
+					"column": 99,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2007,
+					"column": 99,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2008,
+					"column": 100,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2009,
+					"column": 100,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2010,
+					"column": 97,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2011,
+					"column": 97,
+					"name": "VAL",
+					"type": "FUNCTION"
+				},
+				{
+					"path": "pkb_las_rpt_jobsurvey.pkb",
+					"line": 2187,
+					"column": 98,
+					"name": "VAL",
+					"type": "FUNCTION"
+				}
+			],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -481,42 +1285,336 @@
 			"ignoredExtra": 0,
 			"recall": 0.9777373920945025,
 			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "pkb_las_uti_reportform.pkb",
+					"line": 2178,
+					"column": 8,
+					"name": "ADDRID",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_uti_reportform.pkb",
+					"line": 2178,
+					"column": 8,
+					"name": "MATCHCODE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_uti_reportform.pkb",
+					"line": 2178,
+					"column": 8,
+					"name": "NAME1",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "JOBID",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "MATCHCODE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "NAME",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "INTNO",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "EXTNO",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "EXTNO2",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "OPENYEAR",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "PROJECTMAN",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "CUSTMATCHCODE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "PRODMATCHCODE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "CAMPMATCHCODE",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "DEPARTMENTNAME",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "BRIEFINGTEXT",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "CUSTID",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "CUSTADDRID",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "PRODID",
+					"type": "RECORD FIELD"
+				},
+				{
+					"path": "pkb_las_rep_jobchangelog.pkb",
+					"line": 271,
+					"column": 8,
+					"name": "CAMPID",
+					"type": "RECORD FIELD"
+				}
+			],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
 		"member_chain": {
-			"truth": 135353,
-			"actual": 134944,
-			"matched": 134944,
-			"missing": 409,
+			"truth": 135370,
+			"actual": 135013,
+			"matched": 135013,
+			"missing": 357,
 			"extra": 0,
 			"ignoredExtra": 0,
-			"recall": 0.9969782716304774,
+			"recall": 0.9973627834823078,
 			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "pkb_las_mod_ceheader_json.pkb",
+					"line": 2242,
+					"column": 17,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_ceheader_json.pkb",
+					"line": 2371,
+					"column": 17,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_ceheader_json.pkb",
+					"line": 2623,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_ceheader_json.pkb",
+					"line": 2877,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_ciheader_json.pkb",
+					"line": 3855,
+					"column": 17,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_ciheader_json.pkb",
+					"line": 4232,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_ciheader_json.pkb",
+					"line": 4342,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_ciheader_json.pkb",
+					"line": 4499,
+					"column": 17,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_ciheader_json.pkb",
+					"line": 4797,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_ciheader_json.pkb",
+					"line": 4985,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_job_json.pkb",
+					"line": 1985,
+					"column": 17,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_job_json.pkb",
+					"line": 2047,
+					"column": 17,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_job_json.pkb",
+					"line": 2104,
+					"column": 17,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_job_json.pkb",
+					"line": 2337,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_job_json.pkb",
+					"line": 2501,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_job_json.pkb",
+					"line": 2556,
+					"column": 17,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_job_json.pkb",
+					"line": 2605,
+					"column": 17,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_job_json.pkb",
+					"line": 2668,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_job_json.pkb",
+					"line": 2724,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				},
+				{
+					"path": "pkb_las_mod_order_json.pkb",
+					"line": 2007,
+					"column": 18,
+					"name": "SUCCESS",
+					"type": "PROCEDURE"
+				}
+			],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -529,18 +1627,165 @@
 			"ignoredExtra": 0,
 			"recall": 0,
 			"precision": 1,
+			"samplesMissing": [
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 730,
+					"column": 36,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 732,
+					"column": 55,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 732,
+					"column": 90,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 758,
+					"column": 40,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 759,
+					"column": 43,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 759,
+					"column": 78,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 764,
+					"column": 82,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 764,
+					"column": 117,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 765,
+					"column": 80,
+					"name": "G",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2685,
+					"column": 59,
+					"name": "SEG",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2688,
+					"column": 54,
+					"name": "SEG",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2689,
+					"column": 52,
+					"name": "SEG",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2690,
+					"column": 47,
+					"name": "SEG",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2695,
+					"column": 54,
+					"name": "SEG",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2696,
+					"column": 61,
+					"name": "SEG",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2698,
+					"column": 91,
+					"name": "SEG",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2692,
+					"column": 30,
+					"name": "C",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2692,
+					"column": 42,
+					"name": "C",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2698,
+					"column": 30,
+					"name": "C",
+					"type": "ITERATOR"
+				},
+				{
+					"path": "pkb_ods_uti_pdf.pkb",
+					"line": 2698,
+					"column": 97,
+					"name": "C",
+					"type": "ITERATOR"
+				}
+			],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -553,18 +1798,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		},
@@ -577,18 +1828,24 @@
 			"ignoredExtra": 0,
 			"recall": 1,
 			"precision": 1,
+			"samplesMissing": [],
+			"samplesExtra": [],
 			"extraClasses": {
 				"omitted_by_policy": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"location_mismatch": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"outside_plscope": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				},
 				"false_positive": {
-					"count": 0
+					"count": 0,
+					"samples": []
 				}
 			}
 		}
@@ -621,6 +1878,11 @@
 		"dependencies": {
 			"recall": true,
 			"precision": true,
+			"ok": true
+		},
+		"ambiguity": {
+			"count": true,
+			"rate": true,
 			"ok": true
 		},
 		"ok": true

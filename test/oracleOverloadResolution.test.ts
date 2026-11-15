@@ -180,6 +180,72 @@ describe('Oracle overload resolution', () => {
 	});
 });
 
+describe('Oracle inferred overload types', () => {
+	it('uses anchored, field, source-return, and documented built-in return types', () => {
+		const files = [
+			parsedFileOf(
+				'inferred.pkb',
+				[
+					'create package body inferred as',
+					'\ttype item_rec is record (amount number, label varchar2(20));',
+					'\tg_number number;',
+					'\tprocedure put(theValue in number) is begin null; end put;',
+					'\tprocedure put(theValue in varchar2) is begin null; end put;',
+					'\tprocedure put(theValue in clob) is begin null; end put;',
+					'\tfunction amount return number is begin return 1; end amount;',
+					'\tprocedure caller is',
+					'\t\tl_item item_rec;',
+					'\t\tl_anchor g_number%type;',
+					'\tbegin',
+					'\t\tput(l_anchor);',
+					'\t\tput(l_item.amount);',
+					'\t\tput(amount());',
+					"\t\tput(to_clob('value'));",
+					'\t\tput(nvl(l_item.amount, 0));',
+					'\t\tput(round(l_item.amount));',
+					'\t\tput(round(l_item.amount, 2));',
+					'\tend caller;',
+					'end inferred;',
+					'/',
+				].join('\n'),
+			),
+		];
+		const occurrences = resolveFiles(files);
+
+		expect(usagesOf(occurrences, 'PUT')).toStrictEqual([1, 1, 1, 1, 1, 1, 1]);
+	});
+
+	it('uses resolved parameter anchors but preserves unknown and tied evidence', () => {
+		const files = [
+			parsedFileOf(
+				'anchored.pkb',
+				[
+					'create package body anchored as',
+					'\tg_number number;',
+					'\tprocedure take(theValue in g_number%type) is begin null; end take;',
+					'\tprocedure take(theValue in varchar2) is begin null; end take;',
+					'\tfunction unknown_value return unknown_source.value%type is begin return null; end unknown_value;',
+					'\tprocedure caller is',
+					'\t\tl_text varchar2(20);',
+					'\t\tl_unknown unknown_source.value%type;',
+					'\tbegin',
+					'\t\ttake(1);',
+					'\t\ttake(l_text);',
+					'\t\ttake(l_unknown);',
+					'\t\ttake(unknown_value());',
+					'\t\ttake(nvl(l_unknown, l_unknown));',
+					'\tend caller;',
+					'end anchored;',
+					'/',
+				].join('\n'),
+			),
+		];
+		const occurrences = resolveFiles(files);
+
+		expect(usagesOf(occurrences, 'TAKE')).toStrictEqual([1, 1]);
+	});
+});
+
 describe('Oracle write and call contexts', () => {
 	it('treats indexed assignment targets as writes rather than calls', () => {
 		const files = [

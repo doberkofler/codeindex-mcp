@@ -21,7 +21,7 @@ const BUNDLES: readonly BundleType[] = [
 		required: true,
 		gatesOk: true,
 		declarations: {truth: 37_170, matched: 37_151},
-		references: {truth: 188_287, matched: 187_665},
+		references: {truth: 188_313, matched: 187_738},
 		dependencies: {truth: 5553, matched: 5553},
 	},
 ];

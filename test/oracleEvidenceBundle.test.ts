@@ -98,7 +98,7 @@ const runFixtureOf = (truthHashes: ReadonlyMap<string, string>): RunFixtureType 
 		ambiguity: {
 			rawCalls: 2,
 			rawPopulationSha256: 'f'.repeat(64),
-			budget: {maximumCount: 1474, maximumRate: 737},
+			budget: {maximumCount: 920, maximumRate: 460},
 		},
 	};
 };
@@ -109,7 +109,7 @@ const writeDescriptor = (descriptorPath: string): void => {
 		evidence: {externalRoot: 'oracle-live/replacement', snapshotDir: 'workspace', plan: 'plan.json', run: 'run.json', approval: APPROVAL},
 		source: {kind: 'svn', revision: '78950', relativeRoot: '^/ljs_app/trunk/ljs_db/LJS_DB', defaultSchema: 'LJ_UNITTEST'},
 		snapshot: {projectFile: PROJECT_FILE, sourceHash: SOURCE_HASH, configHash: CONFIG_HASH, fileCount: 1, unitCount: 1},
-		ambiguity: {rawCalls: 2, rawPopulationSha256: 'f'.repeat(64), maximumCount: 1474, maximumRate: 737},
+		ambiguity: {rawCalls: 2, rawPopulationSha256: 'f'.repeat(64), maximumCount: 920, maximumRate: 460},
 		parser: PARSER,
 		files: {checksums: 'corpus.sha256', units: 'units.json'},
 	});
@@ -316,7 +316,7 @@ describe('Oracle ambiguity evidence preflight', () => {
 			ambiguity: {rawCalls: number; rawPopulationSha256: string; maximumCount: number; maximumRate: number};
 		};
 
-		writeJson(context.descriptor, {...descriptor, ambiguity: {...descriptor.ambiguity, maximumCount: 1475, maximumRate: 737.5}});
+		writeJson(context.descriptor, {...descriptor, ambiguity: {...descriptor.ambiguity, maximumCount: 921, maximumRate: 460.5}});
 
 		const report = await preflight(context);
 
