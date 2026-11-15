@@ -1,6 +1,7 @@
 import {Command} from 'commander';
 import {addPublicationReportCommand} from '../../core/qualification/publication/publicationCommand.ts';
 import {addQualifyCommand, addVerifyReferencesCommand} from '../../core/qualification/qualifyCommand.ts';
+import {addReleaseQualificationCommand} from '../../core/qualification/releaseQualificationCommand.ts';
 import {PROGRAM_NAME, PROGRAM_VERSION} from '../../core/version.ts';
 import {type CommandIoType, configureCommand, parseCommandAsync} from './commanderSupport.ts';
 import {addOracleLiveCommand} from './oracleLiveCommand.ts';
@@ -30,6 +31,7 @@ const qualifyProgram = (environment: NodeJS.ProcessEnv, io: CommandIoType): Comm
 	addOraclePreflightCommand(program, environment, io);
 	addOracleReplayCommand(program, environment, io);
 	addPublicationReportCommand(program, environment, io);
+	addReleaseQualificationCommand(program, io);
 
 	return program;
 };

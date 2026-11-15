@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {typeScriptExtractor} from '@codeindex/adapter-typescript/index';
-import {type ReferenceComparisonType, type ReferenceVerificationReportType} from '@codeindex/adapter-typescript/referenceGate';
+import {type ReferenceVerificationReportType} from '@codeindex/adapter-typescript/referenceGate';
 import {type BenchmarkReportType} from '../src/core/benchmark/benchTypes.ts';
 import {type ConfigType} from '../src/core/config/config.ts';
 import {type LoggerType} from '../src/core/logging/logger.ts';
@@ -8,6 +8,7 @@ import {type IndexStatusType, type IndexVerificationType} from '../src/core/mode
 import {type AnalyticsDashboardType} from '../src/core/analytics/contracts.ts';
 import {type ConsoleJobType, type ConsoleOperationType} from '../src/transports/console/contracts.ts';
 import {ConsoleService} from '../src/transports/console/service.ts';
+import {qualificationReport} from './helpers/qualificationReport.ts';
 
 const doubles = vi.hoisted(() => {
 	const logger = {
@@ -130,70 +131,6 @@ const verification: IndexVerificationType = {
 };
 
 const benchmarkReport = {schemaVersion: 2, generatedAt: '2026-10-19T00:00:00.000Z'} as unknown as BenchmarkReportType;
-
-const comparison = (overrides: Partial<ReferenceComparisonType>): ReferenceComparisonType => ({
-	symbolId: 'symbol-1',
-	name: 'formatUser',
-	kind: 'function',
-	path: 'src/user.ts',
-	tags: [],
-	expectedCount: 2,
-	actualCount: 2,
-	matchedCount: 2,
-	expectedReferenceCount: 1,
-	expectedLocations: [
-		{path: 'src/user.ts', startOffset: 0, endOffset: 1, role: 'definition'},
-		{path: 'src/user.ts', startOffset: 10, endOffset: 11, role: 'reference'},
-	],
-	actualLocations: [
-		{path: 'src/user.ts', startOffset: 0, endOffset: 1, role: 'definition'},
-		{path: 'src/user.ts', startOffset: 10, endOffset: 11, role: 'reference'},
-	],
-	missing: [],
-	extra: [],
-	unmatched: [],
-	skip: null,
-	...overrides,
-});
-
-const qualificationReport: ReferenceVerificationReportType = {
-	coverage: {
-		indexedSymbols: 2,
-		locatedSymbols: 2,
-		unlocatedSymbols: 0,
-		sampledSymbols: 2,
-		symbolsWithNonDefinitionReferences: 1,
-		skipped: [],
-		byKind: {function: 2},
-		byTag: {},
-		referencedByTag: {},
-	},
-	accuracy: {
-		expected: 2,
-		actual: 2,
-		matched: 2,
-		missing: 0,
-		extra: 0,
-		recall: 1,
-		microRecall: 1,
-		macroRecall: 1,
-		precision: 1,
-		unexplained: 0,
-		storedReference: 0,
-		storedDefinition: 0,
-		directExternal: 0,
-		namespaceImport: 0,
-		aliasGroupCoverage: {expected: 2, matched: 2, sibling: 0, directExternal: 0, namespaceImport: 0, unexplained: 0, ratio: 1},
-	},
-	persistence: {pageLimit: 3, pages: 1, symbols: 2},
-	aliasGroups: [],
-	comparisons: [
-		comparison({}),
-		comparison({symbolId: 'symbol-2', name: 'missing', missing: [{path: 'src/user.ts', startOffset: 1, endOffset: 2, role: 'reference'}]}),
-		comparison({symbolId: 'symbol-3', name: 'skipped', skip: 'declaration_not_located'}),
-	],
-	gate: {ok: false, failures: [{kind: 'missing_construct', detail: 'missing'}], targets: {samples: 100, precision: 0.98}},
-};
 
 const openService = (options: Readonly<{logger?: LoggerType; mcpPath?: string; config?: ConfigType}> = {}): ConsoleService =>
 	ConsoleService.open({

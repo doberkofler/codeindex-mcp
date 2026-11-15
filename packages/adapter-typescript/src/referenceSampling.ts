@@ -12,6 +12,22 @@ export const REFERENCE_SAMPLE_TARGET = 200;
  */
 const REFERENCE_SAMPLE_SEED = 'codeindex-typescript-reference-sample-v1';
 
+const referenceSampleContract = {
+	id: 'typescript-reference-sample',
+	version: '1',
+	target: REFERENCE_SAMPLE_TARGET,
+	seedSha256: createHash('sha256').update(REFERENCE_SAMPLE_SEED, 'utf8').digest('hex'),
+	constructQuota: REFERENCE_CONSTRUCT_QUOTA,
+	constructTags: REFERENCE_CONSTRUCT_TAGS,
+} as const;
+
+/**
+ * Returns the semantic identity of the fixed-seed reference sample.
+ *
+ * @returns SHA-256 covering the seed, target, construct tags, and quotas.
+ */
+export const referenceSampleContractDigest = (): string => createHash('sha256').update(JSON.stringify(referenceSampleContract)).digest('hex');
+
 export type ReferenceSampleCandidateType = Readonly<{
 	readonly symbol: IndexedSymbolType;
 	readonly tags: readonly ReferenceConstructTagType[];

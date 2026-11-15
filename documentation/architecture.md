@@ -48,7 +48,7 @@ trees, and external connections never cross the adapter seam.
 | `src/core/query/` | Bounded symbol, occurrence, dependency, source, and position queries |
 | `src/core/analytics/` | Privacy-safe local events and reports |
 | `src/core/benchmark/` | Model-free benchmark and soak machinery |
-| `src/core/qualification/` | Maintainer-only TypeScript comparison and publication measurements |
+| `src/core/qualification/` | Maintainer-only adapter comparison, publication measurements, and aggregate release qualification |
 | `packages/adapter-sdk/` | Language-neutral adapter protocol, manifest schemas, `defineAdapter`, and conformance checks |
 | `packages/adapter-typescript/` | TypeScript/JavaScript scanning and extraction |
 | `packages/adapter-oracle/` | Oracle manifest discovery, tokenization, parsing, resolution, and extraction |
@@ -563,6 +563,19 @@ Operational commands disable continuous watching and perform one explicit action
 Benchmark commands reuse the same production seams rather than maintaining a
 second index implementation. Oracle qualification and evidence commands are
 maintainer-only and live in `src/entries/qualify.ts`, not in the production CLI.
+
+The maintainer-only `codeindex-qualify release` command evaluates one strict,
+frozen multi-adapter manifest. The manifest contains only typed query and edit
+cases; it cannot name executable commands. It binds the engine, runtime,
+workspace, parser, truth, contract, evidence, and threshold identities by
+SHA-256. Specialized TypeScript, Oracle, semantic, multi-adapter, and production
+benchmark reports are hashed before parsing and then aggregated fail-closed.
+Missing metrics, stale evidence, warnings, cross-adapter edit work, generation
+drift, contention failures, or resource/storage overruns fail the release.
+Output is one privacy-safe JSON report and one concise Markdown summary containing
+case IDs, adapter IDs, hashes, counts, and verdicts but no source, query text,
+symbol names, credentials, or production paths. Production manifests and
+expected results remain in the consumer workspace.
 
 Production-scale refresh evidence uses the frozen contract in
 `src/core/benchmark/productionContract.ts`. Its manifest pins control and

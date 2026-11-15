@@ -12,7 +12,7 @@ import {scanProject} from './scanProject.ts';
 import {buildTypeScriptFacts} from './index.ts';
 import {compareReferenceLocations, referenceLocationKey, type ReferenceLocationType} from './referenceLocations.ts';
 import {type ReferenceConstructTagType} from './referenceConstructs.ts';
-import {selectReferenceSample} from './referenceSampling.ts';
+import {referenceSampleContractDigest, selectReferenceSample} from './referenceSampling.ts';
 import {
 	createReferenceSyntaxClassifier,
 	createReferenceUnion,
@@ -426,7 +426,12 @@ export const verifyTypeScriptReferences = (config: AdapterConfigType, runPersist
 			gate: gate.ok,
 		});
 
-		return {...verification, gate};
+		return {
+			...verification,
+			parser: {id: 'typescript', version: scan.compilerVersion},
+			sampleContractSha256: referenceSampleContractDigest(),
+			gate,
+		};
 	} finally {
 		union.dispose();
 	}

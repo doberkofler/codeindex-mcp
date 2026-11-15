@@ -164,6 +164,8 @@ export type ReferenceVerificationFactsType = Readonly<{
 
 export type ReferenceVerificationReportType = ReferenceVerificationFactsType &
 	Readonly<{
+		readonly parser: Readonly<{readonly id: 'typescript'; readonly version: string}>;
+		readonly sampleContractSha256: string;
 		readonly gate: ReferenceGateResultType;
 	}>;
 
