@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.16.2...v0.17.0) (2026-11-15)
+
+### Added
+
+* **benchmark:** add production refresh contract ([e3ce3bc](https://github.com/doberkofler/codeindex-mcp/commit/e3ce3bcd0b7756b8a55fab50387dc31e2a3c4ba8))
+* **qualification:** add multi-adapter release gate ([fe6f7f0](https://github.com/doberkofler/codeindex-mcp/commit/fe6f7f0930bc8df5fff4989f306466f17d0f4389)), closes [#150](https://github.com/doberkofler/codeindex-mcp/issues/150)
+
+### Fixed
+
+* **oracle:** gate ambiguous overload evidence ([28a5020](https://github.com/doberkofler/codeindex-mcp/commit/28a50207948ceddf8f58db6345cf2f82009a4f10)), closes [#147](https://github.com/doberkofler/codeindex-mcp/issues/147)
+* **oracle:** resolve truth-proven overload types ([205d254](https://github.com/doberkofler/codeindex-mcp/commit/205d254dfba298d4b237c81a7c3c01e7edc2c79d))
+
+### Changed
+
+* **adapter-typescript:** optimize refresh latency ([9742b55](https://github.com/doberkofler/codeindex-mcp/commit/9742b55ea4340fc1272621ef11b07c8b463f9ec0))
+
 ## [0.16.2](https://github.com/doberkofler/codeindex-mcp/compare/v0.16.1...v0.16.2) (2026-11-11)
 
 ### Fixed
