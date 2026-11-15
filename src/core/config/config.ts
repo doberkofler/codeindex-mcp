@@ -2,6 +2,7 @@ import {existsSync, readFileSync, realpathSync, statSync} from 'node:fs';
 import path from 'node:path';
 import {z} from 'zod';
 import {debugFor} from '../logging/debug.ts';
+import {DEFAULT_DEBOUNCE_MS} from '../freshness/refreshTypes.ts';
 import {type AdapterConfigType, type ConfigType, type ProjectContextConfigType} from './adapterConfig.ts';
 import {resolveAdapters} from './adapterResolution.ts';
 import {assertFile, createStorageKey, fail, indexRootDirectory, isInside} from './configSupport.ts';
@@ -62,6 +63,8 @@ const DiagnosticsSchema = z.object({
 	semantic: z.boolean().optional(),
 });
 
+const DebounceSchema = z.number().int().min(100).max(10_000);
+
 /**
  * Watcher freshness tuning.
  *
@@ -71,7 +74,8 @@ const DiagnosticsSchema = z.object({
  * values trade latency for fewer rebuilds on expensive workspaces.
  */
 const FreshnessSchema = z.object({
-	debounceMs: z.number().int().min(100).max(10_000).optional(),
+	debounceMs: DebounceSchema.optional(),
+	adapters: z.record(z.string().min(1), z.object({debounceMs: DebounceSchema.optional()})).optional(),
 	/** Milliseconds an idle build worker is retained. Zero keeps it alive until shutdown. */
 	workerIdleMs: z.number().int().min(0).max(3_600_000).optional(),
 	/** Whole process-tree RSS ceiling in bytes. */
@@ -348,11 +352,33 @@ const resolveStorage = (
 
 const freshnessConfigOf = (
 	source: FileConfigSourceType,
-): Readonly<{freshnessDebounceMs: number; buildWorkerIdleMs: number; buildWorkerMaxRssBytes: number}> => ({
-	freshnessDebounceMs: source.config.freshness?.debounceMs ?? 1000,
-	buildWorkerIdleMs: source.environment.CODE_INDEX_BUILD_WORKER_IDLE_MS ?? source.config.freshness?.workerIdleMs ?? 60_000,
-	buildWorkerMaxRssBytes: source.environment.CODE_INDEX_BUILD_WORKER_MAX_RSS_BYTES ?? source.config.freshness?.workerMaxRssBytes ?? 2 * 1024 * 1024 * 1024,
-});
+	adapters: readonly AdapterConfigType[],
+): Readonly<{
+	freshnessDebounceMs: number;
+	freshnessAdapterDebounceMs: Readonly<Record<string, number>>;
+	buildWorkerIdleMs: number;
+	buildWorkerMaxRssBytes: number;
+}> => {
+	const configuredIds = new Set(adapters.map((adapter) => adapter.id));
+	const overrides: Record<string, number> = {};
+
+	for (const [adapterId, override] of Object.entries(source.config.freshness?.adapters ?? {})) {
+		if (!configuredIds.has(adapterId)) {
+			return fail(`freshness.adapters contains unknown adapter identifier: ${adapterId}`);
+		}
+
+		if (override.debounceMs !== undefined) {
+			overrides[adapterId] = override.debounceMs;
+		}
+	}
+
+	return {
+		freshnessDebounceMs: source.config.freshness?.debounceMs ?? DEFAULT_DEBOUNCE_MS,
+		freshnessAdapterDebounceMs: overrides,
+		buildWorkerIdleMs: source.environment.CODE_INDEX_BUILD_WORKER_IDLE_MS ?? source.config.freshness?.workerIdleMs ?? 60_000,
+		buildWorkerMaxRssBytes: source.environment.CODE_INDEX_BUILD_WORKER_MAX_RSS_BYTES ?? source.config.freshness?.workerMaxRssBytes ?? 2 * 1024 * 1024 * 1024,
+	};
+};
 
 /**
  * Parses the environment and optional project configuration file.
@@ -375,7 +401,7 @@ export const loadConfig = (source: NodeJS.ProcessEnv, cwd = process.cwd()): Conf
 		cwd,
 	);
 	const {storageDirectory, databasePath, analyticsPath, analyticsEnabled} = resolveStorage(environment, cwd, {rawRootDir, realRootDir, storageKey});
-	const freshness = freshnessConfigOf(environment);
+	const freshness = freshnessConfigOf(environment, adapters);
 
 	debug('configuration resolved', {
 		configPath: environment.configPath,

@@ -39,10 +39,12 @@ export type ConfigType = Readonly<{
 	 * Quiet period after the last filesystem event before a rebuild starts.
 	 *
 	 * Trailing-edge debounce: every new event restarts the window, so a burst of
-	 * editor saves becomes one rebuild. One shared watcher and coordinator serve
-	 * every adapter, so this is a workspace-level value, not a per-adapter one.
+	 * editor saves becomes one rebuild. This is the workspace default; adapters
+	 * may override it through `freshnessAdapterDebounceMs`.
 	 */
 	readonly freshnessDebounceMs: number;
+	/** Per-adapter quiet-period overrides keyed by configured adapter identifier. */
+	readonly freshnessAdapterDebounceMs?: Readonly<Record<string, number>>;
 	/** Milliseconds an idle build worker is retained between refreshes. */
 	readonly buildWorkerIdleMs?: number;
 	/** Whole process-tree RSS ceiling; an oversized worker is restarted. */

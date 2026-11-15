@@ -128,6 +128,9 @@ For explicit or multi-project configuration, create `codeindex.config.json`:
 	},
 	"freshness": {
 		"debounceMs": 1000,
+		"adapters": {
+			"typescript": {"debounceMs": 3000}
+		},
 		"workerIdleMs": 60000,
 		"workerMaxRssBytes": 2147483648
 	}
@@ -139,14 +142,16 @@ adapter. With `extractors`, every adapter shares one database, build lease, and
 published generation; `required` defaults to `true`, and only an optional adapter
 may report declared absence. The two forms are mutually exclusive.
 
-`freshness.debounceMs` is the quiet period after the last filesystem event before a
-rebuild starts (100–10000 ms, default 1000). Events keep restarting the window, so a
-burst of editor saves becomes one rebuild. Raise it for expensive builds or
-generators; lower it for small, interactive workspaces. One shared watcher serves
-every adapter, so this is a workspace-level setting. Events are routed to the
-adapter that owns the changed path; a targeted refresh probes, scans, extracts, and
-writes only that adapter. Shared configuration changes and ambiguous paths still
-invalidate every adapter.
+`freshness.debounceMs` is the workspace default quiet period after the last
+filesystem event before a rebuild starts (100–10000 ms, default 1000).
+`freshness.adapters.<id>.debounceMs` overrides it for one configured adapter; unknown
+adapter IDs and values outside the same range are rejected. Events keep restarting
+only the owning adapter's absolute deadline, so a burst of editor saves becomes one
+rebuild without delaying unrelated work whose deadline already elapsed. Raise the
+value for expensive builds or generators; lower it for small, interactive
+workspaces. Events are routed to the adapter that owns the changed path; a targeted
+refresh probes, scans, extracts, and writes only that adapter. Shared configuration
+changes and ambiguous paths still invalidate every adapter.
 
 `freshness.workerIdleMs` and `freshness.workerMaxRssBytes` bound the persistent
 build worker. The worker and its compiler session stay warm between refreshes, are

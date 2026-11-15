@@ -26,7 +26,6 @@ import {acquireOrObserveBuildLease, externalBuildReport} from './externalBuild.t
 import {readIndexStatus} from './codeIndexStatus.ts';
 import {
 	type BuildReportType,
-	type BuildOutcomeType,
 	type ExactNamePresenceType,
 	type FindDependenciesInputType,
 	type FindDependenciesResultType,
@@ -58,7 +57,6 @@ import {queryReadSymbol} from '../query/readSymbolQuery.ts';
 import {selectReadSymbol} from '../query/readSymbolSelection.ts';
 import {querySymbolAt} from '../query/symbolAtQuery.ts';
 import {RefreshCoordinator} from '../freshness/refreshCoordinator.ts';
-import {type RefreshRequestType} from '../freshness/refreshTypes.ts';
 import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
 
 const debug = debugFor('index');
@@ -88,7 +86,6 @@ export class CodeIndex {
 		this.#analytics?.record('find_symbol_outcome', {presence});
 	};
 	#published: GenerationRowType | null = null;
-	#refreshing: Promise<BuildReportType> | null = null;
 	#closed = false;
 	public constructor(config: ConfigType, database: IndexDatabase, logger: LoggerType, options: CodeIndexOptionsType = {}) {
 		const adapterSet = adapterSetOf(options);
@@ -107,12 +104,21 @@ export class CodeIndex {
 		this.#buildWorker = worker.worker;
 		this.#coordinator = new RefreshCoordinator({
 			logger,
+			adapters: this.#targets.map((target) => ({
+				id: target.adapter.id,
+				debounceMs: options.debounceMs ?? config.freshnessAdapterDebounceMs?.[target.adapter.id] ?? config.freshnessDebounceMs,
+			})),
+			initiallyCurrent: this.#published !== null,
 			...(options.clock === undefined ? {} : {clock: options.clock}),
-			debounceMs: options.debounceMs ?? config.freshnessDebounceMs,
 			...(options.reconcileIntervalMs === undefined ? {} : {reconcileIntervalMs: options.reconcileIntervalMs}),
-			runRefresh: async (reason, adapterIds, signal): Promise<BuildOutcomeType> => {
-				const report = await this.#refresh({reason, force: false, adapterIds, signal});
-				return report.outcome;
+			failedAdapterId: (error): string | null => buildFailureOf(error).adapter,
+			runRefresh: async (reason, adapterIds, force, signal): Promise<BuildReportType> => {
+				try {
+					return await this.#performRefresh(reason, force, adapterIds, signal);
+				} catch (error) {
+					debug('coordinated refresh failed', {message: error instanceof Error ? error.message : String(error)});
+					throw error;
+				}
 			},
 			record: (event, fields): void => {
 				this.#analytics?.record(event, fields);
@@ -124,12 +130,9 @@ export class CodeIndex {
 			ignoredSegments: adapterIgnoredSegments(this.#targets),
 			routes: watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs),
 			onChange: (paths, adapterIds): void => {
-				this.#coordinator.notify(paths, adapterIds);
+				this.#coordinator.request({kind: 'change', paths, adapterIds});
 			},
 		});
-		if (this.#published !== null) {
-			this.#coordinator.markCurrent();
-		}
 		debug('index created', {
 			published: this.#published?.id ?? null,
 			worker: this.#workerEntry,
@@ -151,7 +154,6 @@ export class CodeIndex {
 			this.#watcher.start(watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs));
 		}
 		debug('startup refresh requested');
-		this.#coordinator.notify([]);
 		this.#coordinator.start();
 	}
 	/**
@@ -162,31 +164,19 @@ export class CodeIndex {
 	 * @throws {@link Error} When scanning or building fails.
 	 */
 	public async ensureReady(options: Readonly<{force?: boolean}> = {}): Promise<BuildReportType> {
-		const report = await this.#refresh({reason: 'manual', force: options.force === true});
-		if (report.outcome === 'superseded') {
-			this.#coordinator.noteSuperseded(report.durationMs);
-		} else {
-			this.#coordinator.markCurrent();
-		}
-		return report;
-	}
-	async #refresh(request: RefreshRequestType): Promise<BuildReportType> {
-		if (this.#refreshing !== null) {
-			debug('refresh already in progress', {reason: request.reason});
-			return this.#refreshing;
-		}
-		const refreshing = this.#performRefresh(request);
-		this.#refreshing = refreshing;
 		try {
-			return await refreshing;
-		} finally {
-			if (this.#refreshing === refreshing) {
-				this.#refreshing = null;
-			}
+			return await this.#coordinator.request({kind: 'manual', force: options.force === true});
+		} catch (error) {
+			debug('manual refresh failed', {message: error instanceof Error ? error.message : String(error)});
+			throw error;
 		}
 	}
-	async #performRefresh(request: RefreshRequestType): Promise<BuildReportType> {
-		const {reason, force, adapterIds = null, signal} = request;
+	async #performRefresh(
+		reason: 'startup' | 'change' | 'reconcile' | 'manual',
+		force: boolean,
+		adapterIds: readonly string[] | null,
+		signal: AbortSignal,
+	): Promise<BuildReportType> {
 		debug('refresh start', {reason, force, adapters: adapterIds});
 		const startedAt = performance.now();
 		const startedAtEpoch = Date.now();
@@ -195,7 +185,7 @@ export class CodeIndex {
 			database: this.#database,
 			previous: this.#published,
 			startedAt,
-			...(signal === undefined ? {} : {signal}),
+			signal,
 			tryAcquire: () => this.#database.tryAcquireBuildLease(this.#ownerId, process.pid, BUILD_LEASE_TTL_MS),
 			record: (event, fields) => {
 				this.#analytics?.record(event, fields);
@@ -297,10 +287,11 @@ export class CodeIndex {
 	public getOutline(input: OutlineInputType, maxResultBytes = this.#config.maxResultBytes): OutlineResultType {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
+			const owner = input.adapter ?? this.#database.fileAdapter(generation.id, input.path) ?? undefined;
 			return queryOutline({
 				database: this.#database,
 				generationId: generation.id,
-				freshness: this.getFreshness(),
+				freshness: this.#freshnessFor(owner),
 				adapters: this.#targets.map((target) => target.adapter.id),
 				input,
 				maxResultBytes,
@@ -318,10 +309,11 @@ export class CodeIndex {
 	public symbolAt(input: SymbolAtInputType, maxResultBytes = this.#config.maxResultBytes): SymbolAtResultType {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
+			const owner = input.adapter ?? this.#database.fileAdapter(generation.id, input.path) ?? undefined;
 			return querySymbolAt({
 				database: this.#database,
 				generationId: generation.id,
-				freshness: this.getFreshness(),
+				freshness: this.#freshnessFor(owner),
 				adapters: this.#targets.map((target) => target.adapter.id),
 				selector: input,
 				maxResultBytes,
@@ -336,7 +328,10 @@ export class CodeIndex {
 	 * @returns Paginated symbol matches with explicit freshness.
 	 */
 	public findSymbols(input: FindSymbolInputType, maxResultBytes = this.#config.maxResultBytes): FindSymbolResultType {
-		return this.#database.readSnapshot(() => querySymbols(this.#queryContext(), input, maxResultBytes));
+		return this.#database.readSnapshot(() => {
+			const generation = this.#generation();
+			return querySymbols(this.#queryContext(input.adapter, generation.id), input, maxResultBytes);
+		});
 	}
 	/** Finds occurrences for one symbol identifier or resolves one symbol query in the same call. */
 	public findReferences(input: SymbolIdFindReferencesInputType, maxResultBytes?: number): FindReferencesOccurrencesResultType;
@@ -344,7 +339,12 @@ export class CodeIndex {
 	public findReferences(input: QueryFindReferencesInputType, maxResultBytes?: number): QueryFindReferencesResultType;
 	public findReferences(input: FindReferencesInputType, maxResultBytes?: number): FindReferencesResultType;
 	public findReferences(input: FindReferencesInputType, maxResultBytes = this.#config.maxResultBytes): FindReferencesResultType {
-		return this.#database.readSnapshot(() => queryReferences(this.#queryContext(), input, maxResultBytes));
+		return this.#database.readSnapshot(() => {
+			const generation = this.#generation();
+			const owner =
+				input.adapter ?? (input.symbolId === undefined ? undefined : (this.#database.getSymbol(generation.id, input.symbolId)?.adapter ?? undefined));
+			return queryReferences(this.#queryContext(owner, generation.id), input, maxResultBytes);
+		});
 	}
 	/**
 	 * Finds authored modules that consume one normalized npm package.
@@ -358,7 +358,10 @@ export class CodeIndex {
 	 * @returns Paginated dependency consumers with complete-set counts.
 	 */
 	public findDependencies(input: FindDependenciesInputType, maxResultBytes = this.#config.maxResultBytes): FindDependenciesResultType {
-		return this.#database.readSnapshot(() => queryDependencies(this.#queryContext(), input, maxResultBytes));
+		return this.#database.readSnapshot(() => {
+			const generation = this.#generation();
+			return queryDependencies(this.#queryContext(input.adapter, generation.id), input, maxResultBytes);
+		});
 	}
 	/**
 	 * Reads bounded source for one indexed symbol identifier or natural query.
@@ -372,10 +375,10 @@ export class CodeIndex {
 	public readSymbol(input: ReadSymbolInputType, maxResultBytes = this.#config.maxResultBytes): ReadSymbolResultType {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
-			const freshness = this.getFreshness();
+			const freshness = this.#freshnessFor(input.adapter);
 			const selection = selectReadSymbol(
 				{
-					...this.#queryContext(),
+					...this.#queryContext(input.adapter, generation.id),
 					generationId: generation.id,
 					freshness,
 					maxResultBytes,
@@ -392,15 +395,16 @@ export class CodeIndex {
 					`Unknown symbol: ${selection.symbolId}. Symbol IDs are opaque; copy one from find_symbol or outline instead of constructing it.`,
 				);
 			}
+			const ownerFreshness = this.#freshnessFor(symbol.adapter);
 			return queryReadSymbol(
 				{
 					database: this.#database,
 					rootDir: this.#config.rootDir,
 					generationId: generation.id,
-					freshness,
+					freshness: ownerFreshness,
 					symbol,
 					...(selection.adapter === undefined ? {} : {adapter: selection.adapter}),
-					isPathDirty: (pathName) => this.#coordinator.isPathDirty(pathName),
+					isPathDirty: (pathName) => this.#coordinator.isPathDirty(pathName, symbol.adapter),
 					maxReadLines: this.#config.maxReadLines,
 					maxResultBytes,
 				},
@@ -411,20 +415,13 @@ export class CodeIndex {
 	public async close(): Promise<void> {
 		debug('close');
 		this.#closed = true;
-		// Stop the build worker before waiting for the coordinator. Build
-		// cancellation is cooperative and only observed between adapters, so a
-		// build inside one adapter would otherwise pin close() for its full
-		// duration. Closing the worker rejects the pending attempt.
+		// Close scheduling before terminating the worker so a worker rejection
+		// cannot enqueue a retry during shutdown. Worker termination still unpins
+		// coordinator close when cancellation is inside synchronous adapter work.
+		const coordinatorClose = this.#coordinator.close();
 		await this.#buildWorker?.close();
-		await this.#coordinator.close();
+		await coordinatorClose;
 		this.#watcher.close();
-		if (this.#refreshing !== null) {
-			try {
-				await this.#refreshing;
-			} catch {
-				// The refresh failure is already recorded on the index.
-			}
-		}
 		for (const adapter of this.#adapterSet.adapters) {
 			adapter.dispose?.();
 		}
@@ -432,11 +429,14 @@ export class CodeIndex {
 		this.#analytics?.close();
 		this.#database.close();
 	}
-	#queryContext(): QueryContextType {
+	#freshnessFor(adapterId?: string): QueryFreshnessType {
+		return this.#coordinator.getFreshness(adapterId === undefined ? null : [adapterId]);
+	}
+	#queryContext(adapterId?: string, generationId = this.#generation().id): QueryContextType {
 		return buildQueryContext({
 			database: this.#database,
-			generationId: this.#generation().id,
-			freshness: this.getFreshness(),
+			generationId,
+			freshness: this.#freshnessFor(adapterId),
 			targets: this.#targets,
 			...(this.#analytics === null ? {} : {exactNameTelemetry: this.#recordExactName}),
 		});

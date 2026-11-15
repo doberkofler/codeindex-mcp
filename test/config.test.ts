@@ -367,11 +367,19 @@ describe('freshness configuration', () => {
 	});
 
 	it('accepts a configured refresh debounce', () => {
-		expect(loadWithFreshness({debounceMs: 2500}).freshnessDebounceMs).toBe(2500);
+		const config = loadWithFreshness({debounceMs: 2500, adapters: {typescript: {debounceMs: 3000}}});
+
+		expect(config.freshnessDebounceMs).toBe(2500);
+		expect(config.freshnessAdapterDebounceMs).toStrictEqual({typescript: 3000});
 	});
 
 	it('rejects a debounce outside the supported range', () => {
 		expect(() => loadWithFreshness({debounceMs: 99})).toThrow(/failed validation/u);
 		expect(() => loadWithFreshness({debounceMs: 10_001})).toThrow(/failed validation/u);
+		expect(() => loadWithFreshness({adapters: {typescript: {debounceMs: 99}}})).toThrow(/failed validation/u);
+	});
+
+	it('rejects freshness overrides for adapters outside the configured roster', () => {
+		expect(() => loadWithFreshness({adapters: {oracle: {debounceMs: 3000}}})).toThrow(/unknown adapter identifier: oracle/u);
 	});
 });

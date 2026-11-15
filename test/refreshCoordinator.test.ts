@@ -1,468 +1,406 @@
 import {once} from 'node:events';
-import {setImmediate as immediate} from 'node:timers/promises';
 import {describe, expect, it} from 'vitest';
-import {RefreshCoordinator, type ClockType} from '../src/core/freshness/refreshCoordinator.ts';
-import {type BuildOutcomeType} from '../src/core/model.ts';
+import {RefreshCoordinator} from '../src/core/freshness/refreshCoordinator.ts';
+import {type BuildReportType} from '../src/core/model.ts';
 import {silentLogger} from './helpers/fixture.ts';
+import {
+	createRefreshClock as createClock,
+	flushRefresh as flush,
+	ORACLE_ADAPTER as ORACLE,
+	refreshReport as report,
+	type RefreshCallType as CallType,
+	TYPESCRIPT_ADAPTER as TYPESCRIPT,
+} from './helpers/refreshCoordinator.ts';
 
-type TimerType = ReturnType<typeof setTimeout> & Readonly<{id: number}>;
-
-type FakeTimerRecordType = {
-	readonly id: number;
-	readonly action: () => void;
-	at: number;
-	readonly intervalMs: number | null;
-};
-
-const flush = async (): Promise<void> => {
-	await immediate();
-};
-
-const nextDue = (timers: ReadonlyMap<number, FakeTimerRecordType>, now: number): FakeTimerRecordType | undefined =>
-	[...timers.values()]
-		.filter((timer) => timer.at <= now)
-		.sort((left, right) => left.at - right.at)
-		.at(0);
-
-const createClock = (): Readonly<{clock: ClockType; advance: (milliseconds: number) => Promise<void>}> => {
-	let now = 0;
-	let nextId = 1;
-	const timers = new Map<number, FakeTimerRecordType>();
-	const create = (action: () => void, delayMs: number, intervalMs: number | null): TimerType => {
-		const id = nextId;
-		nextId += 1;
-		timers.set(id, {id, action, at: now + delayMs, intervalMs});
-		return {id, unref: () => undefined, ref: () => undefined, hasRef: () => false, refresh: () => undefined} as unknown as TimerType;
-	};
-	const clock: ClockType = {
-		now: () => now,
-		setTimeout: (action, delayMs) => create(action, delayMs, null),
-		clearTimeout: (handle) => {
-			timers.delete((handle as unknown as Readonly<{id: number}>).id);
-		},
-		setInterval: (action, delayMs) => create(action, delayMs, delayMs),
-		clearInterval: (handle) => {
-			timers.delete((handle as unknown as Readonly<{id: number}>).id);
-		},
-	};
-	const runDue = async (): Promise<void> => {
-		const due = nextDue(timers, now);
-
-		if (due === undefined) {
-			return;
-		}
-
-		if (due.intervalMs === null) {
-			timers.delete(due.id);
-		} else {
-			due.at += due.intervalMs;
-		}
-
-		due.action();
-		await flush();
-		await runDue();
-	};
-	const advance = async (milliseconds: number): Promise<void> => {
-		now += milliseconds;
-		await runDue();
-	};
-
-	return {clock, advance};
-};
-
-describe('RefreshCoordinator', () => {
-	it('coalesces one event burst into one refresh', async () => {
-		const {clock, advance} = createClock();
-		let calls = 0;
-		const runRefresh = async (): Promise<BuildOutcomeType> => {
-			calls += 1;
-			await Promise.resolve();
-			return 'published';
-		};
-		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
-
-		coordinator.start();
-		await advance(500);
-
-		expect(calls).toBe(1);
-		expect(coordinator.getSnapshot().state).toBe('current');
-
-		coordinator.notify(['src/a.ts']);
-		coordinator.notify(['src/b.ts']);
-		await advance(500);
-
-		expect(calls).toBe(2);
-		expect(coordinator.getSnapshot().dirtyFileCount).toBe(0);
-		await coordinator.close();
-	});
-
-	it('runs exactly one follow-up after events during a build', async () => {
-		const {clock, advance} = createClock();
+describe('RefreshCoordinator adapter scheduling', () => {
+	it('A: keeps every captured adapter dirty when TypeScript supersedes a full attempt', async () => {
+		const {clock, now, advance} = createClock();
 		const gate = new EventTarget();
-		let calls = 0;
-		const runRefresh = async (): Promise<BuildOutcomeType> => {
-			calls += 1;
-			await once(gate, 'release');
-			return 'published';
-		};
-		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
+		const calls: CallType[] = [];
+		const coordinator = new RefreshCoordinator({
+			adapters: [ORACLE, TYPESCRIPT],
+			runRefresh: async (reason, adapterIds, force, signal): Promise<BuildReportType> => {
+				calls.push({reason, adapterIds, force, signal, at: now()});
+
+				if (calls.length === 1) {
+					await once(gate, 'release');
+				}
+
+				return report(calls.length, signal.aborted ? 'superseded' : 'published');
+			},
+			logger: silentLogger,
+			clock,
+		});
 
 		coordinator.start();
 		await advance(500);
-		expect(calls).toBe(1);
-		expect(coordinator.getSnapshot().state).toBe('building');
-
-		coordinator.notify(['src/a.ts']);
-		coordinator.notify(['src/b.ts']);
-		expect(coordinator.getSnapshot().refreshAgain).toBe(true);
+		coordinator.request({kind: 'change', paths: ['src/a.ts'], adapterIds: ['typescript']});
 		gate.dispatchEvent(new Event('release'));
 		await flush();
-		expect(coordinator.getSnapshot().state).toBe('dirty');
-
 		await advance(500);
-		expect(calls).toBe(2);
-		expect(coordinator.getSnapshot().state).toBe('building');
-		gate.dispatchEvent(new Event('release'));
-		await flush();
+
+		expect(calls.map((call) => call.adapterIds)).toStrictEqual([null, null]);
+		expect(coordinator.getFreshness().state).toBe('current');
 		await coordinator.close();
 	});
 
-	it('reports stale freshness after a failed refresh and accepts a retry', async () => {
-		const {clock, advance} = createClock();
-		let calls = 0;
-		const runRefresh = async (): Promise<BuildOutcomeType> => {
-			calls += 1;
-			await Promise.resolve();
-			throw new Error('build failed');
-		};
-		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
+	it('B: preserves an Oracle failure while pending TypeScript work publishes', async () => {
+		const {clock, now, advance} = createClock();
+		const gate = new EventTarget();
+		const calls: CallType[] = [];
+		const coordinator = new RefreshCoordinator({
+			adapters: [
+				{id: 'oracle', debounceMs: 500},
+				{id: 'typescript', debounceMs: 100},
+			],
+			runRefresh: async (reason, adapterIds, force, signal): Promise<BuildReportType> => {
+				calls.push({reason, adapterIds, force, signal, at: now()});
+
+				if (calls.length === 2) {
+					await once(gate, 'release');
+					throw new Error('oracle unavailable');
+				}
+
+				return report(calls.length);
+			},
+			logger: silentLogger,
+			clock,
+		});
 
 		coordinator.start();
 		await advance(500);
+		coordinator.request({kind: 'change', paths: ['db/package.pkb'], adapterIds: ['oracle']});
+		await advance(500);
+		coordinator.request({kind: 'change', paths: ['src/a.ts'], adapterIds: ['typescript']});
+		gate.dispatchEvent(new Event('release'));
+		await flush();
+		await advance(100);
 
-		expect(coordinator.getSnapshot().state).toBe('failed');
+		expect(calls[2]?.adapterIds).toStrictEqual(['typescript']);
+		expect(coordinator.getFreshness(['typescript']).state).toBe('current');
+		expect(coordinator.getFreshness(['oracle']).state).toBe('stale');
 		expect(coordinator.getFreshness().state).toBe('stale');
+		expect(coordinator.getSnapshot().lastError).toContain('oracle unavailable');
 
-		coordinator.notify(['src/a.ts']);
-		await advance(500);
-		expect(calls).toBe(2);
-		await coordinator.close();
-	});
-
-	it('skips reconciliation while a refresh is pending', async () => {
-		const {clock, advance} = createClock();
-		let calls = 0;
-		const runRefresh = async (): Promise<BuildOutcomeType> => {
-			calls += 1;
-			await Promise.resolve();
-			return 'published';
-		};
-		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500, reconcileIntervalMs: 60_000});
-
-		coordinator.start();
-		coordinator.requestReconcile();
-		await advance(500);
-		expect(calls).toBe(1);
-
-		coordinator.requestReconcile();
-		await advance(500);
-		expect(calls).toBe(2);
+		await advance(400);
+		expect(calls[3]?.adapterIds).toStrictEqual(['oracle']);
 		await coordinator.close();
 	});
 });
 
-describe('RefreshCoordinator adapter scope', () => {
-	it('keeps disjoint adapter events from cancelling the running build', async () => {
+describe('RefreshCoordinator failure and absolute deadlines', () => {
+	it('keeps only an attributed failed adapter stale after unrelated captured work succeeds', async () => {
 		const {clock, advance} = createClock();
-		const gate = new EventTarget();
-		const calls: {adapterIds: readonly string[] | null; signal: AbortSignal}[] = [];
+		const failure = new Error('oracle unavailable');
+		const scopes: (readonly string[] | null)[] = [];
 		const coordinator = new RefreshCoordinator({
-			runRefresh: async (_reason, adapterIds, signal): Promise<BuildOutcomeType> => {
-				calls.push({adapterIds, signal});
+			adapters: [
+				{id: 'oracle', debounceMs: 100},
+				{id: 'typescript', debounceMs: 100},
+			],
+			failedAdapterId: (error): string | null => (error === failure ? 'oracle' : null),
+			runRefresh: async (_reason, adapterIds): Promise<BuildReportType> => {
+				scopes.push(adapterIds);
+				await Promise.resolve();
+
+				if (scopes.length === 1) {
+					throw failure;
+				}
+
+				return report(scopes.length);
+			},
+			logger: silentLogger,
+			clock,
+		});
+
+		coordinator.start();
+		await advance(100);
+
+		expect(scopes).toStrictEqual([null, ['typescript']]);
+		expect(coordinator.getFreshness(['typescript']).state).toBe('current');
+		expect(coordinator.getFreshness(['oracle']).state).toBe('stale');
+		await coordinator.close();
+	});
+
+	it('C: never lets capped supersession backoff undercut the absolute debounce deadline', async () => {
+		const {clock, now, advance} = createClock();
+		const gate = new EventTarget();
+		const calls: CallType[] = [];
+		const coordinator = new RefreshCoordinator({
+			adapters: [{id: 'typescript', debounceMs: 90_000}],
+			runRefresh: async (reason, adapterIds, force, signal): Promise<BuildReportType> => {
+				calls.push({reason, adapterIds, force, signal, at: now()});
+
+				if (calls.length === 1) {
+					await once(gate, 'release');
+				}
+
+				return report(calls.length, signal.aborted ? 'superseded' : 'published');
+			},
+			logger: silentLogger,
+			clock,
+			supersededBackoffMaxMs: 30_000,
+		});
+
+		coordinator.start();
+		await advance(90_000);
+		coordinator.request({kind: 'change', paths: ['src/a.ts'], adapterIds: ['typescript']});
+		gate.dispatchEvent(new Event('release'));
+		await flush();
+		await advance(30_000);
+		expect(calls).toHaveLength(1);
+		await advance(59_999);
+		expect(calls).toHaveLength(1);
+		await advance(1);
+
+		expect(calls[1]?.at).toBe(180_000);
+		await coordinator.close();
+	});
+});
+
+describe('RefreshCoordinator elapsed and newer deadlines', () => {
+	it('D: starts work whose deadline elapsed during another adapter build without another debounce', async () => {
+		const {clock, now, advance} = createClock();
+		const gate = new EventTarget();
+		const calls: CallType[] = [];
+		const coordinator = new RefreshCoordinator({
+			adapters: [
+				{id: 'oracle', debounceMs: 90_000},
+				{id: 'typescript', debounceMs: 90_000},
+			],
+			runRefresh: async (reason, adapterIds, force, signal): Promise<BuildReportType> => {
+				calls.push({reason, adapterIds, force, signal, at: now()});
 
 				if (calls.length === 2) {
 					await once(gate, 'release');
 				}
 
-				return signal.aborted ? 'superseded' : 'published';
+				return report(calls.length);
 			},
 			logger: silentLogger,
 			clock,
-			debounceMs: 500,
 		});
 
 		coordinator.start();
-		await advance(500);
-		expect(calls).toHaveLength(1);
-		expect(calls[0]?.adapterIds).toBeNull();
-
-		coordinator.notify(['src/a.ts'], ['typescript']);
-		await advance(500);
-		expect(calls).toHaveLength(2);
-		expect(calls[1]?.adapterIds).toStrictEqual(['typescript']);
-
-		coordinator.notify(['db/package.pkb'], ['oracle']);
-		expect(calls[1]?.signal.aborted).toBe(false);
-		expect(coordinator.getSnapshot().refreshAgain).toBe(true);
-
-		coordinator.notify(['src/c.ts'], ['typescript']);
-		expect(calls[1]?.signal.aborted).toBe(true);
-
+		await advance(90_000);
+		coordinator.request({kind: 'change', paths: ['db/package.pkb'], adapterIds: ['oracle']});
+		await advance(90_000);
+		coordinator.request({kind: 'change', paths: ['src/a.ts'], adapterIds: ['typescript']});
+		await advance(90_000);
 		gate.dispatchEvent(new Event('release'));
 		await flush();
-		expect(coordinator.getSnapshot().state).toBe('dirty');
 
-		await advance(500);
-		expect(calls).toHaveLength(3);
-		expect(calls[2]?.adapterIds).toStrictEqual(['oracle', 'typescript']);
-		await coordinator.close();
-	});
-});
-
-describe('RefreshCoordinator supersession', () => {
-	it('supersedes once and publishes the single follow-up', async () => {
-		const {clock, advance} = createClock();
-		const events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[] = [];
-		let calls = 0;
-		const coordinator = new RefreshCoordinator({
-			runRefresh: async (): Promise<BuildOutcomeType> => {
-				calls += 1;
-				await Promise.resolve();
-				return calls === 1 ? 'superseded' : 'published';
-			},
-			logger: silentLogger,
-			clock,
-			debounceMs: 500,
-			record: (event, fields): void => {
-				events.push({event, fields});
-			},
-		});
-
-		coordinator.start();
-		await advance(500);
-
-		expect(calls).toBe(1);
-		expect(coordinator.getSnapshot().state).toBe('dirty');
-		expect(coordinator.getFreshness().state).toBe('updating');
-		expect(events.map((entry) => entry.event)).toContain('refresh_superseded');
-		expect(events.map((entry) => entry.event)).not.toContain('refresh_failed');
-
-		await advance(500);
-
-		expect(calls).toBe(2);
-		expect(coordinator.getSnapshot().state).toBe('current');
-		expect(events.map((entry) => entry.event)).toContain('refresh_published');
+		expect(calls[2]).toMatchObject({adapterIds: ['typescript'], at: 270_000});
 		await coordinator.close();
 	});
 
-	it('backs off with a cap while churn keeps superseding', async () => {
-		const {clock, advance} = createClock();
-		const backoffs: number[] = [];
-		const events: string[] = [];
-		const coordinator = new RefreshCoordinator({
-			runRefresh: async (): Promise<BuildOutcomeType> => {
-				await Promise.resolve();
-				return 'superseded';
-			},
-			logger: silentLogger,
-			clock,
-			debounceMs: 500,
-			supersededBackoffMaxMs: 2000,
-			record: (event, fields): void => {
-				events.push(event);
-
-				if (event === 'refresh_superseded') {
-					backoffs.push(Number(fields?.['backoffMs']));
-				}
-			},
-		});
-
-		coordinator.start();
-		await advance(500);
-		expect(coordinator.getFreshness().state).toBe('updating');
-		await advance(500);
-		await advance(1000);
-		await advance(2000);
-		await advance(2000);
-
-		expect(backoffs).toStrictEqual([500, 1000, 2000, 2000, 2000]);
-		expect(events).not.toContain('refresh_failed');
-		expect(events).not.toContain('refresh_published');
-		expect(coordinator.getFreshness().state).toBe('updating');
-		await coordinator.close();
-	});
-});
-
-describe('RefreshCoordinator failure recovery', () => {
-	it('runs one follow-up when a build fails with pending events', async () => {
+	it('does not clear an event newer than the captured epoch when the attempt still publishes', async () => {
 		const {clock, advance} = createClock();
 		const gate = new EventTarget();
 		let calls = 0;
-		const runRefresh = async (): Promise<BuildOutcomeType> => {
-			calls += 1;
-			await once(gate, 'release');
-
-			if (calls === 1) {
-				throw new Error('source changed during build');
-			}
-
-			return 'published';
-		};
-		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
-
-		coordinator.start();
-		await advance(500);
-		expect(calls).toBe(1);
-		coordinator.notify(['src/a.ts']);
-		expect(coordinator.getSnapshot().refreshAgain).toBe(true);
-		gate.dispatchEvent(new Event('release'));
-		await flush();
-		expect(coordinator.getSnapshot().state).toBe('dirty');
-
-		await advance(500);
-		expect(calls).toBe(2);
-		gate.dispatchEvent(new Event('release'));
-		await flush();
-		expect(coordinator.getSnapshot().state).toBe('current');
-		await coordinator.close();
-	});
-
-	it('retries a failed refresh without waiting for a new event', async () => {
-		const {clock, advance} = createClock();
-		let calls = 0;
-		const runRefresh = async (): Promise<BuildOutcomeType> => {
-			calls += 1;
-			await Promise.resolve();
-
-			if (calls === 1) {
-				throw new Error('transient read failure');
-			}
-
-			return 'published';
-		};
-		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
-
-		coordinator.start();
-		await advance(500);
-		expect(calls).toBe(1);
-		expect(coordinator.getSnapshot().state).toBe('failed');
-
-		// The failure produces no filesystem event, so recovery must come from the
-		// bounded retry rather than from an unrelated edit.
-		await advance(500);
-		expect(calls).toBe(2);
-		expect(coordinator.getSnapshot().state).toBe('current');
-		expect(coordinator.getSnapshot().lastError).toBeNull();
-		await coordinator.close();
-	});
-
-	it('backs off repeated failures without spinning', async () => {
-		const {clock, advance} = createClock();
-		let calls = 0;
 		const coordinator = new RefreshCoordinator({
-			runRefresh: async (): Promise<BuildOutcomeType> => {
+			adapters: [{id: 'typescript', debounceMs: 100}],
+			runRefresh: async (): Promise<BuildReportType> => {
 				calls += 1;
-				await Promise.resolve();
-				throw new Error('persistent read failure');
+
+				if (calls === 1) {
+					await once(gate, 'release');
+				}
+
+				return report(calls);
 			},
 			logger: silentLogger,
 			clock,
-			debounceMs: 500,
-			failedRetryMaxMs: 4000,
+		});
+
+		coordinator.start();
+		await advance(100);
+		coordinator.request({kind: 'change', paths: ['src/new.ts'], adapterIds: ['typescript']});
+		gate.dispatchEvent(new Event('release'));
+		await flush();
+
+		expect(coordinator.getFreshness().state).toBe('updating');
+		expect(coordinator.isPathDirty('src/new.ts', 'typescript')).toBe(true);
+		await advance(100);
+		expect(calls).toBe(2);
+		expect(coordinator.getFreshness().state).toBe('current');
+		await coordinator.close();
+	});
+});
+
+describe('RefreshCoordinator scoped invalidation', () => {
+	it('clears a metadata-only project invalidation after an unchanged scan', async () => {
+		const {clock, advance} = createClock();
+		const coordinator = new RefreshCoordinator({
+			adapters: [ORACLE, TYPESCRIPT],
+			initiallyCurrent: true,
+			runRefresh: async (): Promise<BuildReportType> => {
+				await Promise.resolve();
+				return report(1, 'reused');
+			},
+			logger: silentLogger,
+			clock,
+		});
+
+		coordinator.request({kind: 'change', paths: null, adapterIds: ['oracle']});
+		expect(coordinator.getFreshness(['oracle']).state).toBe('updating');
+		expect(coordinator.getSnapshot().projectWideInvalidation).toBe(true);
+		await advance(500);
+
+		expect(coordinator.getFreshness(['oracle']).state).toBe('current');
+		expect(coordinator.getSnapshot().projectWideInvalidation).toBe(false);
+		await coordinator.close();
+	});
+
+	it('never cancels one adapter for an event owned only by another adapter', async () => {
+		const {clock, advance} = createClock();
+		const gate = new EventTarget();
+		const signals: AbortSignal[] = [];
+		const coordinator = new RefreshCoordinator({
+			adapters: [ORACLE, TYPESCRIPT],
+			initiallyCurrent: true,
+			runRefresh: async (_reason, _adapterIds, _force, signal): Promise<BuildReportType> => {
+				signals.push(signal);
+				await once(gate, 'release');
+				return report(signals.length);
+			},
+			logger: silentLogger,
+			clock,
+		});
+
+		coordinator.request({kind: 'change', paths: ['src/a.ts'], adapterIds: ['typescript']});
+		await advance(500);
+		coordinator.request({kind: 'change', paths: ['db/package.pkb'], adapterIds: ['oracle']});
+
+		expect(signals[0]?.aborted).toBe(false);
+		gate.dispatchEvent(new Event('release'));
+		await flush();
+		await coordinator.close();
+	});
+});
+
+describe('RefreshCoordinator freshness and lifecycle', () => {
+	it('prevents false-current state while another adapter remains dirty', async () => {
+		const {clock, advance} = createClock();
+		const coordinator = new RefreshCoordinator({
+			adapters: [
+				{id: 'oracle', debounceMs: 500},
+				{id: 'typescript', debounceMs: 100},
+			],
+			initiallyCurrent: true,
+			runRefresh: async (): Promise<BuildReportType> => {
+				await Promise.resolve();
+				return report(1);
+			},
+			logger: silentLogger,
+			clock,
+		});
+
+		coordinator.request({kind: 'change', paths: ['src/a.ts'], adapterIds: ['typescript']});
+		coordinator.request({kind: 'change', paths: ['db/package.pkb'], adapterIds: ['oracle']});
+		await advance(100);
+
+		expect(coordinator.getFreshness(['typescript']).state).toBe('current');
+		expect(coordinator.getFreshness(['oracle']).state).toBe('updating');
+		expect(coordinator.getFreshness().state).toBe('updating');
+		await coordinator.close();
+	});
+
+	it('applies capped exponential supersession backoff per adapter', async () => {
+		const {clock, now, advance} = createClock();
+		const starts: number[] = [];
+		const coordinator = new RefreshCoordinator({
+			adapters: [{id: 'typescript', debounceMs: 500}],
+			runRefresh: async (): Promise<BuildReportType> => {
+				starts.push(now());
+				await Promise.resolve();
+				return report(starts.length, 'superseded');
+			},
+			logger: silentLogger,
+			clock,
+			supersededBackoffMaxMs: 2000,
 		});
 
 		coordinator.start();
 		await advance(500);
-		expect(calls).toBe(1);
-
 		await advance(500);
-		expect(calls).toBe(2);
 		await advance(1000);
-		expect(calls).toBe(3);
 		await advance(2000);
-		expect(calls).toBe(4);
-		await advance(4000);
-		expect(calls).toBe(5);
-		await advance(4000);
-		expect(calls).toBe(6);
+		await advance(2000);
 
-		expect(coordinator.getSnapshot().state).toBe('failed');
+		expect(starts).toStrictEqual([500, 1000, 2000, 4000, 6000]);
 		await coordinator.close();
 	});
-});
 
-describe('RefreshCoordinator publication timing', () => {
-	it('records event-to-publication from the first dirty event', async () => {
-		const {clock, advance} = createClock();
-		const events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[] = [];
+	it('applies capped exponential failure retry per adapter', async () => {
+		const {clock, now, advance} = createClock();
+		const starts: number[] = [];
 		const coordinator = new RefreshCoordinator({
-			runRefresh: async (): Promise<BuildOutcomeType> => {
+			adapters: [{id: 'typescript', debounceMs: 500}],
+			runRefresh: async (): Promise<BuildReportType> => {
+				starts.push(now());
 				await Promise.resolve();
-				return 'published';
+				throw new Error('persistent failure');
 			},
 			logger: silentLogger,
 			clock,
-			debounceMs: 500,
-			record: (event, fields): void => {
-				events.push({event, fields});
-			},
+			failedRetryMaxMs: 2000,
 		});
 
 		coordinator.start();
 		await advance(500);
-		coordinator.notify(['src/a.ts']);
 		await advance(500);
+		await advance(1000);
+		await advance(2000);
+		await advance(2000);
 
-		const published = events.find((entry) => entry.event === 'refresh_published');
-		const {eventToPublicationMs} = published?.fields ?? {};
-		expect(eventToPublicationMs).toBe(500);
+		expect(starts).toStrictEqual([500, 1000, 2000, 4000, 6000]);
+		expect(coordinator.getFreshness().state).toBe('stale');
 		await coordinator.close();
 	});
 });
 
-describe('RefreshCoordinator idle scheduling', () => {
-	it('defaults the refresh debounce to one second', async () => {
-		const {clock, advance} = createClock();
-		let calls = 0;
+describe('RefreshCoordinator lifecycle', () => {
+	it('closes without leaving debounce or reconciliation timers', async () => {
+		const {clock, pendingTimerCount} = createClock();
 		const coordinator = new RefreshCoordinator({
-			runRefresh: async (): Promise<BuildOutcomeType> => {
+			adapters: [TYPESCRIPT],
+			initiallyCurrent: true,
+			runRefresh: async (): Promise<BuildReportType> => {
 				await Promise.resolve();
-				calls += 1;
-				return 'published';
+				return report(1);
+			},
+			logger: silentLogger,
+			clock,
+			reconcileIntervalMs: 60_000,
+		});
+
+		coordinator.start();
+		expect(pendingTimerCount()).toBeGreaterThan(0);
+		await coordinator.close();
+
+		expect(pendingTimerCount()).toBe(0);
+		expect(coordinator.getSnapshot().state).toBe('stopping');
+	});
+
+	it('cancels active work and rejects manual waiters during close', async () => {
+		const {clock, pendingTimerCount} = createClock();
+		const coordinator = new RefreshCoordinator({
+			adapters: [TYPESCRIPT],
+			initiallyCurrent: true,
+			runRefresh: async (_reason, _adapterIds, _force, signal): Promise<BuildReportType> => {
+				await once(signal, 'abort');
+				return report(1, 'superseded');
 			},
 			logger: silentLogger,
 			clock,
 		});
 
-		coordinator.start();
-		await advance(999);
-		expect(calls).toBe(0);
-		await advance(1);
-		expect(calls).toBe(1);
-		await coordinator.close();
-	});
+		const manual = coordinator.request({kind: 'manual', force: false});
+		const closing = coordinator.close();
+		await expect(manual).rejects.toThrow('Refresh coordinator closed');
+		await closing;
 
-	it('performs no periodic rescan while the workspace is idle', async () => {
-		const {clock, advance} = createClock();
-		let calls = 0;
-		const runRefresh = async (): Promise<BuildOutcomeType> => {
-			calls += 1;
-			await Promise.resolve();
-			return 'published';
-		};
-		const coordinator = new RefreshCoordinator({runRefresh, logger: silentLogger, clock, debounceMs: 500});
-
-		coordinator.start();
-		await advance(500);
-		expect(calls).toBe(1);
-
-		// Ten idle minutes with no filesystem event: the startup refresh is the
-		// only work the coordinator may schedule. A healthy watcher is the change
-		// detector; rescanning the whole workspace on a timer burns idle CPU.
-		await advance(600_000);
-
-		expect(calls).toBe(1);
-		expect(coordinator.getSnapshot().state).toBe('current');
-		await coordinator.close();
+		expect(pendingTimerCount()).toBe(0);
 	});
 });

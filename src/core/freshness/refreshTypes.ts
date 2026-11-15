@@ -1,9 +1,8 @@
 import {type LoggerType} from '../logging/logger.ts';
-import {type BuildOutcomeType, type QueryFreshnessType, type RefreshStateType} from '../model.ts';
+import {type BuildReportType, type RefreshStateType} from '../model.ts';
 import {type ClockType} from './refreshClock.ts';
+import {type RefreshAdapterDefinitionType} from './refreshReducer.ts';
 import {type RefreshAdapterScopeType, type RefreshReasonType} from './refreshScope.ts';
-
-export {type RefreshReasonType} from './refreshScope.ts';
 
 export const DEFAULT_DEBOUNCE_MS = 1000;
 export const DEFAULT_SUPERSEDED_BACKOFF_MAX_MS = 30_000;
@@ -13,11 +12,23 @@ export const noRecord = (_event: string, _fields?: Readonly<Record<string, unkno
 	// Analytics are optional; the coordinator stays usable without a recorder.
 };
 
-export type RefreshRequestType = Readonly<{
-	reason: RefreshReasonType;
+export type RefreshChangeRequestType = Readonly<{
+	kind: 'change';
+	paths: readonly string[] | null;
+	adapterIds: RefreshAdapterScopeType;
+}>;
+
+export type RefreshManualRequestType = Readonly<{
+	kind: 'manual';
 	force: boolean;
-	adapterIds?: RefreshAdapterScopeType;
-	signal?: AbortSignal;
+}>;
+
+export type RefreshReconcileRequestType = Readonly<{
+	kind: 'reconcile';
+}>;
+
+export type RefreshStartupRequestType = Readonly<{
+	kind: 'startup';
 }>;
 
 export type RefreshCoordinatorSnapshotType = Readonly<{
@@ -35,10 +46,13 @@ export type RefreshCoordinatorSnapshotType = Readonly<{
 }>;
 
 export type RefreshCoordinatorOptionsType = Readonly<{
-	runRefresh: (reason: RefreshReasonType, adapterIds: RefreshAdapterScopeType, signal: AbortSignal) => Promise<BuildOutcomeType>;
+	runRefresh: (reason: RefreshReasonType, adapterIds: RefreshAdapterScopeType, force: boolean, signal: AbortSignal) => Promise<BuildReportType>;
+	/** Resolves an adapter-attributed failure; null means the attempt failed globally. */
+	failedAdapterId?: (error: unknown) => string | null;
 	logger: LoggerType;
+	adapters: readonly RefreshAdapterDefinitionType[];
+	initiallyCurrent?: boolean;
 	clock?: ClockType;
-	debounceMs?: number;
 	/**
 	 * Optional safety interval for a full reconciliation scan.
 	 *
@@ -55,22 +69,3 @@ export type RefreshCoordinatorOptionsType = Readonly<{
 	failedRetryMaxMs?: number;
 	record?: (event: string, fields?: Readonly<Record<string, unknown>>) => void;
 }>;
-
-/**
- * Projects coordinator state into query freshness.
- *
- * @param snapshot - Current coordinator snapshot.
- * @returns Query freshness with the same checked-at and dirty count.
- */
-export const freshnessOf = (snapshot: RefreshCoordinatorSnapshotType): QueryFreshnessType => {
-	const state =
-		snapshot.state === 'current'
-			? 'current'
-			: snapshot.state === 'dirty' || snapshot.state === 'building'
-				? 'updating'
-				: snapshot.state === 'failed'
-					? 'stale'
-					: 'unknown';
-
-	return {state, checkedAt: snapshot.checkedAt, dirtyFileCount: snapshot.dirtyFileCount};
-};

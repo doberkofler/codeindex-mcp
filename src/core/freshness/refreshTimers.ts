@@ -3,7 +3,7 @@ import {type ClockType} from './refreshClock.ts';
 type TimerHandleType = ReturnType<typeof setTimeout>;
 
 /**
- * Owns the three independent timers used by the refresh coordinator.
+ * Owns scheduler-wake and optional reconciliation timers.
  *
  * Every timer is one-shot and unref'd, so an idle workspace never keeps the
  * process alive and a callback cannot overlap the attempt it schedules.
@@ -12,7 +12,6 @@ export class RefreshTimers {
 	readonly #clock: ClockType;
 	#debounce: TimerHandleType | null = null;
 	#reconcile: TimerHandleType | null = null;
-	#failureRetry: TimerHandleType | null = null;
 
 	public constructor(clock: ClockType) {
 		this.#clock = clock;
@@ -50,25 +49,8 @@ export class RefreshTimers {
 		}
 	}
 
-	public scheduleFailureRetry(action: () => void, delayMs: number): void {
-		this.clearFailureRetry();
-		this.#failureRetry = this.#clock.setTimeout(() => {
-			this.#failureRetry = null;
-			action();
-		}, delayMs);
-		this.#failureRetry.unref();
-	}
-
-	public clearFailureRetry(): void {
-		if (this.#failureRetry !== null) {
-			this.#clock.clearTimeout(this.#failureRetry);
-			this.#failureRetry = null;
-		}
-	}
-
 	public clearAll(): void {
 		this.clearDebounce();
 		this.clearReconcile();
-		this.clearFailureRetry();
 	}
 }

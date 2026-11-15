@@ -380,14 +380,17 @@ removed directory trees are reported without waiting for a rescan. Directory
 events request a project-wide scan because a new or removed directory can change
 the indexed file set without naming a source file.
 
-`RefreshCoordinator` debounces bursts, allows one refresh at a time, coalesces
-changes arriving during a build into one follow-up, and retries a failed refresh
-with capped exponential backoff. It tracks the adapters captured by the running
-attempt: an event for another adapter is queued as follow-up work, while an event
-for the captured adapter aborts the attempt cooperatively at the next safe
-checkpoint. The debounce is a trailing edge: every event restarts the quiet
-window, which is `freshness.debounceMs` (default 1000 ms, range 100–10000). It is
-one workspace-level value because one coordinator serves every adapter. It performs **no periodic rescan of an idle workspace**: a healthy
+`RefreshCoordinator` reduces startup, watcher, reconciliation, and manual requests
+into per-adapter epochs and absolute deadlines, while still allowing only one
+physical refresh at a time. A successful publication or unchanged scan confirms
+only the captured epochs; supersession, failure, and newer events remain dirty. An
+event for another adapter never cancels the running attempt, while an event for a
+captured adapter aborts it cooperatively at the next safe checkpoint. Backoff can
+delay an adapter's absolute debounce deadline but never undercut it, and work whose
+deadline elapsed during another adapter's build starts immediately afterward.
+`freshness.debounceMs` is the workspace default (1000 ms; range 100–10000);
+`freshness.adapters.<id>.debounceMs` provides validated per-adapter overrides. The
+coordinator performs **no periodic rescan of an idle workspace**: a healthy
 watcher is the change detector, and a timer that rescans unchanged content burns
 CPU without discovering anything. A full reconciliation still runs at startup,
 after a watcher error, after a failure retry, and on `codeindex-cli update`. The

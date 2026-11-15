@@ -1,279 +1,245 @@
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
-import {type BuildOutcomeType, type QueryFreshnessType, type RefreshStateType} from '../model.ts';
+import {type BuildReportType, type QueryFreshnessType} from '../model.ts';
 import {systemClock, type ClockType} from './refreshClock.ts';
-import {adapterScopeIsAffected, dirtyFileCountOf, isFullScope, projectWideInvalidationOf, scopeFor, type RefreshAdapterScopeType} from './refreshScope.ts';
+import {createRefreshReducerState, reduceRefresh, type ActiveRefreshAttemptType, type RefreshReducerStateType} from './refreshReducer.ts';
+import {
+	dirtyFileCount,
+	freshnessFor,
+	isDirtyPath,
+	lastErrorOf,
+	nextRefreshDeadline,
+	projectWideInvalidation,
+	refreshAgain,
+	refreshStateOf,
+} from './refreshSelectors.ts';
+import {type RefreshAdapterScopeType} from './refreshScope.ts';
 import {RefreshTimers} from './refreshTimers.ts';
 import {
-	DEFAULT_DEBOUNCE_MS,
 	DEFAULT_FAILED_RETRY_MAX_MS,
 	DEFAULT_SUPERSEDED_BACKOFF_MAX_MS,
-	freshnessOf,
 	noRecord,
+	type RefreshChangeRequestType,
 	type RefreshCoordinatorOptionsType,
 	type RefreshCoordinatorSnapshotType,
-	type RefreshReasonType,
+	type RefreshManualRequestType,
+	type RefreshReconcileRequestType,
+	type RefreshStartupRequestType,
 } from './refreshTypes.ts';
 
 export {type ClockType} from './refreshClock.ts';
 export {type RefreshAdapterScopeType} from './refreshScope.ts';
-export {type RefreshCoordinatorOptionsType, type RefreshCoordinatorSnapshotType, type RefreshReasonType} from './refreshTypes.ts';
+export {
+	type RefreshChangeRequestType,
+	type RefreshCoordinatorOptionsType,
+	type RefreshCoordinatorSnapshotType,
+	type RefreshManualRequestType,
+	type RefreshReconcileRequestType,
+	type RefreshStartupRequestType,
+} from './refreshTypes.ts';
 
 const debug = debugFor('refresh');
+
+type WaitingRequestType = Readonly<{
+	resolve: (report: BuildReportType) => void;
+	reject: (error: unknown) => void;
+}>;
+
+const scopeIntersects = (attempt: ActiveRefreshAttemptType, adapterIds: RefreshAdapterScopeType): boolean =>
+	adapterIds === null ||
+	adapterIds.length === 0 ||
+	attempt.adapterIds === null ||
+	adapterIds.some((adapterId) => attempt.selectedAdapterIds.includes(adapterId));
 
 /**
  * Owns refresh scheduling and freshness state.
  *
- * Filesystem events are hints. The coordinator coalesces bursts, permits exactly
- * one running refresh, and converts events during a refresh into exactly one
- * follow-up. It performs no indexing work itself.
- *
- * Adapter scope is tracked separately from filesystem churn: an event that
- * belongs to another adapter is queued as follow-up work but does not abort the
- * running attempt. An event that belongs to the captured adapter scope confirms
- * the attempt is obsolete and signals cooperative cancellation.
+ * Every startup, watcher, reconciliation, and manual request enters through
+ * {@link request}. Logical state changes only through the pure refresh reducer;
+ * this class owns timers, cancellation, and execution side effects.
  */
 export class RefreshCoordinator {
-	readonly #runRefresh: (reason: RefreshReasonType, adapterIds: RefreshAdapterScopeType, signal: AbortSignal) => Promise<BuildOutcomeType>;
+	readonly #runRefresh: RefreshCoordinatorOptionsType['runRefresh'];
 	readonly #logger: LoggerType;
+	readonly #failedAdapterId: (error: unknown) => string | null;
 	readonly #clock: ClockType;
-	readonly #debounceMs: number;
 	readonly #reconcileIntervalMs: number;
 	readonly #supersededBackoffMaxMs: number;
 	readonly #failedRetryMaxMs: number;
 	readonly #record: (event: string, fields?: Readonly<Record<string, unknown>>) => void;
-	#state: RefreshStateType = 'unknown';
-	/** Paths captured by the running attempt. */
-	readonly #activeDirtyPaths = new Set<string>();
-	/** Paths received after the running attempt captured its scope. */
-	readonly #dirtyPaths = new Set<string>();
-	#activeProjectWideInvalidation = false;
-	#projectWideInvalidation = false;
-	readonly #dirtyAdapters = new Set<string>();
-	#activeAdapterIds: RefreshAdapterScopeType = null;
-	#allAdaptersDirty = false;
-	#refreshAgain = false;
+	readonly #timers: RefreshTimers;
+	readonly #waiting = new Map<string, WaitingRequestType>();
+	#state: RefreshReducerStateType;
 	#running: Promise<void> | null = null;
 	#abort: AbortController | null = null;
-	readonly #timers: RefreshTimers;
-	#failureAttempts = 0;
-	#checkedAt = new Date().toISOString();
-	#lastRefreshStartedAt: string | null = null;
-	#lastRefreshCompletedAt: string | null = null;
-	#lastError: string | null = null;
-	#lastReason: RefreshReasonType | null = null;
-	#firstEventAt: number | null = null;
-	#supersededAttempts = 0;
-	#supersededBackoffMs = 0;
+	#nextRequestId = 1;
+	#started = false;
 
 	public constructor(options: RefreshCoordinatorOptionsType) {
+		if (options.adapters.length === 0) {
+			throw new Error('RefreshCoordinator requires at least one adapter');
+		}
+
+		const adapterIds = options.adapters.map((adapter) => adapter.id);
+
+		if (new Set(adapterIds).size !== adapterIds.length) {
+			throw new Error('RefreshCoordinator adapter identifiers must be unique');
+		}
+
 		this.#runRefresh = options.runRefresh;
 		this.#logger = options.logger;
+		this.#failedAdapterId = options.failedAdapterId ?? ((_error: unknown): null => null);
 		this.#clock = options.clock ?? systemClock;
 		this.#timers = new RefreshTimers(this.#clock);
-		this.#debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
 		this.#reconcileIntervalMs = options.reconcileIntervalMs ?? 0;
 		this.#supersededBackoffMaxMs = options.supersededBackoffMaxMs ?? DEFAULT_SUPERSEDED_BACKOFF_MAX_MS;
 		this.#failedRetryMaxMs = options.failedRetryMaxMs ?? DEFAULT_FAILED_RETRY_MAX_MS;
 		this.#record = options.record ?? noRecord;
+		this.#state = createRefreshReducerState(options.adapters, this.#clock.now(), options.initiallyCurrent ?? false);
 	}
 
 	public start(): void {
-		if (this.#state === 'stopping') {
+		if (this.#started || this.#state.closed) {
 			return;
 		}
 
+		this.#started = true;
 		debug('coordinator start');
 		this.#armReconcile();
-		this.#firstEventAt ??= this.#clock.now();
-		this.#schedule('startup');
+		this.request({kind: 'startup'});
 	}
 
-	/**
-	 * Records one filesystem observation.
-	 *
-	 * @param paths - Changed workspace-relative paths, or null when the file set changed.
-	 * @param adapterIds - Adapters that own the change, or null for every adapter.
-	 * @returns Nothing.
-	 */
-	public notify(paths: readonly string[] | null, adapterIds: RefreshAdapterScopeType = null): void {
-		if (this.#state === 'stopping') {
+	public request(requestValue: RefreshManualRequestType): Promise<BuildReportType>;
+	public request(requestValue: RefreshChangeRequestType | RefreshReconcileRequestType | RefreshStartupRequestType): void;
+	public request(
+		requestValue: RefreshChangeRequestType | RefreshManualRequestType | RefreshReconcileRequestType | RefreshStartupRequestType,
+	): Promise<BuildReportType> | void {
+		if (requestValue.kind === 'manual') {
+			return this.#requestManual(requestValue);
+		}
+
+		if (this.#state.closed) {
 			return;
 		}
 
-		this.#checkedAt = new Date().toISOString();
-		this.#firstEventAt ??= this.#clock.now();
-		const fullScope = paths === null || isFullScope(adapterIds) || adapterIds.length === 0;
+		const now = this.#clock.now();
 
-		if (fullScope) {
-			this.#projectWideInvalidation = true;
-			this.#dirtyPaths.clear();
-			this.#allAdaptersDirty = true;
-			this.#dirtyAdapters.clear();
-		} else {
-			for (const changedPath of paths) {
-				this.#dirtyPaths.add(changedPath);
-			}
+		if (requestValue.kind === 'change') {
+			const {adapterIds, paths} = requestValue;
+			const {active} = this.#state;
+			this.#state = reduceRefresh(this.#state, {
+				type: 'request',
+				now,
+				reason: 'change',
+				adapterIds,
+				paths,
+				force: false,
+				requestId: null,
+				immediate: false,
+				onlyIfClean: false,
+			});
+			this.#record('watcher_event', {
+				projectWide: paths === null,
+				pathCount: paths?.length ?? null,
+				adapterCount: adapterIds?.length ?? null,
+				adapterIds,
+			});
 
-			for (const adapterId of adapterIds) {
-				this.#dirtyAdapters.add(adapterId);
-			}
-		}
-
-		this.#record('watcher_event', {
-			projectWide: fullScope,
-			pathCount: paths === null ? null : paths.length,
-			adapterCount: fullScope ? null : adapterIds.length,
-			adapterIds: fullScope ? null : adapterIds,
-		});
-
-		if (this.#state === 'building' || this.#running !== null) {
-			this.#refreshAgain = true;
-			this.#record('refresh_coalesced');
-
-			if (adapterScopeIsAffected(this.#activeAdapterIds, fullScope, adapterIds)) {
+			if (active !== null && scopeIntersects(active, adapterIds)) {
 				this.#abortActive();
 			}
+		} else {
+			const reason = requestValue.kind === 'startup' ? 'startup' : 'reconcile';
+			this.#state = reduceRefresh(this.#state, {
+				type: 'request',
+				now,
+				reason,
+				adapterIds: null,
+				paths: null,
+				force: false,
+				requestId: null,
+				immediate: false,
+				onlyIfClean: requestValue.kind === 'reconcile',
+			});
 
-			debug('event during build coalesced', {fullScope, adapters: adapterIds});
-			return;
+			if (requestValue.kind === 'reconcile') {
+				this.#record('watcher_reconcile');
+			}
 		}
 
-		this.#state = 'dirty';
-		this.#schedule('change');
-	}
-
-	/**
-	 * Requests a deterministic reconciliation scan.
-	 *
-	 * Reconciliation is skipped while a refresh is pending or running.
-	 */
-	public requestReconcile(): void {
-		if (this.#state === 'stopping' || this.#state === 'building' || this.#state === 'dirty' || this.#running !== null) {
-			return;
-		}
-
-		this.#checkedAt = new Date().toISOString();
-		this.#firstEventAt ??= this.#clock.now();
-		this.#allAdaptersDirty = true;
-		this.#state = 'dirty';
-		this.#record('watcher_reconcile');
-		this.#schedule('reconcile');
-	}
-
-	/**
-	 * Forces one refresh through the same single-build path.
-	 *
-	 * @param reason - Recorded reason for the refresh.
-	 * @returns Completion when the refresh finishes.
-	 */
-	public async refreshNow(reason: RefreshReasonType = 'manual'): Promise<void> {
-		this.#timers.clearDebounce();
-		await this.#run(reason);
-	}
-
-	public markCurrent(): void {
-		if (this.#state === 'stopping') {
-			return;
-		}
-
-		this.#state = 'current';
-		this.#dirtyPaths.clear();
-		this.#activeDirtyPaths.clear();
-		this.#dirtyAdapters.clear();
-		this.#allAdaptersDirty = false;
-		this.#projectWideInvalidation = false;
-		this.#activeProjectWideInvalidation = false;
-		this.#refreshAgain = false;
-		this.#firstEventAt = null;
-		this.#activeAdapterIds = null;
-		this.#supersededAttempts = 0;
-		this.#supersededBackoffMs = 0;
-		this.#failureAttempts = 0;
-		this.#timers.clearFailureRetry();
-		this.#lastRefreshCompletedAt = new Date(this.#clock.now()).toISOString();
-	}
-
-	/**
-	 * Records a superseded attempt observed outside the coordinator.
-	 *
-	 * A manual `ensureReady` call runs its own refresh. When that refresh is
-	 * superseded, this schedules the same single capped-backoff follow-up a
-	 * watcher-triggered refresh receives. Calls made while the coordinator is
-	 * already building or dirty are no-ops, so the outcome is only handled once.
-	 *
-	 * @param durationMs - Measured duration of the superseded attempt.
-	 */
-	public noteSuperseded(durationMs: number): void {
-		if (this.#state === 'stopping' || this.#state === 'building' || this.#state === 'dirty') {
-			return;
-		}
-
-		this.#supersededAttempts += 1;
-		const backoffMs = Math.min(this.#debounceMs * 2 ** (this.#supersededAttempts - 1), this.#supersededBackoffMaxMs);
-		this.#state = 'dirty';
-		this.#lastError = null;
-		this.#refreshAgain = false;
-		this.#supersededBackoffMs = backoffMs;
-		this.#record('refresh_superseded', {
-			reason: 'manual',
-			durationMs,
-			attempt: this.#supersededAttempts,
-			backoffMs,
-			dirtyFileCount: this.#dirtyFileCount(),
-		});
-		this.#schedule('change', backoffMs);
+		this.#schedule();
 	}
 
 	public getSnapshot(): RefreshCoordinatorSnapshotType {
 		return {
-			state: this.#state,
-			checkedAt: this.#checkedAt,
-			dirtyFileCount: this.#dirtyFileCount(),
-			projectWideInvalidation: this.#isProjectWideInvalidation(),
-			refreshAgain: this.#refreshAgain,
-			lastRefreshStartedAt: this.#lastRefreshStartedAt,
-			lastRefreshCompletedAt: this.#lastRefreshCompletedAt,
-			lastError: this.#lastError,
-			lastReason: this.#lastReason,
-			refreshAdapterIds: this.#activeAdapterIds,
+			state: refreshStateOf(this.#state),
+			checkedAt: new Date(this.#state.checkedAt).toISOString(),
+			dirtyFileCount: dirtyFileCount(this.#state),
+			projectWideInvalidation: projectWideInvalidation(this.#state),
+			refreshAgain: refreshAgain(this.#state),
+			lastRefreshStartedAt: this.#state.lastRefreshStartedAt === null ? null : new Date(this.#state.lastRefreshStartedAt).toISOString(),
+			lastRefreshCompletedAt: this.#state.lastRefreshCompletedAt === null ? null : new Date(this.#state.lastRefreshCompletedAt).toISOString(),
+			lastError: lastErrorOf(this.#state),
+			lastReason: this.#state.lastReason,
+			refreshAdapterIds: this.#state.active?.adapterIds ?? this.#state.lastAdapterIds,
 		};
 	}
 
-	public getFreshness(): QueryFreshnessType {
-		return freshnessOf(this.getSnapshot());
+	public getFreshness(adapterIds: RefreshAdapterScopeType = null): QueryFreshnessType {
+		return freshnessFor(this.#state, adapterIds);
 	}
 
-	public isPathDirty(filePath: string): boolean {
-		return this.#isProjectWideInvalidation() || this.#dirtyPaths.has(filePath) || this.#activeDirtyPaths.has(filePath);
+	public isPathDirty(filePath: string, adapterId?: string): boolean {
+		return isDirtyPath(this.#state, filePath, adapterId === undefined ? null : [adapterId]);
 	}
 
 	public async close(): Promise<void> {
-		this.#state = 'stopping';
+		if (this.#state.closed) {
+			return;
+		}
+
+		this.#state = reduceRefresh(this.#state, {type: 'close', now: this.#clock.now()});
 		this.#timers.clearAll();
 		this.#abortActive();
+		const error = new Error('Refresh coordinator closed');
+
+		for (const waiting of this.#waiting.values()) {
+			waiting.reject(error);
+		}
+
+		this.#waiting.clear();
 
 		if (this.#running !== null) {
-			try {
-				await this.#running;
-			} catch {
-				// The refresh failure is already recorded.
-			}
+			await this.#running;
 		}
 	}
 
-	#isProjectWideInvalidation(): boolean {
-		return projectWideInvalidationOf(this.#projectWideInvalidation, this.#activeProjectWideInvalidation, this.#state);
-	}
+	async #requestManual(requestValue: RefreshManualRequestType): Promise<BuildReportType> {
+		if (this.#state.closed) {
+			throw new Error('Refresh coordinator closed');
+		}
 
-	#dirtyFileCount(): number | null {
-		return dirtyFileCountOf({
-			pendingProjectWide: this.#projectWideInvalidation,
-			activeProjectWide: this.#activeProjectWideInvalidation,
-			state: this.#state,
-			pending: this.#dirtyPaths,
-			active: this.#activeDirtyPaths,
+		const requestId = String(this.#nextRequestId);
+		this.#nextRequestId += 1;
+		const result = Promise.withResolvers<BuildReportType>();
+		this.#waiting.set(requestId, {resolve: result.resolve, reject: result.reject});
+		this.#state = reduceRefresh(this.#state, {
+			type: 'request',
+			now: this.#clock.now(),
+			reason: 'manual',
+			adapterIds: null,
+			paths: null,
+			force: requestValue.force,
+			requestId,
+			immediate: true,
+			onlyIfClean: false,
 		});
+		this.#schedule();
+		try {
+			return await result.promise;
+		} finally {
+			this.#waiting.delete(requestId);
+		}
 	}
 
 	#abortActive(): void {
@@ -284,211 +250,158 @@ export class RefreshCoordinator {
 		}
 	}
 
-	#schedule(reason: RefreshReasonType, delayMs = this.#debounceMs): void {
-		const effectiveDelay = this.#supersededBackoffMs > 0 ? Math.max(delayMs, this.#supersededBackoffMs) : delayMs;
+	#schedule(): void {
+		this.#timers.clearDebounce();
+		const deadline = nextRefreshDeadline(this.#state);
+
+		if (deadline === null) {
+			return;
+		}
+
+		const delayMs = Math.max(0, deadline - this.#clock.now());
+
+		if (delayMs === 0) {
+			this.#startAttempt();
+			return;
+		}
+
 		this.#timers.scheduleDebounce(() => {
-			void this.#run(reason);
-		}, effectiveDelay);
+			this.#startAttempt();
+		}, delayMs);
 	}
 
-	/**
-	 * Arms the optional safety reconciliation from now.
-	 *
-	 * One-shot by design: the next timer starts only after a refresh finishes, so
-	 * a scan that takes longer than the interval cannot queue overlapping checks.
-	 */
+	#startAttempt(): void {
+		if (this.#running !== null || this.#state.closed) {
+			return;
+		}
+
+		this.#state = reduceRefresh(this.#state, {type: 'capture', now: this.#clock.now()});
+		const attempt = this.#state.active;
+
+		if (attempt === null) {
+			this.#schedule();
+			return;
+		}
+
+		const abort = new AbortController();
+		this.#abort = abort;
+		this.#record('refresh_started', {
+			reason: attempt.reason,
+			dirtyFileCount: dirtyFileCount(this.#state, attempt.adapterIds),
+			adapterCount: attempt.adapterIds?.length ?? null,
+			adapterIds: attempt.adapterIds,
+			force: attempt.force,
+		});
+		debug('refresh run', {reason: attempt.reason, adapters: attempt.adapterIds, force: attempt.force});
+		this.#running = this.#runAttempt(attempt, abort);
+	}
+
+	async #runAttempt(attempt: ActiveRefreshAttemptType, abort: AbortController): Promise<void> {
+		try {
+			await this.#execute(attempt, abort.signal);
+		} finally {
+			this.#running = null;
+			if (this.#abort === abort) {
+				this.#abort = null;
+			}
+
+			this.#armReconcile();
+			this.#schedule();
+		}
+	}
+
+	async #execute(attempt: ActiveRefreshAttemptType, signal: AbortSignal): Promise<void> {
+		try {
+			const report = await this.#runRefresh(attempt.reason, attempt.adapterIds, attempt.force, signal);
+			this.#completeReport(attempt, report);
+		} catch (error) {
+			this.#completeFailure(attempt, error);
+		}
+	}
+
+	#completeReport(attempt: ActiveRefreshAttemptType, report: BuildReportType): void {
+		const completedAt = this.#clock.now();
+		const completedAttempt = this.#completedAttempt(attempt);
+
+		if (report.outcome === 'superseded') {
+			this.#state = reduceRefresh(this.#state, {
+				type: 'superseded',
+				now: completedAt,
+				attemptId: attempt.id,
+				maximumBackoffMs: this.#supersededBackoffMaxMs,
+			});
+			const backoffMs = Math.max(
+				0,
+				...completedAttempt.selectedAdapterIds.map((adapterId) => (this.#state.adapters.get(adapterId)?.backoffDeadline ?? completedAt) - completedAt),
+			);
+			this.#record('refresh_superseded', {
+				reason: attempt.reason,
+				durationMs: Math.round(completedAt - attempt.startedAt),
+				backoffMs,
+				dirtyFileCount: dirtyFileCount(this.#state),
+				adapterCount: attempt.adapterIds?.length ?? null,
+				adapterIds: attempt.adapterIds,
+			});
+		} else {
+			this.#state = reduceRefresh(this.#state, {type: 'published', now: completedAt, attemptId: attempt.id});
+			this.#record('refresh_published', {
+				reason: attempt.reason,
+				durationMs: Math.round(completedAt - attempt.startedAt),
+				eventToPublicationMs: Math.round(completedAt - attempt.firstDirtyAt),
+				dirtyFileCount: dirtyFileCount(this.#state),
+				adapterCount: attempt.adapterIds?.length ?? null,
+				adapterIds: attempt.adapterIds,
+			});
+		}
+
+		for (const requestId of completedAttempt.requestIds) {
+			this.#waiting.get(requestId)?.resolve(report);
+			this.#waiting.delete(requestId);
+		}
+	}
+
+	#completeFailure(attempt: ActiveRefreshAttemptType, error: unknown): void {
+		const completedAt = this.#clock.now();
+		const completedAttempt = this.#completedAttempt(attempt);
+		const message = error instanceof Error ? error.message : String(error);
+		const attributedAdapterId = this.#failedAdapterId(error);
+		const failedAdapterId = attributedAdapterId !== null && completedAttempt.selectedAdapterIds.includes(attributedAdapterId) ? attributedAdapterId : null;
+		this.#state = reduceRefresh(this.#state, {
+			type: 'failed',
+			now: completedAt,
+			attemptId: attempt.id,
+			adapterId: failedAdapterId,
+			error: message,
+			maximumRetryMs: this.#failedRetryMaxMs,
+		});
+		this.#record('refresh_failed', {
+			reason: attempt.reason,
+			durationMs: Math.round(completedAt - attempt.startedAt),
+			eventToPublicationMs: Math.round(completedAt - attempt.firstDirtyAt),
+			dirtyFileCount: dirtyFileCount(this.#state),
+			adapterIds: attempt.adapterIds,
+		});
+		this.#logger.error('refresh_failed', {message});
+
+		for (const requestId of completedAttempt.requestIds) {
+			this.#waiting.get(requestId)?.reject(error);
+			this.#waiting.delete(requestId);
+		}
+	}
+
+	#completedAttempt(attempt: ActiveRefreshAttemptType): ActiveRefreshAttemptType {
+		return this.#state.active?.id === attempt.id ? this.#state.active : attempt;
+	}
+
 	#armReconcile(): void {
 		this.#timers.clearReconcile();
 
-		if (this.#reconcileIntervalMs <= 0 || this.#state === 'stopping') {
+		if (this.#reconcileIntervalMs <= 0 || this.#state.closed) {
 			return;
 		}
 
 		this.#timers.scheduleReconcile(() => {
-			this.requestReconcile();
+			this.request({kind: 'reconcile'});
 		}, this.#reconcileIntervalMs);
-	}
-
-	#armFailureRetry(): void {
-		this.#timers.clearFailureRetry();
-
-		if (this.#state === 'stopping') {
-			return;
-		}
-
-		this.#failureAttempts += 1;
-		const delayMs = Math.min(this.#debounceMs * 2 ** (this.#failureAttempts - 1), this.#failedRetryMaxMs);
-		this.#timers.scheduleFailureRetry(() => {
-			if (this.#state === 'stopping' || this.#state === 'building' || this.#state === 'dirty') {
-				return;
-			}
-
-			// The backoff already absorbed the debounce window, so the retry runs
-			// immediately instead of waiting a second time.
-			this.#checkedAt = new Date().toISOString();
-			this.#firstEventAt ??= this.#clock.now();
-			this.#state = 'dirty';
-			this.#record('watcher_reconcile');
-			void this.#run('reconcile');
-		}, delayMs);
-	}
-
-	async #run(reason: RefreshReasonType): Promise<void> {
-		if (this.#state === 'stopping' || this.#running !== null) {
-			return;
-		}
-
-		const adapterIds = scopeFor(reason, this.#allAdaptersDirty, this.#dirtyAdapters, this.#activeAdapterIds);
-		const abort = new AbortController();
-		this.#activeAdapterIds = adapterIds;
-		this.#activeProjectWideInvalidation = adapterIds === null;
-		this.#activeDirtyPaths.clear();
-
-		for (const changedPath of this.#dirtyPaths) {
-			this.#activeDirtyPaths.add(changedPath);
-		}
-
-		this.#dirtyPaths.clear();
-		this.#dirtyAdapters.clear();
-		this.#allAdaptersDirty = false;
-		this.#projectWideInvalidation = false;
-		this.#refreshAgain = false;
-		this.#supersededBackoffMs = 0;
-		this.#timers.clearFailureRetry();
-		this.#state = 'building';
-		this.#lastReason = reason;
-		this.#lastRefreshStartedAt = new Date(this.#clock.now()).toISOString();
-		const startedAt = this.#clock.now();
-		this.#abort = abort;
-		this.#record('refresh_started', {
-			reason,
-			dirtyFileCount: this.#dirtyFileCount(),
-			adapterCount: adapterIds === null ? null : adapterIds.length,
-			adapterIds,
-		});
-		debug('refresh run', {reason, adapters: adapterIds, dirtyPaths: this.#activeDirtyPaths.size, projectWide: this.#activeProjectWideInvalidation});
-		this.#running = this.#execute(startedAt, abort.signal);
-
-		try {
-			await this.#running;
-		} finally {
-			this.#running = null;
-
-			if (this.#abort === abort) {
-				this.#abort = null;
-			}
-		}
-	}
-
-	#completeSuperseded(startedAt: number, completedAt: number): void {
-		this.#supersededAttempts += 1;
-		const backoffMs = Math.min(this.#debounceMs * 2 ** (this.#supersededAttempts - 1), this.#supersededBackoffMaxMs);
-		this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
-		this.#lastError = null;
-		this.#refreshAgain = false;
-		this.#state = 'dirty';
-		this.#supersededBackoffMs = backoffMs;
-		this.#activeDirtyPaths.clear();
-		this.#activeProjectWideInvalidation = false;
-		this.#record('refresh_superseded', {
-			reason: this.#lastReason,
-			durationMs: Math.round(completedAt - startedAt),
-			attempt: this.#supersededAttempts,
-			backoffMs,
-			dirtyFileCount: this.#dirtyFileCount(),
-			adapterCount: this.#activeAdapterIds === null ? null : this.#activeAdapterIds.length,
-			adapterIds: this.#activeAdapterIds,
-		});
-		// A superseded candidate is discarded, not failed. Exactly one follow-up
-		// runs, delayed by a capped exponential backoff so sustained churn cannot
-		// spin the builder.
-		this.#schedule('change', backoffMs);
-	}
-
-	#completePublished(startedAt: number, completedAt: number): void {
-		this.#supersededAttempts = 0;
-		this.#supersededBackoffMs = 0;
-		this.#failureAttempts = 0;
-		this.#timers.clearFailureRetry();
-		this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
-		this.#lastError = null;
-		this.#record('refresh_published', {
-			reason: this.#lastReason,
-			durationMs: Math.round(completedAt - startedAt),
-			eventToPublicationMs: Math.round(completedAt - (this.#firstEventAt ?? startedAt)),
-			dirtyFileCount: this.#dirtyFileCount(),
-			adapterCount: this.#activeAdapterIds === null ? null : this.#activeAdapterIds.length,
-			adapterIds: this.#activeAdapterIds,
-		});
-		this.#activeDirtyPaths.clear();
-		this.#activeProjectWideInvalidation = false;
-
-		if (this.#refreshAgain) {
-			this.#state = 'dirty';
-			this.#refreshAgain = false;
-			this.#schedule('change');
-			return;
-		}
-
-		this.#state = 'current';
-		this.#firstEventAt = null;
-		this.#dirtyPaths.clear();
-		this.#dirtyAdapters.clear();
-		this.#allAdaptersDirty = false;
-		this.#projectWideInvalidation = false;
-	}
-
-	async #execute(startedAt: number, signal: AbortSignal): Promise<void> {
-		try {
-			const outcome = await this.#runRefresh(this.#lastReason ?? 'manual', this.#activeAdapterIds, signal);
-			const completedAt = this.#clock.now();
-
-			if (outcome === 'superseded') {
-				this.#completeSuperseded(startedAt, completedAt);
-				return;
-			}
-
-			this.#completePublished(startedAt, completedAt);
-		} catch (error) {
-			this.#supersededAttempts = 0;
-			this.#supersededBackoffMs = 0;
-			this.#lastError = error instanceof Error ? error.message : String(error);
-			const completedAt = this.#clock.now();
-			const eventToPublicationMs = completedAt - (this.#firstEventAt ?? startedAt);
-			const hadPendingEvents = this.#refreshAgain;
-			this.#lastRefreshCompletedAt = new Date(completedAt).toISOString();
-			this.#activeDirtyPaths.clear();
-			this.#activeProjectWideInvalidation = false;
-			this.#record('refresh_failed', {
-				reason: this.#lastReason,
-				durationMs: Math.round(completedAt - startedAt),
-				eventToPublicationMs: Math.round(eventToPublicationMs),
-				dirtyFileCount: this.#dirtyFileCount(),
-				adapterIds: this.#activeAdapterIds,
-			});
-			this.#logger.error('refresh_failed', {message: this.#lastError});
-
-			// An event that arrived during the failed build is still pending. One
-			// debounced follow-up is the accepted retry; without it the index would
-			// stay stale until an unrelated edit arrived.
-			if (hadPendingEvents) {
-				this.#refreshAgain = false;
-				this.#state = 'dirty';
-				this.#schedule('change');
-				return;
-			}
-
-			this.#state = 'failed';
-			this.#firstEventAt = null;
-			// A transient failure must recover without waiting for an unrelated
-			// edit: the failure itself never produces a filesystem event. The retry
-			// is bounded and backs off, so a permanently broken workspace costs a
-			// scan per backoff instead of spinning.
-			this.#armFailureRetry();
-		} finally {
-			// The safety interval restarts from completion, never from start, so a
-			// slow scan cannot shorten the gap between scans.
-			this.#armReconcile();
-		}
 	}
 }
