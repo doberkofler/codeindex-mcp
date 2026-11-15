@@ -13,6 +13,7 @@ type ReadQueryInputType = Readonly<{
 	database: IndexDatabase;
 	rootDir: string;
 	generationId: string;
+	generationRevision: number;
 	freshness: QueryFreshnessType;
 	symbol: SymbolSummaryType;
 	/** Normalized adapter filter bound into every list cursor. */
@@ -34,6 +35,7 @@ const pageResult = <ItemType, ResultType>(
 ): ResultType =>
 	boundedPagedResult({
 		generationId: query.generationId,
+		generationRevision: query.generationRevision,
 		items: input.items.slice(input.offset, input.offset + input.limit),
 		offset: input.offset,
 		queryKind: input.queryKind,
@@ -49,7 +51,7 @@ const readList = (
 ): ReadSymbolResultType => {
 	const limit = input.limit ?? 50;
 	const queryKind = JSON.stringify([mode, query.symbol.id, input.bindingId ?? null, input.context ?? null, query.adapter ?? null]);
-	const offset = decodeCursor(input.cursor, query.generationId, queryKind).o;
+	const offset = decodeCursor(input.cursor, query.generationId, query.generationRevision, queryKind).o;
 
 	if (mode === 'sites') {
 		return pageResult(query, {

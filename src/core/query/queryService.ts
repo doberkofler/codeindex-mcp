@@ -17,6 +17,7 @@ import {groupNormalizedQueries, normalizedQueryEntries, resolveQueryScope, type 
 export type QueryContextType = Readonly<{
 	readonly database: IndexDatabase;
 	readonly generationId: string;
+	readonly generationRevision: number;
 	readonly freshness: QueryFreshnessType;
 	/** Configured adapter identifiers in declaration order. */
 	readonly adapters: readonly string[];
@@ -217,6 +218,7 @@ const boundedResult = (
 	try {
 		return boundedPagedResult({
 			generationId: input.context.generationId,
+			generationRevision: input.context.generationRevision,
 			items: input.page.map((item) => reduceItem(item, input.level)),
 			offset: input.offset,
 			queryKind: input.queryKind,
@@ -389,7 +391,7 @@ export const findSymbols = (context: QueryContextType, input: FindSymbolInputTyp
 		scope.adapter ?? null,
 		scope.context ?? null,
 	]);
-	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
+	const offset = decodeCursor(input.cursor, context.generationId, context.generationRevision, queryKind).o;
 	const candidates = loadSymbolCandidates(context, input, scope, {rawQuery, match, exposure, normalizedPath, offset});
 	const ordered = selectBestCandidates(candidates);
 	const pageCandidates = ordered.slice(offset, offset + input.limit);

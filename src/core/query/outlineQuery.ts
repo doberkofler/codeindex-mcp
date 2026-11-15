@@ -40,6 +40,7 @@ export const queryOutline = (
 	input: Readonly<{
 		database: IndexDatabase;
 		generationId: string;
+		generationRevision: number;
 		freshness: QueryFreshnessType;
 		adapters: readonly string[];
 		input: OutlineInputType;
@@ -58,7 +59,7 @@ export const queryOutline = (
 	});
 
 	const queryKind = JSON.stringify(['outline', pathName, kinds, input.input.adapter ?? null]);
-	const offset = decodeCursor(input.input.cursor, input.generationId, queryKind).o;
+	const offset = decodeCursor(input.input.cursor, input.generationId, input.generationRevision, queryKind).o;
 	const rows = input.database.outlineSymbols({
 		generationId: input.generationId,
 		path: pathName,
@@ -77,6 +78,7 @@ export const queryOutline = (
 
 	return boundedPagedResult({
 		generationId: input.generationId,
+		generationRevision: input.generationRevision,
 		items,
 		offset,
 		queryKind,

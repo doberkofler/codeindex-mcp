@@ -291,6 +291,7 @@ export class CodeIndex {
 			return queryOutline({
 				database: this.#database,
 				generationId: generation.id,
+				generationRevision: generation.revision,
 				freshness: this.#freshnessFor(owner),
 				adapters: this.#targets.map((target) => target.adapter.id),
 				input,
@@ -330,7 +331,7 @@ export class CodeIndex {
 	public findSymbols(input: FindSymbolInputType, maxResultBytes = this.#config.maxResultBytes): FindSymbolResultType {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
-			return querySymbols(this.#queryContext(input.adapter, generation.id), input, maxResultBytes);
+			return querySymbols(this.#queryContext(input.adapter, generation), input, maxResultBytes);
 		});
 	}
 	/** Finds occurrences for one symbol identifier or resolves one symbol query in the same call. */
@@ -343,7 +344,7 @@ export class CodeIndex {
 			const generation = this.#generation();
 			const owner =
 				input.adapter ?? (input.symbolId === undefined ? undefined : (this.#database.getSymbol(generation.id, input.symbolId)?.adapter ?? undefined));
-			return queryReferences(this.#queryContext(owner, generation.id), input, maxResultBytes);
+			return queryReferences(this.#queryContext(owner, generation), input, maxResultBytes);
 		});
 	}
 	/**
@@ -360,7 +361,7 @@ export class CodeIndex {
 	public findDependencies(input: FindDependenciesInputType, maxResultBytes = this.#config.maxResultBytes): FindDependenciesResultType {
 		return this.#database.readSnapshot(() => {
 			const generation = this.#generation();
-			return queryDependencies(this.#queryContext(input.adapter, generation.id), input, maxResultBytes);
+			return queryDependencies(this.#queryContext(input.adapter, generation), input, maxResultBytes);
 		});
 	}
 	/**
@@ -378,7 +379,7 @@ export class CodeIndex {
 			const freshness = this.#freshnessFor(input.adapter);
 			const selection = selectReadSymbol(
 				{
-					...this.#queryContext(input.adapter, generation.id),
+					...this.#queryContext(input.adapter, generation),
 					generationId: generation.id,
 					freshness,
 					maxResultBytes,
@@ -401,6 +402,7 @@ export class CodeIndex {
 					database: this.#database,
 					rootDir: this.#config.rootDir,
 					generationId: generation.id,
+					generationRevision: generation.revision,
 					freshness: ownerFreshness,
 					symbol,
 					...(selection.adapter === undefined ? {} : {adapter: selection.adapter}),
@@ -432,10 +434,11 @@ export class CodeIndex {
 	#freshnessFor(adapterId?: string): QueryFreshnessType {
 		return this.#coordinator.getFreshness(adapterId === undefined ? null : [adapterId]);
 	}
-	#queryContext(adapterId?: string, generationId = this.#generation().id): QueryContextType {
+	#queryContext(adapterId: string | undefined, generation: GenerationRowType): QueryContextType {
 		return buildQueryContext({
 			database: this.#database,
-			generationId,
+			generationId: generation.id,
+			generationRevision: generation.revision,
 			freshness: this.#freshnessFor(adapterId),
 			targets: this.#targets,
 			...(this.#analytics === null ? {} : {exactNameTelemetry: this.#recordExactName}),

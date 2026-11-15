@@ -154,6 +154,7 @@ export const withPersistedReferenceIndex = <ValueType>(
 		const context: QueryContextType = {
 			database,
 			generationId: published.id,
+			generationRevision: published.revision,
 			freshness: {state: 'current', checkedAt: new Date().toISOString(), dirtyFileCount: 0},
 			adapters: [input.scan.extractorId],
 			normalizers: new Map(),

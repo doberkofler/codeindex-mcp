@@ -98,7 +98,7 @@ export const findDependencies = (context: QueryContextType, input: FindDependenc
 		scope.adapter ?? null,
 		scope.context ?? null,
 	]);
-	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
+	const offset = decodeCursor(input.cursor, context.generationId, context.generationRevision, queryKind).o;
 	const matches = findDependencyConsumers({
 		database: context.database,
 		generationId: context.generationId,
@@ -124,6 +124,7 @@ export const findDependencies = (context: QueryContextType, input: FindDependenc
 
 	return boundedPagedResult({
 		generationId: context.generationId,
+		generationRevision: context.generationRevision,
 		items,
 		offset,
 		queryKind,

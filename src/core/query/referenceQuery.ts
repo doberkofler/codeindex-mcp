@@ -139,6 +139,7 @@ const occurrenceResultOf = (
 
 	return boundedPagedResult({
 		generationId: input.context.generationId,
+		generationRevision: input.context.generationRevision,
 		items,
 		offset: input.offset,
 		queryKind: input.queryKind,
@@ -246,7 +247,7 @@ export const findReferences = (context: QueryContextType, input: FindReferencesI
 			partitionScope: requestedScope,
 		}),
 	);
-	const offset = decodeCursor(input.cursor, context.generationId, queryKind).o;
+	const offset = decodeCursor(input.cursor, context.generationId, context.generationRevision, queryKind).o;
 	const referenceScope = withSymbol(
 		scopeOf({request: input, scope, role, path: normalizedPath, symbolIds: resolved.symbolIds}),
 		context.generationId,

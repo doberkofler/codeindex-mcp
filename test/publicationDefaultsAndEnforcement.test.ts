@@ -63,15 +63,16 @@ describe('Publication defaults', () => {
 		const fixture = await createFixtureIndex('publication-project');
 
 		try {
-			const {generationId} = fixture.index.getStatus();
+			const {generationId, revision} = fixture.index.getStatus();
 
-			if (generationId === null) {
+			if (generationId === null || revision === null) {
 				throw new Error('Fixture index is not published');
 			}
 			const outcomes: string[] = [];
 			const context: QueryContextType = {
 				database: fixture.database,
 				generationId,
+				generationRevision: revision,
 				freshness: fixture.index.getFreshness(),
 				adapters: ['typescript'],
 				normalizers: new Map(),

@@ -13,6 +13,7 @@ export const buildQueryContext = (
 	input: Readonly<{
 		database: IndexDatabase;
 		generationId: string;
+		generationRevision: number;
 		freshness: QueryFreshnessType;
 		targets: readonly AdapterTargetType[];
 		exactNameTelemetry?: ((presence: ExactNamePresenceType) => void) | undefined;
@@ -31,6 +32,7 @@ export const buildQueryContext = (
 	return {
 		database: input.database,
 		generationId: input.generationId,
+		generationRevision: input.generationRevision,
 		freshness: input.freshness,
 		adapters: input.targets.map((target) => target.adapter.id),
 		normalizers,

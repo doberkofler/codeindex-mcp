@@ -11,7 +11,7 @@ import {
 	type ReferencePartitionType,
 } from '../model.ts';
 
-type QueryContextType = Readonly<{database: IndexDatabase; generationId: string; freshness: QueryFreshnessType}>;
+type QueryContextType = Readonly<{database: IndexDatabase; generationId: string; generationRevision: number; freshness: QueryFreshnessType}>;
 
 type GroupAccumulatorType = Readonly<{
 	path: string;
@@ -120,6 +120,7 @@ const ownerGroupItemOf = (groupValue: GroupAccumulatorType, includeContexts: boo
 const resultForGroup = (
 	input: Readonly<{
 		generationId: string;
+		generationRevision: number;
 		freshness: QueryFreshnessType;
 		selector: 'symbolId' | 'query';
 		partition: ReferencePartitionType;
@@ -137,7 +138,9 @@ const resultForGroup = (
 ): FindReferencesResultType => {
 	const truncated = input.hasMore || input.count < input.page.length;
 	const nextCursor = truncated
-		? Buffer.from(JSON.stringify({g: input.generationId, q: input.queryKind, o: input.offset + input.count}), 'utf8').toString('base64url')
+		? Buffer.from(JSON.stringify({g: input.generationId, r: input.generationRevision, q: input.queryKind, o: input.offset + input.count}), 'utf8').toString(
+				'base64url',
+			)
 		: null;
 	const common = {
 		generationId: input.generationId,
@@ -171,6 +174,7 @@ const resultForGroup = (
 const boundedGroupPage = (
 	input: Readonly<{
 		generationId: string;
+		generationRevision: number;
 		freshness: QueryFreshnessType;
 		selector: 'symbolId' | 'query';
 		partition: ReferencePartitionType;
@@ -262,6 +266,7 @@ export const groupedResultOf = (
 
 	return boundedGroupPage({
 		generationId: input.context.generationId,
+		generationRevision: input.context.generationRevision,
 		freshness: input.context.freshness,
 		selector: input.selector,
 		partition: input.partition,

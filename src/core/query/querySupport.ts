@@ -3,6 +3,7 @@ import {CodeIndexError} from '../errors/errors.ts';
 
 const CursorSchema = z.object({
 	g: z.string().min(1),
+	r: z.number().int().nonnegative(),
 	q: z.string().min(1),
 	o: z.number().int().nonnegative(),
 });
@@ -20,6 +21,7 @@ type PageType<ItemType> = Readonly<{
 const pageOf = <ItemType>(
 	input: Readonly<{
 		generationId: string;
+		generationRevision: number;
 		items: readonly ItemType[];
 		count: number;
 		offset: number;
@@ -31,20 +33,20 @@ const pageOf = <ItemType>(
 
 	return {
 		items: input.items.slice(0, input.count),
-		nextCursor: truncated ? encodeCursor({g: input.generationId, q: input.queryKind, o: input.offset + input.count}) : null,
+		nextCursor: truncated ? encodeCursor({g: input.generationId, r: input.generationRevision, q: input.queryKind, o: input.offset + input.count}) : null,
 		truncated,
 	};
 };
 
-export const decodeCursor = (value: string | undefined, generationId: string, queryKind: string): CursorType => {
+export const decodeCursor = (value: string | undefined, generationId: string, generationRevision: number, queryKind: string): CursorType => {
 	if (value === undefined) {
-		return {g: generationId, q: queryKind, o: 0};
+		return {g: generationId, r: generationRevision, q: queryKind, o: 0};
 	}
 
 	try {
 		const parsed = CursorSchema.safeParse(JSON.parse(Buffer.from(value, 'base64url').toString('utf8')));
 
-		if (!parsed.success || parsed.data.g !== generationId || parsed.data.q !== queryKind) {
+		if (!parsed.success || parsed.data.g !== generationId || parsed.data.r !== generationRevision || parsed.data.q !== queryKind) {
 			throw new CodeIndexError('invalid_cursor', 'Cursor does not belong to the current generation or query');
 		}
 
@@ -71,6 +73,7 @@ export const decodeCursor = (value: string | undefined, generationId: string, qu
 export const boundedPagedResult = <ItemType, ResultType>(
 	input: Readonly<{
 		generationId: string;
+		generationRevision: number;
 		items: readonly ItemType[];
 		offset: number;
 		queryKind: string;
@@ -83,6 +86,7 @@ export const boundedPagedResult = <ItemType, ResultType>(
 		input.createResult(
 			pageOf({
 				generationId: input.generationId,
+				generationRevision: input.generationRevision,
 				items: input.items,
 				count,
 				offset: input.offset,

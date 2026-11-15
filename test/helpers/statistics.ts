@@ -101,13 +101,22 @@ export const publishNewGeneration = (databasePath: string, id: string, symbolCou
  * Builds the query context used by direct core query tests.
  *
  * @param database - Open index database.
- * @param generationId - Published generation identifier.
+ * @param generationId - Published generation identifier and revision source.
  * @returns A current-freshness query context.
  */
-export const queryContextOf = (database: IndexDatabase, generationId: string): Parameters<typeof findSymbols>[0] => ({
-	database,
-	generationId,
-	freshness: {state: 'current', checkedAt: '1970-01-01T00:00:00.000Z', dirtyFileCount: 0},
-	adapters: ['typescript'],
-	normalizers: new Map(),
-});
+export const queryContextOf = (database: IndexDatabase, generationId: string): Parameters<typeof findSymbols>[0] => {
+	const generation = database.getGeneration(generationId);
+
+	if (generation === null) {
+		throw new Error(`Unknown generation: ${generationId}`);
+	}
+
+	return {
+		database,
+		generationId,
+		generationRevision: generation.revision,
+		freshness: {state: 'current', checkedAt: '1970-01-01T00:00:00.000Z', dirtyFileCount: 0},
+		adapters: ['typescript'],
+		normalizers: new Map(),
+	};
+};
