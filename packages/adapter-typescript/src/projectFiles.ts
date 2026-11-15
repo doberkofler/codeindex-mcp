@@ -12,11 +12,12 @@ import {isAuthoredSourceFile} from './sourcePaths.ts';
 export type SourceBytesReaderType = (absolutePath: string) => Uint8Array | undefined;
 
 /**
- * Merges one production program's authored files into the scanned manifest.
+ * Selects one production program's authored files from the adapter-wide scan.
  *
  * Files imported from outside a project include are added with the bytes the
  * compiler parsed, so extraction, freshness, and verification observe the same
- * authored set. Multiple project contexts are merged by the caller.
+ * authored set. Files owned only by other configured programs stay out of this
+ * context; the caller merges all context-local sets for publication.
  *
  * @param config - Resolved project configuration.
  * @param scan - Scan manifest for the workspace.
@@ -31,7 +32,8 @@ export const mergeProjectFiles = (
 	project: LoadedProjectType,
 	readBytes: SourceBytesReaderType,
 ): readonly SourceFileType[] => {
-	const mergedFiles = new Map(scan.files.map((file) => [file.path, file]));
+	const scannedFiles = new Map(scan.files.map((file) => [file.path, file]));
+	const projectFiles = new Map<string, SourceFileType>();
 
 	for (const sourceFile of sourceFilesOf(project.program)) {
 		if (!isAuthoredSourceFile(sourceFile.fileName, config.rootDir)) {
@@ -39,17 +41,21 @@ export const mergeProjectFiles = (
 		}
 
 		const path = toRepositoryPath(config.rootDir, sourceFile.fileName);
+		const scanned = scannedFiles.get(path);
 
-		if (!mergedFiles.has(path)) {
-			const bytes = readBytes(sourceFile.fileName);
-
-			if (bytes === undefined) {
-				throw new Error(`Source disappeared during build: ${path}`);
-			}
-
-			mergedFiles.set(path, createCapturedSourceFileRecord(sourceFile.fileName, config.rootDir, bytes, sourceFile.text));
+		if (scanned !== undefined) {
+			projectFiles.set(path, scanned);
+			continue;
 		}
+
+		const bytes = readBytes(sourceFile.fileName);
+
+		if (bytes === undefined) {
+			throw new Error(`Source disappeared during build: ${path}`);
+		}
+
+		projectFiles.set(path, createCapturedSourceFileRecord(sourceFile.fileName, config.rootDir, bytes, sourceFile.text));
 	}
 
-	return [...mergedFiles.values()].sort((left, right) => left.path.localeCompare(right.path));
+	return [...projectFiles.values()].sort((left, right) => left.path.localeCompare(right.path));
 };

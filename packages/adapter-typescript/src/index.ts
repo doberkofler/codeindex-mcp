@@ -56,11 +56,17 @@ const mergeSymbols = (symbols: readonly IndexedSymbolType[]): readonly IndexedSy
 
 	for (const symbol of symbols) {
 		const existing = merged.get(symbol.id);
-		const base = existing === undefined || symbol.qualifiedName < existing.qualifiedName ? symbol : existing;
+
+		if (existing === undefined) {
+			merged.set(symbol.id, symbol);
+			continue;
+		}
+
+		const base = symbol.qualifiedName < existing.qualifiedName ? symbol : existing;
 
 		merged.set(symbol.id, {
 			...base,
-			contexts: sortedContexts(existing?.contexts, symbol.contexts),
+			contexts: sortedContexts(existing.contexts, symbol.contexts),
 		});
 	}
 
@@ -76,9 +82,14 @@ const mergeOccurrences = (occurrences: readonly IndexedOccurrenceType[]): readon
 		const key = occurrenceKey(occurrence);
 		const existing = merged.get(key);
 
+		if (existing === undefined) {
+			merged.set(key, occurrence);
+			continue;
+		}
+
 		merged.set(key, {
-			...(existing ?? occurrence),
-			contexts: sortedContexts(existing?.contexts, occurrence.contexts),
+			...existing,
+			contexts: sortedContexts(existing.contexts, occurrence.contexts),
 		});
 	}
 
