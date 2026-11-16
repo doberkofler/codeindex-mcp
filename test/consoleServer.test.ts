@@ -36,6 +36,7 @@ const status: IndexStatusType = {
 	generationId: 'generation-1',
 	revision: 1,
 	building: false,
+	activity: null,
 	scope: {
 		root: '/repo',
 		projectName: 'project',
@@ -44,9 +45,15 @@ const status: IndexStatusType = {
 		adapters: [
 			{
 				id: 'typescript',
+				displayName: 'TypeScript / JavaScript',
 				version: '0.1.0',
+				required: true,
 				coverage: 'present',
 				absenceReason: null,
+				revision: 1,
+				counts: {files: 4, symbols: 10, occurrences: 20, dependencyEdges: 5, dependencyBindings: 6, diagnostics: 0},
+				stages: null,
+				freshness: {state: 'current', checkedAt: '2026-10-18T00:00:00.000Z', dirtyFileCount: 0},
 				compilerVersion: '6.0.3',
 				declaredCompilerVersion: '6.0.3',
 				compilerDrift: false,
@@ -87,11 +94,13 @@ const meta: ConsoleMetaType = {
 	logLevel: 'error',
 	loopbackOnly: true,
 	tokenRequired: true,
-	operations: ['update', 'rebuild', 'verify', 'benchmark', 'qualify'],
+	operations: ['update', 'rebuild', 'verify'],
 };
 
-const createService = (): Readonly<{service: ConsoleServicePortType; operations: ConsoleOperationType[]}> => {
-	const operations: ConsoleOperationType[] = [];
+type CapturedOperationType = Readonly<{operation: ConsoleOperationType; adapterId: string | null}>;
+
+const createService = (): Readonly<{service: ConsoleServicePortType; operations: CapturedOperationType[]}> => {
+	const operations: CapturedOperationType[] = [];
 	const jobs: ConsoleJobType[] = [];
 	const dashboard: AnalyticsDashboardType = buildAnalyticsDashboard('/nonexistent/events.jsonl', '24h');
 	const service: ConsoleServicePortType = {
@@ -100,11 +109,13 @@ const createService = (): Readonly<{service: ConsoleServicePortType; operations:
 		jobs,
 		snapshot: (): ConsoleSnapshotType => ({meta, status, jobs}),
 		analytics: (_window: AnalyticsWindowType): AnalyticsDashboardType => dashboard,
-		runOperation: (operation): ConsoleJobType => {
-			operations.push(operation);
+		runOperation: (operation, adapterId = null): ConsoleJobType => {
+			operations.push({operation, adapterId});
 			const job: ConsoleJobType = {
 				id: `job-${operations.length}`,
 				operation,
+				adapterId,
+				phase: null,
 				state: 'queued',
 				createdAt: '2026-10-18T00:00:00.000Z',
 				startedAt: null,
@@ -135,33 +146,33 @@ const createStaticRoot = (): Readonly<{root: string; cleanup: () => void}> => {
 	};
 };
 
-describe('console HTTP server', () => {
-	let server: ConsoleServerHandleType | undefined;
-	let cleanup: (() => void) | undefined;
+let server: ConsoleServerHandleType | undefined;
+let cleanup: (() => void) | undefined;
 
+const start = async (): Promise<Readonly<{servicePort: ReturnType<typeof createService>; url: string}>> => {
+	const staticRoot = createStaticRoot();
+	const servicePort = createService();
+	const {root, cleanup: dispose} = staticRoot;
+	cleanup = dispose;
+	server = await startConsoleServer({
+		service: servicePort.service,
+		token: TOKEN,
+		staticRoot: root,
+		host: '127.0.0.1',
+		port: 0,
+		logger: silentLogger,
+	});
+
+	return {servicePort, url: server.url};
+};
+
+describe('console HTTP server', () => {
 	afterEach(async () => {
 		await server?.close();
 		server = undefined;
 		cleanup?.();
 		cleanup = undefined;
 	});
-
-	const start = async (): Promise<Readonly<{servicePort: ReturnType<typeof createService>; url: string}>> => {
-		const staticRoot = createStaticRoot();
-		const servicePort = createService();
-		const {root, cleanup: dispose} = staticRoot;
-		cleanup = dispose;
-		server = await startConsoleServer({
-			service: servicePort.service,
-			token: TOKEN,
-			staticRoot: root,
-			host: '127.0.0.1',
-			port: 0,
-			logger: silentLogger,
-		});
-
-		return {servicePort, url: server.url};
-	};
 
 	it('serves the bundle without a token and protects every API route', async () => {
 		const {url} = await start();
@@ -220,7 +231,28 @@ describe('console HTTP server', () => {
 		expect(badOperation.status).toBe(400);
 		expect(accepted.status).toBe(202);
 		expect(acceptedBody.job.operation).toBe('verify');
-		expect(servicePort.operations).toStrictEqual(['verify']);
+		expect(servicePort.operations).toStrictEqual([{operation: 'verify', adapterId: null}]);
+	});
+
+	it('validates adapter-scoped maintenance targets', async () => {
+		const {servicePort, url} = await start();
+		const scoped = await authorized(new URL('api/jobs', url), {
+			method: 'POST',
+			body: JSON.stringify({operation: 'update', adapterId: 'typescript'}),
+		});
+		const unknown = await authorized(new URL('api/jobs', url), {
+			method: 'POST',
+			body: JSON.stringify({operation: 'rebuild', adapterId: 'oracle'}),
+		});
+		const scopedVerify = await authorized(new URL('api/jobs', url), {
+			method: 'POST',
+			body: JSON.stringify({operation: 'verify', adapterId: 'typescript'}),
+		});
+
+		expect(scoped.status).toBe(202);
+		expect(unknown.status).toBe(400);
+		expect(scopedVerify.status).toBe(400);
+		expect(servicePort.operations).toStrictEqual([{operation: 'update', adapterId: 'typescript'}]);
 	});
 
 	it('accepts same-origin mutations on an allocated port', async () => {

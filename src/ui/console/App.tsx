@@ -1,10 +1,9 @@
 import {Alert, Box, Button, Card, CardContent, CircularProgress, CssBaseline, Stack, ThemeProvider, Typography, useMediaQuery} from '@mui/material';
 import {useMemo, useState} from 'react';
-import {type AnalyticsToolType, type AnalyticsWindowType, type ConsoleJobType, type ConsoleOperationType} from '../../transports/console/contracts.ts';
+import {type AnalyticsToolType, type AnalyticsWindowType, type ConsoleJobType, type ConsoleOperationRequestType} from '../../transports/console/contracts.ts';
 import {AnalyticsPage} from './AnalyticsPage.tsx';
 import {AppShell, type ThemeModeType, type ViewType} from './AppShell.tsx';
 import {clearToken, readToken, storeToken, useAnalytics, useRunOperation, useSnapshot} from './api.ts';
-import {ConfigurationPage} from './ConfigurationPage.tsx';
 import {OperationsPage} from './OperationsPage.tsx';
 import {OverviewPage} from './OverviewPage.tsx';
 import {createConsoleTheme} from './theme.ts';
@@ -16,6 +15,31 @@ const storedThemeMode = (): ThemeModeType => {
 	const value = localStorage.getItem(THEME_KEY);
 	return value === 'light' || value === 'dark' || value === 'system' ? value : 'system';
 };
+
+const ConnectionPending = () => (
+	<Box sx={{minHeight: '100dvh', display: 'grid', placeItems: 'center'}}>
+		<Stack spacing={2} sx={{alignItems: 'center'}}>
+			<CircularProgress />
+			<Typography color="text.secondary">Connecting to the index...</Typography>
+		</Stack>
+	</Box>
+);
+
+const ConnectionError = ({message, onDisconnect}: Readonly<{message: string; onDisconnect: () => void}>) => (
+	<Box sx={{minHeight: '100dvh', display: 'grid', placeItems: 'center', p: 2}}>
+		<Card sx={{maxWidth: 560, width: '100%'}}>
+			<CardContent sx={{p: 4}}>
+				<Stack spacing={2}>
+					<Typography variant="h5">Console connection failed</Typography>
+					<Alert severity="error">{message}</Alert>
+					<Button variant="contained" onClick={onDisconnect}>
+						Enter a different token
+					</Button>
+				</Stack>
+			</CardContent>
+		</Card>
+	</Box>
+);
 
 const ConnectedApp = ({
 	token,
@@ -37,38 +61,19 @@ const ConnectedApp = ({
 	const operation = useRunOperation(token);
 
 	if (snapshot.isPending) {
-		return (
-			<Box sx={{minHeight: '100dvh', display: 'grid', placeItems: 'center'}}>
-				<Stack spacing={2} sx={{alignItems: 'center'}}>
-					<CircularProgress />
-					<Typography color="text.secondary">Connecting to the index...</Typography>
-				</Stack>
-			</Box>
-		);
+		return <ConnectionPending />;
 	}
 
 	if (snapshot.data === undefined) {
-		return (
-			<Box sx={{minHeight: '100dvh', display: 'grid', placeItems: 'center', p: 2}}>
-				<Card sx={{maxWidth: 560, width: '100%'}}>
-					<CardContent sx={{p: 4}}>
-						<Stack spacing={2}>
-							<Typography variant="h5">Console connection failed</Typography>
-							<Alert severity="error">{snapshot.error instanceof Error ? snapshot.error.message : 'The console did not respond.'}</Alert>
-							<Button variant="contained" onClick={onDisconnect}>
-								Enter a different token
-							</Button>
-						</Stack>
-					</CardContent>
-				</Card>
-			</Box>
-		);
+		const message = snapshot.error instanceof Error ? snapshot.error.message : 'The console did not respond.';
+		return <ConnectionError message={message} onDisconnect={onDisconnect} />;
 	}
 
 	const activeJob = snapshot.data.jobs.find((job) => job.state === 'queued' || job.state === 'running') ?? null;
-	const run = (name: ConsoleOperationType): void => {
+	const busy = operation.isPending || activeJob !== null || snapshot.data.status.activity !== null;
+	const run = (requestValue: ConsoleOperationRequestType): void => {
 		setView('operations');
-		operation.mutate(name);
+		operation.mutate(requestValue);
 	};
 
 	return (
@@ -86,12 +91,15 @@ const ConnectedApp = ({
 			{view === 'overview' ? (
 				<OverviewPage
 					snapshot={snapshot.data}
-					busy={activeJob !== null}
+					busy={busy}
 					onOpenOperations={() => {
 						setView('operations');
 					}}
 					onRunUpdate={() => {
-						run('update');
+						run({operation: 'update', adapterId: null});
+					}}
+					onRunAdapter={(adapterId) => {
+						run({operation: 'update', adapterId});
 					}}
 				/>
 			) : null}
@@ -102,6 +110,7 @@ const ConnectedApp = ({
 					loading={analytics.isFetching}
 					error={analytics.error instanceof Error ? analytics.error.message : null}
 					selectedTool={selectedTool}
+					status={snapshot.data.status}
 					onWindowChange={setWindow}
 					onSelectTool={setSelectedTool}
 				/>
@@ -113,10 +122,10 @@ const ConnectedApp = ({
 					error={operation.error instanceof Error ? operation.error.message : null}
 					resultJob={resultJob}
 					onRun={run}
+					busy={busy}
 					onShowResult={setResultJob}
 				/>
 			) : null}
-			{view === 'configuration' ? <ConfigurationPage meta={snapshot.data.meta} /> : null}
 		</AppShell>
 	);
 };

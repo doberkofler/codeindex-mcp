@@ -44,7 +44,7 @@ describe('console browser entry', () => {
 
 		await import('../src/ui/console/main.tsx');
 
-		const heading = await screen.findByText('Your code index, at a glance.');
+		const heading = await screen.findByText('Workspace index status');
 		expect(heading).not.toBeNull();
 	});
 

@@ -255,8 +255,34 @@ type DashboardStateType = {
 	readonly builds: BuildAccumulatorType;
 	readonly freshness: Map<string, number>;
 	readonly publicationDurations: number[];
+	readonly adapters: Map<string, {extractions: number; factWrites: number; failures: number}>;
 	refreshes: number;
 	coalesced: number;
+};
+
+const accumulateAdapterActivity = (state: DashboardStateType, event: AnalyticsEventType): void => {
+	const activity = event['adapterActivity'];
+
+	if (Array.isArray(activity)) {
+		for (const entry of activity) {
+			if (!isRecord(entry) || typeof entry['adapterId'] !== 'string') {
+				continue;
+			}
+
+			const adapter = state.adapters.get(entry['adapterId']) ?? {extractions: 0, factWrites: 0, failures: 0};
+			adapter.extractions += typeof entry['extractions'] === 'number' ? entry['extractions'] : 0;
+			adapter.factWrites += typeof entry['factWrites'] === 'number' ? entry['factWrites'] : 0;
+			state.adapters.set(entry['adapterId'], adapter);
+		}
+	}
+
+	const failedAdapter = event.event === 'build_failed' ? stringField(event, 'adapter') : null;
+
+	if (failedAdapter !== null) {
+		const adapter = state.adapters.get(failedAdapter) ?? {extractions: 0, factWrites: 0, failures: 0};
+		adapter.failures += 1;
+		state.adapters.set(failedAdapter, adapter);
+	}
 };
 
 const accumulateDashboardEvent = (state: DashboardStateType, event: AnalyticsEventType, durationMs: number): void => {
@@ -276,6 +302,7 @@ const accumulateDashboardEvent = (state: DashboardStateType, event: AnalyticsEve
 
 	if ((event.event === 'build_complete' || event.event === 'build_reused' || event.event === 'build_failed') && duration !== null) {
 		accumulateBuild({event, durationMs: duration, bucket: key, builds: state.builds, bucketState: bucket});
+		accumulateAdapterActivity(state, event);
 	}
 
 	if (event.event === 'refresh_published') {
@@ -316,6 +343,7 @@ export const buildAnalyticsDashboard = (analyticsPath: string, window: Analytics
 		builds: {durations: [], outcomeDurations: {complete: [], reused: [], failed: []}, stageValues: new Map(), timeline: [], failures: 0},
 		freshness: new Map(),
 		publicationDurations: [],
+		adapters: new Map(),
 		refreshes: 0,
 		coalesced: 0,
 	};
@@ -371,5 +399,6 @@ export const buildAnalyticsDashboard = (analyticsPath: string, window: Analytics
 			successfulEventToPublicationP95Ms: percentile(publicationDurations, 0.95),
 			timeline: timelineOf(buckets),
 		},
+		adapters: [...state.adapters.entries()].map(([id, adapter]) => ({id, ...adapter})).sort((left, right) => left.id.localeCompare(right.id)),
 	};
 };

@@ -23,6 +23,8 @@ import AnalyticsIcon from '@mui/icons-material/Analytics';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined';
 import SpeedIcon from '@mui/icons-material/Speed';
+import {useState} from 'react';
+import {type IndexStatusType} from '../../core/model.ts';
 import {type AnalyticsDashboardType, type AnalyticsToolType, type AnalyticsWindowType} from '../../transports/console/contracts.ts';
 import {BarList} from './components/BarList.tsx';
 import {MetricCard} from './components/MetricCard.tsx';
@@ -40,6 +42,7 @@ type AnalyticsPagePropsType = Readonly<{
 	loading: boolean;
 	error: string | null;
 	selectedTool: AnalyticsToolType | null;
+	status: IndexStatusType;
 	onWindowChange: (window: AnalyticsWindowType) => void;
 	onSelectTool: (tool: AnalyticsToolType | null) => void;
 }>;
@@ -282,56 +285,147 @@ const AnalyticsContent = ({dashboard, onSelectTool}: Readonly<{dashboard: Analyt
 	</Stack>
 );
 
-export const AnalyticsPage = ({dashboard, window, loading, error, selectedTool, onWindowChange, onSelectTool}: AnalyticsPagePropsType) => (
-	<Stack spacing={3}>
-		<Stack direction={{xs: 'column', md: 'row'}} spacing={2} sx={{justifyContent: 'space-between'}}>
-			<Box>
-				<Typography variant="h4">Analytics</Typography>
-				<Typography color="text.secondary">Privacy-safe aggregates from local MCP and build telemetry. No source, prompts, or queries.</Typography>
-			</Box>
+const AdapterAnalytics = ({dashboard, status, adapterId}: Readonly<{dashboard: AnalyticsDashboardType; status: IndexStatusType; adapterId: string}>) => {
+	const adapter = status.scope.adapters.find((candidate) => candidate.id === adapterId);
+	const activity = dashboard.adapters.find((candidate) => candidate.id === adapterId);
+	const stats = status.buildStats.filter((stat) => stat.language === adapterId);
+
+	if (adapter === undefined) {
+		return <Alert severity="error">Adapter {adapterId} is no longer configured.</Alert>;
+	}
+
+	return (
+		<Stack spacing={3}>
+			<Grid container spacing={2}>
+				<Grid size={{xs: 12, sm: 6, lg: 3}}>
+					<MetricCard label="Files" value={formatNumber(adapter.counts.files)} icon={<AnalyticsIcon />} hint={adapter.coverage} />
+				</Grid>
+				<Grid size={{xs: 12, sm: 6, lg: 3}}>
+					<MetricCard label="Symbols" value={formatNumber(adapter.counts.symbols)} icon={<AnalyticsIcon />} hint={`${adapter.contexts.length} contexts`} />
+				</Grid>
+				<Grid size={{xs: 12, sm: 6, lg: 3}}>
+					<MetricCard
+						label="Extractions"
+						value={formatNumber(activity?.extractions ?? 0)}
+						icon={<SpeedIcon />}
+						hint={`${formatNumber(activity?.factWrites ?? 0)} fact writes`}
+					/>
+				</Grid>
+				<Grid size={{xs: 12, sm: 6, lg: 3}}>
+					<MetricCard label="Failures" value={formatNumber(activity?.failures ?? 0)} icon={<ErrorOutlinedIcon />} hint={`Within ${dashboard.window.since}`} />
+				</Grid>
+			</Grid>
+			<Grid container spacing={2}>
+				<Grid size={{xs: 12, lg: 6}}>
+					<Card sx={{height: '100%'}}>
+						<CardContent>
+							<Typography variant="h6">Latest adapter stages</Typography>
+							<BarList
+								items={Object.entries(adapter.stages ?? {}).map(([label, value]) => ({
+									label,
+									value,
+									display: formatDuration(value),
+									color: 'secondary',
+								}))}
+								emptyLabel="No adapter timing is available"
+							/>
+						</CardContent>
+					</Card>
+				</Grid>
+				<Grid size={{xs: 12, lg: 6}}>
+					<Card sx={{height: '100%'}}>
+						<CardContent>
+							<Typography variant="h6">Published fact statistics</Typography>
+							<BarList
+								items={stats.slice(0, 20).map((stat) => ({
+									label: [stat.metric, stat.dim1, stat.dim2, stat.dim3].filter(Boolean).join(' · '),
+									value: stat.value,
+									display: formatNumber(stat.value),
+									color: 'primary',
+								}))}
+								emptyLabel="No adapter statistics are available"
+							/>
+						</CardContent>
+					</Card>
+				</Grid>
+			</Grid>
+		</Stack>
+	);
+};
+
+export const AnalyticsPage = ({dashboard, window, loading, error, selectedTool, status, onWindowChange, onSelectTool}: AnalyticsPagePropsType) => {
+	const [scope, setScope] = useState<string>('workspace');
+
+	return (
+		<Stack spacing={3}>
+			<Stack direction={{xs: 'column', md: 'row'}} spacing={2} sx={{justifyContent: 'space-between'}}>
+				<Box>
+					<Typography variant="h4">Analytics</Typography>
+					<Typography color="text.secondary">Privacy-safe aggregates from local MCP and build telemetry. No source, prompts, or queries.</Typography>
+				</Box>
+				<ToggleButtonGroup
+					size="small"
+					exclusive
+					value={window}
+					onChange={(_event, value: AnalyticsWindowType | null) => {
+						if (value !== null) {
+							onWindowChange(value);
+						}
+					}}
+				>
+					{WINDOWS.map((candidate) => (
+						<ToggleButton key={candidate} value={candidate} sx={{px: 2}}>
+							{candidate}
+						</ToggleButton>
+					))}
+				</ToggleButtonGroup>
+			</Stack>
 			<ToggleButtonGroup
 				size="small"
 				exclusive
-				value={window}
-				onChange={(_event, value: AnalyticsWindowType | null) => {
+				value={scope}
+				onChange={(_event, value: string | null) => {
 					if (value !== null) {
-						onWindowChange(value);
+						setScope(value);
 					}
 				}}
 			>
-				{WINDOWS.map((candidate) => (
-					<ToggleButton key={candidate} value={candidate} sx={{px: 2}}>
-						{candidate}
+				<ToggleButton value="workspace">Workspace</ToggleButton>
+				{status.scope.adapters.map((adapter) => (
+					<ToggleButton key={adapter.id} value={adapter.id}>
+						{adapter.displayName}
 					</ToggleButton>
 				))}
 			</ToggleButtonGroup>
+			{error === null ? null : <Alert severity="error">{error}</Alert>}
+			{loading && dashboard === undefined ? (
+				<Stack spacing={2}>
+					<Skeleton variant="rounded" height={120} />
+					<Skeleton variant="rounded" height={320} />
+					<Skeleton variant="rounded" height={260} />
+				</Stack>
+			) : dashboard === undefined ? (
+				<Alert severity="info">Analytics are not available yet.</Alert>
+			) : dashboard.window.events === 0 ? (
+				<Card>
+					<CardContent sx={{py: 8, textAlign: 'center'}}>
+						<Typography variant="h6" gutterBottom>
+							No analytics in this window
+						</Typography>
+						<Typography color="text.secondary">Run MCP queries or change the window to see aggregates.</Typography>
+					</CardContent>
+				</Card>
+			) : scope === 'workspace' ? (
+				<AnalyticsContent dashboard={dashboard} onSelectTool={onSelectTool} />
+			) : (
+				<AdapterAnalytics dashboard={dashboard} status={status} adapterId={scope} />
+			)}
+			<ToolDialog
+				tool={selectedTool}
+				onClose={() => {
+					onSelectTool(null);
+				}}
+			/>
 		</Stack>
-		{error === null ? null : <Alert severity="error">{error}</Alert>}
-		{loading && dashboard === undefined ? (
-			<Stack spacing={2}>
-				<Skeleton variant="rounded" height={120} />
-				<Skeleton variant="rounded" height={320} />
-				<Skeleton variant="rounded" height={260} />
-			</Stack>
-		) : dashboard === undefined ? (
-			<Alert severity="info">Analytics are not available yet.</Alert>
-		) : dashboard.window.events === 0 ? (
-			<Card>
-				<CardContent sx={{py: 8, textAlign: 'center'}}>
-					<Typography variant="h6" gutterBottom>
-						No analytics in this window
-					</Typography>
-					<Typography color="text.secondary">Run MCP queries or change the window to see aggregates.</Typography>
-				</CardContent>
-			</Card>
-		) : (
-			<AnalyticsContent dashboard={dashboard} onSelectTool={onSelectTool} />
-		)}
-		<ToolDialog
-			tool={selectedTool}
-			onClose={() => {
-				onSelectTool(null);
-			}}
-		/>
-	</Stack>
-);
+	);
+};

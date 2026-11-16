@@ -7,6 +7,7 @@ import {type GenerationRowType} from '../model.ts';
 import {type IndexDatabase} from '../storage/database.ts';
 import {probeAdapter, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
 import {recordCompilerDrift} from './compilerDriftTelemetry.ts';
+import {type BuildProgressType} from './buildProgress.ts';
 
 /**
  * Narrows configured adapters to the event scope.
@@ -42,11 +43,13 @@ export const planAdapterScans = async (
 		analytics: AnalyticsRecorderType | null;
 		observed: Set<string>;
 		executionContext?: AdapterExecutionContextType;
+		onProgress?: (progress: BuildProgressType) => void;
 	}>,
 ): Promise<readonly AdapterScanPlanType[]> => {
 	const plans: AdapterScanPlanType[] = [];
 
 	for (const target of input.targets) {
+		input.onProgress?.({phase: 'scanning', adapterId: target.adapter.id});
 		input.executionContext?.throwIfCancellationRequested();
 		const scoped = adapterConfigFor(input.config, target.adapter);
 		// Adapter probes are sequential so absence and failure attribution follow

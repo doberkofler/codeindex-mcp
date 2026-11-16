@@ -275,7 +275,7 @@ export type BuildStatType = Readonly<{
 	readonly value: number;
 }>;
 
-export type {IndexStatusSummaryType, IndexStatusType} from './modelStatus.ts';
+export type {IndexActivityType, IndexStatusSummaryType, IndexStatusType} from './modelStatus.ts';
 
 export type {
 	SymbolSummaryType,

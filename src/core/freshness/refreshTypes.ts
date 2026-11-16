@@ -1,5 +1,5 @@
 import {type LoggerType} from '../logging/logger.ts';
-import {type BuildReportType, type RefreshStateType} from '../model.ts';
+import {type BuildReportType, type QueryFreshnessType, type RefreshStateType} from '../model.ts';
 import {type ClockType} from './refreshClock.ts';
 import {type RefreshAdapterDefinitionType} from './refreshReducer.ts';
 import {type RefreshAdapterScopeType, type RefreshReasonType} from './refreshScope.ts';
@@ -21,6 +21,7 @@ export type RefreshChangeRequestType = Readonly<{
 export type RefreshManualRequestType = Readonly<{
 	kind: 'manual';
 	force: boolean;
+	adapterIds?: RefreshAdapterScopeType;
 }>;
 
 export type RefreshReconcileRequestType = Readonly<{
@@ -43,6 +44,11 @@ export type RefreshCoordinatorSnapshotType = Readonly<{
 	readonly lastReason: RefreshReasonType | null;
 	/** Adapters captured by the running or most recent attempt, or null for all. */
 	readonly refreshAdapterIds: readonly string[] | null;
+	readonly adapters?: readonly Readonly<{
+		readonly id: string;
+		readonly freshness: QueryFreshnessType;
+		readonly lastError: string | null;
+	}>[];
 }>;
 
 export type RefreshCoordinatorOptionsType = Readonly<{

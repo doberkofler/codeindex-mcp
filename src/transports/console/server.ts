@@ -22,13 +22,20 @@ export type ConsoleServicePortType = Readonly<{
 	readonly jobs: readonly ConsoleJobType[];
 	snapshot: () => ConsoleSnapshotType;
 	analytics: (window: AnalyticsWindowType) => AnalyticsDashboardType;
-	runOperation: (operation: ConsoleOperationType) => ConsoleJobType;
+	runOperation: (operation: ConsoleOperationType, adapterId?: string | null) => ConsoleJobType;
 }>;
 
 const {extname, join, resolve, sep} = path;
 const MAX_BODY_BYTES = 8192;
 const WINDOWS: readonly AnalyticsWindowType[] = ['1h', '24h', '7d', '30d', 'all'];
-const JobRequestSchema = z.object({operation: z.enum(CONSOLE_OPERATIONS)});
+const JobRequestSchema = z.object({
+	operation: z.enum(CONSOLE_OPERATIONS),
+	adapterId: z
+		.string()
+		.regex(/^[a-z][a-z0-9_-]{0,63}$/u)
+		.nullable()
+		.default(null),
+});
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
 	'.html': 'text/html; charset=utf-8',
@@ -173,6 +180,50 @@ const sendSnapshot = (response: ServerResponse, service: ConsoleServicePortType)
 	sendJson(response, 200, service.snapshot());
 };
 
+const sendAnalytics = (response: ServerResponse, service: ConsoleServicePortType, url: URL): void => {
+	const requested = url.searchParams.get('window') ?? '24h';
+	const window = WINDOWS.find((candidate) => candidate === requested);
+
+	if (window === undefined) {
+		sendError(response, 400, `Unsupported window: ${requested}`);
+		return;
+	}
+
+	sendJson(response, 200, service.analytics(window));
+};
+
+const submitJob = async (request: IncomingMessage, response: ServerResponse, service: ConsoleServicePortType): Promise<void> => {
+	const body = await readBody(request);
+	let requestBody: ReturnType<typeof JobRequestSchema.safeParse>;
+
+	try {
+		requestBody = JobRequestSchema.safeParse(JSON.parse(body));
+	} catch {
+		sendError(response, 400, 'Expected a JSON request body');
+		return;
+	}
+
+	if (!requestBody.success) {
+		sendError(response, 400, 'Unsupported operation');
+		return;
+	}
+
+	const {operation, adapterId} = requestBody.data;
+
+	if (adapterId !== null && !service.status.scope.adapters.some((adapter) => adapter.id === adapterId)) {
+		sendError(response, 400, `Unknown adapter: ${adapterId}`);
+		return;
+	}
+
+	if (operation === 'verify' && adapterId !== null) {
+		sendError(response, 400, 'Storage verification is workspace-wide');
+		return;
+	}
+
+	const job = service.runOperation(operation, adapterId);
+	sendJson(response, 202, {job});
+};
+
 type ApiRequestType = Readonly<{request: IncomingMessage; response: ServerResponse; url: URL; service: ConsoleServicePortType; port: number}>;
 
 const handleApi = async (input: ApiRequestType): Promise<boolean> => {
@@ -204,37 +255,11 @@ const handleApi = async (input: ApiRequestType): Promise<boolean> => {
 			return true;
 		}
 		case 'GET /api/analytics': {
-			const requested = url.searchParams.get('window') ?? '24h';
-			const window = WINDOWS.find((candidate) => candidate === requested);
-
-			if (window === undefined) {
-				sendError(response, 400, `Unsupported window: ${requested}`);
-				return true;
-			}
-
-			sendJson(response, 200, service.analytics(window));
+			sendAnalytics(response, service, url);
 			return true;
 		}
 		case 'POST /api/jobs': {
-			const body = await readBody(request);
-			let parsed: unknown;
-
-			try {
-				parsed = JSON.parse(body);
-			} catch {
-				sendError(response, 400, 'Expected a JSON request body');
-				return true;
-			}
-
-			const requestBody = JobRequestSchema.safeParse(parsed);
-
-			if (!requestBody.success) {
-				sendError(response, 400, 'Unsupported operation');
-				return true;
-			}
-
-			const job = service.runOperation(requestBody.data.operation);
-			sendJson(response, 202, {job});
+			await submitJob(request, response, service);
 			return true;
 		}
 		default: {

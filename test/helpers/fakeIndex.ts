@@ -42,6 +42,7 @@ const FAKE_STATUS: IndexStatusType = {
 	generationId: FAKE_GENERATION_ID,
 	revision: 1,
 	building: false,
+	activity: null,
 	scope: {
 		root: '/workspace',
 		projectName: 'fake-project',
@@ -50,9 +51,15 @@ const FAKE_STATUS: IndexStatusType = {
 		adapters: [
 			{
 				id: 'typescript',
+				displayName: 'TypeScript / JavaScript',
 				version: 'fake',
+				required: true,
 				coverage: 'present',
 				absenceReason: null,
+				revision: 1,
+				counts: {files: 4, symbols: 5, occurrences: 7, dependencyEdges: 1, dependencyBindings: 1, diagnostics: 0},
+				stages: {scanMs: 1, compilerMs: 2, extractionMs: 3},
+				freshness: FAKE_FRESHNESS,
 				compilerVersion: 'fake',
 				declaredCompilerVersion: null,
 				compilerDrift: false,

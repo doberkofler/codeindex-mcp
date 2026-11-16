@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
-import {cleanup, screen} from '@testing-library/react';
+import {cleanup, screen, waitForElementToBeRemoved} from '@testing-library/react';
 import {userEvent} from '@testing-library/user-event';
 import {type ReactElement} from 'react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {AnalyticsPage} from '../src/ui/console/AnalyticsPage.tsx';
 import {AppShell, type ThemeModeType, type ViewType} from '../src/ui/console/AppShell.tsx';
-import {ConfigurationPage} from '../src/ui/console/ConfigurationPage.tsx';
 import {OperationsPage} from '../src/ui/console/OperationsPage.tsx';
 import {OverviewPage} from '../src/ui/console/OverviewPage.tsx';
 import {TokenGate} from '../src/ui/console/TokenGate.tsx';
@@ -14,9 +13,9 @@ import {
 	type AnalyticsToolType,
 	type AnalyticsWindowType,
 	type ConsoleJobType,
-	type ConsoleOperationType,
+	type ConsoleOperationRequestType,
 } from '../src/transports/console/contracts.ts';
-import {dashboardOf, installBrowserStubs, jobOf, metaOf, noop, renderWithProviders, snapshotOf, statusOf, timestamp, toolOf} from './helpers/consoleUi.tsx';
+import {dashboardOf, installBrowserStubs, jobOf, noop, renderWithProviders, snapshotOf, statusOf, timestamp, toolOf} from './helpers/consoleUi.tsx';
 
 const analyticsElement = (
 	props: Readonly<{
@@ -35,6 +34,7 @@ const analyticsElement = (
 		loading={props.loading}
 		error={props.error}
 		selectedTool={props.selectedTool}
+		status={statusOf()}
 		onWindowChange={props.onWindowChange}
 		onSelectTool={props.onSelectTool}
 	/>
@@ -55,23 +55,28 @@ describe('console pages', () => {
 		it('renders metrics, scope, stages, and recent operations', async () => {
 			const onOpenOperations = vi.fn<() => void>();
 			const onRunUpdate = vi.fn<() => void>();
+			const onRunAdapter = vi.fn<(adapterId: string) => void>();
 
-			renderWithProviders(<OverviewPage snapshot={snapshotOf()} busy={false} onOpenOperations={onOpenOperations} onRunUpdate={onRunUpdate} />);
+			renderWithProviders(
+				<OverviewPage snapshot={snapshotOf()} busy={false} onOpenOperations={onOpenOperations} onRunUpdate={onRunUpdate} onRunAdapter={onRunAdapter} />,
+			);
 
-			expect(screen.getByText('Your code index, at a glance.')).not.toBeNull();
-			expect(screen.getByText('Files')).not.toBeNull();
+			expect(screen.getByText('Workspace index status')).not.toBeNull();
+			expect(screen.getAllByText('Files')).toHaveLength(2);
 			expect(screen.getByText('Build stages')).not.toBeNull();
 			expect(screen.getByText('Freshness & scope')).not.toBeNull();
 			expect(screen.getByText('Live and current')).not.toBeNull();
 			expect(screen.getByText('Recent operations')).not.toBeNull();
 			expect(screen.getByText('update')).not.toBeNull();
 
-			await userEvent.click(screen.getByRole('button', {name: 'Operations'}));
+			await userEvent.click(screen.getByRole('button', {name: 'Maintenance'}));
 			// oxlint-disable-next-line vitest/prefer-to-have-length -- Assert the exact call count without the conflicting mock-call rules.
 			expect(onOpenOperations.mock.calls.length).toBe(1);
-			await userEvent.click(screen.getByRole('button', {name: 'Update index'}));
+			await userEvent.click(screen.getByRole('button', {name: 'Check now'}));
 			// oxlint-disable-next-line vitest/prefer-to-have-length -- Assert the exact call count without the conflicting mock-call rules.
 			expect(onRunUpdate.mock.calls.length).toBe(1);
+			await userEvent.click(screen.getByRole('button', {name: 'Sync typescript'}));
+			expect(onRunAdapter).toHaveBeenCalledWith('typescript');
 		});
 
 		it('renders empty stages, no lease, project-wide freshness, and no recent jobs', () => {
@@ -89,6 +94,7 @@ describe('console pages', () => {
 					busy
 					onOpenOperations={noop}
 					onRunUpdate={noop}
+					onRunAdapter={noop}
 				/>,
 			);
 
@@ -98,37 +104,34 @@ describe('console pages', () => {
 			expect(screen.getByText('No completed build')).not.toBeNull();
 			expect(screen.getByText('No console operations have run yet.')).not.toBeNull();
 			expect(screen.getByText('build failed')).not.toBeNull();
-			expect(screen.getByRole('button', {name: 'Update index'})).toHaveProperty('disabled', true);
+			expect(screen.getByRole('button', {name: 'Retry now'})).toHaveProperty('disabled', true);
 		});
 	});
 
 	describe('console operations page', () => {
-		it('renders idle state and dispatches every operation', async () => {
-			const onRun = vi.fn<(operation: ConsoleOperationType) => void>();
+		it('renders idle state and dispatches maintenance commands', async () => {
+			const onRun = vi.fn<(requestValue: ConsoleOperationRequestType) => void>();
 			const {rerender} = renderWithProviders(
-				<OperationsPage snapshot={snapshotOf({jobs: []})} activeJob={null} error={null} resultJob={null} onRun={onRun} onShowResult={noop} />,
+				<OperationsPage snapshot={snapshotOf({jobs: []})} activeJob={null} busy={false} error={null} resultJob={null} onRun={onRun} onShowResult={noop} />,
 			);
 
-			expect(screen.getByText('No operation is running.')).not.toBeNull();
-			expect(screen.getByText('No jobs have run in this console session.')).not.toBeNull();
+			expect(screen.getByText('No manual maintenance has run in this console session.')).not.toBeNull();
 
-			for (const operation of ['update', 'rebuild', 'verify', 'qualify'] as const) {
-				// oxlint-disable-next-line eslint/no-await-in-loop -- One page must process the clicks in source order.
-				await userEvent.click(screen.getByRole('button', {name: `Run ${operation}`}));
-			}
-
-			const operations: ConsoleOperationType[] = [];
-
-			for (const call of onRun.mock.calls) {
-				operations.push(call[0]);
-			}
-
-			expect(operations).toStrictEqual(['update', 'rebuild', 'verify', 'qualify']);
+			await userEvent.click(screen.getByRole('button', {name: 'Sync now'}));
+			await userEvent.click(screen.getByRole('button', {name: 'Verify storage'}));
+			await userEvent.click(screen.getByRole('button', {name: 'Force rebuild'}));
+			const rebuildDialog = screen.getByRole('dialog', {name: 'Force rebuild?'});
+			await userEvent.click(screen.getByRole('button', {name: 'Rebuild'}));
+			await waitForElementToBeRemoved(rebuildDialog);
+			expect(onRun).toHaveBeenNthCalledWith(1, {operation: 'update', adapterId: null});
+			expect(onRun).toHaveBeenNthCalledWith(2, {operation: 'verify', adapterId: null});
+			expect(onRun).toHaveBeenNthCalledWith(3, {operation: 'rebuild', adapterId: null});
 
 			rerender(
 				<OperationsPage
 					snapshot={snapshotOf()}
 					activeJob={jobOf({state: 'running', operation: 'verify'})}
+					busy
 					error="operation failed"
 					resultJob={null}
 					onRun={onRun}
@@ -138,7 +141,7 @@ describe('console pages', () => {
 
 			expect(screen.getByText('operation failed')).not.toBeNull();
 			expect(screen.getByText(/is running/u)).not.toBeNull();
-			expect(screen.getByRole('button', {name: 'Run update'})).toHaveProperty('disabled', true);
+			expect(screen.getByRole('button', {name: 'Sync now'})).toHaveProperty('disabled', true);
 		});
 
 		it('opens and closes a job result dialog', async () => {
@@ -146,20 +149,40 @@ describe('console pages', () => {
 			const job = jobOf();
 
 			const {rerender} = renderWithProviders(
-				<OperationsPage snapshot={snapshotOf({jobs: [job]})} activeJob={null} error={null} resultJob={null} onRun={noop} onShowResult={onShowResult} />,
+				<OperationsPage
+					snapshot={snapshotOf({jobs: [job]})}
+					activeJob={null}
+					busy={false}
+					error={null}
+					resultJob={null}
+					onRun={noop}
+					onShowResult={onShowResult}
+				/>,
 			);
 
 			await userEvent.click(screen.getByRole('button', {name: 'Result'}));
 			expect(onShowResult).toHaveBeenCalledWith(job);
 
-			rerender(<OperationsPage snapshot={snapshotOf({jobs: [job]})} activeJob={null} error={null} resultJob={job} onRun={noop} onShowResult={onShowResult} />);
+			rerender(
+				<OperationsPage
+					snapshot={snapshotOf({jobs: [job]})}
+					activeJob={null}
+					busy={false}
+					error={null}
+					resultJob={job}
+					onRun={noop}
+					onShowResult={onShowResult}
+				/>,
+			);
 
 			expect(screen.getByText(/0123456789abcdef/u)).not.toBeNull();
 
 			await userEvent.click(screen.getByRole('button', {name: 'Close'}));
 			expect(onShowResult).toHaveBeenLastCalledWith(null);
 		});
+	});
 
+	describe('console operation history', () => {
 		it('renders every job state, absent message and timing, and closes on Escape', async () => {
 			const onShowResult = vi.fn<(job: ConsoleJobType | null) => void>();
 			const jobs = [
@@ -170,7 +193,7 @@ describe('console pages', () => {
 			];
 
 			const {rerender} = renderWithProviders(
-				<OperationsPage snapshot={snapshotOf({jobs})} activeJob={null} error={null} resultJob={null} onRun={noop} onShowResult={onShowResult} />,
+				<OperationsPage snapshot={snapshotOf({jobs})} activeJob={null} busy={false} error={null} resultJob={null} onRun={noop} onShowResult={onShowResult} />,
 			);
 
 			for (const state of ['succeeded', 'failed', 'running', 'queued']) {
@@ -179,7 +202,15 @@ describe('console pages', () => {
 			expect(screen.getAllByText('—').length).toBeGreaterThan(0);
 
 			rerender(
-				<OperationsPage snapshot={snapshotOf({jobs})} activeJob={null} error={null} resultJob={jobs[0] ?? null} onRun={noop} onShowResult={onShowResult} />,
+				<OperationsPage
+					snapshot={snapshotOf({jobs})}
+					activeJob={null}
+					busy={false}
+					error={null}
+					resultJob={jobs[0] ?? null}
+					onRun={noop}
+					onShowResult={onShowResult}
+				/>,
 			);
 
 			await userEvent.keyboard('{Escape}');
@@ -189,14 +220,16 @@ describe('console pages', () => {
 		it('disables result for a job without a result and renders null dialog content', () => {
 			const job = jobOf({result: null});
 			const {rerender} = renderWithProviders(
-				<OperationsPage snapshot={snapshotOf({jobs: [job]})} activeJob={null} error={null} resultJob={null} onRun={noop} onShowResult={noop} />,
+				<OperationsPage snapshot={snapshotOf({jobs: [job]})} activeJob={null} busy={false} error={null} resultJob={null} onRun={noop} onShowResult={noop} />,
 			);
 
 			expect(screen.getByRole('button', {name: 'Result'})).toHaveProperty('disabled', true);
 
-			rerender(<OperationsPage snapshot={snapshotOf({jobs: [job]})} activeJob={null} error={null} resultJob={job} onRun={noop} onShowResult={noop} />);
+			rerender(
+				<OperationsPage snapshot={snapshotOf({jobs: [job]})} activeJob={null} busy={false} error={null} resultJob={job} onRun={noop} onShowResult={noop} />,
+			);
 
-			expect(screen.getByText('null')).not.toBeNull();
+			expect(screen.getByText('No structured result.')).not.toBeNull();
 		});
 	});
 
@@ -245,6 +278,12 @@ describe('console pages', () => {
 			await userEvent.click(screen.getByText('find_symbol'));
 			expect(onSelectTool).toHaveBeenCalledWith(dashboard.tools[0]);
 
+			await userEvent.click(screen.getByRole('button', {name: 'TypeScript / JavaScript'}));
+			expect(screen.getByText('Latest adapter stages')).not.toBeNull();
+			expect(screen.getByText('Published fact statistics')).not.toBeNull();
+			expect(screen.getByText('Extractions')).not.toBeNull();
+			await userEvent.click(screen.getByRole('button', {name: 'Workspace'}));
+
 			rerender(
 				analyticsElement({
 					dashboard: dashboardOf({
@@ -284,18 +323,7 @@ describe('console pages', () => {
 		});
 	});
 
-	describe('console configuration and token gate', () => {
-		it('renders enabled and disabled analytics boundaries', () => {
-			const {rerender} = renderWithProviders(<ConfigurationPage meta={metaOf()} />);
-
-			expect(screen.getByText('/workspace')).not.toBeNull();
-			expect(screen.getByText('analytics enabled')).not.toBeNull();
-			expect(screen.getByText('Intentionally absent')).not.toBeNull();
-
-			rerender(<ConfigurationPage meta={metaOf({analyticsEnabled: false})} />);
-			expect(screen.getByText('analytics disabled')).not.toBeNull();
-		});
-
+	describe('console token gate', () => {
 		it('rejects an empty token, retries after a rejection, and renders the rejection', async () => {
 			const onSubmit = vi.fn<(token: string) => void>();
 			const {rerender} = renderWithProviders(<TokenGate error={null} onSubmit={onSubmit} />);
@@ -338,7 +366,7 @@ describe('console pages', () => {
 			expect(screen.getByText('page body')).not.toBeNull();
 			expect(screen.getByText('Code Index')).not.toBeNull();
 
-			for (const view of ['Analytics', 'Operations', 'Configuration', 'Overview'] as const) {
+			for (const view of ['Analytics', 'Maintenance', 'Status'] as const) {
 				// oxlint-disable-next-line eslint/no-await-in-loop -- Navigation clicks must settle before the next view renders.
 				await userEvent.click(screen.getByRole('button', {name: view}));
 			}
@@ -349,7 +377,7 @@ describe('console pages', () => {
 				views.push(call[0]);
 			}
 
-			expect(views).toStrictEqual(['analytics', 'operations', 'configuration', 'overview']);
+			expect(views).toStrictEqual(['analytics', 'operations', 'overview']);
 			expect(screen.getByRole('button', {name: 'Change color theme'})).not.toBeNull();
 			await userEvent.click(screen.getByRole('button', {name: 'Change color theme'}));
 			expect(onThemeModeChange).toHaveBeenCalledWith('light');

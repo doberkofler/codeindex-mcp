@@ -17,6 +17,7 @@ type OverviewPagePropsType = Readonly<{
 	busy: boolean;
 	onOpenOperations: () => void;
 	onRunUpdate: () => void;
+	onRunAdapter: (adapterId: string) => void;
 }>;
 
 const OverviewHero = ({
@@ -44,18 +45,18 @@ const OverviewHero = ({
 						<Chip size="small" variant="outlined" label={`generation ${shortId(status.generationId)}`} />
 					</Stack>
 					<Typography variant="h3" sx={{maxWidth: 720}}>
-						Your code index, at a glance.
+						Workspace index status
 					</Typography>
 					<Typography color="text.secondary" sx={{mt: 1, maxWidth: 720}}>
-						Live freshness, build health, analytics, and operational checks for the configured workspace and extractor.
+						One published generation composed from every configured adapter.
 					</Typography>
 				</Box>
 				<Stack direction="row" spacing={1.5}>
 					<Button variant="outlined" startIcon={<BoltIcon />} onClick={onOpenOperations}>
-						Operations
+						Maintenance
 					</Button>
 					<Button variant="contained" startIcon={<RefreshIcon />} disabled={busy} onClick={onRunUpdate}>
-						Update index
+						{status.freshness.state === 'stale' ? 'Retry now' : 'Check now'}
 					</Button>
 				</Stack>
 			</Stack>
@@ -66,7 +67,7 @@ const OverviewHero = ({
 const OverviewMetrics = ({status}: Readonly<{status: IndexStatusType}>) => (
 	<Grid container spacing={2}>
 		<Grid size={{xs: 12, sm: 6, lg: 3}}>
-			<MetricCard label="Files" value={formatNumber(status.counts.files)} icon={<FolderIcon />} hint="Authored TypeScript files" />
+			<MetricCard label="Files" value={formatNumber(status.counts.files)} icon={<FolderIcon />} hint="Authored files across adapters" />
 		</Grid>
 		<Grid size={{xs: 12, sm: 6, lg: 3}}>
 			<MetricCard
@@ -89,6 +90,66 @@ const OverviewMetrics = ({status}: Readonly<{status: IndexStatusType}>) => (
 				accent="warning"
 			/>
 		</Grid>
+	</Grid>
+);
+
+const AdapterCards = ({status, busy, onRunAdapter}: Readonly<{status: IndexStatusType; busy: boolean; onRunAdapter: (adapterId: string) => void}>) => (
+	<Grid container spacing={2}>
+		{status.scope.adapters.map((adapter) => (
+			<Grid key={adapter.id} size={{xs: 12, lg: 6}}>
+				<Card sx={{height: '100%'}}>
+					<CardContent>
+						<Stack direction="row" spacing={2} sx={{justifyContent: 'space-between', alignItems: 'flex-start'}}>
+							<Box>
+								<Typography variant="h6">{adapter.displayName}</Typography>
+								<Typography variant="caption" color="text.secondary">
+									{adapter.id} · v{adapter.version} · {adapter.required ? 'required' : 'optional'}
+								</Typography>
+							</Box>
+							<Stack direction="row" spacing={1}>
+								<Chip size="small" label={adapter.coverage} color={adapter.coverage === 'present' ? 'success' : 'warning'} />
+								<Chip size="small" variant="outlined" label={adapter.freshness.state} />
+							</Stack>
+						</Stack>
+						<Grid container spacing={1.5} sx={{my: 2}}>
+							{[
+								['Files', adapter.counts.files],
+								['Symbols', adapter.counts.symbols],
+								['Occurrences', adapter.counts.occurrences],
+							].map(([label, value]) => (
+								<Grid key={label} size={4}>
+									<Typography variant="caption" color="text.secondary">
+										{label}
+									</Typography>
+									<Typography sx={{fontWeight: 700}}>{formatNumber(Number(value))}</Typography>
+								</Grid>
+							))}
+						</Grid>
+						<Typography variant="body2" color="text.secondary">
+							Contexts: {adapter.contexts.join(', ') || 'none'} · Compiler/parser {adapter.compilerVersion}
+							{adapter.compilerDrift ? ' (version drift)' : ''}
+						</Typography>
+						{adapter.absenceReason === null ? null : (
+							<Typography variant="body2" color="warning.main" sx={{mt: 1}}>
+								{adapter.absenceReason}
+							</Typography>
+						)}
+						<Button
+							size="small"
+							variant="outlined"
+							startIcon={<RefreshIcon />}
+							disabled={busy}
+							sx={{mt: 2}}
+							onClick={() => {
+								onRunAdapter(adapter.id);
+							}}
+						>
+							Sync {adapter.id}
+						</Button>
+					</CardContent>
+				</Card>
+			</Grid>
+		))}
 	</Grid>
 );
 
@@ -196,10 +257,11 @@ const OverviewRecent = ({snapshot}: Readonly<{snapshot: ConsoleSnapshotType}>) =
 	);
 };
 
-export const OverviewPage = ({snapshot, busy, onOpenOperations, onRunUpdate}: OverviewPagePropsType) => (
+export const OverviewPage = ({snapshot, busy, onOpenOperations, onRunUpdate, onRunAdapter}: OverviewPagePropsType) => (
 	<Stack spacing={3}>
 		<OverviewHero status={snapshot.status} busy={busy} onOpenOperations={onOpenOperations} onRunUpdate={onRunUpdate} />
 		<OverviewMetrics status={snapshot.status} />
+		<AdapterCards status={snapshot.status} busy={busy} onRunAdapter={onRunAdapter} />
 		<Grid container spacing={2}>
 			<Grid size={{xs: 12, lg: 7}}>
 				<OverviewBuild status={snapshot.status} />

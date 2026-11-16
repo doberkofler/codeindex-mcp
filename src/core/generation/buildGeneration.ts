@@ -30,6 +30,7 @@ import {
 } from './adapterBuild.ts';
 import {BuildCancellationError} from './executionCancellation.ts';
 import {prepareBuild, type PreparedBuildType} from './buildPreparation.ts';
+import {type BuildProgressType} from './buildProgress.ts';
 
 const debug = debugFor('build');
 
@@ -65,6 +66,7 @@ type BuildInputType = Readonly<{
 	executionContext?: AdapterExecutionContextType | undefined;
 	/** Receives serializable scan plans for worker watch-plan updates. */
 	onScans?: ((scans: readonly AdapterScanPlanType[]) => void) | undefined;
+	onProgress?: ((progress: BuildProgressType) => void) | undefined;
 }>;
 
 type CommitContextType = Readonly<{
@@ -83,6 +85,7 @@ type CommitContextType = Readonly<{
 	ownerId: string | undefined;
 	isCancelled: (() => boolean) | undefined;
 	executionContext: AdapterExecutionContextType | undefined;
+	onProgress: ((progress: BuildProgressType) => void) | undefined;
 }>;
 
 const logBuild = (
@@ -237,6 +240,7 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 	const adapters = [];
 
 	for (const plan of context.plans) {
+		context.onProgress?.({phase: 'building', adapterId: plan.adapterId});
 		const target = targetsById.get(plan.adapterId);
 
 		if (target === undefined) {
@@ -293,6 +297,7 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 	]);
 
 	const persistenceStartedAt = performance.now();
+	context.onProgress?.({phase: 'publishing', adapterId: null});
 	const commit = context.database.commitAdapters({
 		generationId: context.generationId,
 		adapters,
@@ -388,6 +393,7 @@ const publishPreparedBuild = async (
 			ownerId: input.ownerId,
 			isCancelled: input.isCancelled,
 			executionContext: input.executionContext,
+			onProgress: input.onProgress,
 		});
 	} catch (error) {
 		if (!isBuildCancellation(error, input)) {

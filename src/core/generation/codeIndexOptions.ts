@@ -25,6 +25,23 @@ export type CodeIndexOptionsType = Readonly<{
 	readonly extractor?: ExtractorType;
 }>;
 
+export type ManualRefreshOptionsType = Readonly<{force?: boolean; adapterIds?: readonly string[]}>;
+
+export const manualAdapterScope = (
+	options: ManualRefreshOptionsType,
+	adapters: AdapterSetType,
+	rejectUnknown: (adapterId: string) => never,
+): readonly string[] | null => {
+	const adapterIds = options.adapterIds ?? null;
+	const unknown = adapterIds?.find((adapterId) => !adapters.byId.has(adapterId));
+
+	if (unknown !== undefined) {
+		return rejectUnknown(unknown);
+	}
+
+	return adapterIds;
+};
+
 /**
  * Builds the loader-shaped adapter set injected into `CodeIndex`.
  *

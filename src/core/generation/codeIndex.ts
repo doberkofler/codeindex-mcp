@@ -7,7 +7,7 @@ import {type LoggerType} from '../logging/logger.ts';
 import {type IndexDatabase} from '../storage/database.ts';
 import {buildFailureOf} from './buildFailure.ts';
 import {recordFailedRefresh, recordRefreshOutcome} from './refreshTelemetry.ts';
-import {adapterSetOf, type CodeIndexOptionsType} from './codeIndexOptions.ts';
+import {adapterSetOf, manualAdapterScope, type CodeIndexOptionsType, type ManualRefreshOptionsType} from './codeIndexOptions.ts';
 import {buildQueryContext} from './codeIndexQueryContext.ts';
 import {type PersistentBuildWorker} from './persistentBuildWorker.ts';
 import {buildWorkerOf} from './buildWorkerSetup.ts';
@@ -58,6 +58,7 @@ import {RefreshCoordinator} from '../freshness/refreshCoordinator.ts';
 import {AdapterWatchController} from '../freshness/adapterWatchController.ts';
 import {runInProcessRefresh} from './inProcessRefresh.ts';
 import {buildGeneration} from './buildGeneration.ts';
+import {BuildActivity} from './buildActivity.ts';
 
 const debug = debugFor('index');
 
@@ -82,6 +83,7 @@ export class CodeIndex {
 		this.#analytics?.record('find_symbol_outcome', {presence});
 	};
 	#published: GenerationRowType | null = null;
+	readonly #activity = new BuildActivity();
 	#closed = false;
 	public constructor(config: ConfigType, database: IndexDatabase, logger: LoggerType, options: CodeIndexOptionsType = {}) {
 		const adapterSet = adapterSetOf(options);
@@ -162,15 +164,16 @@ export class CodeIndex {
 		this.#coordinator.start();
 	}
 	/**
-	 * Reuses or rebuilds the index so it matches the current working copy.
-	 *
-	 * @param options - `force` ignores an existing reusable generation.
+	 * @param options - Force flag and optional adapter scope.
 	 * @returns The published, reused, or superseded generation report.
-	 * @throws {@link Error} When scanning or building fails.
 	 */
-	public async ensureReady(options: Readonly<{force?: boolean}> = {}): Promise<BuildReportType> {
+	public async ensureReady(options: ManualRefreshOptionsType = {}): Promise<BuildReportType> {
+		const adapterIds = manualAdapterScope(options, this.#adapterSet, (adapterId) => {
+			throw new CodeIndexError('unknown_adapter', `Unknown adapter: ${adapterId}`);
+		});
+
 		try {
-			return await this.#coordinator.request({kind: 'manual', force: options.force === true});
+			return await this.#coordinator.request({kind: 'manual', force: options.force === true, adapterIds});
 		} catch (error) {
 			debug('manual refresh failed', {message: error instanceof Error ? error.message : String(error)});
 			throw error;
@@ -182,12 +185,15 @@ export class CodeIndex {
 		adapterIds: readonly string[] | null,
 		signal: AbortSignal,
 	): Promise<BuildReportType> {
-		if (this.#buildWorker !== null) {
-			const report = await this.#performWorkerRefresh(reason, force, adapterIds, signal);
-			return report;
-		}
+		const report = await this.#activity.run({reason, force, adapterIds}, async () => {
+			if (this.#buildWorker !== null) {
+				const workerReport = await this.#performWorkerRefresh(reason, force, adapterIds, signal);
+				return workerReport;
+			}
 
-		const report = await this.#performInProcessRefresh(reason, force, adapterIds, signal);
+			const inProcessReport = await this.#performInProcessRefresh(reason, force, adapterIds, signal);
+			return inProcessReport;
+		});
 		return report;
 	}
 	async #performWorkerRefresh(
@@ -214,6 +220,7 @@ export class CodeIndex {
 				ownerId: this.#ownerId,
 				startedAtEpoch,
 				signal,
+				onProgress: this.#activity.update,
 			});
 
 			for (const drift of result.compilerDrifts) {
@@ -276,6 +283,7 @@ export class CodeIndex {
 			ownerId: this.#ownerId,
 			targets: this.#targets,
 			compilerDriftObserved: this.#compilerDriftObserved,
+			onProgress: this.#activity.update,
 			build: async (plans: readonly AdapterScanPlanType[], startedAtEpoch: number) => {
 				const report = await buildGeneration({
 					config: this.#config,
@@ -288,6 +296,7 @@ export class CodeIndex {
 					startedAtEpoch,
 					...(this.#override === undefined ? {} : {extractor: this.#override}),
 					isCancelled: () => signal.aborted,
+					onProgress: this.#activity.update,
 				});
 				return report;
 			},
@@ -307,6 +316,7 @@ export class CodeIndex {
 			adapters: this.#adapterSet.byId,
 			database: this.#database,
 			refresh: this.#coordinator.getSnapshot(),
+			activity: this.#activity.current,
 		});
 		this.#published = published;
 		return status;
@@ -404,14 +414,10 @@ export class CodeIndex {
 			return queryDependencies(this.#queryContext(input.adapter, generation), input, maxResultBytes);
 		});
 	}
-	/**
-	 * Reads bounded source for one indexed symbol identifier or natural query.
-	 *
+	/** Reads bounded source for one indexed symbol identifier or natural query.
 	 * @param input - Symbol selector, optional filters, mode, and bounds.
-	 * @param maxResultBytes - Maximum serialized result-data size, excluding envelope framing.
+	 * @param maxResultBytes - Maximum serialized result-data size.
 	 * @returns Source and freshness for the symbol.
-	 * @throws {@link CodeIndexError} When the symbol or its file is not indexed.
-	 * @throws {@link StaleFileError} When the source changed or is still pending a rebuild.
 	 */
 	public readSymbol(input: ReadSymbolInputType, maxResultBytes = this.#config.maxResultBytes): ReadSymbolResultType {
 		return this.#database.readSnapshot(() => {
@@ -457,9 +463,7 @@ export class CodeIndex {
 	public async close(): Promise<void> {
 		debug('close');
 		this.#closed = true;
-		// Close scheduling before terminating the worker so a worker rejection
-		// cannot enqueue a retry during shutdown. Worker termination still unpins
-		// coordinator close when cancellation is inside synchronous adapter work.
+		// Stop scheduling first so worker rejection cannot enqueue a shutdown retry.
 		const coordinatorClose = this.#coordinator.close();
 		await this.#buildWorker?.close();
 		await coordinatorClose;

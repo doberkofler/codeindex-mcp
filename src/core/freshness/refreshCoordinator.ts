@@ -182,6 +182,11 @@ export class RefreshCoordinator {
 			lastError: lastErrorOf(this.#state),
 			lastReason: this.#state.lastReason,
 			refreshAdapterIds: this.#state.active?.adapterIds ?? this.#state.lastAdapterIds,
+			adapters: this.#state.adapterOrder.map((id) => ({
+				id,
+				freshness: freshnessFor(this.#state, [id]),
+				lastError: lastErrorOf(this.#state, [id]),
+			})),
 		};
 	}
 
@@ -227,7 +232,7 @@ export class RefreshCoordinator {
 			type: 'request',
 			now: this.#clock.now(),
 			reason: 'manual',
-			adapterIds: null,
+			adapterIds: requestValue.adapterIds ?? null,
 			paths: null,
 			force: requestValue.force,
 			requestId,

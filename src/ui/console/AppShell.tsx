@@ -8,6 +8,7 @@ import {
 	ListItemButton,
 	ListItemIcon,
 	ListItemText,
+	LinearProgress,
 	Stack,
 	Toolbar,
 	Tooltip,
@@ -23,7 +24,6 @@ import InsightsIcon from '@mui/icons-material/Insights';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import MenuIcon from '@mui/icons-material/Menu';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import SettingsIcon from '@mui/icons-material/Settings';
 import TerminalIcon from '@mui/icons-material/Terminal';
 import {useState, type ReactNode} from 'react';
 import {type ConsoleSnapshotType} from '../../transports/console/contracts.ts';
@@ -31,7 +31,7 @@ import {StatusChip} from './components/StatusChip.tsx';
 import {shortId} from './format.ts';
 import {rememberOverlayTrigger, restoreOverlayTrigger} from './overlayFocus.ts';
 
-export type ViewType = 'overview' | 'analytics' | 'operations' | 'configuration';
+export type ViewType = 'overview' | 'analytics' | 'operations';
 export type ThemeModeType = 'system' | 'light' | 'dark';
 
 type AppShellPropsType = Readonly<{
@@ -45,10 +45,9 @@ type AppShellPropsType = Readonly<{
 }>;
 
 const NAV_ITEMS: readonly Readonly<{view: ViewType; label: string; icon: typeof DashboardIcon}>[] = [
-	{view: 'overview', label: 'Overview', icon: DashboardIcon},
+	{view: 'overview', label: 'Status', icon: DashboardIcon},
 	{view: 'analytics', label: 'Analytics', icon: InsightsIcon},
-	{view: 'operations', label: 'Operations', icon: TerminalIcon},
-	{view: 'configuration', label: 'Configuration', icon: SettingsIcon},
+	{view: 'operations', label: 'Maintenance', icon: TerminalIcon},
 ];
 
 const nextThemeMode = (mode: ThemeModeType): ThemeModeType => (mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system');
@@ -200,6 +199,21 @@ export const AppShell = ({snapshot, view, themeMode, children, onViewChange, onT
 						</Tooltip>
 					</Toolbar>
 				</AppBar>
+				{snapshot.status.activity === null ? null : (
+					<Box sx={{px: {xs: 2, sm: 3, lg: 4}, pt: 2, maxWidth: 1_600, mx: 'auto'}}>
+						<Box sx={{p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper'}}>
+							<Stack direction="row" spacing={1} sx={{mb: 1, justifyContent: 'space-between'}}>
+								<Typography variant="body2" sx={{fontWeight: 700}}>
+									{snapshot.status.activity.phase} {snapshot.status.activity.adapterId ?? 'workspace'}
+								</Typography>
+								<Typography variant="caption" color="text.secondary">
+									{snapshot.status.activity.force ? 'forced rebuild' : snapshot.status.activity.reason}
+								</Typography>
+							</Stack>
+							<LinearProgress />
+						</Box>
+					</Box>
+				)}
 				<Box component="main" sx={{p: {xs: 2, sm: 3, lg: 4}, maxWidth: 1_600, mx: 'auto'}}>
 					{children}
 				</Box>

@@ -107,4 +107,10 @@ export type AnalyticsDashboardType = Readonly<{
 		readonly successfulEventToPublicationP95Ms: number | null;
 		readonly timeline: readonly AnalyticsTimelinePointType[];
 	}>;
+	readonly adapters: readonly Readonly<{
+		readonly id: string;
+		readonly extractions: number;
+		readonly factWrites: number;
+		readonly failures: number;
+	}>[];
 }>;

@@ -66,7 +66,6 @@ const executeConsole = async (options: ConsoleOptionsType): Promise<void> => {
 	const service = ConsoleService.open({
 		config,
 		logger,
-		mcpPath: fileURLToPath(new URL('mcp.mjs', import.meta.url)),
 		adapters: adapters.adapters,
 		adapterDescriptors: adapters.descriptors,
 	});

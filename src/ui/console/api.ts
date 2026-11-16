@@ -5,7 +5,8 @@ import {
 	type AnalyticsWindowType,
 	consoleJobResponseSchema,
 	consoleSnapshotSchema,
-	type ConsoleOperationType,
+	type ConsoleOperationRequestType,
+	type ConsoleSnapshotType,
 } from '../../transports/console/contracts.ts';
 
 const TOKEN_KEY = 'code-index-console-token';
@@ -87,12 +88,15 @@ export const useAnalytics = (token: string, window: AnalyticsWindowType, enabled
 export const useRunOperation = (token: string) => {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (operation: ConsoleOperationType) =>
+		mutationFn: (requestValue: ConsoleOperationRequestType) =>
 			request('/api/jobs', token, consoleJobResponseSchema, {
 				method: 'POST',
-				body: JSON.stringify({operation}),
+				body: JSON.stringify(requestValue),
 			}),
-		onSuccess: () => {
+		onSuccess: ({job}) => {
+			queryClient.setQueryData<ConsoleSnapshotType>(['snapshot', token], (snapshot) =>
+				snapshot === undefined || snapshot.jobs.some((candidate) => candidate.id === job.id) ? snapshot : {...snapshot, jobs: [job, ...snapshot.jobs]},
+			);
 			void queryClient.invalidateQueries({queryKey: ['snapshot', token]});
 		},
 	});

@@ -6,6 +6,7 @@ import {type GenerationAdapterType, type GenerationRowType, type ScanResultType}
 import {type IndexDatabase} from '../storage/database.ts';
 import {AdapterContractError, adapterTargets, assertSharedPaths, probeAdapter, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
 import {runAdapterStageAsync, runBuildStageAsync} from './buildFailure.ts';
+import {type BuildProgressType} from './buildProgress.ts';
 
 export type BuildPreparationInputType = Readonly<{
 	config: ConfigType;
@@ -16,6 +17,7 @@ export type BuildPreparationInputType = Readonly<{
 	adapters: AdapterSetType;
 	adapterIds?: readonly string[] | null;
 	executionContext?: AdapterExecutionContextType | undefined;
+	onProgress?: ((progress: BuildProgressType) => void) | undefined;
 }>;
 
 export type PreparedBuildType = Readonly<{
@@ -73,6 +75,7 @@ const scanPlansOf = async (
 	const plans: AdapterScanPlanType[] = [];
 
 	for (const target of targets) {
+		input.onProgress?.({phase: 'scanning', adapterId: target.adapter.id});
 		input.executionContext?.throwIfCancellationRequested();
 		const scoped = adapterConfigFor(input.config, target.adapter);
 		// Adapter probes are sequential so absence and failure attribution follow

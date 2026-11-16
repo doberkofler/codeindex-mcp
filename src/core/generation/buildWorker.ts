@@ -15,6 +15,7 @@ import {buildGeneration} from './buildGeneration.ts';
 import {executionContextOf} from './executionCancellation.ts';
 import {acquireOrObserveBuildLease, externalBuildReport} from './externalBuild.ts';
 import {createAdapterWatchPlans, mergeAdapterWatchPlans, watchPlansMatchTargets} from './adapterWatchPlans.ts';
+import {type BuildProgressType} from './buildProgress.ts';
 
 const LEASE_RENEW_MS = 3000;
 const debug = debugFor('worker');
@@ -133,6 +134,8 @@ type BuildWorkerResultType =
 	| Readonly<{kind: 'code-index-build-result'; id: number; ok: true; result: BuildWorkerRunResultType}>
 	| Readonly<{kind: 'code-index-build-result'; id: number; ok: false; failure: BuildFailureType}>;
 
+type BuildWorkerProgressMessageType = Readonly<{kind: 'code-index-build-progress'; id: number; progress: BuildProgressType}>;
+
 type BuildWorkerInitializeResultType =
 	| Readonly<{kind: 'code-index-initialize-result'; id: number; ok: true}>
 	| Readonly<{kind: 'code-index-initialize-result'; id: number; ok: false; failure: BuildFailureType}>;
@@ -148,6 +151,11 @@ const postResult = (id: number, message: BuildWorkerMessageType): void => {
 		? {kind: 'code-index-build-result', id, ok: true, result: message.result}
 		: {kind: 'code-index-build-result', id, ok: false, failure: message.failure};
 	parentPort?.postMessage(result);
+};
+
+const postProgress = (id: number, progress: BuildProgressType): void => {
+	const message: BuildWorkerProgressMessageType = {kind: 'code-index-build-progress', id, progress};
+	parentPort?.postMessage(message);
 };
 
 type BuildRequestType = Readonly<{
@@ -205,7 +213,11 @@ const completeWatchPlans = (
 	return plans;
 };
 
-const performBuild = async (request: BuildRequestType, adapters: AdapterSetType): Promise<BuildWorkerMessageType> => {
+const performBuild = async (
+	request: BuildRequestType,
+	adapters: AdapterSetType,
+	onProgress?: (progress: BuildProgressType) => void,
+): Promise<BuildWorkerMessageType> => {
 	const sample = startProcessSample();
 	const executionContext = executionContextOf(request.cancellationBuffer);
 	let database: IndexDatabase | undefined;
@@ -263,6 +275,7 @@ const performBuild = async (request: BuildRequestType, adapters: AdapterSetType)
 				scans = captured;
 				watchPlanUpdates = createAdapterWatchPlans(request.config, targets, captured);
 			},
+			...(onProgress === undefined ? {} : {onProgress}),
 		});
 		const watchPlans = completeWatchPlans(database, targets, watchPlanUpdates, report.outcome);
 		debug('build complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
@@ -380,7 +393,12 @@ export const runBuildWorkerHost = async (data: BuildWorkerHostDataType): Promise
 
 		try {
 			adapters ??= await adaptersPromise;
-			postResult(request.id, await performBuild(request, adapters));
+			postResult(
+				request.id,
+				await performBuild(request, adapters, (progress) => {
+					postProgress(request.id, progress);
+				}),
+			);
 		} catch (error) {
 			postResult(request.id, {ok: false, failure: buildFailureOf(error, 'worker')});
 		} finally {

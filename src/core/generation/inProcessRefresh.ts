@@ -10,6 +10,7 @@ import {buildFailureOf, buildProjectContextOfScan} from './buildFailure.ts';
 import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
 import {acquireOrObserveBuildLease, externalBuildReport} from './externalBuild.ts';
 import {recordFailedRefresh, recordRefreshOutcome} from './refreshTelemetry.ts';
+import {type BuildProgressType} from './buildProgress.ts';
 
 const LEASE_RENEW_MS = 3000;
 
@@ -25,6 +26,7 @@ type InputType = Readonly<{
 	ownerId: string;
 	targets: readonly AdapterTargetType[];
 	compilerDriftObserved: Set<string>;
+	onProgress: (progress: BuildProgressType) => void;
 	build: (plans: readonly AdapterScanPlanType[], startedAtEpoch: number) => Promise<BuildReportType>;
 }>;
 
@@ -80,6 +82,7 @@ export const runInProcessRefresh = async (input: InputType): Promise<InProcessRe
 			logger: input.logger,
 			analytics: input.analytics,
 			observed: input.compilerDriftObserved,
+			onProgress: input.onProgress,
 		});
 		const report = await input.build(plans, startedAtEpoch);
 		recordRefreshOutcome({

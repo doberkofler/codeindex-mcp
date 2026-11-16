@@ -5,6 +5,7 @@ import {
 	type BuildLeaseType,
 	type GenerationAdapterType,
 	type GenerationRowType,
+	type IndexActivityType,
 	type IndexStatusSummaryType,
 	type IndexStatusType,
 	type QueryFreshnessType,
@@ -25,6 +26,7 @@ export type StatusInputType = Readonly<{
 	refresh: RefreshCoordinatorSnapshotType;
 	workingCopyId: string | null;
 	lastError: string | null;
+	activity?: IndexActivityType | null;
 }>;
 
 const countsOf = (published: GenerationRowType | null): IndexStatusType['counts'] => ({
@@ -67,40 +69,71 @@ const compilerProvenanceOf = (
 const missingCoverageReason = (published: GenerationRowType | null): string =>
 	published === null ? 'no published generation' : 'adapter is not recorded in the published generation';
 
+const adapterCountsOf = (row: GenerationAdapterType | undefined): IndexStatusType['counts'] => ({
+	files: row?.fileCount ?? 0,
+	symbols: row?.symbolCount ?? 0,
+	occurrences: row?.occurrenceCount ?? 0,
+	dependencyEdges: row?.dependencyEdgeCount ?? 0,
+	dependencyBindings: row?.dependencyBindingCount ?? 0,
+	diagnostics: row?.diagnosticCount ?? 0,
+});
+
+type AdapterPresentationType = Pick<IndexStatusType['scope']['adapters'][number], 'displayName' | 'version' | 'revision' | 'stages' | 'limitations'>;
+
+const adapterPresentationOf = (id: string, row: GenerationAdapterType | undefined, extractor: AdapterType | undefined): AdapterPresentationType => ({
+	displayName: extractor?.displayName ?? id,
+	version: row?.adapterVersion ?? extractor?.version ?? 'unknown',
+	revision: row?.revision ?? null,
+	stages: row?.stages ?? null,
+	limitations: extractor?.limitations ?? [],
+});
+
 type AdapterStatusInputType = Readonly<{
 	adapter: ReturnType<typeof configuredAdapters>[number];
 	stored: ReadonlyMap<string, GenerationAdapterType>;
 	published: GenerationRowType | null;
 	loaded: ReadonlyMap<string, AdapterType>;
+	refreshAdapters: ReadonlyMap<string, NonNullable<RefreshCoordinatorSnapshotType['adapters']>[number]>;
 }>;
 
 const adapterStatusEntry = (input: AdapterStatusInputType): IndexStatusType['scope']['adapters'][number] => {
 	const {adapter, stored, published, loaded} = input;
 	const row = stored.get(adapter.id);
 	const extractor = loaded.get(adapter.id);
+	const refresh = input.refreshAdapters.get(adapter.id);
+	const coverage = row?.coverage ?? 'absent';
+	const absenceReason = row === undefined ? missingCoverageReason(published) : row.absenceReason;
+	const freshness = refresh?.freshness ?? {state: 'unknown', checkedAt: new Date(0).toISOString(), dirtyFileCount: null};
 
 	return {
 		id: adapter.id,
-		version: row?.adapterVersion ?? extractor?.version ?? 'unknown',
-		coverage: row?.coverage ?? 'absent',
-		absenceReason: row === undefined ? missingCoverageReason(published) : row.absenceReason,
+		...adapterPresentationOf(adapter.id, row, extractor),
+		required: adapter.required,
+		coverage,
+		absenceReason,
+		counts: adapterCountsOf(row),
+		freshness,
 		...compilerProvenanceOf(row),
 		contexts: adapter.projects.map((project) => project.name),
-		limitations: extractor?.limitations ?? [],
 	};
 };
 
-const adapterStatusOf = (
-	config: ConfigType,
-	published: GenerationRowType | null,
-	database: IndexDatabase,
-	loaded: ReadonlyMap<string, AdapterType>,
-): IndexStatusType['scope']['adapters'] => {
+type AdapterStatusesInputType = Readonly<{
+	config: ConfigType;
+	published: GenerationRowType | null;
+	database: IndexDatabase;
+	loaded: ReadonlyMap<string, AdapterType>;
+	refresh: RefreshCoordinatorSnapshotType;
+}>;
+
+const adapterStatusOf = (input: AdapterStatusesInputType): IndexStatusType['scope']['adapters'] => {
+	const {config, published, database, loaded, refresh} = input;
 	const stored = new Map<string, GenerationAdapterType>(
 		(published === null ? [] : database.getGenerationAdapters(published.id)).map((adapter) => [adapter.adapterId, adapter]),
 	);
 
-	return configuredAdapters(config).map((adapter) => adapterStatusEntry({adapter, stored, published, loaded}));
+	const refreshAdapters = new Map((refresh.adapters ?? []).map((adapter) => [adapter.id, adapter]));
+	return configuredAdapters(config).map((adapter) => adapterStatusEntry({adapter, stored, published, loaded, refreshAdapters}));
 };
 
 const extractorStatusOf = (adapters: IndexStatusType['scope']['adapters']): NonNullable<IndexStatusType['scope']['extractor']> => {
@@ -158,7 +191,13 @@ const freshnessOf = (refresh: RefreshCoordinatorSnapshotType): IndexStatusType['
 export const collectStatus = (input: StatusInputType): IndexStatusType => {
 	const {published, refresh} = input;
 	const lease: BuildLeaseType | null = input.database.getBuildLease();
-	const adapters = adapterStatusOf(input.config, published, input.database, input.adapters);
+	const adapters = adapterStatusOf({
+		config: input.config,
+		published,
+		database: input.database,
+		loaded: input.adapters,
+		refresh,
+	});
 	const extractor = singularExtractorOf(adapters);
 
 	return {
@@ -168,6 +207,7 @@ export const collectStatus = (input: StatusInputType): IndexStatusType => {
 		generationId: published?.id ?? null,
 		revision: published?.revision ?? null,
 		building: refresh.state === 'building',
+		activity: input.activity ?? null,
 		scope: {
 			root: input.config.rootDir,
 			projectName: input.config.projectName,
@@ -213,6 +253,7 @@ export const summaryStatusOf = (status: IndexStatusType): IndexStatusSummaryType
 		generationId: status.generationId,
 		revision: status.revision,
 		building: status.building,
+		activity: status.activity,
 		scope: {
 			projectName: status.scope.projectName,
 			contexts: [...new Set(status.scope.projects.map((project) => project.name))],

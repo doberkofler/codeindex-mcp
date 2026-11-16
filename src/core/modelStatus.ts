@@ -1,4 +1,5 @@
 import {
+	type AdapterStagesType,
 	type BuildLeaseType,
 	type BuildStagesType,
 	type BuildStatType,
@@ -6,6 +7,24 @@ import {
 	type QueryFreshnessType,
 	type RefreshStateType,
 } from './model.ts';
+
+type IndexCountsType = Readonly<{
+	readonly files: number;
+	readonly symbols: number;
+	readonly occurrences: number;
+	readonly dependencyEdges: number;
+	readonly dependencyBindings: number;
+	readonly diagnostics: number;
+}>;
+
+export type IndexActivityType = Readonly<{
+	readonly reason: 'startup' | 'change' | 'reconcile' | 'manual';
+	readonly force: boolean;
+	readonly adapterIds: readonly string[] | null;
+	readonly phase: 'waiting' | 'scanning' | 'building' | 'publishing';
+	readonly adapterId: string | null;
+	readonly startedAt: string;
+}>;
 
 export type IndexStatusType = Readonly<{
 	readonly ready: boolean;
@@ -15,6 +34,7 @@ export type IndexStatusType = Readonly<{
 	/** Publication revision of the stable generation identifier. */
 	readonly revision: number | null;
 	readonly building: boolean;
+	readonly activity: IndexActivityType | null;
 	readonly scope: Readonly<{
 		readonly root: string;
 		readonly projectName: string;
@@ -23,9 +43,15 @@ export type IndexStatusType = Readonly<{
 		/** One entry per configured adapter with persisted coverage and provenance. */
 		readonly adapters: readonly Readonly<{
 			readonly id: string;
+			readonly displayName: string;
 			readonly version: string;
+			readonly required: boolean;
 			readonly coverage: 'present' | 'absent';
 			readonly absenceReason: string | null;
+			readonly revision: number | null;
+			readonly counts: IndexCountsType;
+			readonly stages: AdapterStagesType | null;
+			readonly freshness: QueryFreshnessType;
 			readonly compilerVersion: string;
 			readonly declaredCompilerVersion: string | null;
 			readonly compilerDrift: boolean;
@@ -57,14 +83,7 @@ export type IndexStatusType = Readonly<{
 		readonly source: string | null;
 		readonly configuration: string | null;
 	}>;
-	readonly counts: Readonly<{
-		readonly files: number;
-		readonly symbols: number;
-		readonly occurrences: number;
-		readonly dependencyEdges: number;
-		readonly dependencyBindings: number;
-		readonly diagnostics: number;
-	}>;
+	readonly counts: IndexCountsType;
 	readonly buildStats: readonly BuildStatType[];
 	readonly build: Readonly<{
 		readonly startedAt: string | null;
@@ -90,6 +109,7 @@ export type IndexStatusSummaryType = Readonly<{
 	readonly generationId: string | null;
 	readonly revision: number | null;
 	readonly building: boolean;
+	readonly activity: IndexActivityType | null;
 	readonly scope: Readonly<{
 		readonly projectName: string;
 		readonly contexts: readonly string[];

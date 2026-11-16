@@ -1,14 +1,11 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {typeScriptExtractor} from '@codeindex/adapter-typescript/index';
-import {type ReferenceVerificationReportType} from '@codeindex/adapter-typescript/referenceGate';
-import {type BenchmarkReportType} from '../src/core/benchmark/benchTypes.ts';
 import {type ConfigType} from '../src/core/config/config.ts';
 import {type LoggerType} from '../src/core/logging/logger.ts';
 import {type IndexStatusType, type IndexVerificationType} from '../src/core/model.ts';
 import {type AnalyticsDashboardType} from '../src/core/analytics/contracts.ts';
 import {type ConsoleJobType, type ConsoleOperationType} from '../src/transports/console/contracts.ts';
 import {ConsoleService} from '../src/transports/console/service.ts';
-import {qualificationReport} from './helpers/qualificationReport.ts';
 
 const doubles = vi.hoisted(() => {
 	const logger = {
@@ -42,13 +39,6 @@ const doubles = vi.hoisted(() => {
 			getWorkingCopy: () => ({id: 'working-copy'}),
 		})),
 		readVcsProvenance: vi.fn<(...args: unknown[]) => unknown>((): unknown => ({available: false})),
-		runBenchmarkReport: vi.fn<(...args: unknown[]) => Promise<BenchmarkReportType>>(),
-		verifyTypeScriptReferences: vi.fn<(...args: unknown[]) => ReferenceVerificationReportType>(),
-		runMcpCommand: vi.fn<(...args: unknown[]) => number>((...args: unknown[]) => {
-			const [, io] = args as [unknown, {stdout: (line: string) => void; stderr: (line: string) => void}];
-			io.stdout('installed mcp server');
-			return 0;
-		}),
 		buildAnalyticsDashboard: vi.fn<(path: string, window: string) => AnalyticsDashboardType>(
 			(_path: string, window: string): AnalyticsDashboardType => ({window}) as unknown as AnalyticsDashboardType,
 		),
@@ -57,8 +47,6 @@ const doubles = vi.hoisted(() => {
 
 vi.mock(import('../src/core/analytics/recorder.ts'), () => ({createAnalyticsRecorder: doubles.createAnalyticsRecorder}) as unknown as never);
 vi.mock(import('../src/core/analytics/dashboard.ts'), () => ({buildAnalyticsDashboard: doubles.buildAnalyticsDashboard}));
-vi.mock(import('../src/core/benchmark/runBenchmark.ts'), () => ({runBenchmarkReport: doubles.runBenchmarkReport}));
-vi.mock(import('../src/transports/cli/mcpCommand.ts'), () => ({runMcpCommand: doubles.runMcpCommand}));
 vi.mock(import('../src/core/generation/codeIndex.ts'), () => ({createCodeIndex: doubles.createCodeIndex}) as unknown as never);
 vi.mock(import('../src/core/logging/logger.ts'), () => ({createLogger: doubles.createLogger}));
 vi.mock(import('../src/core/storage/database.ts'), () => ({IndexDatabase: {open: doubles.databaseOpen}}) as unknown as never);
@@ -91,6 +79,7 @@ const status: IndexStatusType = {
 	generationId: 'generation-1',
 	revision: 1,
 	building: false,
+	activity: null,
 	scope: {
 		root: '/workspace',
 		projectName: 'console-project',
@@ -99,9 +88,15 @@ const status: IndexStatusType = {
 		adapters: [
 			{
 				id: 'typescript',
+				displayName: 'TypeScript / JavaScript',
 				version: '9.9.9',
+				required: true,
 				coverage: 'present',
 				absenceReason: null,
+				revision: 1,
+				counts: {files: 3, symbols: 4, occurrences: 5, dependencyEdges: 1, dependencyBindings: 1, diagnostics: 0},
+				stages: {scanMs: 1, compilerMs: 2, extractionMs: 3},
+				freshness: {state: 'current', checkedAt: '2026-10-19T00:00:00.000Z', dirtyFileCount: 0},
 				compilerVersion: '6.0.3',
 				declaredCompilerVersion: '6.0.3',
 				compilerDrift: false,
@@ -130,15 +125,11 @@ const verification: IndexVerificationType = {
 	counts: {files: 3, symbols: 4, occurrences: 5, dependencyEdges: 1, dependencyBindings: 1, diagnostics: 0},
 };
 
-const benchmarkReport = {schemaVersion: 2, generatedAt: '2026-10-19T00:00:00.000Z'} as unknown as BenchmarkReportType;
-
-const openService = (options: Readonly<{logger?: LoggerType; mcpPath?: string; config?: ConfigType}> = {}): ConsoleService =>
+const openService = (options: Readonly<{logger?: LoggerType; config?: ConfigType}> = {}): ConsoleService =>
 	ConsoleService.open({
 		config: options.config ?? config,
 		adapters: [{...typeScriptExtractor, version: '9.9.9'}],
-		verifyReferences: doubles.verifyTypeScriptReferences,
 		...(options.logger === undefined ? {} : {logger: options.logger}),
-		...(options.mcpPath === undefined ? {} : {mcpPath: options.mcpPath}),
 	});
 
 const jobById = (service: ConsoleService, id: string): ConsoleJobType | undefined => service.jobs.find((job) => job.id === id);
@@ -177,8 +168,6 @@ describe('console service wiring', () => {
 		doubles.index.getStatus.mockReturnValue(status);
 		doubles.index.ensureReady.mockResolvedValue(verification);
 		doubles.index.verify.mockResolvedValue(verification);
-		doubles.runBenchmarkReport.mockResolvedValue(benchmarkReport);
-		doubles.verifyTypeScriptReferences.mockReturnValue(qualificationReport);
 		doubles.buildAnalyticsDashboard.mockImplementation(
 			(_path: string, window: string): AnalyticsDashboardType => ({window}) as unknown as AnalyticsDashboardType,
 		);
@@ -190,7 +179,7 @@ describe('console service wiring', () => {
 	});
 
 	it('opens the database, analytics, and watched index with resolved configuration', () => {
-		service = openService({logger: doubles.logger, mcpPath: '/app/mcp.mjs'});
+		service = openService({logger: doubles.logger});
 
 		expect(doubles.databaseOpen).toHaveBeenCalledWith(config.databasePath, {
 			rootDir: config.rootDir,
@@ -223,7 +212,7 @@ describe('console service wiring', () => {
 	});
 
 	it('uses the configured logger when none is injected', () => {
-		service = openService({mcpPath: '/app/mcp.mjs'});
+		service = openService();
 
 		expect(doubles.createLogger).toHaveBeenCalledWith({minimumLevel: 'error'});
 		expect(doubles.createCodeIndex).toHaveBeenCalledWith(config, expect.anything(), doubles.logger, expect.anything());
@@ -241,7 +230,7 @@ describe('console service wiring', () => {
 			loopbackOnly: true,
 			tokenRequired: true,
 		});
-		expect(service.meta.operations).toContain('mcp-install');
+		expect(service.meta.operations).toStrictEqual(['update', 'rebuild', 'verify']);
 		expect(service.status).toBe(status);
 		expect(service.snapshot()).toMatchObject({meta: service.meta, status, jobs: [{id: job.id, operation: 'verify'}]});
 	});
@@ -280,8 +269,6 @@ const resetJobs = (): void => {
 	doubles.index.getStatus.mockReturnValue(status);
 	doubles.index.ensureReady.mockResolvedValue(verification);
 	doubles.index.verify.mockResolvedValue(verification);
-	doubles.runBenchmarkReport.mockResolvedValue(benchmarkReport);
-	doubles.verifyTypeScriptReferences.mockReturnValue(qualificationReport);
 };
 
 const closeJobs = async (): Promise<void> => {
@@ -290,7 +277,7 @@ const closeJobs = async (): Promise<void> => {
 };
 
 const startJobs = (): ConsoleService => {
-	jobService = openService({logger: doubles.logger, mcpPath: '/app/mcp.mjs'});
+	jobService = openService({logger: doubles.logger});
 	return jobService;
 };
 
@@ -309,29 +296,21 @@ describe('console service job execution', () => {
 		expect(update).toMatchObject({state: 'succeeded', result: verification});
 		expect(rebuild).toMatchObject({state: 'succeeded', result: verification});
 		expect(verify).toMatchObject({state: 'succeeded', result: verification});
-		expect(doubles.index.ensureReady).toHaveBeenNthCalledWith(1);
+		expect(doubles.index.ensureReady).toHaveBeenNthCalledWith(1, {});
 		expect(doubles.index.ensureReady).toHaveBeenNthCalledWith(2, {force: true});
 		expect(doubles.index.verify).toHaveBeenCalledWith();
 		expect(doubles.analytics.record).toHaveBeenCalledWith('console_operation', expect.objectContaining({ok: true}));
 	});
 
-	it('runs benchmarks and qualification reports', async () => {
+	it('scopes update and rebuild to one adapter', async () => {
 		const consoleService = start();
-		const benchmark = await execute(consoleService, 'benchmark');
-		const qualify = await execute(consoleService, 'qualify');
+		const update = await waitForJob(consoleService, consoleService.runOperation('update', 'typescript').id);
+		const rebuild = await waitForJob(consoleService, consoleService.runOperation('rebuild', 'typescript').id);
 
-		expect(doubles.runBenchmarkReport).toHaveBeenCalledWith({config, iterations: 10, force: false});
-		expect(benchmark.result).toBe(benchmarkReport);
-		expect(qualify.state).toBe('succeeded');
-		expect(qualify.result).toStrictEqual({
-			coverage: qualificationReport.coverage,
-			accuracy: qualificationReport.accuracy,
-			gate: qualificationReport.gate,
-			disagreements: [
-				expect.objectContaining({name: 'missing', missing: 1, extra: 0, skip: null}),
-				expect.objectContaining({name: 'skipped', missing: 0, extra: 0, skip: 'declaration_not_located'}),
-			],
-		});
+		expect(update).toMatchObject({state: 'succeeded', adapterId: 'typescript'});
+		expect(rebuild).toMatchObject({state: 'succeeded', adapterId: 'typescript'});
+		expect(doubles.index.ensureReady).toHaveBeenNthCalledWith(1, {adapterIds: ['typescript']});
+		expect(doubles.index.ensureReady).toHaveBeenNthCalledWith(2, {adapterIds: ['typescript'], force: true});
 	});
 });
 
@@ -341,50 +320,11 @@ describe('console service job failures and retention', () => {
 
 	const start = startJobs;
 
-	it('installs the MCP server through the shared command', async () => {
-		const consoleService = start();
-		const job = await execute(consoleService, 'mcp-install');
-
-		expect(doubles.runMcpCommand).toHaveBeenCalledWith(
-			['install', '--root', config.rootDir, '--json', '--migrate-legacy'],
-			expect.objectContaining({stdout: expect.any(Function), stderr: expect.any(Function)}),
-			{mcpPath: '/app/mcp.mjs'},
-		);
-		expect(job).toMatchObject({state: 'succeeded', result: {installed: true, output: 'installed mcp server'}});
-	});
-
-	it('fails the MCP install when the bundle path is unavailable', async () => {
-		jobService = openService({logger: doubles.logger});
-		const consoleService = jobService;
-		const job = await execute(consoleService, 'mcp-install');
-
-		expect(job).toMatchObject({state: 'failed', message: 'MCP bundle path is unavailable'});
-		expect(doubles.runMcpCommand).not.toHaveBeenCalled();
-	});
-
-	it('reports command output when MCP installation fails', async () => {
+	it('rejects unknown adapter targets and scoped verification', () => {
 		const consoleService = start();
 
-		doubles.runMcpCommand.mockImplementationOnce((...args: unknown[]) => {
-			const [, io] = args as [unknown, {stderr: (line: string) => void}];
-			io.stderr('permission denied');
-			return 1;
-		});
-
-		const job = await execute(consoleService, 'mcp-install');
-
-		expect(job).toMatchObject({state: 'failed', message: 'permission denied'});
-		expect(doubles.logger.error).toHaveBeenCalledWith('console_operation_failed', expect.objectContaining({operation: 'mcp-install'}));
-	});
-
-	it('defaults failed installations without output', async () => {
-		const consoleService = start();
-
-		doubles.runMcpCommand.mockReturnValueOnce(2);
-
-		const job = await execute(consoleService, 'mcp-install');
-
-		expect(job).toMatchObject({state: 'failed', message: 'MCP install failed'});
+		expect(() => consoleService.runOperation('update', 'unknown')).toThrow('Unknown adapter: unknown');
+		expect(() => consoleService.runOperation('verify', 'typescript')).toThrow('Storage verification is workspace-wide');
 	});
 
 	it('records thrown errors and non-error failures', async () => {

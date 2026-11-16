@@ -164,6 +164,8 @@ describe('console API queries and mutations', () => {
 		const job = {
 			id: 'job-2',
 			operation: 'rebuild',
+			adapterId: 'typescript',
+			phase: null,
 			state: 'queued',
 			createdAt: timestamp,
 			startedAt: null,
@@ -181,7 +183,7 @@ describe('console API queries and mutations', () => {
 		client.setQueryData(['snapshot', 'secret'], snapshotOf());
 		const {result, unmount} = renderHook(() => useRunOperation('secret'), {wrapper: wrapperOf(client)});
 
-		await result.current.mutateAsync('rebuild');
+		await result.current.mutateAsync({operation: 'rebuild', adapterId: 'typescript'});
 
 		await waitFor(() => {
 			expect(result.current.isSuccess).toBe(true);
@@ -190,7 +192,7 @@ describe('console API queries and mutations', () => {
 		expect(result.current.data?.job.operation).toBe('rebuild');
 		expect(fetchMock).toHaveBeenCalledWith('/api/jobs', {
 			method: 'POST',
-			body: JSON.stringify({operation: 'rebuild'}),
+			body: JSON.stringify({operation: 'rebuild', adapterId: 'typescript'}),
 			headers: {accept: 'application/json', authorization: 'Bearer secret', 'content-type': 'application/json'},
 		});
 

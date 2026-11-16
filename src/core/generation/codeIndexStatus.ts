@@ -2,7 +2,7 @@ import {type AdapterType} from '@codeindex/adapter-sdk';
 import {type ConfigType} from '../config/config.ts';
 import {collectStatus} from '../freshness/indexStatus.ts';
 import {debugFor} from '../logging/debug.ts';
-import {type GenerationRowType, type IndexStatusType} from '../model.ts';
+import {type GenerationRowType, type IndexActivityType, type IndexStatusType} from '../model.ts';
 import {type IndexDatabase} from '../storage/database.ts';
 import {type RefreshCoordinatorSnapshotType} from '../freshness/refreshTypes.ts';
 
@@ -20,6 +20,7 @@ export const readIndexStatus = (
 		adapters: ReadonlyMap<string, AdapterType>;
 		database: IndexDatabase;
 		refresh: RefreshCoordinatorSnapshotType;
+		activity: IndexActivityType | null;
 	}>,
 ): Readonly<{status: IndexStatusType; published: GenerationRowType | null}> =>
 	input.database.readSnapshot(() => {
@@ -30,6 +31,7 @@ export const readIndexStatus = (
 			database: input.database,
 			published,
 			refresh: input.refresh,
+			activity: input.activity,
 			workingCopyId: input.database.getWorkingCopy()?.id ?? null,
 			lastError: null,
 		});

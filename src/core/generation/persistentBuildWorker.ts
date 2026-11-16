@@ -7,6 +7,7 @@ import {BuildFailureEnvelopeError, buildFailureFromWorkerPayload, buildFailureOf
 import {buildWorkerRunResultFromMessage} from './buildWorkerClient.ts';
 import {type BuildWorkerRunResultType} from './buildWorker.ts';
 import {cancelExecution, createCancellationBuffer} from './executionCancellation.ts';
+import {buildProgressFromWorker, type BuildProgressType} from './buildProgress.ts';
 
 const SHUTDOWN_GRACE_MS = 2000;
 const stopWorker = async (worker: Worker): Promise<void> => {
@@ -34,6 +35,7 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
 type WaiterType = Readonly<{
 	resolve: (result: BuildWorkerRunResultType) => void;
 	reject: (error: Error) => void;
+	onProgress?: ((progress: BuildProgressType) => void) | undefined;
 }>;
 
 export type PersistentBuildWorkerOptionsType = Readonly<{
@@ -53,6 +55,7 @@ export type PersistentBuildWorkerInputType = Readonly<{
 	ownerId: string;
 	startedAtEpoch: number;
 	signal?: AbortSignal | undefined;
+	onProgress?: ((progress: BuildProgressType) => void) | undefined;
 }>;
 
 const unavailableFailure = (): BuildFailureType => buildFailureOf(new Error('Build worker unavailable'), 'worker');
@@ -142,7 +145,11 @@ export class PersistentBuildWorker {
 		}
 
 		const {promise: resultPromise, resolve, reject} = Promise.withResolvers<BuildWorkerRunResultType>();
-		this.#waiters.set(id, {resolve, reject});
+		this.#waiters.set(id, {
+			resolve,
+			reject,
+			...(input.onProgress === undefined ? {} : {onProgress: input.onProgress}),
+		});
 		this.#cancellations.set(id, cancellationBuffer);
 
 		try {
@@ -236,37 +243,57 @@ export class PersistentBuildWorker {
 		if (this.#worker !== worker || !isRecord(value) || typeof value['id'] !== 'number') {
 			return;
 		}
+		const {id} = value;
 
 		if (value['kind'] === 'code-index-initialize-result') {
-			const waiter = this.#initializationWaiters.get(value['id']);
-
-			if (waiter === undefined) {
-				return;
-			}
-
-			this.#initializationWaiters.delete(value['id']);
-
-			if (value['ok'] === true) {
-				waiter.resolve(true);
-				return;
-			}
-
-			const failure = buildFailureFromWorkerPayload(value['failure']);
-			waiter.reject(new BuildFailureEnvelopeError(failure ?? buildFailureOf(new Error('Worker initialization failed'), 'worker')));
+			this.#onInitializationMessage(id, value);
 			return;
 		}
 
-		if (value['kind'] !== 'code-index-build-result') {
+		if (value['kind'] === 'code-index-build-progress') {
+			this.#onProgressMessage(id, value);
 			return;
 		}
 
-		const waiter = this.#waiters.get(value['id']);
+		if (value['kind'] === 'code-index-build-result') {
+			this.#onResultMessage(id, value);
+		}
+	}
+
+	#onInitializationMessage(id: number, value: Readonly<Record<string, unknown>>): void {
+		const waiter = this.#initializationWaiters.get(id);
 
 		if (waiter === undefined) {
 			return;
 		}
 
-		this.#waiters.delete(value['id']);
+		this.#initializationWaiters.delete(id);
+
+		if (value['ok'] === true) {
+			waiter.resolve(true);
+			return;
+		}
+
+		const failure = buildFailureFromWorkerPayload(value['failure']);
+		waiter.reject(new BuildFailureEnvelopeError(failure ?? buildFailureOf(new Error('Worker initialization failed'), 'worker')));
+	}
+
+	#onProgressMessage(id: number, value: Readonly<Record<string, unknown>>): void {
+		const progress = buildProgressFromWorker(value['progress']);
+
+		if (progress !== null) {
+			this.#waiters.get(id)?.onProgress?.(progress);
+		}
+	}
+
+	#onResultMessage(id: number, value: Readonly<Record<string, unknown>>): void {
+		const waiter = this.#waiters.get(id);
+
+		if (waiter === undefined) {
+			return;
+		}
+
+		this.#waiters.delete(id);
 
 		if (value['ok'] === true) {
 			const result = buildWorkerRunResultFromMessage(value);

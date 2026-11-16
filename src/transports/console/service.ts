@@ -1,8 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {createAnalyticsRecorder, type AnalyticsRecorderType} from '../../core/analytics/recorder.ts';
 import {buildAnalyticsDashboard} from '../../core/analytics/dashboard.ts';
-import {runBenchmarkReport} from '../../core/benchmark/runBenchmark.ts';
-import {runMcpCommand} from '../cli/mcpCommand.ts';
 import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ExtractorType} from '../../adapters/types.ts';
 import {configuredAdapters, type ConfigType} from '../../core/config/config.ts';
@@ -29,6 +27,7 @@ const MAX_RETAINED_JOBS = 20;
 type MutableJobType = {
 	id: string;
 	operation: ConsoleOperationType;
+	adapterId: string | null;
 	state: ConsoleJobStateType;
 	createdAt: string;
 	startedAt: string | null;
@@ -38,37 +37,18 @@ type MutableJobType = {
 	result: unknown;
 };
 
-export type ConsoleVerificationType = (config: ConfigType) => Readonly<{
-	coverage: unknown;
-	accuracy: unknown;
-	gate: unknown;
-	comparisons: readonly Readonly<{
-		name: string;
-		kind: string;
-		path: string;
-		tags: readonly string[];
-		expectedCount: number;
-		actualCount: number;
-		matchedCount: number;
-		missing: readonly unknown[];
-		extra: readonly unknown[];
-		skip: string | null;
-	}>[];
-}>;
-
 export type ConsoleServiceOptionsType = Readonly<{
 	config: ConfigType;
 	adapters?: readonly ExtractorType[];
 	adapterDescriptors?: readonly ResolvedAdapterDescriptorType[];
-	/** Adapter-specific verification injected by a maintainer entrypoint. */
-	verifyReferences?: ConsoleVerificationType;
 	logger?: LoggerType;
-	mcpPath?: string;
 }>;
 
-const snapshotJob = (job: MutableJobType): ConsoleJobType => ({
+const snapshotJob = (job: MutableJobType, activity: IndexStatusType['activity'] = null): ConsoleJobType => ({
 	id: job.id,
 	operation: job.operation,
+	adapterId: job.adapterId,
+	phase: job.state === 'running' ? (activity?.phase ?? null) : null,
 	state: job.state,
 	createdAt: job.createdAt,
 	startedAt: job.startedAt,
@@ -89,11 +69,9 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
 export class ConsoleService {
 	readonly #config: ConfigType;
 	readonly #adapters: ReadonlyMap<string, ExtractorType>;
-	readonly #verifyReferences: ConsoleVerificationType | null;
 	readonly #index: CodeIndex;
 	readonly #logger: LoggerType;
 	readonly #analytics: AnalyticsRecorderType;
-	readonly #mcpPath: string | null;
 	readonly #jobs = new Map<string, MutableJobType>();
 	readonly #pending: MutableJobType[] = [];
 	#draining = false;
@@ -105,18 +83,14 @@ export class ConsoleService {
 		runtime: Readonly<{
 			logger: LoggerType;
 			analytics: AnalyticsRecorderType;
-			mcpPath: string | null;
 			adapters: ReadonlyMap<string, ExtractorType>;
-			verifyReferences: ConsoleVerificationType | null;
 		}>,
 	) {
 		this.#config = config;
 		this.#index = index;
 		this.#adapters = runtime.adapters;
-		this.#verifyReferences = runtime.verifyReferences;
 		this.#logger = runtime.logger;
 		this.#analytics = runtime.analytics;
-		this.#mcpPath = runtime.mcpPath;
 	}
 
 	/**
@@ -156,9 +130,7 @@ export class ConsoleService {
 		const service = new ConsoleService(config, index, {
 			logger,
 			analytics,
-			mcpPath: options.mcpPath ?? null,
 			adapters: new Map(adapters.map((adapter) => [adapter.id, adapter])),
-			verifyReferences: options.verifyReferences ?? null,
 		});
 		service.start();
 		return service;
@@ -193,11 +165,12 @@ export class ConsoleService {
 	}
 
 	public get jobs(): readonly ConsoleJobType[] {
-		return [...this.#jobs.values()].map((job) => snapshotJob(job)).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+		return this.snapshotJobs(this.status.activity);
 	}
 
 	public snapshot(): ConsoleSnapshotType {
-		return {meta: this.meta, status: this.status, jobs: this.jobs};
+		const {status} = this;
+		return {meta: this.meta, status, jobs: this.snapshotJobs(status.activity)};
 	}
 
 	/**
@@ -214,12 +187,22 @@ export class ConsoleService {
 	 * Queues one allow-listed operational job.
 	 *
 	 * @param operation - Operation to execute.
+	 * @param adapterId - Adapter target, or null for the complete workspace.
 	 * @returns The queued job snapshot.
 	 */
-	public runOperation(operation: ConsoleOperationType): ConsoleJobType {
+	public runOperation(operation: ConsoleOperationType, adapterId: string | null = null): ConsoleJobType {
+		if (adapterId !== null && !this.#adapters.has(adapterId)) {
+			throw new Error(`Unknown adapter: ${adapterId}`);
+		}
+
+		if (operation === 'verify' && adapterId !== null) {
+			throw new Error('Storage verification is workspace-wide');
+		}
+
 		const job: MutableJobType = {
 			id: randomUUID(),
 			operation,
+			adapterId,
 			state: 'queued',
 			createdAt: new Date().toISOString(),
 			startedAt: null,
@@ -257,83 +240,23 @@ export class ConsoleService {
 		this.#index.start();
 	}
 
-	private execute(operation: ConsoleOperationType): unknown {
-		switch (operation) {
+	private execute(job: MutableJobType): unknown {
+		const adapterIds = job.adapterId === null ? undefined : [job.adapterId];
+
+		switch (job.operation) {
 			case 'update': {
-				return this.#index.ensureReady();
+				return this.#index.ensureReady(adapterIds === undefined ? {} : {adapterIds});
 			}
 			case 'rebuild': {
-				return this.#index.ensureReady({force: true});
+				return this.#index.ensureReady({...(adapterIds === undefined ? {} : {adapterIds}), force: true});
 			}
 			case 'verify': {
 				return this.#index.verify();
 			}
-			case 'benchmark': {
-				return runBenchmarkReport({config: this.#config, iterations: 10, force: false});
-			}
-			case 'mcp-install': {
-				return this.installMcp();
-			}
-			case 'qualify': {
-				const verify = this.#verifyReferences;
-
-				if (verify === null) {
-					throw new Error('Adapter verification is not available in this process');
-				}
-
-				const report = verify(this.#config);
-
-				return {
-					coverage: report.coverage,
-					accuracy: report.accuracy,
-					gate: report.gate,
-					disagreements: report.comparisons
-						.filter((comparison) => comparison.skip !== null || comparison.missing.length > 0 || comparison.extra.length > 0)
-						.slice(0, 50)
-						.map((comparison) => ({
-							name: comparison.name,
-							kind: comparison.kind,
-							path: comparison.path,
-							tags: comparison.tags,
-							expected: comparison.expectedCount,
-							actual: comparison.actualCount,
-							matched: comparison.matchedCount,
-							missing: comparison.missing.length,
-							extra: comparison.extra.length,
-							skip: comparison.skip,
-						})),
-				};
-			}
 			default: {
-				throw new Error(`Unsupported console operation: ${String(operation)}`);
+				throw new Error(`Unsupported console operation: ${String(job.operation)}`);
 			}
 		}
-	}
-
-	private installMcp(): unknown {
-		if (this.#mcpPath === null) {
-			throw new Error('MCP bundle path is unavailable');
-		}
-
-		const output: string[] = [];
-		const code = runMcpCommand(
-			['install', '--root', this.#config.rootDir, '--json', '--migrate-legacy'],
-			{
-				stdout: (line) => {
-					output.push(line);
-				},
-				stderr: (line) => {
-					output.push(line);
-				},
-			},
-			{mcpPath: this.#mcpPath},
-		);
-
-		if (code !== 0) {
-			throw new Error(output.join('\n') || 'MCP install failed');
-		}
-
-		return {installed: true, output: output.join('\n')};
 	}
 
 	private async drain(): Promise<void> {
@@ -364,7 +287,7 @@ export class ConsoleService {
 		job.startedAt = new Date().toISOString();
 
 		try {
-			job.result = await this.execute(job.operation);
+			job.result = await this.execute(job);
 			job.state = 'succeeded';
 		} catch (error) {
 			job.state = 'failed';
@@ -375,10 +298,15 @@ export class ConsoleService {
 			job.completedAt = new Date().toISOString();
 			this.#analytics.record('console_operation', {
 				operation: job.operation,
+				adapter: job.adapterId,
 				durationMs: job.durationMs,
 				ok: job.state === 'succeeded',
 			});
 		}
+	}
+
+	private snapshotJobs(activity: IndexStatusType['activity']): readonly ConsoleJobType[] {
+		return [...this.#jobs.values()].map((job) => snapshotJob(job, activity)).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 	}
 
 	private trimJobs(): void {

@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {buildProgressFromWorker} from '../src/core/generation/buildProgress.ts';
 import {isBuildWorkerData, runBuildWorker} from '../src/core/generation/buildWorker.ts';
 import {typeScriptExtractor} from '@codeindex/adapter-typescript/index';
 import {createCancellationBuffer} from '../src/core/generation/executionCancellation.ts';
@@ -68,6 +69,19 @@ const invalidPayloads = (): readonly unknown[] => {
 
 	return payloads;
 };
+
+describe('build worker progress', () => {
+	it('accepts valid phases and rejects malformed messages', () => {
+		expect(buildProgressFromWorker({phase: 'scanning', adapterId: 'typescript'})).toStrictEqual({
+			phase: 'scanning',
+			adapterId: 'typescript',
+		});
+		expect(buildProgressFromWorker({phase: 'publishing', adapterId: null})).toStrictEqual({phase: 'publishing', adapterId: null});
+		expect(buildProgressFromWorker(null)).toBeNull();
+		expect(buildProgressFromWorker({phase: 'waiting', adapterId: null})).toBeNull();
+		expect(buildProgressFromWorker({phase: 'building', adapterId: 42})).toBeNull();
+	});
+});
 
 describe('build worker payload', () => {
 	it('accepts the complete build payload', () => {

@@ -61,7 +61,7 @@ const renderColorScheme = async (mode: ThemeModeType, prefersDark: boolean): Pro
 	installBrowserStubs({prefersDark});
 	localStorage.setItem('code-index-console-theme', mode);
 	const {unmount} = renderWithProviders(<App />);
-	await screen.findByText('Your code index, at a glance.');
+	await screen.findByText('Workspace index status');
 	const scheme = colorSchemeOf();
 	unmount();
 	return scheme;
@@ -88,32 +88,29 @@ describe('console application composition', () => {
 
 		renderWithProviders(<App />);
 
-		await screen.findByText('Your code index, at a glance.');
+		await screen.findByText('Workspace index status');
 
 		await userEvent.click(screen.getByRole('button', {name: 'Analytics'}));
 		await screen.findByText('Activity timeline');
 
-		await userEvent.click(screen.getByRole('button', {name: 'Operations'}));
-		expect(screen.getByText('Recent jobs')).not.toBeNull();
+		await userEvent.click(screen.getByRole('button', {name: 'Maintenance'}));
+		expect(screen.getByText('Maintenance history')).not.toBeNull();
 
 		await userEvent.click(screen.getByRole('button', {name: 'Result'}));
 		expect(screen.getByText(/0123456789abcdef/u)).not.toBeNull();
 		await userEvent.click(screen.getByRole('button', {name: 'Close'}));
 
-		await userEvent.click(screen.getByText('Configuration'));
-		expect(screen.getByText('Security boundary')).not.toBeNull();
-
-		await userEvent.click(screen.getByText('Overview'));
+		await userEvent.click(screen.getByText('Status'));
 		await userEvent.click(screen.getByRole('button', {name: 'Change color theme'}));
 		expect(localStorage.getItem('code-index-console-theme')).toBe('light');
 
 		await userEvent.click(screen.getByRole('button', {name: 'Refresh console data'}));
 
-		await userEvent.click(screen.getByRole('button', {name: 'Update index'}));
+		await userEvent.click(screen.getByRole('button', {name: 'Check now'}));
 		await waitFor(() => {
 			expect(fetchMock).toHaveBeenCalledWith('/api/jobs', expect.objectContaining({method: 'POST'}));
 		});
-		const recentJobs = await screen.findByText('Recent jobs');
+		const recentJobs = await screen.findByText('Maintenance history');
 		expect(recentJobs).not.toBeNull();
 	});
 
@@ -126,7 +123,7 @@ describe('console application composition', () => {
 
 		await userEvent.type(screen.getByLabelText('Console token'), 'token{enter}');
 
-		const heading = await screen.findByText('Your code index, at a glance.');
+		const heading = await screen.findByText('Workspace index status');
 		expect(heading).not.toBeNull();
 		expect(sessionStorage.getItem('code-index-console-token')).toBe('token');
 	});

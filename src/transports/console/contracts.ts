@@ -2,15 +2,22 @@ import {z} from 'zod';
 import {type AnalyticsDashboardType, type AnalyticsWindowType} from '../../core/analytics/contracts.ts';
 import {type IndexStatusType} from '../../core/model.ts';
 
-export const CONSOLE_OPERATIONS = ['update', 'rebuild', 'verify', 'benchmark', 'qualify', 'mcp-install'] as const;
+export const CONSOLE_OPERATIONS = ['update', 'rebuild', 'verify'] as const;
 
 export type ConsoleOperationType = (typeof CONSOLE_OPERATIONS)[number];
+
+export type ConsoleOperationRequestType = Readonly<{
+	readonly operation: ConsoleOperationType;
+	readonly adapterId: string | null;
+}>;
 
 export type ConsoleJobStateType = 'queued' | 'running' | 'succeeded' | 'failed';
 
 export type ConsoleJobType = Readonly<{
 	readonly id: string;
 	readonly operation: ConsoleOperationType;
+	readonly adapterId: string | null;
+	readonly phase: 'waiting' | 'scanning' | 'building' | 'publishing' | null;
 	readonly state: ConsoleJobStateType;
 	readonly createdAt: string;
 	readonly startedAt: string | null;
@@ -56,6 +63,8 @@ const jobStateSchema = z.enum(['queued', 'running', 'succeeded', 'failed']);
 const consoleJobSchema = z.object({
 	id: z.string(),
 	operation: operationSchema,
+	adapterId: z.string().nullable(),
+	phase: z.enum(['waiting', 'scanning', 'building', 'publishing']).nullable(),
 	state: jobStateSchema,
 	createdAt: z.string(),
 	startedAt: z.string().nullable(),
@@ -107,9 +116,32 @@ const buildLeaseSchema = z.object({
 
 const adapterStatusSchema = z.object({
 	id: z.string(),
+	displayName: z.string(),
 	version: z.string(),
+	required: z.boolean(),
 	coverage: z.enum(['present', 'absent']),
 	absenceReason: z.string().nullable(),
+	revision: z.number().nullable(),
+	counts: z.object({
+		files: z.number(),
+		symbols: z.number(),
+		occurrences: z.number(),
+		dependencyEdges: z.number(),
+		dependencyBindings: z.number(),
+		diagnostics: z.number(),
+	}),
+	stages: z
+		.object({
+			scanMs: z.number(),
+			compilerMs: z.number(),
+			extractionMs: z.number(),
+		})
+		.nullable(),
+	freshness: z.object({
+		state: z.enum(['current', 'updating', 'stale', 'unknown']),
+		checkedAt: z.string(),
+		dirtyFileCount: z.number().nullable(),
+	}),
 	compilerVersion: z.string(),
 	declaredCompilerVersion: z.string().nullable(),
 	compilerDrift: z.boolean(),
@@ -124,6 +156,16 @@ const indexStatusSchema = z.object({
 	generationId: z.string().nullable(),
 	revision: z.number().nullable(),
 	building: z.boolean(),
+	activity: z
+		.object({
+			reason: z.enum(['startup', 'change', 'reconcile', 'manual']),
+			force: z.boolean(),
+			adapterIds: z.array(z.string()).nullable(),
+			phase: z.enum(['waiting', 'scanning', 'building', 'publishing']),
+			adapterId: z.string().nullable(),
+			startedAt: z.string(),
+		})
+		.nullable(),
 	scope: z.object({
 		root: z.string(),
 		projectName: z.string(),
@@ -253,6 +295,14 @@ export const analyticsDashboardSchema = z.object({
 		successfulEventToPublicationP95Ms: z.number().nullable(),
 		timeline: z.array(analyticsTimelinePointSchema),
 	}),
+	adapters: z.array(
+		z.object({
+			id: z.string(),
+			extractions: z.number(),
+			factWrites: z.number(),
+			failures: z.number(),
+		}),
+	),
 }) satisfies z.ZodType<AnalyticsDashboardType>;
 
 export const consoleJobResponseSchema = z.object({job: consoleJobSchema}) satisfies z.ZodType<Readonly<{job: ConsoleJobType}>>;

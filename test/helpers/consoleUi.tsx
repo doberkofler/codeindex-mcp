@@ -28,7 +28,7 @@ export const metaOf = (overrides: Partial<ConsoleMetaType> = {}): ConsoleMetaTyp
 	logLevel: 'error',
 	loopbackOnly: true,
 	tokenRequired: true,
-	operations: ['update', 'rebuild', 'verify', 'qualify'],
+	operations: ['update', 'rebuild', 'verify'],
 	...overrides,
 });
 
@@ -39,6 +39,7 @@ export const statusOf = (overrides: Partial<ConsoleSnapshotType['status']> = {})
 	generationId: '0123456789abcdef',
 	revision: 1,
 	building: false,
+	activity: null,
 	scope: {
 		root: '/workspace',
 		projectName: 'fixture',
@@ -47,9 +48,15 @@ export const statusOf = (overrides: Partial<ConsoleSnapshotType['status']> = {})
 		adapters: [
 			{
 				id: 'typescript',
+				displayName: 'TypeScript / JavaScript',
 				version: '0.2.0',
+				required: true,
 				coverage: 'present',
 				absenceReason: null,
+				revision: 1,
+				counts: {files: 12, symbols: 34, occurrences: 56, dependencyEdges: 7, dependencyBindings: 8, diagnostics: 0},
+				stages: {scanMs: 100, compilerMs: 400, extractionMs: 500},
+				freshness: {state: 'current', checkedAt: timestamp, dirtyFileCount: 0},
 				compilerVersion: '6.0.3',
 				declaredCompilerVersion: '6.0.3',
 				compilerDrift: false,
@@ -80,6 +87,8 @@ export const statusOf = (overrides: Partial<ConsoleSnapshotType['status']> = {})
 export const jobOf = (overrides: Partial<ConsoleJobType> = {}): ConsoleJobType => ({
 	id: 'job-1',
 	operation: 'update',
+	adapterId: null,
+	phase: null,
 	state: 'succeeded',
 	createdAt: timestamp,
 	startedAt: timestamp,
@@ -164,6 +173,7 @@ export const dashboardOf = (overrides: Partial<AnalyticsDashboardType> = {}): An
 		successfulEventToPublicationP95Ms: 80,
 		timeline: [{bucketStart: timestamp, events: 9, toolCalls: 0, errors: 0, builds: 0, refreshes: 3}],
 	},
+	adapters: [{id: 'typescript', extractions: 2, factWrites: 90, failures: 0}],
 	...overrides,
 });
 
