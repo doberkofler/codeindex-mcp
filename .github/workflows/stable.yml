@@ -59,8 +59,9 @@ jobs:
             exit 0
           fi
           run_id=$(gh api --paginate \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/stable.yml/runs?status=success&per_page=100" \
-            --jq '.workflow_runs[].id' | sed -n '1p')
+            "repos/${GITHUB_REPOSITORY}/actions/runs?status=success&per_page=100" \
+            --jq '.workflow_runs[] | select(.path == ".github/workflows/release.yml" or .path == ".github/workflows/stable.yml") | .id' |
+            sed -n '1p')
           if [ -n "$run_id" ]; then
             echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
           fi
