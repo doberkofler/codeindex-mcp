@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.18.0...v0.19.0) (2026-11-16)
+
+### Fixed
+
+* **oracle:** update vendored PL/SQL grammar ([dde1bdf](https://github.com/doberkofler/codeindex-mcp/commit/dde1bdf04af93d33679981b65b1eeec1a592edda))
+
 ## [0.18.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.17.0...v0.18.0) (2026-11-16)
 
 ### Added
