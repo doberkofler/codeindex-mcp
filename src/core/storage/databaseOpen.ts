@@ -195,6 +195,7 @@ export const openReadOnlyDatabaseConnection = (databasePath: string, rootDir?: s
 	const reader = new DatabaseSync(databasePath, {readOnly: true});
 
 	try {
+		reader.exec('pragma busy_timeout = 5000');
 		const version = reader.prepare("select value from metadata where key = 'schema_version'").get();
 
 		if (version === undefined || asString(version, 'value') !== SCHEMA_VERSION) {
@@ -202,7 +203,6 @@ export const openReadOnlyDatabaseConnection = (databasePath: string, rootDir?: s
 		}
 
 		reader.exec('pragma foreign_keys = on');
-		reader.exec('pragma busy_timeout = 5000');
 		reader.exec('pragma mmap_size = 1073741824');
 		reader.exec('pragma cache_size = -32768');
 		return reader;

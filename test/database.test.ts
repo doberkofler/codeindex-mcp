@@ -11,6 +11,7 @@ import {scopedFactIdOf} from '../src/core/storage/factIdentity.ts';
 import {bindingCandidateQuery, outlinePageQuerySql, referencePageQuery} from '../src/core/storage/databasePublicationQueries.ts';
 import {explainQueryPlan} from '../src/core/storage/databaseOpen.ts';
 import {createDerivedGenerationFactSeed, createGenerationFactSeed} from './helpers/generationFacts.ts';
+import {holdSchemaLock} from './helpers/schemaLock.ts';
 import {assertCompleteStatistics, assertIndexedPlan, publishGeneration, publishNewGeneration, queryContextOf} from './helpers/statistics.ts';
 
 const file = {
@@ -84,6 +85,18 @@ describe('IndexDatabase', () => {
 		} finally {
 			reader.close();
 		}
+	});
+
+	it('waits for concurrent schema initialization before opening a query-only facade', async () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-db-read-only-lock-'));
+		const databasePath = path.join(directory, 'index.sqlite');
+		const database = IndexDatabase.open(databasePath, {projectId: 'read-only-lock'});
+		database.close();
+		const lock = await holdSchemaLock(directory, databasePath);
+
+		const reader = IndexDatabase.openReadOnly(databasePath, {projectId: 'read-only-lock'});
+		reader.close();
+		await expect(lock.exit).resolves.toStrictEqual([0, null]);
 	});
 
 	it('does not publish a failed generation', () => {
