@@ -104,7 +104,7 @@ const writeAdapter = (
 	const {writer, generationId, adapter, mode, checkCancellation} = input;
 	checkCancellation?.();
 	if (adapter.coverage === 'absent') {
-		deleteAdapterRows(writer, generationId, adapter.adapterId);
+		deleteAdapterRows(writer, generationId, adapter.adapterId, true);
 		return {counts: ZERO_COUNTS, validation: null, changedPaths: [], selectedRows: 0, deletedRows: 0, writtenRows: 0};
 	}
 

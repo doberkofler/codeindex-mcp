@@ -4,41 +4,65 @@ import {loadAmbiguousOverloadSites, loadCodeDependencies, loadCodeFacts} from '@
 
 let database: DatabaseSync;
 
-describe('Oracle code facts', () => {
-	beforeEach(() => {
-		database = new DatabaseSync(':memory:');
-		database.exec(`
+const createCodeFactsDatabase = (): DatabaseSync => {
+	const created = new DatabaseSync(':memory:');
+	created.exec(`
+			create table generation (
+				generation_key integer primary key,
+				id text not null unique
+			);
+			create table file (
+				file_key integer primary key,
+				generation_key integer not null,
+				path text not null
+			);
 			create table symbol (
-				generation_id text not null,
+				symbol_key integer primary key,
+				generation_key integer not null,
 				id text not null,
 				name text not null,
 				kind text not null,
-				path text not null,
+				file_key integer not null,
 				start_line integer not null,
 				start_column integer not null
 			);
 			create table occurrence (
-				generation_id text not null,
-				symbol_id text not null,
-				path text not null,
+				generation_key integer not null,
+				symbol_key integer not null,
+				file_key integer not null,
 				start_line integer not null,
 				start_column integer not null,
 				role text not null
 			);
 			create table dependency_edge (
-				generation_id text not null,
-				source_path text not null,
+				generation_key integer not null,
+				source_file_key integer not null,
 				target_identifier text,
 				kind text not null
 			);
 			create table diagnostic (
-				generation_id text not null,
+				generation_key integer not null,
 				code integer not null,
-				path text,
+				file_key integer,
+				fallback_path text,
 				start_line integer,
 				start_column integer
 			);
+			insert into generation values (1, 'generation');
+			insert into generation values (2, 'other');
+			insert into file values (1, 1, 'src/demo.pkb');
+			insert into file values (2, 1, 'src/self.pkb');
+			insert into file values (3, 1, 'src/missing.pkb');
+			insert into file values (4, 1, 'src/ignored.pkb');
+			insert into file values (5, 2, 'src/other.pkb');
 		`);
+
+	return created;
+};
+
+describe('Oracle code facts', () => {
+	beforeEach(() => {
+		database = createCodeFactsDatabase();
 	});
 
 	afterEach(() => {
@@ -47,12 +71,12 @@ describe('Oracle code facts', () => {
 
 	it('loads definitions and references for one generation', () => {
 		database.exec(`
-			insert into symbol values ('generation', 'symbol-1', 'Run', 'procedure', 'src/demo.pkb', 2, 13);
-			insert into symbol values ('generation', 'symbol-2', 'Value', 'variable', 'src/demo.pkb', 3, 3);
-			insert into symbol values ('other', 'symbol-3', 'Ignored', 'variable', 'src/other.pkb', 1, 1);
-			insert into occurrence values ('generation', 'symbol-1', 'src/demo.pkb', 2, 13, 'definition');
-			insert into occurrence values ('generation', 'symbol-2', 'src/demo.pkb', 3, 3, 'reference');
-			insert into occurrence values ('other', 'symbol-3', 'src/other.pkb', 1, 1, 'definition');
+			insert into symbol values (1, 1, 'symbol-1', 'Run', 'procedure', 1, 2, 13);
+			insert into symbol values (2, 1, 'symbol-2', 'Value', 'variable', 1, 3, 3);
+			insert into symbol values (3, 2, 'symbol-3', 'Ignored', 'variable', 5, 1, 1);
+			insert into occurrence values (1, 1, 1, 2, 13, 'definition');
+			insert into occurrence values (1, 2, 1, 3, 3, 'reference');
+			insert into occurrence values (2, 3, 5, 1, 1, 'definition');
 		`);
 
 		const facts = loadCodeFacts(database, 'generation');
@@ -68,10 +92,10 @@ describe('Oracle code facts', () => {
 
 	it('keeps dependency edges that target another corpus package', () => {
 		database.exec(`
-			insert into dependency_edge values ('generation', 'src/demo.pkb', 'schema.other_pkg', 'package-call');
-			insert into dependency_edge values ('generation', 'src/self.pkb', 'schema.self_pkg', 'package-reference');
-			insert into dependency_edge values ('generation', 'src/missing.pkb', 'schema.absent_pkg', 'type-reference');
-			insert into dependency_edge values ('generation', 'src/ignored.pkb', 'schema.other_pkg', 'type-reference');
+			insert into dependency_edge values (1, 1, 'schema.other_pkg', 'package-call');
+			insert into dependency_edge values (1, 2, 'schema.self_pkg', 'package-reference');
+			insert into dependency_edge values (1, 3, 'schema.absent_pkg', 'type-reference');
+			insert into dependency_edge values (1, 4, 'schema.other_pkg', 'type-reference');
 		`);
 
 		const dependencies = loadCodeDependencies(
@@ -90,12 +114,13 @@ describe('Oracle code facts', () => {
 
 	it('loads ambiguous-overload positions for one generation only', () => {
 		database.exec(`
-			insert into diagnostic values ('generation', 9105, 'src/demo.pkb', 4, 7);
-			insert into diagnostic values ('generation', 9102, 'src/demo.pkb', 5, 1);
-			insert into diagnostic values ('other', 9105, 'src/other.pkb', 1, 1);
-			insert into diagnostic values ('generation', 9105, null, 6, 1);
+			insert into diagnostic values (1, 9105, 1, null, 4, 7);
+			insert into diagnostic values (1, 9102, 1, null, 5, 1);
+			insert into diagnostic values (2, 9105, 5, null, 1, 1);
+			insert into diagnostic values (1, 9105, null, 'tsconfig.json', 6, 1);
+			insert into diagnostic values (1, 9105, null, null, 7, 1);
 		`);
 
-		expect([...loadAmbiguousOverloadSites(database, 'generation')]).toStrictEqual(['src/demo.pkb:4:7']);
+		expect([...loadAmbiguousOverloadSites(database, 'generation')]).toStrictEqual(['src/demo.pkb:4:7', 'tsconfig.json:6:1']);
 	});
 });

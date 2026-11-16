@@ -10,12 +10,29 @@ import {type AdapterCommitCountsType, type AdapterCommitType} from './databaseCo
  * @param writer - Writer connection inside an open transaction.
  * @param generationId - Generation whose adapter rows are removed.
  * @param adapterId - Adapter to remove.
+ * @param preserveAdapterRow - Keep provenance so a touched absent adapter increments its revision.
  */
-export const deleteAdapterRows = (writer: DatabaseSync, generationId: string, adapterId: string): void => {
-	writer.prepare('delete from file where generation_id = ? and adapter_id = ?').run(generationId, adapterId);
+export const deleteAdapterRows = (writer: DatabaseSync, generationId: string, adapterId: string, preserveAdapterRow = false): void => {
+	writer
+		.prepare(
+			`delete from file
+			 where generation_key = (select generation_key from generation where id = ?) and adapter_id = ?`,
+		)
+		.run(generationId, adapterId);
 
-	for (const table of ['dependency_edge', 'diagnostic', 'build_stats', 'generation_file_digest', 'project_context', 'generation_adapter']) {
-		writer.prepare(`delete from ${table} where generation_id = ? and adapter_id = ?`).run(generationId, adapterId);
+	for (const table of ['dependency_edge', 'diagnostic', 'build_stats', 'project_context']) {
+		writer
+			.prepare(`delete from ${table} where generation_key = (select generation_key from generation where id = ?) and adapter_id = ?`)
+			.run(generationId, adapterId);
+	}
+
+	if (!preserveAdapterRow) {
+		writer
+			.prepare(
+				`delete from generation_adapter
+				 where generation_key = (select generation_key from generation where id = ?) and adapter_id = ?`,
+			)
+			.run(generationId, adapterId);
 	}
 };
 
@@ -39,37 +56,38 @@ export const upsertAdapterRow = (
 	writer
 		.prepare(
 			`insert into generation_adapter (
-				generation_id, adapter_id, protocol_version, adapter_version, package_name, package_version,
+				generation_key, adapter_id, revision, protocol_version, adapter_version, package_name, package_version,
 				compiler_version, declared_compiler_version, compiler_drift,
 				coverage, absence_reason, source_hash, config_hash, input_hash,
 				file_count, symbol_count, occurrence_count, dependency_edge_count, dependency_binding_count, diagnostic_count,
 				scan_ms, compiler_ms, extraction_ms)
-			 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			 on conflict(generation_id, adapter_id) do update set
-			 	protocol_version = excluded.protocol_version,
-			 	adapter_version = excluded.adapter_version,
-			 	package_name = excluded.package_name,
-			 	package_version = excluded.package_version,
-			 	compiler_version = excluded.compiler_version,
-			 	declared_compiler_version = excluded.declared_compiler_version,
-			 	compiler_drift = excluded.compiler_drift,
-			 	coverage = excluded.coverage,
-			 	absence_reason = excluded.absence_reason,
-			 	source_hash = excluded.source_hash,
-			 	config_hash = excluded.config_hash,
-			 	input_hash = excluded.input_hash,
-			 	file_count = excluded.file_count,
-			 	symbol_count = excluded.symbol_count,
-			 	occurrence_count = excluded.occurrence_count,
-			 	dependency_edge_count = excluded.dependency_edge_count,
-			 	dependency_binding_count = excluded.dependency_binding_count,
-			 	diagnostic_count = excluded.diagnostic_count,
-			 	scan_ms = excluded.scan_ms,
-			 	compiler_ms = excluded.compiler_ms,
-			 	extraction_ms = excluded.extraction_ms`,
+			 select generation_key, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+			 from generation where id = ?
+			 on conflict(generation_key, adapter_id) do update set
+				revision = generation_adapter.revision + 1,
+				protocol_version = excluded.protocol_version,
+				adapter_version = excluded.adapter_version,
+				package_name = excluded.package_name,
+				package_version = excluded.package_version,
+				compiler_version = excluded.compiler_version,
+				declared_compiler_version = excluded.declared_compiler_version,
+				compiler_drift = excluded.compiler_drift,
+				coverage = excluded.coverage,
+				absence_reason = excluded.absence_reason,
+				source_hash = excluded.source_hash,
+				config_hash = excluded.config_hash,
+				input_hash = excluded.input_hash,
+				file_count = excluded.file_count,
+				symbol_count = excluded.symbol_count,
+				occurrence_count = excluded.occurrence_count,
+				dependency_edge_count = excluded.dependency_edge_count,
+				dependency_binding_count = excluded.dependency_binding_count,
+				diagnostic_count = excluded.diagnostic_count,
+				scan_ms = excluded.scan_ms,
+				compiler_ms = excluded.compiler_ms,
+				extraction_ms = excluded.extraction_ms`,
 		)
 		.run(
-			input.generationId,
 			adapter.adapterId,
 			adapter.protocolVersion,
 			adapter.adapterVersion,
@@ -92,5 +110,6 @@ export const upsertAdapterRow = (
 			input.stages.scanMs,
 			input.stages.compilerMs,
 			input.stages.extractionMs,
+			input.generationId,
 		);
 };

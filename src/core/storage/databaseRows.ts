@@ -126,8 +126,8 @@ export const toDependencyBinding = (row: SqlRowType): IndexedDependencyBindingTy
 });
 
 export const DEPENDENCY_EDGE_COLUMNS =
-	'adapter_id, id, context_name, source_path, target_path, raw_target, target_identifier, kind, compile_time_only, start_line, start_column, end_line, end_column, start_offset, end_offset';
+	'e.adapter_id, e.id, pc.name as context_name, source.path as source_path, target.path as target_path, e.raw_target, e.target_identifier, e.kind, e.compile_time_only, e.start_line, e.start_column, e.end_line, e.end_column, e.start_offset, e.end_offset';
 
-export const DEPENDENCY_BINDING_COLUMNS = 'edge_id, position, kind, imported_name, exported_name, local_name, compile_time_only';
+export const DEPENDENCY_BINDING_COLUMNS = 'e.id as edge_id, b.position, b.kind, b.imported_name, b.exported_name, b.local_name, b.compile_time_only';
 
 export const placeholders = (count: number): string => Array.from({length: count}, () => '?').join(', ');

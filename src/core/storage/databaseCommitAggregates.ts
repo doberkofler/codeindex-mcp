@@ -23,7 +23,8 @@ export const persistedAdapterCounts = (writer: DatabaseSync, generationId: strin
 			        coalesce(sum(dependency_edge_count), 0) as dependency_edge_count,
 			        coalesce(sum(dependency_binding_count), 0) as dependency_binding_count,
 			        coalesce(sum(diagnostic_count), 0) as diagnostic_count
-			 from generation_adapter where generation_id = ?`,
+			 from generation_adapter
+			 where generation_key = (select generation_key from generation where id = ?)`,
 		)
 		.get(generationId);
 
@@ -54,7 +55,8 @@ export const persistedAdapterStages = (writer: DatabaseSync, generationId: strin
 			`select coalesce(sum(scan_ms), 0) as scan_ms,
 			        coalesce(sum(compiler_ms), 0) as compiler_ms,
 			        coalesce(sum(extraction_ms), 0) as extraction_ms
-			 from generation_adapter where generation_id = ?`,
+			 from generation_adapter
+			 where generation_key = (select generation_key from generation where id = ?)`,
 		)
 		.get(generationId);
 

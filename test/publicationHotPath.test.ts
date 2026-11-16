@@ -135,6 +135,103 @@ const firstOf = <ItemType>(items: readonly ItemType[]): ItemType => {
 	return first;
 };
 
+const withoutFactsOf = (adapter: AdapterCommitType): Omit<AdapterCommitType, 'facts' | 'dependencies' | 'diagnostics'> => {
+	const {
+		adapterId,
+		protocolVersion,
+		adapterVersion,
+		packageName,
+		packageVersion,
+		compilerVersion,
+		declaredCompilerVersion,
+		compilerDrift,
+		coverage,
+		absenceReason,
+		sourceHash,
+		configHash,
+		inputHash,
+		counts,
+		stages,
+		files,
+		projects,
+	} = adapter;
+	return {
+		adapterId,
+		protocolVersion,
+		adapterVersion,
+		packageName,
+		packageVersion,
+		compilerVersion,
+		declaredCompilerVersion,
+		compilerDrift,
+		coverage,
+		absenceReason,
+		sourceHash,
+		configHash,
+		inputHash,
+		counts,
+		stages,
+		files,
+		projects,
+	};
+};
+
+describe('publication rollback isolation', () => {
+	afterEach(cleanupTest);
+
+	it('increments only successfully published adapter revisions', () => {
+		const database = openDatabase();
+
+		try {
+			const typescript = adapterOf(seedOf('typescript', 'src/example.ts'));
+			const oracle = adapterOf(seedOf('oracle', 'db/example.sql'));
+			const baseline = publish(database, [typescript, oracle]);
+
+			expect(database.getGenerationAdapters('generation').map(({adapterId, revision}) => [adapterId, revision])).toStrictEqual([
+				['oracle', 1],
+				['typescript', 1],
+			]);
+
+			revise(database, [typescript]);
+			expect(database.getGenerationAdapters('generation').map(({adapterId, revision}) => [adapterId, revision])).toStrictEqual([
+				['oracle', 1],
+				['typescript', 2],
+			]);
+
+			const facts = factsOf(typescript);
+			const firstSymbol = firstOf(facts.symbols);
+			const malformed: AdapterCommitType = {
+				...typescript,
+				facts: {...facts, symbols: [{...firstSymbol, enclosingId: 'missing-parent'}, ...facts.symbols.slice(1)]},
+			};
+
+			expect(() => revise(database, [malformed])).toThrow(/FOREIGN KEY constraint failed/u);
+			expect(database.getPublishedGeneration()?.revision).toBe(baseline.revision + 1);
+			expect(database.getGenerationAdapters('generation').map(({adapterId, revision}) => [adapterId, revision])).toStrictEqual([
+				['oracle', 1],
+				['typescript', 2],
+			]);
+
+			const absent: AdapterCommitType = {
+				...withoutFactsOf(typescript),
+				coverage: 'absent',
+				absenceReason: 'tool-missing',
+				counts: {files: 0, symbols: 0, occurrences: 0, dependencyEdges: 0, dependencyBindings: 0, diagnostics: 0},
+				files: [],
+				projects: [],
+			};
+			revise(database, [absent]);
+
+			expect(database.getGenerationAdapters('generation').map(({adapterId, revision, coverage}) => [adapterId, revision, coverage])).toStrictEqual([
+				['oracle', 1, 'present'],
+				['typescript', 3, 'absent'],
+			]);
+		} finally {
+			database.close();
+		}
+	});
+});
+
 describe('publication checks and COMMIT enforcement', () => {
 	afterEach(cleanupTest);
 

@@ -182,6 +182,8 @@ export type AdapterActivityType = Readonly<{
 /** Persisted provenance for one adapter within one generation. */
 export type GenerationAdapterType = Readonly<{
 	readonly adapterId: string;
+	/** Monotonic publication counter for this adapter contribution. */
+	readonly revision: number;
 	/** Adapter protocol revision implemented by the loaded module. */
 	readonly protocolVersion: number;
 	/** Adapter implementation version; participates in reuse identity. */

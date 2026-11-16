@@ -35,8 +35,6 @@ export const siteKindOf = (value: string): BindingSiteKindType => {
 	throw new TypeError(`Expected binding site kind, received ${value}`);
 };
 
-export const EXPOSURE_ORDER = `case exposure when 'published' then 2 when 'reachable' then 1 else 0 end`;
-
 export const toSymbolSummary = (row: SqlRowType, contexts: readonly string[]): SymbolSummaryType => ({
 	id: asString(row, 'symbol_id'),
 	name: asString(row, 'name'),

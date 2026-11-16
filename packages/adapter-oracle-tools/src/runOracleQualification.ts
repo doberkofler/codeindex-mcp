@@ -243,7 +243,10 @@ const excludedTotalOf = (counts: TruthExclusionCountsType): number => Object.val
 
 const filesOf = (reader: DatabaseSync, generationId: string): readonly string[] =>
 	reader
-		.prepare('select path from file where generation_id = ? order by path')
+		.prepare(
+			`select path from file
+			 where generation_key = (select generation_key from generation where id = ?) order by path`,
+		)
 		.all(generationId)
 		.map((row) => asString(row, 'path'));
 

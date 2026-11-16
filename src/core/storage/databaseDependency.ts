@@ -25,8 +25,8 @@ export const findDependencyEdgesByTargetIdentifier = (
 	targetIdentifier: string,
 	filter: DependencyEdgeFilterType = {},
 ): readonly StoredDependencyEdgeType[] => {
-	const contextClause = filter.context === undefined ? '' : ' and context_name = ?';
-	const adapterClause = filter.adapter === undefined ? '' : ' and adapter_id = ?';
+	const contextClause = filter.context === undefined ? '' : ' and pc.name = ?';
+	const adapterClause = filter.adapter === undefined ? '' : ' and e.adapter_id = ?';
 	const parameters = [
 		generationId,
 		targetIdentifier,
@@ -37,9 +37,13 @@ export const findDependencyEdgesByTargetIdentifier = (
 	return reader
 		.prepare(
 			`select ${DEPENDENCY_EDGE_COLUMNS}
-			 from dependency_edge
-			 where generation_id = ? and target_identifier = ?${contextClause}${adapterClause}
-			 order by source_path, start_offset, id`,
+			 from dependency_edge e
+			 join file source on source.file_key = e.source_file_key
+			 left join file target on target.file_key = e.target_file_key
+			 left join project_context pc on pc.context_key = e.context_key
+			 where e.generation_key = (select generation_key from generation where id = ?)
+			 and e.target_identifier = ?${contextClause}${adapterClause}
+			 order by source.path, e.start_offset, e.id`,
 		)
 		.all(...parameters)
 		.map((row) => toDependencyEdge(row, generationId));
@@ -61,8 +65,8 @@ export const findDependencyEdgesByTargets = (
 	filter: DependencyEdgeFilterType = {},
 ): readonly StoredDependencyEdgeType[] => {
 	const edges: StoredDependencyEdgeType[] = [];
-	const contextClause = filter.context === undefined ? '' : ' and context_name = ?';
-	const adapterClause = filter.adapter === undefined ? '' : ' and adapter_id = ?';
+	const contextClause = filter.context === undefined ? '' : ' and pc.name = ?';
+	const adapterClause = filter.adapter === undefined ? '' : ' and e.adapter_id = ?';
 	const extraParameters = [...(filter.context === undefined ? [] : [filter.context]), ...(filter.adapter === undefined ? [] : [filter.adapter])];
 
 	for (let offset = 0; offset < targetPaths.length; offset += TARGET_CHUNK_SIZE) {
@@ -70,9 +74,13 @@ export const findDependencyEdgesByTargets = (
 		const rows = reader
 			.prepare(
 				`select ${DEPENDENCY_EDGE_COLUMNS}
-				 from dependency_edge
-				 where generation_id = ? and target_path in (${placeholders(chunk.length)})${contextClause}${adapterClause}
-				 order by source_path, start_offset, id`,
+				 from dependency_edge e
+				 join file source on source.file_key = e.source_file_key
+				 join file target on target.file_key = e.target_file_key
+				 left join project_context pc on pc.context_key = e.context_key
+				 where e.generation_key = (select generation_key from generation where id = ?)
+				 and target.path in (${placeholders(chunk.length)})${contextClause}${adapterClause}
+				 order by source.path, e.start_offset, e.id`,
 			)
 			.all(generationId, ...chunk, ...extraParameters);
 
@@ -98,9 +106,11 @@ export const listDependencyBindings = (reader: DatabaseSync, generationId: strin
 	return reader
 		.prepare(
 			`select ${DEPENDENCY_BINDING_COLUMNS}
-			 from dependency_binding
-			 where generation_id = ? and edge_id in (${placeholders(edgeIds.length)})
-			 order by edge_id, position`,
+			 from dependency_binding b
+			 join dependency_edge e on e.edge_key = b.edge_key
+			 where e.generation_key = (select generation_key from generation where id = ?)
+			 and e.id in (${placeholders(edgeIds.length)})
+			 order by e.id, b.position`,
 		)
 		.all(generationId, ...edgeIds)
 		.map((row) => toDependencyBinding(row));

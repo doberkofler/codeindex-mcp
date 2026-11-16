@@ -13,8 +13,28 @@ const countOf = (reader: DatabaseSync, sql: string, ...parameters: readonly (str
 	return asNumber(row, 'total');
 };
 
-const countsOfTable = (reader: DatabaseSync, table: string, generationId: string, adapterId: string): number =>
-	countOf(reader, `select count(*) as total from ${table} where generation_id = ? and adapter_id = ?`, generationId, adapterId);
+const countsOfTable = (reader: DatabaseSync, table: string, generationId: string, adapterId: string): number => {
+	const relationships: Readonly<Record<string, string>> = {
+		dependency_binding: 'join dependency_edge owner on owner.edge_key = row.edge_key',
+		definition_site: 'join occurrence owner on owner.occurrence_key = row.occurrence_key',
+		occurrence_context: 'join occurrence owner on owner.occurrence_key = row.occurrence_key',
+		surface_binding_origin: 'join symbol_name owner on owner.symbol_name_key = row.symbol_name_key',
+		symbol_name_context: 'join symbol_name owner on owner.symbol_name_key = row.symbol_name_key',
+		symbol_name_site: 'join symbol_name owner on owner.symbol_name_key = row.symbol_name_key',
+	};
+	const relationship = relationships[table];
+	const owner = relationship === undefined ? 'row' : 'owner';
+
+	return countOf(
+		reader,
+		`select count(*) as total from ${table} row
+		 ${relationship ?? ''}
+		 join generation g on g.generation_key = ${owner}.generation_key
+		 where g.id = ? and ${owner}.adapter_id = ?`,
+		generationId,
+		adapterId,
+	);
+};
 
 const definitionSiteCountOf = (input: GenerationFactsInputType): number =>
 	input.facts.occurrences.filter((occurrence) => occurrence.role === 'definition').length;
@@ -79,14 +99,9 @@ const validateCoverage = (writer: DatabaseSync, generationId: string, adapterId:
 		writer,
 		`select count(*) as total
 		 from occurrence o
-		 left join definition_site d
-		   on d.generation_id = o.generation_id
-		  and d.adapter_id = o.adapter_id
-		  and d.symbol_id = o.symbol_id
-		  and d.path = o.path
-		  and d.start_offset = o.start_offset
-		  and d.role = o.role
-		 where o.generation_id = ? and o.adapter_id = ? and o.role = 'definition' and d.site_id is null`,
+		 join generation g on g.generation_key = o.generation_key
+		 left join definition_site d on d.occurrence_key = o.occurrence_key
+		 where g.id = ? and o.adapter_id = ? and o.role = 'definition' and d.site_id is null`,
 		generationId,
 		adapterId,
 	);
@@ -99,17 +114,13 @@ const validateCoverage = (writer: DatabaseSync, generationId: string, adapterId:
 		writer,
 		`select count(*) as total
 		 from symbol_name_context c
-		 join symbol_name n
-		   on n.generation_id = c.generation_id
-		  and n.adapter_id = c.adapter_id
-		  and n.binding_id = c.binding_id
-		 where c.generation_id = ? and c.adapter_id = ?
+		 join symbol_name n on n.symbol_name_key = c.symbol_name_key
+		 join generation g on g.generation_key = n.generation_key
+		 where g.id = ? and n.adapter_id = ?
 		 and not exists (
 			select 1 from symbol_context s
-			where s.generation_id = c.generation_id
-			and s.adapter_id = c.adapter_id
-			and s.symbol_id = n.symbol_id
-			and s.context_name = c.context_name
+			where s.symbol_key = n.symbol_key
+			and s.context_key = c.context_key
 		 )`,
 		generationId,
 		adapterId,
@@ -123,12 +134,12 @@ const validateCoverage = (writer: DatabaseSync, generationId: string, adapterId:
 		writer,
 		`select count(*) as total
 		 from surface_binding_origin o
+		 join symbol_name n on n.symbol_name_key = o.symbol_name_key
+		 join generation g on g.generation_key = n.generation_key
 		 join symbol_name_context c
-		   on c.generation_id = o.generation_id
-		  and c.adapter_id = o.adapter_id
-		  and c.binding_id = o.root_binding_id
-		  and c.context_name = o.context_name
-		 where o.generation_id = ? and o.adapter_id = ? and c.exposure <> 'published'`,
+		   on c.symbol_name_key = o.root_symbol_name_key
+		  and c.context_key = o.context_key
+		 where g.id = ? and n.adapter_id = ? and c.exposure <> 'published'`,
 		generationId,
 		adapterId,
 	);
@@ -141,13 +152,13 @@ const validateCoverage = (writer: DatabaseSync, generationId: string, adapterId:
 		writer,
 		`select count(*) as total
 		 from surface_binding_origin o
-		 where o.generation_id = ? and o.adapter_id = ?
+		 join symbol_name n on n.symbol_name_key = o.symbol_name_key
+		 join generation g on g.generation_key = n.generation_key
+		 where g.id = ? and n.adapter_id = ?
 		 and exists (
 			select 1 from surface_binding_origin d
-			where d.generation_id = o.generation_id
-			and d.adapter_id = o.adapter_id
-			and d.binding_id = o.root_binding_id
-			and d.context_name = o.context_name
+			where d.symbol_name_key = o.root_symbol_name_key
+			and d.context_key = o.context_key
 		 )`,
 		generationId,
 		adapterId,

@@ -27,6 +27,7 @@ const generation = (overrides: Partial<GenerationRowType> = {}): GenerationRowTy
 
 const generationAdapter = (overrides: Partial<GenerationAdapterType> = {}): GenerationAdapterType => ({
 	adapterId: 'typescript',
+	revision: 1,
 	protocolVersion: 1,
 	adapterVersion: '0.1.0',
 	packageName: '@codeindex/adapter-typescript',

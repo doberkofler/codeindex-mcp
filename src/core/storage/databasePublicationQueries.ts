@@ -1,6 +1,8 @@
 export {type BindingCandidateType} from './databaseBindingQueries.ts';
 export {
 	bindingCandidateQuery,
+	bindingBelongsToSymbol,
+	bindingExposure,
 	bindingContextsFor,
 	bindingDetailsForSymbols,
 	bindingSitesFor,
@@ -8,8 +10,6 @@ export {
 	findBindingCandidates,
 } from './databaseBindingQueries.ts';
 export {
-	bindingBelongsToSymbol,
-	bindingExposure,
 	busiestSymbolPath,
 	definitionSiteById,
 	definitionSitesForSymbol,
@@ -25,6 +25,7 @@ export {
 } from './databaseDefinitionQueries.ts';
 export {
 	referenceCoverage,
+	referenceCoverageQuery,
 	referenceGroupContexts,
 	referenceGroupRows,
 	referencePageQuery,

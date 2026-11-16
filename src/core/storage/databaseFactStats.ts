@@ -150,7 +150,11 @@ export const buildStatsOf = (facts: FinalizedFactSetType, language: string): rea
  */
 export const readBuildStats = (reader: DatabaseSync, generationId: string): readonly BuildStatType[] =>
 	reader
-		.prepare('select language, metric, dim1, dim2, dim3, value from build_stats where generation_id = ? order by language, metric, dim1, dim2, dim3')
+		.prepare(
+			`select language, metric, dim1, dim2, dim3, value from build_stats
+			 where generation_key = (select generation_key from generation where id = ?)
+			 order by language, metric, dim1, dim2, dim3`,
+		)
 		.all(generationId)
 		.map((row) => ({
 			language: asString(row, 'language'),

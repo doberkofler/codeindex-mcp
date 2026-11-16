@@ -1,5 +1,12 @@
 import {type DatabaseSync} from 'node:sqlite';
-import {type BindingDetailType, type BindingSiteSummaryType, type BindingSummaryType, type ContextExposureType, type ExactNamePresenceType} from '../model.ts';
+import {
+	type BindingDetailType,
+	type BindingExposureType,
+	type BindingSiteSummaryType,
+	type BindingSummaryType,
+	type ContextExposureType,
+	type ExactNamePresenceType,
+} from '../model.ts';
 import {asNumber, asString, placeholders} from './databaseRows.ts';
 import {exposureOf, siteKindOf} from './databasePublicationRows.ts';
 
@@ -19,14 +26,19 @@ const contextClause = (context: string | undefined, alias: string): Readonly<{sq
 	context === undefined
 		? {sql: '', parameters: []}
 		: {
-				sql: ` and exists (select 1 from symbol_name_context c where c.generation_id = ${alias}.generation_id and c.adapter_id = ${alias}.adapter_id and c.binding_id = ${alias}.binding_id and c.context_name = ?)`,
+				sql: ` and exists (
+					select 1 from symbol_name_context c
+					join project_context pc on pc.context_key = c.context_key
+					where c.symbol_name_key = ${alias}.symbol_name_key and pc.adapter_id = ${alias}.adapter_id and pc.name = ?)`,
 				parameters: [context],
 			};
 
 const exposureColumn = (context: string | undefined): string =>
 	context === undefined
 		? 'n.exposure'
-		: `(select c.exposure from symbol_name_context c where c.generation_id = n.generation_id and c.adapter_id = n.adapter_id and c.binding_id = n.binding_id and c.context_name = ? limit 1)`;
+		: `(select c.exposure from symbol_name_context c
+			join project_context pc on pc.context_key = c.context_key
+			where c.symbol_name_key = n.symbol_name_key and pc.adapter_id = n.adapter_id and pc.name = ? limit 1)`;
 
 export const symbolContextsForRows = (reader: DatabaseSync, generationId: string, symbolIds: readonly string[]): ReadonlyMap<string, readonly string[]> => {
 	if (symbolIds.length === 0) {
@@ -35,9 +47,12 @@ export const symbolContextsForRows = (reader: DatabaseSync, generationId: string
 
 	const rows = reader
 		.prepare(
-			`select symbol_id, context_name from symbol_context
-			 where generation_id = ? and symbol_id in (${placeholders(symbolIds.length)})
-			 order by symbol_id, context_name`,
+			`select s.id as symbol_id, pc.name as context_name from symbol_context sc
+			 join symbol s on s.symbol_key = sc.symbol_key
+			 join project_context pc on pc.context_key = sc.context_key
+			 where s.generation_key = (select generation_key from generation where id = ?)
+			 and s.id in (${placeholders(symbolIds.length)})
+			 order by s.id, pc.name`,
 		)
 		.all(generationId, ...symbolIds);
 	const groups = new Map<string, string[]>();
@@ -92,7 +107,7 @@ export const exactNamePresence = (
 		.prepare(
 			`select distinct ${exposureExpression} as exposure
 			 from symbol_name n
-			 where n.generation_id = ?
+			 where n.generation_key = (select generation_key from generation where id = ?)
 			 and n.name = ?
 			 ${adapterFilter}
 			 ${contextFilter.sql}`,
@@ -159,18 +174,22 @@ export const bindingCandidateQuery = (input: BindingCandidateQueryType): Readonl
 
 	parameters.push(...contextFilter.parameters, ...exposureContext, ...exposure.parameters, input.fetchLimit);
 
-	const symbolJoin = input.kind === undefined ? '' : 'join symbol s on s.generation_id = n.generation_id and s.id = n.symbol_id';
-
 	return {
-		sql: `select n.binding_id, n.symbol_id, n.adapter_id, n.name, n.container, n.qualified_name, ${exposureExpression} as exposure, n.has_declared_site
+		sql: `select n.binding_id, s.id as symbol_id, n.adapter_id, n.name, n.container, n.qualified_name, ${exposureExpression} as exposure, n.has_declared_site
 		from symbol_name n
-		${symbolJoin}
-		where n.generation_id = ?
+		join symbol s on s.symbol_key = n.symbol_key
+		where n.generation_key = (select generation_key from generation where id = ?)
 		${adapterFilter}
 		and ${field} >= ? and ${field} < ?
 		${input.kind === undefined ? '' : ' and s.kind = ?'}
 		${input.container === undefined ? '' : ' and n.container = ?'}
-		${input.path === undefined ? '' : ` and exists (select 1 from occurrence o where o.generation_id = n.generation_id and o.symbol_id = n.symbol_id and o.role = 'definition' and o.path = ?)`}
+		${
+			input.path === undefined
+				? ''
+				: ` and exists (
+			select 1 from occurrence o join file f on f.file_key = o.file_key
+			where o.symbol_key = n.symbol_key and o.role = 'definition' and f.path = ?)`
+		}
 		${contextFilter.sql}
 		${exposure.sql}
 		order by n.name, n.container, n.binding_id
@@ -296,9 +315,12 @@ export const bindingContextsFor = (
 
 	const rows = reader
 		.prepare(
-			`select binding_id, context_name, exposure from symbol_name_context
-			 where generation_id = ? and binding_id in (${placeholders(bindingIds.length)})
-			 order by binding_id, context_name`,
+			`select n.binding_id, pc.name as context_name, c.exposure from symbol_name_context c
+			 join symbol_name n on n.symbol_name_key = c.symbol_name_key
+			 join project_context pc on pc.context_key = c.context_key
+			 where n.generation_key = (select generation_key from generation where id = ?)
+			 and n.binding_id in (${placeholders(bindingIds.length)})
+			 order by n.binding_id, pc.name`,
 		)
 		.all(generationId, ...bindingIds);
 	const groups = new Map<string, ContextExposureType[]>();
@@ -332,11 +354,14 @@ export const bindingSitesFor = (
 
 	const rows = reader
 		.prepare(
-			`select binding_id, kind, path, start_offset, end_offset from symbol_name_site
-			 where generation_id = ? and binding_id in (${placeholders(bindingIds.length)})
-			 order by binding_id,
-				case kind when 'declared' then 0 when 'default' then 1 when 'alias' then 2 when 'reexport' then 3 when 'wildcard' then 4 when 'commonjs' then 5 else 6 end,
-				path, start_offset`,
+			`select n.binding_id, site.kind, f.path, site.start_offset, site.end_offset from symbol_name_site site
+			 join symbol_name n on n.symbol_name_key = site.symbol_name_key
+			 join file f on f.file_key = site.file_key
+			 where n.generation_key = (select generation_key from generation where id = ?)
+			 and n.binding_id in (${placeholders(bindingIds.length)})
+			 order by n.binding_id,
+				case site.kind when 'declared' then 0 when 'default' then 1 when 'alias' then 2 when 'reexport' then 3 when 'wildcard' then 4 when 'commonjs' then 5 else 6 end,
+				f.path, site.start_offset`,
 		)
 		.all(generationId, ...bindingIds);
 	const groups = new Map<string, BindingSiteSummaryType[]>();
@@ -374,14 +399,19 @@ export const bindingDetailsForSymbols = (
 	const contextFilter =
 		input.context === undefined
 			? ''
-			: ' and exists (select 1 from symbol_name_context c where c.generation_id = n.generation_id and c.adapter_id = n.adapter_id and c.binding_id = n.binding_id and c.context_name = ?)';
+			: ` and exists (
+				select 1 from symbol_name_context c
+				join project_context pc on pc.context_key = c.context_key
+				where c.symbol_name_key = n.symbol_name_key and pc.adapter_id = n.adapter_id and pc.name = ?)`;
 	const parameters = input.context === undefined ? [input.generationId, ...input.symbolIds] : [input.generationId, ...input.symbolIds, input.context];
 	const rows = reader
 		.prepare(
-			`select n.binding_id, n.symbol_id, n.name, n.container, n.qualified_name, n.exposure
+			`select n.binding_id, s.id as symbol_id, n.name, n.container, n.qualified_name, n.exposure
 			 from symbol_name n
-			 where n.generation_id = ? and n.symbol_id in (${placeholders(input.symbolIds.length)})${contextFilter}
-			 order by n.symbol_id, n.container, n.name, n.binding_id`,
+			 join symbol s on s.symbol_key = n.symbol_key
+			 where n.generation_key = (select generation_key from generation where id = ?)
+			 and s.id in (${placeholders(input.symbolIds.length)})${contextFilter}
+			 order by s.id, n.container, n.name, n.binding_id`,
 		)
 		.all(...parameters);
 	const bindingIds = rows.map((row) => asString(row, 'binding_id'));
@@ -414,4 +444,38 @@ export const bindingDetailsForSymbols = (
 	}
 
 	return groups;
+};
+
+export const bindingBelongsToSymbol = (reader: DatabaseSync, generationId: string, symbolId: string, bindingId: string): boolean =>
+	reader
+		.prepare(
+			`select 1 from symbol_name n
+			 join symbol s on s.symbol_key = n.symbol_key
+			 where n.generation_key = (select generation_key from generation where id = ?)
+			 and n.binding_id = ? and s.id = ?`,
+		)
+		.get(generationId, bindingId, symbolId) !== undefined;
+
+export const bindingExposure = (reader: DatabaseSync, generationId: string, bindingId: string, context?: string): BindingExposureType | null => {
+	const row =
+		context === undefined
+			? reader
+					.prepare(
+						`select c.exposure from symbol_name_context c
+						 join symbol_name n on n.symbol_name_key = c.symbol_name_key
+						 where n.generation_key = (select generation_key from generation where id = ?) and n.binding_id = ?
+						 order by case c.exposure when 'published' then 2 when 'reachable' then 1 else 0 end desc limit 1`,
+					)
+					.get(generationId, bindingId)
+			: reader
+					.prepare(
+						`select c.exposure from symbol_name_context c
+						 join symbol_name n on n.symbol_name_key = c.symbol_name_key
+						 join project_context pc on pc.context_key = c.context_key
+						 where n.generation_key = (select generation_key from generation where id = ?)
+						 and n.binding_id = ? and pc.name = ?`,
+					)
+					.get(generationId, bindingId, context);
+
+	return row === undefined ? null : exposureOf(asString(row, 'exposure'));
 };

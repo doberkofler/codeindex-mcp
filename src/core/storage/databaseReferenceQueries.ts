@@ -31,7 +31,22 @@ const symbolIdsOf = (input: ReferenceScopeType): readonly string[] =>
 const symbolClauseOf = (input: ReferenceScopeType, alias: string): Readonly<{sql: string; parameters: readonly string[]}> => {
 	const symbolIds = symbolIdsOf(input);
 
-	return {sql: `${alias}.symbol_id in (${placeholders(symbolIds.length)})`, parameters: symbolIds};
+	if (symbolIds.length === 1) {
+		return {
+			sql: `${alias}.symbol_key = (
+				select symbol_key from symbol
+				where generation_key = (select generation_key from generation where id = ?) and id = ?)`,
+			parameters: [input.generationId, ...symbolIds],
+		};
+	}
+
+	return {
+		sql: `${alias}.symbol_key in (
+			select symbol_key from symbol
+			where generation_key = (select generation_key from generation where id = ?)
+			and id in (${placeholders(symbolIds.length)}))`,
+		parameters: [input.generationId, ...symbolIds],
+	};
 };
 
 /** One usage bucket inside a file or owner group. */
@@ -52,7 +67,7 @@ export type ReferenceGroupContextRowType = Readonly<{
 
 const occurrenceClauses = (input: ReferenceScopeType, alias: string): Readonly<{sql: string; parameters: readonly (string | number)[]}> => {
 	const symbolClause = symbolClauseOf(input, alias);
-	const clauses: string[] = [`${alias}.generation_id = ?`, symbolClause.sql];
+	const clauses: string[] = [`${alias}.generation_key = (select generation_key from generation where id = ?)`, symbolClause.sql];
 	const parameters: (string | number)[] = [input.generationId, ...symbolClause.parameters];
 
 	if (input.role !== undefined) {
@@ -61,12 +76,16 @@ const occurrenceClauses = (input: ReferenceScopeType, alias: string): Readonly<{
 	}
 
 	if (input.path !== undefined) {
-		clauses.push(`${alias}.path = ?`);
+		clauses.push(`${alias}.path_order = ?`);
 		parameters.push(input.path);
 	}
 
 	if (input.enclosingId !== undefined) {
-		clauses.push(`${alias}.enclosing_id = ?`);
+		clauses.push(
+			`${alias}.enclosing_symbol_key = (
+				select symbol_key from symbol
+				where generation_key = ${alias}.generation_key and id = ?)`,
+		);
 		parameters.push(input.enclosingId);
 	}
 
@@ -83,9 +102,8 @@ const occurrenceClauses = (input: ReferenceScopeType, alias: string): Readonly<{
 	if (input.context !== undefined) {
 		clauses.push(
 			`exists (select 1 from occurrence_context oc
-				where oc.generation_id = ${alias}.generation_id and oc.adapter_id = ${alias}.adapter_id and oc.symbol_id = ${alias}.symbol_id
-				and oc.path = ${alias}.path and oc.start_offset = ${alias}.start_offset
-				and oc.role = ${alias}.role and oc.context_name = ?)`,
+				join project_context pc on pc.context_key = oc.context_key
+				where oc.occurrence_key = ${alias}.occurrence_key and pc.name = ?)`,
 		);
 		parameters.push(input.context);
 	}
@@ -95,16 +113,24 @@ const occurrenceClauses = (input: ReferenceScopeType, alias: string): Readonly<{
 
 const definitionClauses = (input: ReferenceScopeType, alias: string): Readonly<{sql: string; parameters: readonly (string | number)[]}> => {
 	const symbolClause = symbolClauseOf(input, alias);
-	const clauses: string[] = [`${alias}.generation_id = ?`, symbolClause.sql, `${alias}.role = 'definition'`];
+	const clauses: string[] = [
+		`${alias}.generation_key = (select generation_key from generation where id = ?)`,
+		symbolClause.sql,
+		`${alias}.role = 'definition'`,
+	];
 	const parameters: (string | number)[] = [input.generationId, ...symbolClause.parameters];
 
 	if (input.path !== undefined) {
-		clauses.push(`${alias}.path = ?`);
+		clauses.push(`${alias}.path_order = ?`);
 		parameters.push(input.path);
 	}
 
 	if (input.enclosingId !== undefined) {
-		clauses.push(`${alias}.enclosing_id = ?`);
+		clauses.push(
+			`${alias}.enclosing_symbol_key = (
+				select symbol_key from symbol
+				where generation_key = ${alias}.generation_key and id = ?)`,
+		);
 		parameters.push(input.enclosingId);
 	}
 
@@ -116,9 +142,8 @@ const definitionClauses = (input: ReferenceScopeType, alias: string): Readonly<{
 	if (input.context !== undefined) {
 		clauses.push(
 			`exists (select 1 from occurrence_context oc
-				where oc.generation_id = ${alias}.generation_id and oc.adapter_id = ${alias}.adapter_id and oc.symbol_id = ${alias}.symbol_id
-				and oc.path = ${alias}.path and oc.start_offset = ${alias}.start_offset
-				and oc.role = ${alias}.role and oc.context_name = ?)`,
+				join project_context pc on pc.context_key = oc.context_key
+				where oc.occurrence_key = ${alias}.occurrence_key and pc.name = ?)`,
 		);
 		parameters.push(input.context);
 	}
@@ -138,9 +163,15 @@ const occurrenceContexts = (
 	const symbolIds = [...new Set(occurrences.map((occurrence) => occurrence.symbolId))];
 	const rows = reader
 		.prepare(
-			`select symbol_id, path, start_offset, role, context_name from occurrence_context
-			 where generation_id = ? and symbol_id in (${placeholders(symbolIds.length)})
-			 order by path, start_offset, role, context_name`,
+			`select s.id as symbol_id, f.path, o.start_offset, o.role, pc.name as context_name
+			 from occurrence_context oc
+			 join occurrence o on o.occurrence_key = oc.occurrence_key
+			 join symbol s on s.symbol_key = o.symbol_key
+			 join file f on f.file_key = o.file_key
+			 join project_context pc on pc.context_key = oc.context_key
+			 where o.generation_key = (select generation_key from generation where id = ?)
+			 and s.id in (${placeholders(symbolIds.length)})
+			 order by f.path, o.start_offset, o.role, pc.name`,
 		)
 		.all(generationId, ...symbolIds);
 	const groups = new Map<string, string[]>();
@@ -170,12 +201,15 @@ export const referencePageQuery = (
 	const {sql: clauses, parameters: clauseParameters} = occurrenceClauses(input, 'o');
 
 	return {
-		sql: `select o.symbol_id, o.adapter_id, o.path, o.start_offset, o.end_offset, o.start_line, o.start_column, o.end_line, o.end_column,
-				o.role, o.usage, o.enclosing_id, s.name as owner_name, s.kind as owner_kind, s.path as owner_path, s.start_line as owner_start_line
+		sql: `select target.id as symbol_id, o.adapter_id, f.path, o.start_offset, o.end_offset, o.start_line, o.start_column, o.end_line, o.end_column,
+				o.role, o.usage, owner.id as enclosing_id, owner.name as owner_name, owner.kind as owner_kind,
+				(select path from file where file_key = owner.file_key) as owner_path, owner.start_line as owner_start_line
 			 from occurrence o
-			 left join symbol s on s.generation_id = o.generation_id and s.id = o.enclosing_id
+			 join symbol target on target.symbol_key = o.symbol_key
+			 join file f on f.file_key = o.file_key
+			 left join symbol owner on owner.symbol_key = o.enclosing_symbol_key
 			 where ${clauses}
-			 order by o.path, o.start_offset, o.role, o.symbol_id, o.end_offset
+			 order by o.path_order, o.start_offset, o.role, o.symbol_id_order, o.end_offset
 			 limit ? offset ?`,
 		parameters: [...clauseParameters, input.limit + 1, input.offset],
 	};
@@ -236,6 +270,62 @@ export const referenceRows = (reader: DatabaseSync, input: ReferenceScopeType & 
 };
 
 /**
+ * Builds the reference-coverage statement used after every occurrence page.
+ *
+ * Symbol and file membership stay uncorrelated so SQLite starts from the
+ * symbol-key occurrence index instead of scanning every occurrence in a
+ * generation.
+ *
+ * @param input - Generation, symbol, and active filters.
+ * @returns Statement text and bound parameters.
+ */
+export const referenceCoverageQuery = (
+	input: Readonly<{generationId: string; symbolId: string; filters: ReferenceScopeType}>,
+): Readonly<{sql: string; parameters: readonly (string | number)[]}> => {
+	const scope: ReferenceScopeType = {...input.filters, generationId: input.generationId, symbolId: input.symbolId};
+	const symbolIds = symbolIdsOf(scope);
+	const symbolClause = symbolClauseOf(scope, 'o');
+	const coverageClauses: string[] = [symbolClause.sql];
+	const coverageParameters: (string | number)[] = [...symbolClause.parameters];
+
+	if (scope.path !== undefined) {
+		coverageClauses.push('o.path_order = ?');
+		coverageParameters.push(scope.path);
+	}
+
+	if (scope.enclosingId !== undefined) {
+		coverageClauses.push(
+			`o.enclosing_symbol_key = (
+				select symbol_key from symbol
+				where generation_key = o.generation_key and id = ?)`,
+		);
+		coverageParameters.push(scope.enclosingId);
+	}
+
+	if (scope.context !== undefined) {
+		coverageClauses.push(
+			`exists (
+				select 1 from occurrence_context oc
+				join project_context pc on pc.context_key = oc.context_key
+				where oc.occurrence_key = o.occurrence_key and pc.name = ?)`,
+		);
+		coverageParameters.push(scope.context);
+	}
+
+	return {
+		sql: `select
+				(select count(*) from occurrence o where ${coverageClauses.join(' and ')} and o.role = 'reference' and o.usage = 0) as unclassified,
+				(select count(*) from occurrence o where ${coverageClauses.join(' and ')} and o.role = 'reference'
+				 and o.file_key not in (
+					select file_key from symbol
+					where generation_key = (select generation_key from generation where id = ?)
+					and id in (${placeholders(symbolIds.length)}))) as cross_file
+			 from (select 1)`,
+		parameters: [...coverageParameters, ...coverageParameters, input.generationId, ...symbolIds],
+	};
+};
+
+/**
  * Reads unclassified reference count and cross-file reference presence for one symbol.
  *
  * @param reader - Reader connection.
@@ -246,36 +336,8 @@ export const referenceCoverage = (
 	reader: DatabaseSync,
 	input: Readonly<{generationId: string; symbolId: string; filters: ReferenceScopeType}>,
 ): Readonly<{unclassifiedReferences: number; crossFileRefsObserved: boolean}> => {
-	const scope: ReferenceScopeType = {...input.filters, generationId: input.generationId, symbolId: input.symbolId};
-	const symbolIds = symbolIdsOf(scope);
-	const coverageClauses: string[] = ['generation_id = ?', `symbol_id in (${placeholders(symbolIds.length)})`];
-	const coverageParameters: (string | number)[] = [input.generationId, ...symbolIds];
-
-	if (scope.path !== undefined) {
-		coverageClauses.push('path = ?');
-		coverageParameters.push(scope.path);
-	}
-
-	if (scope.enclosingId !== undefined) {
-		coverageClauses.push('enclosing_id = ?');
-		coverageParameters.push(scope.enclosingId);
-	}
-
-	if (scope.context !== undefined) {
-		coverageClauses.push(
-			`exists (select 1 from occurrence_context oc where oc.generation_id = occurrence.generation_id and oc.symbol_id = occurrence.symbol_id and oc.path = occurrence.path and oc.start_offset = occurrence.start_offset and oc.role = occurrence.role and oc.context_name = ?)`,
-		);
-		coverageParameters.push(scope.context);
-	}
-
-	const row = reader
-		.prepare(
-			`select
-				(select count(*) from occurrence where ${coverageClauses.join(' and ')} and role = 'reference' and usage = 0) as unclassified,
-				(select count(*) from occurrence where ${coverageClauses.join(' and ')} and role = 'reference' and path not in (select path from symbol where generation_id = ? and id in (${placeholders(symbolIds.length)}))) as cross_file
-			 from (select 1)`,
-		)
-		.get(...coverageParameters, ...coverageParameters, input.generationId, ...symbolIds);
+	const {sql, parameters} = referenceCoverageQuery(input);
+	const row = reader.prepare(sql).get(...parameters);
 
 	if (row === undefined) {
 		return {unclassifiedReferences: 0, crossFileRefsObserved: false};
@@ -339,10 +401,12 @@ export const definitionCountsBySymbol = (reader: DatabaseSync, generationId: str
 
 	const rows = reader
 		.prepare(
-			`select symbol_id, count(*) as definitions
-			 from occurrence
-			 where generation_id = ? and symbol_id in (${placeholders(symbolIds.length)}) and role = 'definition'
-			 group by symbol_id`,
+			`select s.id as symbol_id, count(*) as definitions
+			 from occurrence o
+			 join symbol s on s.symbol_key = o.symbol_key
+			 where o.generation_key = (select generation_key from generation where id = ?)
+			 and s.id in (${placeholders(symbolIds.length)}) and o.role = 'definition'
+			 group by s.id`,
 		)
 		.all(generationId, ...symbolIds);
 
@@ -363,13 +427,16 @@ export const referenceGroupRows = (reader: DatabaseSync, input: ReferenceScopeTy
 	const {sql: clauses, parameters} = occurrenceClauses(input, 'o');
 	const rows = reader
 		.prepare(
-			`select o.path, o.adapter_id, o.enclosing_id, o.usage, count(*) as occurrence_count,
-				s.name as owner_name, s.kind as owner_kind, s.path as owner_path, s.start_line as owner_start_line
+			`select f.path, o.adapter_id, owner.id as enclosing_id, o.usage, count(*) as occurrence_count,
+				owner.name as owner_name, owner.kind as owner_kind,
+				(select path from file where file_key = owner.file_key) as owner_path, owner.start_line as owner_start_line
 			 from occurrence o
-			 left join symbol s on s.generation_id = o.generation_id and s.id = o.enclosing_id
+			 join file f on f.file_key = o.file_key
+			 left join symbol owner on owner.symbol_key = o.enclosing_symbol_key
 			 where ${clauses}
-			 group by o.path, o.adapter_id, o.enclosing_id, o.usage, s.name, s.kind, s.path, s.start_line
-			 order by o.path, o.enclosing_id, o.usage`,
+			 group by f.path, o.adapter_id, o.enclosing_symbol_key, o.usage,
+				owner.id, owner.name, owner.kind, owner.file_key, owner.start_line
+			 order by f.path, owner.id, o.usage`,
 		)
 		.all(...parameters);
 
@@ -406,13 +473,14 @@ export const referenceGroupContexts = (reader: DatabaseSync, input: ReferenceSco
 	const {sql: clauses, parameters} = occurrenceClauses(input, 'o');
 	const rows = reader
 		.prepare(
-			`select distinct o.path, o.adapter_id, o.enclosing_id, oc.context_name
+			`select distinct f.path, o.adapter_id, owner.id as enclosing_id, pc.name as context_name
 			 from occurrence o
-			 join occurrence_context oc
-				on oc.generation_id = o.generation_id and oc.adapter_id = o.adapter_id and oc.symbol_id = o.symbol_id
-				and oc.path = o.path and oc.start_offset = o.start_offset and oc.role = o.role
+			 join file f on f.file_key = o.file_key
+			 left join symbol owner on owner.symbol_key = o.enclosing_symbol_key
+			 join occurrence_context oc on oc.occurrence_key = o.occurrence_key
+			 join project_context pc on pc.context_key = oc.context_key
 			 where ${clauses}
-			 order by o.path, o.enclosing_id, oc.context_name`,
+			 order by f.path, owner.id, pc.name`,
 		)
 		.all(...parameters);
 

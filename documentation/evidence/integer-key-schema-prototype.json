@@ -1,0 +1,1247 @@
+{
+	"schemaVersion": 1,
+	"generatedAt": "2026-11-16T11:50:37.113Z",
+	"command": "node --experimental-strip-types scripts/prototypeIntegerStorage.ts --source <schema-18.sqlite> --output <report.json>",
+	"runtime": {
+		"node": "v26.12.1",
+		"platform": "darwin",
+		"release": "27.2.0",
+		"architecture": "arm64",
+		"cpuModel": "Apple M5 Max",
+		"logicalCpuCount": 18,
+		"sqlite": "3.54.0"
+	},
+	"implementation": {
+		"sha256": "1088b0fbe70b749d077b19953665555cb6586bd5a2e9cee4887cb08fd4ab775d",
+		"files": [
+			"scripts/prototypeIntegerStorage.ts",
+			"scripts/prototypeIntegerStorageDigests.ts",
+			"scripts/prototypeIntegerStorageQueries.ts",
+			"scripts/prototypeIntegerStorageSql.ts"
+		]
+	},
+	"configuration": {
+		"variants": ["narrow", "ordered"],
+		"foreignKeys": true,
+		"deferredForeignKeys": true,
+		"journalMode": "wal",
+		"synchronous": "normal",
+		"coldIterations": 5,
+		"warmIterations": 50,
+		"processTreeMeasurement": "isolated child with no descendants; process.resourceUsage().maxRSS"
+	},
+	"source": {
+		"schemaVersion": "18",
+		"sqliteVersion": "3.54.0",
+		"databaseBytes": 1681879040,
+		"generation": {
+			"id": "ed693580-2be0-4466-b0a0-8692c6ed5668",
+			"revision": 55,
+			"source_hash": "b6d25efe1af3c1a377e9ca7b934695f5c84130d34c8bd7a1d1bf877e79872a1c",
+			"config_hash": "6354ee4fa93ffe2b892f6cf0d45901d48d96e5d863d6ca38077aede5608dbc80",
+			"input_hash": "5cc8a2138c57e1a91ae155c1a1d84e15b75a86f44e0660d72262c214e0a9927c",
+			"file_count": 4608,
+			"symbol_count": 86643,
+			"occurrence_count": 535517,
+			"dependency_edge_count": 113141,
+			"dependency_binding_count": 23509,
+			"diagnostic_count": 1485
+		},
+		"adapters": [
+			{
+				"adapter_id": "oracle",
+				"adapter_version": "0.5.0",
+				"compiler_version": "oracle19c;parser@structural;lexer@antlr4ng@3.0.16;lexerGrammar@grammars-v4/3f1ca793eb1b72d421a016dd05b1d340dfa1a65e",
+				"coverage": "present",
+				"source_hash": "1d43a709522b9fb5fa7c72678be048fb9595dca9540999d4024f7571b731091c",
+				"config_hash": "0b6dad1c40870775a05bdcf391d8d78b98f5d7083cc2f9bae1895948a614c470",
+				"input_hash": "0b6dad1c40870775a05bdcf391d8d78b98f5d7083cc2f9bae1895948a614c470",
+				"file_count": 2124,
+				"symbol_count": 42566,
+				"occurrence_count": 289131,
+				"dependency_edge_count": 99675,
+				"dependency_binding_count": 0,
+				"diagnostic_count": 1485
+			},
+			{
+				"adapter_id": "typescript",
+				"adapter_version": "0.3.0",
+				"compiler_version": "7.1.0-beta",
+				"coverage": "present",
+				"source_hash": "f407ecdb957dff3e7316ed4c5a3a5471e6dff0b5d9f1071823baae6fdfb10c8e",
+				"config_hash": "53bbba331e9512733d0bb6df795a6dc464478aa5f90833e8decaf99eeb78c14c",
+				"input_hash": "84f851155a1e79331c4192c02ae6d46350f65f557bf6af0796a9ec52801ded1a",
+				"file_count": 2484,
+				"symbol_count": 44077,
+				"occurrence_count": 246386,
+				"dependency_edge_count": 13466,
+				"dependency_binding_count": 23509,
+				"diagnostic_count": 0
+			}
+		],
+		"tableCounts": {
+			"metadata": 3,
+			"working_copy": 1,
+			"indexed_project": 2,
+			"content": 4567,
+			"generation": 1,
+			"generation_adapter": 2,
+			"file": 4608,
+			"project_context": 6,
+			"generation_file_digest": 4608,
+			"symbol": 86643,
+			"symbol_context": 90975,
+			"symbol_name": 98880,
+			"symbol_name_context": 105245,
+			"symbol_name_site": 119481,
+			"surface_binding_origin": 25848,
+			"occurrence": 535517,
+			"occurrence_context": 547541,
+			"definition_site": 95052,
+			"dependency_edge": 113141,
+			"dependency_binding": 23509,
+			"diagnostic": 1485,
+			"build_stats": 121,
+			"extraction_artifact": 2122,
+			"build_lease": 0
+		}
+	},
+	"variants": [
+		{
+			"variant": "narrow",
+			"rebuild": {
+				"wallMs": 8924.044042,
+				"copyMs": 6287.180834000001,
+				"indexMs": 1160.6793750000006,
+				"insertionMs": 7447.860209000001,
+				"commitMs": 430.46979199999987,
+				"peakProcessTreeRssBytes": 124403712,
+				"processTreeMembers": 1
+			},
+			"storage": {
+				"beforeCheckpoint": {
+					"database": 406130688,
+					"wal": 408897672,
+					"shm": 819200,
+					"total": 815847560
+				},
+				"final": {
+					"database": 406134784,
+					"wal": 0,
+					"shm": 819200,
+					"total": 406953984
+				}
+			},
+			"integrity": {
+				"quickCheck": "ok",
+				"foreignKeyFailures": 0
+			},
+			"facts": [
+				{
+					"name": "metadata",
+					"rows": 2,
+					"sourceSha256": "756e9a0778e73b1af92e4691e2488a44c8d63c3ad214ec1eb41a39c1dc72231e",
+					"prototypeSha256": "756e9a0778e73b1af92e4691e2488a44c8d63c3ad214ec1eb41a39c1dc72231e",
+					"matches": true
+				},
+				{
+					"name": "working_copy",
+					"rows": 1,
+					"sourceSha256": "1f0a0b675769bcb7378a6f735e3d75f7c1a8bf7a17735aeb74438796e0064af3",
+					"prototypeSha256": "1f0a0b675769bcb7378a6f735e3d75f7c1a8bf7a17735aeb74438796e0064af3",
+					"matches": true
+				},
+				{
+					"name": "indexed_project",
+					"rows": 2,
+					"sourceSha256": "8ef2cb645b1942522f5a50ba285e7dc036741924967ea3bfa7f196c27f92fc03",
+					"prototypeSha256": "8ef2cb645b1942522f5a50ba285e7dc036741924967ea3bfa7f196c27f92fc03",
+					"matches": true
+				},
+				{
+					"name": "content",
+					"rows": 4567,
+					"sourceSha256": "43f867183c6ab3f25c86597b8d76719b0c3c579792ccf49313de3c9894c6d2cb",
+					"prototypeSha256": "43f867183c6ab3f25c86597b8d76719b0c3c579792ccf49313de3c9894c6d2cb",
+					"matches": true
+				},
+				{
+					"name": "generation",
+					"rows": 1,
+					"sourceSha256": "649baeee342ff9ca3232e68be7c479f6f5524c5023c353e5052abd427eb70d4f",
+					"prototypeSha256": "649baeee342ff9ca3232e68be7c479f6f5524c5023c353e5052abd427eb70d4f",
+					"matches": true
+				},
+				{
+					"name": "generation_adapter",
+					"rows": 2,
+					"sourceSha256": "45e88457e11fda0e5327340223fa615ca307647a7bb48db05f8e4b6c1031e288",
+					"prototypeSha256": "45e88457e11fda0e5327340223fa615ca307647a7bb48db05f8e4b6c1031e288",
+					"matches": true
+				},
+				{
+					"name": "project_context",
+					"rows": 6,
+					"sourceSha256": "1825eda6d4d1ed8ec3abf184e547c480eedb082929abb62d444c6a0ced2f0f69",
+					"prototypeSha256": "1825eda6d4d1ed8ec3abf184e547c480eedb082929abb62d444c6a0ced2f0f69",
+					"matches": true
+				},
+				{
+					"name": "file",
+					"rows": 4608,
+					"sourceSha256": "de70e633b0b6204e6ee4a5a8b49487dd5fbd59869738c0eaa3f7c5537a9a2dce",
+					"prototypeSha256": "de70e633b0b6204e6ee4a5a8b49487dd5fbd59869738c0eaa3f7c5537a9a2dce",
+					"matches": true
+				},
+				{
+					"name": "generation_file_digest",
+					"rows": 4608,
+					"sourceSha256": "5acdb7a35c5e0c2ab08c5b70960ad65bcfef8e71a7723c946b78181934a37f5a",
+					"prototypeSha256": "5acdb7a35c5e0c2ab08c5b70960ad65bcfef8e71a7723c946b78181934a37f5a",
+					"matches": true
+				},
+				{
+					"name": "symbol",
+					"rows": 86643,
+					"sourceSha256": "60270790b1d7a7e4d0a6e15e9e02cf7ad03958fe108f8e3b4ff9cd26e1b361fd",
+					"prototypeSha256": "60270790b1d7a7e4d0a6e15e9e02cf7ad03958fe108f8e3b4ff9cd26e1b361fd",
+					"matches": true
+				},
+				{
+					"name": "symbol_context",
+					"rows": 90975,
+					"sourceSha256": "5843f168b323526f879a5a5b3772f91a04e1f79ccce0823827191dbd41e4041a",
+					"prototypeSha256": "5843f168b323526f879a5a5b3772f91a04e1f79ccce0823827191dbd41e4041a",
+					"matches": true
+				},
+				{
+					"name": "symbol_name",
+					"rows": 98880,
+					"sourceSha256": "7751624599f969be7e9491e482faadafdd2204a4235816bc9a9676d39ed6151f",
+					"prototypeSha256": "7751624599f969be7e9491e482faadafdd2204a4235816bc9a9676d39ed6151f",
+					"matches": true
+				},
+				{
+					"name": "symbol_name_context",
+					"rows": 105245,
+					"sourceSha256": "7edc3ec8d7c921abbbfc7bda532ca44d165c96cad1660ed3fadf27dad80cb6cb",
+					"prototypeSha256": "7edc3ec8d7c921abbbfc7bda532ca44d165c96cad1660ed3fadf27dad80cb6cb",
+					"matches": true
+				},
+				{
+					"name": "symbol_name_site",
+					"rows": 119481,
+					"sourceSha256": "82c89f75322da2737d1e0951e7b615f4d60ff762b83847a5d9121ef91d80bec8",
+					"prototypeSha256": "82c89f75322da2737d1e0951e7b615f4d60ff762b83847a5d9121ef91d80bec8",
+					"matches": true
+				},
+				{
+					"name": "surface_binding_origin",
+					"rows": 25848,
+					"sourceSha256": "02529abf72f2da374ed821cf7971028a10ba122325ebe09caa72b6d39613e504",
+					"prototypeSha256": "02529abf72f2da374ed821cf7971028a10ba122325ebe09caa72b6d39613e504",
+					"matches": true
+				},
+				{
+					"name": "occurrence",
+					"rows": 535517,
+					"sourceSha256": "05b2f7ead837042afb841937ccd03652966a8035fc77a907dc992d30c682c72b",
+					"prototypeSha256": "05b2f7ead837042afb841937ccd03652966a8035fc77a907dc992d30c682c72b",
+					"matches": true
+				},
+				{
+					"name": "occurrence_context",
+					"rows": 547541,
+					"sourceSha256": "b32bdb87975236706ce9164942670f793f136baef4f31caedc445eb0fb19cd72",
+					"prototypeSha256": "b32bdb87975236706ce9164942670f793f136baef4f31caedc445eb0fb19cd72",
+					"matches": true
+				},
+				{
+					"name": "definition_site",
+					"rows": 95052,
+					"sourceSha256": "9b17e3e9691c3c5534cbf7e24c97f924118d881fe657497af100cb33a1aa830c",
+					"prototypeSha256": "9b17e3e9691c3c5534cbf7e24c97f924118d881fe657497af100cb33a1aa830c",
+					"matches": true
+				},
+				{
+					"name": "dependency_edge",
+					"rows": 113141,
+					"sourceSha256": "78970b60f620a046f2f69f9ab0840df4f16a20f27a37664a9a87f4d5c33ec474",
+					"prototypeSha256": "78970b60f620a046f2f69f9ab0840df4f16a20f27a37664a9a87f4d5c33ec474",
+					"matches": true
+				},
+				{
+					"name": "dependency_binding",
+					"rows": 23509,
+					"sourceSha256": "ff28d62585bbdb321546353a8ee82576d3b403380f962314919231bd40cddce3",
+					"prototypeSha256": "ff28d62585bbdb321546353a8ee82576d3b403380f962314919231bd40cddce3",
+					"matches": true
+				},
+				{
+					"name": "diagnostic",
+					"rows": 1485,
+					"sourceSha256": "a60503d9b5c002dbdd5e4f63cecc6c7fcd7aa40763f9f3f512fb58cdea9bb010",
+					"prototypeSha256": "a60503d9b5c002dbdd5e4f63cecc6c7fcd7aa40763f9f3f512fb58cdea9bb010",
+					"matches": true
+				},
+				{
+					"name": "build_stats",
+					"rows": 121,
+					"sourceSha256": "e28fdc0cd20f9fee3ac8509ef8c771b3bd0ccb2d8d3504f3364c1b9dd7a9c3dd",
+					"prototypeSha256": "e28fdc0cd20f9fee3ac8509ef8c771b3bd0ccb2d8d3504f3364c1b9dd7a9c3dd",
+					"matches": true
+				},
+				{
+					"name": "extraction_artifact",
+					"rows": 2122,
+					"sourceSha256": "340237bff98d71228f538b2c298731b8c5bb13a3652cf51232f94fd1b905a48f",
+					"prototypeSha256": "340237bff98d71228f538b2c298731b8c5bb13a3652cf51232f94fd1b905a48f",
+					"matches": true
+				},
+				{
+					"name": "build_lease",
+					"rows": 0,
+					"sourceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"prototypeSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"matches": true
+				}
+			],
+			"queries": [
+				{
+					"name": "index_status",
+					"plan": ["SCAN generation"],
+					"sourceDigest": "0f2cfb20dc654820c97668f6636747856cc7bd9208622bec5cce3e9d1b83535e",
+					"prototypeDigest": "0f2cfb20dc654820c97668f6636747856cc7bd9208622bec5cce3e9d1b83535e",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.003042000000277767,
+					"coldP95Ms": 0.007667000001674751,
+					"coldMaxMs": 0.007667000001674751,
+					"warmP50Ms": 0.001458000002457993,
+					"warmP95Ms": 0.0021670000023732428,
+					"warmMaxMs": 0.0039999999971769284
+				},
+				{
+					"name": "index_status_adapters",
+					"plan": ["SEARCH a USING INDEX sqlite_autoindex_generation_adapter_1 (generation_key=?)"],
+					"sourceDigest": "3a34b3f40245fb0ca769e1f822bcc05b588fa7348693c846eac34c4c1d752d22",
+					"prototypeDigest": "3a34b3f40245fb0ca769e1f822bcc05b588fa7348693c846eac34c4c1d752d22",
+					"matchesSchema18": true,
+					"rows": 2,
+					"coldP50Ms": 0.010416999997687526,
+					"coldP95Ms": 0.013459000001603272,
+					"coldMaxMs": 0.013459000001603272,
+					"warmP50Ms": 0.007916000002296641,
+					"warmP95Ms": 0.008291000001918292,
+					"warmMaxMs": 0.009165999999822816
+				},
+				{
+					"name": "find_symbol",
+					"plan": [
+						"SEARCH n USING COVERING INDEX symbol_name_by_name (generation_key=? AND name>? AND name<?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)"
+					],
+					"sourceDigest": "3110aff001121fcb9cbb951f66947f6cd4ab1175109fcbaba9c3e6acd7e77f74",
+					"prototypeDigest": "3110aff001121fcb9cbb951f66947f6cd4ab1175109fcbaba9c3e6acd7e77f74",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.012500000000727596,
+					"coldP95Ms": 0.014583000000129687,
+					"coldMaxMs": 0.014583000000129687,
+					"warmP50Ms": 0.008374999997613486,
+					"warmP95Ms": 0.008750000000873115,
+					"warmMaxMs": 0.009083000000828179
+				},
+				{
+					"name": "find_symbol_exact_presence",
+					"plan": ["SEARCH n USING COVERING INDEX symbol_name_by_name (generation_key=? AND name=?)", "USE TEMP B-TREE FOR DISTINCT"],
+					"sourceDigest": "704772a340aa949b8c6b79fb4897f371ade4eee49eb695930dfeba98c24ac2db",
+					"prototypeDigest": "704772a340aa949b8c6b79fb4897f371ade4eee49eb695930dfeba98c24ac2db",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.008082999996986473,
+					"coldP95Ms": 0.009332999998150626,
+					"coldMaxMs": 0.009332999998150626,
+					"warmP50Ms": 0.005375000000640284,
+					"warmP95Ms": 0.00812499999665306,
+					"warmMaxMs": 0.009915999999066116
+				},
+				{
+					"name": "find_symbol_context",
+					"plan": [
+						"SEARCH n USING COVERING INDEX symbol_name_by_name (generation_key=? AND name>? AND name<?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH c USING INDEX sqlite_autoindex_symbol_name_context_1 (symbol_name_key=?)",
+						"BLOOM FILTER ON pc (context_key=?)",
+						"SEARCH pc USING INTEGER PRIMARY KEY (rowid=?)"
+					],
+					"sourceDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"prototypeDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"matchesSchema18": true,
+					"rows": 0,
+					"coldP50Ms": 0.016291999996610684,
+					"coldP95Ms": 0.02233400000113761,
+					"coldMaxMs": 0.02233400000113761,
+					"warmP50Ms": 0.00999999999839929,
+					"warmP95Ms": 0.011041999998269603,
+					"warmMaxMs": 0.01299999999901047
+				},
+				{
+					"name": "outline",
+					"plan": [
+						"SEARCH o USING COVERING INDEX occurrence_by_path (ANY(generation_key) AND file_key=?)",
+						"SEARCH d USING COVERING INDEX definition_site_by_path (generation_key=? AND first_in_symbol=? AND occurrence_key=?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "10b5a29f7547eff1b0fb8c1af25b4e77d5f4face598f7cf38b78fa1ec88adedb",
+					"prototypeDigest": "10b5a29f7547eff1b0fb8c1af25b4e77d5f4face598f7cf38b78fa1ec88adedb",
+					"matchesSchema18": true,
+					"rows": 23,
+					"coldP50Ms": 0.027750000001105946,
+					"coldP95Ms": 0.03374999999869033,
+					"coldMaxMs": 0.03374999999869033,
+					"warmP50Ms": 0.020792000002984423,
+					"warmP95Ms": 0.02233400000113761,
+					"warmMaxMs": 0.026249999998981366
+				},
+				{
+					"name": "outline_reexports",
+					"plan": [
+						"SEARCH f USING COVERING INDEX sqlite_autoindex_file_1 (ANY(generation_key) AND path=?)",
+						"SEARCH site USING INDEX symbol_name_site_by_path (file_key=? AND kind=?)",
+						"SEARCH n USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR LAST 2 TERMS OF ORDER BY"
+					],
+					"sourceDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"prototypeDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"matchesSchema18": true,
+					"rows": 0,
+					"coldP50Ms": 0.01900000000023283,
+					"coldP95Ms": 0.021749999999883585,
+					"coldMaxMs": 0.021749999999883585,
+					"warmP50Ms": 0.013584000000264496,
+					"warmP95Ms": 0.015375000002677552,
+					"warmMaxMs": 0.02375000000029104
+				},
+				{
+					"name": "find_references",
+					"plan": [
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH o USING INDEX sqlite_autoindex_occurrence_1 (symbol_key=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH enclosing USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "f6bce4efe0d81e18097bc6631dc2dc00bb9e051d3fd7ec86377a175a94c4a824",
+					"prototypeDigest": "f6bce4efe0d81e18097bc6631dc2dc00bb9e051d3fd7ec86377a175a94c4a824",
+					"matchesSchema18": true,
+					"rows": 201,
+					"coldP50Ms": 1.5577499999999418,
+					"coldP95Ms": 1.5885829999970156,
+					"coldMaxMs": 1.5885829999970156,
+					"warmP50Ms": 1.519416999999521,
+					"warmP95Ms": 1.5628749999996217,
+					"warmMaxMs": 1.65625
+				},
+				{
+					"name": "find_reference_groups",
+					"plan": [
+						"SEARCH o USING INDEX sqlite_autoindex_occurrence_1 (symbol_key=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH owner USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN",
+						"USE TEMP B-TREE FOR GROUP BY",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "c86c8c4187d0c4e134afd11bab9b67140c90371462543f0bbea394cb7b09555f",
+					"prototypeDigest": "c86c8c4187d0c4e134afd11bab9b67140c90371462543f0bbea394cb7b09555f",
+					"matchesSchema18": true,
+					"rows": 4950,
+					"coldP50Ms": 4.459958999999799,
+					"coldP95Ms": 4.676332999999431,
+					"coldMaxMs": 4.676332999999431,
+					"warmP50Ms": 4.161333000000013,
+					"warmP95Ms": 4.5069169999987935,
+					"warmMaxMs": 5.577958000001672
+				},
+				{
+					"name": "find_reference_group_contexts",
+					"plan": [
+						"SEARCH o USING INDEX sqlite_autoindex_occurrence_1 (symbol_key=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH owner USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN",
+						"SEARCH oc USING COVERING INDEX sqlite_autoindex_occurrence_context_1 (occurrence_key=?)",
+						"SEARCH c USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR DISTINCT",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "6cd61a8716ecfca4bbef3d7d312da6b775cf12bbe803b48efe0a8688b5a85a1f",
+					"prototypeDigest": "6cd61a8716ecfca4bbef3d7d312da6b775cf12bbe803b48efe0a8688b5a85a1f",
+					"matchesSchema18": true,
+					"rows": 4949,
+					"coldP50Ms": 5.523124999999709,
+					"coldP95Ms": 5.680082999999286,
+					"coldMaxMs": 5.680082999999286,
+					"warmP50Ms": 5.463332999999693,
+					"warmP95Ms": 5.738625000001775,
+					"warmMaxMs": 5.824458999999479
+				},
+				{
+					"name": "read_symbol_summary",
+					"plan": [
+						"SEARCH s USING INDEX sqlite_autoindex_symbol_1 (generation_key=? AND id=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH parent USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN"
+					],
+					"sourceDigest": "ed22918ff07db335008c85af8094109fcda438134c3782239858a531b965f81c",
+					"prototypeDigest": "ed22918ff07db335008c85af8094109fcda438134c3782239858a531b965f81c",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.015333999999711523,
+					"coldP95Ms": 0.021415999999589985,
+					"coldMaxMs": 0.021415999999589985,
+					"warmP50Ms": 0.010459000000992091,
+					"warmP95Ms": 0.011417000001529232,
+					"warmMaxMs": 0.011834000000817468
+				},
+				{
+					"name": "read_symbol_definitions",
+					"plan": [
+						"SEARCH s USING COVERING INDEX sqlite_autoindex_symbol_1 (ANY(generation_key) AND id=?)",
+						"SEARCH o USING INDEX sqlite_autoindex_occurrence_1 (symbol_key=?)",
+						"SEARCH d USING INDEX sqlite_autoindex_definition_site_1 (occurrence_key=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR LAST 4 TERMS OF ORDER BY"
+					],
+					"sourceDigest": "58d59d38f939329dd9a5109047e6236f7403c81aff72695997cfaf7d9e6ac382",
+					"prototypeDigest": "58d59d38f939329dd9a5109047e6236f7403c81aff72695997cfaf7d9e6ac382",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.579874999999447,
+					"coldP95Ms": 0.5944159999999101,
+					"coldMaxMs": 0.5944159999999101,
+					"warmP50Ms": 0.5166669999998703,
+					"warmP95Ms": 0.5429590000021562,
+					"warmMaxMs": 0.6124589999999444
+				},
+				{
+					"name": "read_symbol_bindings",
+					"plan": [
+						"SEARCH s USING COVERING INDEX sqlite_autoindex_symbol_1 (ANY(generation_key) AND id=?)",
+						"SEARCH n USING INDEX sqlite_autoindex_symbol_name_2 (symbol_key=?)",
+						"USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+					],
+					"sourceDigest": "103a52ee89b1b1cdf9bf5a47aa2f73059e870fd6d2371c6b143aa04f6a16ca17",
+					"prototypeDigest": "103a52ee89b1b1cdf9bf5a47aa2f73059e870fd6d2371c6b143aa04f6a16ca17",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.016166000001248904,
+					"coldP95Ms": 0.020000000000436557,
+					"coldMaxMs": 0.020000000000436557,
+					"warmP50Ms": 0.008625000002211891,
+					"warmP95Ms": 0.014208000000508036,
+					"warmMaxMs": 0.01808300000266172
+				},
+				{
+					"name": "read_symbol_binding_contexts",
+					"plan": [
+						"SEARCH n USING COVERING INDEX sqlite_autoindex_symbol_name_1 (generation_key=? AND binding_id=?)",
+						"SEARCH nc USING INDEX sqlite_autoindex_symbol_name_context_1 (symbol_name_key=?)",
+						"SEARCH c USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+					],
+					"sourceDigest": "6a3e7d71eac786272f7650a2c880c78c70eda8215032ac9cdecc616cc8fbe761",
+					"prototypeDigest": "6a3e7d71eac786272f7650a2c880c78c70eda8215032ac9cdecc616cc8fbe761",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.013082999998005107,
+					"coldP95Ms": 0.01525000000037835,
+					"coldMaxMs": 0.01525000000037835,
+					"warmP50Ms": 0.007958000001963228,
+					"warmP95Ms": 0.008417000000918051,
+					"warmMaxMs": 0.014957999999751337
+				},
+				{
+					"name": "read_symbol_binding_sites",
+					"plan": [
+						"SEARCH n USING COVERING INDEX sqlite_autoindex_symbol_name_1 (generation_key=? AND binding_id=?)",
+						"SEARCH site USING INDEX sqlite_autoindex_symbol_name_site_1 (symbol_name_key=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+					],
+					"sourceDigest": "728cbb3d8dd1b1b52d91e050220cdb5279aa2fef6b668a6104cdcfca7a3ba389",
+					"prototypeDigest": "728cbb3d8dd1b1b52d91e050220cdb5279aa2fef6b668a6104cdcfca7a3ba389",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.014917000000423286,
+					"coldP95Ms": 0.016665999999531778,
+					"coldMaxMs": 0.016665999999531778,
+					"warmP50Ms": 0.009417000001121778,
+					"warmP95Ms": 0.010209000000031665,
+					"warmMaxMs": 0.010417000001325505
+				},
+				{
+					"name": "read_file",
+					"plan": [
+						"SEARCH f USING INDEX sqlite_autoindex_file_1 (generation_key=? AND path=?)",
+						"SEARCH c USING INDEX sqlite_autoindex_content_1 (sha256=?) LEFT-JOIN"
+					],
+					"sourceDigest": "b65ecf7fee99239c1ac28829633124ccbab78cb1d99146bada8a50441e825b1d",
+					"prototypeDigest": "b65ecf7fee99239c1ac28829633124ccbab78cb1d99146bada8a50441e825b1d",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.010916999999608379,
+					"coldP95Ms": 0.017374999999447027,
+					"coldMaxMs": 0.017374999999447027,
+					"warmP50Ms": 0.005541999998968095,
+					"warmP95Ms": 0.006332999997539446,
+					"warmMaxMs": 0.007416000000375789
+				},
+				{
+					"name": "symbol_at",
+					"plan": [
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH o USING INDEX occurrence_by_extent (generation_key=? AND file_key=? AND role=? AND extent_start<?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "e28d1c6b90489a2e5b085e5a3bf82860210a9a2dde9f9c17c5da087a1e10b656",
+					"prototypeDigest": "e28d1c6b90489a2e5b085e5a3bf82860210a9a2dde9f9c17c5da087a1e10b656",
+					"matchesSchema18": true,
+					"rows": 23,
+					"coldP50Ms": 0.02820900000006077,
+					"coldP95Ms": 0.033625000000029104,
+					"coldMaxMs": 0.033625000000029104,
+					"warmP50Ms": 0.020958000000973698,
+					"warmP95Ms": 0.022708000000420725,
+					"warmMaxMs": 0.026042000001325505
+				},
+				{
+					"name": "dependency_identifier",
+					"plan": [
+						"SEARCH e USING INDEX dependency_by_target_identifier (generation_key=? AND target_identifier=?)",
+						"SEARCH source USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "6659be2295f2818ab6e4689c0788d97422425f358d831aa86deb2bf9ad517bb3",
+					"prototypeDigest": "6659be2295f2818ab6e4689c0788d97422425f358d831aa86deb2bf9ad517bb3",
+					"matchesSchema18": true,
+					"rows": 319,
+					"coldP50Ms": 0.2226249999985157,
+					"coldP95Ms": 0.24941599999874597,
+					"coldMaxMs": 0.24941599999874597,
+					"warmP50Ms": 0.13079199999992852,
+					"warmP95Ms": 0.14025000000037835,
+					"warmMaxMs": 0.1413749999992433
+				},
+				{
+					"name": "dependency_target",
+					"plan": [
+						"SEARCH e USING INDEX dependency_by_target (generation_key=? AND target_file_key=?)",
+						"SEARCH source USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "83844c5278ea8f5d9d5028a79c1258f930b2abd932fa67e5c6a4eda5b4f4c68d",
+					"prototypeDigest": "83844c5278ea8f5d9d5028a79c1258f930b2abd932fa67e5c6a4eda5b4f4c68d",
+					"matchesSchema18": true,
+					"rows": 950,
+					"coldP50Ms": 0.3122909999983676,
+					"coldP95Ms": 0.3380829999987327,
+					"coldMaxMs": 0.3380829999987327,
+					"warmP50Ms": 0.2869170000012673,
+					"warmP95Ms": 0.39420800000152667,
+					"warmMaxMs": 0.9934160000011616
+				},
+				{
+					"name": "dependency_bindings",
+					"plan": [
+						"SEARCH e USING COVERING INDEX sqlite_autoindex_dependency_edge_1 (generation_key=? AND id=?)",
+						"SEARCH b USING INDEX sqlite_autoindex_dependency_binding_1 (edge_key=?)"
+					],
+					"sourceDigest": "dceec1f507a5665c6e273233a6e97b00cbfeb7a915b8f14f0d0b04925a90f71d",
+					"prototypeDigest": "dceec1f507a5665c6e273233a6e97b00cbfeb7a915b8f14f0d0b04925a90f71d",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.010540999999648193,
+					"coldP95Ms": 0.015332999999372987,
+					"coldMaxMs": 0.015332999999372987,
+					"warmP50Ms": 0.006374999997206032,
+					"warmP95Ms": 0.006750000000465661,
+					"warmMaxMs": 0.007207999999081949
+				}
+			]
+		},
+		{
+			"variant": "ordered",
+			"rebuild": {
+				"wallMs": 10084.161292,
+				"copyMs": 7158.744250000001,
+				"indexMs": 1244.688541999999,
+				"insertionMs": 8403.432792,
+				"commitMs": 599.3652920000004,
+				"peakProcessTreeRssBytes": 124895232,
+				"processTreeMembers": 1
+			},
+			"storage": {
+				"beforeCheckpoint": {
+					"database": 519684096,
+					"wal": 523116432,
+					"shm": 1048576,
+					"total": 1043849104
+				},
+				"final": {
+					"database": 519688192,
+					"wal": 0,
+					"shm": 1048576,
+					"total": 520736768
+				}
+			},
+			"integrity": {
+				"quickCheck": "ok",
+				"foreignKeyFailures": 0
+			},
+			"facts": [
+				{
+					"name": "metadata",
+					"rows": 2,
+					"sourceSha256": "756e9a0778e73b1af92e4691e2488a44c8d63c3ad214ec1eb41a39c1dc72231e",
+					"prototypeSha256": "756e9a0778e73b1af92e4691e2488a44c8d63c3ad214ec1eb41a39c1dc72231e",
+					"matches": true
+				},
+				{
+					"name": "working_copy",
+					"rows": 1,
+					"sourceSha256": "1f0a0b675769bcb7378a6f735e3d75f7c1a8bf7a17735aeb74438796e0064af3",
+					"prototypeSha256": "1f0a0b675769bcb7378a6f735e3d75f7c1a8bf7a17735aeb74438796e0064af3",
+					"matches": true
+				},
+				{
+					"name": "indexed_project",
+					"rows": 2,
+					"sourceSha256": "8ef2cb645b1942522f5a50ba285e7dc036741924967ea3bfa7f196c27f92fc03",
+					"prototypeSha256": "8ef2cb645b1942522f5a50ba285e7dc036741924967ea3bfa7f196c27f92fc03",
+					"matches": true
+				},
+				{
+					"name": "content",
+					"rows": 4567,
+					"sourceSha256": "43f867183c6ab3f25c86597b8d76719b0c3c579792ccf49313de3c9894c6d2cb",
+					"prototypeSha256": "43f867183c6ab3f25c86597b8d76719b0c3c579792ccf49313de3c9894c6d2cb",
+					"matches": true
+				},
+				{
+					"name": "generation",
+					"rows": 1,
+					"sourceSha256": "649baeee342ff9ca3232e68be7c479f6f5524c5023c353e5052abd427eb70d4f",
+					"prototypeSha256": "649baeee342ff9ca3232e68be7c479f6f5524c5023c353e5052abd427eb70d4f",
+					"matches": true
+				},
+				{
+					"name": "generation_adapter",
+					"rows": 2,
+					"sourceSha256": "45e88457e11fda0e5327340223fa615ca307647a7bb48db05f8e4b6c1031e288",
+					"prototypeSha256": "45e88457e11fda0e5327340223fa615ca307647a7bb48db05f8e4b6c1031e288",
+					"matches": true
+				},
+				{
+					"name": "project_context",
+					"rows": 6,
+					"sourceSha256": "1825eda6d4d1ed8ec3abf184e547c480eedb082929abb62d444c6a0ced2f0f69",
+					"prototypeSha256": "1825eda6d4d1ed8ec3abf184e547c480eedb082929abb62d444c6a0ced2f0f69",
+					"matches": true
+				},
+				{
+					"name": "file",
+					"rows": 4608,
+					"sourceSha256": "de70e633b0b6204e6ee4a5a8b49487dd5fbd59869738c0eaa3f7c5537a9a2dce",
+					"prototypeSha256": "de70e633b0b6204e6ee4a5a8b49487dd5fbd59869738c0eaa3f7c5537a9a2dce",
+					"matches": true
+				},
+				{
+					"name": "generation_file_digest",
+					"rows": 4608,
+					"sourceSha256": "5acdb7a35c5e0c2ab08c5b70960ad65bcfef8e71a7723c946b78181934a37f5a",
+					"prototypeSha256": "5acdb7a35c5e0c2ab08c5b70960ad65bcfef8e71a7723c946b78181934a37f5a",
+					"matches": true
+				},
+				{
+					"name": "symbol",
+					"rows": 86643,
+					"sourceSha256": "60270790b1d7a7e4d0a6e15e9e02cf7ad03958fe108f8e3b4ff9cd26e1b361fd",
+					"prototypeSha256": "60270790b1d7a7e4d0a6e15e9e02cf7ad03958fe108f8e3b4ff9cd26e1b361fd",
+					"matches": true
+				},
+				{
+					"name": "symbol_context",
+					"rows": 90975,
+					"sourceSha256": "5843f168b323526f879a5a5b3772f91a04e1f79ccce0823827191dbd41e4041a",
+					"prototypeSha256": "5843f168b323526f879a5a5b3772f91a04e1f79ccce0823827191dbd41e4041a",
+					"matches": true
+				},
+				{
+					"name": "symbol_name",
+					"rows": 98880,
+					"sourceSha256": "7751624599f969be7e9491e482faadafdd2204a4235816bc9a9676d39ed6151f",
+					"prototypeSha256": "7751624599f969be7e9491e482faadafdd2204a4235816bc9a9676d39ed6151f",
+					"matches": true
+				},
+				{
+					"name": "symbol_name_context",
+					"rows": 105245,
+					"sourceSha256": "7edc3ec8d7c921abbbfc7bda532ca44d165c96cad1660ed3fadf27dad80cb6cb",
+					"prototypeSha256": "7edc3ec8d7c921abbbfc7bda532ca44d165c96cad1660ed3fadf27dad80cb6cb",
+					"matches": true
+				},
+				{
+					"name": "symbol_name_site",
+					"rows": 119481,
+					"sourceSha256": "82c89f75322da2737d1e0951e7b615f4d60ff762b83847a5d9121ef91d80bec8",
+					"prototypeSha256": "82c89f75322da2737d1e0951e7b615f4d60ff762b83847a5d9121ef91d80bec8",
+					"matches": true
+				},
+				{
+					"name": "surface_binding_origin",
+					"rows": 25848,
+					"sourceSha256": "02529abf72f2da374ed821cf7971028a10ba122325ebe09caa72b6d39613e504",
+					"prototypeSha256": "02529abf72f2da374ed821cf7971028a10ba122325ebe09caa72b6d39613e504",
+					"matches": true
+				},
+				{
+					"name": "occurrence",
+					"rows": 535517,
+					"sourceSha256": "05b2f7ead837042afb841937ccd03652966a8035fc77a907dc992d30c682c72b",
+					"prototypeSha256": "05b2f7ead837042afb841937ccd03652966a8035fc77a907dc992d30c682c72b",
+					"matches": true
+				},
+				{
+					"name": "occurrence_context",
+					"rows": 547541,
+					"sourceSha256": "b32bdb87975236706ce9164942670f793f136baef4f31caedc445eb0fb19cd72",
+					"prototypeSha256": "b32bdb87975236706ce9164942670f793f136baef4f31caedc445eb0fb19cd72",
+					"matches": true
+				},
+				{
+					"name": "definition_site",
+					"rows": 95052,
+					"sourceSha256": "9b17e3e9691c3c5534cbf7e24c97f924118d881fe657497af100cb33a1aa830c",
+					"prototypeSha256": "9b17e3e9691c3c5534cbf7e24c97f924118d881fe657497af100cb33a1aa830c",
+					"matches": true
+				},
+				{
+					"name": "dependency_edge",
+					"rows": 113141,
+					"sourceSha256": "78970b60f620a046f2f69f9ab0840df4f16a20f27a37664a9a87f4d5c33ec474",
+					"prototypeSha256": "78970b60f620a046f2f69f9ab0840df4f16a20f27a37664a9a87f4d5c33ec474",
+					"matches": true
+				},
+				{
+					"name": "dependency_binding",
+					"rows": 23509,
+					"sourceSha256": "ff28d62585bbdb321546353a8ee82576d3b403380f962314919231bd40cddce3",
+					"prototypeSha256": "ff28d62585bbdb321546353a8ee82576d3b403380f962314919231bd40cddce3",
+					"matches": true
+				},
+				{
+					"name": "diagnostic",
+					"rows": 1485,
+					"sourceSha256": "a60503d9b5c002dbdd5e4f63cecc6c7fcd7aa40763f9f3f512fb58cdea9bb010",
+					"prototypeSha256": "a60503d9b5c002dbdd5e4f63cecc6c7fcd7aa40763f9f3f512fb58cdea9bb010",
+					"matches": true
+				},
+				{
+					"name": "build_stats",
+					"rows": 121,
+					"sourceSha256": "e28fdc0cd20f9fee3ac8509ef8c771b3bd0ccb2d8d3504f3364c1b9dd7a9c3dd",
+					"prototypeSha256": "e28fdc0cd20f9fee3ac8509ef8c771b3bd0ccb2d8d3504f3364c1b9dd7a9c3dd",
+					"matches": true
+				},
+				{
+					"name": "extraction_artifact",
+					"rows": 2122,
+					"sourceSha256": "340237bff98d71228f538b2c298731b8c5bb13a3652cf51232f94fd1b905a48f",
+					"prototypeSha256": "340237bff98d71228f538b2c298731b8c5bb13a3652cf51232f94fd1b905a48f",
+					"matches": true
+				},
+				{
+					"name": "build_lease",
+					"rows": 0,
+					"sourceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"prototypeSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"matches": true
+				}
+			],
+			"queries": [
+				{
+					"name": "index_status",
+					"plan": ["SCAN generation"],
+					"sourceDigest": "0f2cfb20dc654820c97668f6636747856cc7bd9208622bec5cce3e9d1b83535e",
+					"prototypeDigest": "0f2cfb20dc654820c97668f6636747856cc7bd9208622bec5cce3e9d1b83535e",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.0034999999988940544,
+					"coldP95Ms": 0.008083000000624452,
+					"coldMaxMs": 0.008083000000624452,
+					"warmP50Ms": 0.001542000005429145,
+					"warmP95Ms": 0.0020409999997355044,
+					"warmMaxMs": 0.0029999999969732016
+				},
+				{
+					"name": "index_status_adapters",
+					"plan": ["SEARCH a USING INDEX sqlite_autoindex_generation_adapter_1 (generation_key=?)"],
+					"sourceDigest": "3a34b3f40245fb0ca769e1f822bcc05b588fa7348693c846eac34c4c1d752d22",
+					"prototypeDigest": "3a34b3f40245fb0ca769e1f822bcc05b588fa7348693c846eac34c4c1d752d22",
+					"matchesSchema18": true,
+					"rows": 2,
+					"coldP50Ms": 0.01033300000563031,
+					"coldP95Ms": 0.013124999997671694,
+					"coldMaxMs": 0.013124999997671694,
+					"warmP50Ms": 0.008333999998285435,
+					"warmP95Ms": 0.008625000002211891,
+					"warmMaxMs": 0.00916700000379933
+				},
+				{
+					"name": "find_symbol",
+					"plan": [
+						"SEARCH n USING COVERING INDEX symbol_name_by_name (generation_key=? AND name>? AND name<?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)"
+					],
+					"sourceDigest": "3110aff001121fcb9cbb951f66947f6cd4ab1175109fcbaba9c3e6acd7e77f74",
+					"prototypeDigest": "3110aff001121fcb9cbb951f66947f6cd4ab1175109fcbaba9c3e6acd7e77f74",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.013208000003942288,
+					"coldP95Ms": 0.015625,
+					"coldMaxMs": 0.015625,
+					"warmP50Ms": 0.008875000006810296,
+					"warmP95Ms": 0.00975000000471482,
+					"warmMaxMs": 0.010458999997354113
+				},
+				{
+					"name": "find_symbol_exact_presence",
+					"plan": ["SEARCH n USING COVERING INDEX symbol_name_by_name (generation_key=? AND name=?)", "USE TEMP B-TREE FOR DISTINCT"],
+					"sourceDigest": "704772a340aa949b8c6b79fb4897f371ade4eee49eb695930dfeba98c24ac2db",
+					"prototypeDigest": "704772a340aa949b8c6b79fb4897f371ade4eee49eb695930dfeba98c24ac2db",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.008958000005804934,
+					"coldP95Ms": 0.011249999995925464,
+					"coldMaxMs": 0.011249999995925464,
+					"warmP50Ms": 0.005749999996623956,
+					"warmP95Ms": 0.006874999999126885,
+					"warmMaxMs": 0.008165999999619089
+				},
+				{
+					"name": "find_symbol_context",
+					"plan": [
+						"SEARCH n USING COVERING INDEX symbol_name_by_name (generation_key=? AND name>? AND name<?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH c USING INDEX sqlite_autoindex_symbol_name_context_1 (symbol_name_key=?)",
+						"BLOOM FILTER ON pc (context_key=?)",
+						"SEARCH pc USING INTEGER PRIMARY KEY (rowid=?)"
+					],
+					"sourceDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"prototypeDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"matchesSchema18": true,
+					"rows": 0,
+					"coldP50Ms": 0.017166999998153187,
+					"coldP95Ms": 0.021249999997962732,
+					"coldMaxMs": 0.021249999997962732,
+					"warmP50Ms": 0.010167000000365078,
+					"warmP95Ms": 0.016125000001920853,
+					"warmMaxMs": 0.04599999999481952
+				},
+				{
+					"name": "outline",
+					"plan": [
+						"SEARCH d USING INDEX definition_site_by_path (generation_key=? AND file_key=? AND first_in_symbol=?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)"
+					],
+					"sourceDigest": "10b5a29f7547eff1b0fb8c1af25b4e77d5f4face598f7cf38b78fa1ec88adedb",
+					"prototypeDigest": "10b5a29f7547eff1b0fb8c1af25b4e77d5f4face598f7cf38b78fa1ec88adedb",
+					"matchesSchema18": true,
+					"rows": 23,
+					"coldP50Ms": 0.02716599999985192,
+					"coldP95Ms": 0.03204199999890989,
+					"coldMaxMs": 0.03204199999890989,
+					"warmP50Ms": 0.010874999999941792,
+					"warmP95Ms": 0.013208999997004867,
+					"warmMaxMs": 0.02354100000229664
+				},
+				{
+					"name": "outline_reexports",
+					"plan": [
+						"SEARCH f USING COVERING INDEX sqlite_autoindex_file_1 (ANY(generation_key) AND path=?)",
+						"SEARCH site USING INDEX symbol_name_site_by_path (file_key=? AND kind=?)",
+						"SEARCH n USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR LAST 2 TERMS OF ORDER BY"
+					],
+					"sourceDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"prototypeDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+					"matchesSchema18": true,
+					"rows": 0,
+					"coldP50Ms": 0.023458000003302004,
+					"coldP95Ms": 0.025125000000116415,
+					"coldMaxMs": 0.025125000000116415,
+					"warmP50Ms": 0.01433299999916926,
+					"warmP95Ms": 0.016417000006185845,
+					"warmMaxMs": 0.016959000000497326
+				},
+				{
+					"name": "find_references",
+					"plan": [
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH o USING INDEX sqlite_autoindex_occurrence_1 (symbol_key=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH enclosing USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN"
+					],
+					"sourceDigest": "f6bce4efe0d81e18097bc6631dc2dc00bb9e051d3fd7ec86377a175a94c4a824",
+					"prototypeDigest": "f6bce4efe0d81e18097bc6631dc2dc00bb9e051d3fd7ec86377a175a94c4a824",
+					"matchesSchema18": true,
+					"rows": 201,
+					"coldP50Ms": 0.1872910000020056,
+					"coldP95Ms": 0.20004200000403216,
+					"coldMaxMs": 0.20004200000403216,
+					"warmP50Ms": 0.14245800000207964,
+					"warmP95Ms": 0.1542090000002645,
+					"warmMaxMs": 0.17725000000064028
+				},
+				{
+					"name": "find_reference_groups",
+					"plan": [
+						"SEARCH o USING INDEX sqlite_autoindex_occurrence_1 (symbol_key=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH owner USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN",
+						"USE TEMP B-TREE FOR GROUP BY",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "c86c8c4187d0c4e134afd11bab9b67140c90371462543f0bbea394cb7b09555f",
+					"prototypeDigest": "c86c8c4187d0c4e134afd11bab9b67140c90371462543f0bbea394cb7b09555f",
+					"matchesSchema18": true,
+					"rows": 4950,
+					"coldP50Ms": 4.614250000005995,
+					"coldP95Ms": 4.893834000002244,
+					"coldMaxMs": 4.893834000002244,
+					"warmP50Ms": 4.588792000002286,
+					"warmP95Ms": 4.766333000006853,
+					"warmMaxMs": 5.877791999999317
+				},
+				{
+					"name": "find_reference_group_contexts",
+					"plan": [
+						"SEARCH o USING INDEX sqlite_autoindex_occurrence_1 (symbol_key=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH owner USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN",
+						"SEARCH oc USING COVERING INDEX sqlite_autoindex_occurrence_context_1 (occurrence_key=?)",
+						"SEARCH c USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR DISTINCT",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "6cd61a8716ecfca4bbef3d7d312da6b775cf12bbe803b48efe0a8688b5a85a1f",
+					"prototypeDigest": "6cd61a8716ecfca4bbef3d7d312da6b775cf12bbe803b48efe0a8688b5a85a1f",
+					"matchesSchema18": true,
+					"rows": 4949,
+					"coldP50Ms": 5.763958000003186,
+					"coldP95Ms": 5.876957999993465,
+					"coldMaxMs": 5.876957999993465,
+					"warmP50Ms": 5.912165999994613,
+					"warmP95Ms": 7.360124999999243,
+					"warmMaxMs": 8.459666999995534
+				},
+				{
+					"name": "read_symbol_summary",
+					"plan": [
+						"SEARCH s USING INDEX sqlite_autoindex_symbol_1 (generation_key=? AND id=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH parent USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN"
+					],
+					"sourceDigest": "ed22918ff07db335008c85af8094109fcda438134c3782239858a531b965f81c",
+					"prototypeDigest": "ed22918ff07db335008c85af8094109fcda438134c3782239858a531b965f81c",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.015707999998994637,
+					"coldP95Ms": 0.022333000000799075,
+					"coldMaxMs": 0.022333000000799075,
+					"warmP50Ms": 0.010667000002285931,
+					"warmP95Ms": 0.011416000001190696,
+					"warmMaxMs": 0.014250000000174623
+				},
+				{
+					"name": "read_symbol_definitions",
+					"plan": [
+						"SEARCH s USING COVERING INDEX sqlite_autoindex_symbol_1 (ANY(generation_key) AND id=?)",
+						"SCAN d",
+						"SEARCH o USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR LAST 4 TERMS OF ORDER BY"
+					],
+					"sourceDigest": "58d59d38f939329dd9a5109047e6236f7403c81aff72695997cfaf7d9e6ac382",
+					"prototypeDigest": "58d59d38f939329dd9a5109047e6236f7403c81aff72695997cfaf7d9e6ac382",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 3.87129200000345,
+					"coldP95Ms": 3.910291000000143,
+					"coldMaxMs": 3.910291000000143,
+					"warmP50Ms": 3.822041999999783,
+					"warmP95Ms": 4.015833000004932,
+					"warmMaxMs": 4.076958000005106
+				},
+				{
+					"name": "read_symbol_bindings",
+					"plan": [
+						"SEARCH s USING COVERING INDEX sqlite_autoindex_symbol_1 (ANY(generation_key) AND id=?)",
+						"SEARCH n USING INDEX sqlite_autoindex_symbol_name_2 (symbol_key=?)",
+						"USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+					],
+					"sourceDigest": "103a52ee89b1b1cdf9bf5a47aa2f73059e870fd6d2371c6b143aa04f6a16ca17",
+					"prototypeDigest": "103a52ee89b1b1cdf9bf5a47aa2f73059e870fd6d2371c6b143aa04f6a16ca17",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.015292000003682915,
+					"coldP95Ms": 0.022209000002476387,
+					"coldMaxMs": 0.022209000002476387,
+					"warmP50Ms": 0.008208999999624211,
+					"warmP95Ms": 0.008708000001206528,
+					"warmMaxMs": 0.00933400000212714
+				},
+				{
+					"name": "read_symbol_binding_contexts",
+					"plan": [
+						"SEARCH n USING COVERING INDEX sqlite_autoindex_symbol_name_1 (generation_key=? AND binding_id=?)",
+						"SEARCH nc USING INDEX sqlite_autoindex_symbol_name_context_1 (symbol_name_key=?)",
+						"SEARCH c USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+					],
+					"sourceDigest": "6a3e7d71eac786272f7650a2c880c78c70eda8215032ac9cdecc616cc8fbe761",
+					"prototypeDigest": "6a3e7d71eac786272f7650a2c880c78c70eda8215032ac9cdecc616cc8fbe761",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.012417000005370937,
+					"coldP95Ms": 0.015124999998079147,
+					"coldMaxMs": 0.015124999998079147,
+					"warmP50Ms": 0.0076249999983701855,
+					"warmP95Ms": 0.008207999999285676,
+					"warmMaxMs": 0.009165999996184837
+				},
+				{
+					"name": "read_symbol_binding_sites",
+					"plan": [
+						"SEARCH n USING COVERING INDEX sqlite_autoindex_symbol_name_1 (generation_key=? AND binding_id=?)",
+						"SEARCH site USING INDEX sqlite_autoindex_symbol_name_site_1 (symbol_name_key=?)",
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+					],
+					"sourceDigest": "728cbb3d8dd1b1b52d91e050220cdb5279aa2fef6b668a6104cdcfca7a3ba389",
+					"prototypeDigest": "728cbb3d8dd1b1b52d91e050220cdb5279aa2fef6b668a6104cdcfca7a3ba389",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.014541999997163657,
+					"coldP95Ms": 0.022417000000132248,
+					"coldMaxMs": 0.022417000000132248,
+					"warmP50Ms": 0.00900000000547152,
+					"warmP95Ms": 0.009875000003376044,
+					"warmMaxMs": 0.011875000003783498
+				},
+				{
+					"name": "read_file",
+					"plan": [
+						"SEARCH f USING INDEX sqlite_autoindex_file_1 (generation_key=? AND path=?)",
+						"SEARCH c USING INDEX sqlite_autoindex_content_1 (sha256=?) LEFT-JOIN"
+					],
+					"sourceDigest": "b65ecf7fee99239c1ac28829633124ccbab78cb1d99146bada8a50441e825b1d",
+					"prototypeDigest": "b65ecf7fee99239c1ac28829633124ccbab78cb1d99146bada8a50441e825b1d",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.010625000002619345,
+					"coldP95Ms": 0.01320799999666633,
+					"coldMaxMs": 0.01320799999666633,
+					"warmP50Ms": 0.005375000000640284,
+					"warmP95Ms": 0.005667000004905276,
+					"warmMaxMs": 0.006000000001222361
+				},
+				{
+					"name": "symbol_at",
+					"plan": [
+						"SEARCH f USING INTEGER PRIMARY KEY (rowid=?)",
+						"SEARCH o USING INDEX occurrence_by_extent (generation_key=? AND file_key=? AND role=? AND extent_start<?)",
+						"SEARCH s USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "e28d1c6b90489a2e5b085e5a3bf82860210a9a2dde9f9c17c5da087a1e10b656",
+					"prototypeDigest": "e28d1c6b90489a2e5b085e5a3bf82860210a9a2dde9f9c17c5da087a1e10b656",
+					"matchesSchema18": true,
+					"rows": 23,
+					"coldP50Ms": 0.028292000002693385,
+					"coldP95Ms": 0.03329200000007404,
+					"coldMaxMs": 0.03329200000007404,
+					"warmP50Ms": 0.02129100000456674,
+					"warmP95Ms": 0.02158400000189431,
+					"warmMaxMs": 0.021916000005148817
+				},
+				{
+					"name": "dependency_identifier",
+					"plan": [
+						"SEARCH e USING INDEX dependency_by_target_identifier (generation_key=? AND target_identifier=?)",
+						"SEARCH source USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "6659be2295f2818ab6e4689c0788d97422425f358d831aa86deb2bf9ad517bb3",
+					"prototypeDigest": "6659be2295f2818ab6e4689c0788d97422425f358d831aa86deb2bf9ad517bb3",
+					"matchesSchema18": true,
+					"rows": 319,
+					"coldP50Ms": 0.21283400000538677,
+					"coldP95Ms": 0.22733400000288384,
+					"coldMaxMs": 0.22733400000288384,
+					"warmP50Ms": 0.13083300000289455,
+					"warmP95Ms": 0.14199999999982538,
+					"warmMaxMs": 0.14679199999955017
+				},
+				{
+					"name": "dependency_target",
+					"plan": [
+						"SEARCH e USING INDEX dependency_by_target (generation_key=? AND target_file_key=?)",
+						"SEARCH source USING INTEGER PRIMARY KEY (rowid=?)",
+						"USE TEMP B-TREE FOR ORDER BY"
+					],
+					"sourceDigest": "83844c5278ea8f5d9d5028a79c1258f930b2abd932fa67e5c6a4eda5b4f4c68d",
+					"prototypeDigest": "83844c5278ea8f5d9d5028a79c1258f930b2abd932fa67e5c6a4eda5b4f4c68d",
+					"matchesSchema18": true,
+					"rows": 950,
+					"coldP50Ms": 0.3222079999977723,
+					"coldP95Ms": 0.33800000000337604,
+					"coldMaxMs": 0.33800000000337604,
+					"warmP50Ms": 0.28162500000325963,
+					"warmP95Ms": 0.3301249999931315,
+					"warmMaxMs": 0.43950000000040745
+				},
+				{
+					"name": "dependency_bindings",
+					"plan": [
+						"SEARCH e USING COVERING INDEX sqlite_autoindex_dependency_edge_1 (generation_key=? AND id=?)",
+						"SEARCH b USING INDEX sqlite_autoindex_dependency_binding_1 (edge_key=?)"
+					],
+					"sourceDigest": "dceec1f507a5665c6e273233a6e97b00cbfeb7a915b8f14f0d0b04925a90f71d",
+					"prototypeDigest": "dceec1f507a5665c6e273233a6e97b00cbfeb7a915b8f14f0d0b04925a90f71d",
+					"matchesSchema18": true,
+					"rows": 1,
+					"coldP50Ms": 0.012208000000100583,
+					"coldP95Ms": 0.018667000003915746,
+					"coldMaxMs": 0.018667000003915746,
+					"warmP50Ms": 0.00787500000296859,
+					"warmP95Ms": 0.009125000004132744,
+					"warmMaxMs": 0.01095799999893643
+				}
+			]
+		}
+	],
+	"gates": {
+		"factDigestsMatch": true,
+		"queryDigestsMatchSchema18": true,
+		"integrityPasses": true,
+		"orderedHotPlansHaveNoTemporaryBTree": true,
+		"queryP95AtMost50Ms": true,
+		"coldQueryP95AtMost50Ms": true,
+		"orderedDatabaseSmallerThanSchema18": true
+	}
+}

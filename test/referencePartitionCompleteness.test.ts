@@ -31,7 +31,16 @@ describe('reference partition completeness', () => {
 		const writer = new DatabaseSync(fixture.config.databasePath);
 
 		try {
-			writer.prepare("delete from occurrence where generation_id = ? and symbol_id = ? and role = 'definition'").run(generationId, symbol.symbolId);
+			writer
+				.prepare(
+					`delete from occurrence
+					 where generation_key = (select generation_key from generation where id = ?)
+					 and symbol_key = (
+						select symbol_key from symbol
+						where generation_key = occurrence.generation_key and id = ?)
+					 and role = 'definition'`,
+				)
+				.run(generationId, symbol.symbolId);
 		} finally {
 			writer.close();
 		}

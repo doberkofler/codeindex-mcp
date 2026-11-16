@@ -1,7 +1,7 @@
 import {type DatabaseSync} from 'node:sqlite';
-import {type BindingExposureType, type DefinitionSiteSummaryType, type OutlineReexportType, type SymbolSummaryType} from '../model.ts';
+import {type DefinitionSiteSummaryType, type OutlineReexportType, type SymbolSummaryType} from '../model.ts';
 import {asNumber, asString, placeholders} from './databaseRows.ts';
-import {asNullableString, EXPOSURE_ORDER, exposureOf, LineStartSchema, siteKindOf, toSymbolSummary} from './databasePublicationRows.ts';
+import {asNullableString, LineStartSchema, siteKindOf, toSymbolSummary} from './databasePublicationRows.ts';
 import {symbolContextsForRows} from './databaseBindingQueries.ts';
 
 type SqlRowType = Readonly<Record<string, unknown>>;
@@ -47,12 +47,15 @@ export const definitionSitesForSymbols = (
 
 	const rows = reader
 		.prepare(
-			`select d.site_id, d.symbol_id, d.path, o.start_offset, o.end_offset, o.start_line, o.start_column, o.end_line, o.end_column,
+			`select d.site_id, s.id as symbol_id, f.path, o.start_offset, o.end_offset, o.start_line, o.start_column, o.end_line, o.end_column,
 				o.declaration_kind, o.forward_definition, o.primary_rank, o.anchor_rank, o.extent_start, o.extent_end
 			 from definition_site d
-			 join occurrence o on o.generation_id = d.generation_id and o.symbol_id = d.symbol_id and o.path = d.path and o.start_offset = d.start_offset and o.role = 'definition'
-			 where d.generation_id = ? and d.symbol_id in (${placeholders(input.symbolIds.length)})
-			 order by d.symbol_id, o.primary_rank, d.path, d.start_offset, o.end_offset`,
+			 join occurrence o on o.occurrence_key = d.occurrence_key
+			 join symbol s on s.symbol_key = d.symbol_key
+			 join file f on f.file_key = d.file_key
+			 where d.generation_key = (select generation_key from generation where id = ?)
+			 and s.id in (${placeholders(input.symbolIds.length)})
+			 order by s.id, o.primary_rank, f.path, d.start_offset, o.end_offset`,
 		)
 		.all(input.generationId, ...input.symbolIds);
 	const grouped = new Map<string, SqlRowType[]>();
@@ -106,10 +109,13 @@ export const symbolSummariesByIds = (reader: DatabaseSync, generationId: string,
 
 	const rows = reader
 		.prepare(
-			`select id as symbol_id, name, qualified_name, kind, adapter_id, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id,
-				external_target, external_name
-			 from symbol
-			 where generation_id = ? and id in (${placeholders(symbolIds.length)})`,
+			`select s.id as symbol_id, s.name, s.qualified_name, s.kind, s.adapter_id, f.path, s.start_line, s.start_column,
+				s.end_line, s.end_column, s.start_offset, s.end_offset, parent.id as enclosing_id, s.external_target, s.external_name
+			 from symbol s
+			 join file f on f.file_key = s.file_key
+			 left join symbol parent on parent.symbol_key = s.enclosing_symbol_key
+			 where s.generation_key = (select generation_key from generation where id = ?)
+			 and s.id in (${placeholders(symbolIds.length)})`,
 		)
 		.all(generationId, ...symbolIds);
 	const contexts = symbolContextsForRows(reader, generationId, symbolIds);
@@ -139,7 +145,12 @@ export type ExternalAliasGroupType = Readonly<{
  * @returns The group, or null when the seed is not an external alias.
  */
 export const externalAliasGroup = (reader: DatabaseSync, generationId: string, symbolId: string, adapter?: string): ExternalAliasGroupType | null => {
-	const seed = reader.prepare('select external_target, external_name from symbol where generation_id = ? and id = ?').get(generationId, symbolId);
+	const seed = reader
+		.prepare(
+			`select external_target, external_name from symbol
+			 where generation_key = (select generation_key from generation where id = ?) and id = ?`,
+		)
+		.get(generationId, symbolId);
 	const externalTarget = seed === undefined ? null : asNullableString(seed, 'external_target');
 	const externalName = seed === undefined ? null : asNullableString(seed, 'external_name');
 
@@ -147,12 +158,14 @@ export const externalAliasGroup = (reader: DatabaseSync, generationId: string, s
 		return null;
 	}
 
-	const adapterClause = adapter === undefined ? '' : ' and adapter_id = ?';
+	const adapterClause = adapter === undefined ? '' : ' and s.adapter_id = ?';
 	const ids = reader
 		.prepare(
-			`select id from symbol
-			 where generation_id = ? and external_target = ? and external_name = ?${adapterClause}
-			 order by path, start_offset, id`,
+			`select s.id from symbol s
+			 join file f on f.file_key = s.file_key
+			 where s.generation_key = (select generation_key from generation where id = ?)
+			 and s.external_target = ? and s.external_name = ?${adapterClause}
+			 order by f.path, s.start_offset, s.id`,
 		)
 		.all(...(adapter === undefined ? [generationId, externalTarget, externalName] : [generationId, externalTarget, externalName, adapter]))
 		.map((row) => asString(row, 'id'));
@@ -172,14 +185,21 @@ export const externalAliasGroup = (reader: DatabaseSync, generationId: string, s
  * @returns The statement text.
  */
 export const outlinePageQuerySql = (kindCount: number): string => {
-	const kindJoin = kindCount === 0 ? '' : ' join symbol s on s.generation_id = d.generation_id and s.id = d.symbol_id and s.path = d.path';
-	const kindClause = kindCount === 0 ? '' : ` and s.kind in (${placeholders(kindCount)})`;
+	const kindParameters = Array.from({length: kindCount}, (_, index) => `?${String(index + 3)}`).join(', ');
+	const kindClause = kindCount === 0 ? '' : ` and s.kind in (${kindParameters})`;
+	const limitParameter = kindCount + 3;
+	const offsetParameter = kindCount + 4;
 
-	return `select d.symbol_id as symbol_id, d.start_offset as start_offset
-			 from definition_site d${kindJoin}
-			 where d.generation_id = ? and d.path = ? and d.first_in_symbol = 1${kindClause}
-			 order by d.start_offset, d.symbol_id
-			 limit ? offset ?`;
+	return `select s.id as symbol_id, d.start_offset as start_offset
+			 from definition_site d
+			 join symbol s on s.symbol_key = d.symbol_key
+			 where d.generation_key = (select generation_key from generation where id = ?1)
+			 and d.file_key = (
+				select file_key from file
+				where generation_key = (select generation_key from generation where id = ?1) and path = ?2)
+			 and d.first_in_symbol = 1${kindClause}
+			 order by d.start_offset, d.symbol_id_order
+			 limit ?${String(limitParameter)} offset ?${String(offsetParameter)}`;
 };
 
 /**
@@ -190,7 +210,14 @@ export const outlinePageQuerySql = (kindCount: number): string => {
  * @returns The busiest path, or null for an empty generation.
  */
 export const busiestSymbolPath = (reader: DatabaseSync, generationId: string): string | null => {
-	const row = reader.prepare('select path from symbol where generation_id = ? group by path order by count(*) desc, path asc limit 1').get(generationId);
+	const row = reader
+		.prepare(
+			`select f.path from symbol s
+			 join file f on f.file_key = s.file_key
+			 where s.generation_key = (select generation_key from generation where id = ?)
+			 group by f.path order by count(*) desc, f.path asc limit 1`,
+		)
+		.get(generationId);
 
 	return row === undefined ? null : asString(row, 'path');
 };
@@ -252,11 +279,14 @@ export const outlineSymbols = (
 export const outlineReexports = (reader: DatabaseSync, generationId: string, pathName: string): readonly OutlineReexportType[] => {
 	const rows = reader
 		.prepare(
-			`select n.binding_id, n.symbol_id, n.adapter_id, n.name, n.qualified_name, site.kind, site.path, site.start_offset, site.end_offset
+			`select n.binding_id, s.id as symbol_id, n.adapter_id, n.name, n.qualified_name, site.kind, f.path, site.start_offset, site.end_offset
 			 from symbol_name_site site
-			 join symbol_name n on n.generation_id = site.generation_id and n.binding_id = site.binding_id
-			 where site.generation_id = ? and site.path = ? and site.kind in ('alias', 'default', 'reexport', 'wildcard')
-			 order by site.path, site.start_offset, n.name`,
+			 join symbol_name n on n.symbol_name_key = site.symbol_name_key
+			 join symbol s on s.symbol_key = n.symbol_key
+			 join file f on f.file_key = site.file_key
+			 where n.generation_key = (select generation_key from generation where id = ?)
+			 and f.path = ? and site.kind in ('alias', 'default', 'reexport', 'wildcard')
+			 order by f.path, site.start_offset, n.name`,
 		)
 		.all(generationId, pathName);
 	const entries = new Map<string, OutlineReexportType>();
@@ -322,7 +352,7 @@ export const symbolsAtPosition = (
 	const lineStartsRow = reader
 		.prepare(
 			`select content.line_starts from file join content on content.sha256 = file.content_sha256
-			 where file.generation_id = ? and file.path = ?`,
+			 where file.generation_key = (select generation_key from generation where id = ?) and file.path = ?`,
 		)
 		.get(input.generationId, input.path);
 
@@ -347,13 +377,16 @@ export const symbolsAtPosition = (
 	const offset = input.column === null ? lineStart : lineStart + input.column - 1;
 	const rows = reader
 		.prepare(
-			`select s.id, s.name, s.qualified_name, s.kind, s.adapter_id, s.path, s.start_line, s.start_column, s.end_line, s.end_column,
-				s.enclosing_id, d.site_id, o.start_offset, o.end_offset, o.extent_start, o.extent_end, o.start_line, o.end_line, o.declaration_kind,
+			`select s.id, s.name, s.qualified_name, s.kind, s.adapter_id, f.path, s.start_line, s.start_column, s.end_line, s.end_column,
+				parent.id as enclosing_id, d.site_id, o.start_offset, o.end_offset, o.extent_start, o.extent_end, o.start_line, o.end_line, o.declaration_kind,
 				o.forward_definition
 			 from occurrence o
-			 join symbol s on s.generation_id = o.generation_id and s.id = o.symbol_id
-			 join definition_site d on d.generation_id = o.generation_id and d.symbol_id = o.symbol_id and d.path = o.path and d.start_offset = o.start_offset and d.role = 'definition'
-			 where o.generation_id = ? and o.path = ? and o.role = 'definition'
+			 join symbol s on s.symbol_key = o.symbol_key
+			 join file f on f.file_key = o.file_key
+			 left join symbol parent on parent.symbol_key = s.enclosing_symbol_key
+			 join definition_site d on d.occurrence_key = o.occurrence_key
+			 where o.generation_key = (select generation_key from generation where id = ?)
+			 and f.path = ? and o.role = 'definition'
 			 and o.extent_start <= ? and o.extent_end >= ?
 			 order by (o.extent_end - o.extent_start) asc, o.start_offset asc, s.id`,
 		)
@@ -389,9 +422,12 @@ export const symbolsAtPosition = (
 export const symbolSummaryById = (reader: DatabaseSync, generationId: string, symbolId: string): SymbolSummaryType | null => {
 	const row = reader
 		.prepare(
-			`select id as symbol_id, name, qualified_name, kind, adapter_id, path, start_line, start_column, end_line, end_column, start_offset, end_offset, enclosing_id,
-				external_target, external_name
-			 from symbol where generation_id = ? and id = ?`,
+			`select s.id as symbol_id, s.name, s.qualified_name, s.kind, s.adapter_id, f.path, s.start_line, s.start_column,
+				s.end_line, s.end_column, s.start_offset, s.end_offset, parent.id as enclosing_id, s.external_target, s.external_name
+			 from symbol s
+			 join file f on f.file_key = s.file_key
+			 left join symbol parent on parent.symbol_key = s.enclosing_symbol_key
+			 where s.generation_key = (select generation_key from generation where id = ?) and s.id = ?`,
 		)
 		.get(generationId, symbolId);
 
@@ -458,40 +494,3 @@ export const definitionSiteById = (reader: DatabaseSync, generationId: string, s
  */
 export const definitionSitesForSymbol = (reader: DatabaseSync, generationId: string, symbolId: string): readonly DefinitionSiteSummaryType[] =>
 	definitionSitesForSymbols(reader, {generationId, symbolIds: [symbolId]}).get(symbolId) ?? [];
-
-/**
- * Validates that a binding belongs to a symbol.
- *
- * @param reader - Reader connection.
- * @param generationId - Published generation.
- * @param symbolId - Symbol identifier.
- * @param bindingId - Binding identifier.
- * @returns True when the binding belongs to the symbol.
- */
-export const bindingBelongsToSymbol = (reader: DatabaseSync, generationId: string, symbolId: string, bindingId: string): boolean => {
-	const row = reader.prepare('select 1 from symbol_name where generation_id = ? and binding_id = ? and symbol_id = ?').get(generationId, bindingId, symbolId);
-
-	return row !== undefined;
-};
-
-/**
- * Reads the effective exposure of one binding.
- *
- * @param reader - Reader connection.
- * @param generationId - Published generation.
- * @param bindingId - Binding identifier.
- * @param context - Optional context filter.
- * @returns The strongest exposure, or null.
- */
-export const bindingExposure = (reader: DatabaseSync, generationId: string, bindingId: string, context?: string): BindingExposureType | null => {
-	const row =
-		context === undefined
-			? reader
-					.prepare(`select exposure from symbol_name_context where generation_id = ? and binding_id = ? order by ${EXPOSURE_ORDER} desc limit 1`)
-					.get(generationId, bindingId)
-			: reader
-					.prepare('select exposure from symbol_name_context where generation_id = ? and binding_id = ? and context_name = ?')
-					.get(generationId, bindingId, context);
-
-	return row === undefined ? null : exposureOf(asString(row, 'exposure'));
-};

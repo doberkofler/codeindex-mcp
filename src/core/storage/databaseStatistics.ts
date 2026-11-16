@@ -18,12 +18,12 @@ export type PlannerStatisticRequirementType = Readonly<{
  */
 export const REQUIRED_PLANNER_STATISTICS: readonly PlannerStatisticRequirementType[] = [
 	{table: 'symbol_name', index: 'symbol_name_by_name'},
-	{table: 'symbol_name', index: 'symbol_name_by_symbol'},
+	{table: 'symbol_name', index: 'sqlite_autoindex_symbol_name_2'},
 	{table: 'symbol_name_context', index: 'sqlite_autoindex_symbol_name_context_1'},
 	{table: 'symbol_name_context', index: 'symbol_name_context_by_exposure'},
 	{table: 'symbol_name_site', index: 'sqlite_autoindex_symbol_name_site_1'},
 	{table: 'definition_site', index: 'definition_site_by_path'},
-	{table: 'definition_site', index: 'definition_site_by_occurrence'},
+	{table: 'definition_site', index: 'sqlite_autoindex_definition_site_1'},
 	{table: 'occurrence', index: 'sqlite_autoindex_occurrence_1'},
 	{table: 'occurrence_context', index: 'sqlite_autoindex_occurrence_context_1'},
 	{table: 'symbol', index: 'sqlite_autoindex_symbol_1'},

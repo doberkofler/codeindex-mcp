@@ -253,7 +253,11 @@ describe('IndexDatabase statistics and concurrency', () => {
 
 			try {
 				const bindings = reader
-					.prepare('select symbol_id, exposure, has_declared_site from symbol_name order by symbol_id')
+					.prepare(
+						`select s.id as symbol_id, n.exposure, n.has_declared_site from symbol_name n
+						 join symbol s on s.symbol_key = n.symbol_key
+						 order by s.id`,
+					)
 					.all()
 					.map((row) => ({
 						symbolId: String(row['symbol_id']),
@@ -261,7 +265,12 @@ describe('IndexDatabase statistics and concurrency', () => {
 						hasDeclaredSite: Number(row['has_declared_site']),
 					}));
 				const sites = reader
-					.prepare('select symbol_id, path, start_offset, first_in_symbol from definition_site order by symbol_id, path, start_offset')
+					.prepare(
+						`select s.id as symbol_id, f.path, d.start_offset, d.first_in_symbol from definition_site d
+						 join symbol s on s.symbol_key = d.symbol_key
+						 join file f on f.file_key = d.file_key
+						 order by s.id, f.path, d.start_offset`,
+					)
 					.all()
 					.map((row) => ({
 						symbolId: String(row['symbol_id']),

@@ -65,9 +65,10 @@ const storedDigests = (writer: DatabaseSync, generationId: string, adapterId: st
 	new Map(
 		writer
 			.prepare(
-				`select d.path, d.digest from generation_file_digest d
-				 join file f on f.generation_id = d.generation_id and f.path = d.path
-				 where d.generation_id = ? and f.adapter_id = ?`,
+				`select f.path, d.digest from generation_file_digest d
+				 join file f on f.file_key = d.file_key
+				 join generation g on g.generation_key = f.generation_key
+				 where g.id = ? and f.adapter_id = ?`,
 			)
 			.all(generationId, adapterId)
 			.map((row) => [asString(row, 'path'), asString(row, 'digest')]),
@@ -240,8 +241,10 @@ const writeTableRows = (
 ): void => {
 	for (const table of PATH_TABLES) {
 		checkCancellation?.();
+		table.before?.(writer);
 		const sink = pathSinkOf(table, writer, selection, checkCancellation);
 		table.each(input, sink.write);
+		table.after?.(writer, input, selection.selected, checkCancellation);
 	}
 };
 
@@ -265,13 +268,17 @@ const writeDigests = (
 	}>,
 ): void => {
 	const statement = input.writer.prepare(
-		'insert into generation_file_digest (generation_id, adapter_id, path, digest) values (?, ?, ?, ?) on conflict(generation_id, path) do update set adapter_id = excluded.adapter_id, digest = excluded.digest',
+		`insert into generation_file_digest (file_key, adapter_id, digest)
+		 select f.file_key, ?, ? from file f
+		 join generation g on g.generation_key = f.generation_key
+		 where g.id = ? and f.path = ?
+		 on conflict(file_key) do update set adapter_id = excluded.adapter_id, digest = excluded.digest`,
 	);
 
 	for (const [path, digest] of input.digests) {
 		input.checkCancellation?.();
 		input.selectedRows.value += 1;
-		input.writtenRows.value += insertRow(statement, 'generation_file_digest', path, [input.generationId, input.adapterId, path, digest]);
+		input.writtenRows.value += insertRow(statement, 'generation_file_digest', path, [input.adapterId, digest, input.generationId, path]);
 	}
 };
 
@@ -287,7 +294,10 @@ const deleteGenerationRows = (
 	checkCancellation: CancellationCheckType,
 ): number => {
 	const before = totalChanges(writer);
-	const deleteFile = writer.prepare('delete from file where generation_id = ? and path = ?');
+	const deleteFile = writer.prepare(
+		`delete from file
+		 where generation_key = (select generation_key from generation where id = ?) and path = ?`,
+	);
 
 	for (const path of paths) {
 		checkCancellation?.();
@@ -296,7 +306,9 @@ const deleteGenerationRows = (
 
 	for (const table of GLOBAL_TABLES) {
 		checkCancellation?.();
-		writer.prepare(`delete from ${table.table} where generation_id = ? and adapter_id = ?`).run(input.generationId, adapterIdOf(input));
+		writer
+			.prepare(`delete from ${table.table} where generation_key = (select generation_key from generation where id = ?) and adapter_id = ?`)
+			.run(input.generationId, adapterIdOf(input));
 	}
 
 	return totalChanges(writer) - before;
@@ -412,5 +424,21 @@ export const insertGenerationFacts = (writer: DatabaseSync, reader: DatabaseSync
  * @param table - Fixed table name owned by the generation.
  * @returns Row count for that generation.
  */
-export const countGenerationRows = (reader: DatabaseSync, generationId: string, table: string): number =>
-	countOf(reader, `select count(*) as total from ${table} where generation_id = ?`, generationId);
+export const countGenerationRows = (reader: DatabaseSync, generationId: string, table: string): number => {
+	const relationship = {
+		dependency_binding: 'join dependency_edge owner on owner.edge_key = row.edge_key',
+		surface_binding_origin: 'join symbol_name owner on owner.symbol_name_key = row.symbol_name_key',
+		symbol_name_context: 'join symbol_name owner on owner.symbol_name_key = row.symbol_name_key',
+		symbol_name_site: 'join symbol_name owner on owner.symbol_name_key = row.symbol_name_key',
+	}[table];
+	const owner = relationship === undefined ? 'row' : 'owner';
+
+	return countOf(
+		reader,
+		`select count(*) as total from ${table} row
+		 ${relationship ?? ''}
+		 join generation g on g.generation_key = ${owner}.generation_key
+		 where g.id = ?`,
+		generationId,
+	);
+};

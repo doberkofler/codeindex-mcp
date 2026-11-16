@@ -186,7 +186,16 @@ const generationRows = (inspector: DatabaseSync): readonly GenerationStateType[]
 const publishedRows = (inspector: DatabaseSync): readonly GenerationStateType[] => generationRows(inspector).filter((row) => row.state === 'published');
 
 const generationCountOf = (inspector: DatabaseSync, table: string, generationId: string): number => {
-	const row = inspector.prepare(`select count(*) as total from ${table} where generation_id = ?`).get(generationId);
+	const row = inspector
+		.prepare(
+			table === 'dependency_binding'
+				? `select count(*) as total from dependency_binding b
+					 join dependency_edge e on e.edge_key = b.edge_key
+					 where e.generation_key = (select generation_key from generation where id = ?)`
+				: `select count(*) as total from ${table}
+					 where generation_key = (select generation_key from generation where id = ?)`,
+		)
+		.get(generationId);
 
 	return row === undefined ? 0 : Number(row['total']);
 };

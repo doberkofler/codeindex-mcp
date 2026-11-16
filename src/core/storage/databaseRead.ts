@@ -10,7 +10,13 @@ import {asNumber, asString, toGeneration} from './databaseRows.ts';
  * @returns Adapter rows ordered by adapter identifier.
  */
 export const readGenerationAdapters = (reader: DatabaseSync, generationId: string): readonly GenerationAdapterType[] => {
-	const rows = reader.prepare('select * from generation_adapter where generation_id = ? order by adapter_id').all(generationId);
+	const rows = reader
+		.prepare(
+			`select a.* from generation_adapter a
+			 join generation g on g.generation_key = a.generation_key
+			 where g.id = ? order by a.adapter_id`,
+		)
+		.all(generationId);
 
 	return rows.map((row) => {
 		const scanMs = typeof row['scan_ms'] === 'number' ? row['scan_ms'] : null;
@@ -25,6 +31,7 @@ export const readGenerationAdapters = (reader: DatabaseSync, generationId: strin
 
 		return {
 			adapterId: asString(row, 'adapter_id'),
+			revision: asNumber(row, 'revision'),
 			protocolVersion: asNumber(row, 'protocol_version'),
 			adapterVersion: asString(row, 'adapter_version'),
 			packageName: typeof row['package_name'] === 'string' ? row['package_name'] : null,

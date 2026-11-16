@@ -23,11 +23,13 @@ export const loadCodeFacts = (database: DatabaseSync, generationId: string): Cod
 	const references = new Map<string, CodeOccurrenceType>();
 	const rows = database
 		.prepare(
-			`select s.name, s.kind, s.path as symbol_path, s.start_line as symbol_line, s.start_column as symbol_column,
-			        o.path, o.start_line, o.start_column, o.role
+			`select s.name, s.kind, symbol_file.path as symbol_path, s.start_line as symbol_line, s.start_column as symbol_column,
+			        occurrence_file.path, o.start_line, o.start_column, o.role
 			 from occurrence o
-			 join symbol s on s.generation_id = o.generation_id and s.id = o.symbol_id
-			 where o.generation_id = ?`,
+			 join symbol s on s.symbol_key = o.symbol_key
+			 join file symbol_file on symbol_file.file_key = s.file_key
+			 join file occurrence_file on occurrence_file.file_key = o.file_key
+			 where o.generation_key = (select generation_key from generation where id = ?)`,
 		)
 		.all(generationId);
 
@@ -68,13 +70,14 @@ export const loadCodeFacts = (database: DatabaseSync, generationId: string): Cod
 export const loadAmbiguousOverloadSites = (database: DatabaseSync, generationId: string): ReadonlySet<string> => {
 	const rows = database
 		.prepare(
-			`select path, start_line, start_column
-			 from diagnostic
-			 where generation_id = ?
-			 and code = ?
-			 and path is not null
-			 and start_line is not null
-			 and start_column is not null`,
+			`select coalesce(f.path, d.fallback_path) path, d.start_line, d.start_column
+			 from diagnostic d
+			 left join file f on f.file_key = d.file_key
+			 where d.generation_key = (select generation_key from generation where id = ?)
+			 and d.code = ?
+			 and coalesce(f.path, d.fallback_path) is not null
+			 and d.start_line is not null
+			 and d.start_column is not null`,
 		)
 		.all(generationId, ORACLE_DIAGNOSTIC.ambiguousOverload);
 
@@ -99,11 +102,12 @@ export const loadCodeDependencies = (
 	const dependencies = new Set<string>();
 	const rows = database
 		.prepare(
-			`select source_path, target_identifier
-			 from dependency_edge
-			 where generation_id = ?
-			 and target_identifier is not null
-			 and kind in ('package-call', 'package-reference', 'type-reference')`,
+			`select source.path as source_path, e.target_identifier
+			 from dependency_edge e
+			 join file source on source.file_key = e.source_file_key
+			 where e.generation_key = (select generation_key from generation where id = ?)
+			 and e.target_identifier is not null
+			 and e.kind in ('package-call', 'package-reference', 'type-reference')`,
 		)
 		.all(generationId);
 

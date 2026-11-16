@@ -119,7 +119,10 @@ const persistedSymbolIdsOf = (config: ConfigType, generationId: string, adapterI
 
 	try {
 		return reader
-			.prepare('select id from symbol where generation_id = ? and adapter_id = ? order by id')
+			.prepare(
+				`select id from symbol
+				 where generation_key = (select generation_key from generation where id = ?) and adapter_id = ? order by id`,
+			)
 			.all(generationId, adapterId)
 			.map((row) => String(row['id']));
 	} finally {

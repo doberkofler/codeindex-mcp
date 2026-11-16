@@ -30,7 +30,12 @@ export const adapterFromSingle = (writer: DatabaseSync, input: GenerationCommitI
 	const factsInput = input.reuseFacts ? null : (input as GenerationFactsInputType & Readonly<{reuseFacts: false}>);
 	const {provenance} = input;
 	const {adapterId} = provenance;
-	const previousRow = writer.prepare('select * from generation_adapter where generation_id = ? and adapter_id = ?').get(input.generationId, adapterId);
+	const previousRow = writer
+		.prepare(
+			`select * from generation_adapter
+			 where generation_key = (select generation_key from generation where id = ?) and adapter_id = ?`,
+		)
+		.get(input.generationId, adapterId);
 	const counts =
 		previousRow === undefined
 			? {

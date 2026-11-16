@@ -74,16 +74,38 @@ describe('generation fact persistence', () => {
 
 		const reader = new DatabaseSync(databasePath, {readOnly: true});
 		const bindings = reader
-			.prepare('select binding_id, symbol_id, binding_key from symbol_name where generation_id = ? order by binding_id')
+			.prepare(
+				`select n.binding_id, s.id as symbol_id, n.binding_key from symbol_name n
+				 join symbol s on s.symbol_key = n.symbol_key
+				 where n.generation_key = (select generation_key from generation where id = ?)
+				 order by n.binding_id`,
+			)
 			.all('generation-1');
 		const sites = reader
-			.prepare('select site_id, symbol_id, path, start_offset from definition_site where generation_id = ? order by site_id')
+			.prepare(
+				`select d.site_id, s.id as symbol_id, f.path, d.start_offset from definition_site d
+				 join symbol s on s.symbol_key = d.symbol_key
+				 join file f on f.file_key = d.file_key
+				 where d.generation_key = (select generation_key from generation where id = ?)
+				 order by d.site_id`,
+			)
 			.all('generation-1');
 		const repeatedBindings = reader
-			.prepare('select binding_id, symbol_id, binding_key from symbol_name where generation_id = ? order by binding_id')
+			.prepare(
+				`select n.binding_id, s.id as symbol_id, n.binding_key from symbol_name n
+				 join symbol s on s.symbol_key = n.symbol_key
+				 where n.generation_key = (select generation_key from generation where id = ?)
+				 order by n.binding_id`,
+			)
 			.all('generation-2');
 		const repeatedSites = reader
-			.prepare('select site_id, symbol_id, path, start_offset from definition_site where generation_id = ? order by site_id')
+			.prepare(
+				`select d.site_id, s.id as symbol_id, f.path, d.start_offset from definition_site d
+				 join symbol s on s.symbol_key = d.symbol_key
+				 join file f on f.file_key = d.file_key
+				 where d.generation_key = (select generation_key from generation where id = ?)
+				 order by d.site_id`,
+			)
 			.all('generation-2');
 		reader.close();
 
@@ -91,6 +113,10 @@ describe('generation fact persistence', () => {
 		expect(bindings).toStrictEqual(repeatedBindings);
 		expect(sites).toStrictEqual(repeatedSites);
 	});
+});
+
+describe('generation fact integrity', () => {
+	afterEach(cleanupDirectory);
 
 	it('leaves no foreign-key or coverage violation in a persisted generation', () => {
 		const {database, databasePath} = open();
@@ -103,9 +129,9 @@ describe('generation fact persistence', () => {
 		const uncovered = reader
 			.prepare(
 				`select count(*) as total from occurrence o
-				 left join definition_site d on d.generation_id = o.generation_id and d.symbol_id = o.symbol_id
-				 and d.path = o.path and d.start_offset = o.start_offset and d.role = o.role
-				 where o.generation_id = ? and o.role = 'definition' and d.site_id is null`,
+				 left join definition_site d on d.occurrence_key = o.occurrence_key
+				 where o.generation_key = (select generation_key from generation where id = ?)
+				 and o.role = 'definition' and d.site_id is null`,
 			)
 			.get('generation-1');
 		reader.close();
@@ -123,16 +149,43 @@ describe('generation fact persistence', () => {
 		writer.exec('pragma foreign_keys = on');
 
 		try {
-			expect(() =>
-				writer
-					.prepare(
-						"insert into symbol_name_context (generation_id, adapter_id, binding_id, context_name, exposure) values ('generation-1', 'typescript', 'b_missing', 'app', 'published')",
-					)
-					.run(),
-			).toThrow(/FOREIGN KEY/u);
+			expect(() => writer.prepare("insert into symbol_name_context (symbol_name_key, context_key, exposure) values (-1, -1, 'published')").run()).toThrow(
+				/FOREIGN KEY/u,
+			);
 		} finally {
 			writer.close();
 		}
+	});
+
+	it('rejects a dependency context that is not owned by its adapter', () => {
+		const {database} = open();
+		const seed = createGenerationFactSeed({
+			dependencies: {
+				edges: [
+					{
+						id: 'edge-1',
+						context: 'missing',
+						sourcePath: 'src/example.ts',
+						targetPath: null,
+						rawTarget: 'missing',
+						targetIdentifier: 'missing',
+						kind: 'import',
+						compileTimeOnly: false,
+						startLine: 1,
+						startColumn: 1,
+						endLine: 1,
+						endColumn: 2,
+						startOffset: 0,
+						endOffset: 1,
+					},
+				],
+				bindings: [],
+			},
+		});
+		database.createGeneration(generation('generation-1'));
+
+		expect(() => database.insertGenerationFacts({generationId: 'generation-1', ...seed})).toThrow(/FOREIGN KEY/u);
+		database.close();
 	});
 
 	it('scopes status counts to one generation', () => {

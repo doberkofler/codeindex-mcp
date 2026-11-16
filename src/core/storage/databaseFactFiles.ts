@@ -2,8 +2,9 @@ import {type DatabaseSync} from 'node:sqlite';
 import {type ScanProjectResultType, type SourceFileType} from '../model.ts';
 import {asString} from './databaseRows.ts';
 
-const FILE_INSERT_SQL = `insert into file (generation_id, adapter_id, path, sha256, content_sha256, line_count)
-	 values (?, ?, ?, ?, (select sha256 from content where sha256 = ?), ?)`;
+const FILE_INSERT_SQL = `insert into file (generation_key, adapter_id, path, sha256, content_sha256, line_count)
+	 select generation_key, ?, ?, ?, (select sha256 from content where sha256 = ?), ?
+	 from generation where id = ?`;
 
 /**
  * Inserts or refreshes every file row of one adapter within a generation.
@@ -27,15 +28,23 @@ export const syncGenerationFiles = (
 	checkCancellation?.();
 	const existing = new Set(
 		writer
-			.prepare('select path from file where generation_id = ? and adapter_id = ?')
+			.prepare(
+				`select f.path from file f
+				 join generation g on g.generation_key = f.generation_key
+				 where g.id = ? and f.adapter_id = ?`,
+			)
 			.all(generationId, adapterId)
 			.map((row) => asString(row, 'path')),
 	);
 	const insert = writer.prepare(FILE_INSERT_SQL);
 	const update = writer.prepare(
-		'update file set sha256 = ?, content_sha256 = (select sha256 from content where sha256 = ?), line_count = ? where generation_id = ? and path = ?',
+		`update file set sha256 = ?, content_sha256 = (select sha256 from content where sha256 = ?), line_count = ?
+		 where generation_key = (select generation_key from generation where id = ?) and path = ?`,
 	);
-	const remove = writer.prepare('delete from file where generation_id = ? and adapter_id = ? and path = ?');
+	const remove = writer.prepare(
+		`delete from file
+		 where generation_key = (select generation_key from generation where id = ?) and adapter_id = ? and path = ?`,
+	);
 	const current = new Set<string>();
 
 	for (const file of files) {
@@ -46,7 +55,7 @@ export const syncGenerationFiles = (
 			if (existing.has(file.path)) {
 				update.run(file.sha256, file.sha256, file.lineCount, generationId, file.path);
 			} else {
-				insert.run(generationId, adapterId, file.path, file.sha256, file.sha256, file.lineCount);
+				insert.run(adapterId, file.path, file.sha256, file.sha256, file.lineCount, generationId);
 			}
 		} catch (error) {
 			throw new Error(`file row insert failed for ${file.path}: ${error instanceof Error ? error.message : String(error)}`, {cause: error});
@@ -79,13 +88,21 @@ export const syncProjectContexts = (
 ): number => {
 	input.checkCancellation?.();
 	const statement = writer.prepare(
-		`insert into project_context (generation_id, adapter_id, name, project_file, config_hash) values (?, ?, ?, ?, ?)
-		 on conflict(generation_id, adapter_id, name) do update set project_file = excluded.project_file, config_hash = excluded.config_hash`,
+		`insert into project_context (generation_key, adapter_id, name, project_file, config_hash)
+		 select generation_key, ?, ?, ?, ? from generation where id = ?
+		 on conflict(generation_key, adapter_id, name) do update set project_file = excluded.project_file, config_hash = excluded.config_hash`,
 	);
-	const remove = writer.prepare('delete from project_context where generation_id = ? and adapter_id = ? and name = ?');
+	const remove = writer.prepare(
+		`delete from project_context
+		 where generation_key = (select generation_key from generation where id = ?) and adapter_id = ? and name = ?`,
+	);
 	const existing = new Set(
 		writer
-			.prepare('select name from project_context where generation_id = ? and adapter_id = ?')
+			.prepare(
+				`select c.name from project_context c
+				 join generation g on g.generation_key = c.generation_key
+				 where g.id = ? and c.adapter_id = ?`,
+			)
 			.all(input.generationId, input.adapterId)
 			.map((row) => asString(row, 'name')),
 	);
@@ -95,7 +112,7 @@ export const syncProjectContexts = (
 	for (const project of input.projects) {
 		input.checkCancellation?.();
 		current.add(project.name);
-		statement.run(input.generationId, input.adapterId, project.name, project.projectFile, project.configHash);
+		statement.run(input.adapterId, project.name, project.projectFile, project.configHash, input.generationId);
 		written += 1;
 	}
 

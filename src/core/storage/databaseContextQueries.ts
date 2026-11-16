@@ -10,7 +10,10 @@ import {asString} from './databaseRows.ts';
  */
 export const listProjectContextNames = (reader: DatabaseSync, generationId: string): readonly string[] =>
 	reader
-		.prepare('select name from project_context where generation_id = ? order by rowid')
+		.prepare(
+			`select name from project_context
+			 where generation_key = (select generation_key from generation where id = ?) order by context_key`,
+		)
 		.all(generationId)
 		.map((row) => asString(row, 'name'));
 
@@ -29,6 +32,9 @@ export type ProjectContextEntryType = Readonly<{adapterId: string; name: string}
  */
 export const listProjectContextEntries = (reader: DatabaseSync, generationId: string): readonly ProjectContextEntryType[] =>
 	reader
-		.prepare('select adapter_id, name from project_context where generation_id = ? order by rowid')
+		.prepare(
+			`select adapter_id, name from project_context
+			 where generation_key = (select generation_key from generation where id = ?) order by context_key`,
+		)
 		.all(generationId)
 		.map((row) => ({adapterId: asString(row, 'adapter_id'), name: asString(row, 'name')}));

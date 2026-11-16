@@ -178,7 +178,14 @@ export const countContentVersions = (reader: DatabaseSync): number => {
  * @returns The occurrence count.
  */
 export const countReferences = (reader: DatabaseSync, generationId: string, symbolId: string): number => {
-	const row = reader.prepare('select count(*) as total from occurrence where generation_id = ? and symbol_id = ?').get(generationId, symbolId);
+	const row = reader
+		.prepare(
+			`select count(*) as total from occurrence o
+			 join symbol s on s.symbol_key = o.symbol_key
+			 join generation g on g.generation_key = o.generation_key
+			 where g.id = ? and s.id = ?`,
+		)
+		.get(generationId, symbolId);
 	return row === undefined ? 0 : asNumber(row, 'total');
 };
 
@@ -260,7 +267,8 @@ export const readFile = (reader: DatabaseSync, generationId: string, filePath: s
 		.prepare(
 			`select f.path, f.sha256, f.line_count, coalesce(c.byte_count, 0) as byte_count
 			 from file f left join content c on c.sha256 = f.content_sha256
-			 where f.generation_id = ? and f.path = ?`,
+			 join generation g on g.generation_key = f.generation_key
+			 where g.id = ? and f.path = ?`,
 		)
 		.get(generationId, filePath);
 
@@ -286,7 +294,12 @@ export const readFile = (reader: DatabaseSync, generationId: string, filePath: s
  * @returns The owning adapter identifier, or null when the path is not indexed.
  */
 export const readFileAdapter = (reader: DatabaseSync, generationId: string, filePath: string): string | null => {
-	const row = reader.prepare('select adapter_id from file where generation_id = ? and path = ?').get(generationId, filePath);
+	const row = reader
+		.prepare(
+			`select adapter_id from file
+			 where generation_key = (select generation_key from generation where id = ?) and path = ?`,
+		)
+		.get(generationId, filePath);
 
 	return row === undefined ? null : asString(row, 'adapter_id');
 };
@@ -303,8 +316,10 @@ export const listFiles = (reader: DatabaseSync, generationId: string, adapterId?
 	reader
 		.prepare(
 			adapterId === undefined
-				? 'select path, sha256 from file where generation_id = ? order by path'
-				: 'select path, sha256 from file where generation_id = ? and adapter_id = ? order by path',
+				? `select path, sha256 from file
+					 where generation_key = (select generation_key from generation where id = ?) order by path`
+				: `select path, sha256 from file
+					 where generation_key = (select generation_key from generation where id = ?) and adapter_id = ? order by path`,
 		)
 		.all(...(adapterId === undefined ? [generationId] : [generationId, adapterId]))
 		.map((row) => ({path: asString(row, 'path'), sha256: asString(row, 'sha256')}));

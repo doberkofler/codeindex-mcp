@@ -30,7 +30,18 @@ export const publishNewGeneration = (
 	const {writer} = connection;
 	const {generationId, diagnosticCount, stages, ownerId} = input;
 	const count = (table: string): number => {
-		const row = writer.prepare(`select count(*) as total from ${table} where generation_id = ?`).get(generationId);
+		const row =
+			table === 'dependency_binding'
+				? writer
+						.prepare(
+							`select count(*) as total from dependency_binding b
+							 join dependency_edge e on e.edge_key = b.edge_key
+							 where e.generation_key = (select generation_key from generation where id = ?)`,
+						)
+						.get(generationId)
+				: writer
+						.prepare(`select count(*) as total from ${table} where generation_key = (select generation_key from generation where id = ?)`)
+						.get(generationId);
 		return row === undefined ? 0 : Number(row['total']);
 	};
 	const counts = {
