@@ -3,6 +3,7 @@ import {realpathSync} from 'node:fs';
 import path from 'node:path';
 import {
 	type AdapterConfigType,
+	type AdapterExecutionContextType,
 	toRepositoryPath,
 	createSourceFileRecord,
 	computeSourceHash,
@@ -65,10 +66,19 @@ type ContextScanType = Readonly<{
 	artifactContextHash: string;
 }>;
 
-const scanContext = (config: AdapterConfigType, context: AdapterConfigType['projects'][number]): ContextScanType => {
+const scanContext = (
+	config: AdapterConfigType,
+	context: AdapterConfigType['projects'][number],
+	executionContext?: AdapterExecutionContextType,
+): ContextScanType => {
+	executionContext?.throwIfCancellationRequested();
 	const manifest = readOracleManifest(context.projectFilePath);
 	const discovery = discoverOracleFiles(config.rootDir, manifest.manifest);
-	const files = discovery.files.map((file) => createSourceFileRecord(file.absolutePath, config.rootDir));
+	executionContext?.throwIfCancellationRequested();
+	const files = discovery.files.map((file) => {
+		executionContext?.throwIfCancellationRequested();
+		return createSourceFileRecord(file.absolutePath, config.rootDir);
+	});
 	const identity = oracleParserIdentityOf(oracleParserIdOfConfig(config));
 	const hashInput = {
 		manifestBytes: manifest.manifestBytes,
@@ -102,15 +112,23 @@ const scanContext = (config: AdapterConfigType, context: AdapterConfigType['proj
  *
  * @param config - Resolved project configuration.
  * @param _knownPaths - Previously indexed paths; manifests remain authoritative.
+ * @param executionContext - Optional cooperative cancellation context.
  * @returns The scanned source manifest, per-context digests, and fingerprints.
  */
-export const scanOracleProject = (config: AdapterConfigType, _knownPaths: readonly string[] = []): ScanResultType => {
+export const scanOracleProject = (
+	config: AdapterConfigType,
+	_knownPaths: readonly string[] = [],
+	executionContext?: AdapterExecutionContextType,
+): ScanResultType => {
 	const startedAt = performance.now();
+	executionContext?.throwIfCancellationRequested();
 	const identity = oracleParserIdentityOf(oracleParserIdOfConfig(config));
-	const contexts = config.projects.map((context) => scanContext(config, context));
+	const contexts = config.projects.map((context) => scanContext(config, context, executionContext));
 	const merged = new Map<string, SourceFileType>();
 
 	for (const context of contexts) {
+		executionContext?.throwIfCancellationRequested();
+
 		for (const file of context.files) {
 			merged.set(file.path, file);
 		}

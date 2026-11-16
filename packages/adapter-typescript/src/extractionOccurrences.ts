@@ -299,6 +299,7 @@ const referenceIdentifiersOf = (
 ): readonly Readonly<{node: ts.Identifier; enclosingId: string | null}>[] => {
 	const references: Readonly<{node: ts.Identifier; enclosingId: string | null}>[] = [];
 	const visit = (node: ts.Node, enclosingId: string | null): void => {
+		runtime.checkpoint();
 		const declarationSymbol = runtime.symbolIdByDeclaration.get(node) ?? runtime.deferredIdByNode.get(node);
 		const nextEnclosingId = declarationSymbol ?? enclosingId;
 
@@ -329,6 +330,7 @@ const collectReferenceGroup = (state: ReferenceCollectionStateType, entries: rea
 	const contextualSymbols = resolveOccurrenceSymbols(state.runtime.input.project.batch, state.runtime.checker, identifierSymbols, identifiers);
 
 	for (const entry of entries) {
+		state.runtime.checkpoint();
 		collectFileReferences(state, entry, identifierSymbols, contextualSymbols);
 	}
 };
@@ -356,12 +358,14 @@ export const collectReferenceFacts = (
 	let groupIdentifiers = 0;
 	let scheduledContextualIdentifiers = 0;
 	const flush = (): void => {
+		runtime.checkpoint();
 		collectReferenceGroup(state, group);
 		group = [];
 		groupIdentifiers = 0;
 	};
 
 	for (const file of runtime.input.files) {
+		runtime.checkpoint();
 		const sourceFile = runtime.program.getSourceFile(file.absolutePath);
 
 		if (sourceFile === undefined) {

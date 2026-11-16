@@ -51,11 +51,14 @@ type MaterializedProjectsType = Readonly<{
 	readonly programs: ReadonlyMap<string, ts.Program>;
 }>;
 
-export const recordProgramInputs = (recorder: RecorderType, programs: Iterable<ts.Program>): void => {
+export const recordProgramInputs = (recorder: RecorderType, programs: Iterable<ts.Program>, checkCancellation?: () => void): void => {
 	const manifestCache = new Map<string, string | null>();
 
 	for (const program of programs) {
+		checkCancellation?.();
+
 		for (const fileName of program.getSourceFileNames()) {
+			checkCancellation?.();
 			recorder.addInput(fileName);
 			addPackageManifest(recorder, fileName, manifestCache);
 		}
@@ -81,6 +84,7 @@ export const recordProgramInputs = (recorder: RecorderType, programs: Iterable<t
  * @param api - Compiler API bound to the recorder filesystem.
  * @param recorder - Capturing filesystem.
  * @param projects - Parsed project configurations.
+ * @param checkCancellation - Cooperative cancellation checkpoint.
  * @returns The compiler snapshot, its programs keyed by project file, and the
  * snapshot's ownership handle.
  */
@@ -88,16 +92,20 @@ export const materializeProjectPrograms = (
 	api: ts.API,
 	recorder: RecorderType,
 	projects: readonly TypeScriptSnapshotProjectType[],
+	checkCancellation?: () => void,
 ): MaterializedProjectsType => {
+	checkCancellation?.();
 	const snapshot = api.createSnapshot({
 		openProjects: projects.map((project) => project.projectFilePath),
 		ensurePrograms: true,
 	});
 
 	try {
+		checkCancellation?.();
 		const programs = new Map<string, ts.Program>();
 
 		for (const project of projects) {
+			checkCancellation?.();
 			const configured = snapshot.getConfiguredProject(project.projectFilePath);
 
 			if (configured === undefined) {
@@ -107,7 +115,8 @@ export const materializeProjectPrograms = (
 			programs.set(project.projectFilePath, configured.program);
 		}
 
-		recordProgramInputs(recorder, programs.values());
+		recordProgramInputs(recorder, programs.values(), checkCancellation);
+		checkCancellation?.();
 
 		return {snapshot, programs};
 	} catch (error) {

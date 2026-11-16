@@ -8,6 +8,7 @@ import {type GenerationRowType} from '../model.ts';
 import {type IndexDatabase} from '../storage/database.ts';
 import {probeAdapter, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
 import {recordCompilerDrift} from './compilerDriftTelemetry.ts';
+import {type AdapterExecutionContextType} from '@codeindex/adapter-sdk';
 
 const {resolve} = path;
 
@@ -141,11 +142,13 @@ export const planAdapterScans = async (
 		logger: LoggerType;
 		analytics: AnalyticsRecorderType | null;
 		observed: Set<string>;
+		executionContext?: AdapterExecutionContextType;
 	}>,
 ): Promise<readonly AdapterScanPlanType[]> => {
 	const plans: AdapterScanPlanType[] = [];
 
 	for (const target of input.targets) {
+		input.executionContext?.throwIfCancellationRequested();
 		const scoped = adapterConfigFor(input.config, target.adapter);
 		// Adapter probes are sequential so absence and failure attribution follow
 		// configuration order.
@@ -159,7 +162,7 @@ export const planAdapterScans = async (
 
 		const knownPaths = input.published === null ? [] : input.database.listFiles(input.published.id, target.adapter.id).map((file) => file.path);
 		// oxlint-disable-next-line eslint/no-await-in-loop
-		const scan = await target.extractor.scan(scoped, knownPaths);
+		const scan = await target.extractor.scan(scoped, knownPaths, input.executionContext);
 
 		if (scan.compilerDrift) {
 			recordCompilerDrift({logger: input.logger, analytics: input.analytics, observed: input.observed, scan});

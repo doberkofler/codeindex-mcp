@@ -337,6 +337,7 @@ const collectNamedCandidate = (input: CandidateInputType, state: CollectorStateT
 };
 
 const collectFile = (input: CandidateInputType, file: {readonly path: string; readonly absolutePath: string}, state: CollectorStateType): void => {
+	input.checkpoint();
 	const sourceFile = input.program.getSourceFile(file.absolutePath);
 
 	if (sourceFile === undefined) {
@@ -344,6 +345,8 @@ const collectFile = (input: CandidateInputType, file: {readonly path: string; re
 	}
 
 	const visit = (node: ts.Node): void => {
+		input.checkpoint();
+
 		if (collectDeferredMember(input, state, node)) {
 			ts.forEachChild(node, visit);
 			return;
@@ -429,6 +432,7 @@ export const collectTypeScriptCandidates = (input: CandidateInputType): Candidat
 	};
 
 	for (const file of input.files) {
+		input.checkpoint();
 		collectFile(input, file, state);
 	}
 
@@ -439,6 +443,8 @@ export const collectTypeScriptCandidates = (input: CandidateInputType): Candidat
 	let mergedDeclarationCount = 0;
 
 	for (const candidate of state.candidates.values()) {
+		input.checkpoint();
+
 		if (candidate.externalTarget !== null) {
 			externalAliases += 1;
 		}
@@ -449,6 +455,7 @@ export const collectTypeScriptCandidates = (input: CandidateInputType): Candidat
 	}
 
 	for (const file of input.files) {
+		input.checkpoint();
 		const sourceFile = input.program.getSourceFile(file.absolutePath);
 
 		if (sourceFile === undefined) {

@@ -2,9 +2,12 @@ import {type AnalyticsRecorderType} from '../analytics/recorder.ts';
 import {type ExtractorType} from '../../adapters/types.ts';
 import {type AdapterSetType, type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ClockType} from '../freshness/refreshCoordinator.ts';
+import {type PersistentBuildWorker} from './persistentBuildWorker.ts';
 
 export type CodeIndexOptionsType = Readonly<{
 	readonly workerEntry?: string;
+	/** Pre-initialized execution worker injected by a production composition root. */
+	readonly buildWorker?: PersistentBuildWorker;
 	/** Milliseconds an idle build worker is retained between refreshes. */
 	readonly buildWorkerIdleMs?: number;
 	/** Whole process-tree RSS ceiling; an oversized worker is restarted. */

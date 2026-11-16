@@ -1,16 +1,19 @@
-import {appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync} from 'node:fs';
+import {appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {Client} from '@modelcontextprotocol/client';
 import {afterEach, describe, expect, it} from 'vitest';
 import {type EnvelopeType, textOf} from './helpers/mcpConnection.ts';
+import {descendantPidsOf, waitForProcessExit} from './helpers/processDescendants.ts';
 import {type ProcessExitType, TappedStdioTransport} from './helpers/tappedStdioTransport.ts';
 
 const TOOL_NAMES = ['find_dependencies', 'find_references', 'find_symbol', 'index_status', 'outline', 'read_symbol', 'symbol_at'] as const;
 const SOURCE_FILES = 4;
 const POLL_INTERVAL_MS = 50;
 const WAIT_TIMEOUT_MS = 20_000;
+const RESPONSIVENESS_PROBE_INTERVAL_MS = 10;
+const RESPONSIVENESS_P95_LIMIT_MS = 50;
 const DIST_ENTRY = path.resolve(import.meta.dirname, '..', 'dist', 'mcp.mjs');
 
 type StatusType = Readonly<{
@@ -28,7 +31,7 @@ type SymbolItemType = Readonly<{symbolId: string; name: string; path: string; st
 type SymbolEnvelopeType = EnvelopeType & Readonly<{data: {items: readonly SymbolItemType[]}}>;
 type SourceEnvelopeType = EnvelopeType & Readonly<{data: {source: string}}>;
 
-type WorkspaceType = Readonly<{root: string; database: string; cleanup: () => void}>;
+type WorkspaceType = Readonly<{root: string; database: string; analyticsPath: string; cleanup: () => void}>;
 
 type ProcessType = Readonly<{
 	client: Client;
@@ -90,6 +93,62 @@ const waitForFreshGeneration = async (client: Client, previous: number | null, l
 	return status;
 };
 
+const collectResponsiveProbes = async (client: Client, previous: number | null, startedAt: number, latencies: number[]): Promise<StatusType> => {
+	if (performance.now() - startedAt >= WAIT_TIMEOUT_MS) {
+		throw new Error('Timed out waiting for responsive generation');
+	}
+
+	const scheduledAt = performance.now();
+	let status: StatusType | null = null;
+
+	try {
+		const current = await statusOf(client);
+		latencies.push(performance.now() - scheduledAt);
+
+		if (current.ready && current.refresh === 'current' && current.revision !== null && current.revision !== previous) {
+			status = current;
+		}
+	} catch {
+		latencies.push(performance.now() - scheduledAt);
+	}
+
+	if (status !== null && latencies.length >= 20) {
+		return status;
+	}
+
+	const remaining = RESPONSIVENESS_PROBE_INTERVAL_MS - (performance.now() - scheduledAt);
+
+	if (remaining > 0) {
+		await delay(remaining);
+	}
+
+	return collectResponsiveProbes(client, previous, startedAt, latencies);
+};
+
+const waitForResponsiveGeneration = async (client: Client, previous: number | null, label: string): Promise<StatusType> => {
+	const latencies: number[] = [];
+	const status = await collectResponsiveProbes(client, previous, performance.now(), latencies).catch((error: unknown) => {
+		throw new Error(`Timed out waiting for ${label}`, {cause: error});
+	});
+
+	const sorted = [...latencies].sort((left, right) => left - right);
+	const p95 = sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)] ?? Number.POSITIVE_INFINITY;
+	expect(latencies.length).toBeGreaterThanOrEqual(20);
+	expect(p95).toBeLessThanOrEqual(RESPONSIVENESS_P95_LIMIT_MS);
+	return status;
+};
+
+const assertMainEventLoopResponsiveness = (analyticsPath: string): void => {
+	const values = [...readFileSync(analyticsPath, 'utf8').matchAll(/"mainEventLoopP99Ms":(?<value>\d+(?:\.\d+)?)/gu)].map((match) =>
+		Number(match.groups?.['value']),
+	);
+	const latest = values.at(-1);
+
+	expect(values.length).toBeGreaterThanOrEqual(2);
+	expect(latest).toBeDefined();
+	expect(latest).toBeLessThanOrEqual(RESPONSIVENESS_P95_LIMIT_MS);
+};
+
 const callEnvelope = async (client: Client, name: string, args: Record<string, unknown> = {}): Promise<EnvelopeType> =>
 	envelopeOf(await client.callTool({name, arguments: args}));
 
@@ -141,6 +200,7 @@ const createWorkspace = (): WorkspaceType => {
 	return {
 		root,
 		database: path.join(temporaryRoot, 'index.sqlite'),
+		analyticsPath: path.join(temporaryRoot, 'analytics', 'events.jsonl'),
 		cleanup: () => {
 			rmSync(temporaryRoot, {recursive: true, force: true});
 		},
@@ -156,9 +216,10 @@ const processEnvironmentOf = (workspace: WorkspaceType): Record<string, string> 
 		CODE_INDEX_ROOT: workspace.root,
 		CODE_INDEX_PROJECT_FILE: path.join(workspace.root, 'tsconfig.json'),
 		CODE_INDEX_DATABASE: workspace.database,
-		CODE_INDEX_ANALYTICS: 'false',
-		CODE_INDEX_ANALYTICS_PATH: path.join(path.dirname(workspace.database), 'analytics', 'events.jsonl'),
+		CODE_INDEX_ANALYTICS: 'true',
+		CODE_INDEX_ANALYTICS_PATH: workspace.analyticsPath,
 		CODE_INDEX_LOG_LEVEL: 'info',
+		CODE_INDEX_BUILD_WORKER_MAX_RSS_BYTES: process.env['CODE_INDEX_BUILD_WORKER_MAX_RSS_BYTES'] ?? String(2 * 1024 * 1024 * 1024),
 	};
 };
 
@@ -207,11 +268,21 @@ const assertProcessStreams = (transport: TappedStdioTransport, root: string): vo
 	expect(transport.stdout).not.toContain(root);
 };
 
-const assertCleanShutdown = (connection: ProcessType, exit: ProcessExitType, root: string): void => {
+const assertCleanShutdown = async (connection: ProcessType, root: string): Promise<void> => {
+	const {pid} = connection.transport;
+
+	if (pid === null) {
+		throw new Error('MCP process has no PID');
+	}
+
+	const descendants = await descendantPidsOf(pid);
+	expect(descendants.length).toBeGreaterThan(0);
+	const exit = await connection.stop();
 	expect(exit).toStrictEqual({code: 0, signal: null});
 	expect(connection.transport.stderr).toContain('code_index_stopping');
 	assertTransportOnlyStdout(connection.transport.stdout);
 	expect(connection.transport.stdout).not.toContain(root);
+	await waitForProcessExit(descendants);
 };
 
 const assertToolSurface = async (client: Client): Promise<void> => {
@@ -266,7 +337,8 @@ const assertWatcherRebuild = async (client: Client, workspace: WorkspaceType, in
 	expect(stale.isError).toBe(true);
 	expect(staleEnvelope.error?.code).toBe('stale_file');
 
-	const edited = await waitForFreshGeneration(client, previous, 'watcher rebuild after edit');
+	const edited = await waitForResponsiveGeneration(client, previous, 'watcher rebuild after edit');
+	assertMainEventLoopResponsiveness(workspace.analyticsPath);
 	const edits = await symbolsOf(client, 'systemEdit');
 
 	expect(edits).toMatchObject([{name: 'systemEdit', path: 'src/models.ts'}]);
@@ -389,12 +461,12 @@ describe('built MCP process', () => {
 		const lifecycle = await assertFileLifecycle(connection.client, workspace, edited);
 		const recovered = await assertFailedBuildIsolation(connection.client, workspace, lifecycle);
 
-		assertCleanShutdown(connection, await connection.stop(), workspace.root);
+		await assertCleanShutdown(connection, workspace.root);
 
 		connection = await openProcess(workspace);
 		const reused = await assertRestartReuse(connection, recovered);
 
-		assertCleanShutdown(connection, await connection.stop(), workspace.root);
+		await assertCleanShutdown(connection, workspace.root);
 
 		// The server is stopped, so no watcher event can deliver this file. The
 		// next startup reconciliation scan must discover it.
@@ -403,7 +475,7 @@ describe('built MCP process', () => {
 		connection = await openProcess(workspace);
 		await assertOfflineReconciliation(connection, reused);
 
-		assertCleanShutdown(connection, await connection.stop(), workspace.root);
+		await assertCleanShutdown(connection, workspace.root);
 		connection = undefined;
 	});
 });

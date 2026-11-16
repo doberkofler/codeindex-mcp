@@ -98,9 +98,11 @@ export const parseProject = (api: ts.API, recorder: RecorderType, rootDir: strin
 	return project;
 };
 
-export const collectWorkspaceManifests = (recorder: RecorderType, rootDir: string): void => {
+export const collectWorkspaceManifests = (recorder: RecorderType, rootDir: string, checkCancellation?: () => void): void => {
 	let visited = 0;
 	const walk = (directory: string): void => {
+		checkCancellation?.();
+
 		if (visited >= MAX_WORKSPACE_MANIFESTS) {
 			return;
 		}
@@ -114,6 +116,8 @@ export const collectWorkspaceManifests = (recorder: RecorderType, rootDir: strin
 		}
 
 		for (const entry of entries) {
+			checkCancellation?.();
+
 			if (entry.isDirectory()) {
 				const name = entry.name.toLowerCase();
 
@@ -130,10 +134,11 @@ export const collectWorkspaceManifests = (recorder: RecorderType, rootDir: strin
 	walk(rootDir);
 };
 
-export const rootMetadataOf = (recorder: RecorderType, rootDir: string): ReadonlyMap<string, string | null> => {
+export const rootMetadataOf = (recorder: RecorderType, rootDir: string, checkCancellation?: () => void): ReadonlyMap<string, string | null> => {
 	const metadata = new Map<string, string | null>();
 
 	for (const name of [...LOCKFILE_NAMES, ...WORKSPACE_INPUT_NAMES, 'package.json']) {
+		checkCancellation?.();
 		const absolutePath = join(rootDir, name);
 		const canonical = canonicalPath(absolutePath);
 		recorder.fileExists(absolutePath);
@@ -159,10 +164,14 @@ const computedInputHash = (inputs: readonly SnapshotInputType[], probes: readonl
 		.digest('hex');
 };
 
-export const publicManifest = (recorder: RecorderType): TypeScriptInputManifestType => {
+export const publicManifest = (recorder: RecorderType, checkCancellation?: () => void): TypeScriptInputManifestType => {
+	checkCancellation?.();
 	const inputs = [...recorder.snapshot.inputs.values()].sort((left, right) => left.key.localeCompare(right.key));
 	const probes = [...recorder.snapshot.probes.values()]
-		.map((probe) => ({key: probe.key, kind: probe.kind, value: probe.value}))
+		.map((probe) => {
+			checkCancellation?.();
+			return {key: probe.key, kind: probe.kind, value: probe.value};
+		})
 		.sort((left, right) => left.key.localeCompare(right.key) || left.kind.localeCompare(right.kind));
 
 	return {inputs, probes, inputHash: computedInputHash(inputs, probes)};
@@ -175,8 +184,9 @@ const driftMessageOf = (rootDir: string, absolutePath: string): string => {
 		: 'TypeScript external input changed during build';
 };
 
-export const validateSnapshot = (recorder: RecorderType): void => {
+export const validateSnapshot = (recorder: RecorderType, checkCancellation?: () => void): void => {
 	for (const input of recorder.snapshot.inputs.values()) {
+		checkCancellation?.();
 		let bytes: Buffer;
 
 		try {
@@ -191,6 +201,7 @@ export const validateSnapshot = (recorder: RecorderType): void => {
 	}
 
 	for (const probe of recorder.snapshot.probes.values()) {
+		checkCancellation?.();
 		if (probe.recompute() !== probe.value) {
 			throw new Error(driftMessageOf(recorder.snapshot.rootDir, probe.absolutePath));
 		}
@@ -213,11 +224,15 @@ export const authoredCandidates = (
 	config: AdapterConfigType,
 	projects: readonly TypeScriptSnapshotProjectType[],
 	knownPaths: readonly string[],
+	checkCancellation?: () => void,
 ): readonly string[] => {
 	const authored = new Set<string>();
 
 	for (const project of projects) {
+		checkCancellation?.();
+
 		for (const fileName of project.parsed.fileNames) {
+			checkCancellation?.();
 			if (statSync(fileName, {throwIfNoEntry: false})?.isFile() === true && (isAuthoredSourceFile(fileName, config.rootDir) || isDeclarationFile(fileName))) {
 				authored.add(canonicalPath(fileName));
 			}
@@ -225,6 +240,7 @@ export const authoredCandidates = (
 	}
 
 	for (const knownPath of knownPaths) {
+		checkCancellation?.();
 		const absolutePath = resolve(config.rootDir, knownPath);
 
 		if (statSync(absolutePath, {throwIfNoEntry: false})?.isFile() === true && isAuthoredSourceFile(absolutePath, config.rootDir)) {
@@ -258,10 +274,15 @@ export const sameMap = (left: ReadonlyMap<string, string | null>, right: Readonl
 export const sameArray = (left: readonly string[], right: readonly string[]): boolean =>
 	left.length === right.length && left.every((value, index) => value === right[index]);
 
-export const programsOf = (snapshot: ts.Snapshot, projects: readonly TypeScriptSnapshotProjectType[]): ReadonlyMap<string, ts.Program> => {
+export const programsOf = (
+	snapshot: ts.Snapshot,
+	projects: readonly TypeScriptSnapshotProjectType[],
+	checkCancellation?: () => void,
+): ReadonlyMap<string, ts.Program> => {
 	const programs = new Map<string, ts.Program>();
 
 	for (const project of projects) {
+		checkCancellation?.();
 		const configured = snapshot.getConfiguredProject(project.projectFilePath);
 
 		if (configured === undefined) {
@@ -281,14 +302,16 @@ export const addCurrentInputs = (
 		projects: readonly TypeScriptSnapshotProjectType[];
 		programs: ReadonlyMap<string, ts.Program>;
 		knownPaths: readonly string[];
+		checkCancellation?: () => void;
 	}>,
 ): ReadonlySet<string> => {
-	const authoredPaths = new Set(authoredCandidates(input.config, input.projects, input.knownPaths));
+	const authoredPaths = new Set(authoredCandidates(input.config, input.projects, input.knownPaths, input.checkCancellation));
 
 	for (const absolutePath of authoredPaths) {
+		input.checkCancellation?.();
 		input.recorder.addInput(absolutePath);
 	}
 
-	recordProgramInputs(input.recorder, input.programs.values());
+	recordProgramInputs(input.recorder, input.programs.values(), input.checkCancellation);
 	return authoredPaths;
 };

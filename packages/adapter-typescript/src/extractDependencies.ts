@@ -20,6 +20,7 @@ type DependencyInputType = Readonly<{
 	readonly projectId: string;
 	readonly rootDir: string;
 	readonly context: string;
+	readonly checkpoint: () => void;
 }>;
 
 type PendingBindingType = Omit<IndexedDependencyBindingType, 'edgeId'>;
@@ -316,6 +317,7 @@ export const extractDependencyFacts = (input: DependencyInputType): DependencyEx
 	const bindings: IndexedDependencyBindingType[] = [];
 
 	for (const file of input.files) {
+		input.checkpoint();
 		const sourceFile = input.project.program.getSourceFile(file.absolutePath);
 
 		if (sourceFile === undefined) {
@@ -323,6 +325,7 @@ export const extractDependencyFacts = (input: DependencyInputType): DependencyEx
 		}
 
 		const visit = (node: ts.Node): void => {
+			input.checkpoint();
 			const found = foundDependency(node);
 
 			if (found !== null) {

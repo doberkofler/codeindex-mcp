@@ -379,6 +379,12 @@ export type AdapterArtifactCacheType = Readonly<{
 	readonly write: (artifact: AdapterArtifactEntryType) => void;
 }>;
 
+/** Cooperative cancellation supplied by the execution host. */
+export type AdapterExecutionContextType = Readonly<{
+	readonly isCancellationRequested: () => boolean;
+	readonly throwIfCancellationRequested: () => void;
+}>;
+
 /** Evidence available to an adapter that wants to reuse the published facts. */
 export type AdapterFactReuseInputType = Readonly<{
 	readonly config: AdapterConfigType;
@@ -452,9 +458,14 @@ export type AdapterType = Readonly<{
 	 * @param knownPaths - Files in the published generation, so imported files
 	 * outside the project include stay in the freshness set.
 	 */
-	scan: (config: AdapterConfigType, knownPaths: readonly string[]) => ScanResultType | Promise<ScanResultType>;
+	scan: (config: AdapterConfigType, knownPaths: readonly string[], context?: AdapterExecutionContextType) => ScanResultType | Promise<ScanResultType>;
 	/** Extracts declarations, occurrences, dependencies, and diagnostics. */
-	build: (config: AdapterConfigType, scan: ScanResultType, cache?: AdapterArtifactCacheType) => AdapterBuildType | Promise<AdapterBuildType>;
+	build: (
+		config: AdapterConfigType,
+		scan: ScanResultType,
+		cache?: AdapterArtifactCacheType,
+		context?: AdapterExecutionContextType,
+	) => AdapterBuildType | Promise<AdapterBuildType>;
 	/**
 	 * Proves that the published facts remain valid for a changed source manifest.
 	 *
@@ -474,7 +485,6 @@ export type AdapterType = Readonly<{
 	 */
 	dispose?: () => void;
 }>;
-
 /** Metadata exported by one adapter module. */
 export type AdapterManifestType = Readonly<{
 	readonly protocolVersion: number;
@@ -483,7 +493,6 @@ export type AdapterManifestType = Readonly<{
 	readonly displayName: string;
 }>;
 
-/** Named export shape implemented by every adapter module. */
 export type AdapterModuleType = Readonly<{
 	readonly manifest: AdapterManifestType;
 	readonly create: () => AdapterType;

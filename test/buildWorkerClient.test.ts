@@ -2,9 +2,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {scanTypeScriptProject} from '@codeindex/adapter-typescript/index';
 import {runBuildWorkerThread} from '../src/core/generation/buildWorkerClient.ts';
-import {type ScanResultType} from '../src/core/model.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 const runWorkerScript = async (script: string): Promise<unknown> => {
@@ -14,13 +12,10 @@ const runWorkerScript = async (script: string): Promise<unknown> => {
 
 	try {
 		writeFileSync(workerEntry, `${script}\n`, {encoding: 'utf8'});
-		const scan: ScanResultType = scanTypeScriptProject(config, []);
-		const scans = [{adapterId: 'typescript', coverage: 'present' as const, absenceReason: null, scan}];
-
 		return await runBuildWorkerThread({
 			workerEntry,
 			config,
-			scans,
+			adapterIds: null,
 			descriptors: [],
 			force: false,
 			ownerId: 'test-owner',
@@ -84,20 +79,18 @@ const report = {
 	},
 };
 
+const successMessage = (value: unknown): string => JSON.stringify({ok: true, result: {report: value, watchInputs: [], compilerDrifts: [], resources: {}}});
+
 describe('build worker client', () => {
 	it('returns a validated build report', async () => {
-		const actual = await runWorkerScript(
-			`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: true, report: ${JSON.stringify(report)}});`,
-		);
+		const actual = await runWorkerScript(`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage(${successMessage(report)});`);
 
 		expect(actual).toStrictEqual(report);
 	});
 
 	it('accepts a report without stages', async () => {
 		const withoutStages = {...report, stages: null};
-		const actual = await runWorkerScript(
-			`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: true, report: ${JSON.stringify(withoutStages)}});`,
-		);
+		const actual = await runWorkerScript(`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage(${successMessage(withoutStages)});`);
 
 		expect(actual).toStrictEqual(withoutStages);
 	});
@@ -105,7 +98,11 @@ describe('build worker client', () => {
 	it('rejects malformed reports and preserves structured worker failures', async () => {
 		await expect(
 			runWorkerScript(
-				`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: true, report: {generationId: 'generation', state: 'unknown', outcome: 'published'}});`,
+				`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage(${successMessage({
+					generationId: 'generation',
+					state: 'unknown',
+					outcome: 'published',
+				})});`,
 			),
 		).rejects.toThrow('Index build failed (worker at worker');
 
@@ -134,7 +131,7 @@ describe('build worker client', () => {
 				const malformed = JSON.stringify({...report, [field]: field === 'generationId' || field === 'reused' ? 42 : 'invalid'});
 
 				await expect(
-					runWorkerScript(`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: true, report: ${malformed}});`),
+					runWorkerScript(`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage(${successMessage(JSON.parse(malformed))});`),
 				).rejects.toThrow('Index build failed (worker at worker');
 			}),
 		);
@@ -145,9 +142,7 @@ describe('build worker client', () => {
 		const actualReports = await Promise.all(
 			stages.map(async (value) => {
 				const withoutStages = {...report, stages: value};
-				const actual = await runWorkerScript(
-					`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage({ok: true, report: ${JSON.stringify(withoutStages)}});`,
-				);
+				const actual = await runWorkerScript(`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage(${successMessage(withoutStages)});`);
 
 				return actual;
 			}),

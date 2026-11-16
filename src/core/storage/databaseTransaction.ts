@@ -11,16 +11,18 @@ export type TransactionTimingType = Readonly<{
  *
  * @param database - Writer connection.
  * @param action - Work to commit.
+ * @param beforeCommit - Optional final cancellation or ownership check.
  * @returns Exclusive queue-wait and COMMIT durations.
  * @throws {Error} When the action or COMMIT fails; the transaction is rolled back.
  */
-export const timedTransaction = (database: DatabaseSync, action: () => void): TransactionTimingType => {
+export const timedTransaction = (database: DatabaseSync, action: () => void, beforeCommit?: () => void): TransactionTimingType => {
 	const queueStartedAt = performance.now();
 	database.exec('begin immediate');
 	const queueWaitMs = Math.round(performance.now() - queueStartedAt);
 
 	try {
 		action();
+		beforeCommit?.();
 		const commitStartedAt = performance.now();
 		database.exec('commit');
 		return {queueWaitMs, commitMs: Math.round(performance.now() - commitStartedAt)};

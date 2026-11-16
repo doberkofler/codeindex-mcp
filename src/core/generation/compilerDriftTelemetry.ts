@@ -2,6 +2,8 @@ import {type AnalyticsRecorderType} from '../analytics/recorder.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {type ScanResultType} from '../model.ts';
 
+type CompilerDriftType = Pick<ScanResultType, 'compilerDrift' | 'compilerVersion' | 'declaredCompilerVersion'>;
+
 /**
  * Reports one runtime-versus-declared compiler drift pair.
  *
@@ -16,7 +18,7 @@ export const recordCompilerDrift = (
 		logger: LoggerType;
 		analytics: AnalyticsRecorderType | null;
 		observed: Set<string>;
-		scan: ScanResultType;
+		scan: CompilerDriftType;
 	}>,
 ): void => {
 	if (!input.scan.compilerDrift) {

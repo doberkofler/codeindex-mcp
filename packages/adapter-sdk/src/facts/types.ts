@@ -1,5 +1,6 @@
 import {
 	type AdapterStatType,
+	type AdapterExecutionContextType,
 	type ExtractedOccurrenceType,
 	type FactAddressType,
 	type FactExposureType,
@@ -34,6 +35,8 @@ export type FinalizationPolicyType = Readonly<{
 	readonly mode: FinalizationModeType;
 	/** Maximum surface bindings below one published root. */
 	readonly maxBindingsPerRoot: number;
+	/** Optional cooperative cancellation for bounded finalization checkpoints. */
+	readonly executionContext?: AdapterExecutionContextType | undefined;
 	/**
 	 * Adapter identity for extractor-specific measured invariants.
 	 *

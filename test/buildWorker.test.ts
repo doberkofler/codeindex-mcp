@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {isBuildWorkerData, runBuildWorker} from '../src/core/generation/buildWorker.ts';
-import {scanTypeScriptProject, typeScriptExtractor} from '@codeindex/adapter-typescript/index';
+import {typeScriptExtractor} from '@codeindex/adapter-typescript/index';
+import {createCancellationBuffer} from '../src/core/generation/executionCancellation.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 const descriptors = [
@@ -18,9 +19,10 @@ type MutablePayloadType = {
 	kind: string;
 	config: Record<string, unknown>;
 	descriptors: readonly Record<string, unknown>[];
-	scans: [Record<string, unknown>, ...Record<string, unknown>[]];
+	adapterIds: readonly string[] | null;
 	force: boolean;
 	ownerId: string;
+	cancellationBuffer: SharedArrayBuffer;
 	debug: boolean;
 };
 
@@ -34,20 +36,10 @@ const validPayload = (): MutablePayloadType => ({
 		extractorId: 'typescript',
 	},
 	descriptors,
-	scans: [
-		{
-			adapterId: 'typescript',
-			coverage: 'present',
-			absenceReason: null,
-			scan: {
-				sourceHash: 'source',
-				configHash: 'config',
-				files: [],
-			},
-		},
-	],
+	adapterIds: null,
 	force: false,
 	ownerId: 'owner',
+	cancellationBuffer: createCancellationBuffer(),
 	debug: false,
 });
 
@@ -59,8 +51,7 @@ const invalidPayloads = (): readonly unknown[] => {
 		{},
 		{...validPayload(), kind: 'other'},
 		{...validPayload(), config: null},
-		{...validPayload(), scans: null},
-		{...validPayload(), scans: []},
+		{...validPayload(), adapterIds: 42},
 	];
 
 	for (const field of ['databasePath', 'rootDir', 'projectFilePath', 'projects', 'extractorId']) {
@@ -69,15 +60,7 @@ const invalidPayloads = (): readonly unknown[] => {
 		payloads.push(payload);
 	}
 
-	for (const field of ['sourceHash', 'configHash', 'files']) {
-		const payload = validPayload();
-		const [plan] = payload.scans;
-
-		(plan['scan'] as Record<string, unknown>)[field] = 42;
-		payloads.push(payload);
-	}
-
-	for (const field of ['force', 'ownerId']) {
+	for (const field of ['force', 'ownerId', 'cancellationBuffer']) {
 		const payload = validPayload();
 		Reflect.set(payload, field, 42);
 		payloads.push(payload);
@@ -101,14 +84,14 @@ describe('build worker payload', () => {
 		const {config, cleanup} = createFixtureConfig('simple-project');
 
 		try {
-			const scan = scanTypeScriptProject(config, []);
 			const payload = {
 				kind: 'code-index-build' as const,
 				config: {...config, databasePath: '/dev/null/index.sqlite'},
-				scans: [{adapterId: 'typescript', coverage: 'present' as const, absenceReason: null, scan}],
+				adapterIds: null,
 				descriptors,
 				force: false,
 				ownerId: 'owner',
+				cancellationBuffer: createCancellationBuffer(),
 				debug: false,
 			};
 
@@ -120,7 +103,7 @@ describe('build worker payload', () => {
 					outcome: 'failed',
 					cause: 'persistence',
 					stage: 'persistence',
-					project: {name: 'root', file: 'tsconfig.json'},
+					project: null,
 				},
 			});
 			expect(JSON.stringify(message)).not.toContain('/dev/null');

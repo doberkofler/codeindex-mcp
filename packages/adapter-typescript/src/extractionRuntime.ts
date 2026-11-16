@@ -1,5 +1,5 @@
 import * as ts from './compiler.ts';
-import {type FactAddressType, type IndexedSymbolType, type SourceFileType} from '@codeindex/adapter-sdk';
+import {type AdapterExecutionContextType, type FactAddressType, type IndexedSymbolType, type SourceFileType} from '@codeindex/adapter-sdk';
 import {preloadAliasTargets} from './aliasTargets.ts';
 import {createCandidateResolution} from './candidateResolution.ts';
 import {type LoadedProjectType} from './loadProject.ts';
@@ -11,6 +11,7 @@ import {candidateSymbolOf} from './publicationCandidateSymbol.ts';
 import {createSymbolId} from './symbolIdentity.ts';
 import {symbolNameOf} from './symbolName.ts';
 import {sourceCandidatesForDeclarationFile as sourceCandidatesOf} from './sourceCandidates.ts';
+import {createExecutionCheckpoint} from './executionCheckpoint.ts';
 
 export type ExtractionInputType = Readonly<{
 	readonly project: LoadedProjectType;
@@ -19,6 +20,7 @@ export type ExtractionInputType = Readonly<{
 	readonly rootDir: string;
 	readonly context: string;
 	readonly onCompilerSessionRetention?: (retain: boolean) => void;
+	readonly executionContext?: AdapterExecutionContextType;
 }>;
 
 /** Mutable symbol-table state shared by extraction stages. */
@@ -44,6 +46,7 @@ export type ExtractionRuntimeType = {
 	readonly deferredIdByNode: Map<ts.Node, string>;
 	readonly deferredNodeBySymbolId: Map<string, ts.Node>;
 	readonly aliasTargets: Map<number, Readonly<{target: ts.Symbol; immediateId: string | null}> | null>;
+	readonly checkpoint: () => void;
 	promotionEnabled: boolean;
 };
 
@@ -86,6 +89,8 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 	const {checker, program} = input.project;
 	const pathByAbsolute = new Map(input.files.map((file) => [file.absolutePath, file.path]));
 	const authoredPaths = new Set(input.files.map((file) => file.absolutePath));
+	const checkpoint = createExecutionCheckpoint(input.executionContext);
+	checkpoint();
 	const {identifierSymbols, fullIdentifierSymbols, identifierCount, candidateAliasTargets, symbolAt, canonicalAt} = createCandidateResolution(input);
 	input.onCompilerSessionRetention?.(fullIdentifierSymbols !== null);
 	const collection = collectTypeScriptCandidates({
@@ -99,6 +104,7 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		pathByAbsolute,
 		symbolAt,
 		canonicalAt,
+		checkpoint,
 	});
 	const runtime: ExtractionRuntimeType = {
 		input,
@@ -122,10 +128,13 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 		deferredIdByNode: new Map(),
 		deferredNodeBySymbolId: new Map(),
 		aliasTargets: new Map(),
+		checkpoint,
 		promotionEnabled: true,
 	};
 
 	for (const candidate of collection.candidates.values()) {
+		checkpoint();
+
 		const symbol = candidateSymbolOf(
 			{
 				checker,
@@ -138,6 +147,7 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 				pathByAbsolute,
 				symbolAt,
 				canonicalAt,
+				checkpoint,
 			},
 			candidate,
 		);
@@ -163,6 +173,8 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 	}
 
 	for (const [node, deferred] of collection.deferred) {
+		checkpoint();
+
 		runtime.deferredNodeById.set(node, deferred);
 		const group = runtime.deferredByCanonical.get(deferred.canonical) ?? [];
 		group.push(deferred);
@@ -170,10 +182,13 @@ export const createExtractionRuntime = (input: ExtractionInputType): ExtractionR
 	}
 
 	for (const group of runtime.deferredByCanonical.values()) {
+		checkpoint();
 		group.sort((left, right) => left.path.localeCompare(right.path) || left.nameNode.getStart(left.sourceFile) - right.nameNode.getStart(right.sourceFile));
 	}
 
 	for (const symbol of runtime.symbolsByKey.values()) {
+		checkpoint();
+
 		const candidate = runtime.candidateBySymbolId.get(symbol.id);
 
 		if (candidate !== undefined) {
@@ -443,10 +458,9 @@ const scopeOfSymbol = (runtime: ExtractionRuntimeType, symbolId: string): Candid
 
 /**
  * Builds the lexical address of one stored symbol.
- *
  * @param runtime - Extraction state.
  * @param symbolId - Stored symbol identifier.
- * @returns Scope segment followed by lexical member segments.
+ * @returns Scope and lexical member segments.
  */
 export const lexicalSegmentsOf = (runtime: ExtractionRuntimeType, symbolId: string): FactAddressType => {
 	const names: string[] = [];
@@ -471,7 +485,6 @@ export const lexicalSegmentsOf = (runtime: ExtractionRuntimeType, symbolId: stri
 
 /**
  * Recomputes lexical ownership for every stored and promoted symbol.
- *
  * @param runtime - Extraction state.
  */
 export const refreshEnclosing = (runtime: ExtractionRuntimeType): void => {

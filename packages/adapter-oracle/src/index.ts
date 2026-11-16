@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import {
 	ADAPTER_PROTOCOL_VERSION,
 	type AdapterConfigType,
+	type AdapterExecutionContextType,
 	defineAdapter,
 	type AdapterStatType,
 	type ExtractedBindingContextType,
@@ -129,9 +130,11 @@ const parseContext = (
 		scan: ScanResultType;
 		parser: OracleParserBindingType['parser'];
 		cache?: AdapterArtifactCacheType;
+		executionContext?: AdapterExecutionContextType;
 	}>,
 ): ContextResultType => {
-	const {config, context, scan, parser, cache} = input;
+	const {config, context, scan, parser, cache, executionContext} = input;
+	executionContext?.throwIfCancellationRequested();
 	const startedAt = performance.now();
 	const manifest = readOracleManifest(context.projectFilePath);
 	const parsed: OracleParsedFileType[] = [];
@@ -141,6 +144,7 @@ const parseContext = (
 	const digestKind = parseDigestKindOf(context.name);
 
 	for (const file of scan.files.filter((candidate) => matchesOracleManifest(candidate.path, manifest.manifest))) {
+		executionContext?.throwIfCancellationRequested();
 		const source = readFileSync(file.absolutePath, 'utf8');
 		const parse = parser({source, path: file.path, defaultSchema: manifest.canonicalSchema});
 		const artifact = {contentSha256: file.sha256, kind: digestKind};
@@ -155,9 +159,11 @@ const parseContext = (
 	}
 
 	const readParseMs = Math.round(performance.now() - parseStartedAt);
+	executionContext?.throwIfCancellationRequested();
 	const symbolsStartedAt = performance.now();
 	const symbols = extractOracleSymbols({projectId: config.projectId, context: context.name, files: parsed, storedOnly: true});
 	const symbolsMs = Math.round(performance.now() - symbolsStartedAt);
+	executionContext?.throwIfCancellationRequested();
 	const referencesStartedAt = performance.now();
 	const references = resolveOracleReferences({
 		context: context.name,
@@ -167,6 +173,7 @@ const parseContext = (
 		storedOnly: true,
 	});
 	const referencesMs = Math.round(performance.now() - referencesStartedAt);
+	executionContext?.throwIfCancellationRequested();
 	const dependenciesStartedAt = performance.now();
 	const dependencies = extractOracleDependencies({
 		projectId: config.projectId,
@@ -176,6 +183,7 @@ const parseContext = (
 		packages: symbols.packages,
 	});
 	const dependenciesMs = Math.round(performance.now() - dependenciesStartedAt);
+	executionContext?.throwIfCancellationRequested();
 	debug('oracle context phases', {context: context.name, readParseMs, symbolsMs, referencesMs, dependenciesMs});
 	const contextDiagnostics = [...diagnostics, ...symbols.diagnostics, ...references.diagnostics];
 
@@ -248,12 +256,17 @@ const mergeDiagnostics = (contexts: readonly ContextResultType[]): readonly Diag
 };
 
 const build = (
-	config: AdapterConfigType,
-	scan: ScanResultType,
-	parser: OracleParserBindingType['parser'],
-	cache?: AdapterArtifactCacheType,
+	input: Readonly<{
+		config: AdapterConfigType;
+		scan: ScanResultType;
+		parser: OracleParserBindingType['parser'];
+		cache?: AdapterArtifactCacheType;
+		executionContext?: AdapterExecutionContextType;
+	}>,
 ): AdapterBuildType => {
+	const {config, scan, parser, cache, executionContext} = input;
 	const startedAt = performance.now();
+	executionContext?.throwIfCancellationRequested();
 	const contexts = config.projects.map((context) =>
 		parseContext({
 			config,
@@ -261,8 +274,10 @@ const build = (
 			scan,
 			parser,
 			...(cache === undefined ? {} : {cache}),
+			...(executionContext === undefined ? {} : {executionContext}),
 		}),
 	);
+	executionContext?.throwIfCancellationRequested();
 	const compilerMs = contexts.reduce((total, context) => total + context.parseMs, 0);
 	const extractionMs = Math.max(0, Math.round(performance.now() - startedAt) - compilerMs);
 	const result = {
@@ -391,13 +406,19 @@ export const createOracleExtractor = (binding: OracleParserBindingType): Adapter
 	},
 	ignoredSegments: ORACLE_IGNORED_SEGMENTS,
 	limitations: LIMITATIONS,
-	scan: (config, knownPaths) => {
+	scan: (config, knownPaths, executionContext) => {
 		assertOracleParserBinding(config, binding);
-		return scanOracleProject(config, knownPaths);
+		return scanOracleProject(config, knownPaths, executionContext);
 	},
-	build: (config, scan, cache) => {
+	build: (config, scan, cache, executionContext) => {
 		assertOracleParserBinding(config, binding);
-		return build(config, scan, binding.parser, cache);
+		return build({
+			config,
+			scan,
+			parser: binding.parser,
+			...(cache === undefined ? {} : {cache}),
+			...(executionContext === undefined ? {} : {executionContext}),
+		});
 	},
 	canReusePublishedFacts: (input) => {
 		assertOracleParserBinding(input.config, binding);
@@ -437,7 +458,7 @@ export const scanOracleFacts = (config: AdapterConfigType, knownPaths: readonly 
  */
 export const buildOracleFacts = (config: AdapterConfigType, scan: ScanResultType, cache?: AdapterArtifactCacheType): AdapterBuildType => {
 	assertOracleParserBinding(config, structuralOracleParserBinding);
-	return build(config, scan, structuralOracleParserBinding.parser, cache);
+	return build({config, scan, parser: structuralOracleParserBinding.parser, ...(cache === undefined ? {} : {cache})});
 };
 
 /**

@@ -1,59 +1,49 @@
-import {execFileSync} from 'node:child_process';
+import {spawn} from 'node:child_process';
+import {once} from 'node:events';
+import {text} from 'node:stream/consumers';
 
 const BYTES_PER_KILOBYTE = 1024;
 const PS_TIMEOUT_MS = 2000;
+const CACHE_TTL_MS = 200;
 
 type ProcessRowType = Readonly<{pid: number; parentPid: number; rssBytes: number}>;
 
-const rowsOf = (): readonly ProcessRowType[] => {
-	if (process.platform === 'win32') {
-		return [];
-	}
+export type ProcessTreeSnapshotType = Readonly<{
+	rssBytes: number;
+	descendantCount: number;
+}>;
 
-	try {
-		const output = execFileSync('ps', ['-A', '-o', 'pid=,ppid=,rss='], {encoding: 'utf8', timeout: PS_TIMEOUT_MS});
-		const rows: ProcessRowType[] = [];
-
-		for (const line of output.split('\n')) {
-			const [pid, parentPid, rss] = line.trim().split(/\s+/u);
-
-			if (pid === undefined || parentPid === undefined || rss === undefined) {
-				continue;
-			}
-
-			const parsedPid = Number(pid);
-			const parsedParent = Number(parentPid);
-			const parsedRss = Number(rss);
-
-			if (Number.isInteger(parsedPid) && Number.isInteger(parsedParent) && Number.isFinite(parsedRss)) {
-				rows.push({pid: parsedPid, parentPid: parsedParent, rssBytes: parsedRss * BYTES_PER_KILOBYTE});
-			}
-		}
-
-		return rows;
-	} catch {
-		return [];
-	}
+type CacheEntryType = {
+	snapshot: ProcessTreeSnapshotType;
+	sampledAt: number;
+	pending: boolean;
 };
 
-/**
- * Sums resident memory for one process and every descendant.
- *
- * Worker threads live in the parent process, while a compiler adapter's child
- * process is a descendant. Sampling this tree therefore reports the build
- * worker and every compiler it started. Unsupported platforms fall back to the
- * current process heap.
- *
- * @param rootPid - Root process; defaults to the current process.
- * @returns Total resident bytes, or the current process RSS when unsupported.
- */
-export const processTreeRssBytes = (rootPid: number = process.pid): number => {
-	const rows = rowsOf();
+const cache = new Map<number, CacheEntryType>();
 
-	if (rows.length === 0) {
-		return process.memoryUsage().rss;
+const rowsOf = (output: string): readonly ProcessRowType[] => {
+	const rows: ProcessRowType[] = [];
+
+	for (const line of output.split('\n')) {
+		const [pid, parentPid, rss] = line.trim().split(/\s+/u);
+
+		if (pid === undefined || parentPid === undefined || rss === undefined) {
+			continue;
+		}
+
+		const parsedPid = Number(pid);
+		const parsedParent = Number(parentPid);
+		const parsedRss = Number(rss);
+
+		if (Number.isInteger(parsedPid) && Number.isInteger(parsedParent) && Number.isFinite(parsedRss)) {
+			rows.push({pid: parsedPid, parentPid: parsedParent, rssBytes: parsedRss * BYTES_PER_KILOBYTE});
+		}
 	}
 
+	return rows;
+};
+
+const snapshotOf = (rows: readonly ProcessRowType[], rootPid: number): ProcessTreeSnapshotType => {
 	const children = new Map<number, ProcessRowType[]>();
 	const byPid = new Map<number, ProcessRowType>();
 
@@ -64,7 +54,7 @@ export const processTreeRssBytes = (rootPid: number = process.pid): number => {
 		children.set(row.parentPid, siblings);
 	}
 
-	let total = 0;
+	let rssBytes = 0;
 	const pending = [rootPid];
 	const visited = new Set<number>();
 
@@ -76,12 +66,88 @@ export const processTreeRssBytes = (rootPid: number = process.pid): number => {
 		}
 
 		visited.add(pid);
-		total += byPid.get(pid)?.rssBytes ?? 0;
+		rssBytes += byPid.get(pid)?.rssBytes ?? 0;
 
 		for (const child of children.get(pid) ?? []) {
 			pending.push(child.pid);
 		}
 	}
 
-	return total === 0 ? process.memoryUsage().rss : total;
+	return {
+		rssBytes: rssBytes === 0 ? process.memoryUsage().rss : rssBytes,
+		descendantCount: Math.max(0, visited.size - 1),
+	};
 };
+
+const readRows = async (): Promise<readonly ProcessRowType[]> => {
+	if (process.platform === 'win32') {
+		return [];
+	}
+
+	try {
+		const child = spawn('ps', ['-A', '-o', 'pid=,ppid=,rss='], {
+			stdio: ['ignore', 'pipe', 'ignore'],
+			signal: AbortSignal.timeout(PS_TIMEOUT_MS),
+		});
+		const output = text(child.stdout);
+		await once(child, 'close');
+		return rowsOf(await output);
+	} catch {
+		return [];
+	}
+};
+
+const refresh = async (rootPid: number, entry: CacheEntryType): Promise<void> => {
+	if (entry.pending) {
+		return;
+	}
+
+	entry.pending = true;
+	try {
+		const rows = await readRows();
+		entry.snapshot = rows.length === 0 ? {rssBytes: process.memoryUsage().rss, descendantCount: 0} : snapshotOf(rows, rootPid);
+		entry.sampledAt = performance.now();
+	} finally {
+		entry.pending = false;
+	}
+};
+
+/**
+ * Returns the latest non-blocking process-tree sample and schedules refresh.
+ *
+ * The first call falls back to current-process RSS while asynchronous `ps`
+ * sampling runs. No process-tree command executes synchronously on the caller's
+ * event-loop turn.
+ *
+ * @param rootPid - Root process; defaults to the current process.
+ * @returns Cached resident bytes and descendant count.
+ */
+export const processTreeSnapshot = (rootPid: number = process.pid): ProcessTreeSnapshotType => {
+	const now = performance.now();
+	const existing = cache.get(rootPid);
+	const entry =
+		existing ??
+		({
+			snapshot: {rssBytes: process.memoryUsage().rss, descendantCount: 0},
+			sampledAt: Number.NEGATIVE_INFINITY,
+			pending: false,
+		} satisfies CacheEntryType);
+
+	if (existing === undefined) {
+		cache.set(rootPid, entry);
+	}
+
+	if (now - entry.sampledAt >= CACHE_TTL_MS) {
+		void refresh(rootPid, entry);
+	}
+
+	return entry.snapshot;
+};
+
+/**
+ * Returns cached process-tree RSS without blocking the event loop.
+ *
+ * @param rootPid - Root process; defaults to the current process.
+ * @returns Cached resident bytes.
+ */
+export const processTreeRssBytes = (rootPid: number = process.pid): number => processTreeSnapshot(rootPid).rssBytes;

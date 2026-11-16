@@ -1,4 +1,4 @@
-import {processTreeRssBytes} from './processTree.ts';
+import {processTreeSnapshot} from './processTree.ts';
 
 const RSS_SAMPLE_INTERVAL_MS = 25;
 const TREE_RSS_SAMPLE_INTERVAL_MS = 250;
@@ -12,6 +12,9 @@ type ProcessSampleType = Readonly<{
 	readonly processTreeRssStartBytes: number;
 	readonly processTreeRssPeakBytes: number;
 	readonly processTreeRssEndBytes: number;
+	readonly processTreeDescendantsStart: number;
+	readonly processTreeDescendantsPeak: number;
+	readonly processTreeDescendantsEnd: number;
 }>;
 
 export type ProcessSamplerType = Readonly<{
@@ -30,14 +33,17 @@ export type ProcessSamplerType = Readonly<{
 export const startProcessSample = (): ProcessSamplerType => {
 	const cpuStart = process.cpuUsage();
 	const rssStart = process.memoryUsage().rss;
-	const treeStart = processTreeRssBytes();
+	const treeStart = processTreeSnapshot();
 	let rssPeak = rssStart;
-	let treePeak = treeStart;
+	let treePeak = treeStart.rssBytes;
+	let descendantPeak = treeStart.descendantCount;
 	const timer = setInterval(() => {
 		rssPeak = Math.max(rssPeak, process.memoryUsage().rss);
 	}, RSS_SAMPLE_INTERVAL_MS);
 	const treeTimer = setInterval(() => {
-		treePeak = Math.max(treePeak, processTreeRssBytes());
+		const tree = processTreeSnapshot();
+		treePeak = Math.max(treePeak, tree.rssBytes);
+		descendantPeak = Math.max(descendantPeak, tree.descendantCount);
 	}, TREE_RSS_SAMPLE_INTERVAL_MS);
 
 	timer.unref();
@@ -49,7 +55,7 @@ export const startProcessSample = (): ProcessSamplerType => {
 			clearInterval(treeTimer);
 			const cpu = process.cpuUsage(cpuStart);
 			const rssEnd = process.memoryUsage().rss;
-			const treeEnd = processTreeRssBytes();
+			const treeEnd = processTreeSnapshot();
 
 			return {
 				cpuUserMs: Math.round(cpu.user / 1000),
@@ -57,9 +63,12 @@ export const startProcessSample = (): ProcessSamplerType => {
 				rssStartBytes: rssStart,
 				rssPeakBytes: Math.max(rssPeak, rssEnd),
 				rssEndBytes: rssEnd,
-				processTreeRssStartBytes: treeStart,
-				processTreeRssPeakBytes: Math.max(treePeak, treeEnd),
-				processTreeRssEndBytes: treeEnd,
+				processTreeRssStartBytes: treeStart.rssBytes,
+				processTreeRssPeakBytes: Math.max(treePeak, treeEnd.rssBytes),
+				processTreeRssEndBytes: treeEnd.rssBytes,
+				processTreeDescendantsStart: treeStart.descendantCount,
+				processTreeDescendantsPeak: Math.max(descendantPeak, treeEnd.descendantCount),
+				processTreeDescendantsEnd: treeEnd.descendantCount,
 			};
 		},
 	};

@@ -43,7 +43,7 @@ import {
 import {publishNewGeneration} from './databasePublish.ts';
 import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContextType} from './databaseIdentity.ts';
 import {acquireLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
-import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
+import {explainQueryPlan, openDatabaseConnections, openReadOnlyDatabaseConnection} from './databaseOpen.ts';
 import {checkpointWal, checkpointWalSafely, type WalCheckpointType} from './databaseWal.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readGenerationAdapters, readPublishedGeneration} from './databaseRead.ts';
@@ -99,17 +99,14 @@ export type {WalCheckpointType} from './databaseWal.ts';
 /**
  * Opens and owns the SQLite index.
  *
- * The database is derived data. An incompatible schema is moved aside as one
- * `.schema-<version>.bak` file and rebuilt; there is no in-place migration.
- * One writer and one reader connection are kept open. Every query filters on an
- * explicitly published generation, so a build in progress is never visible.
+ * Queries filter on one published generation; building rows stay invisible.
  */
 export class IndexDatabase {
 	readonly #reader: DatabaseSync;
-	readonly #writer: DatabaseSync;
+	readonly #writer: DatabaseSync | null;
 	readonly #projectId: string;
 	readonly #owner: ProcessOwnerType | null;
-	private constructor(reader: DatabaseSync, writer: DatabaseSync, projectId: string, owner: ProcessOwnerType | null) {
+	private constructor(reader: DatabaseSync, writer: DatabaseSync | null, projectId: string, owner: ProcessOwnerType | null) {
 		this.#reader = reader;
 		this.#writer = writer;
 		this.#projectId = projectId;
@@ -141,11 +138,29 @@ export class IndexDatabase {
 			throw error;
 		}
 	}
+	/**
+	 * Opens an initialized index without acquiring write ownership.
+	 *
+	 * @param databasePath - Existing file-backed SQLite index.
+	 * @param context - Workspace identity used to reject a foreign checkout.
+	 * @returns Query-only database facade.
+	 */
+	public static openReadOnly(databasePath: string, context: DatabaseOpenContextType = {}): IndexDatabase {
+		const reader = openReadOnlyDatabaseConnection(databasePath, context.rootDir);
+		return new IndexDatabase(reader, null, context.projectId ?? 'default', null);
+	}
+	#writeConnection(): DatabaseSync {
+		if (this.#writer === null) {
+			throw new Error('Index database is read-only in this process');
+		}
+
+		return this.#writer;
+	}
 	public getWorkingCopy(): WorkingCopyIdentityType | null {
 		return readWorkingCopy(this.#reader);
 	}
 	public discardIncompleteGenerations(): void {
-		this.#writer.exec(
+		this.#writeConnection().exec(
 			`delete from generation
 			 where state = 'failed'
 			 or (state = 'building' and julianday(started_at) < julianday('now', '-1 hour'))`,
@@ -178,7 +193,7 @@ export class IndexDatabase {
 			inputHash?: string;
 		}>,
 	): void {
-		this.#writer
+		this.#writeConnection()
 			.prepare(
 				`insert into generation (id, state, source_hash, config_hash, input_hash, started_at)
 				 values (?, 'building', ?, ?, ?, ?)`,
@@ -192,7 +207,7 @@ export class IndexDatabase {
 	 * @returns The number of content rows inserted.
 	 */
 	public insertContents(files: readonly SourceFileType[]): number {
-		const inserted = insertContents(this.#writer, files);
+		const inserted = insertContents(this.#writeConnection(), files);
 		debug('contents inserted', {files: files.length, inserted});
 		return inserted;
 	}
@@ -208,15 +223,15 @@ export class IndexDatabase {
 	 */
 	public insertGenerationFacts(input: GenerationFactsInputType): GenerationFactCountsType {
 		debug('insert generation facts', {generationId: input.generationId, symbols: input.facts.symbols.length});
-		const counts = insertGenerationFacts(this.#writer, this.#reader, input);
+		const counts = insertGenerationFacts(this.#writeConnection(), this.#reader, input);
 		debug('generation facts inserted', {generationId: input.generationId, counts});
 		return counts;
 	}
 	public putExtractionArtifact(input: ExtractionArtifactKeyType & Readonly<{artifactJson: string}>): void {
-		putExtractionArtifact(this.#writer, input);
+		putExtractionArtifact(this.#writeConnection(), input);
 	}
 	public putExtractionArtifacts(entries: readonly (ExtractionArtifactKeyType & Readonly<{artifactJson: string}>)[]): void {
-		putExtractionArtifacts(this.#writer, entries);
+		putExtractionArtifacts(this.#writeConnection(), entries);
 	}
 	public getExtractionArtifact(input: ExtractionArtifactKeyType): string | null {
 		return getExtractionArtifact(this.#reader, input);
@@ -225,7 +240,7 @@ export class IndexDatabase {
 		return hasExtractionArtifact(this.#reader, input);
 	}
 	public pruneDeadArtifacts(): ReturnType<typeof pruneStoredDeadArtifacts> {
-		return pruneStoredDeadArtifacts(this.#writer);
+		return pruneStoredDeadArtifacts(this.#writeConnection());
 	}
 	public countRows(
 		generationId: string,
@@ -249,13 +264,13 @@ export class IndexDatabase {
 		return readLease(this.#reader, this.#projectId);
 	}
 	public tryAcquireBuildLease(ownerId: string, processId: number, ttlMs: number): boolean {
-		return acquireLease(this.#writer, {projectId: this.#projectId, ownerId, processId, ttlMs});
+		return acquireLease(this.#writeConnection(), {projectId: this.#projectId, ownerId, processId, ttlMs});
 	}
 	public renewBuildLease(ownerId: string, ttlMs: number): boolean {
-		return renewLease(this.#writer, {projectId: this.#projectId, ownerId, ttlMs});
+		return renewLease(this.#writeConnection(), {projectId: this.#projectId, ownerId, ttlMs});
 	}
 	public releaseBuildLease(ownerId: string): void {
-		releaseLease(this.#writer, this.#projectId, ownerId);
+		releaseLease(this.#writeConnection(), this.#projectId, ownerId);
 	}
 	/**
 	 * Applies one refresh to the published generation in a single transaction.
@@ -264,7 +279,7 @@ export class IndexDatabase {
 	 * @returns Measured stages, persisted counts, and written row groups.
 	 */
 	public commitGeneration(input: GenerationCommitInputType): GenerationCommitType {
-		return commitGeneration({writer: this.#writer, projectId: this.#projectId}, input);
+		return commitGeneration({writer: this.#writeConnection(), projectId: this.#projectId}, input);
 	}
 	/**
 	 * Applies one multi-adapter refresh to the published generation.
@@ -273,7 +288,7 @@ export class IndexDatabase {
 	 * @returns Measured stages, persisted counts, and written row groups.
 	 */
 	public commitAdapters(input: MultiGenerationCommitInputType): GenerationCommitType {
-		return commitAdapters({writer: this.#writer, projectId: this.#projectId}, input);
+		return commitAdapters({writer: this.#writeConnection(), projectId: this.#projectId}, input);
 	}
 	public publish(
 		generationId: string,
@@ -282,7 +297,7 @@ export class IndexDatabase {
 		ownerId?: string,
 	): number {
 		return publishNewGeneration(
-			{writer: this.#writer, projectId: this.#projectId},
+			{writer: this.#writeConnection(), projectId: this.#projectId},
 			{
 				generationId,
 				...(diagnosticCount === undefined ? {} : {diagnosticCount}),
@@ -292,7 +307,7 @@ export class IndexDatabase {
 		);
 	}
 	public markFailed(generationId: string, message: string): void {
-		this.#writer
+		this.#writeConnection()
 			.prepare("update generation set state = 'failed', completed_at = ?, error = ? where id = ?")
 			.run(new Date().toISOString(), message, generationId);
 	}
@@ -304,7 +319,7 @@ export class IndexDatabase {
 	 * @param generationId - Candidate generation identifier.
 	 */
 	public discardBuildingGeneration(generationId: string): void {
-		this.#writer.prepare("delete from generation where id = ? and state = 'building'").run(generationId);
+		this.#writeConnection().prepare("delete from generation where id = ? and state = 'building'").run(generationId);
 	}
 	public verifyIntegrity(): void {
 		verifyDatabaseIntegrity(this.#reader);
@@ -312,14 +327,8 @@ export class IndexDatabase {
 	/**
 	 * Runs one read against a single WAL snapshot.
 	 *
-	 * A revision commits atomically, but a multi-statement query that reads the
-	 * reader connection without a transaction could observe rows from two
-	 * revisions. Starting one deferred read transaction pins every statement in
-	 * the action to the same snapshot.
-	 *
 	 * @param action - Read-only work over the reader connection.
 	 * @returns The action's value.
-	 * @throws {Error} Whatever the action throws; the snapshot is rolled back.
 	 */
 	public readSnapshot<ValueType>(action: () => ValueType): ValueType {
 		return readSnapshot(this.#reader, this.#writer, action);
@@ -444,21 +453,14 @@ export class IndexDatabase {
 	/**
 	 * Applies the declared WAL policy and reclaims the write-ahead log.
 	 *
-	 * Call this after a publication and after derived-artifact persistence so a
-	 * quiescent index does not retain one build's full insertion footprint.
-	 *
 	 * @returns The measured passive or truncating checkpoint state.
 	 */
 	public checkpoint(): WalCheckpointType {
-		const state = checkpointWal(this.#writer);
+		const state = checkpointWal(this.#writeConnection());
 		debug('wal checkpoint', state);
 		return state;
 	}
-	/**
-	 * Reclaims the WAL without failing a completed publication or query path.
-	 *
-	 * @returns Bounded checkpoint timing and frame state, including failure.
-	 */
+	/** @returns A non-throwing bounded WAL checkpoint result. */
 	public tryCheckpoint(): ReturnType<typeof checkpointWalSafely> {
 		return checkpointWalSafely(() => this.checkpoint());
 	}
@@ -471,11 +473,7 @@ export class IndexDatabase {
 	public extractionArtifactCount(): number {
 		return countStoredExtractionArtifacts(this.#reader);
 	}
-	/**
-	 * Counts retained generation rows, including the published and one superseded generation.
-	 *
-	 * @returns Persisted generation row count.
-	 */
+	/** @returns Retained published and superseded generation rows. */
 	public generationCount(): number {
 		const row = this.#reader.prepare('select count(*) as total from generation').get();
 		return row === undefined ? 0 : asNumber(row, 'total');
@@ -483,15 +481,17 @@ export class IndexDatabase {
 	public close(): void {
 		debug('close database');
 		try {
-			if (this.#reader !== this.#writer) {
+			if (this.#writer === null || this.#reader !== this.#writer) {
 				this.#reader.close();
 			}
-			try {
-				this.checkpoint();
-			} catch (error) {
-				debug('wal checkpoint on close failed', {message: error instanceof Error ? error.message : String(error)});
+			if (this.#writer !== null) {
+				try {
+					this.checkpoint();
+				} catch (error) {
+					debug('wal checkpoint on close failed', {message: error instanceof Error ? error.message : String(error)});
+				}
+				this.#writer.close();
 			}
-			this.#writer.close();
 		} finally {
 			this.#owner?.release();
 		}

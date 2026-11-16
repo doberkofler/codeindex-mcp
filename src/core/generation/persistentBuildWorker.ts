@@ -2,11 +2,11 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {Worker} from 'node:worker_threads';
 import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
-import {type BuildReportType} from '../model.ts';
-import {processTreeRssBytes} from '../resources/processTree.ts';
-import {type AdapterScanPlanType} from './adapterBuild.ts';
+import {type DatabaseOpenContextType} from '../storage/database.ts';
 import {BuildFailureEnvelopeError, buildFailureFromWorkerPayload, buildFailureOf, type BuildFailureType} from './buildFailure.ts';
-import {buildReportFromWorkerMessage} from './buildWorkerClient.ts';
+import {buildWorkerRunResultFromMessage} from './buildWorkerClient.ts';
+import {type BuildWorkerRunResultType} from './buildWorker.ts';
+import {cancelExecution, createCancellationBuffer} from './executionCancellation.ts';
 
 const SHUTDOWN_GRACE_MS = 2000;
 const stopWorker = async (worker: Worker): Promise<void> => {
@@ -32,7 +32,7 @@ const stopWorker = async (worker: Worker): Promise<void> => {
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null;
 
 type WaiterType = Readonly<{
-	resolve: (report: BuildReportType) => void;
+	resolve: (result: BuildWorkerRunResultType) => void;
 	reject: (error: Error) => void;
 }>;
 
@@ -48,18 +48,14 @@ export type PersistentBuildWorkerOptionsType = Readonly<{
 
 export type PersistentBuildWorkerInputType = Readonly<{
 	config: ConfigType;
-	scans: readonly AdapterScanPlanType[];
+	adapterIds: readonly string[] | null;
 	force: boolean;
 	ownerId: string;
 	startedAtEpoch: number;
 	signal?: AbortSignal | undefined;
 }>;
 
-const failureForPlans = (plans: readonly AdapterScanPlanType[]): BuildFailureType => {
-	const project = plans.find((plan) => plan.scan !== null)?.scan?.projects.at(0);
-
-	return buildFailureOf(new Error('Build worker unavailable'), 'worker', project === undefined ? null : {name: project.name, file: project.projectFile});
-};
+const unavailableFailure = (): BuildFailureType => buildFailureOf(new Error('Build worker unavailable'), 'worker');
 
 /**
  * Keeps one build worker thread alive across refreshes.
@@ -71,14 +67,45 @@ const failureForPlans = (plans: readonly AdapterScanPlanType[]): BuildFailureTyp
 export class PersistentBuildWorker {
 	readonly #options: PersistentBuildWorkerOptionsType;
 	readonly #waiters = new Map<number, WaiterType>();
+	readonly #initializationWaiters = new Map<number, Readonly<{resolve: (value: true) => void; reject: (error: Error) => void}>>();
+	readonly #cancellations = new Map<number, SharedArrayBuffer>();
 	#worker: Worker | null = null;
 	#nextId = 1;
 	#idleTimer: ReturnType<typeof setTimeout> | null = null;
 	#stopping: Promise<void> | null = null;
 	#closed = false;
+	#memoryRestarts = 0;
+	#crashRestarts = 0;
+	#idleRestarts = 0;
 
 	public constructor(options: PersistentBuildWorkerOptionsType) {
 		this.#options = options;
+	}
+
+	/**
+	 * Initializes writable storage inside the retained execution worker.
+	 *
+	 * @param config - Resolved host configuration.
+	 * @param context - Working-copy and project identity.
+	 */
+	public async initialize(config: ConfigType, context: DatabaseOpenContextType): Promise<void> {
+		if (this.#closed) {
+			throw new BuildFailureEnvelopeError(unavailableFailure());
+		}
+
+		const worker = this.#ensureWorker();
+		const id = this.#nextId;
+		this.#nextId += 1;
+		const {promise, resolve, reject} = Promise.withResolvers<true>();
+		this.#initializationWaiters.set(id, {resolve, reject});
+
+		try {
+			// oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker.postMessage has no targetOrigin.
+			worker.postMessage({kind: 'code-index-initialize', id, config, context});
+			await promise;
+		} finally {
+			this.#initializationWaiters.delete(id);
+		}
 	}
 
 	/**
@@ -88,28 +115,22 @@ export class PersistentBuildWorker {
 	 * @returns The worker's validated build report.
 	 * @throws {@link BuildFailureEnvelopeError} When the worker reports or fails.
 	 */
-	public async run(input: PersistentBuildWorkerInputType): Promise<BuildReportType> {
+	public async run(input: PersistentBuildWorkerInputType): Promise<BuildWorkerRunResultType> {
 		if (this.#closed) {
-			throw new BuildFailureEnvelopeError(failureForPlans(input.scans));
+			throw new BuildFailureEnvelopeError(unavailableFailure());
 		}
 
 		this.#clearIdle();
-
-		if (processTreeRssBytes() > this.#options.maxProcessTreeRssBytes) {
-			await this.#stop();
-		}
 
 		const worker = this.#ensureWorker();
 		const id = this.#nextId;
 		this.#nextId += 1;
 		const {signal} = input;
+		const cancellationBuffer = createCancellationBuffer();
+		const cancellation: {startedAt: number | null} = {startedAt: null};
 		const cancel = (): void => {
-			try {
-				// oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker.postMessage has no targetOrigin.
-				worker.postMessage({kind: 'code-index-cancel', id});
-			} catch {
-				// The worker may have completed between the abort and this message.
-			}
+			cancellation.startedAt ??= performance.now();
+			cancelExecution(cancellationBuffer);
 		};
 
 		if (signal !== undefined) {
@@ -120,32 +141,46 @@ export class PersistentBuildWorker {
 			}
 		}
 
-		const {promise: reportPromise, resolve, reject} = Promise.withResolvers<BuildReportType>();
+		const {promise: resultPromise, resolve, reject} = Promise.withResolvers<BuildWorkerRunResultType>();
 		this.#waiters.set(id, {resolve, reject});
+		this.#cancellations.set(id, cancellationBuffer);
 
 		try {
 			const request = {
 				kind: 'code-index-build',
 				id,
 				config: input.config,
-				scans: input.scans,
+				adapterIds: input.adapterIds,
 				force: input.force,
 				ownerId: input.ownerId,
+				cancellationBuffer,
 				startedAtEpoch: input.startedAtEpoch,
 				debug: this.#options.debug,
 			};
 			// oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker.postMessage has no targetOrigin.
 			worker.postMessage(request);
-			const report = await reportPromise;
+			const result = await resultPromise;
+			const cancellationToSettlementMs = cancellation.startedAt === null ? 0 : Math.round(performance.now() - cancellation.startedAt);
+			const peakTreeRss = result.resources['processTreeRssPeakBytes'] ?? 0;
 
-			if (processTreeRssBytes() > this.#options.maxProcessTreeRssBytes) {
-				await this.#stop();
+			if (peakTreeRss > this.#options.maxProcessTreeRssBytes) {
+				await this.#stop('memory');
 			}
 
-			return report;
+			return {
+				...result,
+				resources: {
+					...result.resources,
+					cancellationToSettlementMs,
+					workerMemoryRestarts: this.#memoryRestarts,
+					workerCrashRestarts: this.#crashRestarts,
+					workerIdleRestarts: this.#idleRestarts,
+				},
+			};
 		} finally {
 			signal?.removeEventListener('abort', cancel);
 			this.#waiters.delete(id);
+			this.#cancellations.delete(id);
 
 			if (this.#waiters.size === 0) {
 				this.#armIdle();
@@ -157,12 +192,21 @@ export class PersistentBuildWorker {
 		this.#closed = true;
 		this.#clearIdle();
 
+		for (const cancellationBuffer of this.#cancellations.values()) {
+			cancelExecution(cancellationBuffer);
+		}
+
 		for (const waiter of this.#waiters.values()) {
 			waiter.reject(new BuildFailureEnvelopeError(buildFailureOf(new Error('Build worker closed'), 'worker')));
 		}
 
 		this.#waiters.clear();
-		await this.#stop();
+		this.#cancellations.clear();
+		for (const waiter of this.#initializationWaiters.values()) {
+			waiter.reject(new BuildFailureEnvelopeError(buildFailureOf(new Error('Build worker closed'), 'worker')));
+		}
+		this.#initializationWaiters.clear();
+		await this.#stop('shutdown');
 	}
 
 	#ensureWorker(): Worker {
@@ -189,7 +233,30 @@ export class PersistentBuildWorker {
 	}
 
 	#onMessage(worker: Worker, value: unknown): void {
-		if (this.#worker !== worker || !isRecord(value) || value['kind'] !== 'code-index-build-result' || typeof value['id'] !== 'number') {
+		if (this.#worker !== worker || !isRecord(value) || typeof value['id'] !== 'number') {
+			return;
+		}
+
+		if (value['kind'] === 'code-index-initialize-result') {
+			const waiter = this.#initializationWaiters.get(value['id']);
+
+			if (waiter === undefined) {
+				return;
+			}
+
+			this.#initializationWaiters.delete(value['id']);
+
+			if (value['ok'] === true) {
+				waiter.resolve(true);
+				return;
+			}
+
+			const failure = buildFailureFromWorkerPayload(value['failure']);
+			waiter.reject(new BuildFailureEnvelopeError(failure ?? buildFailureOf(new Error('Worker initialization failed'), 'worker')));
+			return;
+		}
+
+		if (value['kind'] !== 'code-index-build-result') {
 			return;
 		}
 
@@ -202,14 +269,14 @@ export class PersistentBuildWorker {
 		this.#waiters.delete(value['id']);
 
 		if (value['ok'] === true) {
-			const report = buildReportFromWorkerMessage(value);
+			const result = buildWorkerRunResultFromMessage(value);
 
-			if (report === null) {
+			if (result === null) {
 				waiter.reject(new BuildFailureEnvelopeError(buildFailureOf(new Error('Malformed build report'), 'worker')));
 				return;
 			}
 
-			waiter.resolve(report);
+			waiter.resolve(result);
 			return;
 		}
 
@@ -223,12 +290,18 @@ export class PersistentBuildWorker {
 		}
 
 		this.#worker = null;
+		this.#crashRestarts += 1;
 
 		for (const waiter of this.#waiters.values()) {
 			waiter.reject(new BuildFailureEnvelopeError(buildFailureOf(error, 'worker')));
 		}
 
 		this.#waiters.clear();
+		this.#cancellations.clear();
+		for (const waiter of this.#initializationWaiters.values()) {
+			waiter.reject(new BuildFailureEnvelopeError(buildFailureOf(error, 'worker')));
+		}
+		this.#initializationWaiters.clear();
 	}
 
 	#armIdle(): void {
@@ -240,7 +313,7 @@ export class PersistentBuildWorker {
 
 		this.#idleTimer = setTimeout(() => {
 			this.#idleTimer = null;
-			void this.#stop();
+			void this.#stop('idle');
 		}, this.#options.idleMs);
 		this.#idleTimer.unref();
 	}
@@ -252,7 +325,7 @@ export class PersistentBuildWorker {
 		}
 	}
 
-	async #stop(): Promise<void> {
+	async #stop(reason: 'idle' | 'memory' | 'shutdown'): Promise<void> {
 		if (this.#stopping !== null) {
 			await this.#stopping;
 			return;
@@ -264,6 +337,12 @@ export class PersistentBuildWorker {
 
 		if (worker === null) {
 			return;
+		}
+
+		if (reason === 'memory') {
+			this.#memoryRestarts += 1;
+		} else if (reason === 'idle') {
+			this.#idleRestarts += 1;
 		}
 
 		const stopped = stopWorker(worker);

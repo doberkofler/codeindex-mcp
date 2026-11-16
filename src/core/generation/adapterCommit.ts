@@ -1,4 +1,4 @@
-import {type ExtractorArtifactCacheType, type ExtractorBuildType, type ExtractorType} from '../../adapters/types.ts';
+import {type AdapterExecutionContextType, type ExtractorArtifactCacheType, type ExtractorBuildType, type ExtractorType} from '../../adapters/types.ts';
 import {adapterConfigFor, type ConfigType} from '../config/config.ts';
 import {PUBLICATION_SURFACE_BINDINGS_PER_ROOT, finalizeFacts, type FinalizedFactSetType} from '../facts/index.ts';
 import {debugFor} from '../logging/debug.ts';
@@ -20,11 +20,31 @@ export const ZERO_COUNTS: AdapterCommitCountsType = {
 	diagnostics: 0,
 };
 
-const finalizePublication = (facts: ExtractorBuildType, extractorId: string | null): FinalizedFactSetType => {
+type AdapterCommitInputType = Readonly<{
+	plan: AdapterScanPlanType;
+	target: AdapterTargetType;
+	previous: GenerationAdapterType | undefined;
+	config: ConfigType;
+	database: IndexDatabase;
+	published: GenerationRowType | null;
+	force: boolean | undefined;
+	override: ExtractorType | undefined;
+	persist: (cache: ReturnType<typeof createExtractorCache>) => void;
+	executionContext?: AdapterExecutionContextType;
+}>;
+
+type AdapterCommitBaseType = Omit<AdapterCommitType, 'counts' | 'facts' | 'dependencies' | 'diagnostics'>;
+
+const finalizePublication = (
+	facts: ExtractorBuildType,
+	extractorId: string | null,
+	executionContext: AdapterExecutionContextType | undefined,
+): FinalizedFactSetType => {
 	const publication = finalizeFacts(facts, {
 		mode: 'enforce',
 		maxBindingsPerRoot: PUBLICATION_SURFACE_BINDINGS_PER_ROOT,
 		...(extractorId === null ? {} : {extractorId}),
+		...(executionContext === undefined ? {} : {executionContext}),
 	});
 
 	debug('publication facts finalized', publication.stats);
@@ -99,6 +119,71 @@ const previousCountsOf = (adapter: GenerationAdapterType): AdapterCommitCountsTy
 	diagnostics: adapter.diagnosticCount,
 });
 
+const absentCommitOf = (input: AdapterCommitInputType): AdapterCommitType => {
+	const {plan, target} = input;
+	const reason = plan.absenceReason ?? 'unknown';
+	return {
+		adapterId: plan.adapterId,
+		protocolVersion: target.protocolVersion,
+		packageName: target.packageName,
+		packageVersion: target.packageVersion,
+		adapterVersion: target.extractor.version,
+		compilerVersion: 'unknown',
+		declaredCompilerVersion: null,
+		compilerDrift: false,
+		coverage: 'absent',
+		absenceReason: plan.absenceReason,
+		sourceHash: `absent:${reason}`,
+		configHash: target.extractor.version,
+		inputHash: target.extractor.version,
+		counts: ZERO_COUNTS,
+		stages: {scanMs: 0, compilerMs: 0, extractionMs: 0},
+		files: [],
+		projects: [],
+	};
+};
+
+const unchangedCommitOf = (input: AdapterCommitInputType, scan: ScanResultType, base: AdapterCommitBaseType): AdapterCommitType | null => {
+	if (input.force === true || input.previous === undefined || !adapterMatchesScan(input.previous, scan, input.target)) {
+		return null;
+	}
+
+	input.executionContext?.throwIfCancellationRequested();
+	return {...base, counts: previousCountsOf(input.previous)};
+};
+
+const reusableCommitOf = async (
+	context: Readonly<{
+		input: AdapterCommitInputType;
+		scan: ScanResultType;
+		base: AdapterCommitBaseType;
+		scoped: ConfigType;
+		cache: ReturnType<typeof createExtractorCache>;
+	}>,
+): Promise<AdapterCommitType | null> => {
+	const {input, scan, base, scoped, cache} = context;
+	if (
+		input.force === true ||
+		input.published === null ||
+		input.previous === undefined ||
+		!configMatches(input.previous, scan, input.target) ||
+		!(await adapterFactsAreReusable({
+			extractor: input.target.extractor,
+			config: scoped,
+			scan,
+			database: input.database,
+			cache: cache.cache,
+			publishedFiles: input.database.listFiles(input.published.id, input.plan.adapterId),
+		}))
+	) {
+		return null;
+	}
+
+	input.executionContext?.throwIfCancellationRequested();
+	input.persist(cache);
+	return {...base, counts: previousCountsOf(input.previous)};
+};
+
 /**
  * Builds one adapter's contribution to a multi-adapter publication.
  *
@@ -109,20 +194,8 @@ const previousCountsOf = (adapter: GenerationAdapterType): AdapterCommitCountsTy
  * @param input - Plan, target, previous row, configuration, and persist callback.
  * @returns The adapter contribution.
  */
-export const adapterCommitOf = async (
-	input: Readonly<{
-		plan: AdapterScanPlanType;
-		target: AdapterTargetType;
-		previous: GenerationAdapterType | undefined;
-		config: ConfigType;
-		database: IndexDatabase;
-		published: GenerationRowType | null;
-		force: boolean | undefined;
-		override: ExtractorType | undefined;
-		persist: (cache: ReturnType<typeof createExtractorCache>) => void;
-	}>,
-): Promise<AdapterCommitType> => {
-	const {plan, target, previous} = input;
+export const adapterCommitOf = async (input: AdapterCommitInputType): Promise<AdapterCommitType> => {
+	const {plan, target} = input;
 	const adapterVersion = target.extractor.version;
 	const provenance = {
 		protocolVersion: target.protocolVersion,
@@ -131,23 +204,7 @@ export const adapterCommitOf = async (
 	} as const;
 
 	if (plan.coverage === 'absent' || plan.scan === null) {
-		return {
-			adapterId: plan.adapterId,
-			...provenance,
-			adapterVersion,
-			compilerVersion: 'unknown',
-			declaredCompilerVersion: null,
-			compilerDrift: false,
-			coverage: 'absent',
-			absenceReason: plan.absenceReason,
-			sourceHash: `absent:${plan.absenceReason ?? 'unknown'}`,
-			configHash: target.extractor.version,
-			inputHash: target.extractor.version,
-			counts: ZERO_COUNTS,
-			stages: {scanMs: 0, compilerMs: 0, extractionMs: 0},
-			files: [],
-			projects: [],
-		};
+		return absentCommitOf(input);
 	}
 
 	const {scan} = plan;
@@ -169,36 +226,28 @@ export const adapterCommitOf = async (
 		projects: scan.projects,
 	};
 
-	if (input.force !== true && previous !== undefined && adapterMatchesScan(previous, scan, target)) {
-		return {...base, counts: previousCountsOf(previous)};
+	const unchanged = unchangedCommitOf(input, scan, base);
+
+	if (unchanged !== null) {
+		return unchanged;
 	}
 
 	const cache = createExtractorCache(input.database, scan);
-	const reusableFacts =
-		input.force !== true &&
-		input.published !== null &&
-		previous !== undefined &&
-		configMatches(previous, scan, target) &&
-		(await adapterFactsAreReusable({
-			extractor: target.extractor,
-			config: scoped,
-			scan,
-			database: input.database,
-			cache: cache.cache,
-			publishedFiles: input.database.listFiles(input.published.id, plan.adapterId),
-		}));
+	const reusable = await reusableCommitOf({input, scan, base, scoped, cache});
 
-	if (reusableFacts) {
-		input.persist(cache);
-		return {...base, counts: previousCountsOf(previous)};
+	if (reusable !== null) {
+		return reusable;
 	}
 
 	const extracted = await runBuildStageAsync('extraction', async () => {
-		const result = await target.extractor.build(scoped, scan, cache.cache);
+		const result = await target.extractor.build(scoped, scan, cache.cache, input.executionContext);
 		return result;
 	});
-	const finalized = finalizePublication(extracted, input.override === undefined ? plan.adapterId : null);
+	input.executionContext?.throwIfCancellationRequested();
+	const finalized = finalizePublication(extracted, input.override === undefined ? plan.adapterId : null, input.executionContext);
+	input.executionContext?.throwIfCancellationRequested();
 	runBuildStage('validation', () => extracted.validate?.());
+	input.executionContext?.throwIfCancellationRequested();
 	input.persist(cache);
 
 	return {

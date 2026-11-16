@@ -29,10 +29,15 @@ export const extractSymbolFacts = (input: ExtractionInputType): TypeScriptSymbol
 	const sink = createFactSink();
 
 	addPublishedRoots(runtime, sink);
+	runtime.checkpoint();
 	projectPublishedRoots(runtime, sink);
+	runtime.checkpoint();
 	refreshEnclosing(runtime);
+	runtime.checkpoint();
 	const definitions = addDefinitionFacts(runtime, sink);
+	runtime.checkpoint();
 	const references = collectReferenceFacts(runtime, definitions.definitionsBySymbol, definitions.definitionNodes);
+	runtime.checkpoint();
 
 	return {
 		symbols: sortedSymbols(runtime),

@@ -11,7 +11,8 @@ import {
 	type BuildStagesType,
 	type GenerationStateType,
 } from '../model.ts';
-import {type AdapterScanPlanType} from './adapterBuild.ts';
+import {type BuildWorkerRunResultType} from './buildWorker.ts';
+import {cancelExecution, createCancellationBuffer} from './executionCancellation.ts';
 import {BuildFailureEnvelopeError, buildFailureFromWorkerPayload, buildFailureOf, type BuildFailureType, type BuildProjectContextType} from './buildFailure.ts';
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null;
@@ -160,11 +161,94 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 	};
 };
 
-export const buildReportFromWorkerMessage = (raw: unknown): BuildReportType | null => (isRecord(raw) ? asBuildReport(raw['report']) : null);
+const buildReportFromWorkerMessage = (raw: unknown): BuildReportType | null => (isRecord(raw) ? asBuildReport(raw['report']) : null);
 
-const projectContextOf = (plans: readonly AdapterScanPlanType[]): BuildProjectContextType | null => {
-	const project = plans.find((plan) => plan.scan !== null)?.scan?.projects.at(0);
-	return project === undefined ? null : {name: project.name, file: project.projectFile};
+const watchInputsFromWorker = (value: unknown): BuildWorkerRunResultType['watchInputs'] | null => {
+	if (!Array.isArray(value)) {
+		return null;
+	}
+
+	const updates: BuildWorkerRunResultType['watchInputs'][number][] = [];
+
+	for (const entry of value) {
+		if (
+			!isRecord(entry) ||
+			typeof entry['adapterId'] !== 'string' ||
+			!Array.isArray(entry['paths']) ||
+			!entry['paths'].every((path) => typeof path === 'string')
+		) {
+			return null;
+		}
+
+		updates.push({adapterId: entry['adapterId'], paths: entry['paths']});
+	}
+
+	return updates;
+};
+
+const compilerDriftsFromWorker = (value: unknown): BuildWorkerRunResultType['compilerDrifts'] | null => {
+	if (!Array.isArray(value)) {
+		return null;
+	}
+
+	const drifts: BuildWorkerRunResultType['compilerDrifts'][number][] = [];
+
+	for (const entry of value) {
+		if (
+			!isRecord(entry) ||
+			typeof entry['compilerVersion'] !== 'string' ||
+			(entry['declaredCompilerVersion'] !== null && typeof entry['declaredCompilerVersion'] !== 'string')
+		) {
+			return null;
+		}
+
+		drifts.push({compilerVersion: entry['compilerVersion'], declaredCompilerVersion: entry['declaredCompilerVersion']});
+	}
+
+	return drifts;
+};
+
+const resourcesFromWorker = (value: unknown): Readonly<Record<string, number>> | null => {
+	if (!isRecord(value) || Object.keys(value).length > 64) {
+		return null;
+	}
+
+	const resources: Record<string, number> = {};
+
+	for (const [key, metric] of Object.entries(value)) {
+		if (!/^[a-z][A-Za-z0-9]{0,63}$/u.test(key) || typeof metric !== 'number' || !Number.isFinite(metric)) {
+			return null;
+		}
+
+		resources[key] = metric;
+	}
+
+	return resources;
+};
+
+/**
+ * Validates one complete retained-worker success payload.
+ *
+ * @param raw - Untrusted worker message.
+ * @returns Validated result, or null for a malformed payload.
+ */
+export const buildWorkerRunResultFromMessage = (raw: unknown): BuildWorkerRunResultType | null => {
+	if (!isRecord(raw)) {
+		return null;
+	}
+
+	const payload = raw['result'];
+
+	if (!isRecord(payload)) {
+		return null;
+	}
+
+	const report = buildReportFromWorkerMessage(payload);
+	const watchInputs = watchInputsFromWorker(payload['watchInputs']);
+	const compilerDrifts = compilerDriftsFromWorker(payload['compilerDrifts']);
+	const resources = resourcesFromWorker(payload['resources']);
+
+	return report === null || watchInputs === null || compilerDrifts === null || resources === null ? null : {report, watchInputs, compilerDrifts, resources};
 };
 
 const workerFailureOf = (error: unknown, project: BuildProjectContextType | null): BuildFailureType => buildFailureOf(error, 'worker', project);
@@ -182,7 +266,7 @@ export const runBuildWorkerThread = async (
 	input: Readonly<{
 		workerEntry: string;
 		config: ConfigType;
-		scans: readonly AdapterScanPlanType[];
+		adapterIds: readonly string[] | null;
 		descriptors: readonly ResolvedAdapterDescriptorType[];
 		force: boolean;
 		ownerId: string;
@@ -192,14 +276,16 @@ export const runBuildWorkerThread = async (
 		signal?: AbortSignal | undefined;
 	}>,
 ): Promise<BuildReportType> => {
+	const cancellationBuffer = createCancellationBuffer();
 	const worker = new Worker(input.workerEntry, {
 		workerData: {
 			kind: 'code-index-build',
 			config: input.config,
-			scans: input.scans,
+			adapterIds: input.adapterIds,
 			descriptors: input.descriptors,
 			force: input.force,
 			ownerId: input.ownerId,
+			cancellationBuffer,
 			startedAtEpoch: input.startedAtEpoch,
 			debug: input.debug,
 		},
@@ -210,11 +296,7 @@ export const runBuildWorkerThread = async (
 		completion.dispatchEvent(new Event('done'));
 	};
 	const cancel = (): void => {
-		try {
-			worker.postMessage({kind: 'code-index-cancel'}, []);
-		} catch {
-			// The worker may have completed between the abort and this message.
-		}
+		cancelExecution(cancellationBuffer);
 	};
 	const {signal} = input;
 
@@ -248,16 +330,16 @@ export const runBuildWorkerThread = async (
 
 	await once(completion, 'done');
 	signal?.removeEventListener('abort', cancel);
-	const project = projectContextOf(input.scans);
+	const project = null;
 
 	if (state.failure !== null) {
 		throw new BuildFailureEnvelopeError(workerFailureOf(state.failure, project));
 	}
 
-	const report = buildReportFromWorkerMessage(state.message);
+	const result = buildWorkerRunResultFromMessage(state.message);
 
-	if (report !== null) {
-		return report;
+	if (result !== null) {
+		return result.report;
 	}
 
 	const failure = isRecord(state.message) ? buildFailureFromWorkerPayload(state.message['failure']) : null;

@@ -18,6 +18,10 @@ const doubles = vi.hoisted(() => {
 	};
 	const index = {start: vi.fn<() => void>(), close: vi.fn<() => Promise<void>>()};
 	const database = {getWorkingCopy: vi.fn<() => {id: string} | undefined>(() => ({id: 'working-copy'}))};
+	const buildWorker = {
+		initialize: vi.fn<(config: ConfigType, context: Readonly<Record<string, unknown>>) => Promise<void>>(),
+		close: vi.fn<() => Promise<void>>(),
+	};
 	const mcpServer = {connect: vi.fn<() => Promise<void>>()};
 	const stdio: {
 		factory: (() => unknown) | null;
@@ -37,6 +41,7 @@ const doubles = vi.hoisted(() => {
 		analytics,
 		index,
 		database,
+		buildWorker,
 		mcpServer,
 		stdio,
 		loadConfig: vi.fn<(source: Readonly<Record<string, string | undefined>>) => ConfigType>(),
@@ -45,6 +50,8 @@ const doubles = vi.hoisted(() => {
 		createCodeIndex: vi.fn<(...args: unknown[]) => typeof index>(() => index),
 		buildMcpServer: vi.fn<(...args: unknown[]) => typeof mcpServer>(() => mcpServer),
 		databaseOpen: vi.fn<(...args: unknown[]) => typeof database>(() => database),
+		databaseOpenReadOnly: vi.fn<(...args: unknown[]) => typeof database>(() => database),
+		buildWorkerOf: vi.fn<() => Readonly<{entry: string | null; worker: typeof buildWorker | null}>>(() => ({entry: null, worker: null})),
 		readVcsProvenance: vi.fn<(...args: unknown[]) => {available: boolean}>(() => ({available: false})),
 		loadAdapters: vi.fn<() => Promise<unknown>>(async () => {
 			const value = await Promise.resolve({
@@ -73,9 +80,13 @@ vi.mock(import('../src/core/config/config.ts'), () => ({
 		],
 }));
 vi.mock(import('../src/core/generation/codeIndex.ts'), () => ({createCodeIndex: doubles.createCodeIndex}) as unknown as never);
+vi.mock(import('../src/core/generation/buildWorkerSetup.ts'), () => ({buildWorkerOf: doubles.buildWorkerOf}) as unknown as never);
 vi.mock(import('../src/core/logging/logger.ts'), () => ({createLogger: doubles.createLogger}));
 vi.mock(import('../src/transports/mcp/buildMcpServer.ts'), () => ({buildMcpServer: doubles.buildMcpServer}) as unknown as never);
-vi.mock(import('../src/core/storage/database.ts'), () => ({IndexDatabase: {open: doubles.databaseOpen}}) as unknown as never);
+vi.mock(
+	import('../src/core/storage/database.ts'),
+	() => ({IndexDatabase: {open: doubles.databaseOpen, openReadOnly: doubles.databaseOpenReadOnly}}) as unknown as never,
+);
 vi.mock(import('../src/adapters/vcs/vcsProvenance.ts'), () => ({readVcsProvenance: doubles.readVcsProvenance}) as unknown as never);
 vi.mock(import('../src/adapters/loader.ts'), () => ({loadConfiguredAdapters: doubles.loadAdapters}) as unknown as never);
 
@@ -146,10 +157,14 @@ const resetRuntime = (): void => {
 	doubles.createCodeIndex.mockReturnValue(doubles.index);
 	doubles.buildMcpServer.mockReturnValue(doubles.mcpServer);
 	doubles.databaseOpen.mockReturnValue(doubles.database);
+	doubles.databaseOpenReadOnly.mockReturnValue(doubles.database);
+	doubles.buildWorkerOf.mockReturnValue({entry: null, worker: null});
 	doubles.readVcsProvenance.mockReturnValue({available: false});
 	doubles.loadAdapters.mockResolvedValue({adapters: [], descriptors: [], byId: new Map([['typescript', {discoveryText: 'TypeScript discovery'}]])});
 	doubles.database.getWorkingCopy.mockReturnValue({id: 'working-copy'});
 	doubles.index.close.mockResolvedValue(undefined);
+	doubles.buildWorker.initialize.mockResolvedValue(undefined);
+	doubles.buildWorker.close.mockResolvedValue(undefined);
 	doubles.stdio.handle.close.mockResolvedValue(undefined);
 	vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null): never => {
 		exitCodes.push(code);
@@ -232,6 +247,28 @@ describe('MCP server startup', () => {
 			extractorDiscoveryText: 'TypeScript discovery',
 		});
 		expect(doubles.loadAdapters).toHaveBeenCalledWith(config);
+	});
+
+	it('initializes writes in the worker and opens only a read connection in the MCP process', async () => {
+		doubles.buildWorkerOf.mockReturnValue({entry: '/app/worker.js', worker: doubles.buildWorker});
+
+		await start({workerEntry: '/app/worker.js'});
+
+		expect(doubles.buildWorker.initialize).toHaveBeenCalledWith(
+			config,
+			expect.objectContaining({rootDir: config.rootDir, projectId: config.projectId, vcs: {available: false}}),
+		);
+		expect(doubles.databaseOpen).not.toHaveBeenCalled();
+		expect(doubles.databaseOpenReadOnly).toHaveBeenCalledWith(
+			config.databasePath,
+			expect.objectContaining({rootDir: config.rootDir, projectId: config.projectId}),
+		);
+		expect(doubles.createCodeIndex).toHaveBeenCalledWith(
+			config,
+			doubles.database,
+			doubles.logger,
+			expect.objectContaining({workerEntry: '/app/worker.js', buildWorker: doubles.buildWorker}),
+		);
 	});
 
 	it('reports a missing working copy', async () => {

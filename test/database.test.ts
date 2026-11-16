@@ -65,6 +65,27 @@ describe('IndexDatabase', () => {
 		reopened.close();
 	});
 
+	it('opens a query-only facade that rejects every write lifecycle entry', () => {
+		directory = mkdtempSync(path.join(tmpdir(), 'code-index-db-read-only-'));
+		const databasePath = path.join(directory, 'index.sqlite');
+		const writer = IndexDatabase.open(databasePath, {projectId: 'read-only'});
+		writer.createGeneration({id: 'generation', sourceHash: 'source', configHash: 'config'});
+		writer.publish('generation');
+		writer.close();
+
+		const reader = IndexDatabase.openReadOnly(databasePath, {projectId: 'read-only'});
+
+		try {
+			expect(reader.getPublishedGeneration()?.id).toBe('generation');
+			expect(() => {
+				reader.createGeneration({id: 'forbidden', sourceHash: 'source', configHash: 'config'});
+			}).toThrow('read-only');
+			expect(() => reader.tryAcquireBuildLease('owner', process.pid, 1000)).toThrow('read-only');
+		} finally {
+			reader.close();
+		}
+	});
+
 	it('does not publish a failed generation', () => {
 		directory = mkdtempSync(path.join(tmpdir(), 'code-index-db-'));
 		const database = IndexDatabase.open(path.join(directory, 'index.sqlite'));

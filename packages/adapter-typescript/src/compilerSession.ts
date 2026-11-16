@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import * as ts from './compiler.ts';
 import {z} from 'zod';
-import {type AdapterConfigType, debugFor} from '@codeindex/adapter-sdk';
+import {type AdapterConfigType, type AdapterExecutionContextType, debugFor} from '@codeindex/adapter-sdk';
 import {createRecorder, LOCKFILE_NAMES, WORKSPACE_INPUT_NAMES, type RecorderType} from './snapshotRecorder.ts';
 import {recorderFileSystem} from './compilerFileSystem.ts';
 import {materializeProjectPrograms, recordProgramInputs} from './snapshotResolution.ts';
@@ -91,23 +91,39 @@ const warmIdleMsOf = (config: AdapterConfigType): number => {
 const sessionKeyOf = (config: AdapterConfigType): string =>
 	[config.rootDir, ...config.projects.map((project) => project.projectFilePath).sort()].join('\u0000');
 
-const createWarmState = (config: AdapterConfigType, knownPaths: readonly string[]): WarmStateType => {
+const createWarmState = (config: AdapterConfigType, knownPaths: readonly string[], executionContext?: AdapterExecutionContextType): WarmStateType => {
+	executionContext?.throwIfCancellationRequested();
 	const key = sessionKeyOf(config);
 	const recorder = createRecorder(config.rootDir);
 	const api = new ts.API({cwd: config.rootDir, fs: recorderFileSystem(recorder)});
 	let snapshot: ts.Snapshot | undefined;
 
 	try {
-		const rootMetadata = rootMetadataOf(recorder, config.rootDir);
-		const projects = config.projects.map((context) => parseProject(api, recorder, config.rootDir, context));
+		executionContext?.throwIfCancellationRequested();
+		const rootMetadata = rootMetadataOf(recorder, config.rootDir, executionContext?.throwIfCancellationRequested);
+		const projects = config.projects.map((context) => {
+			executionContext?.throwIfCancellationRequested();
+			return parseProject(api, recorder, config.rootDir, context);
+		});
 
-		collectWorkspaceManifests(recorder, config.rootDir);
-		const {snapshot: createdSnapshot, programs} = materializeProjectPrograms(api, recorder, projects);
+		executionContext?.throwIfCancellationRequested();
+		collectWorkspaceManifests(recorder, config.rootDir, executionContext?.throwIfCancellationRequested);
+		executionContext?.throwIfCancellationRequested();
+		const {snapshot: createdSnapshot, programs} = materializeProjectPrograms(api, recorder, projects, executionContext?.throwIfCancellationRequested);
 		snapshot = createdSnapshot;
-		const authoredPaths = addCurrentInputs({recorder, config, projects, programs, knownPaths});
+		executionContext?.throwIfCancellationRequested();
+		const authoredPaths = addCurrentInputs({
+			recorder,
+			config,
+			projects,
+			programs,
+			knownPaths,
+			...(executionContext === undefined ? {} : {checkCancellation: executionContext.throwIfCancellationRequested}),
+		});
 
+		executionContext?.throwIfCancellationRequested();
 		recorder.sealProbes();
-		const manifest = publicManifest(recorder);
+		const manifest = publicManifest(recorder, executionContext?.throwIfCancellationRequested);
 		recorder.retainOnly(manifest.inputs.map((input) => input.absolutePath));
 		metrics.created += 1;
 
@@ -144,7 +160,12 @@ const createWarmState = (config: AdapterConfigType, knownPaths: readonly string[
 	}
 };
 
-const assertWarmInputsUnchanged = (state: WarmStateType, config: AdapterConfigType): readonly TypeScriptSnapshotProjectType[] => {
+const assertWarmInputsUnchanged = (
+	state: WarmStateType,
+	config: AdapterConfigType,
+	executionContext?: AdapterExecutionContextType,
+): readonly TypeScriptSnapshotProjectType[] => {
+	executionContext?.throwIfCancellationRequested();
 	state.recorder.resetMetadata();
 	state.recorder.invalidate([
 		...LOCKFILE_NAMES.map((name) => join(state.rootDir, name)),
@@ -153,13 +174,16 @@ const assertWarmInputsUnchanged = (state: WarmStateType, config: AdapterConfigTy
 		...config.projects.map((project) => project.projectFilePath),
 	]);
 
-	const rootMetadata = rootMetadataOf(state.recorder, state.rootDir);
+	const rootMetadata = rootMetadataOf(state.recorder, state.rootDir, executionContext?.throwIfCancellationRequested);
 
 	if (!sameMap(state.rootMetadata, rootMetadata)) {
 		throw new Error('TypeScript workspace inputs changed');
 	}
 
-	const projects = config.projects.map((context) => parseProject(state.api, state.recorder, state.rootDir, context));
+	const projects = config.projects.map((context) => {
+		executionContext?.throwIfCancellationRequested();
+		return parseProject(state.api, state.recorder, state.rootDir, context);
+	});
 
 	if (!sameMap(state.projectFileHashes, projectFileHashesOf(projects))) {
 		throw new Error('TypeScript project file changed');
@@ -170,6 +194,8 @@ const assertWarmInputsUnchanged = (state: WarmStateType, config: AdapterConfigTy
 	}
 
 	for (const input of state.manifest.inputs) {
+		executionContext?.throwIfCancellationRequested();
+
 		if (input.kind === 'authored') {
 			continue;
 		}
@@ -195,16 +221,23 @@ const previousAuthoredHashOf = (state: WarmStateType, absolutePath: string): str
 	state.manifest.inputs.find((input) => input.absolutePath === absolutePath)?.sha256 ?? null;
 
 const authoredChangesOf = (
-	state: WarmStateType,
-	config: AdapterConfigType,
-	projects: readonly TypeScriptSnapshotProjectType[],
-	knownPaths: readonly string[],
+	input: Readonly<{
+		state: WarmStateType;
+		config: AdapterConfigType;
+		projects: readonly TypeScriptSnapshotProjectType[];
+		knownPaths: readonly string[];
+		executionContext?: AdapterExecutionContextType;
+	}>,
 ): AuthoredChangesType => {
-	const authoredPaths = new Set(authoredCandidates(config, projects, knownPaths));
+	const {state, config, projects, knownPaths, executionContext} = input;
+	executionContext?.throwIfCancellationRequested();
+	const authoredPaths = new Set(authoredCandidates(config, projects, knownPaths, executionContext?.throwIfCancellationRequested));
 	const changed: string[] = [];
 	const created: string[] = [];
 
 	for (const absolutePath of authoredPaths) {
+		executionContext?.throwIfCancellationRequested();
+
 		if (!state.authoredPaths.has(absolutePath)) {
 			created.push(absolutePath);
 		} else if (hashOf(readFileSync(absolutePath)) !== previousAuthoredHashOf(state, absolutePath)) {
@@ -212,7 +245,10 @@ const authoredChangesOf = (
 		}
 	}
 
-	const deleted = [...state.authoredPaths].filter((absolutePath) => !authoredPaths.has(absolutePath));
+	const deleted = [...state.authoredPaths].filter((absolutePath) => {
+		executionContext?.throwIfCancellationRequested();
+		return !authoredPaths.has(absolutePath);
+	});
 	return {authoredPaths, changed, created, deleted};
 };
 
@@ -240,25 +276,32 @@ const applyAuthoredChanges = (
 };
 
 const rebuildWarmManifest = (
-	state: WarmStateType,
-	projects: readonly TypeScriptSnapshotProjectType[],
-	programs: ReadonlyMap<string, ts.Program>,
-	authoredPaths: ReadonlySet<string>,
+	input: Readonly<{
+		state: WarmStateType;
+		projects: readonly TypeScriptSnapshotProjectType[];
+		programs: ReadonlyMap<string, ts.Program>;
+		authoredPaths: ReadonlySet<string>;
+		executionContext?: AdapterExecutionContextType;
+	}>,
 ): void => {
-	for (const input of state.manifest.inputs) {
-		if (input.kind !== 'authored') {
-			state.recorder.addInput(input.absolutePath);
+	const {state, projects, programs, authoredPaths, executionContext} = input;
+	for (const manifestInput of state.manifest.inputs) {
+		executionContext?.throwIfCancellationRequested();
+
+		if (manifestInput.kind !== 'authored') {
+			state.recorder.addInput(manifestInput.absolutePath);
 		}
 	}
 
 	for (const absolutePath of authoredPaths) {
+		executionContext?.throwIfCancellationRequested();
 		state.recorder.addInput(absolutePath);
 	}
 
-	recordProgramInputs(state.recorder, programs.values());
+	recordProgramInputs(state.recorder, programs.values(), executionContext?.throwIfCancellationRequested);
 	state.recorder.sealProbes();
-	state.manifest = publicManifest(state.recorder);
-	state.recorder.retainOnly(state.manifest.inputs.map((input) => input.absolutePath));
+	state.manifest = publicManifest(state.recorder, executionContext?.throwIfCancellationRequested);
+	state.recorder.retainOnly(state.manifest.inputs.map((manifestInput) => manifestInput.absolutePath));
 	state.projects = projects;
 	state.programs = programs;
 	state.projectFileHashes = projectFileHashesOf(projects);
@@ -266,12 +309,31 @@ const rebuildWarmManifest = (
 	state.authoredPaths = authoredPaths;
 };
 
-const refreshWarmState = (state: WarmStateType, config: AdapterConfigType, knownPaths: readonly string[]): void => {
-	const projects = assertWarmInputsUnchanged(state, config);
-	const changes = authoredChangesOf(state, config, projects, knownPaths);
+const refreshWarmState = (
+	state: WarmStateType,
+	config: AdapterConfigType,
+	knownPaths: readonly string[],
+	executionContext?: AdapterExecutionContextType,
+): void => {
+	const projects = assertWarmInputsUnchanged(state, config, executionContext);
+	const changes = authoredChangesOf({
+		state,
+		config,
+		projects,
+		knownPaths,
+		...(executionContext === undefined ? {} : {executionContext}),
+	});
+	executionContext?.throwIfCancellationRequested();
 	const programs = applyAuthoredChanges(state, projects, changes);
 
-	rebuildWarmManifest(state, projects, programs, changes.authoredPaths);
+	executionContext?.throwIfCancellationRequested();
+	rebuildWarmManifest({
+		state,
+		projects,
+		programs,
+		authoredPaths: changes.authoredPaths,
+		...(executionContext === undefined ? {} : {executionContext}),
+	});
 	state.warmIdleMs = warmIdleMsOf(config);
 	debug('snapshot updated', {
 		changed: changes.changed.length,
@@ -340,7 +402,7 @@ const releaseWarmState = (state: WarmStateType): void => {
 	}
 };
 
-const snapshotView = (state: WarmStateType): TypeScriptInputSnapshotType => {
+const snapshotView = (state: WarmStateType, executionContext?: AdapterExecutionContextType): TypeScriptInputSnapshotType => {
 	let released = false;
 
 	return {
@@ -355,7 +417,7 @@ const snapshotView = (state: WarmStateType): TypeScriptInputSnapshotType => {
 		programOf: (projectFilePath) => state.programs.get(projectFilePath),
 		api: state.api,
 		validate: (): void => {
-			validateSnapshot(state.recorder);
+			validateSnapshot(state.recorder, executionContext?.throwIfCancellationRequested);
 		},
 		dispose: (): void => {
 			if (released) {
@@ -368,12 +430,7 @@ const snapshotView = (state: WarmStateType): TypeScriptInputSnapshotType => {
 	};
 };
 
-/**
- * Releases every idle compiler session owned by this process.
- *
- * The build worker calls this on shutdown so the compiler child process and its
- * snapshots do not outlive the worker.
- */
+/** Releases every compiler session owned by this process. */
 export const disposeTypeScriptSessions = (): void => {
 	for (const state of sessions.values()) {
 		disposeWarmState(state);
@@ -383,24 +440,24 @@ export const disposeTypeScriptSessions = (): void => {
 /**
  * Captures every input that can change extracted TypeScript facts.
  *
- * Consecutive calls in one process reuse one compiler snapshot. The snapshot is
- * updated in place with `Snapshot.update` when only authored source files
- * changed, and rebuilt when project files, compiler identity, lockfiles, or
- * declaration inputs changed. Compiler and storage consumers must use the
- * captured bytes returned by the snapshot view.
- *
  * @param config - Resolved project configuration.
  * @param knownPaths - Files indexed by the current generation.
+ * @param executionContext - Optional cooperative cancellation context.
  * @returns The immutable snapshot and its parsed projects.
  * @throws {@link Error} When a project file is missing or invalid.
  */
-export const createTypeScriptInputSnapshot = (config: AdapterConfigType, knownPaths: readonly string[] = []): CreatedTypeScriptInputSnapshotType => {
+export const createTypeScriptInputSnapshot = (
+	config: AdapterConfigType,
+	knownPaths: readonly string[] = [],
+	executionContext?: AdapterExecutionContextType,
+): CreatedTypeScriptInputSnapshotType => {
+	executionContext?.throwIfCancellationRequested();
 	const key = sessionKeyOf(config);
 	let state = sessions.get(key);
 
 	if (state !== undefined) {
 		try {
-			refreshWarmState(state, config, knownPaths);
+			refreshWarmState(state, config, knownPaths, executionContext);
 			metrics.reused += 1;
 		} catch (error) {
 			debug('warm snapshot rebuild', {rootDir: config.rootDir, reason: error instanceof Error ? error.message : String(error)});
@@ -410,19 +467,19 @@ export const createTypeScriptInputSnapshot = (config: AdapterConfigType, knownPa
 	}
 
 	if (state === undefined) {
-		state = createWarmState(config, knownPaths);
+		state = createWarmState(config, knownPaths, executionContext);
 		sessions.set(key, state);
 	}
 
+	executionContext?.throwIfCancellationRequested();
 	clearIdleTimer(state);
 	state.leases += 1;
 
-	return {snapshot: snapshotView(state), projects: state.projects};
+	return {snapshot: snapshotView(state, executionContext), projects: state.projects};
 };
 
 /**
  * Lists the manifest inputs the workspace watcher can observe.
- *
  * @param rootDir - Absolute indexed workspace root.
  * @param manifest - Captured input manifest.
  * @returns Workspace files and configuration inputs in path order.

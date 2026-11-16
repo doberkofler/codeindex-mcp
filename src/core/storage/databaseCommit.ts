@@ -13,7 +13,6 @@ import {
 import {validateGenerationFactCounts, validateGenerationSemantics} from './databaseFactValidation.ts';
 import {BUILD_LEASE_TTL_MS, renewLeaseStrict} from './databaseLease.ts';
 import {readGeneration} from './databaseRead.ts';
-import {asNumber} from './databaseRows.ts';
 import {analyzeDatabase} from './databaseStatistics.ts';
 import {timedTransaction} from './databaseTransaction.ts';
 import {deleteAdapterRows, upsertAdapterRow} from './databaseAdapterRows.ts';
@@ -25,6 +24,7 @@ import {
 	type MultiGenerationCommitInputType,
 } from './databaseCommitTypes.ts';
 import {buildPersistence, checkpointAfterPublication} from './databaseCommitTelemetry.ts';
+import {adapterFromSingle} from './databaseSingleAdapter.ts';
 
 const debug = debugFor('database');
 export type {AdapterCommitCountsType, AdapterCommitType, GenerationCommitInputType, MultiGenerationCommitInputType} from './databaseCommitTypes.ts';
@@ -74,15 +74,6 @@ const ZERO_COUNTS: AdapterCommitCountsType = {
 
 const zeroStages = (): Readonly<{scanMs: number; compilerMs: number; extractionMs: number}> => ({scanMs: 0, compilerMs: 0, extractionMs: 0});
 
-const adapterRowCounts = (row: Readonly<Record<string, unknown>>): AdapterCommitCountsType => ({
-	files: asNumber(row, 'file_count'),
-	symbols: asNumber(row, 'symbol_count'),
-	occurrences: asNumber(row, 'occurrence_count'),
-	dependencyEdges: asNumber(row, 'dependency_edge_count'),
-	dependencyBindings: asNumber(row, 'dependency_binding_count'),
-	diagnostics: asNumber(row, 'diagnostic_count'),
-});
-
 const factCounts = (
 	counts: Readonly<{files: number; symbols: number; occurrences: number; dependencyEdges: number; dependencyBindings: number; diagnostics: number}>,
 ): AdapterCommitCountsType => ({
@@ -95,10 +86,13 @@ const factCounts = (
 });
 
 const writeAdapter = (
-	writer: DatabaseSync,
-	generationId: string,
-	adapter: AdapterCommitType,
-	mode: GenerationFactWriteModeType,
+	input: Readonly<{
+		writer: DatabaseSync;
+		generationId: string;
+		adapter: AdapterCommitType;
+		mode: GenerationFactWriteModeType;
+		checkCancellation?: () => void;
+	}>,
 ): Readonly<{
 	counts: AdapterCommitCountsType;
 	validation: GenerationFactsInputType | null;
@@ -107,15 +101,17 @@ const writeAdapter = (
 	deletedRows: number;
 	writtenRows: number;
 }> => {
+	const {writer, generationId, adapter, mode, checkCancellation} = input;
+	checkCancellation?.();
 	if (adapter.coverage === 'absent') {
 		deleteAdapterRows(writer, generationId, adapter.adapterId);
 		return {counts: ZERO_COUNTS, validation: null, changedPaths: [], selectedRows: 0, deletedRows: 0, writtenRows: 0};
 	}
 
-	writeContents(writer, adapter.files);
+	writeContents(writer, adapter.files, checkCancellation);
 
 	if (adapter.facts !== undefined) {
-		const input: GenerationFactsInputType = {
+		const factsInput: GenerationFactsInputType = {
 			generationId,
 			adapterId: adapter.adapterId,
 			language: adapter.adapterId,
@@ -126,11 +122,11 @@ const writeAdapter = (
 			diagnostics: adapter.diagnostics ?? [],
 			sourceHash: adapter.sourceHash,
 		};
-		const write = writeGenerationFacts(writer, input, mode);
+		const write = writeGenerationFacts(writer, factsInput, mode, checkCancellation);
 
 		return {
 			counts: factCounts(write.counts),
-			validation: input,
+			validation: factsInput,
 			changedPaths: write.changedPaths,
 			selectedRows: write.selectedRows,
 			deletedRows: write.deletedRows,
@@ -138,8 +134,19 @@ const writeAdapter = (
 		};
 	}
 
-	syncGenerationFiles(writer, generationId, adapter.files, adapter.adapterId);
-	syncProjectContexts(writer, {generationId, adapterId: adapter.adapterId, projects: adapter.projects});
+	syncGenerationFiles({
+		writer,
+		generationId,
+		files: adapter.files,
+		adapterId: adapter.adapterId,
+		...(checkCancellation === undefined ? {} : {checkCancellation}),
+	});
+	syncProjectContexts(writer, {
+		generationId,
+		adapterId: adapter.adapterId,
+		projects: adapter.projects,
+		...(checkCancellation === undefined ? {} : {checkCancellation}),
+	});
 
 	return {
 		counts: adapter.counts,
@@ -151,14 +158,16 @@ const writeAdapter = (
 	};
 };
 
-const validateAdapterCounts = (writer: DatabaseSync, validations: readonly GenerationFactsInputType[]): void => {
+const validateAdapterCounts = (writer: DatabaseSync, validations: readonly GenerationFactsInputType[], checkCancellation?: () => void): void => {
 	for (const validation of validations) {
+		checkCancellation?.();
 		validateGenerationFactCounts(writer, validation);
 	}
 };
 
-const validateAdapterSemantics = (writer: DatabaseSync, validations: readonly GenerationFactsInputType[]): void => {
+const validateAdapterSemantics = (writer: DatabaseSync, validations: readonly GenerationFactsInputType[], checkCancellation?: () => void): void => {
 	for (const validation of validations) {
+		checkCancellation?.();
 		validateGenerationSemantics(writer, validation);
 	}
 };
@@ -270,6 +279,104 @@ const publishPhase = (
 	};
 };
 
+type CommitMeasurementsType = {
+	report: Omit<GenerationCommitType, 'persistence'> | null;
+	insertionMs: number;
+	countValidationMs: number;
+	semanticValidationMs: number;
+	publicationMetadataMs: number;
+	contentGcMs: number;
+	plannerStatisticsMs: number;
+	publicationStartedAt: number;
+	changedPaths: string[];
+	selectedRows: number;
+	deletedRows: number;
+	writtenRows: number;
+};
+
+const createCommitMeasurements = (): CommitMeasurementsType => ({
+	report: null,
+	insertionMs: 0,
+	countValidationMs: 0,
+	semanticValidationMs: 0,
+	publicationMetadataMs: 0,
+	contentGcMs: 0,
+	plannerStatisticsMs: 0,
+	publicationStartedAt: 0,
+	changedPaths: [],
+	selectedRows: 0,
+	deletedRows: 0,
+	writtenRows: 0,
+});
+
+const writeCommitTransaction = (
+	connection: CommitConnectionType,
+	input: MultiGenerationCommitInputType,
+	measurements: CommitMeasurementsType,
+	checkCancellation: () => void,
+): void => {
+	const {writer} = connection;
+	writer.exec('pragma defer_foreign_keys = on');
+	assertPublicationLease(connection, input.ownerId);
+	checkCancellation();
+
+	const insertionStartedAt = performance.now();
+
+	for (const adapterId of input.removedAdapterIds ?? []) {
+		checkCancellation();
+		deleteAdapterRows(writer, input.generationId, adapterId);
+	}
+
+	const mode: GenerationFactWriteModeType = input.mode ?? 'revise';
+	const written = input.adapters.map((adapter) => ({
+		adapter,
+		write: writeAdapter({writer, generationId: input.generationId, adapter, mode, checkCancellation}),
+	}));
+
+	for (const entry of written) {
+		checkCancellation();
+		upsertAdapterRow(writer, {
+			generationId: input.generationId,
+			adapter: entry.adapter,
+			counts: entry.write.counts,
+			stages: entry.adapter.stages,
+		});
+		measurements.changedPaths.push(...entry.write.changedPaths);
+		measurements.selectedRows += entry.write.selectedRows;
+		measurements.deletedRows += entry.write.deletedRows;
+		measurements.writtenRows += entry.write.writtenRows;
+	}
+	measurements.insertionMs = Math.round(performance.now() - insertionStartedAt);
+
+	const validations = written.map((entry) => entry.write.validation).filter((validation): validation is GenerationFactsInputType => validation !== null);
+	const countValidationStartedAt = performance.now();
+	validateAdapterCounts(writer, validations, checkCancellation);
+	measurements.countValidationMs = Math.round(performance.now() - countValidationStartedAt);
+	const semanticValidationStartedAt = performance.now();
+	validateAdapterSemantics(writer, validations, checkCancellation);
+	measurements.semanticValidationMs = Math.round(performance.now() - semanticValidationStartedAt);
+	measurements.publicationStartedAt = performance.now();
+	const published = publishPhase(writer, {
+		generationId: input.generationId,
+		sourceHash: input.sourceHash,
+		configHash: input.configHash,
+		inputHash: input.inputHash,
+		startedAt: input.startedAt,
+		stages: {
+			...sumStages(input.adapters),
+			insertionMs: measurements.insertionMs,
+			verificationMs: measurements.countValidationMs + measurements.semanticValidationMs,
+		},
+		aggregateStages: persistedAdapterStages(writer, input.generationId),
+	});
+	checkCancellation();
+
+	measurements.contentGcMs = published.contentGcMs;
+	measurements.publicationMetadataMs = published.publicationMetadataMs;
+	measurements.plannerStatisticsMs = published.plannerStatisticsMs;
+	measurements.report = {...published.report, changedPaths: measurements.changedPaths, writtenRows: measurements.writtenRows};
+};
+
 /**
  * Applies one multi-adapter refresh to the published generation in one transaction.
  *
@@ -286,156 +393,50 @@ const publishPhase = (
 export const commitAdapters = (connection: CommitConnectionType, input: MultiGenerationCommitInputType): GenerationCommitType => {
 	const {writer} = connection;
 	const persistenceStartedAt = performance.now();
-	const outcome: {report: Omit<GenerationCommitType, 'persistence'> | null} = {report: null};
-	let insertionMs = 0;
-	let countValidationMs = 0;
-	let semanticValidationMs = 0;
-	let publicationMetadataMs = 0;
-	let contentGcMs = 0;
-	let plannerStatisticsMs = 0;
-	let publicationStartedAt = 0;
-	const changedPaths: string[] = [];
-	let selectedRows = 0;
-	let deletedRows = 0;
-	let writtenRows = 0;
-
-	const transactionTiming = timedTransaction(writer, () => {
-		writer.exec('pragma defer_foreign_keys = on');
-		assertPublicationLease(connection, input.ownerId);
-
-		const insertionStartedAt = performance.now();
-
-		for (const adapterId of input.removedAdapterIds ?? []) {
-			deleteAdapterRows(writer, input.generationId, adapterId);
+	const measurements = createCommitMeasurements();
+	const checkCancellation = (): void => {
+		if (input.isCancelled?.() === true) {
+			throw new Error('Generation commit cancelled');
 		}
+	};
 
-		const mode: GenerationFactWriteModeType = input.mode ?? 'revise';
-		const written = input.adapters.map((adapter) => ({adapter, write: writeAdapter(writer, input.generationId, adapter, mode)}));
-
-		for (const entry of written) {
-			upsertAdapterRow(writer, {
-				generationId: input.generationId,
-				adapter: entry.adapter,
-				counts: entry.write.counts,
-				stages: entry.adapter.stages,
-			});
-			changedPaths.push(...entry.write.changedPaths);
-			selectedRows += entry.write.selectedRows;
-			deletedRows += entry.write.deletedRows;
-			writtenRows += entry.write.writtenRows;
-		}
-		insertionMs = Math.round(performance.now() - insertionStartedAt);
-
-		const validations = written.map((entry) => entry.write.validation).filter((validation): validation is GenerationFactsInputType => validation !== null);
-		const countValidationStartedAt = performance.now();
-		validateAdapterCounts(writer, validations);
-		countValidationMs = Math.round(performance.now() - countValidationStartedAt);
-		const semanticValidationStartedAt = performance.now();
-		validateAdapterSemantics(writer, validations);
-		semanticValidationMs = Math.round(performance.now() - semanticValidationStartedAt);
-		publicationStartedAt = performance.now();
-		const {
-			report: publishedReport,
-			contentGcMs: measuredContentGcMs,
-			publicationMetadataMs: measuredPublicationMetadataMs,
-			plannerStatisticsMs: measuredPlannerStatisticsMs,
-		} = publishPhase(writer, {
-			generationId: input.generationId,
-			sourceHash: input.sourceHash,
-			configHash: input.configHash,
-			inputHash: input.inputHash,
-			startedAt: input.startedAt,
-			stages: {...sumStages(input.adapters), insertionMs, verificationMs: countValidationMs + semanticValidationMs},
-			aggregateStages: persistedAdapterStages(writer, input.generationId),
-		});
-
-		contentGcMs = measuredContentGcMs;
-		publicationMetadataMs = measuredPublicationMetadataMs;
-		plannerStatisticsMs = measuredPlannerStatisticsMs;
-		outcome.report = {...publishedReport, changedPaths, writtenRows};
-	});
-
-	const {report} = outcome;
+	const transactionTiming = timedTransaction(
+		writer,
+		() => {
+			writeCommitTransaction(connection, input, measurements, checkCancellation);
+		},
+		checkCancellation,
+	);
+	const {report} = measurements;
 
 	if (report === null) {
 		throw new Error('Generation commit did not complete');
 	}
 
-	const publicationCoreMs = Math.round(performance.now() - publicationStartedAt);
+	const publicationCoreMs = Math.round(performance.now() - measurements.publicationStartedAt);
 	const completionMetadataStartedAt = performance.now();
 	writer.prepare('update generation set publication_ms = ? where id = ?').run(publicationCoreMs, input.generationId);
-	publicationMetadataMs += Math.round(performance.now() - completionMetadataStartedAt);
+	measurements.publicationMetadataMs += Math.round(performance.now() - completionMetadataStartedAt);
 	const publicationCheckpoint = checkpointAfterPublication(writer);
-	const publicationMs = Math.round(performance.now() - publicationStartedAt);
+	const publicationMs = Math.round(performance.now() - measurements.publicationStartedAt);
 	const persistence = buildPersistence({
 		queueWaitMs: transactionTiming.queueWaitMs,
-		changedPathCount: changedPaths.length,
-		selectedRowCount: selectedRows,
-		deletedRowCount: deletedRows,
-		writtenRowCount: writtenRows,
-		insertionMs,
-		countValidationMs,
-		semanticValidationMs,
-		publicationMetadataMs,
-		contentGcMs,
-		plannerStatisticsMs,
+		changedPathCount: measurements.changedPaths.length,
+		selectedRowCount: measurements.selectedRows,
+		deletedRowCount: measurements.deletedRows,
+		writtenRowCount: measurements.writtenRows,
+		insertionMs: measurements.insertionMs,
+		countValidationMs: measurements.countValidationMs,
+		semanticValidationMs: measurements.semanticValidationMs,
+		publicationMetadataMs: measurements.publicationMetadataMs,
+		contentGcMs: measurements.contentGcMs,
+		plannerStatisticsMs: measurements.plannerStatisticsMs,
 		commitMs: transactionTiming.commitMs,
 		publicationCheckpoint,
 		totalWallMs: Math.round(performance.now() - persistenceStartedAt),
 	});
 	debug('generation committed', {generationId: input.generationId, revision: report.revision, changedPaths: report.changedPaths.length});
 	return {...report, stages: {...report.stages, publicationMs}, persistence};
-};
-
-const adapterFromSingle = (writer: DatabaseSync, input: GenerationCommitInputType): AdapterCommitType => {
-	const generation = readGeneration(writer, input.generationId);
-
-	if (generation === null) {
-		throw new Error('Generation disappeared before commit');
-	}
-
-	const factsInput = input.reuseFacts ? null : (input as GenerationFactsInputType & Readonly<{reuseFacts: false}>);
-	const {provenance} = input;
-	const {adapterId} = provenance;
-	const previousRow = writer.prepare('select * from generation_adapter where generation_id = ? and adapter_id = ?').get(input.generationId, adapterId);
-	const counts =
-		previousRow === undefined
-			? {
-					files: generation.fileCount,
-					symbols: generation.symbolCount,
-					occurrences: generation.occurrenceCount,
-					dependencyEdges: generation.dependencyEdgeCount,
-					dependencyBindings: generation.dependencyBindingCount,
-					diagnostics: generation.diagnosticCount,
-				}
-			: adapterRowCounts(previousRow);
-
-	return {
-		adapterId,
-		protocolVersion: provenance.protocolVersion,
-		adapterVersion: provenance.adapterVersion,
-		packageName: provenance.packageName,
-		packageVersion: provenance.packageVersion,
-		compilerVersion: provenance.compilerVersion,
-		declaredCompilerVersion: input.declaredCompilerVersion ?? provenance.declaredCompilerVersion,
-		compilerDrift: input.compilerDrift ?? provenance.compilerDrift,
-		coverage: 'present',
-		absenceReason: null,
-		sourceHash: input.sourceHash,
-		configHash: input.configHash,
-		inputHash: input.inputHash ?? input.configHash,
-		counts,
-		stages: input.stages,
-		files: input.files,
-		projects: input.projects,
-		...(factsInput === null
-			? {}
-			: {
-					facts: factsInput.facts,
-					dependencies: factsInput.dependencies,
-					diagnostics: factsInput.diagnostics,
-				}),
-	};
 };
 
 /**

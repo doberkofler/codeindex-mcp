@@ -24,6 +24,10 @@ export const buildWorkerOf = (
 	options: CodeIndexOptionsType,
 	adapterSet: AdapterSetType,
 ): Readonly<{entry: string | null; worker: PersistentBuildWorker | null}> => {
+	if (options.buildWorker !== undefined) {
+		return {entry: options.workerEntry ?? null, worker: options.buildWorker};
+	}
+
 	const workerPath = fileURLToPath(new URL('buildWorker.js', import.meta.url));
 	const entry =
 		options.extractor === undefined && adapterSet.descriptors.length > 0 ? (options.workerEntry ?? (existsSync(workerPath) ? workerPath : null)) : null;

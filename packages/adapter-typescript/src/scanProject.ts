@@ -5,6 +5,7 @@ import {version as compilerVersion} from 'typescript';
 import type * as ts from './compiler.ts';
 import {
 	type AdapterConfigType,
+	type AdapterExecutionContextType,
 	toRepositoryPath,
 	createCapturedSourceFileRecord,
 	computeSourceHash,
@@ -48,13 +49,16 @@ type ScanSnapshotInputType = Readonly<{
 	projects: readonly TypeScriptSnapshotProjectType[];
 	knownPaths: readonly string[];
 	startedAt: number;
+	context?: AdapterExecutionContextType;
 }>;
 
-const scanSnapshot = ({config, snapshot, projects, knownPaths, startedAt}: ScanSnapshotInputType): ScanResultType => {
+const scanSnapshot = ({config, snapshot, projects, knownPaths, startedAt, context}: ScanSnapshotInputType): ScanResultType => {
 	let excludedFileCount = 0;
 	const candidates = new Set<string>();
 
 	for (const project of projects) {
+		context?.throwIfCancellationRequested();
+
 		for (const fileName of project.parsed.fileNames) {
 			if (isAuthoredSourceFile(fileName, config.rootDir) && existsSync(fileName)) {
 				candidates.add(fileName);
@@ -65,6 +69,8 @@ const scanSnapshot = ({config, snapshot, projects, knownPaths, startedAt}: ScanS
 	}
 
 	for (const knownPath of knownPaths) {
+		context?.throwIfCancellationRequested();
+
 		const absolutePath = path.resolve(config.rootDir, knownPath);
 
 		if (isAuthoredSourceFile(absolutePath, config.rootDir) && existsSync(absolutePath)) {
@@ -74,6 +80,7 @@ const scanSnapshot = ({config, snapshot, projects, knownPaths, startedAt}: ScanS
 
 	const files = [...candidates]
 		.map((fileName) => {
+			context?.throwIfCancellationRequested();
 			const bytes = snapshot.readBytes(fileName);
 			const text = snapshot.readFile(fileName);
 
@@ -162,17 +169,20 @@ const scanSnapshot = ({config, snapshot, projects, knownPaths, startedAt}: ScanS
  * @param config - Resolved project configuration.
  * @param knownPaths - Files indexed by the current generation. They keep
  * imported files outside the project include in the freshness set.
+ * @param context - Optional cooperative cancellation context.
  * @returns The scanned source manifest, per-project digests, and fingerprints.
  * @throws {@link Error} When a project file cannot be read or contains fatal
  * configuration diagnostics.
  */
-export const scanProject = (config: AdapterConfigType, knownPaths: readonly string[] = []): ScanResultType => {
+export const scanProject = (config: AdapterConfigType, knownPaths: readonly string[] = [], context?: AdapterExecutionContextType): ScanResultType => {
 	const startedAt = performance.now();
+	context?.throwIfCancellationRequested();
 	debug('scan start', {rootDir: config.rootDir, projects: config.projects.map((project) => project.projectFilePath), knownPaths: knownPaths.length});
-	const {snapshot, projects} = createTypeScriptInputSnapshot(config, knownPaths);
+	const {snapshot, projects} = createTypeScriptInputSnapshot(config, knownPaths, context);
 
 	try {
-		return scanSnapshot({config, snapshot, projects, knownPaths, startedAt});
+		context?.throwIfCancellationRequested();
+		return scanSnapshot({config, snapshot, projects, knownPaths, startedAt, ...(context === undefined ? {} : {context})});
 	} finally {
 		snapshot.dispose();
 	}

@@ -7,10 +7,14 @@ import {transaction} from './databaseTransaction.ts';
 
 const sha256Of = (value: Uint8Array): string => createHash('sha256').update(value).digest('hex');
 
-const lineStartsOf = (content: string): readonly number[] => {
+const lineStartsOf = (content: string, checkCancellation?: () => void): readonly number[] => {
 	const starts = [0];
 
 	for (let index = 0; index < content.length; index += 1) {
+		if (index % 65_536 === 0) {
+			checkCancellation?.();
+		}
+
 		if (content[index] === '\n') {
 			starts.push(index + 1);
 		}
@@ -24,10 +28,11 @@ const lineStartsOf = (content: string): readonly number[] => {
  *
  * @param writer - Writer connection inside an open transaction.
  * @param files - Authored files to read and store.
+ * @param checkCancellation - Optional cooperative cancellation checkpoint.
  * @returns The number of content rows inserted.
  * @throws {Error} When a file changed between scan and insertion.
  */
-export const writeContents = (writer: DatabaseSync, files: readonly SourceFileType[]): number => {
+export const writeContents = (writer: DatabaseSync, files: readonly SourceFileType[], checkCancellation?: () => void): number => {
 	let inserted = 0;
 	const statement = writer.prepare(
 		`insert or ignore into content (sha256, byte_count, line_count, encoding, line_starts, bytes)
@@ -35,6 +40,7 @@ export const writeContents = (writer: DatabaseSync, files: readonly SourceFileTy
 	);
 
 	for (const file of files) {
+		checkCancellation?.();
 		// Adapters that captured immutable bytes hand them over with the record.
 		// A live reread would let the persisted blob describe a later version.
 		const bytes = file.content ?? readFileSync(file.absolutePath);
@@ -45,7 +51,7 @@ export const writeContents = (writer: DatabaseSync, files: readonly SourceFileTy
 		}
 
 		const content = bytes.toString('utf8');
-		const result = statement.run(digest, bytes.byteLength, file.lineCount, JSON.stringify(lineStartsOf(content)), bytes);
+		const result = statement.run(digest, bytes.byteLength, file.lineCount, JSON.stringify(lineStartsOf(content, checkCancellation)), bytes);
 		inserted += Number(result.changes);
 	}
 

@@ -12,12 +12,19 @@ const FILE_INSERT_SQL = `insert into file (generation_id, adapter_id, path, sha2
  * without invalidating the persisted facts of the same path. Only rows owned by
  * the adapter are removed, so one adapter's manifest cannot delete another's.
  *
- * @param writer - Writer connection inside an open transaction.
- * @param generationId - Generation whose file rows are synchronized.
- * @param files - Current source manifest for the adapter.
- * @param adapterId - Adapter that owns the manifest.
+ * @param input - Writer, generation, adapter, files, and cancellation checkpoint.
  */
-export const syncGenerationFiles = (writer: DatabaseSync, generationId: string, files: readonly SourceFileType[], adapterId: string): void => {
+export const syncGenerationFiles = (
+	input: Readonly<{
+		writer: DatabaseSync;
+		generationId: string;
+		files: readonly SourceFileType[];
+		adapterId: string;
+		checkCancellation?: () => void;
+	}>,
+): void => {
+	const {writer, generationId, files, adapterId, checkCancellation} = input;
+	checkCancellation?.();
 	const existing = new Set(
 		writer
 			.prepare('select path from file where generation_id = ? and adapter_id = ?')
@@ -32,6 +39,7 @@ export const syncGenerationFiles = (writer: DatabaseSync, generationId: string, 
 	const current = new Set<string>();
 
 	for (const file of files) {
+		checkCancellation?.();
 		current.add(file.path);
 
 		try {
@@ -46,6 +54,7 @@ export const syncGenerationFiles = (writer: DatabaseSync, generationId: string, 
 	}
 
 	for (const path of existing) {
+		checkCancellation?.();
 		if (!current.has(path)) {
 			remove.run(generationId, adapterId, path);
 		}
@@ -65,8 +74,10 @@ export const syncProjectContexts = (
 		generationId: string;
 		adapterId: string;
 		projects: readonly ScanProjectResultType[];
+		checkCancellation?: () => void;
 	}>,
 ): number => {
+	input.checkCancellation?.();
 	const statement = writer.prepare(
 		`insert into project_context (generation_id, adapter_id, name, project_file, config_hash) values (?, ?, ?, ?, ?)
 		 on conflict(generation_id, adapter_id, name) do update set project_file = excluded.project_file, config_hash = excluded.config_hash`,
@@ -82,12 +93,14 @@ export const syncProjectContexts = (
 	let written = 0;
 
 	for (const project of input.projects) {
+		input.checkCancellation?.();
 		current.add(project.name);
 		statement.run(input.generationId, input.adapterId, project.name, project.projectFile, project.configHash);
 		written += 1;
 	}
 
 	for (const name of existing) {
+		input.checkCancellation?.();
 		if (!current.has(name)) {
 			remove.run(input.generationId, input.adapterId, name);
 		}

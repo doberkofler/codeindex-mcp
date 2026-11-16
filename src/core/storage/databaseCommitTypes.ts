@@ -67,6 +67,8 @@ export type MultiGenerationCommitInputType = Readonly<{
 	readonly ownerId?: string | undefined;
 	/** Building-generation insert or published-generation revision. */
 	readonly mode?: 'insert' | 'revise' | undefined;
+	/** Cooperative cancellation checked during insertion and before COMMIT. */
+	readonly isCancelled?: (() => boolean) | undefined;
 }>;
 
 /** Refresh framing shared by a fact-writing commit and a fact-reuse commit. */

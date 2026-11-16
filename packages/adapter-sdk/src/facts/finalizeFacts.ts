@@ -19,10 +19,12 @@ import {
 	type FinalizedSurfaceOriginType,
 } from './types.ts';
 
-const groupDefinitions = (occurrences: readonly ExtractedOccurrenceType[]): ReadonlyMap<string, readonly ExtractedOccurrenceType[]> => {
+const groupDefinitions = (occurrences: readonly ExtractedOccurrenceType[], checkpoint: () => void): ReadonlyMap<string, readonly ExtractedOccurrenceType[]> => {
 	const groups = new Map<string, ExtractedOccurrenceType[]>();
 
 	for (const occurrence of occurrences) {
+		checkpoint();
+
 		if (occurrence.role !== 'definition') {
 			continue;
 		}
@@ -122,10 +124,12 @@ const sortAdapterStats = (stats: ExtractedFactSetType['adapterStats']): Extracte
 			left.value - right.value,
 	);
 
-const collectSymbols = (symbols: readonly IndexedSymbolType[], issues: FactIssueType[]): ReadonlyMap<string, IndexedSymbolType> => {
+const collectSymbols = (symbols: readonly IndexedSymbolType[], issues: FactIssueType[], checkpoint: () => void): ReadonlyMap<string, IndexedSymbolType> => {
 	const map = new Map<string, IndexedSymbolType>();
 
 	for (const symbol of symbols) {
+		checkpoint();
+
 		if (map.has(symbol.id)) {
 			addIssue(issues, 'duplicate_symbol', 'generation emitted the same symbol identifier twice', {symbolId: symbol.id});
 			continue;
@@ -194,14 +198,28 @@ const addInvariantIssues = (issues: FactIssueType[], extractorId: string, facts:
  */
 export const finalizeFacts = (facts: ExtractedFactSetType, policy: FinalizationPolicyType): FinalizedFactSetType => {
 	assertPolicy(policy);
+	let checkpointCount = 0;
+	const checkpoint = (): void => {
+		checkpointCount += 1;
+
+		if (checkpointCount === 1 || checkpointCount % 256 === 0) {
+			policy.executionContext?.throwIfCancellationRequested();
+		}
+	};
 	const issues: FactIssueType[] = [];
-	const symbols = collectSymbols(facts.symbols, issues);
+	const symbols = collectSymbols(facts.symbols, issues, checkpoint);
+	checkpoint();
 	const entries = collectBindings(facts, symbols, issues);
+	checkpoint();
 	const entriesBySymbol = groupBindingsBySymbol(entries);
-	const definitionsBySymbol = groupDefinitions(facts.occurrences);
+	const definitionsBySymbol = groupDefinitions(facts.occurrences, checkpoint);
+	checkpoint();
 	const {contexts, exposuresByBinding} = collectContexts(facts, entries, issues);
+	checkpoint();
 	const {sites, sitesByBinding} = collectSites(facts, entries, issues);
+	checkpoint();
 	const {origins, maxSurfaceBindingsPerRoot} = collectOrigins(facts, entries, policy, issues);
+	checkpoint();
 	const finalizedSymbols = finalizeSymbols({
 		symbols: [...symbols.values()],
 		definitionsBySymbol,
@@ -212,6 +230,7 @@ export const finalizeFacts = (facts: ExtractedFactSetType, policy: FinalizationP
 	});
 
 	assertBindingCoverage(entries, exposuresByBinding, sitesByBinding, issues);
+	checkpoint();
 
 	const finalBindings = bindingRowsOf(entries, exposuresByBinding, sitesByBinding);
 	const finalContexts = sortContexts(contexts);
@@ -242,6 +261,7 @@ export const finalizeFacts = (facts: ExtractedFactSetType, policy: FinalizationP
 	if (policy.extractorId !== undefined) {
 		addInvariantIssues(issues, policy.extractorId, facts, candidate);
 	}
+	policy.executionContext?.throwIfCancellationRequested();
 
 	const ceilingIssues = issues.filter((issue) => issue.code === 'ceiling_exceeded');
 

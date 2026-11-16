@@ -4,17 +4,15 @@ import {type ConfigType} from '../config/config.ts';
 import {type AdapterSetType} from '../../adapters/loader.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
-import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
-import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
-import {buildFailureOf, buildProjectContextOfScan} from './buildFailure.ts';
-import {buildGeneration} from './buildGeneration.ts';
+import {type IndexDatabase} from '../storage/database.ts';
+import {buildFailureOf} from './buildFailure.ts';
 import {recordFailedRefresh, recordRefreshOutcome} from './refreshTelemetry.ts';
 import {adapterSetOf, type CodeIndexOptionsType} from './codeIndexOptions.ts';
 import {buildQueryContext} from './codeIndexQueryContext.ts';
 import {type PersistentBuildWorker} from './persistentBuildWorker.ts';
 import {buildWorkerOf} from './buildWorkerSetup.ts';
 import {adapterTargets, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
-import {adapterIgnoredSegments, adapterTargetsForScope, adapterWatchInputs, planAdapterScans, watchRoutesOf} from './adapterRefresh.ts';
+import {adapterIgnoredSegments, adapterWatchInputs, watchRoutesOf} from './adapterRefresh.ts';
 import {
 	findDependencies as queryDependencies,
 	findReferences as queryReferences,
@@ -22,7 +20,6 @@ import {
 	type QueryContextType,
 } from '../query/queryService.ts';
 import {CodeIndexError, IndexNotReadyError} from '../errors/errors.ts';
-import {acquireOrObserveBuildLease, externalBuildReport} from './externalBuild.ts';
 import {readIndexStatus} from './codeIndexStatus.ts';
 import {
 	type BuildReportType,
@@ -50,7 +47,8 @@ import {
 	type SymbolAtInputType,
 	type SymbolAtResultType,
 } from '../model.ts';
-import {startProcessSample} from '../resources/processSample.ts';
+import {startEventLoopSample} from '../resources/eventLoopSample.ts';
+import {recordCompilerDrift} from './compilerDriftTelemetry.ts';
 import {queryOutline} from '../query/outlineQuery.ts';
 import {verifyPublishedIndex} from './verifyIndex.ts';
 import {queryReadSymbol} from '../query/readSymbolQuery.ts';
@@ -58,9 +56,10 @@ import {selectReadSymbol} from '../query/readSymbolSelection.ts';
 import {querySymbolAt} from '../query/symbolAtQuery.ts';
 import {RefreshCoordinator} from '../freshness/refreshCoordinator.ts';
 import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
+import {runInProcessRefresh} from './inProcessRefresh.ts';
+import {buildGeneration} from './buildGeneration.ts';
 
 const debug = debugFor('index');
-const LEASE_RENEW_MS = 3000;
 
 export type {CodeIndexOptionsType} from './codeIndexOptions.ts';
 
@@ -177,61 +176,70 @@ export class CodeIndex {
 		adapterIds: readonly string[] | null,
 		signal: AbortSignal,
 	): Promise<BuildReportType> {
+		if (this.#buildWorker !== null) {
+			const report = await this.#performWorkerRefresh(reason, force, adapterIds, signal);
+			return report;
+		}
+
+		const report = await this.#performInProcessRefresh(reason, force, adapterIds, signal);
+		return report;
+	}
+	async #performWorkerRefresh(
+		reason: 'startup' | 'change' | 'reconcile' | 'manual',
+		force: boolean,
+		adapterIds: readonly string[] | null,
+		signal: AbortSignal,
+	): Promise<BuildReportType> {
 		debug('refresh start', {reason, force, adapters: adapterIds});
 		const startedAt = performance.now();
 		const startedAtEpoch = Date.now();
-		const targets = adapterTargetsForScope(this.#targets, adapterIds);
-		const leaseOutcome = await acquireOrObserveBuildLease({
-			database: this.#database,
-			previous: this.#published,
-			startedAt,
-			signal,
-			tryAcquire: () => this.#database.tryAcquireBuildLease(this.#ownerId, process.pid, BUILD_LEASE_TTL_MS),
-			record: (event, fields) => {
-				this.#analytics?.record(event, fields);
-			},
-		});
-		const externalReport = externalBuildReport(leaseOutcome, this.#database, startedAtEpoch);
-		if (externalReport !== null) {
-			this.#published = this.#database.getPublishedGeneration();
-			return externalReport;
+		const responsiveness = startEventLoopSample();
+		const buildWorker = this.#buildWorker;
+
+		if (buildWorker === null) {
+			throw new Error('Build worker is unavailable');
 		}
-		const stopHeartbeat = startBuildLeaseHeartbeat({
-			renew: () => this.#database.renewBuildLease(this.#ownerId, BUILD_LEASE_TTL_MS),
-			intervalMs: LEASE_RENEW_MS,
-			onFailure: (failure, error): void => {
-				debug('build lease renewal skipped', {failure, message: error instanceof Error ? error.message : null});
-			},
-		});
-		const sample = startProcessSample();
-		const resources = (): Readonly<Record<string, number>> => ({...sample.stop(), databaseBytes: this.#database.databaseSizeBytes()});
-		let plans: readonly AdapterScanPlanType[] = [];
+
 		try {
-			const published = this.#database.getPublishedGeneration();
-			this.#published = published;
-			plans = await planAdapterScans({
+			const result = await buildWorker.run({
 				config: this.#config,
-				targets,
-				database: this.#database,
-				published,
-				logger: this.#logger,
-				analytics: this.#analytics,
-				observed: this.#compilerDriftObserved,
+				adapterIds,
+				force,
+				ownerId: this.#ownerId,
+				startedAtEpoch,
+				signal,
 			});
-			this.#watchInputs = adapterWatchInputs(plans, this.#watchInputs);
-			const report = await this.#rebuild(plans, force, startedAtEpoch, signal);
+
+			for (const update of result.watchInputs) {
+				this.#watchInputs = new Map(this.#watchInputs).set(update.adapterId, update.paths);
+			}
+
+			for (const drift of result.compilerDrifts) {
+				recordCompilerDrift({
+					logger: this.#logger,
+					analytics: this.#analytics,
+					observed: this.#compilerDriftObserved,
+					scan: {...drift, compilerDrift: true},
+				});
+			}
+
 			this.#watcher.update(watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs));
 			this.#published = this.#database.getPublishedGeneration();
-			const telemetry = {
+			const resources = {...result.resources, ...responsiveness.stop()};
+			recordRefreshOutcome({
 				logger: this.#logger,
 				analytics: this.#analytics,
 				reason,
-				durationMs: report.durationMs,
-				resources: resources(),
-			};
-			debug('refresh complete', {generationId: report.generationId, outcome: report.outcome, durationMs: report.durationMs});
-			recordRefreshOutcome({...telemetry, report});
-			return report;
+				durationMs: result.report.durationMs,
+				resources,
+				report: result.report,
+			});
+			debug('refresh complete', {
+				generationId: result.report.generationId,
+				outcome: result.report.outcome,
+				durationMs: result.report.durationMs,
+			});
+			return result.report;
 		} catch (error) {
 			recordFailedRefresh({
 				logger: this.#logger,
@@ -239,27 +247,54 @@ export class CodeIndex {
 				reason,
 				durationMs: Math.round(performance.now() - startedAt),
 				message: error instanceof Error ? error.message : String(error),
-				failure: buildFailureOf(
-					error,
-					'scan',
-					buildProjectContextOfScan(plans.find((plan) => plan.scan !== null)?.scan ?? null),
-					plans.length === 1 ? (plans[0]?.adapterId ?? null) : null,
-				),
-				resources: resources(),
+				failure: buildFailureOf(error, 'worker'),
+				resources: responsiveness.stop(),
 			});
 			throw error;
 		} finally {
-			// `resources()` stops the sampler only when analytics records a build.
-			// Stopping it here keeps a disabled-analytics process from polling RSS
-			// every 25 ms for the rest of its life.
-			sample.stop();
-			stopHeartbeat();
-			try {
-				this.#database.releaseBuildLease(this.#ownerId);
-			} catch (error) {
-				debug('build lease release failed', {message: error instanceof Error ? error.message : String(error)});
-			}
+			responsiveness.stop();
 		}
+	}
+	async #performInProcessRefresh(
+		reason: 'startup' | 'change' | 'reconcile' | 'manual',
+		force: boolean,
+		adapterIds: readonly string[] | null,
+		signal: AbortSignal,
+	): Promise<BuildReportType> {
+		debug('in-process refresh start', {reason, force, adapters: adapterIds});
+		const result = await runInProcessRefresh({
+			reason,
+			force,
+			adapterIds,
+			signal,
+			config: this.#config,
+			database: this.#database,
+			logger: this.#logger,
+			analytics: this.#analytics,
+			ownerId: this.#ownerId,
+			published: this.#published,
+			targets: this.#targets,
+			compilerDriftObserved: this.#compilerDriftObserved,
+			build: async (plans: readonly AdapterScanPlanType[], startedAtEpoch: number) => {
+				const report = await buildGeneration({
+					config: this.#config,
+					database: this.#database,
+					logger: this.#logger,
+					adapters: this.#adapterSet,
+					scans: plans,
+					force,
+					ownerId: this.#ownerId,
+					startedAtEpoch,
+					...(this.#override === undefined ? {} : {extractor: this.#override}),
+					isCancelled: () => signal.aborted,
+				});
+				return report;
+			},
+		});
+		this.#watchInputs = adapterWatchInputs(result.plans, this.#watchInputs);
+		this.#watcher.update(watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs));
+		this.#published = this.#database.getPublishedGeneration();
+		return result.report;
 	}
 	public getStatus(): IndexStatusType {
 		const {status, published} = readIndexStatus({
@@ -427,7 +462,6 @@ export class CodeIndex {
 		for (const adapter of this.#adapterSet.adapters) {
 			adapter.dispose?.();
 		}
-		this.#database.releaseBuildLease(this.#ownerId);
 		this.#analytics?.close();
 		this.#database.close();
 	}
@@ -443,35 +477,6 @@ export class CodeIndex {
 			targets: this.#targets,
 			...(this.#analytics === null ? {} : {exactNameTelemetry: this.#recordExactName}),
 		});
-	}
-	async #rebuild(plans: readonly AdapterScanPlanType[], force: boolean, startedAtEpoch: number, signal?: AbortSignal): Promise<BuildReportType> {
-		const workerPath = this.#workerEntry;
-		const buildWorker = this.#buildWorker;
-		debug('rebuild requested', {force, worker: workerPath, adapters: plans.length});
-		if (workerPath === null || buildWorker === null) {
-			debug('building in process');
-			return buildGeneration({
-				config: this.#config,
-				database: this.#database,
-				logger: this.#logger,
-				adapters: this.#adapterSet,
-				scans: plans,
-				force,
-				ownerId: this.#ownerId,
-				startedAtEpoch,
-				...(this.#override === undefined ? {} : {extractor: this.#override}),
-				...(signal === undefined ? {} : {isCancelled: () => signal.aborted}),
-			});
-		}
-		const report = await buildWorker.run({
-			config: this.#config,
-			scans: plans,
-			force,
-			ownerId: this.#ownerId,
-			startedAtEpoch,
-			...(signal === undefined ? {} : {signal}),
-		});
-		return report;
 	}
 	#generation(): GenerationRowType {
 		const published = this.#database.getPublishedGeneration();

@@ -35,6 +35,7 @@ type BuildLeaseInputType = Readonly<{
 	previous: GenerationRowType | null;
 	startedAt: number;
 	signal?: AbortSignal;
+	isCancelled?: () => boolean;
 	tryAcquire: () => boolean;
 	record?: (event: string, fields?: Readonly<Record<string, unknown>>) => void;
 }>;
@@ -42,7 +43,7 @@ type BuildLeaseInputType = Readonly<{
 const publicationChanged = (previous: GenerationRowType | null, published: GenerationRowType): boolean =>
 	previous === null || published.id !== previous.id || published.revision !== previous.revision;
 
-const cancellationRequested = (signal: AbortSignal | undefined): boolean => signal?.aborted ?? false;
+const cancellationRequested = (signal: AbortSignal | undefined, isCancelled?: () => boolean): boolean => signal?.aborted === true || isCancelled?.() === true;
 
 /**
  * Converts external observation outcomes into reports; acquisition continues locally.
@@ -87,12 +88,13 @@ export const observeExternalBuild = async (
 		previous: GenerationRowType | null;
 		startedAt: number;
 		signal?: AbortSignal;
+		isCancelled?: () => boolean;
 		record?: (event: string, fields?: Readonly<Record<string, unknown>>) => void;
 	}>,
 ): Promise<ExternalBuildObservationType> => {
 	input.record?.('build_observation_started');
 	const poll = async (): Promise<ExternalBuildObservationType> => {
-		if (cancellationRequested(input.signal)) {
+		if (cancellationRequested(input.signal, input.isCancelled)) {
 			input.record?.('build_observation_cancelled', {durationMs: Math.round(performance.now() - input.startedAt)});
 			return {state: 'cancelled'};
 		}
@@ -117,7 +119,7 @@ export const observeExternalBuild = async (
 		try {
 			await (input.signal === undefined ? delay(POLL_INTERVAL_MS) : delay(POLL_INTERVAL_MS, undefined, {signal: input.signal}));
 		} catch (error) {
-			if (cancellationRequested(input.signal)) {
+			if (cancellationRequested(input.signal, input.isCancelled)) {
 				input.record?.('build_observation_cancelled', {durationMs: Math.round(performance.now() - input.startedAt)});
 				return {state: 'cancelled'};
 			}
@@ -133,7 +135,7 @@ export const observeExternalBuild = async (
 };
 
 const retryAfterContention = async (input: BuildLeaseInputType): Promise<BuildLeaseOutcomeType> => {
-	if (cancellationRequested(input.signal)) {
+	if (cancellationRequested(input.signal, input.isCancelled)) {
 		return {state: 'cancelled'};
 	}
 
@@ -147,6 +149,7 @@ const retryAfterContention = async (input: BuildLeaseInputType): Promise<BuildLe
 		previous: input.previous,
 		startedAt: input.startedAt,
 		...(input.signal === undefined ? {} : {signal: input.signal}),
+		...(input.isCancelled === undefined ? {} : {isCancelled: input.isCancelled}),
 		...(input.record === undefined ? {} : {record: input.record}),
 	});
 	return observation.state === 'lease-expired' ? retryAfterContention(input) : observation;
@@ -162,7 +165,7 @@ const retryAfterContention = async (input: BuildLeaseInputType): Promise<BuildLe
  * @returns Whether this process acquired the lease, observed a publication, or was cancelled.
  */
 export const acquireOrObserveBuildLease = async (input: BuildLeaseInputType): Promise<BuildLeaseOutcomeType> => {
-	if (cancellationRequested(input.signal)) {
+	if (cancellationRequested(input.signal, input.isCancelled)) {
 		return {state: 'cancelled'};
 	}
 
@@ -175,6 +178,7 @@ export const acquireOrObserveBuildLease = async (input: BuildLeaseInputType): Pr
 		previous: input.previous,
 		startedAt: input.startedAt,
 		...(input.signal === undefined ? {} : {signal: input.signal}),
+		...(input.isCancelled === undefined ? {} : {isCancelled: input.isCancelled}),
 		...(input.record === undefined ? {} : {record: input.record}),
 	});
 	return observation.state === 'lease-expired' ? retryAfterContention(input) : observation;

@@ -1,7 +1,8 @@
 import {randomUUID} from 'node:crypto';
 import {type ExtractorType} from '../../adapters/types.ts';
+import {type AdapterExecutionContextType} from '@codeindex/adapter-sdk';
 import {type AdapterSetType} from '../../adapters/loader.ts';
-import {adapterConfigFor, type ConfigType} from '../config/config.ts';
+import {type ConfigType} from '../config/config.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 import {
@@ -15,21 +16,20 @@ import {
 import {type AdapterCommitCountsType, type IndexDatabase} from '../storage/database.ts';
 import {adapterActivityOf, createReport, durationOf} from './buildReport.ts';
 import {type createExtractorCache} from './buildArtifacts.ts';
-import {runAdapterStageAsync, runBuildStage, runBuildStageAsync} from './buildFailure.ts';
+import {runAdapterStageAsync, runBuildStage} from './buildFailure.ts';
 import {hashEntriesOf, plansMatchPrevious, preservedHashEntries} from './buildHashes.ts';
 import {failedBuild, reusedReport, supersededReport} from './buildReports.ts';
 import {adapterCommitOf} from './adapterCommit.ts';
 import {
 	type AdapterTargetType,
 	AdapterContractError,
-	adapterTargets,
 	assertAdapterIdentity,
 	assertSharedExtractedFiles,
-	assertSharedPaths,
 	combinedAdapterHashesOf,
-	probeAdapter,
 	type AdapterScanPlanType,
 } from './adapterBuild.ts';
+import {BuildCancellationError} from './executionCancellation.ts';
+import {prepareBuild, type PreparedBuildType} from './buildPreparation.ts';
 
 const debug = debugFor('build');
 
@@ -51,6 +51,8 @@ type BuildInputType = Readonly<{
 	extractor?: ExtractorType;
 	/** Loaded adapters selected by the composition root. */
 	adapters: AdapterSetType;
+	/** Adapter scope selected by the scheduler; null scans every adapter. */
+	adapterIds?: readonly string[] | null;
 	/**
 	 * Cooperative cancellation check.
 	 *
@@ -59,6 +61,10 @@ type BuildInputType = Readonly<{
 	 * before publication, where discarding the candidate is still safe.
 	 */
 	isCancelled?: (() => boolean) | undefined;
+	/** Shared-memory-backed context passed to official adapter work. */
+	executionContext?: AdapterExecutionContextType | undefined;
+	/** Receives serializable scan plans for worker watch-plan updates. */
+	onScans?: ((scans: readonly AdapterScanPlanType[]) => void) | undefined;
 }>;
 
 type CommitContextType = Readonly<{
@@ -76,13 +82,7 @@ type CommitContextType = Readonly<{
 	extractorOverride: ExtractorType | undefined;
 	ownerId: string | undefined;
 	isCancelled: (() => boolean) | undefined;
-}>;
-
-type PreparedBuildType = Readonly<{
-	published: GenerationRowType | null;
-	scans: readonly AdapterScanPlanType[];
-	targets: readonly AdapterTargetType[];
-	previousAdapters: readonly GenerationAdapterType[];
+	executionContext: AdapterExecutionContextType | undefined;
 }>;
 
 const logBuild = (
@@ -123,28 +123,35 @@ const persistCachesSafely = (action: () => void): boolean => {
 };
 
 const completePersistence = (
-	database: IndexDatabase,
-	caches: readonly ReturnType<typeof createExtractorCache>[],
-	startedAt: number,
-	base: BuildPersistenceType,
+	input: Readonly<{
+		database: IndexDatabase;
+		caches: readonly ReturnType<typeof createExtractorCache>[];
+		startedAt: number;
+		base: BuildPersistenceType;
+		isCancelled?: () => boolean;
+	}>,
 ): BuildPersistenceType => {
 	const artifactFlushStartedAt = performance.now();
 	let artifactFlushFailures = 0;
 
-	for (const cache of caches) {
+	for (const cache of input.caches) {
+		if (input.isCancelled?.() === true) {
+			break;
+		}
+
 		if (!persistCachesSafely(cache.flush)) {
 			artifactFlushFailures += 1;
 		}
 	}
 
 	const artifactFlushMs = Math.round(performance.now() - artifactFlushStartedAt);
-	const postArtifactCheckpoint = database.tryCheckpoint();
+	const postArtifactCheckpoint = input.database.tryCheckpoint();
 	return {
-		...base,
+		...input.base,
 		artifactFlushMs,
 		artifactFlushFailures,
 		postArtifactCheckpoint,
-		totalWallMs: Math.round(performance.now() - startedAt),
+		totalWallMs: Math.round(performance.now() - input.startedAt),
 	};
 };
 
@@ -180,105 +187,6 @@ const reusableMatches = (
 	}
 
 	return reusable.id === input.published?.id && plansMatchPrevious(input.scans, input.previousAdapters, input.targets);
-};
-
-const scanPlansOf = async (
-	input: BuildInputType,
-	targets: readonly AdapterTargetType[],
-	published: GenerationRowType | null,
-): Promise<readonly AdapterScanPlanType[]> => {
-	if (input.scan !== undefined) {
-		const [target] = targets;
-
-		if (target === undefined || targets.length !== 1) {
-			throw new AdapterContractError('A singular scan requires exactly one configured adapter');
-		}
-
-		return [{adapterId: target.adapter.id, coverage: 'present', absenceReason: null, scan: input.scan}];
-	}
-
-	if (input.scans !== undefined) {
-		const configured = new Set(targets.map((target) => target.adapter.id));
-
-		for (const plan of input.scans) {
-			if (!configured.has(plan.adapterId)) {
-				throw new AdapterContractError(`Scan plan names an unconfigured adapter: ${plan.adapterId}`);
-			}
-
-			if (plan.scan !== null && plan.scan.extractorId !== plan.adapterId) {
-				throw new AdapterContractError(`Scan plan for ${plan.adapterId} carries facts from ${plan.scan.extractorId}`);
-			}
-		}
-
-		if (new Set(input.scans.map((plan) => plan.adapterId)).size !== input.scans.length) {
-			throw new AdapterContractError('Scan plans name an adapter more than once');
-		}
-
-		return input.scans;
-	}
-
-	const plans: AdapterScanPlanType[] = [];
-
-	for (const target of targets) {
-		const scoped = adapterConfigFor(input.config, target.adapter);
-		// Adapter probes are sequential so absence and failure attribution follow
-		// configuration order.
-		// oxlint-disable-next-line eslint/no-await-in-loop
-		const probe = await runAdapterStageAsync(target.adapter.id, async () => {
-			const result = await probeAdapter(target, scoped);
-			return result;
-		});
-
-		if (probe.coverage === 'absent') {
-			plans.push({adapterId: target.adapter.id, coverage: 'absent', absenceReason: probe.reason, scan: null});
-			continue;
-		}
-
-		const knownPaths = published === null ? [] : input.database.listFiles(published.id, target.adapter.id).map((file) => file.path);
-		// oxlint-disable-next-line eslint/no-await-in-loop
-		const scan = await runAdapterStageAsync(target.adapter.id, async () => {
-			const staged = await runBuildStageAsync('scan', async () => {
-				const result = await target.extractor.scan(scoped, knownPaths);
-				return result;
-			});
-
-			return staged;
-		});
-
-		plans.push({adapterId: target.adapter.id, coverage: 'present', absenceReason: null, scan});
-	}
-
-	return plans;
-};
-
-const prepareBuild = async (input: BuildInputType): Promise<PreparedBuildType> => {
-	const published = input.database.getPublishedGeneration();
-	const targets = adapterTargets(input.config, input.adapters, input.extractor);
-	const scans = await scanPlansOf(input, targets, published);
-	assertSharedPaths(scans);
-
-	const previousAdapters = published === null ? [] : input.database.getGenerationAdapters(published.id);
-	const planned = new Set(scans.map((plan) => plan.adapterId));
-
-	if (scans.length === 0) {
-		throw new AdapterContractError('A build requires at least one adapter scan plan');
-	}
-
-	if (planned.size < targets.length) {
-		if (published === null) {
-			throw new AdapterContractError('A targeted refresh requires a published generation');
-		}
-
-		const persisted = new Set(previousAdapters.map((adapter) => adapter.adapterId));
-
-		for (const target of targets) {
-			if (!planned.has(target.adapter.id) && !persisted.has(target.adapter.id)) {
-				throw new AdapterContractError(`A targeted refresh omitted adapter ${target.adapter.id} without a persisted row`);
-			}
-		}
-	}
-
-	return {published, scans, targets, previousAdapters};
 };
 
 const beginGeneration = (
@@ -354,6 +262,7 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 					force: context.force,
 					override: context.extractorOverride,
 					persist,
+					...(context.executionContext === undefined ? {} : {executionContext: context.executionContext}),
 				});
 				return contribution;
 			}),
@@ -392,8 +301,15 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 		mode: context.mode,
 		startedAt: context.startedAtIso,
 		...(context.ownerId === undefined ? {} : {ownerId: context.ownerId}),
+		...(context.isCancelled === undefined ? {} : {isCancelled: context.isCancelled}),
 	});
-	const persistence = completePersistence(context.database, caches, persistenceStartedAt, commit.persistence);
+	const persistence = completePersistence({
+		database: context.database,
+		caches,
+		startedAt: persistenceStartedAt,
+		base: commit.persistence,
+		...(context.isCancelled === undefined ? {} : {isCancelled: context.isCancelled}),
+	});
 	const durationMs = durationOf(context.startedAt, commit.stages);
 
 	logBuild({
@@ -419,23 +335,76 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 	});
 };
 
-/**
- * Builds and atomically publishes one complete index generation.
- *
- * Every configured adapter contributes one candidate in one transaction. The
- * published generation identifier is stable. An adapter whose complete reuse key
- * still matches is not re-extracted, and a changed adapter never forces another
- * adapter to be re-extracted. A failed build leaves the previous published
- * revision serving queries.
- *
- * @param input - Resolved configuration, database, logger, and optional scans or forced rebuild.
- * @returns The published or reused generation report.
- * @throws {@link Error} When scanning, loading, extraction, or publication fails.
- */
-export const buildGeneration = async (input: BuildInputType): Promise<BuildReportType> => {
-	const startedAt = input.startedAtEpoch ?? Date.now();
-	const startedAtIso = new Date(startedAt).toISOString();
-	const {published, scans, targets, previousAdapters} = await prepareBuild(input);
+const isBuildCancellation = (error: unknown, input: BuildInputType): boolean => error instanceof BuildCancellationError || input.isCancelled?.() === true;
+
+const cancellationReport = (input: BuildInputType, published: GenerationRowType | null, generationId: string, startedAt: number): BuildReportType => {
+	const report = supersededReport({generationId: published?.id ?? generationId, published, startedAt});
+	input.logger.info('index_build_cancelled', {generationId: report.generationId, durationMs: report.durationMs});
+	return report;
+};
+
+const prepareBuildOrCancel = async (
+	input: BuildInputType,
+	startedAt: number,
+): Promise<Readonly<{prepared: PreparedBuildType; report: null}> | Readonly<{prepared: null; report: BuildReportType}>> => {
+	try {
+		return {prepared: await prepareBuild(input), report: null};
+	} catch (error) {
+		if (!isBuildCancellation(error, input)) {
+			throw error;
+		}
+
+		const published = input.database.getPublishedGeneration();
+		return {prepared: null, report: cancellationReport(input, published, published?.id ?? '', startedAt)};
+	}
+};
+
+const publishPreparedBuild = async (
+	input: BuildInputType,
+	prepared: PreparedBuildType,
+	hashes: Readonly<{sourceHash: string; configHash: string; inputHash: string}>,
+	startedAt: number,
+): Promise<BuildReportType> => {
+	const {published, scans, targets} = prepared;
+	let generationId = '';
+	let mode: 'insert' | 'revise' = 'revise';
+
+	try {
+		const begun = runBuildStage('persistence', () => beginGeneration(input, published, hashes));
+		({generationId, mode} = begun);
+		return await commitAdapters({
+			config: input.config,
+			database: input.database,
+			logger: input.logger,
+			published,
+			plans: scans,
+			targets,
+			generationId,
+			mode,
+			startedAt,
+			startedAtIso: new Date(startedAt).toISOString(),
+			force: input.force,
+			extractorOverride: input.extractor,
+			ownerId: input.ownerId,
+			isCancelled: input.isCancelled,
+			executionContext: input.executionContext,
+		});
+	} catch (error) {
+		if (!isBuildCancellation(error, input)) {
+			return failedBuild({error, generationId, mode, published, scans, startedAt, database: input.database, logger: input.logger});
+		}
+
+		if (mode === 'insert' && generationId.length > 0) {
+			input.database.discardBuildingGeneration(generationId);
+		}
+
+		return cancellationReport(input, published, generationId, startedAt);
+	}
+};
+
+const buildPrepared = async (input: BuildInputType, prepared: PreparedBuildType, startedAt: number): Promise<BuildReportType> => {
+	const {published, scans, targets, previousAdapters} = prepared;
+	input.onScans?.(scans);
 	const hashes = combinedAdapterHashesOf(hashEntriesOf(scans, previousAdapters, targets));
 	const reusable = input.force === true ? null : input.database.findReusableGeneration(hashes.sourceHash, hashes.configHash, hashes.inputHash);
 	const fullScope = scans.length === targets.length;
@@ -455,46 +424,33 @@ export const buildGeneration = async (input: BuildInputType): Promise<BuildRepor
 	}
 
 	if (input.isCancelled?.() === true) {
-		const report = supersededReport({generationId: published?.id ?? '', published, startedAt});
-		input.logger.info('index_build_cancelled', {generationId: report.generationId, durationMs: report.durationMs});
-		return report;
+		return cancellationReport(input, published, published?.id ?? '', startedAt);
 	}
 
-	let generationId = '';
-	let mode: 'insert' | 'revise' = 'revise';
+	const report = await publishPreparedBuild(input, prepared, hashes, startedAt);
+	return report;
+};
 
-	try {
-		const begun = runBuildStage('persistence', () => beginGeneration(input, published, hashes));
-		({generationId, mode} = begun);
+/**
+ * Builds and atomically publishes one complete index generation.
+ *
+ * Every configured adapter contributes one candidate in one transaction. The
+ * published generation identifier is stable. An adapter whose complete reuse key
+ * still matches is not re-extracted, and a changed adapter never forces another
+ * adapter to be re-extracted. A failed build leaves the previous published
+ * revision serving queries.
+ *
+ * @param input - Resolved configuration, database, logger, and optional scans or forced rebuild.
+ * @returns The published or reused generation report.
+ * @throws {@link Error} When scanning, loading, extraction, or publication fails.
+ */
+export const buildGeneration = async (input: BuildInputType): Promise<BuildReportType> => {
+	const startedAt = input.startedAtEpoch ?? Date.now();
+	const outcome = await prepareBuildOrCancel(input, startedAt);
 
-		const report = await commitAdapters({
-			config: input.config,
-			database: input.database,
-			logger: input.logger,
-			published,
-			plans: scans,
-			targets,
-			generationId,
-			mode,
-			startedAt,
-			startedAtIso,
-			force: input.force,
-			extractorOverride: input.extractor,
-			ownerId: input.ownerId,
-			isCancelled: input.isCancelled,
-		});
-
-		return report;
-	} catch (error) {
-		return failedBuild({
-			error,
-			generationId,
-			mode,
-			published,
-			scans,
-			startedAt,
-			database: input.database,
-			logger: input.logger,
-		});
+	if (outcome.report !== null) {
+		return outcome.report;
 	}
+
+	return buildPrepared(input, outcome.prepared, startedAt);
 };

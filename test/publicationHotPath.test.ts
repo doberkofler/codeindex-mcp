@@ -138,6 +138,41 @@ const firstOf = <ItemType>(items: readonly ItemType[]): ItemType => {
 describe('publication checks and COMMIT enforcement', () => {
 	afterEach(cleanupTest);
 
+	it('rolls back a revision cancelled during insertion', () => {
+		const database = openDatabase();
+
+		try {
+			const adapter = adapterOf(seedOf('typescript', 'src/example.ts'));
+			const baseline = publish(database, [adapter]);
+			let checks = 0;
+
+			expect(() =>
+				database.commitAdapters({
+					generationId: baseline.generationId,
+					adapters: [adapter],
+					mode: 'revise',
+					sourceHash: 'cancelled-source',
+					configHash: 'cancelled-config',
+					inputHash: 'cancelled-input',
+					isCancelled: () => {
+						checks += 1;
+						return checks >= 8;
+					},
+				}),
+			).toThrow(/cancel/u);
+			expect(checks).toBeGreaterThanOrEqual(8);
+			expect(database.getPublishedGeneration()).toMatchObject({
+				id: baseline.generationId,
+				revision: baseline.revision,
+				sourceHash: 'source',
+				configHash: 'config',
+				inputHash: 'input',
+			});
+		} finally {
+			database.close();
+		}
+	});
+
 	it.each([
 		['one', ['typescript']],
 		['two', ['typescript', 'oracle']],
@@ -178,6 +213,10 @@ describe('publication checks and COMMIT enforcement', () => {
 			database.close();
 		}
 	});
+});
+
+describe('publication failure isolation', () => {
+	afterEach(cleanupTest);
 
 	it('rejects a deferred FK violation at COMMIT and preserves the prior publication', () => {
 		const database = openDatabase();

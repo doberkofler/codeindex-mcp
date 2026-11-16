@@ -1,6 +1,8 @@
 import {
 	ADAPTER_PROTOCOL_VERSION,
 	type AdapterConfigType,
+	type AdapterExecutionContextType,
+	type AdapterArtifactCacheType,
 	type ProjectContextConfigType,
 	defineAdapter,
 	type AdapterStatType,
@@ -30,6 +32,7 @@ import {
 	TYPESCRIPT_EXTRACTOR_VERSION,
 	TYPESCRIPT_IGNORED_SEGMENTS,
 } from './scanProject.ts';
+import {createExecutionCheckpoint} from './executionCheckpoint.ts';
 
 const SOURCE_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'];
 
@@ -194,17 +197,23 @@ const mergePublicationFacts = (contexts: readonly ExtractedContextType[]): Extra
 };
 
 const extractContext = (
-	config: AdapterConfigType,
-	scan: ScanResultType,
-	context: ProjectContextConfigType,
-	snapshot: TypeScriptInputSnapshotType,
+	input: Readonly<{
+		config: AdapterConfigType;
+		scan: ScanResultType;
+		context: ProjectContextConfigType;
+		snapshot: TypeScriptInputSnapshotType;
+		executionContext?: AdapterExecutionContextType;
+	}>,
 ): Readonly<{context: ExtractedContextType; compilerMs: number; retainCompilerSession: boolean}> => {
+	const {config, scan, context, snapshot, executionContext} = input;
+	executionContext?.throwIfCancellationRequested();
 	const {projectFilePath} = context;
 	const compilerStartedAt = performance.now();
 	const project = loadTypeScriptProject(config, projectFilePath, snapshot);
 	let retainCompilerSession = true;
 
 	try {
+		executionContext?.throwIfCancellationRequested();
 		const files = mergeProjectFiles(config, scan, project, (absolutePath) => snapshot.readBytes(absolutePath));
 		const compilerMs = Math.round(performance.now() - compilerStartedAt);
 		const facts = extractSymbolFacts({
@@ -216,14 +225,19 @@ const extractContext = (
 			onCompilerSessionRetention: (retain) => {
 				retainCompilerSession &&= retain;
 			},
+			...(executionContext === undefined ? {} : {executionContext}),
 		});
+		executionContext?.throwIfCancellationRequested();
+		const checkpoint = createExecutionCheckpoint(executionContext);
 		const dependencies = extractDependencyFacts({
 			project,
 			files,
 			projectId: config.projectId,
 			rootDir: config.rootDir,
 			context: context.name,
+			checkpoint,
 		});
+		executionContext?.throwIfCancellationRequested();
 
 		// Only serializable facts leave this scope. The compiler program and its
 		// syntax trees stay collectable while insertion and artifact persistence run.
@@ -289,20 +303,37 @@ const authoredInputsMatch = (scan: ScanResultType, snapshot: TypeScriptInputSnap
 	return scan.files.every((file) => captured.get(file.absolutePath) === file.sha256);
 };
 
-export const buildTypeScriptFacts = (config: AdapterConfigType, scan: ScanResultType): AdapterBuildType => {
+export const buildTypeScriptFacts = (
+	config: AdapterConfigType,
+	scan: ScanResultType,
+	_cache?: AdapterArtifactCacheType,
+	executionContext?: AdapterExecutionContextType,
+): AdapterBuildType => {
 	const extractionStartedAt = performance.now();
+	executionContext?.throwIfCancellationRequested();
 	let retainCompilerSession = true;
 	const {snapshot} = createTypeScriptInputSnapshot(
 		config,
 		scan.files.map((file) => file.path),
+		executionContext,
 	);
 
 	try {
+		executionContext?.throwIfCancellationRequested();
 		if ((scan.inputHash !== undefined && scan.inputHash !== snapshot.manifest.inputHash) || !authoredInputsMatch(scan, snapshot)) {
 			throw new Error('TypeScript inputs changed before the build started');
 		}
 
-		const extracted = config.projects.map((context) => extractContext(config, scan, context, snapshot));
+		const extracted = config.projects.map((context) =>
+			extractContext({
+				config,
+				scan,
+				context,
+				snapshot,
+				...(executionContext === undefined ? {} : {executionContext}),
+			}),
+		);
+		executionContext?.throwIfCancellationRequested();
 		retainCompilerSession = extracted.every((context) => context.retainCompilerSession);
 		const compilerMs = extracted.reduce((total, context) => total + context.compilerMs, 0);
 		const merged = mergeContexts(extracted.map((context) => context.context));

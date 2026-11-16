@@ -14,8 +14,8 @@ import {type DatabaseSync} from 'node:sqlite';
  * @returns The action's value.
  * @throws {Error} Whatever the action throws; the snapshot is rolled back.
  */
-export const readSnapshot = <ValueType>(reader: DatabaseSync, writer: DatabaseSync, action: () => ValueType): ValueType => {
-	if (reader === writer) {
+export const readSnapshot = <ValueType>(reader: DatabaseSync, writer: DatabaseSync | null, action: () => ValueType): ValueType => {
+	if (writer !== null && reader === writer) {
 		return action();
 	}
 

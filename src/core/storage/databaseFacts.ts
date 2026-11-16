@@ -29,6 +29,12 @@ export type {GenerationFactCountsType, GenerationFactWriteModeType, GenerationFa
 type RowSinkType = Readonly<{write: (ownerPath: string, values: readonly CellType[]) => void}>;
 
 type RowCounterType = {value: number};
+type CancellationCheckType = (() => void) | undefined;
+type GlobalWriteType = Readonly<{
+	selectedRows: RowCounterType;
+	writtenRows: RowCounterType;
+	checkCancellation: CancellationCheckType;
+}>;
 
 type PreparedWriteType = Readonly<{
 	changed: Set<string>;
@@ -167,15 +173,32 @@ const insertRow = (statement: ReturnType<DatabaseSync['prepare']>, table: string
 	}
 };
 
+const batchedCancellationCheck = (checkCancellation: CancellationCheckType): (() => void) => {
+	let remaining = 0;
+
+	return (): void => {
+		if (remaining === 0) {
+			checkCancellation?.();
+			remaining = 255;
+			return;
+		}
+
+		remaining -= 1;
+	};
+};
+
 const pathSinkOf = (
 	table: TableWriteType,
 	writer: DatabaseSync,
 	selection: Readonly<{selected: ReadonlySet<string> | null; digests: DigestAccumulatorType | null; selectedRows: RowCounterType; writtenRows: RowCounterType}>,
+	checkCancellation: CancellationCheckType,
 ): RowSinkType => {
 	const statement = writer.prepare(table.insertSql);
+	const checkpoint = batchedCancellationCheck(checkCancellation);
 
 	return {
 		write: (ownerPath, values): void => {
+			checkpoint();
 			if (selection.selected === null) {
 				selection.digests?.add(ownerPath, values);
 				selection.selectedRows.value += 1;
@@ -191,13 +214,15 @@ const pathSinkOf = (
 	};
 };
 
-const globalSinkOf = (table: TableWriteType, writer: DatabaseSync, selectedRows: RowCounterType, writtenRows: RowCounterType): RowSinkType => {
+const globalSinkOf = (table: TableWriteType, writer: DatabaseSync, write: GlobalWriteType): RowSinkType => {
 	const statement = writer.prepare(table.insertSql);
+	const checkpoint = batchedCancellationCheck(write.checkCancellation);
 
 	return {
 		write: (ownerPath, values): void => {
-			selectedRows.value += 1;
-			writtenRows.value += insertRow(statement, table.table, ownerPath, values);
+			checkpoint();
+			write.selectedRows.value += 1;
+			write.writtenRows.value += insertRow(statement, table.table, ownerPath, values);
 		},
 	};
 };
@@ -211,16 +236,19 @@ const writeTableRows = (
 		selectedRows: RowCounterType;
 		writtenRows: RowCounterType;
 	}>,
+	checkCancellation: CancellationCheckType,
 ): void => {
 	for (const table of PATH_TABLES) {
-		const sink = pathSinkOf(table, writer, selection);
+		checkCancellation?.();
+		const sink = pathSinkOf(table, writer, selection, checkCancellation);
 		table.each(input, sink.write);
 	}
 };
 
-const writeGlobalRows = (writer: DatabaseSync, input: GenerationFactsInputType, selectedRows: RowCounterType, writtenRows: RowCounterType): void => {
+const writeGlobalRows = (writer: DatabaseSync, input: GenerationFactsInputType, write: GlobalWriteType): void => {
 	for (const table of GLOBAL_TABLES) {
-		const sink = globalSinkOf(table, writer, selectedRows, writtenRows);
+		write.checkCancellation?.();
+		const sink = globalSinkOf(table, writer, write);
 		table.each(input, sink.write);
 	}
 };
@@ -233,6 +261,7 @@ const writeDigests = (
 		digests: ReadonlyMap<string, string>;
 		selectedRows: RowCounterType;
 		writtenRows: RowCounterType;
+		checkCancellation?: () => void;
 	}>,
 ): void => {
 	const statement = input.writer.prepare(
@@ -240,6 +269,7 @@ const writeDigests = (
 	);
 
 	for (const [path, digest] of input.digests) {
+		input.checkCancellation?.();
 		input.selectedRows.value += 1;
 		input.writtenRows.value += insertRow(statement, 'generation_file_digest', path, [input.generationId, input.adapterId, path, digest]);
 	}
@@ -250,15 +280,22 @@ const totalChanges = (writer: DatabaseSync): number => {
 	return row === undefined ? 0 : asNumber(row, 'total');
 };
 
-const deleteGenerationRows = (writer: DatabaseSync, input: GenerationFactsInputType, paths: ReadonlySet<string>): number => {
+const deleteGenerationRows = (
+	writer: DatabaseSync,
+	input: GenerationFactsInputType,
+	paths: ReadonlySet<string>,
+	checkCancellation: CancellationCheckType,
+): number => {
 	const before = totalChanges(writer);
 	const deleteFile = writer.prepare('delete from file where generation_id = ? and path = ?');
 
 	for (const path of paths) {
+		checkCancellation?.();
 		deleteFile.run(input.generationId, path);
 	}
 
 	for (const table of GLOBAL_TABLES) {
+		checkCancellation?.();
 		writer.prepare(`delete from ${table.table} where generation_id = ? and adapter_id = ?`).run(input.generationId, adapterIdOf(input));
 	}
 
@@ -275,10 +312,17 @@ const deleteGenerationRows = (writer: DatabaseSync, input: GenerationFactsInputT
  * @param writer - Writer connection inside an open transaction.
  * @param rawInput - Files, finalized facts, dependencies, diagnostics, and hashes.
  * @param mode - Building-generation insert or published-generation revision.
+ * @param checkCancellation - Optional cooperative cancellation checkpoint.
  * @returns Persisted row counts, changed paths, and the number of written rows.
  * @throws {@link Error} When the generation state does not match the mode.
  */
-export const writeGenerationFacts = (writer: DatabaseSync, rawInput: GenerationFactsInputType, mode: GenerationFactWriteModeType): GenerationFactWriteType => {
+export const writeGenerationFacts = (
+	writer: DatabaseSync,
+	rawInput: GenerationFactsInputType,
+	mode: GenerationFactWriteModeType,
+	checkCancellation?: () => void,
+): GenerationFactWriteType => {
+	checkCancellation?.();
 	const input = scopeAdapterFacts(rawInput);
 	assertState(writer, input.generationId, mode);
 	const prepared = prepareWrite(writer, input, mode);
@@ -286,13 +330,24 @@ export const writeGenerationFacts = (writer: DatabaseSync, rawInput: GenerationF
 	const writtenRows: RowCounterType = {value: 0};
 	const digests = mode === 'insert' ? createDigestAccumulator(input.files.map((file) => file.path)) : null;
 
-	const deletedRows = deleteGenerationRows(writer, input, prepared.changed);
-	syncGenerationFiles(writer, input.generationId, input.files, adapterIdOf(input));
-	const projectRows = syncProjectContexts(writer, {generationId: input.generationId, adapterId: adapterIdOf(input), projects: input.projects});
+	const deletedRows = deleteGenerationRows(writer, input, prepared.changed, checkCancellation);
+	syncGenerationFiles({
+		writer,
+		generationId: input.generationId,
+		files: input.files,
+		adapterId: adapterIdOf(input),
+		...(checkCancellation === undefined ? {} : {checkCancellation}),
+	});
+	const projectRows = syncProjectContexts(writer, {
+		generationId: input.generationId,
+		adapterId: adapterIdOf(input),
+		projects: input.projects,
+		...(checkCancellation === undefined ? {} : {checkCancellation}),
+	});
 	selectedRows.value += input.projects.length;
 	writtenRows.value += projectRows;
-	writeTableRows(writer, input, {selected: prepared.selected, digests, selectedRows, writtenRows});
-	writeGlobalRows(writer, input, selectedRows, writtenRows);
+	writeTableRows(writer, input, {selected: prepared.selected, digests, selectedRows, writtenRows}, checkCancellation);
+	writeGlobalRows(writer, input, {selectedRows, writtenRows, checkCancellation});
 	writeDigests({
 		writer,
 		generationId: input.generationId,
@@ -300,7 +355,9 @@ export const writeGenerationFacts = (writer: DatabaseSync, rawInput: GenerationF
 		digests: prepared.next ?? digests?.digests() ?? new Map(),
 		selectedRows,
 		writtenRows,
+		...(checkCancellation === undefined ? {} : {checkCancellation}),
 	});
+	checkCancellation?.();
 	writer.prepare('update generation set source_hash = ? where id = ?').run(input.sourceHash, input.generationId);
 
 	return {
