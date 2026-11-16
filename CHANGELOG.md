@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.19.0...v0.20.0) (2026-11-16)
+
+### Added
+
+* **console:** redesign multi-adapter maintenance ([3310f7a](https://github.com/doberkofler/codeindex-mcp/commit/3310f7a64e39033218b40c4d9df47ed273553656))
+
+### Fixed
+
+* **storage:** wait for schema initialization ([188f0fd](https://github.com/doberkofler/codeindex-mcp/commit/188f0fdddbe0b58171120cb1f2b93ab04b6f247c))
+
 ## [0.19.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.18.0...v0.19.0) (2026-11-16)
 
 ### Fixed
