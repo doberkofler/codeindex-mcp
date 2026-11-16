@@ -14,6 +14,7 @@ import {
 	type AnalyticsWindowType,
 	type ConsoleJobType,
 	type ConsoleOperationRequestType,
+	type ConsoleSnapshotType,
 } from '../src/transports/console/contracts.ts';
 import {dashboardOf, installBrowserStubs, jobOf, noop, renderWithProviders, snapshotOf, statusOf, timestamp, toolOf} from './helpers/consoleUi.tsx';
 
@@ -24,6 +25,7 @@ const analyticsElement = (
 		loading: boolean;
 		error: string | null;
 		selectedTool: AnalyticsToolType | null;
+		status?: ConsoleSnapshotType['status'];
 		onWindowChange: (window: AnalyticsWindowType) => void;
 		onSelectTool: (tool: AnalyticsToolType | null) => void;
 	}>,
@@ -34,7 +36,7 @@ const analyticsElement = (
 		loading={props.loading}
 		error={props.error}
 		selectedTool={props.selectedTool}
-		status={statusOf()}
+		status={props.status ?? statusOf()}
 		onWindowChange={props.onWindowChange}
 		onSelectTool={props.onSelectTool}
 	/>
@@ -119,13 +121,17 @@ describe('console pages', () => {
 
 			await userEvent.click(screen.getByRole('button', {name: 'Sync now'}));
 			await userEvent.click(screen.getByRole('button', {name: 'Verify storage'}));
+			await userEvent.click(screen.getByRole('combobox', {name: 'Target'}));
+			await userEvent.click(screen.getByRole('option', {name: 'TypeScript / JavaScript'}));
+			await userEvent.click(screen.getByRole('button', {name: 'Sync now'}));
 			await userEvent.click(screen.getByRole('button', {name: 'Force rebuild'}));
 			const rebuildDialog = screen.getByRole('dialog', {name: 'Force rebuild?'});
 			await userEvent.click(screen.getByRole('button', {name: 'Rebuild'}));
 			await waitForElementToBeRemoved(rebuildDialog);
 			expect(onRun).toHaveBeenNthCalledWith(1, {operation: 'update', adapterId: null});
 			expect(onRun).toHaveBeenNthCalledWith(2, {operation: 'verify', adapterId: null});
-			expect(onRun).toHaveBeenNthCalledWith(3, {operation: 'rebuild', adapterId: null});
+			expect(onRun).toHaveBeenNthCalledWith(3, {operation: 'update', adapterId: 'typescript'});
+			expect(onRun).toHaveBeenNthCalledWith(4, {operation: 'rebuild', adapterId: 'typescript'});
 
 			rerender(
 				<OperationsPage
@@ -320,6 +326,40 @@ describe('console pages', () => {
 
 			await userEvent.click(screen.getByRole('button', {name: 'Close'}));
 			expect(onSelectTool).toHaveBeenCalledWith(null);
+		});
+	});
+
+	describe('console adapter analytics', () => {
+		it('renders adapter statistics and reports a removed adapter', async () => {
+			const props = {
+				dashboard: dashboardOf(),
+				window: '24h' as const,
+				loading: false,
+				error: null,
+				selectedTool: null,
+				onWindowChange: noop,
+				onSelectTool: noop,
+			};
+			const {rerender} = renderWithProviders(
+				analyticsElement({
+					...props,
+					status: statusOf({
+						buildStats: [{language: 'typescript', metric: 'symbols', dim1: 'exported', dim2: '', dim3: '', value: 34}],
+					}),
+				}),
+			);
+
+			await userEvent.click(screen.getByRole('button', {name: 'TypeScript / JavaScript'}));
+			expect(screen.getByText('symbols · exported')).not.toBeNull();
+			expect(screen.getAllByText('34')).toHaveLength(2);
+
+			rerender(
+				analyticsElement({
+					...props,
+					status: statusOf({scope: {...statusOf().scope, adapters: []}}),
+				}),
+			);
+			expect(screen.getByText('Adapter typescript is no longer configured.')).not.toBeNull();
 		});
 	});
 

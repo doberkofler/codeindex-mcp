@@ -149,13 +149,13 @@ const createStaticRoot = (): Readonly<{root: string; cleanup: () => void}> => {
 let server: ConsoleServerHandleType | undefined;
 let cleanup: (() => void) | undefined;
 
-const start = async (): Promise<Readonly<{servicePort: ReturnType<typeof createService>; url: string}>> => {
+const start = async (service?: ConsoleServicePortType): Promise<Readonly<{servicePort: ReturnType<typeof createService>; url: string}>> => {
 	const staticRoot = createStaticRoot();
 	const servicePort = createService();
 	const {root, cleanup: dispose} = staticRoot;
 	cleanup = dispose;
 	server = await startConsoleServer({
-		service: servicePort.service,
+		service: service ?? servicePort.service,
 		token: TOKEN,
 		staticRoot: root,
 		host: '127.0.0.1',
@@ -275,5 +275,43 @@ describe('console HTTP server', () => {
 		});
 
 		expect(response.status).toBe(403);
+	});
+});
+
+describe('console HTTP server failure boundaries', () => {
+	afterEach(async () => {
+		await server?.close();
+		server = undefined;
+		cleanup?.();
+		cleanup = undefined;
+	});
+
+	it('fails closed when request handling throws', async () => {
+		const servicePort = createService();
+		const {url} = await start({
+			...servicePort.service,
+			snapshot: (): ConsoleSnapshotType => {
+				throw new Error('snapshot failed');
+			},
+		});
+		const response = await authorized(new URL('api/snapshot', url));
+
+		expect(response.status).toBe(500);
+		await expect(response.json()).resolves.toStrictEqual({error: {message: 'Console request failed'}});
+	});
+
+	it('rejects a non-loopback bind address before opening a server', async () => {
+		const servicePort = createService();
+
+		await expect(
+			startConsoleServer({
+				service: servicePort.service,
+				token: TOKEN,
+				staticRoot: '',
+				host: '0.0.0.0',
+				port: 0,
+				logger: silentLogger,
+			}),
+		).rejects.toThrow('Console may bind only to loopback, received 0.0.0.0');
 	});
 });

@@ -89,6 +89,21 @@ describe('console application composition', () => {
 		renderWithProviders(<App />);
 
 		await screen.findByText('Workspace index status');
+		await userEvent.click(screen.getByRole('button', {name: 'Sync typescript'}));
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledWith('/api/jobs', expect.objectContaining({body: '{"operation":"update","adapterId":"typescript"}'}));
+		});
+		await userEvent.click(screen.getByText('Status'));
+		const maintenanceButtons = screen.getAllByRole('button', {name: 'Maintenance'});
+		const overviewMaintenance = maintenanceButtons.at(-1);
+
+		if (overviewMaintenance === undefined) {
+			throw new Error('Expected overview maintenance button');
+		}
+
+		await userEvent.click(overviewMaintenance);
+		expect(screen.getByText('Maintenance history')).not.toBeNull();
+		await userEvent.click(screen.getByText('Status'));
 
 		await userEvent.click(screen.getByRole('button', {name: 'Analytics'}));
 		await screen.findByText('Activity timeline');
