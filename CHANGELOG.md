@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.17.0...v0.18.0) (2026-11-16)
+
+### Added
+
+* replace watcher heuristics with adapter watch plans ([#158](https://github.com/doberkofler/codeindex-mcp/issues/158)) ([606b70a](https://github.com/doberkofler/codeindex-mcp/commit/606b70aa5d2e9b9140d351837f9755aa64759c86))
+
+### Fixed
+
+* **freshness:** preserve per-adapter refresh state ([#153](https://github.com/doberkofler/codeindex-mcp/issues/153)) ([da84b63](https://github.com/doberkofler/codeindex-mcp/commit/da84b637ab1355771da0acc76e8c66ce5d75bc0a))
+* **query:** bind cursors to global revision ([#155](https://github.com/doberkofler/codeindex-mcp/issues/155)) ([d592f6e](https://github.com/doberkofler/codeindex-mcp/commit/d592f6e47d7c4244f06b023011dcf03adedb627b))
+* **refresh:** bind external observation to adapters ([#155](https://github.com/doberkofler/codeindex-mcp/issues/155)) ([67afc79](https://github.com/doberkofler/codeindex-mcp/commit/67afc79a2a768660bd76be6c1c6ecab6a3d5efa8))
+
+### Changed
+
+* **index:** move builds off MCP thread ([#157](https://github.com/doberkofler/codeindex-mcp/issues/157)) ([64c8b17](https://github.com/doberkofler/codeindex-mcp/commit/64c8b17042ae461dc85744cab6ef856a9e7fec1c))
+* **storage:** remove publication-wide checks ([#156](https://github.com/doberkofler/codeindex-mcp/issues/156)) ([a504e29](https://github.com/doberkofler/codeindex-mcp/commit/a504e291744229125296dc015a7fb95967b5d390))
+* **storage:** use integer storage keys ([#154](https://github.com/doberkofler/codeindex-mcp/issues/154)) ([6865afd](https://github.com/doberkofler/codeindex-mcp/commit/6865afdb830f638a1085fe0258991d86ea87b9a6))
+
 ## [0.17.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.16.2...v0.17.0) (2026-11-15)
 
 ### Added
