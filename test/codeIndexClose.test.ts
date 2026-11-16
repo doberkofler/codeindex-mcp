@@ -28,7 +28,7 @@ const workerDescriptorsOf = (adapters: readonly {id: string; version: string}[])
 	adapters.map((adapter) => ({
 		id: adapter.id,
 		moduleUrl: 'builtin:typescript',
-		protocolVersion: 1,
+		protocolVersion: 2,
 		implementationVersion: adapter.version,
 		packageName: null,
 		packageVersion: null,

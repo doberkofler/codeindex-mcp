@@ -1,4 +1,7 @@
 import {type DatabaseSync} from 'node:sqlite';
+
+import {type AdapterWatchPlanType} from '@codeindex/adapter-sdk';
+
 import {
 	type BuildLeaseType,
 	type BuildStatType,
@@ -51,6 +54,7 @@ import {asNumber} from './databaseRows.ts';
 import {verifyDatabaseIntegrity} from './databaseIntegrity.ts';
 import {ensureStatistics} from './databaseStatistics.ts';
 import {readBuildStats} from './databaseFactStats.ts';
+import {readWatchPlans, writeWatchPlans} from './databaseWatchPlans.ts';
 import {
 	listProjectContextEntries as listStoredProjectContextEntries,
 	listProjectContextNames as listStoredProjectContextNames,
@@ -96,11 +100,6 @@ export type {
 export {BUILD_LEASE_TTL_MS} from './databaseLease.ts';
 export type {WalCheckpointType} from './databaseWal.ts';
 
-/**
- * Opens and owns the SQLite index.
- *
- * Queries filter on one published generation; building rows stay invisible.
- */
 export class IndexDatabase {
 	readonly #reader: DatabaseSync;
 	readonly #writer: DatabaseSync | null;
@@ -112,11 +111,9 @@ export class IndexDatabase {
 		this.#projectId = projectId;
 		this.#owner = owner;
 	}
-	/**
-	 * Opens an index database, recreating an incompatible cache.
-	 *
-	 * @param databasePath - SQLite file path, or `:memory:` for a single connection.
-	 * @param context - Working-copy and project identity used by this database.
+	/** Opens an index, recreating an incompatible cache.
+	 * @param databasePath - SQLite file path, or `:memory:` for one connection.
+	 * @param context - Working-copy and project identity.
 	 * @returns The opened database.
 	 */
 	public static open(databasePath: string, context: DatabaseOpenContextType = {}): IndexDatabase {
@@ -138,9 +135,7 @@ export class IndexDatabase {
 			throw error;
 		}
 	}
-	/**
-	 * Opens an initialized index without acquiring write ownership.
-	 *
+	/** Opens an initialized index without write ownership.
 	 * @param databasePath - Existing file-backed SQLite index.
 	 * @param context - Workspace identity used to reject a foreign checkout.
 	 * @returns Query-only database facade.
@@ -172,6 +167,12 @@ export class IndexDatabase {
 	}
 	public getPublishedGeneration(): GenerationRowType | null {
 		return readPublishedGeneration(this.#reader);
+	}
+	public getWatchPlans(): readonly AdapterWatchPlanType[] {
+		return readWatchPlans(this.#reader);
+	}
+	public putWatchPlans(plans: readonly AdapterWatchPlanType[]): void {
+		writeWatchPlans(this.#writeConnection(), plans);
 	}
 	/**
 	 * Reads per-adapter provenance for one generation.

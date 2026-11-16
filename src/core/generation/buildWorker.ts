@@ -1,4 +1,5 @@
 import {parentPort} from 'node:worker_threads';
+import {type AdapterWatchPlanType} from '@codeindex/adapter-sdk';
 import {isAdapterDescriptor, loadAdaptersFromDescriptors, type AdapterSetType, type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {configuredAdapters, type ConfigType} from '../config/config.ts';
 import {debugFor, enableDebug} from '../logging/debug.ts';
@@ -7,11 +8,12 @@ import {type BuildReportType} from '../model.ts';
 import {startProcessSample} from '../resources/processSample.ts';
 import {BUILD_LEASE_TTL_MS, IndexDatabase, type DatabaseOpenContextType} from '../storage/database.ts';
 import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
-import {type AdapterScanPlanType} from './adapterBuild.ts';
+import {adapterTargets, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
 import {buildFailureOf, type BuildFailureType, type BuildProjectContextType, runBuildStage} from './buildFailure.ts';
 import {buildGeneration} from './buildGeneration.ts';
 import {executionContextOf} from './executionCancellation.ts';
 import {acquireOrObserveBuildLease, externalBuildReport} from './externalBuild.ts';
+import {createAdapterWatchPlans, mergeAdapterWatchPlans, watchPlansMatchTargets} from './adapterWatchPlans.ts';
 
 const LEASE_RENEW_MS = 3000;
 const debug = debugFor('worker');
@@ -37,12 +39,6 @@ export type BuildWorkerHostDataType = Readonly<{
 	debug: boolean;
 }>;
 
-/** Serializable non-source inputs discovered by one adapter scan. */
-type BuildWorkerWatchInputType = Readonly<{
-	readonly adapterId: string;
-	readonly paths: readonly string[];
-}>;
-
 /** Serializable compiler-version drift observed by one scan. */
 type BuildWorkerCompilerDriftType = Readonly<{
 	readonly compilerVersion: string;
@@ -52,7 +48,7 @@ type BuildWorkerCompilerDriftType = Readonly<{
 /** Successful retained-worker result. */
 export type BuildWorkerRunResultType = Readonly<{
 	readonly report: BuildReportType;
-	readonly watchInputs: readonly BuildWorkerWatchInputType[];
+	readonly watchPlans: readonly AdapterWatchPlanType[];
 	readonly compilerDrifts: readonly BuildWorkerCompilerDriftType[];
 	readonly resources: Readonly<Record<string, number>>;
 }>;
@@ -162,9 +158,6 @@ type BuildRequestType = Readonly<{
 	startedAtEpoch?: number | undefined;
 }>;
 
-const watchInputsOf = (plans: readonly AdapterScanPlanType[]): readonly BuildWorkerWatchInputType[] =>
-	plans.flatMap((plan) => (plan.scan === null ? [] : [{adapterId: plan.adapterId, paths: plan.scan.watchInputs ?? []}]));
-
 const compilerDriftsOf = (plans: readonly AdapterScanPlanType[]): readonly BuildWorkerCompilerDriftType[] =>
 	plans.flatMap((plan) =>
 		plan.scan?.compilerDrift === true ? [{compilerVersion: plan.scan.compilerVersion, declaredCompilerVersion: plan.scan.declaredCompilerVersion}] : [],
@@ -185,6 +178,32 @@ const databaseContextOf = (config: ConfigType, scans: readonly AdapterScanPlanTy
 	}),
 });
 
+const initializeWatchPlans = (database: IndexDatabase, config: ConfigType, adapters: AdapterSetType): readonly AdapterTargetType[] => {
+	const targets = adapterTargets(config, adapters);
+	const restored = database.getWatchPlans();
+
+	if (!watchPlansMatchTargets(restored, targets)) {
+		database.putWatchPlans(createAdapterWatchPlans(config, targets, null));
+	}
+
+	return targets;
+};
+
+const completeWatchPlans = (
+	database: IndexDatabase,
+	targets: readonly AdapterTargetType[],
+	updates: readonly AdapterWatchPlanType[],
+	outcome: BuildReportType['outcome'],
+): readonly AdapterWatchPlanType[] => {
+	if (outcome === 'superseded') {
+		return database.getWatchPlans();
+	}
+
+	const plans = mergeAdapterWatchPlans(database.getWatchPlans(), updates, targets);
+	database.putWatchPlans(plans);
+	return plans;
+};
+
 const performBuild = async (request: BuildRequestType, adapters: AdapterSetType): Promise<BuildWorkerMessageType> => {
 	const sample = startProcessSample();
 	const executionContext = executionContextOf(request.cancellationBuffer);
@@ -192,6 +211,7 @@ const performBuild = async (request: BuildRequestType, adapters: AdapterSetType)
 	let stopHeartbeat: (() => void) | undefined;
 	let leaseAcquired = false;
 	let scans: readonly AdapterScanPlanType[] = [];
+	let watchPlanUpdates: readonly AdapterWatchPlanType[] = [];
 	let sampledResources: Readonly<Record<string, number>> | null = null;
 	const resources = (): Readonly<Record<string, number>> => {
 		sampledResources ??= {...sample.stop(), databaseBytes: database?.databaseSizeBytes() ?? 0};
@@ -202,6 +222,7 @@ const performBuild = async (request: BuildRequestType, adapters: AdapterSetType)
 		debug('opening database');
 		database = runBuildStage('persistence', () => IndexDatabase.open(request.config.databasePath, databaseContextOf(request.config, scans)));
 		debug('database opened');
+		const targets = initializeWatchPlans(database, request.config, adapters);
 		const startedAt = performance.now();
 		const startedAtEpoch = request.startedAtEpoch ?? Date.now();
 		const previous = database.getPublishedGeneration();
@@ -215,7 +236,7 @@ const performBuild = async (request: BuildRequestType, adapters: AdapterSetType)
 		const externalReport = externalBuildReport(leaseOutcome, database, startedAtEpoch);
 
 		if (externalReport !== null) {
-			return {ok: true, result: {report: externalReport, watchInputs: [], compilerDrifts: [], resources: resources()}};
+			return {ok: true, result: {report: externalReport, watchPlans: database.getWatchPlans(), compilerDrifts: [], resources: resources()}};
 		}
 
 		leaseAcquired = true;
@@ -239,14 +260,16 @@ const performBuild = async (request: BuildRequestType, adapters: AdapterSetType)
 			executionContext,
 			onScans: (captured): void => {
 				scans = captured;
+				watchPlanUpdates = createAdapterWatchPlans(request.config, targets, captured);
 			},
 		});
+		const watchPlans = completeWatchPlans(database, targets, watchPlanUpdates, report.outcome);
 		debug('build complete', {generationId: report.generationId, reused: report.reused, durationMs: report.durationMs});
 		return {
 			ok: true,
 			result: {
 				report,
-				watchInputs: watchInputsOf(scans),
+				watchPlans,
 				compilerDrifts: compilerDriftsOf(scans),
 				resources: resources(),
 			},
@@ -280,11 +303,12 @@ const disposeAdapters = (adapters: AdapterSetType | null): void => {
 	}
 };
 
-const initializeStorage = (request: BuildWorkerInitializeRequestType): void => {
+const initializeStorage = (request: BuildWorkerInitializeRequestType, adapters: AdapterSetType): void => {
 	let database: IndexDatabase | undefined;
 
 	try {
 		database = IndexDatabase.open(request.config.databasePath, request.context);
+		initializeWatchPlans(database, request.config, adapters);
 		const result: BuildWorkerInitializeResultType = {kind: 'code-index-initialize-result', id: request.id, ok: true};
 		parentPort?.postMessage(result);
 	} catch (error) {
@@ -369,6 +393,21 @@ export const runBuildWorkerHost = async (data: BuildWorkerHostDataType): Promise
 		}
 	};
 
+	const initialize = async (request: BuildWorkerInitializeRequestType): Promise<void> => {
+		try {
+			adapters ??= await adaptersPromise;
+			initializeStorage(request, adapters);
+		} catch (error) {
+			const result: BuildWorkerInitializeResultType = {
+				kind: 'code-index-initialize-result',
+				id: request.id,
+				ok: false,
+				failure: buildFailureOf(error, 'persistence'),
+			};
+			parentPort?.postMessage(result);
+		}
+	};
+
 	const close = async (): Promise<void> => {
 		if (closing) {
 			return;
@@ -406,7 +445,7 @@ export const runBuildWorkerHost = async (data: BuildWorkerHostDataType): Promise
 		}
 
 		if (isInitializeRequest(value)) {
-			initializeStorage(value);
+			void initialize(value);
 		}
 	};
 

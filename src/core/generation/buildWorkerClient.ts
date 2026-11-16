@@ -1,5 +1,6 @@
 import {once} from 'node:events';
 import {Worker} from 'node:worker_threads';
+import {parseAdapterWatchPlans} from '@codeindex/adapter-sdk';
 import {z} from 'zod';
 import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
@@ -163,27 +164,12 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 
 const buildReportFromWorkerMessage = (raw: unknown): BuildReportType | null => (isRecord(raw) ? asBuildReport(raw['report']) : null);
 
-const watchInputsFromWorker = (value: unknown): BuildWorkerRunResultType['watchInputs'] | null => {
-	if (!Array.isArray(value)) {
+const watchPlansFromWorker = (value: unknown): BuildWorkerRunResultType['watchPlans'] | null => {
+	try {
+		return parseAdapterWatchPlans(value);
+	} catch {
 		return null;
 	}
-
-	const updates: BuildWorkerRunResultType['watchInputs'][number][] = [];
-
-	for (const entry of value) {
-		if (
-			!isRecord(entry) ||
-			typeof entry['adapterId'] !== 'string' ||
-			!Array.isArray(entry['paths']) ||
-			!entry['paths'].every((path) => typeof path === 'string')
-		) {
-			return null;
-		}
-
-		updates.push({adapterId: entry['adapterId'], paths: entry['paths']});
-	}
-
-	return updates;
 };
 
 const compilerDriftsFromWorker = (value: unknown): BuildWorkerRunResultType['compilerDrifts'] | null => {
@@ -244,11 +230,11 @@ export const buildWorkerRunResultFromMessage = (raw: unknown): BuildWorkerRunRes
 	}
 
 	const report = buildReportFromWorkerMessage(payload);
-	const watchInputs = watchInputsFromWorker(payload['watchInputs']);
+	const watchPlans = watchPlansFromWorker(payload['watchPlans']);
 	const compilerDrifts = compilerDriftsFromWorker(payload['compilerDrifts']);
 	const resources = resourcesFromWorker(payload['resources']);
 
-	return report === null || watchInputs === null || compilerDrifts === null || resources === null ? null : {report, watchInputs, compilerDrifts, resources};
+	return report === null || watchPlans === null || compilerDrifts === null || resources === null ? null : {report, watchPlans, compilerDrifts, resources};
 };
 
 const workerFailureOf = (error: unknown, project: BuildProjectContextType | null): BuildFailureType => buildFailureOf(error, 'worker', project);

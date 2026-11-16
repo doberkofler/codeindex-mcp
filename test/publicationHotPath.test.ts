@@ -27,7 +27,7 @@ vi.mock(import('../src/core/storage/databaseWal.ts'), async (importOriginal) => 
 });
 
 const PROVENANCE = {
-	protocolVersion: 1,
+	protocolVersion: 2,
 	adapterVersion: '1.0.0',
 	packageName: null,
 	packageVersion: null,

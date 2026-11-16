@@ -1,5 +1,12 @@
 import {describe, expect, it} from 'vitest';
-import {type AdapterBuildType, type AdapterModuleType, type AdapterType, type ScanResultType} from '@codeindex/adapter-sdk';
+import {
+	ADAPTER_PROTOCOL_VERSION,
+	defineAdapterWatchPlan,
+	type AdapterBuildType,
+	type AdapterModuleType,
+	type AdapterType,
+	type ScanResultType,
+} from '@codeindex/adapter-sdk';
 import {runAdapterConformance} from '@codeindex/adapter-sdk/conformance';
 import {codeIndexAdapter as oracleAdapter} from '@codeindex/adapter-oracle/index';
 import {codeIndexAdapter as typeScriptAdapter} from '@codeindex/adapter-typescript/index';
@@ -42,9 +49,22 @@ const asyncAdapter = (): AdapterType => ({
 	version: '1.0.0',
 	displayName: 'Async fixture',
 	discoveryText: 'fixture',
-	sourceExtensions: ['.fixture'],
-	ignoredSegments: [],
 	limitations: [],
+	createWatchPlan: () =>
+		defineAdapterWatchPlan({
+			adapterId: 'async-fixture',
+			adapterVersion: '1.0.0',
+			knownSourceFiles: [],
+			inputFiles: [],
+			scopes: [
+				{
+					candidateRoots: [''],
+					includeRules: [{kind: 'glob', pattern: '**/*'}],
+					excludeRules: [],
+					sourceRules: [{kind: 'suffix', suffix: '.fixture'}],
+				},
+			],
+		}),
 	scan: async (): Promise<ScanResultType> => {
 		const scan = emptyScan();
 		await Promise.resolve();
@@ -55,8 +75,6 @@ const asyncAdapter = (): AdapterType => ({
 		await Promise.resolve();
 		return build;
 	},
-	configFiles: (): readonly string[] => [],
-	isSourceFile: (): boolean => true,
 });
 
 describe('adapter SDK conformance', () => {
@@ -71,7 +89,7 @@ describe('adapter SDK conformance', () => {
 
 	it('accepts an asynchronous third-party adapter surface', () => {
 		const module: AdapterModuleType = {
-			manifest: {protocolVersion: 1, id: 'async-fixture', implementationVersion: '1.0.0', displayName: 'Async fixture'},
+			manifest: {protocolVersion: ADAPTER_PROTOCOL_VERSION, id: 'async-fixture', implementationVersion: '1.0.0', displayName: 'Async fixture'},
 			create: asyncAdapter,
 		};
 
@@ -81,7 +99,7 @@ describe('adapter SDK conformance', () => {
 	it('reports a shared factory instance and an identity mismatch', () => {
 		const shared = asyncAdapter();
 		const module: AdapterModuleType = {
-			manifest: {protocolVersion: 1, id: 'other', implementationVersion: '1.0.0', displayName: 'Broken'},
+			manifest: {protocolVersion: ADAPTER_PROTOCOL_VERSION, id: 'other', implementationVersion: '1.0.0', displayName: 'Broken'},
 			create: (): AdapterType => shared,
 		};
 		const result = runAdapterConformance(module);

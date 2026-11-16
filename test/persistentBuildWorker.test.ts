@@ -43,7 +43,7 @@ parentPort.on('message', (message) => {
 					diagnosticCount: 0,
 					stages: null,
 				},
-				watchInputs: [],
+				watchPlans: [],
 				compilerDrifts: [],
 				resources: {processTreeRssPeakBytes: 2},
 			},

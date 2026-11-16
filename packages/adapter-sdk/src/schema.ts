@@ -1,6 +1,60 @@
 import {z} from 'zod';
 
 import {type AdapterManifestType, type AdapterType} from './types.ts';
+import {ADAPTER_WATCH_PLAN_VERSION, type AdapterWatchPlanType} from './watchPlanTypes.ts';
+
+const isSafeRelativePath = (value: string, allowEmpty: boolean): boolean =>
+	(allowEmpty || value.length > 0) &&
+	!value.startsWith('/') &&
+	!/^[A-Za-z]:\//u.test(value) &&
+	!value.includes('\\') &&
+	!value.split('/').includes('..') &&
+	!value.includes('\0');
+
+const RepositoryPathSchema = z
+	.string()
+	.max(4096)
+	.refine((value) => isSafeRelativePath(value, false));
+const RepositoryDirectorySchema = z
+	.string()
+	.max(4096)
+	.refine((value) => isSafeRelativePath(value, true));
+const WatchRuleSchema = z.discriminatedUnion('kind', [
+	z.object({kind: z.literal('glob'), pattern: RepositoryPathSchema}),
+	z.object({kind: z.literal('prefix'), path: RepositoryDirectorySchema}),
+	z.object({
+		kind: z.literal('suffix'),
+		suffix: z
+			.string()
+			.min(1)
+			.max(128)
+			.refine((value) => !value.includes('/') && !value.includes('\\')),
+	}),
+	z.object({
+		kind: z.literal('segment'),
+		segment: z
+			.string()
+			.min(1)
+			.max(255)
+			.refine((value) => !value.includes('/') && !value.includes('\\')),
+		ignoreCase: z.boolean().optional(),
+	}),
+]);
+const AdapterWatchScopeSchema = z.object({
+	candidateRoots: z.array(RepositoryDirectorySchema),
+	includeRules: z.array(WatchRuleSchema),
+	excludeRules: z.array(WatchRuleSchema),
+	sourceRules: z.array(WatchRuleSchema).min(1),
+});
+const AdapterWatchPlanSchema = z.object({
+	adapterId: z.string().regex(/^\w[\w.-]*$/u),
+	adapterVersion: z.string().min(1).max(120),
+	planVersion: z.literal(ADAPTER_WATCH_PLAN_VERSION),
+	planId: z.string().min(1).max(128),
+	knownSourceFiles: z.array(RepositoryPathSchema),
+	inputFiles: z.array(RepositoryPathSchema),
+	scopes: z.array(AdapterWatchScopeSchema).min(1),
+});
 
 const AdapterManifestSchema = z
 	.object({
@@ -23,15 +77,11 @@ const AdapterSurfaceSchema = z
 		absenceReasons: z.array(z.string().min(1)).optional(),
 		probe: callable<NonNullable<AdapterType['probe']>>().optional(),
 		normalizeQueryName: callable<NonNullable<AdapterType['normalizeQueryName']>>().optional(),
-		sourceExtensions: z.array(z.string().min(1)).min(1),
-		sourceExtensionsFor: callable<NonNullable<AdapterType['sourceExtensionsFor']>>().optional(),
-		ignoredSegments: z.array(z.string()),
 		limitations: z.array(z.string()),
+		createWatchPlan: callable<AdapterType['createWatchPlan']>(),
 		scan: callable<AdapterType['scan']>(),
 		build: callable<AdapterType['build']>(),
 		canReusePublishedFacts: callable<NonNullable<AdapterType['canReusePublishedFacts']>>().optional(),
-		configFiles: callable<AdapterType['configFiles']>(),
-		isSourceFile: callable<AdapterType['isSourceFile']>(),
 		dispose: callable<NonNullable<AdapterType['dispose']>>().optional(),
 	})
 	.loose();
@@ -62,6 +112,24 @@ export const parseAdapterManifest = (value: unknown): AdapterManifestType => {
 export const adapterManifestSchema = (): typeof AdapterManifestSchema => AdapterManifestSchema;
 
 /**
+ * Validates one serializable adapter watch plan.
+ *
+ * @param value - Untrusted adapter or persisted plan data.
+ * @returns A relative-path-only watch plan.
+ * @throws {@link z.ZodError} When the plan is malformed or leaks an absolute path.
+ */
+export const parseAdapterWatchPlan = (value: unknown): AdapterWatchPlanType => AdapterWatchPlanSchema.parse(value);
+
+/**
+ * Validates a complete persisted watch-plan roster.
+ *
+ * @param value - Untrusted decoded persistence or worker data.
+ * @returns Validated watch plans.
+ * @throws {@link z.ZodError} When any plan is malformed.
+ */
+export const parseAdapterWatchPlans = (value: unknown): readonly AdapterWatchPlanType[] => z.array(AdapterWatchPlanSchema).parse(value);
+
+/**
  * Validates the value returned by an adapter factory.
  *
  * @param value - Untrusted factory result.
@@ -79,15 +147,11 @@ export const parseAdapterSurface = (value: unknown): AdapterType => {
 		...(parsed.absenceReasons === undefined ? {} : {absenceReasons: parsed.absenceReasons}),
 		...(parsed.probe === undefined ? {} : {probe: parsed.probe}),
 		...(parsed.normalizeQueryName === undefined ? {} : {normalizeQueryName: parsed.normalizeQueryName}),
-		sourceExtensions: parsed.sourceExtensions,
-		...(parsed.sourceExtensionsFor === undefined ? {} : {sourceExtensionsFor: parsed.sourceExtensionsFor}),
-		ignoredSegments: parsed.ignoredSegments,
 		limitations: parsed.limitations,
+		createWatchPlan: parsed.createWatchPlan,
 		scan: parsed.scan,
 		build: parsed.build,
 		...(parsed.canReusePublishedFacts === undefined ? {} : {canReusePublishedFacts: parsed.canReusePublishedFacts}),
-		configFiles: parsed.configFiles,
-		isSourceFile: parsed.isSourceFile,
 		...(parsed.dispose === undefined ? {} : {dispose: parsed.dispose}),
 	};
 };

@@ -79,10 +79,7 @@ describe('TypeScript project configuration inheritance', () => {
 		const {config, cleanup} = createFixtureConfig('typescript-extends');
 
 		try {
-			const watched = typeScriptExtractor
-				.configFiles(config)
-				.map((file) => path.relative(config.rootDir, file).split(path.sep).join('/'))
-				.sort();
+			const watched = [...typeScriptExtractor.createWatchPlan(config, null).inputFiles].sort();
 
 			expect(watched).toStrictEqual(['package.json', 'tsconfig.base.json', 'tsconfig.extra.json', 'tsconfig.json']);
 		} finally {
@@ -114,7 +111,7 @@ describe('TypeScript project configuration inheritance', () => {
 
 		const config = configOf(root, projectFilePath);
 		const loaded = loadTypeScriptProject(config);
-		const watched = typeScriptExtractor.configFiles(config).map((file) => path.relative(root, file).split(path.sep).join('/'));
+		const watched = typeScriptExtractor.createWatchPlan(config, null).inputFiles;
 
 		expect(loaded.program.getCompilerOptions()).toMatchObject({strict: true, target: 9});
 		expect(loaded.rootFileNames.map((file) => path.basename(file))).toStrictEqual(['main.ts']);

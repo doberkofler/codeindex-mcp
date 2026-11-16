@@ -24,17 +24,9 @@ import {extractSymbolFacts} from './extractSymbols.ts';
 import {createTypeScriptInputSnapshot, disposeTypeScriptSessions, type TypeScriptInputSnapshotType} from './inputSnapshot.ts';
 import {loadTypeScriptProject} from './loadProject.ts';
 import {mergeProjectFiles} from './projectFiles.ts';
-import {
-	collectConfigFiles,
-	isAuthoredSourceFile,
-	scanProject,
-	TYPESCRIPT_EXTRACTOR_ID,
-	TYPESCRIPT_EXTRACTOR_VERSION,
-	TYPESCRIPT_IGNORED_SEGMENTS,
-} from './scanProject.ts';
+import {scanProject, TYPESCRIPT_EXTRACTOR_ID, TYPESCRIPT_EXTRACTOR_VERSION} from './scanProject.ts';
+import {createTypeScriptWatchPlan} from './watchPlan.ts';
 import {createExecutionCheckpoint} from './executionCheckpoint.ts';
-
-const SOURCE_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'];
 
 const LIMITATIONS: readonly string[] = [
 	'JavaScript indexing requires allowJs in the selected project file',
@@ -368,13 +360,10 @@ export const typeScriptExtractor: AdapterType = {
 	version: TYPESCRIPT_EXTRACTOR_VERSION,
 	displayName: 'TypeScript / JavaScript',
 	discoveryText: DISCOVERY_TEXT,
-	sourceExtensions: SOURCE_EXTENSIONS,
-	ignoredSegments: TYPESCRIPT_IGNORED_SEGMENTS,
 	limitations: LIMITATIONS,
+	createWatchPlan: createTypeScriptWatchPlan,
 	scan: scanProject,
 	build: buildTypeScriptFacts,
-	configFiles: (config) => [...new Set(config.projects.flatMap((project) => collectConfigFiles(project.projectFilePath, config.rootDir)))],
-	isSourceFile: isAuthoredSourceFile,
 	dispose: disposeTypeScriptSessions,
 };
 

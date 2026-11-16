@@ -105,12 +105,12 @@ const namespacedAdapterSet = (): AdapterSetType => ({
 		{
 			id: 'typescript',
 			moduleUrl: 'builtin:typescript',
-			protocolVersion: 1,
+			protocolVersion: 2,
 			implementationVersion: typeScriptExtractor.version,
 			packageName: '@codeindex/adapter-typescript',
 			packageVersion: '1.2.3',
 		},
-		{id: 'alt', moduleUrl: 'builtin:alt', protocolVersion: 1, implementationVersion: 'alt-1', packageName: '@fixture/alt', packageVersion: '4.5.6'},
+		{id: 'alt', moduleUrl: 'builtin:alt', protocolVersion: 2, implementationVersion: 'alt-1', packageName: '@fixture/alt', packageVersion: '4.5.6'},
 	],
 });
 
@@ -222,7 +222,7 @@ describe('multi-adapter build', () => {
 
 			const adapters = database.getGenerationAdapters(report.generationId);
 			expect(adapters.map((adapter) => `${adapter.adapterId}:${adapter.coverage}`)).toStrictEqual(['oracle:present', 'typescript:present']);
-			expect(adapters.every((adapter) => adapter.protocolVersion === 1)).toBe(true);
+			expect(adapters.every((adapter) => adapter.protocolVersion === 2)).toBe(true);
 			expect(report.symbolCount).toBe(adapters.reduce((total, adapter) => total + adapter.symbolCount, 0));
 			expect(report.fileCount).toBe(adapters.reduce((total, adapter) => total + adapter.fileCount, 0));
 

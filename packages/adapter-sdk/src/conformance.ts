@@ -64,12 +64,8 @@ export const runAdapterConformance = (module: AdapterModuleType): AdapterConform
 		fail('identity', 'manifest and adapter identity disagree');
 	}
 
-	if (first.sourceExtensions.length === 0) {
-		fail('surface', 'sourceExtensions must not be empty');
-	}
-
 	try {
-		structuredClone({id: first.id, version: first.version, extensions: first.sourceExtensions});
+		structuredClone({id: first.id, version: first.version});
 	} catch {
 		fail('clone', 'adapter metadata is not structured-clone-safe');
 	}

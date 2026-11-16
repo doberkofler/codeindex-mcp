@@ -12,7 +12,7 @@ import {buildQueryContext} from './codeIndexQueryContext.ts';
 import {type PersistentBuildWorker} from './persistentBuildWorker.ts';
 import {buildWorkerOf} from './buildWorkerSetup.ts';
 import {adapterTargets, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
-import {adapterIgnoredSegments, adapterWatchInputs, watchRoutesOf} from './adapterRefresh.ts';
+import {mergeAdapterWatchPlans, createAdapterWatchPlans, watchPlansMatchTargets} from './adapterWatchPlans.ts';
 import {
 	findDependencies as queryDependencies,
 	findReferences as queryReferences,
@@ -55,7 +55,7 @@ import {queryReadSymbol} from '../query/readSymbolQuery.ts';
 import {selectReadSymbol} from '../query/readSymbolSelection.ts';
 import {querySymbolAt} from '../query/symbolAtQuery.ts';
 import {RefreshCoordinator} from '../freshness/refreshCoordinator.ts';
-import {WorkspaceWatcher} from '../freshness/workspaceWatcher.ts';
+import {AdapterWatchController} from '../freshness/adapterWatchController.ts';
 import {runInProcessRefresh} from './inProcessRefresh.ts';
 import {buildGeneration} from './buildGeneration.ts';
 
@@ -73,14 +73,11 @@ export class CodeIndex {
 	readonly #analytics: AnalyticsRecorderType | null;
 	readonly #workerEntry: string | null;
 	readonly #buildWorker: PersistentBuildWorker | null;
-	readonly #watchEnabled: boolean;
 	readonly #coordinator: RefreshCoordinator;
-	readonly #watcher: WorkspaceWatcher;
+	readonly #watchController: AdapterWatchController;
 	readonly #override: AdapterTargetType['extractor'] | undefined;
 	readonly #ownerId = randomUUID();
 	readonly #compilerDriftObserved = new Set<string>();
-	/** Per-adapter non-source inputs discovered by the latest scan. */
-	#watchInputs: ReadonlyMap<string, readonly string[]> = new Map();
 	readonly #recordExactName = (presence: ExactNamePresenceType): void => {
 		this.#analytics?.record('find_symbol_outcome', {presence});
 	};
@@ -97,10 +94,18 @@ export class CodeIndex {
 		this.#logger = logger;
 		this.#analytics = options.analytics ?? null;
 		this.#published = database.getPublishedGeneration();
-		this.#watchEnabled = options.watch ?? true;
+		const watchEnabled = options.watch ?? true;
 		const worker = buildWorkerOf(config, options, adapterSet);
 		this.#workerEntry = worker.entry;
 		this.#buildWorker = worker.worker;
+		const restoredWatchPlans = database.getWatchPlans();
+		const watchPlans = watchPlansMatchTargets(restoredWatchPlans, this.#targets)
+			? restoredWatchPlans
+			: createAdapterWatchPlans(this.#config, this.#targets, null);
+
+		if (!watchPlansMatchTargets(restoredWatchPlans, this.#targets) && this.#buildWorker === null) {
+			database.putWatchPlans(watchPlans);
+		}
 		this.#coordinator = new RefreshCoordinator({
 			logger,
 			adapters: this.#targets.map((target) => ({
@@ -123,19 +128,22 @@ export class CodeIndex {
 				this.#analytics?.record(event, fields);
 			},
 		});
-		this.#watcher = new WorkspaceWatcher({
+		this.#watchController = new AdapterWatchController({
+			enabled: watchEnabled,
 			rootDir: config.rootDir,
 			logger,
-			ignoredSegments: adapterIgnoredSegments(this.#targets),
-			routes: watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs),
+			plans: watchPlans,
 			onChange: (paths, adapterIds): void => {
 				this.#coordinator.request({kind: 'change', paths, adapterIds});
+			},
+			onHandoff: (): void => {
+				this.#coordinator.request({kind: 'reconcile'});
 			},
 		});
 		debug('index created', {
 			published: this.#published?.id ?? null,
 			worker: this.#workerEntry,
-			watch: this.#watchEnabled,
+			watch: watchEnabled,
 			adapters: this.#targets.map((target) => target.adapter.id),
 		});
 	}
@@ -149,9 +157,7 @@ export class CodeIndex {
 		if (this.#closed) {
 			return;
 		}
-		if (this.#watchEnabled) {
-			this.#watcher.start(watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs));
-		}
+		this.#watchController.start();
 		debug('startup refresh requested');
 		this.#coordinator.start();
 	}
@@ -210,10 +216,6 @@ export class CodeIndex {
 				signal,
 			});
 
-			for (const update of result.watchInputs) {
-				this.#watchInputs = new Map(this.#watchInputs).set(update.adapterId, update.paths);
-			}
-
 			for (const drift of result.compilerDrifts) {
 				recordCompilerDrift({
 					logger: this.#logger,
@@ -223,7 +225,7 @@ export class CodeIndex {
 				});
 			}
 
-			this.#watcher.update(watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs));
+			this.#watchController.update(result.watchPlans);
 			this.#published = this.#database.getPublishedGeneration();
 			const resources = {...result.resources, ...responsiveness.stop()};
 			recordRefreshOutcome({
@@ -291,8 +293,12 @@ export class CodeIndex {
 				return report;
 			},
 		});
-		this.#watchInputs = adapterWatchInputs(result.plans, this.#watchInputs);
-		this.#watcher.update(watchRoutesOf(this.#config, this.#targets, this.#database, this.#watchInputs));
+		if (result.report.outcome !== 'superseded') {
+			const updates = createAdapterWatchPlans(this.#config, this.#targets, result.plans);
+			const plans = mergeAdapterWatchPlans(this.#watchController.plans, updates, this.#targets);
+			this.#database.putWatchPlans(plans);
+			this.#watchController.update(plans);
+		}
 		this.#published = this.#database.getPublishedGeneration();
 		return result.report;
 	}
@@ -458,7 +464,7 @@ export class CodeIndex {
 		const coordinatorClose = this.#coordinator.close();
 		await this.#buildWorker?.close();
 		await coordinatorClose;
-		this.#watcher.close();
+		this.#watchController.close();
 		for (const adapter of this.#adapterSet.adapters) {
 			adapter.dispose?.();
 		}

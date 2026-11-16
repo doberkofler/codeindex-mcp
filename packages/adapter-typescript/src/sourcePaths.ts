@@ -7,6 +7,12 @@ const ConfigChainSchema = z.looseObject({
 	extends: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
+const WatchConfigSchema = ConfigChainSchema.extend({
+	files: z.array(z.string()).optional(),
+	include: z.array(z.string()).optional(),
+	exclude: z.array(z.string()).optional(),
+});
+
 const PackageTsconfigSchema = z.looseObject({
 	tsconfig: z.string().optional(),
 	main: z.string().optional(),
@@ -125,6 +131,11 @@ const readJsonObject = (fileName: string): unknown => {
 	}
 };
 
+const existingRealPath = (fileName: string): string | null => {
+	const resolved = resolve(fileName);
+	return existsSync(resolved) ? realpathSync(resolved) : null;
+};
+
 const resolveConfigCandidate = (candidate: string): string | null =>
 	[`${candidate}.json`, candidate, join(candidate, 'tsconfig.json')].find((fileName) => existsSync(fileName) && !fileName.endsWith(path.sep)) ?? null;
 
@@ -225,4 +236,79 @@ export const collectConfigFiles = (projectFilePath: string, rootDir?: string): r
 	}
 
 	return [...files];
+};
+
+type WatchListType = Readonly<{readonly baseDirectory: string; readonly values: readonly string[]}>;
+
+/** Effective top-level file-selection fields with the config directory that owns each field. */
+export type TypeScriptWatchSelectionType = Readonly<{
+	readonly files?: WatchListType;
+	readonly include?: WatchListType;
+	readonly exclude?: WatchListType;
+}>;
+
+const selectedWatchList = (values: readonly string[] | undefined, inherited: WatchListType | undefined, baseDirectory: string): WatchListType | undefined =>
+	values === undefined ? inherited : {baseDirectory, values};
+
+const watchSelectionOf = (
+	baseDirectory: string,
+	value: z.infer<typeof WatchConfigSchema>,
+	inherited: Readonly<{files: WatchListType | undefined; include: WatchListType | undefined; exclude: WatchListType | undefined}>,
+): TypeScriptWatchSelectionType => {
+	const files = selectedWatchList(value.files, inherited.files, baseDirectory);
+	const include = selectedWatchList(value.include, inherited.include, baseDirectory);
+	const exclude = selectedWatchList(value.exclude, inherited.exclude, baseDirectory);
+	return {
+		...(files === undefined ? {} : {files}),
+		...(include === undefined ? {} : {include}),
+		...(exclude === undefined ? {} : {exclude}),
+	};
+};
+
+/**
+ * Resolves inherited TypeScript file-selection fields for watch-plan creation.
+ *
+ * Later entries in an `extends` array and then the current file replace earlier
+ * `files`, `include`, or `exclude` fields, matching TypeScript configuration
+ * inheritance. Each field retains its declaring directory because patterns are
+ * relative to that file rather than the leaf project.
+ *
+ * @param projectFilePath - Absolute tsconfig or jsconfig path.
+ * @returns Effective file-selection fields.
+ */
+export const collectTypeScriptWatchSelection = (projectFilePath: string): TypeScriptWatchSelectionType => {
+	const visit = (fileName: string, visiting: Set<string>): TypeScriptWatchSelectionType => {
+		const canonical = existingRealPath(fileName);
+
+		if (canonical === null || visiting.has(canonical)) {
+			return {};
+		}
+
+		visiting.add(canonical);
+		const parsed = WatchConfigSchema.safeParse(readJsonObject(canonical));
+		const value = parsed.success ? parsed.data : {};
+		const specifiers = value.extends === undefined ? [] : typeof value.extends === 'string' ? [value.extends] : value.extends;
+		let files: WatchListType | undefined;
+		let include: WatchListType | undefined;
+		let exclude: WatchListType | undefined;
+
+		for (const specifier of specifiers) {
+			const extended =
+				specifier.startsWith('.') || isAbsolute(specifier)
+					? resolveConfigCandidate(resolve(dirname(canonical), specifier))
+					: resolvePackageExtends(specifier, dirname(canonical), existingRealPath);
+
+			if (extended !== null) {
+				const inherited = visit(extended, visiting);
+				files = inherited.files ?? files;
+				include = inherited.include ?? include;
+				exclude = inherited.exclude ?? exclude;
+			}
+		}
+
+		visiting.delete(canonical);
+		return watchSelectionOf(dirname(canonical), value, {files, include, exclude});
+	};
+
+	return visit(projectFilePath, new Set());
 };

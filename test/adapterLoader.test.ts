@@ -14,7 +14,7 @@ let created = 0;
 
 export const codeIndexAdapter = {
 	manifest: {
-		protocolVersion: ${String(input.protocolVersion ?? 1)},
+		protocolVersion: ${String(input.protocolVersion ?? 2)},
 		id: '${input.id}',
 		implementationVersion: '${input.version ?? '1.0.0'}',
 		displayName: 'Fixture ${input.id}',
@@ -26,13 +26,18 @@ export const codeIndexAdapter = {
 			version: '${input.version ?? '1.0.0'}',
 			displayName: 'Fixture ${input.id}',
 			discoveryText: 'fixture',
-			sourceExtensions: ['.fixture'],
-			ignoredSegments: [],
 			limitations: [],
+			createWatchPlan: (_config, scan) => ({
+				adapterId: '${input.id}',
+				adapterVersion: '${input.version ?? '1.0.0'}',
+				planVersion: 1,
+				planId: 'fixture-plan',
+				knownSourceFiles: scan?.files.map((file) => file.path) ?? [],
+				inputFiles: [],
+				scopes: [{candidateRoots: [''], includeRules: [{kind: 'glob', pattern: '**/*'}], excludeRules: [], sourceRules: [{kind: 'suffix', suffix: '.fixture'}]}],
+			}),
 			scan: () => ({rootDir: '', projectId: '', extractorId: '${input.id}', extractorVersion: '${input.version ?? '1.0.0'}', compilerVersion: 'none', declaredCompilerVersion: null, compilerDrift: false, files: [], sourceHash: '', configHash: '', projects: [], projectFileCount: 0, excludedFileCount: 0, configDiagnosticCount: 0, scanMs: 0}),
 			build: () => ({files: [], symbols: [], bindings: [], bindingContexts: [], bindingSites: [], surfaceOrigins: [], occurrences: [], dependencies: {edges: [], bindings: []}, adapterStats: [], diagnostics: [], compilerMs: 0, extractionMs: 0}),
-			configFiles: () => [],
-			isSourceFile: () => true,
 		};
 	},
 };
@@ -111,7 +116,7 @@ describe('adapter loader', () => {
 		const loaded = await loadConfiguredAdapters(config);
 
 		expect(loaded.adapters.map((adapter) => adapter.id)).toStrictEqual(['fixture']);
-		expect(loaded.descriptors[0]).toMatchObject({id: 'fixture', protocolVersion: 1, implementationVersion: '1.0.0'});
+		expect(loaded.descriptors[0]).toMatchObject({id: 'fixture', protocolVersion: 2, implementationVersion: '1.0.0'});
 	});
 
 	it('resolves a bare package from the configuration location', async () => {

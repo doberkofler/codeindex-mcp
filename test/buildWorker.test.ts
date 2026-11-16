@@ -8,7 +8,7 @@ const descriptors = [
 	{
 		id: 'typescript',
 		moduleUrl: 'builtin:typescript',
-		protocolVersion: 1,
+		protocolVersion: 2,
 		implementationVersion: typeScriptExtractor.version,
 		packageName: '@codeindex/adapter-typescript',
 		packageVersion: typeScriptExtractor.version,

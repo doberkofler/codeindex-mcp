@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {runBuildWorkerThread} from '../src/core/generation/buildWorkerClient.ts';
+import {buildWorkerRunResultFromMessage, runBuildWorkerThread} from '../src/core/generation/buildWorkerClient.ts';
 import {createFixtureConfig} from './helpers/fixture.ts';
 
 const runWorkerScript = async (script: string): Promise<unknown> => {
@@ -79,9 +79,32 @@ const report = {
 	},
 };
 
-const successMessage = (value: unknown): string => JSON.stringify({ok: true, result: {report: value, watchInputs: [], compilerDrifts: [], resources: {}}});
+const successMessage = (value: unknown): string => JSON.stringify({ok: true, result: {report: value, watchPlans: [], compilerDrifts: [], resources: {}}});
 
 describe('build worker client', () => {
+	it('preserves a validated relative-path watch plan across the worker message seam', () => {
+		const plan = {
+			adapterId: 'fixture',
+			adapterVersion: '1.0.0',
+			planVersion: 1,
+			planId: 'fixture-plan',
+			knownSourceFiles: ['src/main.fixture'],
+			inputFiles: ['fixture.json'],
+			scopes: [
+				{
+					candidateRoots: ['src'],
+					includeRules: [{kind: 'glob', pattern: 'src/**/*'}],
+					excludeRules: [],
+					sourceRules: [{kind: 'suffix', suffix: '.fixture'}],
+				},
+			],
+		};
+		const raw = {result: {report, watchPlans: [plan], compilerDrifts: [], resources: {}}};
+
+		expect(buildWorkerRunResultFromMessage(raw)?.watchPlans).toStrictEqual([plan]);
+		expect(buildWorkerRunResultFromMessage({...raw, result: {...raw.result, watchPlans: [{...plan, inputFiles: ['/private/input.json']}]}})).toBeNull();
+	});
+
 	it('returns a validated build report', async () => {
 		const actual = await runWorkerScript(`import {parentPort} from 'node:worker_threads'; parentPort?.postMessage(${successMessage(report)});`);
 

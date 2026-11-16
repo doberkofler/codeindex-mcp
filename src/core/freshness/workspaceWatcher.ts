@@ -1,344 +1,320 @@
-import {existsSync} from 'node:fs';
 import path from 'node:path';
+
+import {type AdapterWatchPlanType, type AdapterWatchRuleType} from '@codeindex/adapter-sdk';
 import {watch, type FSWatcher} from 'chokidar';
+
 import {toRepositoryPath} from '../config/config.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
 
-const {basename, dirname, resolve, sep} = path;
+const {resolve, sep} = path;
 const debug = debugFor('watch');
 
-/**
- * One logical adapter subscription over the shared filesystem watcher.
- *
- * The watcher owns one physical subscription per directory tree. Routes only
- * describe which adapter owns a changed path, so an event for one adapter never
- * invalidates another adapter's capture.
- */
-export type WatchRouteType = Readonly<{
-	/** Adapter identifier, or any stable subscriber identity. */
-	readonly id: string;
-	/** File extensions this route publishes. */
-	readonly sourceExtensions: readonly string[];
-	/** Absolute authored files currently owned by this route. */
-	readonly files: readonly string[];
-	/** Absolute configuration files and non-source inputs that invalidate this route. */
-	readonly configFiles: readonly string[];
+export type RoutedWatchEventType = Readonly<{
+	readonly paths: readonly string[] | null;
+	readonly adapterIds: readonly string[];
 }>;
 
 export type WorkspaceWatcherOptionsType = Readonly<{
 	rootDir: string;
 	logger: LoggerType;
-	/** Directory segments every configured adapter ignores. */
-	ignoredSegments: readonly string[];
-	routes: readonly WatchRouteType[];
+	plans: readonly AdapterWatchPlanType[];
 	/**
 	 * Reports changed workspace-relative paths and the adapters they belong to.
 	 *
-	 * `paths === null` means the file set changed without naming a source file.
-	 * `adapterIds === null` means every adapter is invalidated, either because
-	 * the event is ambiguous or because it changed shared state.
+	 * `paths === null` means an adapter-wide invalidation. The watcher reports
+	 * only adapter IDs selected by the current logical plans.
 	 */
-	onChange: (paths: readonly string[] | null, adapterIds: readonly string[] | null) => void;
+	onChange: (paths: readonly string[] | null, adapterIds: readonly string[]) => void;
 }>;
 
-const UNIVERSAL_IGNORED_SEGMENTS = new Set(['.git', '.svn', '.hg']);
+type PhysicalWatcherType = Readonly<{
+	readonly watcher: FSWatcher;
+	readonly ready: Promise<true>;
+	readonly settleReady: () => void;
+}>;
 
-const isIgnoredPath = (relativePath: string, ignoredSegments: readonly string[]): boolean =>
-	relativePath
-		.split('/')
-		.map((segment) => segment.toLowerCase())
-		.some((segment) => UNIVERSAL_IGNORED_SEGMENTS.has(segment) || ignoredSegments.includes(segment));
-
-const isIgnoredAbsolutePath = (rootDir: string, ignoredSegments: readonly string[], absolutePath: string): boolean => {
-	const relativePath = path.relative(rootDir, absolutePath);
-
-	if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-		return false;
+const matchesRule = (relativePath: string, rule: AdapterWatchRuleType): boolean => {
+	if (rule.kind === 'glob') {
+		return path.matchesGlob(relativePath, rule.pattern);
 	}
 
-	return isIgnoredPath(relativePath.split(path.sep).join('/'), ignoredSegments);
+	if (rule.kind === 'prefix') {
+		return rule.path === '' || relativePath === rule.path || relativePath.startsWith(`${rule.path}/`);
+	}
+
+	if (rule.kind === 'suffix') {
+		return relativePath.endsWith(rule.suffix);
+	}
+
+	const segments = relativePath.split('/');
+	return rule.ignoreCase === true ? segments.some((segment) => segment.toLowerCase() === rule.segment.toLowerCase()) : segments.includes(rule.segment);
 };
 
-const isPublishable = (filePath: string, extensions: ReadonlySet<string>): boolean =>
-	!filePath.endsWith('.d.ts') &&
-	!filePath.endsWith('.d.mts') &&
-	!filePath.endsWith('.d.cts') &&
-	[...extensions].some((extension) => filePath.endsWith(extension));
+const scopeContainsPath = (relativePath: string, roots: readonly string[]): boolean =>
+	roots.some((root) => root === '' || relativePath === root || relativePath.startsWith(`${root}/`));
+
+const scopeMatchesFile = (relativePath: string, plan: AdapterWatchPlanType): boolean =>
+	plan.scopes.some(
+		(scope) =>
+			scopeContainsPath(relativePath, scope.candidateRoots) &&
+			scope.includeRules.some((rule) => matchesRule(relativePath, rule)) &&
+			!scope.excludeRules.some((rule) => matchesRule(relativePath, rule)) &&
+			scope.sourceRules.some((rule) => matchesRule(relativePath, rule)),
+	);
+
+const rootsIntersectDirectory = (relativePath: string, roots: readonly string[]): boolean =>
+	roots.some(
+		(root) => root === '' || relativePath === '' || relativePath === root || relativePath.startsWith(`${root}/`) || root.startsWith(`${relativePath}/`),
+	);
+
+const ruleExcludesDirectoryTree = (relativePath: string, rule: AdapterWatchRuleType): boolean =>
+	(rule.kind === 'prefix' || rule.kind === 'segment') && matchesRule(relativePath, rule);
+
+const scopeIntersectsDirectory = (relativePath: string, plan: AdapterWatchPlanType): boolean =>
+	plan.scopes.some(
+		(scope) => rootsIntersectDirectory(relativePath, scope.candidateRoots) && !scope.excludeRules.some((rule) => ruleExcludesDirectoryTree(relativePath, rule)),
+	);
+
+const exactPathIntersectsDirectory = (relativePath: string, plan: AdapterWatchPlanType): boolean =>
+	[...plan.inputFiles, ...plan.knownSourceFiles].some((exactPath) => scopeContainsPath(exactPath, [relativePath]));
 
 const isFileEvent = (event: string): boolean => event === 'add' || event === 'change' || event === 'unlink';
 
 const isDirectoryEvent = (event: string): boolean => event === 'addDir' || event === 'unlinkDir';
 
 /**
- * Reduces directories to the smallest set that still covers all of them.
+ * Matches one normalized filesystem event against adapter-owned plans.
  *
- * A recursive watcher on a parent already reports changes in every descendant,
- * so subscribing to both duplicates every event. The workspace root is never
- * treated as a covering ancestor: a file directly in the root would otherwise
- * promote the whole tree, including unrelated trees, to a watch target.
+ * @param plans - Current validated logical plans.
+ * @param event - Chokidar event name.
+ * @param relativePath - Workspace-relative POSIX path.
+ * @returns Coalesced path/invalidation and affected adapters, or null.
+ */
+export const routeWatchEvent = (plans: readonly AdapterWatchPlanType[], event: string, relativePath: string): RoutedWatchEventType | null => {
+	const adapterIds = new Set<string>();
+	let projectWide = false;
+
+	for (const plan of plans) {
+		if (plan.inputFiles.includes(relativePath)) {
+			adapterIds.add(plan.adapterId);
+			projectWide = true;
+		} else if (plan.knownSourceFiles.includes(relativePath)) {
+			adapterIds.add(plan.adapterId);
+		} else if (
+			isDirectoryEvent(event)
+				? exactPathIntersectsDirectory(relativePath, plan) || scopeIntersectsDirectory(relativePath, plan)
+				: isFileEvent(event)
+					? scopeMatchesFile(relativePath, plan)
+					: plan.scopes.some((scope) => scopeContainsPath(relativePath, scope.candidateRoots))
+		) {
+			adapterIds.add(plan.adapterId);
+			projectWide ||= !isFileEvent(event);
+		}
+	}
+
+	return adapterIds.size === 0 ? null : {paths: projectWide ? null : [relativePath], adapterIds: [...adapterIds].sort()};
+};
+
+/**
+ * Attributes a watcher backend failure to plans using one physical root.
  *
- * @param directories - Absolute directories that must be covered.
- * @param rootDir - Absolute workspace root.
+ * @param plans - Current validated logical plans.
+ * @param relativeRoot - Failed workspace-relative root, or null for an unscoped backend failure.
+ * @returns Conservative invalidation for affected adapters.
+ */
+export const routeWatchFailure = (plans: readonly AdapterWatchPlanType[], relativeRoot: string | null): RoutedWatchEventType => {
+	const adapterIds =
+		relativeRoot === null
+			? plans.map((plan) => plan.adapterId)
+			: plans
+					.filter(
+						(plan) =>
+							exactPathIntersectsDirectory(relativeRoot, plan) || plan.scopes.some((scope) => rootsIntersectDirectory(relativeRoot, scope.candidateRoots)),
+					)
+					.map((plan) => plan.adapterId);
+
+	return {paths: null, adapterIds: [...new Set(adapterIds)].sort()};
+};
+
+/**
+ * Reduces directories to the smallest recursively covering physical set.
+ *
+ * @param directories - Absolute candidate roots.
  * @returns Sorted minimal covering directories.
  */
-const coveringRoots = (directories: Iterable<string>, rootDir: string): readonly string[] => {
-	const candidates = [...new Set(directories)].sort();
+const coveringRoots = (directories: Iterable<string>): readonly string[] => {
+	const candidates = [...new Set(directories)].sort((left, right) => left.length - right.length || left.localeCompare(right));
 	const roots: string[] = [];
 
 	for (const directory of candidates) {
-		const covered = roots.some((root) => directory !== rootDir && (directory === root || directory.startsWith(`${root}${sep}`)));
-
-		if (!covered) {
+		if (!roots.some((root) => directory === root || directory.startsWith(`${root}${sep}`))) {
 			roots.push(directory);
 		}
 	}
 
-	return roots;
-};
-
-const ownersOf = (owners: ReadonlyMap<string, Set<string>>, key: string): readonly string[] | null => {
-	const found = owners.get(key);
-	return found === undefined || found.size === 0 ? null : [...found].sort();
-};
-
-const addOwner = (owners: Map<string, Set<string>>, key: string, id: string): void => {
-	const current = owners.get(key);
-
-	if (current === undefined) {
-		owners.set(key, new Set([id]));
-		return;
-	}
-
-	current.add(id);
+	return roots.sort();
 };
 
 /**
- * Watches indexed directories and extractor configuration files.
+ * Watches physical roots once and routes hints through adapter-owned plans.
  *
- * One physical watcher serves every adapter. Events are routed to the adapters
- * that own the changed path, so a TypeScript edit cannot invalidate an Oracle
- * capture and the reverse. Directory events, watcher errors, and ambiguous
- * paths still invalidate every adapter.
- *
- * Events are hints. The coordinator still runs a deterministic scan, and that
- * scan remains authoritative; no timer rescans an idle workspace.
+ * Filesystem events remain hints. A routed refresh still performs an
+ * authoritative adapter scan before publication.
  */
 export class WorkspaceWatcher {
 	readonly #rootDir: string;
 	readonly #logger: LoggerType;
-	readonly #ignoredSegments: readonly string[];
-	readonly #onChange: (paths: readonly string[] | null, adapterIds: readonly string[] | null) => void;
-	readonly #watchers = new Map<string, FSWatcher>();
+	readonly #onChange: WorkspaceWatcherOptionsType['onChange'];
+	readonly #watchers = new Map<string, PhysicalWatcherType>();
 	#watchedFiles = new Set<string>();
-	#configOwners = new Map<string, Set<string>>();
-	#fileOwners = new Map<string, Set<string>>();
-	#extensionOwners = new Map<string, Set<string>>();
-	#sourceExtensions = new Set<string>();
+	#plans: readonly AdapterWatchPlanType[];
 	#started = false;
 
 	public constructor(options: WorkspaceWatcherOptionsType) {
-		this.#rootDir = options.rootDir;
+		this.#rootDir = resolve(options.rootDir);
 		this.#logger = options.logger;
-		this.#ignoredSegments = options.ignoredSegments;
+		this.#plans = options.plans;
 		this.#onChange = options.onChange;
-		this.update(options.routes);
 	}
 
-	public start(routes: readonly WatchRouteType[]): void {
+	public async start(plans: readonly AdapterWatchPlanType[]): Promise<void> {
 		this.#started = true;
-		this.update(routes);
+		await this.update(plans);
 	}
 
-	public update(routes: readonly WatchRouteType[]): void {
-		this.#indexRoutes(routes);
+	public async update(plans: readonly AdapterWatchPlanType[]): Promise<void> {
+		this.#plans = plans;
 
 		if (!this.#started) {
 			return;
 		}
 
 		const directoryRoots = coveringRoots(
-			routes.flatMap((route) => route.files.map((file) => dirname(resolve(file)))),
-			this.#rootDir,
+			plans.flatMap((plan) => plan.scopes.flatMap((scope) => scope.candidateRoots.map((root) => resolve(this.#rootDir, root)))),
 		);
 		const watchedFiles = new Set<string>();
+		const exactPaths = plans.flatMap((plan) => [...plan.knownSourceFiles, ...plan.inputFiles]);
 
-		for (const route of routes) {
-			for (const configFile of route.configFiles) {
-				const absolutePath = resolve(configFile);
+		for (const relativePath of exactPaths) {
+			const absolutePath = resolve(this.#rootDir, relativePath);
 
-				// A configuration file inside a watched tree already produces events.
-				// Watching a path that does not exist would subscribe to its parent
-				// directory instead, so only existing files are watched directly.
-				if (existsSync(absolutePath) && !directoryRoots.some((root) => absolutePath.startsWith(`${root}${sep}`))) {
-					watchedFiles.add(absolutePath);
-				}
+			if (!directoryRoots.some((root) => absolutePath === root || absolutePath.startsWith(`${root}${sep}`))) {
+				watchedFiles.add(absolutePath);
 			}
 		}
 
 		for (const root of directoryRoots) {
-			if (this.#watchers.has(root)) {
-				continue;
+			if (!this.#watchers.has(root)) {
+				this.#watch(root);
 			}
-
-			this.#watch(root, 'tree');
 		}
 
 		for (const file of watchedFiles) {
-			if (this.#watchers.has(file)) {
-				continue;
+			if (!this.#watchers.has(file)) {
+				this.#watch(file);
 			}
-
-			this.#watch(file, 'file');
 		}
 
 		const wanted = new Set([...directoryRoots, ...watchedFiles]);
 
-		for (const [target, watcher] of this.#watchers) {
+		for (const [target, physical] of this.#watchers) {
 			if (!wanted.has(target)) {
-				void watcher.close();
+				physical.settleReady();
+				void physical.watcher.close();
 				this.#watchers.delete(target);
 			}
 		}
 
 		this.#watchedFiles = watchedFiles;
 		debug('watch set updated', {trees: this.#watchers.size - this.#watchedFiles.size, files: this.#watchedFiles.size});
+		const readiness = [...wanted].flatMap((target) => {
+			const physical = this.#watchers.get(target);
+			return physical === undefined ? [] : [physical.ready];
+		});
+		await Promise.all(readiness);
 	}
 
 	public close(): void {
 		this.#started = false;
 
-		for (const watcher of this.#watchers.values()) {
-			void watcher.close();
+		for (const physical of this.#watchers.values()) {
+			physical.settleReady();
+			void physical.watcher.close();
 		}
 
 		this.#watchers.clear();
 		this.#watchedFiles.clear();
-		this.#configOwners.clear();
-		this.#fileOwners.clear();
-		this.#extensionOwners.clear();
-		this.#sourceExtensions.clear();
+		this.#plans = [];
 	}
 
-	#indexRoutes(routes: readonly WatchRouteType[]): void {
-		const configOwners = new Map<string, Set<string>>();
-		const fileOwners = new Map<string, Set<string>>();
-		const extensionOwners = new Map<string, Set<string>>();
-		const sourceExtensions = new Set<string>();
+	#watch(target: string): void {
+		const readiness = Promise.withResolvers<true>();
+		const settleReady = (): void => {
+			readiness.resolve(true);
+		};
 
-		for (const route of routes) {
-			for (const configFile of route.configFiles) {
-				addOwner(configOwners, resolve(configFile), route.id);
-			}
-
-			for (const file of route.files) {
-				addOwner(fileOwners, resolve(file), route.id);
-			}
-
-			for (const extension of route.sourceExtensions) {
-				sourceExtensions.add(extension);
-				addOwner(extensionOwners, extension, route.id);
-			}
-		}
-
-		this.#configOwners = configOwners;
-		this.#fileOwners = fileOwners;
-		this.#extensionOwners = extensionOwners;
-		this.#sourceExtensions = sourceExtensions;
-	}
-
-	#watch(target: string, kind: 'tree' | 'file'): void {
 		try {
-			const watcher = watch(target, {
-				persistent: true,
-				ignoreInitial: true,
-				// Nothing is watched above the target, so the workspace ignore rules
-				// are applied here; an explicitly watched configuration file is never
-				// ignored, even under an excluded directory.
-				ignored: kind === 'file' ? (): boolean => false : (candidate): boolean => isIgnoredAbsolutePath(this.#rootDir, this.#ignoredSegments, candidate),
-			});
+			const watcher = watch(target, {persistent: true, ignoreInitial: true});
+			watcher.once('ready', settleReady);
 			watcher.on('all', (event, changedPath) => {
 				this.#handleEvent(event, changedPath);
 			});
 			watcher.on('error', (error) => {
+				settleReady();
 				this.#logger.warn('watcher_error', {message: error instanceof Error ? error.message : String(error)});
-				this.#onChange(null, null);
+				this.#reportFailure(target);
 			});
-			this.#watchers.set(target, watcher);
+			this.#watchers.set(target, {watcher, ready: readiness.promise, settleReady});
 		} catch (error) {
+			settleReady();
 			this.#logger.warn('watcher_unavailable', {message: error instanceof Error ? error.message : String(error)});
-			this.#onChange(null, null);
+			this.#reportFailure(target);
+		}
+	}
+
+	#relativePath(absolutePath: string): string {
+		const resolved = resolve(absolutePath);
+		return resolved === this.#rootDir ? '' : toRepositoryPath(this.#rootDir, resolved);
+	}
+
+	#reportFailure(target: string | null): void {
+		let relativeRoot: string | null = null;
+
+		if (target !== null) {
+			try {
+				relativeRoot = this.#relativePath(target);
+			} catch {
+				relativeRoot = null;
+			}
+		}
+
+		const routed = routeWatchFailure(this.#plans, relativeRoot);
+
+		if (routed.adapterIds.length > 0) {
+			this.#onChange(routed.paths, routed.adapterIds);
 		}
 	}
 
 	#handleEvent(event: string, changedPath: string): void {
 		if (changedPath === '') {
-			this.#onChange(null, null);
-			return;
-		}
-
-		const absolutePath = resolve(changedPath);
-		const configAdapters = ownersOf(this.#configOwners, absolutePath);
-
-		if (configAdapters !== null) {
-			debug('adapter input changed', {file: basename(absolutePath), adapters: configAdapters});
-			this.#onChange(null, configAdapters);
-			return;
-		}
-
-		if (isDirectoryEvent(event)) {
-			// A new directory can contain files that already existed elsewhere in the
-			// tree, and a removed directory can take indexed files with it. Neither
-			// names a source file, so the file set must be rescanned.
-			if (!isIgnoredAbsolutePath(this.#rootDir, this.#ignoredSegments, absolutePath)) {
-				debug('directory changed', {event});
-				this.#onChange(null, null);
-			}
-
-			return;
-		}
-
-		if (!isFileEvent(event)) {
-			return;
-		}
-
-		const ownedAdapters = ownersOf(this.#fileOwners, absolutePath);
-		const extensionAdapters = this.#adaptersForExtensions(absolutePath);
-
-		if (ownedAdapters === null && extensionAdapters === null) {
+			this.#reportFailure(null);
 			return;
 		}
 
 		let relativePath: string;
 
 		try {
-			relativePath = toRepositoryPath(this.#rootDir, absolutePath);
+			relativePath = this.#relativePath(changedPath);
 		} catch {
 			return;
 		}
 
-		if (isIgnoredPath(relativePath, this.#ignoredSegments)) {
-			return;
+		const routed = routeWatchEvent(this.#plans, event, relativePath);
+
+		if (routed !== null) {
+			debug('watch event routed', {event, adapters: routed.adapterIds, projectWide: routed.paths === null});
+			this.#onChange(routed.paths, routed.adapterIds);
 		}
-
-		this.#onChange([relativePath], ownedAdapters ?? extensionAdapters);
-	}
-
-	#adaptersForExtensions(filePath: string): readonly string[] | null {
-		if (!isPublishable(filePath, this.#sourceExtensions)) {
-			return null;
-		}
-
-		const owners = new Set<string>();
-
-		for (const [extension, adapterIds] of this.#extensionOwners) {
-			if (filePath.endsWith(extension)) {
-				for (const adapterId of adapterIds) {
-					owners.add(adapterId);
-				}
-			}
-		}
-
-		return owners.size === 0 ? null : [...owners].sort();
 	}
 }

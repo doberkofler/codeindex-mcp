@@ -25,18 +25,12 @@ import {
 import {extractOracleDependencies} from './extractDependencies.ts';
 import {extractOracleSymbols, type OracleContextSymbolsType, type OracleParsedFileType} from './extractSymbols.ts';
 import {mergeAdapterStats, oraclePublicationStats} from './publicationStats.ts';
-import {DEFAULT_ORACLE_SOURCE_EXTENSIONS, matchesOracleManifest, readOracleManifest} from './manifest.ts';
+import {matchesOracleManifest, readOracleManifest} from './manifest.ts';
 import {assertOracleParserBinding, structuralOracleParserBinding, type OracleParserBindingType} from './parserBinding.ts';
 import {normalizeOracleQueryName} from './queryNames.ts';
 import {resolveOracleReferences} from './resolveReferences.ts';
-import {
-	collectOracleConfigFiles,
-	isOracleAuthoredSourceFile,
-	ORACLE_EXTRACTOR_ID,
-	ORACLE_EXTRACTOR_VERSION,
-	ORACLE_IGNORED_SEGMENTS,
-	scanOracleProject,
-} from './scanProject.ts';
+import {ORACLE_EXTRACTOR_ID, ORACLE_EXTRACTOR_VERSION, scanOracleProject} from './scanProject.ts';
+import {createOracleWatchPlan} from './watchPlan.ts';
 
 const debug = debugFor('oracle');
 
@@ -392,20 +386,8 @@ export const createOracleExtractor = (binding: OracleParserBindingType): Adapter
 	displayName: 'Oracle 19c SQL / PL/SQL',
 	discoveryText: DISCOVERY_TEXT,
 	normalizeQueryName: normalizeOracleQueryName,
-	sourceExtensions: DEFAULT_ORACLE_SOURCE_EXTENSIONS,
-	sourceExtensionsFor: (config) => {
-		const extensions = new Set<string>();
-
-		for (const project of config.projects) {
-			for (const extension of readOracleManifest(project.projectFilePath).manifest.extensions) {
-				extensions.add(extension);
-			}
-		}
-
-		return [...extensions].sort();
-	},
-	ignoredSegments: ORACLE_IGNORED_SEGMENTS,
 	limitations: LIMITATIONS,
+	createWatchPlan: createOracleWatchPlan,
 	scan: (config, knownPaths, executionContext) => {
 		assertOracleParserBinding(config, binding);
 		return scanOracleProject(config, knownPaths, executionContext);
@@ -424,8 +406,6 @@ export const createOracleExtractor = (binding: OracleParserBindingType): Adapter
 		assertOracleParserBinding(input.config, binding);
 		return canReusePublishedFacts(input, binding);
 	},
-	configFiles: collectOracleConfigFiles,
-	isSourceFile: isOracleAuthoredSourceFile,
 });
 
 /**

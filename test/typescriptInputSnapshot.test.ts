@@ -70,10 +70,10 @@ describe('TypeScript input manifest', () => {
 
 			expect(second.inputHash).toBe(first.inputHash);
 			expect(second.inputHash).toMatch(/^[a-f0-9]{64}$/u);
-			expect(first.watchInputs?.every((watched) => watched.startsWith(config.rootDir))).toBe(true);
-			expect(first.watchInputs?.some((watched) => watched.includes('node_modules'))).toBe(false);
-			expect(first.watchInputs).toContain(join(config.rootDir, 'pnpm-lock.yaml'));
-			expect(first.watchInputs).not.toContain(join(config.rootDir, 'src', 'main.ts'));
+			expect(first.discoveredInputFiles?.every((watched) => !path.isAbsolute(watched))).toBe(true);
+			expect(first.discoveredInputFiles?.some((watched) => watched.includes('node_modules'))).toBe(false);
+			expect(first.discoveredInputFiles).toContain('pnpm-lock.yaml');
+			expect(first.discoveredInputFiles).not.toContain('src/main.ts');
 		} finally {
 			cleanup();
 		}

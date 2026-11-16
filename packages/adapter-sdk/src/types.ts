@@ -1,12 +1,14 @@
+import {type AdapterWatchPlanType} from './watchPlanTypes.ts';
+
+export type {AdapterWatchPlanType, AdapterWatchRuleType, AdapterWatchScopeType} from './watchPlanTypes.ts';
+
 /**
  * Protocol revision implemented by this SDK.
  *
  * The host rejects a module that exports any other value. Increment it only for
  * incompatible interface or fact-schema changes.
  */
-export const ADAPTER_PROTOCOL_VERSION = 1;
-
-/** Language-neutral adapter protocol types. */
+export const ADAPTER_PROTOCOL_VERSION = 2;
 
 /** One project context owned by an adapter. */
 export type ProjectContextConfigType = Readonly<{
@@ -98,8 +100,8 @@ export type ScanResultType = Readonly<{
 	 * `configHash`.
 	 */
 	readonly inputHash?: string;
-	/** Absolute files that can change the manifest, used by the workspace watcher. */
-	readonly watchInputs?: readonly string[];
+	/** Workspace-relative non-source inputs captured by the authoritative scan. */
+	readonly discoveredInputFiles?: readonly string[];
 	/**
 	 * Configuration identity for per-file extraction artifacts.
 	 *
@@ -443,14 +445,16 @@ export type AdapterType = Readonly<{
 	 * published spellings are identical.
 	 */
 	readonly normalizeQueryName?: (text: string) => string;
-	/** File extensions the adapter publishes; used by the watcher. */
-	readonly sourceExtensions: readonly string[];
-	/** Optional configuration-dependent extensions, such as manifest-defined Oracle source. */
-	readonly sourceExtensionsFor?: (config: AdapterConfigType) => readonly string[];
-	/** Directory segments excluded from watching and publication. */
-	readonly ignoredSegments: readonly string[];
 	/** Limitations reported by `index_status`. */
 	readonly limitations: readonly string[];
+	/**
+	 * Produces a serializable, configuration-aware watch plan.
+	 *
+	 * A null scan requests the conservative startup plan. A non-null scan is the
+	 * authoritative result from this adapter and must contribute its exact known
+	 * sources and discovered inputs.
+	 */
+	createWatchPlan: (config: AdapterConfigType, scan: ScanResultType | null) => AdapterWatchPlanType;
 	/**
 	 * Computes the deterministic source manifest and fingerprints.
 	 *
@@ -473,10 +477,6 @@ export type AdapterType = Readonly<{
 	 * The proof must be conservative: any doubt returns false.
 	 */
 	canReusePublishedFacts?: (input: AdapterFactReuseInputType) => boolean | Promise<boolean>;
-	/** Absolute configuration files that affect extraction. */
-	configFiles: (config: AdapterConfigType) => readonly string[];
-	/** Reports whether a path is publishable authored source. */
-	isSourceFile: (absolutePath: string, rootDir: string) => boolean;
 	/**
 	 * Releases process-wide adapter state, such as a retained compiler session.
 	 *

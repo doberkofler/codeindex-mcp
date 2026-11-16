@@ -116,7 +116,7 @@ const scanSnapshot = ({config, snapshot, projects, knownPaths, startedAt, contex
 	const projectFileCount = projectResults.reduce((total, project) => total + project.projectFileCount, 0);
 	const configDiagnosticCount = projectResults.reduce((total, project) => total + project.configDiagnosticCount, 0);
 	const {inputHash} = snapshot.manifest;
-	const watchInputs = snapshotWatchInputs(config.rootDir, snapshot.manifest);
+	const discoveredInputFiles = snapshotWatchInputs(config.rootDir, snapshot.manifest).map((input) => toRepositoryPath(config.rootDir, input));
 
 	debug('scan complete', {
 		files: files.length,
@@ -145,7 +145,7 @@ const scanSnapshot = ({config, snapshot, projects, knownPaths, startedAt, contex
 		sourceHash,
 		configHash,
 		inputHash,
-		watchInputs,
+		discoveredInputFiles,
 		projects: projectResults,
 		projectFileCount,
 		excludedFileCount,

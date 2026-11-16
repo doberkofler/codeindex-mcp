@@ -2,12 +2,12 @@ import {appendFileSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSyn
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
+import {type AdapterWatchPlanType} from '@codeindex/adapter-sdk';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {WorkspaceWatcher} from '../src/core/freshness/workspaceWatcher.ts';
 import {silentLogger} from './helpers/fixture.ts';
 
 const SOURCE_PATH = 'src/example.ts';
-const DEFAULT_IGNORED_SEGMENTS = ['node_modules', 'dist'];
 
 type WorkspaceType = Readonly<{
 	directory: string;
@@ -29,26 +29,55 @@ const createWorkspace = (): WorkspaceType => {
 	return {directory, sourcePath, configPath, changes: [], routedAdapters: []};
 };
 
-const startWatcher = (workspace: WorkspaceType, ignoredSegments: readonly string[] = DEFAULT_IGNORED_SEGMENTS): WorkspaceWatcher => {
-	const routes = [
+const planOf = (
+	input: Readonly<{
+		id: string;
+		roots: readonly string[];
+		knownSourceFiles: readonly string[];
+		inputFiles?: readonly string[];
+		suffixes: readonly string[];
+		excludeRules?: AdapterWatchPlanType['scopes'][number]['excludeRules'];
+	}>,
+): AdapterWatchPlanType => ({
+	adapterId: input.id,
+	adapterVersion: '1.0.0',
+	planVersion: 1,
+	planId: `${input.id}-plan`,
+	knownSourceFiles: input.knownSourceFiles,
+	inputFiles: input.inputFiles ?? [],
+	scopes: [
 		{
-			id: 'typescript',
-			sourceExtensions: ['.ts'],
-			files: [workspace.sourcePath],
-			configFiles: [workspace.configPath],
+			candidateRoots: input.roots,
+			includeRules: [{kind: 'glob', pattern: '**/*'}],
+			excludeRules: input.excludeRules ?? [
+				{kind: 'segment', segment: 'node_modules'},
+				{kind: 'segment', segment: 'dist'},
+			],
+			sourceRules: input.suffixes.map((suffix) => ({kind: 'suffix', suffix})),
 		},
+	],
+});
+
+const startWatcher = (workspace: WorkspaceType): WorkspaceWatcher => {
+	const plans = [
+		planOf({
+			id: 'typescript',
+			roots: ['src'],
+			knownSourceFiles: [SOURCE_PATH],
+			inputFiles: ['tsconfig.json'],
+			suffixes: ['.ts'],
+		}),
 	];
 	const watcher = new WorkspaceWatcher({
 		rootDir: workspace.directory,
 		logger: silentLogger,
-		ignoredSegments,
-		routes,
+		plans,
 		onChange: (paths, adapterIds): void => {
 			workspace.changes.push(paths);
 			workspace.routedAdapters.push(adapterIds);
 		},
 	});
-	watcher.start(routes);
+	void watcher.start(plans);
 
 	return watcher;
 };
@@ -140,25 +169,25 @@ describe('WorkspaceWatcher', () => {
 		const ignoredPath = path.join(ignoredDirectory, 'example.ts');
 		mkdirSync(ignoredDirectory, {recursive: true});
 		writeFileSync(ignoredPath, 'export const value = 1;\n');
-		const routes = [
-			{
+		const plans = [
+			planOf({
 				id: 'typescript',
-				sourceExtensions: ['.ts'],
-				files: [ignoredPath],
-				configFiles: [],
-			},
+				roots: ['node_modules/package'],
+				knownSourceFiles: [],
+				suffixes: ['.ts'],
+				excludeRules: [{kind: 'segment', segment: 'node_modules'}],
+			}),
 		];
 		watcher = new WorkspaceWatcher({
 			rootDir: workspace.directory,
 			logger: silentLogger,
-			ignoredSegments: DEFAULT_IGNORED_SEGMENTS,
-			routes,
+			plans,
 			onChange: (paths, adapterIds): void => {
 				workspace.changes.push(paths);
 				workspace.routedAdapters.push(adapterIds);
 			},
 		});
-		watcher.start(routes);
+		void watcher.start(plans);
 		await delay(100);
 
 		writeFileSync(ignoredPath, 'export const value = 2;\n');
@@ -190,21 +219,31 @@ describe('WorkspaceWatcher routing', () => {
 		const oraclePath = path.join(databaseDirectory, 'package.pkb');
 		mkdirSync(databaseDirectory, {recursive: true});
 		writeFileSync(oraclePath, 'create or replace package body demo is end demo;\n');
-		const routes = [
-			{id: 'typescript', sourceExtensions: ['.ts'], files: [workspace.sourcePath], configFiles: [workspace.configPath]},
-			{id: 'oracle', sourceExtensions: ['.pkb', '.sql'], files: [oraclePath], configFiles: []},
+		const plans = [
+			planOf({
+				id: 'typescript',
+				roots: ['src'],
+				knownSourceFiles: [SOURCE_PATH],
+				inputFiles: ['tsconfig.json'],
+				suffixes: ['.ts'],
+			}),
+			planOf({
+				id: 'oracle',
+				roots: ['db'],
+				knownSourceFiles: ['db/package.pkb'],
+				suffixes: ['.pkb', '.sql'],
+			}),
 		];
 		watcher = new WorkspaceWatcher({
 			rootDir: workspace.directory,
 			logger: silentLogger,
-			ignoredSegments: DEFAULT_IGNORED_SEGMENTS,
-			routes,
+			plans,
 			onChange: (paths, adapterIds): void => {
 				workspace.changes.push(paths);
 				workspace.routedAdapters.push(adapterIds);
 			},
 		});
-		watcher.start(routes);
+		void watcher.start(plans);
 		await delay(100);
 
 		workspace.routedAdapters.length = 0;
@@ -221,8 +260,8 @@ describe('WorkspaceWatcher routing', () => {
 
 		workspace.routedAdapters.length = 0;
 		mkdirSync(path.join(workspace.directory, 'src', 'created'));
-		await waitForRoute(workspace, null);
-		expect(workspace.routedAdapters).toContainEqual(null);
+		await waitForRoute(workspace, ['typescript']);
+		expect(workspace.routedAdapters).toContainEqual(['typescript']);
 	});
 });
 
