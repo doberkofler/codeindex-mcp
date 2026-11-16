@@ -64,6 +64,38 @@ export type BuildStagesType = Readonly<{
 	readonly publicationMs: number;
 }>;
 
+/** Bounded outcome of one best-effort WAL checkpoint. */
+export type BuildCheckpointType = Readonly<{
+	readonly durationMs: number;
+	readonly mode: 'none' | 'passive' | 'truncate' | 'failed';
+	readonly busy: boolean;
+	readonly logFrames: number;
+	readonly checkpointedFrames: number;
+	readonly truncated: boolean;
+	readonly failed: boolean;
+}>;
+
+/** Detailed, privacy-safe attribution for one publication attempt. */
+export type BuildPersistenceType = Readonly<{
+	readonly queueWaitMs: number;
+	readonly changedPathCount: number;
+	readonly selectedRowCount: number;
+	readonly deletedRowCount: number;
+	readonly writtenRowCount: number;
+	readonly insertionMs: number;
+	readonly countValidationMs: number;
+	readonly semanticValidationMs: number;
+	readonly publicationMetadataMs: number;
+	readonly contentGcMs: number;
+	readonly plannerStatisticsMs: number;
+	readonly commitMs: number;
+	readonly publicationCheckpoint: BuildCheckpointType;
+	readonly artifactFlushMs: number;
+	readonly artifactFlushFailures: number;
+	readonly postArtifactCheckpoint: BuildCheckpointType;
+	readonly totalWallMs: number;
+}>;
+
 export type StoredDependencyEdgeType = IndexedDependencyEdgeType &
 	Readonly<{
 		readonly generationId: string;
@@ -212,6 +244,8 @@ export type BuildReportType = Readonly<{
 	readonly dependencyBindingCount: number;
 	readonly diagnosticCount: number;
 	readonly stages: BuildStagesType | null;
+	/** Present for a publication; omitted when an attempt reused or did not commit. */
+	readonly persistence?: BuildPersistenceType | undefined;
 	/** Per-adapter extraction work for this attempt; absent when facts were reused or the attempt did not commit. */
 	readonly adapterActivity?: readonly AdapterActivityType[];
 }>;

@@ -1,6 +1,10 @@
 import {type DatabaseSync} from 'node:sqlite';
+import {type BuildCheckpointType} from '../model.ts';
+import {debugFor} from '../logging/debug.ts';
 import {asNumber, asString} from './databaseRows.ts';
 import {WAL_AUTOCHECKPOINT_PAGES, WAL_TRUNCATE_BUSY_TIMEOUT_MS, walSizeLimitBytes} from './walPolicy.ts';
+
+const debug = debugFor('database');
 
 /** Checkpoint operation that produced the measured WAL state. */
 type WalCheckpointModeType = 'none' | 'passive' | 'truncate';
@@ -103,4 +107,30 @@ export const checkpointWal = (writer: DatabaseSync): WalCheckpointType => {
 		checkpointedFrames: truncate.checkpointed,
 		truncated: truncate.busy === 0 && truncate.log === truncate.checkpointed,
 	};
+};
+
+/**
+ * Attempts one checkpoint without failing an already completed publication.
+ *
+ * @param action - Checkpoint operation to attempt.
+ * @returns Bounded timing and frame state, including failure.
+ */
+export const checkpointWalSafely = (action: () => WalCheckpointType): BuildCheckpointType => {
+	const startedAt = performance.now();
+
+	try {
+		const state = action();
+		return {...state, durationMs: Math.round(performance.now() - startedAt), failed: false};
+	} catch (error) {
+		debug('wal checkpoint skipped', {message: error instanceof Error ? error.message : String(error)});
+		return {
+			durationMs: Math.round(performance.now() - startedAt),
+			mode: 'failed',
+			busy: false,
+			logFrames: 0,
+			checkpointedFrames: 0,
+			truncated: false,
+			failed: true,
+		};
+	}
 };

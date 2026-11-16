@@ -17,10 +17,10 @@ import {
 	type RowVisitorType,
 	type TableWriteType,
 } from './databaseFactRows.ts';
-import {buildStatsOf} from './databaseFactStats.ts';
 import {scopeAdapterFacts} from './factIdentity.ts';
 import {asNumber, asString} from './databaseRows.ts';
 import {transaction} from './databaseTransaction.ts';
+import {countsOfInput, validateGenerationFactCounts, validateGenerationSemantics} from './databaseFactValidation.ts';
 
 export {syncGenerationFiles, syncProjectContexts} from './databaseFactFiles.ts';
 
@@ -53,52 +53,6 @@ const countOf = (reader: DatabaseSync, sql: string, ...parameters: readonly (str
 	}
 
 	return asNumber(row, 'total');
-};
-
-const countsOfTable = (reader: DatabaseSync, table: string, generationId: string, adapterId: string): number =>
-	countOf(reader, `select count(*) as total from ${table} where generation_id = ? and adapter_id = ?`, generationId, adapterId);
-
-const definitionSiteCountOf = (input: GenerationFactsInputType): number =>
-	input.facts.occurrences.filter((occurrence) => occurrence.role === 'definition').length;
-
-const occurrenceContextCountOf = (input: GenerationFactsInputType): number =>
-	input.facts.occurrences.reduce((total, occurrence) => total + (occurrence.contexts ?? []).length, 0);
-
-// Counts the rows this input produces, independent of the write mode.
-const countsOfInput = (input: GenerationFactsInputType): GenerationFactCountsType => ({
-	files: input.files.length,
-	symbols: input.facts.symbols.length,
-	bindings: input.facts.bindings.length,
-	bindingContexts: input.facts.bindingContexts.length,
-	bindingSites: input.facts.bindingSites.length,
-	surfaceOrigins: input.facts.surfaceOrigins.length,
-	occurrences: input.facts.occurrences.length,
-	definitionSites: definitionSiteCountOf(input),
-	dependencyEdges: input.dependencies.edges.length,
-	dependencyBindings: input.dependencies.bindings.length,
-	diagnostics: input.diagnostics.length,
-	buildStats: buildStatsOf(input.facts, input.language).length,
-});
-
-const expectedCountsOf = (input: GenerationFactsInputType): ReadonlyMap<string, number> => {
-	const counts = countsOfInput(input);
-
-	return new Map([
-		['file', counts.files],
-		['symbol', counts.symbols],
-		['symbol_name', counts.bindings],
-		['symbol_name_context', counts.bindingContexts],
-		['symbol_name_site', counts.bindingSites],
-		['surface_binding_origin', counts.surfaceOrigins],
-		['occurrence', counts.occurrences],
-		['occurrence_context', occurrenceContextCountOf(input)],
-		['definition_site', counts.definitionSites],
-		['dependency_edge', counts.dependencyEdges],
-		['dependency_binding', counts.dependencyBindings],
-		['diagnostic', counts.diagnostics],
-		['build_stats', counts.buildStats],
-		['project_context', input.projects.length],
-	]);
 };
 
 const storedDigests = (writer: DatabaseSync, generationId: string, adapterId: string): ReadonlyMap<string, string> =>
@@ -205,9 +159,9 @@ const prepareWrite = (writer: DatabaseSync, input: GenerationFactsInputType, mod
 	return {changed, selected: changed, next};
 };
 
-const insertRow = (statement: ReturnType<DatabaseSync['prepare']>, table: string, ownerPath: string, values: readonly CellType[]): void => {
+const insertRow = (statement: ReturnType<DatabaseSync['prepare']>, table: string, ownerPath: string, values: readonly CellType[]): number => {
 	try {
-		statement.run(...values);
+		return Number(statement.run(...values).changes);
 	} catch (error) {
 		throw new Error(`${table} insert failed for ${ownerPath}: ${error instanceof Error ? error.message : String(error)}`, {cause: error});
 	}
@@ -216,7 +170,7 @@ const insertRow = (statement: ReturnType<DatabaseSync['prepare']>, table: string
 const pathSinkOf = (
 	table: TableWriteType,
 	writer: DatabaseSync,
-	selection: Readonly<{selected: ReadonlySet<string> | null; digests: DigestAccumulatorType | null; counter: RowCounterType}>,
+	selection: Readonly<{selected: ReadonlySet<string> | null; digests: DigestAccumulatorType | null; selectedRows: RowCounterType; writtenRows: RowCounterType}>,
 ): RowSinkType => {
 	const statement = writer.prepare(table.insertSql);
 
@@ -224,26 +178,26 @@ const pathSinkOf = (
 		write: (ownerPath, values): void => {
 			if (selection.selected === null) {
 				selection.digests?.add(ownerPath, values);
-				insertRow(statement, table.table, ownerPath, values);
-				selection.counter.value += 1;
+				selection.selectedRows.value += 1;
+				selection.writtenRows.value += insertRow(statement, table.table, ownerPath, values);
 				return;
 			}
 
 			if (selection.selected.has(ownerPath)) {
-				insertRow(statement, table.table, ownerPath, values);
-				selection.counter.value += 1;
+				selection.selectedRows.value += 1;
+				selection.writtenRows.value += insertRow(statement, table.table, ownerPath, values);
 			}
 		},
 	};
 };
 
-const globalSinkOf = (table: TableWriteType, writer: DatabaseSync, counter: RowCounterType): RowSinkType => {
+const globalSinkOf = (table: TableWriteType, writer: DatabaseSync, selectedRows: RowCounterType, writtenRows: RowCounterType): RowSinkType => {
 	const statement = writer.prepare(table.insertSql);
 
 	return {
 		write: (ownerPath, values): void => {
-			insertRow(statement, table.table, ownerPath, values);
-			counter.value += 1;
+			selectedRows.value += 1;
+			writtenRows.value += insertRow(statement, table.table, ownerPath, values);
 		},
 	};
 };
@@ -251,7 +205,12 @@ const globalSinkOf = (table: TableWriteType, writer: DatabaseSync, counter: RowC
 const writeTableRows = (
 	writer: DatabaseSync,
 	input: GenerationFactsInputType,
-	selection: Readonly<{selected: ReadonlySet<string> | null; digests: DigestAccumulatorType | null; counter: RowCounterType}>,
+	selection: Readonly<{
+		selected: ReadonlySet<string> | null;
+		digests: DigestAccumulatorType | null;
+		selectedRows: RowCounterType;
+		writtenRows: RowCounterType;
+	}>,
 ): void => {
 	for (const table of PATH_TABLES) {
 		const sink = pathSinkOf(table, writer, selection);
@@ -259,24 +218,40 @@ const writeTableRows = (
 	}
 };
 
-const writeGlobalRows = (writer: DatabaseSync, input: GenerationFactsInputType, counter: RowCounterType): void => {
+const writeGlobalRows = (writer: DatabaseSync, input: GenerationFactsInputType, selectedRows: RowCounterType, writtenRows: RowCounterType): void => {
 	for (const table of GLOBAL_TABLES) {
-		const sink = globalSinkOf(table, writer, counter);
+		const sink = globalSinkOf(table, writer, selectedRows, writtenRows);
 		table.each(input, sink.write);
 	}
 };
 
-const writeDigests = (writer: DatabaseSync, generationId: string, adapterId: string, digests: ReadonlyMap<string, string>): void => {
-	const statement = writer.prepare(
+const writeDigests = (
+	input: Readonly<{
+		writer: DatabaseSync;
+		generationId: string;
+		adapterId: string;
+		digests: ReadonlyMap<string, string>;
+		selectedRows: RowCounterType;
+		writtenRows: RowCounterType;
+	}>,
+): void => {
+	const statement = input.writer.prepare(
 		'insert into generation_file_digest (generation_id, adapter_id, path, digest) values (?, ?, ?, ?) on conflict(generation_id, path) do update set adapter_id = excluded.adapter_id, digest = excluded.digest',
 	);
 
-	for (const [path, digest] of digests) {
-		insertRow(statement, 'generation_file_digest', path, [generationId, adapterId, path, digest]);
+	for (const [path, digest] of input.digests) {
+		input.selectedRows.value += 1;
+		input.writtenRows.value += insertRow(statement, 'generation_file_digest', path, [input.generationId, input.adapterId, path, digest]);
 	}
 };
 
-const deleteGenerationRows = (writer: DatabaseSync, input: GenerationFactsInputType, paths: ReadonlySet<string>): void => {
+const totalChanges = (writer: DatabaseSync): number => {
+	const row = writer.prepare('select total_changes() as total').get();
+	return row === undefined ? 0 : asNumber(row, 'total');
+};
+
+const deleteGenerationRows = (writer: DatabaseSync, input: GenerationFactsInputType, paths: ReadonlySet<string>): number => {
+	const before = totalChanges(writer);
 	const deleteFile = writer.prepare('delete from file where generation_id = ? and path = ?');
 
 	for (const path of paths) {
@@ -286,6 +261,8 @@ const deleteGenerationRows = (writer: DatabaseSync, input: GenerationFactsInputT
 	for (const table of GLOBAL_TABLES) {
 		writer.prepare(`delete from ${table.table} where generation_id = ? and adapter_id = ?`).run(input.generationId, adapterIdOf(input));
 	}
+
+	return totalChanges(writer) - before;
 };
 
 /**
@@ -305,130 +282,34 @@ export const writeGenerationFacts = (writer: DatabaseSync, rawInput: GenerationF
 	const input = scopeAdapterFacts(rawInput);
 	assertState(writer, input.generationId, mode);
 	const prepared = prepareWrite(writer, input, mode);
-	const counter: RowCounterType = {value: 0};
+	const selectedRows: RowCounterType = {value: 0};
+	const writtenRows: RowCounterType = {value: 0};
 	const digests = mode === 'insert' ? createDigestAccumulator(input.files.map((file) => file.path)) : null;
 
-	deleteGenerationRows(writer, input, prepared.changed);
+	const deletedRows = deleteGenerationRows(writer, input, prepared.changed);
 	syncGenerationFiles(writer, input.generationId, input.files, adapterIdOf(input));
-	counter.value += syncProjectContexts(writer, {generationId: input.generationId, adapterId: adapterIdOf(input), projects: input.projects});
-	writeTableRows(writer, input, {selected: prepared.selected, digests, counter});
-	writeGlobalRows(writer, input, counter);
-	writeDigests(writer, input.generationId, adapterIdOf(input), prepared.next ?? digests?.digests() ?? new Map());
+	const projectRows = syncProjectContexts(writer, {generationId: input.generationId, adapterId: adapterIdOf(input), projects: input.projects});
+	selectedRows.value += input.projects.length;
+	writtenRows.value += projectRows;
+	writeTableRows(writer, input, {selected: prepared.selected, digests, selectedRows, writtenRows});
+	writeGlobalRows(writer, input, selectedRows, writtenRows);
+	writeDigests({
+		writer,
+		generationId: input.generationId,
+		adapterId: adapterIdOf(input),
+		digests: prepared.next ?? digests?.digests() ?? new Map(),
+		selectedRows,
+		writtenRows,
+	});
 	writer.prepare('update generation set source_hash = ? where id = ?').run(input.sourceHash, input.generationId);
 
-	return {counts: countsOfInput(input), changedPaths: [...prepared.changed].sort(), writtenRows: counter.value};
-};
-
-const countRowsMatch = (writer: DatabaseSync, generationId: string, adapterId: string, expected: ReadonlyMap<string, number>): void => {
-	for (const [table, wanted] of expected) {
-		const inserted = countsOfTable(writer, table, generationId, adapterId);
-
-		if (inserted !== wanted) {
-			throw new Error(`Index insertion count mismatch: ${table} ${String(inserted)}/${String(wanted)}`);
-		}
-	}
-};
-
-const validateCoverage = (writer: DatabaseSync, generationId: string): void => {
-	const uncoveredDefinitions = countOf(
-		writer,
-		`select count(*) as total
-		 from occurrence o
-		 left join definition_site d
-		   on d.generation_id = o.generation_id
-		  and d.adapter_id = o.adapter_id
-		  and d.symbol_id = o.symbol_id
-		  and d.path = o.path
-		  and d.start_offset = o.start_offset
-		  and d.role = o.role
-		 where o.generation_id = ? and o.role = 'definition' and d.site_id is null`,
-		generationId,
-	);
-
-	if (uncoveredDefinitions !== 0) {
-		throw new Error('Every definition occurrence must have exactly one definition site');
-	}
-
-	const unmatchedBindingContexts = countOf(
-		writer,
-		`select count(*) as total
-		 from symbol_name_context c
-		 join symbol_name n
-		   on n.generation_id = c.generation_id
-		  and n.adapter_id = c.adapter_id
-		  and n.binding_id = c.binding_id
-		 where c.generation_id = ?
-		 and not exists (
-			select 1 from symbol_context s
-			where s.generation_id = c.generation_id
-			and s.adapter_id = c.adapter_id
-			and s.symbol_id = n.symbol_id
-			and s.context_name = c.context_name
-		 )`,
-		generationId,
-	);
-
-	if (unmatchedBindingContexts !== 0) {
-		throw new Error('Every binding context must have a matching symbol context');
-	}
-
-	const unpublishedRoots = countOf(
-		writer,
-		`select count(*) as total
-		 from surface_binding_origin o
-		 join symbol_name_context c
-		   on c.generation_id = o.generation_id
-		  and c.adapter_id = o.adapter_id
-		  and c.binding_id = o.root_binding_id
-		  and c.context_name = o.context_name
-		 where o.generation_id = ? and c.exposure <> 'published'`,
-		generationId,
-	);
-
-	if (unpublishedRoots !== 0) {
-		throw new Error('Every surface origin root must be published in its context');
-	}
-
-	const projectedRoots = countOf(
-		writer,
-		`select count(*) as total
-		 from surface_binding_origin o
-		 where o.generation_id = ?
-		 and exists (
-			select 1 from surface_binding_origin d
-			where d.generation_id = o.generation_id
-			and d.adapter_id = o.adapter_id
-			and d.binding_id = o.root_binding_id
-			and d.context_name = o.context_name
-		 )`,
-		generationId,
-	);
-
-	if (projectedRoots !== 0) {
-		throw new Error('A surface origin root must not itself be a projected surface binding');
-	}
-};
-
-/**
- * Validates the persisted candidate generation before atomic publication.
- *
- * Validation runs inside the writer transaction that applied the rows, so a
- * failure rolls the generation back to its previous published state.
- *
- * @param writer - Writer connection inside the open transaction.
- * @param input - Complete fact set written for the generation.
- * @throws {@link Error} When the persisted generation violates an invariant.
- */
-export const validateGenerationFacts = (writer: DatabaseSync, input: GenerationFactsInputType): void => {
-	countRowsMatch(writer, input.generationId, adapterIdOf(input), expectedCountsOf(input));
-
-	const foreignKeyViolations = writer.prepare('pragma foreign_key_check').all();
-
-	if (foreignKeyViolations.length > 0) {
-		throw new Error('SQLite foreign-key check failed for the candidate generation');
-	}
-
-	validateCoverage(writer, input.generationId);
+	return {
+		counts: countsOfInput(input),
+		changedPaths: [...prepared.changed].sort(),
+		selectedRows: selectedRows.value,
+		deletedRows,
+		writtenRows: writtenRows.value,
+	};
 };
 
 const applyInsideTransaction = (writer: DatabaseSync, input: GenerationFactsInputType): GenerationFactWriteType => {
@@ -461,7 +342,8 @@ const applyInsideTransaction = (writer: DatabaseSync, input: GenerationFactsInpu
 export const insertGenerationFacts = (writer: DatabaseSync, reader: DatabaseSync, input: GenerationFactsInputType): GenerationFactCountsType => {
 	const write = applyInsideTransaction(writer, input);
 
-	validateGenerationFacts(reader, input);
+	validateGenerationFactCounts(reader, input);
+	validateGenerationSemantics(reader, input);
 	return write.counts;
 };
 

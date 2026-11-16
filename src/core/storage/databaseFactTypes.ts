@@ -45,6 +45,11 @@ export type GenerationFactCountsType = Readonly<{
 export type GenerationFactWriteType = Readonly<{
 	readonly counts: GenerationFactCountsType;
 	readonly changedPaths: readonly string[];
+	/** Adapter-owned rows selected for insertion after path filtering. */
+	readonly selectedRows: number;
+	/** Adapter-owned rows removed directly or by cascades before insertion. */
+	readonly deletedRows: number;
+	/** Adapter-owned rows actually inserted or updated. */
 	readonly writtenRows: number;
 }>;
 

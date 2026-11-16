@@ -55,6 +55,8 @@ type BuildAccumulatorType = {
 	failures: number;
 };
 
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
 const numberField = (event: AnalyticsEventType, key: string): number | null => {
 	const value = event[key];
 	return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -158,6 +160,47 @@ const toolOf = (tools: Map<string, ToolAccumulatorType>, name: string): ToolAccu
 	return tool;
 };
 
+const accumulateStage = (builds: BuildAccumulatorType, stage: string, value: unknown): void => {
+	if (typeof value !== 'number') {
+		return;
+	}
+
+	const values = builds.stageValues.get(stage) ?? [];
+	values.push(value);
+	builds.stageValues.set(stage, values);
+};
+
+const accumulatePersistenceStages = (builds: BuildAccumulatorType, value: unknown): void => {
+	if (!isRecord(value)) {
+		return;
+	}
+
+	const stages = [
+		'queueWaitMs',
+		'insertionMs',
+		'countValidationMs',
+		'semanticValidationMs',
+		'publicationMetadataMs',
+		'contentGcMs',
+		'plannerStatisticsMs',
+		'commitMs',
+		'artifactFlushMs',
+		'totalWallMs',
+	] as const;
+
+	for (const stage of stages) {
+		accumulateStage(builds, `persistence.${stage}`, value[stage]);
+	}
+
+	for (const checkpoint of ['publicationCheckpoint', 'postArtifactCheckpoint'] as const) {
+		const entry = value[checkpoint];
+
+		if (isRecord(entry)) {
+			accumulateStage(builds, `persistence.${checkpoint}Ms`, entry['durationMs']);
+		}
+	}
+};
+
 const accumulateTool = (
 	input: Readonly<{event: AnalyticsEventType; durationMs: number; bucket: string; tools: Map<string, ToolAccumulatorType>; bucketState: BucketAccumulatorType}>,
 ): void => {
@@ -196,15 +239,11 @@ const accumulateBuild = (
 
 	if (typeof stages === 'object' && stages !== null) {
 		for (const [stage, value] of Object.entries(stages)) {
-			if (typeof value !== 'number') {
-				continue;
-			}
-
-			const values = input.builds.stageValues.get(stage) ?? [];
-			values.push(value);
-			input.builds.stageValues.set(stage, values);
+			accumulateStage(input.builds, stage, value);
 		}
 	}
+
+	accumulatePersistenceStages(input.builds, input.event['persistence']);
 };
 
 const buildTimeline = (timeline: readonly AnalyticsBuildPointType[]): readonly AnalyticsBuildPointType[] =>

@@ -2,7 +2,7 @@ import {existsSync, mkdirSync, renameSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {debugFor} from '../logging/debug.ts';
-import {verifyDatabaseIntegrity} from './databaseIntegrity.ts';
+import {verifyDatabaseIntegrity, verifyDatabaseQuickCheck} from './databaseIntegrity.ts';
 import {asString} from './databaseRows.ts';
 import {applyWalPolicy} from './databaseWal.ts';
 import {pruneSchemaBackups} from './schemaBackup.ts';
@@ -60,6 +60,24 @@ const existingSchemaVersion = (databasePath: string): string | null => {
 	}
 };
 
+const existingDatabasePassesQuickCheck = (databasePath: string): boolean => {
+	let database: DatabaseSync | undefined;
+
+	try {
+		database = new DatabaseSync(databasePath, {readOnly: true});
+		verifyDatabaseQuickCheck(database);
+		return true;
+	} catch (error) {
+		if (isAccessFailure(error)) {
+			throw error;
+		}
+
+		return false;
+	} finally {
+		database?.close();
+	}
+};
+
 /**
  * Returns SQLite's chosen access path for one statement.
  *
@@ -106,7 +124,11 @@ const recreateIfIncompatible = (databasePath: string, expectedVersion: string): 
 
 	const version = existingSchemaVersion(databasePath);
 
-	return version === expectedVersion ? null : backupIncompatibleDatabase(databasePath, version);
+	if (version !== expectedVersion) {
+		return backupIncompatibleDatabase(databasePath, version);
+	}
+
+	return existingDatabasePassesQuickCheck(databasePath) ? null : backupIncompatibleDatabase(databasePath, version);
 };
 
 /**

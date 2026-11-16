@@ -36,15 +36,15 @@ import {countGenerationRows, insertGenerationFacts, type GenerationFactCountsTyp
 import {
 	commitAdapters,
 	commitGeneration,
-	publishNewGeneration,
 	type GenerationCommitInputType,
 	type GenerationCommitType,
 	type MultiGenerationCommitInputType,
 } from './databaseCommit.ts';
+import {publishNewGeneration} from './databasePublish.ts';
 import {ensureIdentity, ensureMetadata, readWorkingCopy, type DatabaseOpenContextType} from './databaseIdentity.ts';
 import {acquireLease, readLease, releaseLease, renewLease} from './databaseLease.ts';
 import {explainQueryPlan, openDatabaseConnections} from './databaseOpen.ts';
-import {checkpointWal, type WalCheckpointType} from './databaseWal.ts';
+import {checkpointWal, checkpointWalSafely, type WalCheckpointType} from './databaseWal.ts';
 import {registerProcessOwner, type ProcessOwnerType} from './processOwnership.ts';
 import {findReusableGeneration as findStoredReusableGeneration, readGeneration, readGenerationAdapters, readPublishedGeneration} from './databaseRead.ts';
 import {asNumber} from './databaseRows.ts';
@@ -454,13 +454,13 @@ export class IndexDatabase {
 		debug('wal checkpoint', state);
 		return state;
 	}
-	/** Reclaims the WAL without failing a completed publication or query path. */
-	public tryCheckpoint(): void {
-		try {
-			this.checkpoint();
-		} catch (error) {
-			debug('wal checkpoint skipped', {message: error instanceof Error ? error.message : String(error)});
-		}
+	/**
+	 * Reclaims the WAL without failing a completed publication or query path.
+	 *
+	 * @returns Bounded checkpoint timing and frame state, including failure.
+	 */
+	public tryCheckpoint(): ReturnType<typeof checkpointWalSafely> {
+		return checkpointWalSafely(() => this.checkpoint());
 	}
 	public contentVersionCount(): number {
 		return countContentVersions(this.#reader);

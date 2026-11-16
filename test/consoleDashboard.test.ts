@@ -47,7 +47,16 @@ describe('console analytics dashboard', () => {
 		const created = createAnalyticsFile([
 			{event: 'mcp_tool_call', timestamp: first, tool: 'find_symbol', durationMs: 10, bytes: 100, ok: true, freshness: 'current', truncated: false},
 			{event: 'mcp_tool_call', timestamp: second, tool: 'find_symbol', durationMs: 50, bytes: 200, ok: false, freshness: 'stale', truncated: true},
-			{event: 'build_complete', timestamp: second, durationMs: 1000, stages: {scanMs: 100, extractionMs: 400}},
+			{
+				event: 'build_complete',
+				timestamp: second,
+				durationMs: 1000,
+				stages: {scanMs: 100, extractionMs: 400},
+				persistence: {
+					countValidationMs: 20,
+					publicationCheckpoint: {durationMs: 30},
+				},
+			},
 			{event: 'build_failed', timestamp: second, durationMs: 500},
 			{event: 'refresh_published', timestamp: second, eventToPublicationMs: 80},
 			{event: 'refresh_coalesced', timestamp: second},
@@ -75,6 +84,8 @@ describe('console analytics dashboard', () => {
 		expect(dashboard.freshness).toContainEqual({state: 'current', count: 1});
 		expect(dashboard.freshness).toContainEqual({state: 'stale', count: 1});
 		expect(dashboard.builds.stages).toContainEqual({stage: 'scanMs', p50Ms: 100, p95Ms: 100});
+		expect(dashboard.builds.stages).toContainEqual({stage: 'persistence.countValidationMs', p50Ms: 20, p95Ms: 20});
+		expect(dashboard.builds.stages).toContainEqual({stage: 'persistence.publicationCheckpointMs', p50Ms: 30, p95Ms: 30});
 		expect(dashboard.builds.timeline.map((point) => point.outcome)).toStrictEqual(['complete', 'failed']);
 		expect(dashboard.builds.outcomes).toStrictEqual({
 			complete: {count: 1, p50Ms: 1000, p95Ms: 1000},

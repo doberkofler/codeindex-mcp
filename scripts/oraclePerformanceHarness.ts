@@ -206,13 +206,15 @@ const writeLog = (
 export const executeCli = (
 	input: Readonly<{
 		cliPath: string;
+		runtimeArguments?: readonly string[];
 		arguments: readonly string[];
 		environment: NodeJS.ProcessEnv;
 		logPath: string;
 	}>,
 ): void => {
 	const startedAt = performance.now();
-	const result = spawnSync(process.execPath, [input.cliPath, ...input.arguments], {
+	const commandArguments = [...(input.runtimeArguments ?? []), input.cliPath, ...input.arguments];
+	const result = spawnSync(process.execPath, commandArguments, {
 		cwd: resolve(import.meta.dirname, '..'),
 		env: input.environment,
 		encoding: 'utf8',
@@ -224,7 +226,7 @@ export const executeCli = (
 	const stderr = `${appendBounded('', result.stderr)}${result.error === undefined ? '' : `\n${result.error.message}`}`;
 	const exitCode = result.status ?? 1;
 
-	writeLog({logPath: input.logPath, arguments: [input.cliPath, ...input.arguments], exitCode, durationMs, stdout, stderr});
+	writeLog({logPath: input.logPath, arguments: commandArguments, exitCode, durationMs, stdout, stderr});
 
 	if (result.status !== 0) {
 		throw new Error(`CLI failed with exit code ${String(exitCode)}: ${stderr.trim().split('\n').slice(-5).join(' ')}`);

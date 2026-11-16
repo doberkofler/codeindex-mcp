@@ -4,7 +4,14 @@ import {type AdapterSetType} from '../../adapters/loader.ts';
 import {adapterConfigFor, type ConfigType} from '../config/config.ts';
 import {debugFor} from '../logging/debug.ts';
 import {type LoggerType} from '../logging/logger.ts';
-import {type BuildReportType, type BuildStagesType, type GenerationAdapterType, type GenerationRowType, type ScanResultType} from '../model.ts';
+import {
+	type BuildPersistenceType,
+	type BuildReportType,
+	type BuildStagesType,
+	type GenerationAdapterType,
+	type GenerationRowType,
+	type ScanResultType,
+} from '../model.ts';
 import {type AdapterCommitCountsType, type IndexDatabase} from '../storage/database.ts';
 import {adapterActivityOf, createReport, durationOf} from './buildReport.ts';
 import {type createExtractorCache} from './buildArtifacts.ts';
@@ -104,13 +111,41 @@ const logBuild = (
 	});
 };
 
-const persistCachesSafely = (action: () => void): void => {
+const persistCachesSafely = (action: () => void): boolean => {
 	try {
 		action();
+		return true;
 	} catch (error) {
 		// Artifacts are derived and rebuildable; losing them costs work, never correctness.
 		debug('artifact cache persistence failed', {message: error instanceof Error ? error.message : String(error)});
+		return false;
 	}
+};
+
+const completePersistence = (
+	database: IndexDatabase,
+	caches: readonly ReturnType<typeof createExtractorCache>[],
+	startedAt: number,
+	base: BuildPersistenceType,
+): BuildPersistenceType => {
+	const artifactFlushStartedAt = performance.now();
+	let artifactFlushFailures = 0;
+
+	for (const cache of caches) {
+		if (!persistCachesSafely(cache.flush)) {
+			artifactFlushFailures += 1;
+		}
+	}
+
+	const artifactFlushMs = Math.round(performance.now() - artifactFlushStartedAt);
+	const postArtifactCheckpoint = database.tryCheckpoint();
+	return {
+		...base,
+		artifactFlushMs,
+		artifactFlushFailures,
+		postArtifactCheckpoint,
+		totalWallMs: Math.round(performance.now() - startedAt),
+	};
 };
 
 const rosterMatches = (plans: readonly AdapterScanPlanType[], adapters: readonly {adapterId: string; coverage: string}[]): boolean => {
@@ -306,8 +341,6 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 			return early;
 		}
 
-		// Adapters extract sequentially so one adapter's failure preserves the
-		// previous generation before the next adapter runs.
 		adapters.push(
 			// oxlint-disable-next-line eslint/no-await-in-loop
 			await runAdapterStageAsync(plan.adapterId, async () => {
@@ -350,6 +383,7 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 		...preserved,
 	]);
 
+	const persistenceStartedAt = performance.now();
 	const commit = context.database.commitAdapters({
 		generationId: context.generationId,
 		adapters,
@@ -359,18 +393,8 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 		startedAt: context.startedAtIso,
 		...(context.ownerId === undefined ? {} : {ownerId: context.ownerId}),
 	});
+	const persistence = completePersistence(context.database, caches, persistenceStartedAt, commit.persistence);
 	const durationMs = durationOf(context.startedAt, commit.stages);
-
-	for (const cache of caches) {
-		persistCachesSafely(() => {
-			cache.flush();
-		});
-	}
-
-	// Artifact persistence happens after the publication transaction and can add
-	// one build's extraction footprint to the WAL. Reclaim it only after both
-	// publication and derived writes are complete.
-	context.database.tryCheckpoint();
 
 	logBuild({
 		logger: context.logger,
@@ -390,6 +414,7 @@ const commitAdapters = async (context: CommitContextType): Promise<BuildReportTy
 		durationMs,
 		counts: commit.counts,
 		stages: commit.stages,
+		persistence,
 		adapterActivity: adapterActivityOf(adapters),
 	});
 };

@@ -1,5 +1,12 @@
 import {type AdapterCommitCountsType, type AdapterCommitType} from '../storage/database.ts';
-import {type AdapterActivityType, type BuildOutcomeType, type BuildReportType, type BuildStagesType, type GenerationRowType} from '../model.ts';
+import {
+	type AdapterActivityType,
+	type BuildOutcomeType,
+	type BuildPersistenceType,
+	type BuildReportType,
+	type BuildStagesType,
+	type GenerationRowType,
+} from '../model.ts';
 
 /**
  * Creates the published report for one successful attempt.
@@ -16,6 +23,7 @@ export const createReport = (
 		durationMs: number;
 		counts: AdapterCommitCountsType;
 		stages: BuildStagesType | null;
+		persistence?: BuildPersistenceType;
 		adapterActivity?: readonly AdapterActivityType[];
 	}>,
 ): BuildReportType => ({
@@ -32,6 +40,7 @@ export const createReport = (
 	dependencyBindingCount: input.counts.dependencyBindings,
 	diagnosticCount: input.counts.diagnostics,
 	stages: input.stages,
+	...(input.persistence === undefined ? {} : {persistence: input.persistence}),
 	...(input.adapterActivity === undefined ? {} : {adapterActivity: input.adapterActivity}),
 });
 
@@ -82,6 +91,25 @@ export const countsOf = (generation: GenerationRowType): AdapterCommitCountsType
 	dependencyBindings: generation.dependencyBindingCount,
 	diagnostics: generation.diagnosticCount,
 });
+
+/**
+ * Sums exclusive persistence stages without double-counting aggregate timings.
+ *
+ * @param persistence - Detailed persistence attribution.
+ * @returns Sum of named stages in milliseconds.
+ */
+export const persistenceStageTotalOf = (persistence: BuildPersistenceType): number =>
+	persistence.queueWaitMs +
+	persistence.insertionMs +
+	persistence.countValidationMs +
+	persistence.semanticValidationMs +
+	persistence.publicationMetadataMs +
+	persistence.contentGcMs +
+	persistence.plannerStatisticsMs +
+	persistence.commitMs +
+	persistence.publicationCheckpoint.durationMs +
+	persistence.artifactFlushMs +
+	persistence.postArtifactCheckpoint.durationMs;
 
 const stageTotalOf = (stages: BuildStagesType | null): number =>
 	stages === null ? 0 : stages.scanMs + stages.compilerMs + stages.extractionMs + stages.insertionMs + stages.verificationMs + stages.publicationMs;

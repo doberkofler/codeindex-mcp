@@ -37,6 +37,7 @@ const recordPublishedRefresh = (input: RefreshTelemetryInputType & Readonly<{rep
 		symbolCount: report.symbolCount,
 		occurrenceCount: report.occurrenceCount,
 		stages: report.stages,
+		...(report.persistence === undefined ? {} : {persistence: report.persistence}),
 		...(report.adapterActivity === undefined ? {} : {adapterActivity: report.adapterActivity}),
 		...input.resources,
 	});

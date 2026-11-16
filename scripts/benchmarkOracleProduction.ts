@@ -125,9 +125,14 @@ const prepare = (options: OptionsType): PreparedType => {
 	}
 
 	const cliPath = join(REPOSITORY_ROOT, 'dist', 'cli.mjs');
+	const qualificationPath = join(REPOSITORY_ROOT, 'src', 'entries', 'qualify.ts');
 
 	if (!existsSync(cliPath)) {
 		throw new Error('Built CLI is missing: dist/cli.mjs. Run pnpm build first.');
+	}
+
+	if (!existsSync(qualificationPath)) {
+		throw new Error('Maintainer qualification entrypoint is missing: src/entries/qualify.ts.');
 	}
 
 	const identity = gitIdentity(REPOSITORY_ROOT);
@@ -146,7 +151,8 @@ const prepare = (options: OptionsType): PreparedType => {
 	const environment = {...cleanEnvironment(process.env), CODEINDEX_EVIDENCE_ROOT: options.evidenceRoot};
 
 	executeCli({
-		cliPath,
+		cliPath: qualificationPath,
+		runtimeArguments: ['--experimental-strip-types'],
 		arguments: ['oracle-preflight', '--bundle', options.bundlePath],
 		environment,
 		logPath: join(options.outputPath, 'preflight.log'),

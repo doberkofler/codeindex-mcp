@@ -1,22 +1,21 @@
 import {type DatabaseSync} from 'node:sqlite';
 import {CodeIndexError} from '../errors/codeIndexError.ts';
-import {type BuildStagesType} from '../model.ts';
+import {type BuildPersistenceType, type BuildStagesType} from '../model.ts';
 import {debugFor} from '../logging/debug.ts';
 import {writeContents} from './databaseContent.ts';
 import {
 	syncGenerationFiles,
 	syncProjectContexts,
-	validateGenerationFacts,
 	writeGenerationFacts,
 	type GenerationFactWriteModeType,
 	type GenerationFactsInputType,
 } from './databaseFacts.ts';
+import {validateGenerationFactCounts, validateGenerationSemantics} from './databaseFactValidation.ts';
 import {BUILD_LEASE_TTL_MS, renewLeaseStrict} from './databaseLease.ts';
 import {readGeneration} from './databaseRead.ts';
-import {asNumber, asString} from './databaseRows.ts';
-import {checkpointWal} from './databaseWal.ts';
+import {asNumber} from './databaseRows.ts';
 import {analyzeDatabase} from './databaseStatistics.ts';
-import {transaction} from './databaseTransaction.ts';
+import {timedTransaction} from './databaseTransaction.ts';
 import {deleteAdapterRows, upsertAdapterRow} from './databaseAdapterRows.ts';
 import {persistedAdapterCounts, persistedAdapterStages} from './databaseCommitAggregates.ts';
 import {
@@ -25,9 +24,31 @@ import {
 	type GenerationCommitInputType,
 	type MultiGenerationCommitInputType,
 } from './databaseCommitTypes.ts';
+import {buildPersistence, checkpointAfterPublication} from './databaseCommitTelemetry.ts';
 
 const debug = debugFor('database');
 export type {AdapterCommitCountsType, AdapterCommitType, GenerationCommitInputType, MultiGenerationCommitInputType} from './databaseCommitTypes.ts';
+
+/**
+ * Renews the publication lease or rejects publication after ownership loss.
+ *
+ * @param connection - Writer connection and build-lease project identity.
+ * @param ownerId - Optional lease owner; omitted for unleased storage tests.
+ * @throws {@link CodeIndexError} When another process took over the lease.
+ */
+export const assertPublicationLease = (connection: CommitConnectionType, ownerId: string | undefined): void => {
+	if (
+		ownerId !== undefined &&
+		!renewLeaseStrict(connection.writer, {
+			projectId: connection.projectId,
+			ownerId,
+			ttlMs: BUILD_LEASE_TTL_MS,
+		})
+	) {
+		throw new CodeIndexError('index_build_failed', 'Build lease was lost or taken over before publication');
+	}
+};
+
 /** Persisted outcome of one refresh. */
 export type GenerationCommitType = Readonly<{
 	readonly generationId: string;
@@ -37,6 +58,7 @@ export type GenerationCommitType = Readonly<{
 	readonly writtenRows: number;
 	readonly reusedFacts: boolean;
 	readonly stages: BuildStagesType;
+	readonly persistence: BuildPersistenceType;
 }>;
 
 type CommitConnectionType = Readonly<{writer: DatabaseSync; projectId: string}>;
@@ -51,23 +73,6 @@ const ZERO_COUNTS: AdapterCommitCountsType = {
 };
 
 const zeroStages = (): Readonly<{scanMs: number; compilerMs: number; extractionMs: number}> => ({scanMs: 0, compilerMs: 0, extractionMs: 0});
-
-const checkpointAfterPublication = (writer: DatabaseSync): void => {
-	try {
-		const state = checkpointWal(writer);
-		debug('publication wal checkpoint', {
-			mode: state.mode,
-			busy: state.busy,
-			logFrames: state.logFrames,
-			checkpointedFrames: state.checkpointedFrames,
-			truncated: state.truncated,
-		});
-	} catch (error) {
-		// Publication already committed; a failed checkpoint must not turn a
-		// successful build into a failed one.
-		debug('publication wal checkpoint skipped', {message: error instanceof Error ? error.message : String(error)});
-	}
-};
 
 const adapterRowCounts = (row: Readonly<Record<string, unknown>>): AdapterCommitCountsType => ({
 	files: asNumber(row, 'file_count'),
@@ -94,10 +99,17 @@ const writeAdapter = (
 	generationId: string,
 	adapter: AdapterCommitType,
 	mode: GenerationFactWriteModeType,
-): Readonly<{counts: AdapterCommitCountsType; validation: GenerationFactsInputType | null; changedPaths: readonly string[]; writtenRows: number}> => {
+): Readonly<{
+	counts: AdapterCommitCountsType;
+	validation: GenerationFactsInputType | null;
+	changedPaths: readonly string[];
+	selectedRows: number;
+	deletedRows: number;
+	writtenRows: number;
+}> => {
 	if (adapter.coverage === 'absent') {
 		deleteAdapterRows(writer, generationId, adapter.adapterId);
-		return {counts: ZERO_COUNTS, validation: null, changedPaths: [], writtenRows: 0};
+		return {counts: ZERO_COUNTS, validation: null, changedPaths: [], selectedRows: 0, deletedRows: 0, writtenRows: 0};
 	}
 
 	writeContents(writer, adapter.files);
@@ -116,30 +128,38 @@ const writeAdapter = (
 		};
 		const write = writeGenerationFacts(writer, input, mode);
 
-		return {counts: factCounts(write.counts), validation: input, changedPaths: write.changedPaths, writtenRows: write.writtenRows};
+		return {
+			counts: factCounts(write.counts),
+			validation: input,
+			changedPaths: write.changedPaths,
+			selectedRows: write.selectedRows,
+			deletedRows: write.deletedRows,
+			writtenRows: write.writtenRows,
+		};
 	}
 
 	syncGenerationFiles(writer, generationId, adapter.files, adapter.adapterId);
 	syncProjectContexts(writer, {generationId, adapterId: adapter.adapterId, projects: adapter.projects});
 
-	return {counts: adapter.counts, validation: null, changedPaths: [], writtenRows: adapter.files.length};
+	return {
+		counts: adapter.counts,
+		validation: null,
+		changedPaths: [],
+		selectedRows: adapter.files.length + adapter.projects.length,
+		deletedRows: 0,
+		writtenRows: adapter.files.length + adapter.projects.length,
+	};
 };
 
-const verifyAdapters = (writer: DatabaseSync, validations: readonly GenerationFactsInputType[]): void => {
+const validateAdapterCounts = (writer: DatabaseSync, validations: readonly GenerationFactsInputType[]): void => {
 	for (const validation of validations) {
-		validateGenerationFacts(writer, validation);
+		validateGenerationFactCounts(writer, validation);
 	}
+};
 
-	const foreignKeyViolations = writer.prepare('pragma foreign_key_check').all();
-
-	if (foreignKeyViolations.length > 0) {
-		throw new Error('SQLite foreign-key check failed for the candidate generation');
-	}
-
-	const quickCheck = writer.prepare('pragma quick_check').all();
-
-	if (quickCheck.some((row) => asString(row, 'quick_check') !== 'ok')) {
-		throw new Error('SQLite quick check failed for the candidate generation');
+const validateAdapterSemantics = (writer: DatabaseSync, validations: readonly GenerationFactsInputType[]): void => {
+	for (const validation of validations) {
+		validateGenerationSemantics(writer, validation);
 	}
 };
 
@@ -166,7 +186,13 @@ const publishPhase = (
 		/** Whole-generation stage totals persisted on the generation row. */
 		aggregateStages: Readonly<{scanMs: number; compilerMs: number; extractionMs: number}>;
 	}>,
-): GenerationCommitType => {
+): Readonly<{
+	report: Omit<GenerationCommitType, 'persistence'>;
+	publicationMetadataMs: number;
+	contentGcMs: number;
+	plannerStatisticsMs: number;
+}> => {
+	const metadataStartedAt = performance.now();
 	const previous = readGeneration(writer, input.generationId);
 
 	if (previous === null) {
@@ -213,24 +239,34 @@ const publishPhase = (
 	writer
 		.prepare("insert into metadata (key, value) values ('current_generation', ?) on conflict(key) do update set value = excluded.value")
 		.run(input.generationId);
+	const publicationMetadataMs = Math.round(performance.now() - metadataStartedAt);
+	const contentGcStartedAt = performance.now();
 	writer.exec('delete from content where not exists (select 1 from file where file.content_sha256 = content.sha256)');
+	const contentGcMs = Math.round(performance.now() - contentGcStartedAt);
+	const plannerStatisticsStartedAt = performance.now();
 	analyzeDatabase(writer);
+	const plannerStatisticsMs = Math.round(performance.now() - plannerStatisticsStartedAt);
 
 	return {
-		generationId: input.generationId,
-		revision: previous.revision + 1,
-		counts,
-		changedPaths: [],
-		writtenRows: 0,
-		reusedFacts: false,
-		stages: {
-			scanMs: input.stages.scanMs,
-			compilerMs: input.stages.compilerMs,
-			extractionMs: input.stages.extractionMs,
-			insertionMs: input.stages.insertionMs,
-			verificationMs: input.stages.verificationMs,
-			publicationMs: 0,
+		report: {
+			generationId: input.generationId,
+			revision: previous.revision + 1,
+			counts,
+			changedPaths: [],
+			writtenRows: 0,
+			reusedFacts: false,
+			stages: {
+				scanMs: input.stages.scanMs,
+				compilerMs: input.stages.compilerMs,
+				extractionMs: input.stages.extractionMs,
+				insertionMs: input.stages.insertionMs,
+				verificationMs: input.stages.verificationMs,
+				publicationMs: 0,
+			},
 		},
+		publicationMetadataMs,
+		contentGcMs,
+		plannerStatisticsMs,
 	};
 };
 
@@ -248,27 +284,33 @@ const publishPhase = (
  * @throws {Error} When validation fails; the transaction is rolled back.
  */
 export const commitAdapters = (connection: CommitConnectionType, input: MultiGenerationCommitInputType): GenerationCommitType => {
-	const {writer, projectId} = connection;
-	const outcome: {report: GenerationCommitType | null} = {report: null};
-	let publicationMs = 0;
+	const {writer} = connection;
+	const persistenceStartedAt = performance.now();
+	const outcome: {report: Omit<GenerationCommitType, 'persistence'> | null} = {report: null};
+	let insertionMs = 0;
+	let countValidationMs = 0;
+	let semanticValidationMs = 0;
+	let publicationMetadataMs = 0;
+	let contentGcMs = 0;
+	let plannerStatisticsMs = 0;
+	let publicationStartedAt = 0;
 	const changedPaths: string[] = [];
+	let selectedRows = 0;
+	let deletedRows = 0;
 	let writtenRows = 0;
 
-	transaction(writer, () => {
+	const transactionTiming = timedTransaction(writer, () => {
 		writer.exec('pragma defer_foreign_keys = on');
+		assertPublicationLease(connection, input.ownerId);
 
-		if (input.ownerId !== undefined && !renewLeaseStrict(writer, {projectId, ownerId: input.ownerId, ttlMs: BUILD_LEASE_TTL_MS})) {
-			throw new CodeIndexError('index_build_failed', 'Build lease was lost or taken over before publication');
-		}
+		const insertionStartedAt = performance.now();
 
 		for (const adapterId of input.removedAdapterIds ?? []) {
 			deleteAdapterRows(writer, input.generationId, adapterId);
 		}
 
 		const mode: GenerationFactWriteModeType = input.mode ?? 'revise';
-		const insertionStartedAt = performance.now();
 		const written = input.adapters.map((adapter) => ({adapter, write: writeAdapter(writer, input.generationId, adapter, mode)}));
-		const insertionMs = Math.round(performance.now() - insertionStartedAt);
 
 		for (const entry of written) {
 			upsertAdapterRow(writer, {
@@ -278,28 +320,39 @@ export const commitAdapters = (connection: CommitConnectionType, input: MultiGen
 				stages: entry.adapter.stages,
 			});
 			changedPaths.push(...entry.write.changedPaths);
+			selectedRows += entry.write.selectedRows;
+			deletedRows += entry.write.deletedRows;
 			writtenRows += entry.write.writtenRows;
 		}
+		insertionMs = Math.round(performance.now() - insertionStartedAt);
 
-		const verificationStartedAt = performance.now();
-		verifyAdapters(
-			writer,
-			written.map((entry) => entry.write.validation).filter((validation): validation is GenerationFactsInputType => validation !== null),
-		);
-		const verificationMs = Math.round(performance.now() - verificationStartedAt);
-		const publicationStartedAt = performance.now();
-		const report = publishPhase(writer, {
+		const validations = written.map((entry) => entry.write.validation).filter((validation): validation is GenerationFactsInputType => validation !== null);
+		const countValidationStartedAt = performance.now();
+		validateAdapterCounts(writer, validations);
+		countValidationMs = Math.round(performance.now() - countValidationStartedAt);
+		const semanticValidationStartedAt = performance.now();
+		validateAdapterSemantics(writer, validations);
+		semanticValidationMs = Math.round(performance.now() - semanticValidationStartedAt);
+		publicationStartedAt = performance.now();
+		const {
+			report: publishedReport,
+			contentGcMs: measuredContentGcMs,
+			publicationMetadataMs: measuredPublicationMetadataMs,
+			plannerStatisticsMs: measuredPlannerStatisticsMs,
+		} = publishPhase(writer, {
 			generationId: input.generationId,
 			sourceHash: input.sourceHash,
 			configHash: input.configHash,
 			inputHash: input.inputHash,
 			startedAt: input.startedAt,
-			stages: {...sumStages(input.adapters), insertionMs, verificationMs},
+			stages: {...sumStages(input.adapters), insertionMs, verificationMs: countValidationMs + semanticValidationMs},
 			aggregateStages: persistedAdapterStages(writer, input.generationId),
 		});
 
-		publicationMs = Math.round(performance.now() - publicationStartedAt);
-		outcome.report = {...report, changedPaths, writtenRows};
+		contentGcMs = measuredContentGcMs;
+		publicationMetadataMs = measuredPublicationMetadataMs;
+		plannerStatisticsMs = measuredPlannerStatisticsMs;
+		outcome.report = {...publishedReport, changedPaths, writtenRows};
 	});
 
 	const {report} = outcome;
@@ -308,10 +361,30 @@ export const commitAdapters = (connection: CommitConnectionType, input: MultiGen
 		throw new Error('Generation commit did not complete');
 	}
 
-	writer.prepare('update generation set publication_ms = ? where id = ?').run(publicationMs, input.generationId);
-	checkpointAfterPublication(writer);
+	const publicationCoreMs = Math.round(performance.now() - publicationStartedAt);
+	const completionMetadataStartedAt = performance.now();
+	writer.prepare('update generation set publication_ms = ? where id = ?').run(publicationCoreMs, input.generationId);
+	publicationMetadataMs += Math.round(performance.now() - completionMetadataStartedAt);
+	const publicationCheckpoint = checkpointAfterPublication(writer);
+	const publicationMs = Math.round(performance.now() - publicationStartedAt);
+	const persistence = buildPersistence({
+		queueWaitMs: transactionTiming.queueWaitMs,
+		changedPathCount: changedPaths.length,
+		selectedRowCount: selectedRows,
+		deletedRowCount: deletedRows,
+		writtenRowCount: writtenRows,
+		insertionMs,
+		countValidationMs,
+		semanticValidationMs,
+		publicationMetadataMs,
+		contentGcMs,
+		plannerStatisticsMs,
+		commitMs: transactionTiming.commitMs,
+		publicationCheckpoint,
+		totalWallMs: Math.round(performance.now() - persistenceStartedAt),
+	});
 	debug('generation committed', {generationId: input.generationId, revision: report.revision, changedPaths: report.changedPaths.length});
-	return {...report, stages: {...report.stages, publicationMs}};
+	return {...report, stages: {...report.stages, publicationMs}, persistence};
 };
 
 const adapterFromSingle = (writer: DatabaseSync, input: GenerationCommitInputType): AdapterCommitType => {
@@ -390,89 +463,4 @@ export const commitGeneration = (connection: CommitConnectionType, input: Genera
 		...(input.startedAt === undefined ? {} : {startedAt: input.startedAt}),
 		...(input.ownerId === undefined ? {} : {ownerId: input.ownerId}),
 	});
-};
-
-/**
- * Publishes one explicitly created generation and supersedes the previous one.
- *
- * Retained for full rebuilds and storage tests; production refreshes use
- * {@link commitGeneration}, which revises the published generation in place.
- *
- * @param connection - Writer connection and build-lease project identity.
- * @param input - Generation to publish, optional counts, stages, and lease owner.
- * @returns Measured publication duration.
- * @throws {@link CodeIndexError} When the lease was lost or expired before publication.
- */
-export const publishNewGeneration = (
-	connection: CommitConnectionType,
-	input: Readonly<{
-		generationId: string;
-		diagnosticCount?: number;
-		stages?: Readonly<{scanMs: number; compilerMs: number; extractionMs: number; insertionMs: number; verificationMs: number}>;
-		ownerId?: string;
-	}>,
-): number => {
-	const {writer, projectId} = connection;
-	const {generationId, diagnosticCount, stages, ownerId} = input;
-	const count = (table: string): number => {
-		const row = writer.prepare(`select count(*) as total from ${table} where generation_id = ?`).get(generationId);
-		return row === undefined ? 0 : Number(row['total']);
-	};
-	const counts = {
-		files: count('file'),
-		symbols: count('symbol'),
-		occurrences: count('occurrence'),
-		dependencyEdges: count('dependency_edge'),
-		dependencyBindings: count('dependency_binding'),
-		diagnostics: diagnosticCount ?? count('diagnostic'),
-	};
-	debug('publish generation', {generationId, counts});
-	const publicationStartedAt = performance.now();
-
-	transaction(writer, () => {
-		if (ownerId !== undefined && !renewLeaseStrict(writer, {projectId, ownerId, ttlMs: BUILD_LEASE_TTL_MS})) {
-			throw new CodeIndexError('index_build_failed', 'Build lease was lost or taken over before publication');
-		}
-
-		writer.exec("delete from generation where state in ('superseded', 'failed')");
-		writer
-			.prepare(
-				`update generation
-				 set state = 'published', completed_at = ?, revision = revision + 1,
-				     file_count = ?, symbol_count = ?, occurrence_count = ?,
-				     dependency_edge_count = ?, dependency_binding_count = ?, diagnostic_count = ?,
-				     scan_ms = ?, compiler_ms = ?, extraction_ms = ?, insertion_ms = ?, verification_ms = ?, publication_ms = ?
-				 where id = ?`,
-			)
-			.run(
-				new Date().toISOString(),
-				counts.files,
-				counts.symbols,
-				counts.occurrences,
-				counts.dependencyEdges,
-				counts.dependencyBindings,
-				counts.diagnostics,
-				stages?.scanMs ?? null,
-				stages?.compilerMs ?? null,
-				stages?.extractionMs ?? null,
-				stages?.insertionMs ?? null,
-				stages?.verificationMs ?? null,
-				null,
-				generationId,
-			);
-		writer.prepare("update generation set state = 'superseded' where state = 'published' and id <> ?").run(generationId);
-		writer
-			.prepare("insert into metadata (key, value) values ('current_generation', ?) on conflict(key) do update set value = excluded.value")
-			.run(generationId);
-		writer.exec('delete from content where not exists (select 1 from file where file.content_sha256 = content.sha256)');
-		// Refresh planner statistics inside the publication transaction so every
-		// reader plans against the published row counts.
-		analyzeDatabase(writer);
-	});
-
-	const publicationMs = Math.round(performance.now() - publicationStartedAt);
-	writer.prepare('update generation set publication_ms = ? where id = ?').run(publicationMs, generationId);
-	checkpointAfterPublication(writer);
-	debug('generation published', {generationId, counts, publicationMs});
-	return publicationMs;
 };

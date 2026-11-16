@@ -1,10 +1,15 @@
 import {appendFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import {buildTypeScriptFacts, typeScriptExtractor} from '@codeindex/adapter-typescript/index';
+import {type ExtractorType} from '../src/adapters/types.ts';
+import {assertAnalyticsFields} from '../src/core/analytics/events.ts';
 import {type AnalyticsRecorderType} from '../src/core/analytics/recorder.ts';
+import {buildGeneration} from '../src/core/generation/buildGeneration.ts';
+import {persistenceStageTotalOf} from '../src/core/generation/buildReport.ts';
 import {createCodeIndex, type CodeIndex} from '../src/core/generation/codeIndex.ts';
 import {IndexDatabase} from '../src/core/storage/database.ts';
-import {testAdaptersFor} from './helpers/adapters.ts';
+import {adapterSetOf, testAdaptersFor} from './helpers/adapters.ts';
 import {createFixtureConfig, silentLogger} from './helpers/fixture.ts';
 
 const {join} = path;
@@ -28,6 +33,16 @@ const openDatabase = (config: ReturnType<typeof createFixtureConfig>['config']):
 		projectId: config.projectId,
 		extractorId: config.extractorId,
 	});
+
+const firstOf = <ItemType>(items: readonly ItemType[]): ItemType => {
+	const [first] = items;
+
+	if (first === undefined) {
+		throw new Error('Expected at least one item');
+	}
+
+	return first;
+};
 
 describe('build telemetry', () => {
 	let cleanup: (() => void) | undefined;
@@ -67,6 +82,18 @@ describe('build telemetry', () => {
 		}
 
 		expect(Object.values(first.stages).reduce((total, value) => total + value, 0)).toBeLessThanOrEqual(first.durationMs);
+		expect(first.persistence).toBeDefined();
+
+		if (first.persistence === undefined) {
+			throw new Error('Expected persistence attribution');
+		}
+
+		expect(first.persistence.totalWallMs).toBeLessThanOrEqual(first.durationMs);
+		expect(Math.abs(persistenceStageTotalOf(first.persistence) - first.persistence.totalWallMs)).toBeLessThanOrEqual(11);
+		expect(assertAnalyticsFields({persistence: first.persistence})).toStrictEqual({persistence: first.persistence});
+		const serializedPersistence = JSON.stringify(first.persistence);
+		expect(Buffer.byteLength(serializedPersistence, 'utf8')).toBeLessThan(2048);
+		expect(serializedPersistence).not.toContain(fixture.config.rootDir);
 
 		appendFileSync(join(fixture.config.rootDir, 'src', 'models.ts'), '\nexport const secondRevision = 1;\n');
 		const second = await index.ensureReady();
@@ -105,5 +132,57 @@ describe('build telemetry', () => {
 
 		expect(drift).toHaveLength(1);
 		expect(drift[0]?.fields).toMatchObject({extractorVersion: expect.any(String), declaredVersion: '8.0.0'});
+	});
+});
+
+describe('post-publication cache failures', () => {
+	let cleanup: (() => void) | undefined;
+
+	afterEach(() => {
+		cleanup?.();
+		cleanup = undefined;
+	});
+
+	it('keeps publication successful when artifact flush and checkpoint fail', async () => {
+		const fixture = createFixtureConfig('simple-project');
+		({cleanup} = fixture);
+		const database = openDatabase(fixture.config);
+		const cacheWritingExtractor: ExtractorType = {
+			...typeScriptExtractor,
+			build: (config, scan, cache) => {
+				const facts = buildTypeScriptFacts(config, scan);
+				const firstFile = firstOf(scan.files);
+				cache?.write({contentSha256: firstFile.sha256, kind: 'test-artifact', payload: '{}'});
+				return facts;
+			},
+		};
+		const artifactWrite = vi.spyOn(database, 'putExtractionArtifacts').mockImplementation(() => {
+			throw new Error('artifact failure');
+		});
+		const checkpoint = vi.spyOn(database, 'checkpoint').mockImplementation(() => {
+			throw new Error('checkpoint failure');
+		});
+
+		try {
+			const report = await buildGeneration({
+				config: fixture.config,
+				database,
+				logger: silentLogger,
+				force: true,
+				extractor: cacheWritingExtractor,
+				adapters: adapterSetOf(cacheWritingExtractor),
+			});
+
+			expect(report.outcome).toBe('published');
+			expect(database.getPublishedGeneration()?.revision).toBe(report.revision);
+			expect(artifactWrite).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({artifactKind: 'test-artifact'})]));
+			expect(checkpoint).toHaveBeenCalledWith();
+			expect(report.persistence).toMatchObject({
+				artifactFlushFailures: 1,
+				postArtifactCheckpoint: {mode: 'failed', failed: true},
+			});
+		} finally {
+			database.close();
+		}
 	});
 });

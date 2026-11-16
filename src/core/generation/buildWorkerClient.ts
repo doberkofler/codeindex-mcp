@@ -1,8 +1,16 @@
 import {once} from 'node:events';
 import {Worker} from 'node:worker_threads';
+import {z} from 'zod';
 import {type ResolvedAdapterDescriptorType} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
-import {type AdapterActivityType, type BuildReportType, type BuildStagesType, type GenerationStateType} from '../model.ts';
+import {
+	type AdapterActivityType,
+	type BuildCheckpointType,
+	type BuildPersistenceType,
+	type BuildReportType,
+	type BuildStagesType,
+	type GenerationStateType,
+} from '../model.ts';
 import {type AdapterScanPlanType} from './adapterBuild.ts';
 import {BuildFailureEnvelopeError, buildFailureFromWorkerPayload, buildFailureOf, type BuildFailureType, type BuildProjectContextType} from './buildFailure.ts';
 
@@ -45,6 +53,41 @@ const asStages = (value: unknown): BuildStagesType | null => {
 		verificationMs: stages.verificationMs ?? 0,
 		publicationMs: stages.publicationMs ?? 0,
 	};
+};
+
+const BuildCheckpointSchema = z.object({
+	durationMs: z.number(),
+	mode: z.enum(['none', 'passive', 'truncate', 'failed']),
+	busy: z.boolean(),
+	logFrames: z.number(),
+	checkpointedFrames: z.number(),
+	truncated: z.boolean(),
+	failed: z.boolean(),
+}) satisfies z.ZodType<BuildCheckpointType>;
+
+const BuildPersistenceSchema = z.object({
+	queueWaitMs: z.number(),
+	changedPathCount: z.number(),
+	selectedRowCount: z.number(),
+	deletedRowCount: z.number(),
+	writtenRowCount: z.number(),
+	insertionMs: z.number(),
+	countValidationMs: z.number(),
+	semanticValidationMs: z.number(),
+	publicationMetadataMs: z.number(),
+	contentGcMs: z.number(),
+	plannerStatisticsMs: z.number(),
+	commitMs: z.number(),
+	publicationCheckpoint: BuildCheckpointSchema,
+	artifactFlushMs: z.number(),
+	artifactFlushFailures: z.number(),
+	postArtifactCheckpoint: BuildCheckpointSchema,
+	totalWallMs: z.number(),
+}) satisfies z.ZodType<BuildPersistenceType>;
+
+const asPersistence = (value: unknown): BuildPersistenceType | null => {
+	const parsed = BuildPersistenceSchema.safeParse(value);
+	return parsed.success ? parsed.data : null;
 };
 
 const asAdapterActivity = (value: unknown): readonly AdapterActivityType[] | null => {
@@ -92,6 +135,11 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 	}
 
 	const adapterActivity = value['adapterActivity'] === undefined ? undefined : asAdapterActivity(value['adapterActivity']);
+	const persistence = value['persistence'] === undefined ? undefined : asPersistence(value['persistence']);
+
+	if (persistence === null) {
+		return null;
+	}
 
 	return {
 		generationId,
@@ -107,6 +155,7 @@ const asBuildReport = (value: unknown): BuildReportType | null => {
 		dependencyBindingCount,
 		diagnosticCount,
 		stages: asStages(value['stages']),
+		...(persistence === undefined ? {} : {persistence}),
 		...(adapterActivity === undefined || adapterActivity === null ? {} : {adapterActivity}),
 	};
 };

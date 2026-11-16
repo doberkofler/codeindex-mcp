@@ -1,0 +1,181 @@
+import {type DatabaseSync} from 'node:sqlite';
+import {adapterIdOf, type GenerationFactCountsType, type GenerationFactsInputType} from './databaseFactTypes.ts';
+import {buildStatsOf} from './databaseFactStats.ts';
+import {asNumber} from './databaseRows.ts';
+
+const countOf = (reader: DatabaseSync, sql: string, ...parameters: readonly (string | number)[]): number => {
+	const row = reader.prepare(sql).get(...parameters);
+
+	if (row === undefined) {
+		throw new Error('Expected one aggregate row');
+	}
+
+	return asNumber(row, 'total');
+};
+
+const countsOfTable = (reader: DatabaseSync, table: string, generationId: string, adapterId: string): number =>
+	countOf(reader, `select count(*) as total from ${table} where generation_id = ? and adapter_id = ?`, generationId, adapterId);
+
+const definitionSiteCountOf = (input: GenerationFactsInputType): number =>
+	input.facts.occurrences.filter((occurrence) => occurrence.role === 'definition').length;
+
+const occurrenceContextCountOf = (input: GenerationFactsInputType): number =>
+	input.facts.occurrences.reduce((total, occurrence) => total + (occurrence.contexts ?? []).length, 0);
+
+/**
+ * Counts rows produced by one complete adapter input.
+ *
+ * @param input - Complete adapter fact set.
+ * @returns Expected persisted counts.
+ */
+export const countsOfInput = (input: GenerationFactsInputType): GenerationFactCountsType => ({
+	files: input.files.length,
+	symbols: input.facts.symbols.length,
+	bindings: input.facts.bindings.length,
+	bindingContexts: input.facts.bindingContexts.length,
+	bindingSites: input.facts.bindingSites.length,
+	surfaceOrigins: input.facts.surfaceOrigins.length,
+	occurrences: input.facts.occurrences.length,
+	definitionSites: definitionSiteCountOf(input),
+	dependencyEdges: input.dependencies.edges.length,
+	dependencyBindings: input.dependencies.bindings.length,
+	diagnostics: input.diagnostics.length,
+	buildStats: buildStatsOf(input.facts, input.language).length,
+});
+
+const expectedCountsOf = (input: GenerationFactsInputType): ReadonlyMap<string, number> => {
+	const counts = countsOfInput(input);
+
+	return new Map([
+		['file', counts.files],
+		['symbol', counts.symbols],
+		['symbol_name', counts.bindings],
+		['symbol_name_context', counts.bindingContexts],
+		['symbol_name_site', counts.bindingSites],
+		['surface_binding_origin', counts.surfaceOrigins],
+		['occurrence', counts.occurrences],
+		['occurrence_context', occurrenceContextCountOf(input)],
+		['definition_site', counts.definitionSites],
+		['dependency_edge', counts.dependencyEdges],
+		['dependency_binding', counts.dependencyBindings],
+		['diagnostic', counts.diagnostics],
+		['build_stats', counts.buildStats],
+		['project_context', input.projects.length],
+	]);
+};
+
+const countRowsMatch = (writer: DatabaseSync, generationId: string, adapterId: string, expected: ReadonlyMap<string, number>): void => {
+	for (const [table, wanted] of expected) {
+		const inserted = countsOfTable(writer, table, generationId, adapterId);
+
+		if (inserted !== wanted) {
+			throw new Error(`Index insertion count mismatch: ${table} ${String(inserted)}/${String(wanted)}`);
+		}
+	}
+};
+
+const validateCoverage = (writer: DatabaseSync, generationId: string, adapterId: string): void => {
+	const uncoveredDefinitions = countOf(
+		writer,
+		`select count(*) as total
+		 from occurrence o
+		 left join definition_site d
+		   on d.generation_id = o.generation_id
+		  and d.adapter_id = o.adapter_id
+		  and d.symbol_id = o.symbol_id
+		  and d.path = o.path
+		  and d.start_offset = o.start_offset
+		  and d.role = o.role
+		 where o.generation_id = ? and o.adapter_id = ? and o.role = 'definition' and d.site_id is null`,
+		generationId,
+		adapterId,
+	);
+
+	if (uncoveredDefinitions !== 0) {
+		throw new Error('Every definition occurrence must have exactly one definition site');
+	}
+
+	const unmatchedBindingContexts = countOf(
+		writer,
+		`select count(*) as total
+		 from symbol_name_context c
+		 join symbol_name n
+		   on n.generation_id = c.generation_id
+		  and n.adapter_id = c.adapter_id
+		  and n.binding_id = c.binding_id
+		 where c.generation_id = ? and c.adapter_id = ?
+		 and not exists (
+			select 1 from symbol_context s
+			where s.generation_id = c.generation_id
+			and s.adapter_id = c.adapter_id
+			and s.symbol_id = n.symbol_id
+			and s.context_name = c.context_name
+		 )`,
+		generationId,
+		adapterId,
+	);
+
+	if (unmatchedBindingContexts !== 0) {
+		throw new Error('Every binding context must have a matching symbol context');
+	}
+
+	const unpublishedRoots = countOf(
+		writer,
+		`select count(*) as total
+		 from surface_binding_origin o
+		 join symbol_name_context c
+		   on c.generation_id = o.generation_id
+		  and c.adapter_id = o.adapter_id
+		  and c.binding_id = o.root_binding_id
+		  and c.context_name = o.context_name
+		 where o.generation_id = ? and o.adapter_id = ? and c.exposure <> 'published'`,
+		generationId,
+		adapterId,
+	);
+
+	if (unpublishedRoots !== 0) {
+		throw new Error('Every surface origin root must be published in its context');
+	}
+
+	const projectedRoots = countOf(
+		writer,
+		`select count(*) as total
+		 from surface_binding_origin o
+		 where o.generation_id = ? and o.adapter_id = ?
+		 and exists (
+			select 1 from surface_binding_origin d
+			where d.generation_id = o.generation_id
+			and d.adapter_id = o.adapter_id
+			and d.binding_id = o.root_binding_id
+			and d.context_name = o.context_name
+		 )`,
+		generationId,
+		adapterId,
+	);
+
+	if (projectedRoots !== 0) {
+		throw new Error('A surface origin root must not itself be a projected surface binding');
+	}
+};
+
+/**
+ * Validates persisted counts for one changed adapter.
+ *
+ * @param writer - Writer connection inside the publication transaction.
+ * @param input - Complete changed-adapter fact set.
+ * @throws {@link Error} When any persisted count differs.
+ */
+export const validateGenerationFactCounts = (writer: DatabaseSync, input: GenerationFactsInputType): void => {
+	countRowsMatch(writer, input.generationId, adapterIdOf(input), expectedCountsOf(input));
+};
+
+/**
+ * Validates semantic invariants for one changed adapter.
+ *
+ * @param writer - Writer connection inside the publication transaction.
+ * @param input - Complete changed-adapter fact set.
+ * @throws {@link Error} When persisted facts violate a semantic invariant.
+ */
+export const validateGenerationSemantics = (writer: DatabaseSync, input: GenerationFactsInputType): void => {
+	validateCoverage(writer, input.generationId, adapterIdOf(input));
+};
