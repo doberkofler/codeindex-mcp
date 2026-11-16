@@ -274,7 +274,6 @@ export class CodeIndex {
 			logger: this.#logger,
 			analytics: this.#analytics,
 			ownerId: this.#ownerId,
-			published: this.#published,
 			targets: this.#targets,
 			compilerDriftObserved: this.#compilerDriftObserved,
 			build: async (plans: readonly AdapterScanPlanType[], startedAtEpoch: number) => {

@@ -1,7 +1,7 @@
 import {type AnalyticsRecorderType} from '../analytics/recorder.ts';
 import {type ConfigType} from '../config/config.ts';
 import {type LoggerType} from '../logging/logger.ts';
-import {type BuildReportType, type GenerationRowType} from '../model.ts';
+import {type BuildReportType} from '../model.ts';
 import {startProcessSample} from '../resources/processSample.ts';
 import {BUILD_LEASE_TTL_MS, type IndexDatabase} from '../storage/database.ts';
 import {type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
@@ -23,7 +23,6 @@ type InputType = Readonly<{
 	logger: LoggerType;
 	analytics: AnalyticsRecorderType | null;
 	ownerId: string;
-	published: GenerationRowType | null;
 	targets: readonly AdapterTargetType[];
 	compilerDriftObserved: Set<string>;
 	build: (plans: readonly AdapterScanPlanType[], startedAtEpoch: number) => Promise<BuildReportType>;
@@ -46,7 +45,7 @@ export const runInProcessRefresh = async (input: InputType): Promise<InProcessRe
 	const targets = adapterTargetsForScope(input.targets, input.adapterIds);
 	const leaseOutcome = await acquireOrObserveBuildLease({
 		database: input.database,
-		previous: input.published,
+		requestedAdapterIds: targets.map((target) => target.adapter.id),
 		startedAt,
 		signal: input.signal,
 		tryAcquire: () => input.database.tryAcquireBuildLease(input.ownerId, process.pid, BUILD_LEASE_TTL_MS),

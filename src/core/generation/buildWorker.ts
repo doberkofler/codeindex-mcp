@@ -9,6 +9,7 @@ import {startProcessSample} from '../resources/processSample.ts';
 import {BUILD_LEASE_TTL_MS, IndexDatabase, type DatabaseOpenContextType} from '../storage/database.ts';
 import {startBuildLeaseHeartbeat} from './buildLeaseHeartbeat.ts';
 import {adapterTargets, type AdapterScanPlanType, type AdapterTargetType} from './adapterBuild.ts';
+import {adapterTargetsForScope} from './adapterRefresh.ts';
 import {buildFailureOf, type BuildFailureType, type BuildProjectContextType, runBuildStage} from './buildFailure.ts';
 import {buildGeneration} from './buildGeneration.ts';
 import {executionContextOf} from './executionCancellation.ts';
@@ -223,12 +224,12 @@ const performBuild = async (request: BuildRequestType, adapters: AdapterSetType)
 		database = runBuildStage('persistence', () => IndexDatabase.open(request.config.databasePath, databaseContextOf(request.config, scans)));
 		debug('database opened');
 		const targets = initializeWatchPlans(database, request.config, adapters);
+		const requestedTargets = adapterTargetsForScope(targets, request.adapterIds);
 		const startedAt = performance.now();
 		const startedAtEpoch = request.startedAtEpoch ?? Date.now();
-		const previous = database.getPublishedGeneration();
 		const leaseOutcome = await acquireOrObserveBuildLease({
 			database,
-			previous,
+			requestedAdapterIds: requestedTargets.map((target) => target.adapter.id),
 			startedAt,
 			isCancelled: executionContext.isCancellationRequested,
 			tryAcquire: () => database?.tryAcquireBuildLease(request.ownerId, process.pid, BUILD_LEASE_TTL_MS) ?? false,

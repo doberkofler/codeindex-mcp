@@ -30,9 +30,20 @@ export type ExternalBuildObservationType =
 /** Outcome of claiming the build lease or observing another owner. */
 export type BuildLeaseOutcomeType = Readonly<{state: 'acquired'}> | Readonly<{state: 'published'; report: BuildReportType}> | Readonly<{state: 'cancelled'}>;
 
+type AdapterRevisionType = Readonly<{
+	adapterId: string;
+	revision: number | null;
+}>;
+
+/** Published state captured before waiting for another lease owner. */
+export type ExternalBuildBaselineType = Readonly<{
+	publication: GenerationRowType | null;
+	adapterRevisions: readonly AdapterRevisionType[];
+}>;
+
 type BuildLeaseInputType = Readonly<{
 	database: IndexDatabase;
-	previous: GenerationRowType | null;
+	requestedAdapterIds: readonly string[];
 	startedAt: number;
 	signal?: AbortSignal;
 	isCancelled?: () => boolean;
@@ -40,8 +51,38 @@ type BuildLeaseInputType = Readonly<{
 	record?: (event: string, fields?: Readonly<Record<string, unknown>>) => void;
 }>;
 
+type ContendedBuildLeaseInputType = Omit<BuildLeaseInputType, 'requestedAdapterIds'> & Readonly<{baseline: ExternalBuildBaselineType}>;
+
 const publicationChanged = (previous: GenerationRowType | null, published: GenerationRowType): boolean =>
 	previous === null || published.id !== previous.id || published.revision !== previous.revision;
+
+const readExternalBuildState = (database: IndexDatabase, adapterIds: readonly string[]): ExternalBuildBaselineType =>
+	database.readSnapshot(() => {
+		const publication = database.getPublishedGeneration();
+		const stored =
+			publication === null
+				? new Map<string, number>()
+				: new Map(database.getGenerationAdapters(publication.id).map((adapter) => [adapter.adapterId, adapter.revision]));
+		return {
+			publication,
+			adapterRevisions: adapterIds.map((adapterId) => ({adapterId, revision: stored.get(adapterId) ?? null})),
+		};
+	});
+
+const requestedAdaptersAdvanced = (baseline: ExternalBuildBaselineType, observed: ExternalBuildBaselineType): boolean => {
+	const published = observed.publication;
+
+	if (published === null || !publicationChanged(baseline.publication, published)) {
+		return false;
+	}
+
+	const observedById = new Map(observed.adapterRevisions.map((adapter) => [adapter.adapterId, adapter.revision]));
+	const generationChanged = baseline.publication !== null && published.id !== baseline.publication.id;
+	return baseline.adapterRevisions.every((adapter) => {
+		const revision = observedById.get(adapter.adapterId);
+		return revision !== undefined && revision !== null && (generationChanged || adapter.revision === null || revision > adapter.revision);
+	});
+};
 
 const cancellationRequested = (signal: AbortSignal | undefined, isCancelled?: () => boolean): boolean => signal?.aborted === true || isCancelled?.() === true;
 
@@ -75,17 +116,18 @@ export const externalBuildReport = (outcome: BuildLeaseOutcomeType, database: In
  * Waits for another process holding the build lease to publish.
  *
  * A reader never builds while another owner holds the lease. It observes the
- * externally published generation and returns as soon as that owner publishes.
+ * externally published generation and returns only after every requested
+ * adapter advances from the captured baseline.
  * An expired lease is returned to the caller so it can attempt takeover
  * immediately.
  *
- * @param input - Database, previously observed generation, cancellation, and timing hooks.
+ * @param input - Database, requested-adapter baseline, cancellation, and timing hooks.
  * @returns The observed publication, cancellation, or a lease takeover signal.
  */
 export const observeExternalBuild = async (
 	input: Readonly<{
 		database: IndexDatabase;
-		previous: GenerationRowType | null;
+		baseline: ExternalBuildBaselineType;
 		startedAt: number;
 		signal?: AbortSignal;
 		isCancelled?: () => boolean;
@@ -99,12 +141,17 @@ export const observeExternalBuild = async (
 			return {state: 'cancelled'};
 		}
 
-		const published = input.database.getPublishedGeneration();
+		const observed = readExternalBuildState(
+			input.database,
+			input.baseline.adapterRevisions.map((adapter) => adapter.adapterId),
+		);
+		const published = observed.publication;
 
-		if (published !== null && publicationChanged(input.previous, published)) {
+		if (published !== null && requestedAdaptersAdvanced(input.baseline, observed)) {
 			input.record?.('build_observed', {
 				durationMs: Math.round(performance.now() - input.startedAt),
 				generationChanged: true,
+				adapterCount: input.baseline.adapterRevisions.length,
 			});
 			return {state: 'published', report: reusedReport(published)};
 		}
@@ -134,7 +181,7 @@ export const observeExternalBuild = async (
 	return observation;
 };
 
-const retryAfterContention = async (input: BuildLeaseInputType): Promise<BuildLeaseOutcomeType> => {
+const retryAfterContention = async (input: ContendedBuildLeaseInputType): Promise<BuildLeaseOutcomeType> => {
 	if (cancellationRequested(input.signal, input.isCancelled)) {
 		return {state: 'cancelled'};
 	}
@@ -146,7 +193,7 @@ const retryAfterContention = async (input: BuildLeaseInputType): Promise<BuildLe
 
 	const observation = await observeExternalBuild({
 		database: input.database,
-		previous: input.previous,
+		baseline: input.baseline,
 		startedAt: input.startedAt,
 		...(input.signal === undefined ? {} : {signal: input.signal}),
 		...(input.isCancelled === undefined ? {} : {isCancelled: input.isCancelled}),
@@ -161,7 +208,7 @@ const retryAfterContention = async (input: BuildLeaseInputType): Promise<BuildLe
  * Takeover is retried as soon as the observed lease expires, so a dead owner
  * does not block another process beyond the lease lifetime.
  *
- * @param input - Database, previous generation, lease attempt, cancellation, and timing hooks.
+ * @param input - Database, requested adapter roster, lease attempt, cancellation, and timing hooks.
  * @returns Whether this process acquired the lease, observed a publication, or was cancelled.
  */
 export const acquireOrObserveBuildLease = async (input: BuildLeaseInputType): Promise<BuildLeaseOutcomeType> => {
@@ -169,17 +216,19 @@ export const acquireOrObserveBuildLease = async (input: BuildLeaseInputType): Pr
 		return {state: 'cancelled'};
 	}
 
+	const baseline = readExternalBuildState(input.database, input.requestedAdapterIds);
+
 	if (input.tryAcquire()) {
 		return {state: 'acquired'};
 	}
 
 	const observation = await observeExternalBuild({
 		database: input.database,
-		previous: input.previous,
+		baseline,
 		startedAt: input.startedAt,
 		...(input.signal === undefined ? {} : {signal: input.signal}),
 		...(input.isCancelled === undefined ? {} : {isCancelled: input.isCancelled}),
 		...(input.record === undefined ? {} : {record: input.record}),
 	});
-	return observation.state === 'lease-expired' ? retryAfterContention(input) : observation;
+	return observation.state === 'lease-expired' ? retryAfterContention({...input, baseline}) : observation;
 };
