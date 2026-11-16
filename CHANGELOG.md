@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.20.0...v0.21.0) (2026-11-16)
+
+### Fixed
+
+* **cli:** expose program version ([d616435](https://github.com/doberkofler/codeindex-mcp/commit/d616435cbb6dfa75922bc1b0b5e34e1cbc343e1e))
+
 ## [0.20.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.19.0...v0.20.0) (2026-11-16)
 
 ### Added
