@@ -123,6 +123,14 @@ describe('operational CLI', () => {
 		expect(invalid.stderr()).toContain("unknown command 'explode'");
 	});
 
+	it.each(['--version', '-V'])('prints the program version for %s', async (option) => {
+		const captured = captureIo();
+
+		await expect(runCli([option], {CODE_INDEX_ROOT: '.', CODE_INDEX_LOG_LEVEL: 'error'}, captured.io)).resolves.toBe(0);
+		expect(captured.stdout()).toBe(PROGRAM_VERSION);
+		expect(captured.stderr()).toBe('');
+	});
+
 	it('returns a failure code from the TypeScript reference alias', async () => {
 		const captured = captureIo();
 		const environment: NodeJS.ProcessEnv = {CODE_INDEX_LOG_LEVEL: 'error'};

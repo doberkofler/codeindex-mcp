@@ -263,6 +263,7 @@ const buildProgram = (context: CliContextType): Command => {
 		.name('codeindex-cli')
 		.description('Operational commands for the local code index; use "mcp install|uninstall" to manage the project-local OpenCode server')
 		.usage('<command> [options]')
+		.version(PROGRAM_VERSION)
 		.exitOverride()
 		.showHelpAfterError()
 		.configureOutput({
