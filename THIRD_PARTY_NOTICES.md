@@ -10,7 +10,7 @@ base at `grammar/oracle/Antlr4ng/PlSqlLexerBase.ts.txt`, and the generated
 - Upstream project: `antlr/grammars-v4`
 - Upstream paths: `sql/plsql/PlSqlLexer.g4`,
   `sql/plsql/Antlr4ng/PlSqlLexerBase.ts`
-- Upstream commit: `3f1ca793eb1b72d421a016dd05b1d340dfa1a65e`
+- Upstream commit: `c306207ac870e7c5a95763b518ba3e3a1ca61409`
 - Lexer SHA-256: `aaddaa2f9d40e10ab71e83a402499ae893aa7f03497a631e5c12f2c4cd1d2567`
 - Lexer base SHA-256: `60463fb2d8e19ff40b77f1428056f74c7d19bb55263451a0f4a84670e227ae91`
 - Upstream license: Apache License 2.0
@@ -40,9 +40,9 @@ base at `grammar/oracle/Antlr4ng/PlSqlParserBase.ts.txt`, and the generated
 - Upstream project: `antlr/grammars-v4`
 - Upstream paths: `sql/plsql/PlSqlParser.g4`,
   `sql/plsql/Antlr4ng/PlSqlParserBase.ts`
-- Upstream commit: `3f1ca793eb1b72d421a016dd05b1d340dfa1a65e`
-- Parser SHA-256: `2437508c3e8126d0a09c4cc98fc12741a9d25350b4626350805afdcb74956827`
-- Parser base SHA-256: `f83c2eab005f3174f2b506c7e553577f96c336fc18e7c456a58c273566c634eb`
+- Upstream commit: `c306207ac870e7c5a95763b518ba3e3a1ca61409`
+- Parser SHA-256: `592733617486cb835e37f6c58a8eb40ab5c9d24d29ce58e193ad16d369563b87`
+- Parser base SHA-256: `c9a02af5ccecbcc9d285101d9be0ffb97532f61a06e44a5f88a0d0b6b41541cf`
 - Upstream license: Apache License 2.0
 - `scripts/downloadOracleGrammar.ts` verifies every digest and writes the
   upstream files unmodified.

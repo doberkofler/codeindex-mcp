@@ -5830,7 +5830,7 @@ record_type_def
     ;
 
 field_spec
-    : column_name type_spec? (NOT NULL_)? default_value_part?
+    : column_name type_spec? (NOT? NULL_)? default_value_part?
     ;
 
 ref_cursor_type_def
@@ -6546,7 +6546,7 @@ insert_into_clause
 
 values_clause
     : VALUES (
-        REGULAR_ID
+        record_name
         | '(' expressions_ ')' (COMMA '(' expressions_ ')')*
         | collection_expression
     )
@@ -6695,7 +6695,7 @@ logical_operation
         | A_LETTER SET
         | EMPTY_
         | OF TYPE? '(' ONLY? type_spec (',' type_spec)* ')'
-        | JSON (FORMAT JSON)? (STRICT | LAX)? ((WITH | WITHOUT) UNIQUE KEYS)?
+        | JSON (FORMAT JSON)? (STRICT | LAX | '(' (STRICT | LAX) ')')? ((WITH | WITHOUT) UNIQUE KEYS)?
     )
     ;
 
@@ -6829,14 +6829,20 @@ case_statement
     ;
 
 simple_case_statement
-    : label_declaration? ck1 = CASE expression case_when_part_statement+ case_else_part_statement? END CASE? label_name?
+    : label_declaration? ck1 = CASE expression simple_case_when_part_statement+ case_else_part_statement? END CASE? label_name?
     ;
 
 searched_case_statement
-    : label_declaration? ck1 = CASE case_when_part_statement+ case_else_part_statement? END CASE? label_name?
+    : label_declaration? ck1 = CASE searched_case_when_part_statement+ case_else_part_statement? END CASE? label_name?
     ;
 
-case_when_part_statement
+simple_case_when_part_statement
+    : WHEN (expression | dangling_predicate) (
+        ',' (expression | dangling_predicate)
+    )* THEN seq_of_statements
+    ;
+
+searched_case_when_part_statement
     : WHEN expression THEN seq_of_statements
     ;
 
@@ -6844,6 +6850,16 @@ case_else_part_statement
     : ELSE seq_of_statements
     ;
 
+dangling_predicate
+    : relational_operator expression
+    | NOT? (
+        IN in_elements
+        | BETWEEN between_elements
+        | (LIKE | LIKEC | LIKE2 | LIKE4) concatenation (ESCAPE concatenation)?
+        | (MEMBER | SUBMULTISET) OF? concatenation
+    )
+    | IS NOT? logical_operation
+    ;
 
 // CASE expression
 case_expression
@@ -6852,14 +6868,20 @@ case_expression
     ;
 
 simple_case_expression
-    : ck1 = CASE expression case_when_part_expression+ case_else_part_expression? END CASE?
+    : ck1 = CASE expression simple_case_when_part_expression+ case_else_part_expression? END CASE?
     ;
 
 searched_case_expression
-    : ck1 = CASE case_when_part_expression+ case_else_part_expression? END CASE?
+    : ck1 = CASE searched_case_when_part_expression+ case_else_part_expression? END CASE?
     ;
 
-case_when_part_expression
+simple_case_when_part_expression
+    : WHEN (expression | dangling_predicate) (
+        ',' (expression | dangling_predicate)
+    )* THEN expression
+    ;
+
+searched_case_when_part_expression
     : WHEN expression THEN expression
     ;
 
@@ -6872,7 +6894,7 @@ atom
     | constant
     | inquiry_directive
     | general_element outer_join_sign?
-    | '(' subquery ')' subquery_operation_part*
+    | '(' subquery ')'
     | '(' expression ')' ('.' general_element_part)*
     | '(' expressions_ ')'
     ;
@@ -6915,7 +6937,7 @@ json_function
     )? STRICT? (WITH UNIQUE KEYS)? ')'
     | JSON_QUERY '(' expression (FORMAT JSON)? ',' CHAR_STRING json_query_returning_clause json_query_wrapper_clause? json_query_on_error_clause?
         json_query_on_empty_clause? ')'
-    | JSON_SERIALIZE '(' CHAR_STRING (RETURNING json_query_return_type)? PRETTY? ASCII? TRUNCATE? (
+    | JSON_SERIALIZE '(' concatenation (RETURNING json_query_return_type)? PRETTY? ASCII? TRUNCATE? (
         (NULL_ | ERROR | EMPTY_ (ARRAY | OBJECT)) ON ERROR
     )? ')'
     | JSON_TRANSFORM '(' expression ',' json_transform_op (',' json_transform_op)* ')'
@@ -7890,6 +7912,7 @@ regular_id
     | CONSTRUCTOR
     | CUSTOMDATUM
     | CASESENSITIVE
+    | COMPRESSION
     | COUNTED
     | DATE
     | DECIMAL

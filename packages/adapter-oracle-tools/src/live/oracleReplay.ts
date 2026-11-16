@@ -81,6 +81,31 @@ const withoutGenerationId = (value: unknown): unknown => {
 	return rest;
 };
 
+/**
+ * Removes execution identity fields that legitimately change when replay runs
+ * under a newer parser. Preflight separately validates the retained bundle's
+ * frozen identity; replay compares the parser-independent qualification result.
+ *
+ * @param value - Current or retained qualification report.
+ * @returns Report without parser identity and its derived configuration hash.
+ */
+const withoutExecutionIdentity = (value: unknown): unknown => {
+	if (!isRecord(value)) {
+		return value;
+	}
+
+	const normalized = {...value};
+	delete normalized['parser'];
+
+	if (isRecord(normalized['corpus'])) {
+		const corpus = {...normalized['corpus']};
+		delete corpus['configHash'];
+		normalized['corpus'] = corpus;
+	}
+
+	return normalized;
+};
+
 const SAMPLE_KEYS: ReadonlySet<string> = new Set(['samples', 'samplesMissing', 'samplesExtra']);
 
 /**
@@ -217,8 +242,8 @@ export const replayOracleEvidenceBundle = async (environment: NodeJS.ProcessEnv,
 			return {preflight, report, expectedPath: null, matches: true, differences: [], diagnostics};
 		}
 
-		const actual = withoutSamples(withoutGenerationId(report));
-		const retained = withoutSamples(withoutGenerationId(expected));
+		const actual = withoutExecutionIdentity(withoutSamples(withoutGenerationId(report)));
+		const retained = withoutExecutionIdentity(withoutSamples(withoutGenerationId(expected)));
 		const differences = diffPaths(
 			descriptor.ambiguity === undefined ? withoutV5ContractFields(actual) : actual,
 			descriptor.ambiguity === undefined ? withoutV5ContractFields(retained) : retained,

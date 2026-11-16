@@ -14,9 +14,10 @@ assert that it parses without one; keep them as regression evidence.
 | `keyword-identifier.pks` | Non-reserved keyword used as an identifier | Fixed upstream (`#5131`) |
 | `constant-size-type.pks` | Constant expression in a type size | Open |
 | `xmltable-returning-sequence.sql` | Invalid `XMLTABLE ... RETURNING SEQUENCE BY REF` clause order | Open |
-| `json-strict.pkb` | `IS JSON(STRICT)` | Open |
+| `json-strict.pkb` | `IS JSON(STRICT)` | Fixed upstream (`#5156`) |
 | `sqlplus-exec.sql` | SQL*Plus `EXEC` | Fixed upstream (`#5129`) |
-| `nullable-field.pks` | `DATE NULL` record field marker | Open |
+| `nullable-field.pks` | `DATE NULL` record field marker | Fixed upstream (`#5157`) |
+| `delimited-record-insert.sql` | Delimited record name in `INSERT ... VALUES` | Fixed upstream (`#5158`) |
 | `record-insert.sql` | Record value in `INSERT ... VALUES` | Open |
 | `wrapped.pkb` | Wrapped source (out of scope, not a grammar fix target) | Open |
 

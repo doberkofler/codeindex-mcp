@@ -16,7 +16,7 @@ export type OracleParserIdentityType = Readonly<{
 
 const ORACLE_PARSER_IDS: readonly OracleParserIdType[] = ['structural', 'antlr'];
 
-const ORACLE_GRAMMAR_REVISION = 'grammars-v4/3f1ca793eb1b72d421a016dd05b1d340dfa1a65e';
+const ORACLE_GRAMMAR_REVISION = 'grammars-v4/c306207ac870e7c5a95763b518ba3e3a1ca61409';
 const ORACLE_RUNTIME_VERSION = 'antlr4ng@3.0.16';
 
 const IDENTITIES: Readonly<Record<OracleParserIdType, OracleParserIdentityType>> = {

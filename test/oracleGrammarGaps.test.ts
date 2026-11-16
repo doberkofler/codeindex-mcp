@@ -6,15 +6,15 @@ import {ORACLE_DIAGNOSTIC} from '@codeindex/adapter-oracle/diagnostics';
 import {type OracleParseResultType} from '@codeindex/adapter-oracle/syntax';
 
 const fixtureRoot = path.join(import.meta.dirname, 'fixtures', 'oracle-grammar-gaps');
-const openGaps = [
-	'constant-size-type.pks',
-	'xmltable-returning-sequence.sql',
+const openGaps = ['constant-size-type.pks', 'xmltable-returning-sequence.sql', 'record-insert.sql', 'wrapped.pkb'] as const;
+const fixedGaps = [
+	'rem-comment.sql',
+	'keyword-identifier.pks',
+	'sqlplus-exec.sql',
 	'json-strict.pkb',
 	'nullable-field.pks',
-	'record-insert.sql',
-	'wrapped.pkb',
+	'delimited-record-insert.sql',
 ] as const;
-const fixedGaps = ['rem-comment.sql', 'keyword-identifier.pks', 'sqlplus-exec.sql'] as const;
 
 const parseFixture = (name: string): OracleParseResultType => {
 	const source = readFileSync(path.join(fixtureRoot, name), 'utf8');

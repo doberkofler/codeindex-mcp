@@ -1079,12 +1079,15 @@ import { Collection_expressionContext } from "./PlSqlParser.ts";
 import { Case_statementContext } from "./PlSqlParser.ts";
 import { Simple_case_statementContext } from "./PlSqlParser.ts";
 import { Searched_case_statementContext } from "./PlSqlParser.ts";
-import { Case_when_part_statementContext } from "./PlSqlParser.ts";
+import { Simple_case_when_part_statementContext } from "./PlSqlParser.ts";
+import { Searched_case_when_part_statementContext } from "./PlSqlParser.ts";
 import { Case_else_part_statementContext } from "./PlSqlParser.ts";
+import { Dangling_predicateContext } from "./PlSqlParser.ts";
 import { Case_expressionContext } from "./PlSqlParser.ts";
 import { Simple_case_expressionContext } from "./PlSqlParser.ts";
 import { Searched_case_expressionContext } from "./PlSqlParser.ts";
-import { Case_when_part_expressionContext } from "./PlSqlParser.ts";
+import { Simple_case_when_part_expressionContext } from "./PlSqlParser.ts";
+import { Searched_case_when_part_expressionContext } from "./PlSqlParser.ts";
 import { Case_else_part_expressionContext } from "./PlSqlParser.ts";
 import { AtomContext } from "./PlSqlParser.ts";
 import { Quantified_expressionContext } from "./PlSqlParser.ts";
@@ -7707,17 +7710,29 @@ export class PlSqlParserVisitor<Result> extends AbstractParseTreeVisitor<Result>
      */
     visitSearched_case_statement?: (ctx: Searched_case_statementContext) => Result;
     /**
-     * Visit a parse tree produced by `PlSqlParser.case_when_part_statement`.
+     * Visit a parse tree produced by `PlSqlParser.simple_case_when_part_statement`.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    visitCase_when_part_statement?: (ctx: Case_when_part_statementContext) => Result;
+    visitSimple_case_when_part_statement?: (ctx: Simple_case_when_part_statementContext) => Result;
+    /**
+     * Visit a parse tree produced by `PlSqlParser.searched_case_when_part_statement`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitSearched_case_when_part_statement?: (ctx: Searched_case_when_part_statementContext) => Result;
     /**
      * Visit a parse tree produced by `PlSqlParser.case_else_part_statement`.
      * @param ctx the parse tree
      * @return the visitor result
      */
     visitCase_else_part_statement?: (ctx: Case_else_part_statementContext) => Result;
+    /**
+     * Visit a parse tree produced by `PlSqlParser.dangling_predicate`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitDangling_predicate?: (ctx: Dangling_predicateContext) => Result;
     /**
      * Visit a parse tree produced by `PlSqlParser.case_expression`.
      * @param ctx the parse tree
@@ -7737,11 +7752,17 @@ export class PlSqlParserVisitor<Result> extends AbstractParseTreeVisitor<Result>
      */
     visitSearched_case_expression?: (ctx: Searched_case_expressionContext) => Result;
     /**
-     * Visit a parse tree produced by `PlSqlParser.case_when_part_expression`.
+     * Visit a parse tree produced by `PlSqlParser.simple_case_when_part_expression`.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    visitCase_when_part_expression?: (ctx: Case_when_part_expressionContext) => Result;
+    visitSimple_case_when_part_expression?: (ctx: Simple_case_when_part_expressionContext) => Result;
+    /**
+     * Visit a parse tree produced by `PlSqlParser.searched_case_when_part_expression`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitSearched_case_when_part_expression?: (ctx: Searched_case_when_part_expressionContext) => Result;
     /**
      * Visit a parse tree produced by `PlSqlParser.case_else_part_expression`.
      * @param ctx the parse tree
