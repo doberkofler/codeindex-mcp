@@ -40,7 +40,7 @@ export const OutlineInputSchema = z.object({
 	cursor: CursorSchema,
 });
 
-const ContextSchema = z.string().min(1).optional().describe('Optional project context name from index_status.scope.projects');
+const ContextSchema = z.string().min(1).optional().describe('Optional project context name listed in index_status.scope.contexts');
 
 export const FindSymbolInputSchema = z.object({
 	query: z.string().describe('Exact qualified name, exact simple name, or name prefix; may be empty only with container'),

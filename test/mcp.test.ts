@@ -94,6 +94,9 @@ describe('MCP tool surface', () => {
 		expect(propertyOf(findDependencies, 'detail')).toMatchObject({enum: ['compact', 'evidence'], default: 'compact'});
 		expect(propertyOf(findReferences, 'group')).toMatchObject({enum: ['file', 'owner', 'occurrence']});
 		expect(propertyOf(findReferences, 'scope')).toMatchObject({enum: ['partition', 'external_alias_group'], default: 'partition'});
+		expect(propertyOf(findReferences, 'context')).toMatchObject({
+			description: 'Optional project context name listed in index_status.scope.contexts',
+		});
 		expect(readSymbol.inputSchema.required ?? []).not.toContain('symbolId');
 		expect(propertyOf(readSymbol, 'query')).toMatchObject({type: 'string', minLength: 1});
 		expect(propertyOf(readSymbol, 'match')).toMatchObject({enum: ['name', 'qualified'], default: 'name'});
@@ -120,6 +123,8 @@ describe('MCP tool surface', () => {
 		expect(instructions).toContain('A current, untruncated direct result is the complete answer');
 		expect(instructions).toContain('When guidance.action is stop and guidance.fallbackRequired is false');
 		expect(instructions).toContain('index_status defaults to a bounded summary');
+		expect(instructions).toContain('Only pass context when it is listed in index_status.scope.contexts');
+		expect(instructions).toContain('Call index_status before filtering by an unfamiliar context; otherwise omit the filter');
 		expect(instructions).toContain('TypeScript / JavaScript extractor');
 		expect(instructions).not.toContain('Oracle extractor');
 		expect(instructions).not.toContain('.pks');

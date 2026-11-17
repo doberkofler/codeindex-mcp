@@ -33,13 +33,18 @@ describe('MCP multi-adapter addressing', () => {
 		expect(envelope.data.items.every((item) => item.path.startsWith('database/'))).toBe(true);
 	});
 
-	it('returns stable error codes for unknown adapters, ambiguous contexts, and path mismatches', async () => {
+	it('returns corrective errors for invalid adapter and context addressing', async () => {
 		const {client} = await connect();
 		const unknown = envelopeOf(await client.callTool({name: 'find_symbol', arguments: {query: 'f', adapter: 'missing'}}));
+		const unknownContext = envelopeOf(await client.callTool({name: 'find_references', arguments: {query: 'f', context: 'missing'}}));
 		const ambiguous = envelopeOf(await client.callTool({name: 'find_symbol', arguments: {query: 'f', context: 'app'}}));
 		const mismatch = envelopeOf(await client.callTool({name: 'outline', arguments: {path: 'database/hr_api.pks', adapter: 'typescript'}}));
 
 		expect(unknown).toMatchObject({ok: false, error: {code: 'unknown_adapter'}});
+		expect(unknownContext).toMatchObject({
+			ok: false,
+			error: {code: 'unknown_context', message: 'Unknown project context: missing. Available contexts: app, server'},
+		});
 		expect(ambiguous).toMatchObject({ok: false, error: {code: 'ambiguous_context'}});
 		expect(mismatch).toMatchObject({ok: false, error: {code: 'adapter_path_mismatch'}});
 	});

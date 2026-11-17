@@ -28,6 +28,13 @@ const configuredAdaptersOf = (input: Readonly<{adapters: readonly string[]; adap
 
 const unknownAdapter = (adapter: string): CodeIndexError => new CodeIndexError('unknown_adapter', `Unknown adapter: ${adapter}`);
 
+const unknownContext = (context: string, entries: readonly Readonly<{adapterId: string; name: string}>[], adapter?: string): CodeIndexError => {
+	const names = [...new Set(entries.filter((entry) => adapter === undefined || entry.adapterId === adapter).map((entry) => entry.name))].sort();
+	const available = names.length === 0 ? 'none' : names.join(', ');
+
+	return new CodeIndexError('unknown_context', `Unknown project context: ${context}. Available contexts: ${available}`);
+};
+
 /**
  * Resolves one optional adapter filter and one optional context filter.
  *
@@ -58,7 +65,7 @@ export const resolveQueryScope = (input: QueryScopeInputType): QueryScopeType =>
 				throw new CodeIndexError('adapter_context_mismatch', `Context ${context} is not defined for adapter ${adapter}`);
 			}
 
-			throw new CodeIndexError('unknown_context', `Unknown project context: ${context}`);
+			throw unknownContext(context, entries, adapter);
 		}
 
 		return {adapter, context};
@@ -67,7 +74,7 @@ export const resolveQueryScope = (input: QueryScopeInputType): QueryScopeType =>
 	const matches = entries.filter((entry) => entry.name === context);
 
 	if (matches.length === 0) {
-		throw new CodeIndexError('unknown_context', `Unknown project context: ${context}`);
+		throw unknownContext(context, entries);
 	}
 
 	const adapterIds = [...new Set(matches.map((entry) => entry.adapterId))];

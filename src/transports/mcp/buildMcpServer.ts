@@ -46,6 +46,7 @@ Every result reports a generation, explicit freshness, truncation, and a guidanc
 Paginated limits are upper bounds; follow nextCursor whenever truncated is true.
 index_status defaults to a bounded summary; pass detail full only when build statistics, hashes, stages, the lease, or exclusions are required.
 Fall back to normal repository tools when the index reports stale data, incomplete scope, an unknown symbol, or no match.
+Only pass context when it is listed in index_status.scope.contexts. Call index_status before filtering by an unfamiliar context; otherwise omit the filter.
 The index covers the sources selected by the configured adapter projects. Results list the project contexts that produced each fact and the owning adapter; pass context to find_symbol, find_references, or find_dependencies to restrict results, and pass adapter to narrow every read tool to one configured adapter. A bare context name that exists under more than one adapter requires both adapter and context. Unconfigured projects and other languages are outside its scope.`;
 
 type ToolRegistrationType = Readonly<{
