@@ -12,15 +12,17 @@ import {taskCostVectorOf, type TaskCostVectorType} from './taskCost.ts';
  */
 export type ExecutionProviderMeterType = ProviderMeterInputType & Readonly<{modelId: string}>;
 
+type ExecutionMeterResultType = Readonly<{cost: TaskCostVectorType | null; reconciliation: ProviderMeterReconciliationType | null}>;
+
 /** Live execution meter with its process environment and terminal product. */
 export type ExecutionMeterType = Readonly<{
 	environment: Readonly<Record<string, string>>;
-	finish: () => Promise<Readonly<{cost: TaskCostVectorType | null; reconciliation: ProviderMeterReconciliationType | null}>>;
+	finish: () => Promise<ExecutionMeterResultType>;
 }>;
 
 const idleMeterOf = (): ExecutionMeterType => ({
 	environment: {},
-	finish: async () => {
+	finish: async (): Promise<ExecutionMeterResultType> => {
 		await Promise.resolve();
 
 		return {cost: null, reconciliation: null};
@@ -45,7 +47,7 @@ export const startExecutionMeterOf = async (config: ExecutionProviderMeterType |
 
 	return {
 		environment,
-		finish: async () => {
+		finish: async (): Promise<ExecutionMeterResultType> => {
 			const ledger = meter.ledger();
 			const reconciliation = meter.reconciliation();
 			const cost = taskCostVectorOf(ledger, EVALUATION_CONTRACT.tariff);

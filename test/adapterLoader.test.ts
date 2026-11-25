@@ -89,7 +89,7 @@ const createFixture = (modules: Readonly<Record<string, string>>, specs: readonl
 	return {
 		root,
 		config,
-		cleanup: () => {
+		cleanup: (): void => {
 			rmSync(root, {recursive: true, force: true});
 		},
 	};

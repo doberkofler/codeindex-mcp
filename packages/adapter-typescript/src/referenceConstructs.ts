@@ -386,7 +386,7 @@ export const createReferenceConstructIndex = (
 
 	return {
 		identifierAt,
-		infer: ({symbol, declarationNode, occurrences}) => {
+		infer: ({symbol, declarationNode, occurrences}): readonly ReferenceConstructTagType[] => {
 			const tags = declarationTags(checker, symbol, declarationNode);
 			const weights: Record<OccurrenceWeightType, number> = {type: 0, value: 0, none: 0};
 

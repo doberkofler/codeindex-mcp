@@ -65,7 +65,7 @@ export const createFixtureConfig = (
 
 	return {
 		config,
-		cleanup: () => {
+		cleanup: (): void => {
 			rmSync(temporaryRoot, {recursive: true, force: true});
 		},
 	};
@@ -93,7 +93,7 @@ export const createFixtureIndex = async (
 		config,
 		database,
 		index,
-		cleanup: () => {
+		cleanup: (): void => {
 			database.close();
 			cleanup();
 		},

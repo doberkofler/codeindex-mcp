@@ -33,10 +33,10 @@ export const capture = (): Readonly<{
 		stdout,
 		stderr,
 		io: {
-			stdout: (line) => {
+			stdout: (line): void => {
 				stdout.push(line);
 			},
-			stderr: (line) => {
+			stderr: (line): void => {
 				stderr.push(line);
 			},
 		},

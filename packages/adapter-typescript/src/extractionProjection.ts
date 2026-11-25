@@ -37,10 +37,10 @@ export const projectPublishedRoots = (runtime: ExtractionRuntimeType, sink: Fact
 		symbolForTsSymbol: (symbol) => symbolForTsSymbol(runtime, symbol),
 		symbolForDeclaration: (declaration) => symbolForDeclaration(runtime, declaration),
 		...shared,
-		markReachable: (symbolId) => {
+		markReachable: (symbolId): void => {
 			sink.reachable.add(symbolId);
 		},
-		addSurface: (address) => {
+		addSurface: (address): void => {
 			const fullSegments: FactAddressType = [...root.segments, ...address.relativeSegments];
 			const draft = ensureBinding(sink, address.symbolId, fullSegments);
 			draft.exposure = 'published';

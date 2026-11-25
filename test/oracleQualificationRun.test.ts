@@ -28,10 +28,10 @@ const capture = (): Readonly<{stdout: string[]; io: Readonly<{stdout: (line: str
 	return {
 		stdout,
 		io: {
-			stdout: (line) => {
+			stdout: (line): void => {
 				stdout.push(line);
 			},
-			stderr: () => {
+			stderr: (): void => {
 				// Qualification reports go to stdout; stderr is reserved for command failures.
 			},
 		},

@@ -103,7 +103,7 @@ export const createMultiAdapterWorkspace = async (typescriptFixture = 'simple-pr
 		database,
 		index,
 		root: realRoot,
-		cleanup: () => {
+		cleanup: (): void => {
 			database.close();
 			rmSync(temporaryRoot, {recursive: true, force: true});
 		},

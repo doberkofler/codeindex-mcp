@@ -388,11 +388,11 @@ export const createOracleExtractor = (binding: OracleParserBindingType): Adapter
 	normalizeQueryName: normalizeOracleQueryName,
 	limitations: LIMITATIONS,
 	createWatchPlan: createOracleWatchPlan,
-	scan: (config, knownPaths, executionContext) => {
+	scan: (config, knownPaths, executionContext): ScanResultType => {
 		assertOracleParserBinding(config, binding);
 		return scanOracleProject(config, knownPaths, executionContext);
 	},
-	build: (config, scan, cache, executionContext) => {
+	build: (config, scan, cache, executionContext): AdapterBuildType => {
 		assertOracleParserBinding(config, binding);
 		return build({
 			config,
@@ -402,7 +402,7 @@ export const createOracleExtractor = (binding: OracleParserBindingType): Adapter
 			...(executionContext === undefined ? {} : {executionContext}),
 		});
 	},
-	canReusePublishedFacts: (input) => {
+	canReusePublishedFacts: (input): boolean => {
 		assertOracleParserBinding(input.config, binding);
 		return canReusePublishedFacts(input, binding);
 	},

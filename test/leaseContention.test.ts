@@ -78,7 +78,7 @@ const createWorkspace = (): WorkspaceType => {
 	return {
 		root,
 		database: path.join(temporaryRoot, 'index.sqlite'),
-		cleanup: () => {
+		cleanup: (): void => {
 			rmSync(temporaryRoot, {recursive: true, force: true});
 		},
 	};

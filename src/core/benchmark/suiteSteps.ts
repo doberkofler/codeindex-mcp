@@ -80,7 +80,7 @@ const generatedRunStep = (
 		id: `generated:${input.entry.profile}:run:${input.suffix}`,
 		kind: 'generated',
 		title: `${input.entry.profile} measured suite (run ${input.suffix})`,
-		args: ({cliPath, baselinePath, referencePath}) => {
+		args: ({cliPath, baselinePath, referencePath}): readonly string[] => {
 			const args = [
 				cliPath,
 				'benchmark',
@@ -187,7 +187,7 @@ const publicRunStep = (
 		id: `public:${input.entry.name}:run:${input.suffix}`,
 		kind: 'public',
 		title: `${input.entry.name} at ${input.entry.revision.slice(0, 12)} (run ${input.suffix})`,
-		args: ({cliPath, baselinePath, referencePath}) => {
+		args: ({cliPath, baselinePath, referencePath}): readonly string[] => {
 			const args = [
 				cliPath,
 				'benchmark',
@@ -233,7 +233,7 @@ const publicRunStep = (
 		artifacts: input.baselinePath === null ? [runPath, summaryPath] : [runPath, summaryPath, evaluationPath],
 		logPath: join(input.outputDir, 'logs', `public-${input.entry.name}-${input.suffix}.log`),
 		stallTimeoutMs: input.entry.stallTimeoutMs,
-		prepare: () => {
+		prepare: (): void => {
 			preparePublicWorkspace({workspace: input.workspace, name: input.entry.name, editTarget: input.entry.editTarget});
 		},
 	};

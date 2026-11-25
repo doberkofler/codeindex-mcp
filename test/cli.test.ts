@@ -11,10 +11,10 @@ const captureIo = (): CapturedIoType => {
 
 	return {
 		io: {
-			stdout: (line) => {
+			stdout: (line): void => {
 				stdout.push(line);
 			},
-			stderr: (line) => {
+			stderr: (line): void => {
 				stderr.push(line);
 			},
 		},

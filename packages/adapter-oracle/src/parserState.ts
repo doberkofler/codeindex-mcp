@@ -332,7 +332,7 @@ const callShapeOf = (state: OracleParserStateType, after: number, forceWrite: bo
 	const usage = reference ? (writeTarget || indexedWrite ? 4 : 2) : 1;
 
 	return {
-		siteOf: ({name, start, input}) => {
+		siteOf: ({name, start, input}): Parameters<typeof addReference>[1] => {
 			const statementProperties = reference ? {} : {statementCall: statementStart(state, start)};
 
 			return {

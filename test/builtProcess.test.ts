@@ -201,7 +201,7 @@ const createWorkspace = (): WorkspaceType => {
 		root,
 		database: path.join(temporaryRoot, 'index.sqlite'),
 		analyticsPath: path.join(temporaryRoot, 'analytics', 'events.jsonl'),
-		cleanup: () => {
+		cleanup: (): void => {
 			rmSync(temporaryRoot, {recursive: true, force: true});
 		},
 	};

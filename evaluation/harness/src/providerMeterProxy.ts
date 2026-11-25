@@ -74,14 +74,14 @@ const abortFlagOf = (): AbortFlagType => {
 	let value = false;
 
 	return {
-		set: () => {
+		set: (): void => {
 			value = true;
 		},
 		get: () => value,
 	};
 };
 
-const clockOf = (now: (() => Date) | undefined): string => (now ?? (() => new Date()))().toISOString();
+const clockOf = (now: (() => Date) | undefined): string => (now ?? ((): Date => new Date()))().toISOString();
 
 const sanitizedTextOf = (value: unknown, maximum: number): string | null => (typeof value === 'string' && value.length > 0 ? value.slice(0, maximum) : null);
 

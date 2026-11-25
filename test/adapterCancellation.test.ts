@@ -5,7 +5,7 @@ import {createFixtureConfig} from './helpers/fixture.ts';
 
 const cancelledContext = (): Readonly<{isCancellationRequested: () => boolean; throwIfCancellationRequested: () => never}> => ({
 	isCancellationRequested: () => true,
-	throwIfCancellationRequested: () => {
+	throwIfCancellationRequested: (): never => {
 		throw new Error('Adapter execution cancelled');
 	},
 });

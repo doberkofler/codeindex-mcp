@@ -40,16 +40,16 @@ export const createLogger = (options: LoggerOptionsType): LoggerType => {
 	};
 
 	return {
-		debug: (message, fields) => {
+		debug: (message, fields): void => {
 			write('debug', message, fields ?? {});
 		},
-		info: (message, fields) => {
+		info: (message, fields): void => {
 			write('info', message, fields ?? {});
 		},
-		warn: (message, fields) => {
+		warn: (message, fields): void => {
 			write('warn', message, fields ?? {});
 		},
-		error: (message, fields) => {
+		error: (message, fields): void => {
 			write('error', message, fields ?? {});
 		},
 	};

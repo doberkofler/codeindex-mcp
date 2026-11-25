@@ -5,7 +5,7 @@ import path from 'node:path';
 import {describe, it, type TestContext} from 'vitest';
 import {assertCorpusPreflight, corpusPreflightOf, projectForCaseOf} from './corpusPreflight.ts';
 import {caseOf, type CaseType} from './schema.ts';
-import {type McpSessionType} from './routeClient.ts';
+import {type McpCallOutcomeType, type McpSessionType} from './routeClient.ts';
 import {treatmentOf} from './treatment.ts';
 import {subjectIdentityOf, workspaceContextOf, type WorkspaceContextType} from './workspace.ts';
 
@@ -104,7 +104,7 @@ const sessionOf = (context: WorkspaceContextType, scenario: ScenarioType): McpSe
 		serverName: 'codeindex',
 		serverVersion: 'test',
 		startupMs: 1,
-		callTool: (tool, args) => {
+		callTool: (tool, args): McpCallOutcomeType => {
 			if (tool === 'index_status') {
 				return {
 					tool,

@@ -31,7 +31,7 @@ export const startEventLoopSample = (): Readonly<{stop: () => Readonly<Record<st
 	let result: Readonly<Record<string, number>> | null = null;
 
 	return {
-		stop: () => {
+		stop: (): Readonly<Record<string, number>> => {
 			if (result !== null) {
 				return result;
 			}

@@ -256,7 +256,7 @@ export const startOpenCodeServer = async (input: OpenCodeServerInputType): Promi
 	return {
 		url: endpoint.url,
 		password: endpoint.password,
-		awaitMcpReady: async (expectedServers, timeoutMs = DEFAULT_READINESS_TIMEOUT_MS) => {
+		awaitMcpReady: async (expectedServers, timeoutMs = DEFAULT_READINESS_TIMEOUT_MS): Promise<OpenCodeMcpReadinessType> => {
 			const startedAt = Date.now();
 			const expected = [...new Set(expectedServers)].sort();
 			const deadline = startedAt + timeoutMs;
@@ -320,7 +320,7 @@ export const startOpenCodeServer = async (input: OpenCodeServerInputType): Promi
 				cause: sawFailure ? 'mcp-connect-failed' : 'mcp-readiness-timeout',
 			});
 		},
-		close: async () => {
+		close: async (): Promise<void> => {
 			// Signal handling and attempt cleanup can race to close one server.
 			// Disconnecting an already-closed server is not idempotent, so the
 			// first close is shared by every caller.

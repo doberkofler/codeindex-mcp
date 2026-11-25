@@ -1,4 +1,4 @@
-import {serverFS, type FileSystemCallbacks} from 'typescript/fs';
+import {serverFS, type FileSystemCallbacks, type FileSystemEntries} from 'typescript/fs';
 import {type RecorderType} from './snapshotRecorder.ts';
 
 /**
@@ -15,7 +15,7 @@ export const recorderFileSystem = (recorder: RecorderType): FileSystemCallbacks 
 	fileExists: (fileName) => recorder.fileExists(fileName),
 	readFile: (fileName) => recorder.readFile(fileName),
 	directoryExists: (directoryName) => recorder.directoryExists(directoryName),
-	getAccessibleEntries: (directoryName) => {
+	getAccessibleEntries: (directoryName): FileSystemEntries => {
 		const entries = recorder.entriesOf(directoryName);
 
 		return {

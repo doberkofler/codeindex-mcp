@@ -140,7 +140,7 @@ const createStaticRoot = (): Readonly<{root: string; cleanup: () => void}> => {
 
 	return {
 		root,
-		cleanup: () => {
+		cleanup: (): void => {
 			rmSync(root, {recursive: true, force: true});
 		},
 	};

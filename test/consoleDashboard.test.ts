@@ -25,7 +25,7 @@ const createAnalyticsFile = (events: readonly EventFieldsType[]): Readonly<{file
 
 	return {
 		file,
-		cleanup: () => {
+		cleanup: (): void => {
 			rmSync(directory, {recursive: true, force: true});
 		},
 	};

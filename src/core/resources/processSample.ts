@@ -50,7 +50,7 @@ export const startProcessSample = (): ProcessSamplerType => {
 	treeTimer.unref();
 
 	return {
-		stop: () => {
+		stop: (): ProcessSampleType => {
 			clearInterval(timer);
 			clearInterval(treeTimer);
 			const cpu = process.cpuUsage(cpuStart);

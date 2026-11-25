@@ -2,7 +2,7 @@ import {appendFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
-import {type AdapterProbeResultType, type AdapterType} from '@codeindex/adapter-sdk';
+import {type AdapterProbeResultType, type AdapterType, type ScanResultType} from '@codeindex/adapter-sdk';
 import {loadConfiguredAdapters} from '../../adapters/loader.ts';
 import {type ConfigType} from '../config/config.ts';
 import {createCodeIndex} from '../generation/codeIndex.ts';
@@ -173,7 +173,7 @@ const wrappedAdapters = (adapters: readonly AdapterType[], recorder: MultiAdapte
 				const result: AdapterProbeResultType = adapter.probe === undefined ? {available: true} : await adapter.probe(config);
 				return result;
 			},
-			scan: async (config, knownPaths) => {
+			scan: async (config, knownPaths): Promise<ScanResultType> => {
 				counterState[key].scans += 1;
 				recorder.markOperation(adapter.id, 'scan');
 				const result = await adapter.scan(config, knownPaths);

@@ -22,7 +22,7 @@ const openDatabase = (config: ReturnType<typeof createFixtureConfig>['config']):
 
 const driftingExtractor = (shouldDrift: () => boolean): ExtractorType => ({
 	...typeScriptExtractor,
-	build: (config, scan, _cache) => {
+	build: (config, scan, _cache): ReturnType<typeof buildTypeScriptFacts> => {
 		const facts = buildTypeScriptFacts(config, scan);
 
 		return shouldDrift()
@@ -39,7 +39,7 @@ const driftingExtractor = (shouldDrift: () => boolean): ExtractorType => ({
 const recordingAnalytics = (events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[]): AnalyticsRecorderType => ({
 	enabled: true,
 	path: '',
-	record: (event, fields) => {
+	record: (event, fields): null => {
 		events.push({event, fields});
 		return null;
 	},

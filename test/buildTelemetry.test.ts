@@ -17,7 +17,7 @@ const {join} = path;
 const recordingAnalytics = (events: {event: string; fields: Readonly<Record<string, unknown>> | undefined}[]): AnalyticsRecorderType => ({
 	enabled: true,
 	path: '',
-	record: (event, fields) => {
+	record: (event, fields): null => {
 		events.push({event, fields});
 		return null;
 	},

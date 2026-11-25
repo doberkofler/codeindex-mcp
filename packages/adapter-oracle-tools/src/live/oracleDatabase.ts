@@ -26,14 +26,14 @@ const loadDriver = async (): Promise<typeof OracleDB> => {
 };
 
 const databaseOf = (connection: OracleDB.Connection): OracleDatabaseType => ({
-	query: async (sql) => {
+	query: async (sql): Promise<readonly (readonly unknown[])[]> => {
 		const result = await connection.execute<readonly unknown[]>(sql);
 		return result.rows ?? [];
 	},
-	execute: async (sql) => {
+	execute: async (sql): Promise<void> => {
 		await connection.execute(sql);
 	},
-	close: async () => {
+	close: async (): Promise<void> => {
 		await connection.close();
 	},
 });

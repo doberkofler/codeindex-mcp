@@ -117,7 +117,7 @@ export const createAnalyticsRecorder = (options: AnalyticsRecorderOptionsType): 
 	return {
 		enabled: true,
 		path: options.path,
-		record: (event, fields = {}) => {
+		record: (event, fields = {}): AnalyticsEventType | null => {
 			try {
 				initialize();
 				rotateIfNeeded(options.path);
@@ -139,7 +139,7 @@ export const createAnalyticsRecorder = (options: AnalyticsRecorderOptionsType): 
 				return null;
 			}
 		},
-		close: () => {
+		close: (): void => {
 			prune(directory, options.path);
 		},
 	};

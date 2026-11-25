@@ -22,19 +22,19 @@ const prepare = (): Readonly<{config: ReturnType<typeof createFixtureConfig>['co
 const inputMutations = (): readonly (readonly [string, (rootDir: string) => void])[] => [
 	[
 		'lockfile',
-		(rootDir) => {
+		(rootDir): void => {
 			appendFileSync(join(rootDir, 'pnpm-lock.yaml'), '\n# edited\n');
 		},
 	],
 	[
 		'authored declaration',
-		(rootDir) => {
+		(rootDir): void => {
 			writeFileSync(join(rootDir, 'src', 'ambient.d.ts'), 'declare const BUILD_ID: number;\n');
 		},
 	],
 	[
 		'package exports',
-		(rootDir) => {
+		(rootDir): void => {
 			writeFileSync(
 				join(rootDir, 'node_modules', 'external-package', 'package.json'),
 				JSON.stringify({
@@ -48,13 +48,13 @@ const inputMutations = (): readonly (readonly [string, (rootDir: string) => void
 	],
 	[
 		'external declaration',
-		(rootDir) => {
+		(rootDir): void => {
 			writeFileSync(join(rootDir, 'node_modules', 'external-package', 'lib', 'helper.d.ts'), 'export declare const externalValue: number;\n');
 		},
 	],
 	[
 		'new declaration target',
-		(rootDir) => {
+		(rootDir): void => {
 			writeFileSync(join(rootDir, 'src', 'created.d.ts'), 'declare const CREATED: string;\n');
 		},
 	],

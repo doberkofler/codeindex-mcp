@@ -78,7 +78,7 @@ export const startResourceSampler = (): ResourceSamplerType => {
 	return {
 		pause,
 		resume,
-		stop: () => {
+		stop: (): BenchmarkResourceType => {
 			pause();
 			const cpu = process.cpuUsage(cpuStart);
 			const rssEnd = process.memoryUsage().rss;

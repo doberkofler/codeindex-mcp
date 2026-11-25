@@ -31,7 +31,7 @@ const createWorkspace = (): WorkspaceType => {
 	return {
 		root: realpathSync(root),
 		storage: realpathSync(temporaryRoot),
-		cleanup: () => {
+		cleanup: (): void => {
 			rmSync(temporaryRoot, {recursive: true, force: true});
 		},
 	};
@@ -86,7 +86,7 @@ const wrappedTypeScript = (id: string, built: string[]): ExtractorType => ({
 	id,
 	version: `${id}-1`,
 	scan: (config, knownPaths) => ({...scanTypeScriptProject(config, knownPaths), extractorId: id}),
-	build: (config, scan, _cache) => {
+	build: (config, scan, _cache): ReturnType<typeof buildTypeScriptFacts> => {
 		built.push(id);
 		return buildTypeScriptFacts(config, scan);
 	},
