@@ -16,19 +16,21 @@ export type OracleParserIdentityType = Readonly<{
 
 const ORACLE_PARSER_IDS: readonly OracleParserIdType[] = ['structural', 'antlr'];
 
-const ORACLE_GRAMMAR_REVISION = 'grammars-v4/c306207ac870e7c5a95763b518ba3e3a1ca61409';
+// The lexer is byte-identical at the parser pin; keep its identity to reuse structural indexes.
+const ORACLE_LEXER_GRAMMAR_REVISION = 'grammars-v4/c306207ac870e7c5a95763b518ba3e3a1ca61409';
+const ORACLE_PARSER_GRAMMAR_REVISION = 'grammars-v4/de38599628d221099c046e92962f70204d852b54';
 const ORACLE_RUNTIME_VERSION = 'antlr4ng@3.0.16';
 
 const IDENTITIES: Readonly<Record<OracleParserIdType, OracleParserIdentityType>> = {
 	structural: {
 		id: 'structural',
-		revision: `structural@5;lexer@${ORACLE_RUNTIME_VERSION};lexerGrammar@${ORACLE_GRAMMAR_REVISION}`,
-		compilerVersion: `oracle19c;parser@structural;lexer@${ORACLE_RUNTIME_VERSION};lexerGrammar@${ORACLE_GRAMMAR_REVISION}`,
+		revision: `structural@5;lexer@${ORACLE_RUNTIME_VERSION};lexerGrammar@${ORACLE_LEXER_GRAMMAR_REVISION}`,
+		compilerVersion: `oracle19c;parser@structural;lexer@${ORACLE_RUNTIME_VERSION};lexerGrammar@${ORACLE_LEXER_GRAMMAR_REVISION}`,
 	},
 	antlr: {
 		id: 'antlr',
-		revision: `antlr@2;runtime@${ORACLE_RUNTIME_VERSION};grammar@${ORACLE_GRAMMAR_REVISION}`,
-		compilerVersion: `oracle19c;parser@antlr;runtime@${ORACLE_RUNTIME_VERSION};grammar@${ORACLE_GRAMMAR_REVISION}`,
+		revision: `antlr@2;runtime@${ORACLE_RUNTIME_VERSION};grammar@${ORACLE_PARSER_GRAMMAR_REVISION}`,
+		compilerVersion: `oracle19c;parser@antlr;runtime@${ORACLE_RUNTIME_VERSION};grammar@${ORACLE_PARSER_GRAMMAR_REVISION}`,
 	},
 };
 

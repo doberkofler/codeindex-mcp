@@ -6,7 +6,7 @@ import path from 'node:path';
 // (base-class imports and strict-TypeScript fixes) belongs to
 // `generateOracleGrammar.ts`, so the grammar itself stays an unmodified upstream
 // artifact.
-const UPSTREAM_COMMIT = 'c306207ac870e7c5a95763b518ba3e3a1ca61409';
+const UPSTREAM_COMMIT = 'de38599628d221099c046e92962f70204d852b54';
 const UPSTREAM_FILES = [
 	{
 		sourcePath: 'sql/plsql/PlSqlLexer.g4',
@@ -16,7 +16,7 @@ const UPSTREAM_FILES = [
 	{
 		sourcePath: 'sql/plsql/PlSqlParser.g4',
 		localPath: 'grammar/oracle/PlSqlParser.g4',
-		sha256: '592733617486cb835e37f6c58a8eb40ab5c9d24d29ce58e193ad16d369563b87',
+		sha256: 'eb276be3890a9d9a92d7a654300fd717cb2db4800ab35fe92326b55e784bf770',
 	},
 	{
 		sourcePath: 'sql/plsql/Antlr4ng/PlSqlLexerBase.ts',
@@ -26,7 +26,7 @@ const UPSTREAM_FILES = [
 	{
 		sourcePath: 'sql/plsql/Antlr4ng/PlSqlParserBase.ts',
 		localPath: 'grammar/oracle/Antlr4ng/PlSqlParserBase.ts.txt',
-		sha256: 'c9a02af5ccecbcc9d285101d9be0ffb97532f61a06e44a5f88a0d0b6b41541cf',
+		sha256: '53d1bfff3410fd048fb204c2d2afa80a63f677faddcdc695b6a1bbf4916db471',
 	},
 ] as const;
 const UPSTREAM_URL = `https://raw.githubusercontent.com/antlr/grammars-v4/${UPSTREAM_COMMIT}`;
