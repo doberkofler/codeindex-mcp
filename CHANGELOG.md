@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.2](https://github.com/doberkofler/codeindex-mcp/compare/v0.22.1...v0.22.2) (2026-11-26)
+
+### Fixed
+
+* **oracle:** update upstream PL/SQL parser grammar ([7644287](https://github.com/doberkofler/codeindex-mcp/commit/7644287c1e74f7fadcc4dd1d691b55d72a037ee1))
+
 ## [0.22.1](https://github.com/doberkofler/codeindex-mcp/compare/v0.22.0...v0.22.1) (2026-11-19)
 
 ## [0.22.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.21.1...v0.22.0) (2026-11-17)
