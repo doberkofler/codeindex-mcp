@@ -42,7 +42,7 @@ export type OracleTypeReferenceType = Readonly<{
 	name: OracleNameType;
 	range: OracleRangeType;
 	rowType: boolean;
-	/** True for a `%TYPE` anchor, whose declared type is unknown statically. */
+	/** True for a `%TYPE` anchor. */
 	anchored: boolean;
 }>;
 
@@ -67,6 +67,8 @@ export type OracleDeclarationType = Readonly<{
 	exported: boolean;
 	parameters: readonly OracleParameterType[];
 	typeReferences: readonly OracleTypeReferenceType[];
+	/** Explicitly authored, supported datatype of a CREATE TABLE column. */
+	columnType?: 'NUMBER' | 'VARCHAR2' | 'DATE';
 	/**
 	 * Normalized routine/cursor heading for spec/body pairing; defaults and a
 	 * lone `IN` are omitted.
@@ -85,6 +87,8 @@ export type OracleUnitType = Readonly<{
 	range: OracleRangeType;
 	nameRange: OracleRangeType;
 	declaration: number;
+	/** Distinguishes a CREATE TABLE definition from other TABLE-shaped statements. */
+	createTable?: true;
 }>;
 
 export type OracleReferenceArgumentType = Readonly<{
@@ -100,6 +104,8 @@ export type OracleReferenceArgumentType = Readonly<{
 	invocation?: readonly OracleReferenceArgumentType[] | undefined;
 	/** Built-in type implied by a literal argument. */
 	literalType?: string | undefined;
+	/** True when the leading name or literal does not describe the entire expression. */
+	partialExpression?: true;
 }>;
 
 export type OracleReferenceSiteType = Readonly<{

@@ -1,7 +1,8 @@
 import {type OracleFileAnalysisType} from './extractSymbols.ts';
 import {builtInReturnTypeOf} from './builtInReturnTypes.ts';
 import {type ChoiceCandidateType, type ResolutionType, type ResolveStateType} from './resolveReferences.ts';
-import {type OracleDeclarationType, type OracleReferenceSiteType} from './syntax.ts';
+import {type OracleDeclarationType, type OracleReferenceSiteType, type OracleTypeReferenceType} from './syntax.ts';
+import {tableColumnTypeOf} from './tableColumns.ts';
 
 /**
  * Name resolution callbacks the type layer needs.
@@ -111,24 +112,52 @@ export const declarationAt = (state: ResolveStateType, symbolId: string): Locate
 	return file === undefined || declaration === undefined ? null : {declaration, file, fileIndex: location.fileIndex, index: location.declarationIndex};
 };
 
-/**
- * Resolves the scalar identity a declaration was declared with.
- *
- * Subtype aliases are followed so that `SUBTYPE money IS NUMBER` compares as
- * `NUMBER`; anchors such as `%TYPE` stay unknown because the anchor's type is
- * not in the corpus.
- *
- * @param services - Injected name resolution callbacks.
- * @param state - Resolution state.
- * @param source - Symbol identifier or located declaration.
- * @param depth - Current alias depth.
- * @returns The canonical type identity, or null when it is unknown.
- */
+type TypeBindingType = Readonly<{symbolId: string | null; columnType?: ResolutionType['columnType']}>;
+
+const resolveTypeBinding = (
+	services: ResolutionServicesType,
+	state: ResolveStateType,
+	site: OracleReferenceSiteType,
+	reference: OracleTypeReferenceType,
+): TypeBindingType => {
+	const {parts} = reference.name;
+	const [first] = parts;
+
+	if (parts.length === 1 && first !== undefined) {
+		return services.resolveSimpleAt(state, site.enclosing, first.canonical, site);
+	}
+
+	const column = reference.anchored && (parts.length === 2 || parts.length === 3) ? parts.at(-1) : undefined;
+
+	if (column !== undefined && state.tableColumns !== undefined) {
+		const unit = state.file.parse.units[site.unit];
+		const columnType = tableColumnTypeOf(state.tableColumns, unit, parts.slice(0, -1), column);
+
+		if (columnType !== undefined && first !== undefined) {
+			const defaultSchema = unit?.schema.canonical ?? state.input.defaultSchema;
+			const anchorState = defaultSchema === state.input.defaultSchema ? state : {...state, input: {...state.input, defaultSchema}};
+			const anchorSite = {...site, name: reference.name, kind: 'type-anchor'} as const;
+			// A local or package value in scope shadows a same-named table.
+			const base = services.resolveSimpleAt(anchorState, site.enclosing, first.canonical, anchorSite);
+
+			if (base.outcome !== 'no-declaration') {
+				return services.resolveSite(anchorState, anchorSite);
+			}
+
+			const symbolId = services.resolveMember(anchorState, parts, anchorSite);
+
+			return symbolId === null ? {symbolId, columnType} : {symbolId};
+		}
+	}
+
+	return {symbolId: services.resolveMember(state, parts, site)};
+};
+
 type TypeTargetType = Readonly<{
 	state: ResolveStateType;
-	reference: NonNullable<OracleDeclarationType['typeReferences']>[number];
+	reference: OracleTypeReferenceType;
 	canonical: string;
-	resolved: string | null;
+	binding: TypeBindingType;
 }>;
 
 const typeTargetOf = (services: ResolutionServicesType, state: ResolveStateType, located: LocatedDeclarationType): TypeTargetType | null => {
@@ -146,21 +175,15 @@ const typeTargetOf = (services: ResolutionServicesType, state: ResolveStateType,
 
 	const targetState: ResolveStateType = located.file === state.file ? state : {...state, fileIndex: located.fileIndex, file: located.file};
 	const site = services.syntheticSite(located.declaration, located.index);
-	const [first] = reference.name.parts;
-	const resolved =
-		reference.name.parts.length === 1
-			? services.resolveSimpleAt(targetState, located.index, first?.canonical ?? '', site).symbolId
-			: services.resolveMember(targetState, reference.name.parts, site);
 
-	return {state: targetState, reference, canonical, resolved};
+	return {state: targetState, reference, canonical, binding: resolveTypeBinding(services, targetState, site, reference)};
 };
 
 /**
  * Resolves the scalar identity a declaration was declared with.
  *
  * Subtype aliases are followed so that `SUBTYPE money IS NUMBER` compares as
- * `NUMBER`; anchors such as `%TYPE` stay unknown because the anchor's type is
- * not in the corpus.
+ * `NUMBER`. An anchor supplies a type only when its target type is known.
  *
  * @param services - Injected name resolution callbacks.
  * @param state - Resolution state.
@@ -181,14 +204,15 @@ const typeIdentityOf = (services: ResolutionServicesType, state: ResolveStateTyp
 	}
 
 	if (target.reference.anchored) {
-		return target.resolved === null ? null : typeIdentityOf(services, target.state, {symbolId: target.resolved}, depth + 1);
+		const {symbolId, columnType} = target.binding;
+		return symbolId === null ? (columnType ?? null) : typeIdentityOf(services, target.state, {symbolId}, depth + 1);
 	}
 
-	if (target.resolved === null) {
+	if (target.binding.symbolId === null) {
 		return canonicalType(target.canonical);
 	}
 
-	const declaration = declarationAt(target.state, target.resolved);
+	const declaration = declarationAt(target.state, target.binding.symbolId);
 
 	if (declaration?.declaration.kind === 'subtype') {
 		return typeIdentityOf(services, target.state, {located: declaration}, depth + 1);
@@ -214,7 +238,7 @@ const collectionElementTypeOf = (services: ResolutionServicesType, state: Resolv
 	const located = declarationAt(state, symbolId);
 	const target = located === null ? null : typeTargetOf(services, state, located);
 
-	const resolved = target?.resolved ?? null;
+	const resolved = target?.binding.symbolId ?? null;
 
 	if (target === null || resolved === null) {
 		return null;
@@ -265,7 +289,7 @@ const resolvedArgumentTypeOf = (context: ArgumentTypeContextType, argument: NonN
 	const resolution = context.services.resolveSite(context.state, argumentSite);
 
 	if (resolution.symbolId === null) {
-		return null;
+		return argument.indexed === true ? null : (resolution.columnType ?? null);
 	}
 
 	const identity = typeIdentityOf(context.services, context.state, {symbolId: resolution.symbolId}, 1);
@@ -278,6 +302,10 @@ const resolvedArgumentTypeOf = (context: ArgumentTypeContextType, argument: NonN
 		? identity
 		: (collectionElementTypeOf(context.services, context.state, resolution.symbolId, 0) ?? identity);
 };
+
+// Keep the existing expression heuristics without adding table evidence to a leading fragment.
+const withoutPartialTableTypes = (state: ResolveStateType, argument: NonNullable<OracleReferenceSiteType['arguments']>[number]): ResolveStateType =>
+	argument.partialExpression === true && state.tableColumns !== undefined ? {...state, tableColumns: undefined} : state;
 
 /**
  * Resolves the static type of one call argument.
@@ -295,9 +323,10 @@ const argumentTypeOf = (context: ArgumentTypeContextType, argument: NonNullable<
 		return canonicalType(argument.literalType);
 	}
 
-	const builtIn = builtInReturnTypeOf(argument, context.depth, (nested, depth) => argumentTypeOf({...context, depth}, nested));
+	const state = withoutPartialTableTypes(context.state, argument);
+	const builtIn = builtInReturnTypeOf(argument, context.depth, (nested, depth) => argumentTypeOf({...context, state, depth}, nested));
 
-	return builtIn ?? resolvedArgumentTypeOf(context, argument);
+	return builtIn ?? resolvedArgumentTypeOf({...context, state}, argument);
 };
 
 type ParameterMatchType = Readonly<{
@@ -349,13 +378,35 @@ const parameterMatchesOf = (candidate: ChoiceCandidateType, site: OracleReferenc
 	return matches;
 };
 
+const candidateTypeLocation = (
+	state: ResolveStateType,
+	candidate: ChoiceCandidateType,
+	reference: OracleTypeReferenceType,
+): Readonly<{fileIndex: number; declarationIndex: number}> | undefined => {
+	const location = state.symbolDeclarations.get(candidate.symbolId);
+
+	if (!reference.anchored || reference.name.parts.length < 2 || state.tableColumns === undefined || location === undefined) {
+		return location;
+	}
+
+	// A spec and body share an ID, but anchor lookup needs the candidate's authored scope.
+	if (state.input.files[location.fileIndex]?.parse.declarations[location.declarationIndex] === candidate.declaration) {
+		return location;
+	}
+
+	const fileIndex = state.input.files.findIndex((file) => file.path === candidate.path);
+	const declarationIndex = state.input.files[fileIndex]?.parse.declarations.indexOf(candidate.declaration) ?? -1;
+
+	return declarationIndex < 0 ? undefined : {fileIndex, declarationIndex};
+};
+
 const candidateTypeTargetOf = (
 	services: ResolutionServicesType,
 	state: ResolveStateType,
 	candidate: ChoiceCandidateType,
-	reference: NonNullable<OracleDeclarationType['typeReferences']>[number],
-): Readonly<{state: ResolveStateType; symbolId: string | null}> | null => {
-	const location = state.symbolDeclarations.get(candidate.symbolId);
+	reference: OracleTypeReferenceType,
+): Readonly<{state: ResolveStateType; binding: TypeBindingType}> | null => {
+	const location = candidateTypeLocation(state, candidate, reference);
 	const file = location === undefined ? undefined : state.input.files[location.fileIndex];
 
 	if (location === undefined || file === undefined) {
@@ -364,27 +415,11 @@ const candidateTypeTargetOf = (
 
 	const targetState: ResolveStateType = file === state.file ? state : {...state, fileIndex: location.fileIndex, file};
 	const site = services.syntheticSite(candidate.declaration, location.declarationIndex);
-	const [first] = reference.name.parts;
-	const symbolId =
-		reference.name.parts.length === 1
-			? services.resolveSimpleAt(targetState, location.declarationIndex, first?.canonical ?? '', site).symbolId
-			: services.resolveMember(targetState, reference.name.parts, site);
 
-	return {state: targetState, symbolId};
+	return {state: targetState, binding: resolveTypeBinding(services, targetState, site, reference)};
 };
 
-/**
- * Resolves the declared type identity of one candidate parameter.
- *
- * Only aliases are expanded here: a built-in name that shares a spelling with
- * an unrelated declaration must keep its written identity.
- *
- * @param services - Injected name resolution callbacks.
- * @param state - Resolution state.
- * @param candidate - Callable candidate that owns the parameter.
- * @param reference - Parameter type reference.
- * @returns The canonical parameter type identity.
- */
+// Keep built-in spellings intact when an unrelated declaration shares their name.
 const parameterTypeIdentityOf = (
 	services: ResolutionServicesType,
 	state: ResolveStateType,
@@ -398,11 +433,12 @@ const parameterTypeIdentityOf = (
 		return reference.anchored ? null : canonical;
 	}
 
-	const target = resolved.symbolId === null ? null : declarationAt(resolved.state, resolved.symbolId);
-
 	if (reference.anchored) {
-		return resolved.symbolId === null ? null : typeIdentityOf(services, resolved.state, {symbolId: resolved.symbolId}, 0);
+		const {symbolId, columnType} = resolved.binding;
+		return symbolId === null ? (columnType ?? null) : typeIdentityOf(services, resolved.state, {symbolId}, 0);
 	}
+
+	const target = resolved.binding.symbolId === null ? null : declarationAt(resolved.state, resolved.binding.symbolId);
 
 	return target?.declaration.kind === 'subtype' ? (typeIdentityOf(services, resolved.state, {located: target}, 0) ?? canonical) : canonical;
 };
@@ -425,7 +461,7 @@ const candidateAcceptsTypes = (
 			continue;
 		}
 
-		const expected = parameterTypeIdentityOf(services, state, candidate, parameterType);
+		const expected = parameterTypeIdentityOf(services, withoutPartialTableTypes(state, argument), candidate, parameterType);
 
 		if (expected === null || expected === '') {
 			continue;

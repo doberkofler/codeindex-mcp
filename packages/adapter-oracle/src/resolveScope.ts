@@ -106,11 +106,13 @@ const resolvePackagePath = (
 
 	let {symbolId} = selected.choice;
 
-	for (const part of parts.slice(packagePartCount + 1)) {
-		const field = recordFieldResolution(services, state, {symbolId, canonical: part.canonical}, 0);
+	const fields = parts.slice(packagePartCount + 1);
+
+	for (const [index, part] of fields.entries()) {
+		const field = recordFieldResolution(services, state, {symbolId, name: part}, 0);
 
 		if (field.symbolId === null) {
-			return field;
+			return index === fields.length - 1 ? field : {symbolId: null, outcome: field.outcome};
 		}
 
 		({symbolId} = field);
@@ -132,7 +134,7 @@ export const resolvePackageMember = (
 	for (const count of counts) {
 		const result = resolvePackagePath(services, state, {parts, packagePartCount: count}, site);
 
-		if (result.symbolId !== null) {
+		if (result.symbolId !== null || result.columnType !== undefined) {
 			return result;
 		}
 
@@ -153,13 +155,13 @@ export const resolveSite = (services: ResolutionServicesType, state: ResolveStat
 
 	const chain = resolveRecordChain(services, state, site.name.parts, site);
 
-	if (chain.symbolId !== null) {
+	if (chain.symbolId !== null || chain.columnType !== undefined) {
 		return chain;
 	}
 
 	const member = resolvePackageMember(services, state, site.name.parts, site);
 
-	if (member.symbolId !== null) {
+	if (member.symbolId !== null || member.columnType !== undefined) {
 		return member;
 	}
 

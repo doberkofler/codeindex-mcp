@@ -1,7 +1,7 @@
 import {ORACLE_DIAGNOSTIC} from './diagnostics.ts';
 import {namePartOf, splitObjectName} from './name.ts';
 import {rangeOf, recoverTopLevel, warnAt, type OracleParserStateType} from './parserState.ts';
-import {type OracleUnitKindType} from './syntax.ts';
+import {type OracleDeclarationType, type OracleUnitKindType} from './syntax.ts';
 import {type TokenCursor} from './tokenCursor.ts';
 
 const TABLE_PREFIXES = new Set(['GLOBAL', 'PRIVATE', 'TEMPORARY', 'SHARDED', 'DUPLICATED', 'IMMUTABLE', 'BLOCKCHAIN']);
@@ -73,6 +73,7 @@ const addSqlUnit = (
 		end: number;
 		name: NonNullable<ReturnType<TokenCursor['readQualifiedName']>>;
 		kind: 'table' | 'view';
+		createTable: boolean;
 	}>,
 ): number => {
 	const {state} = input;
@@ -102,12 +103,22 @@ const addSqlUnit = (
 		range,
 		nameRange,
 		declaration: declarationIndex,
+		...(input.createTable ? {createTable: true} : {}),
 	});
 
 	return declarationIndex;
 };
 
-const parseTableColumn = (input: Readonly<{state: OracleParserStateType; start: number; end: number; parent: number; unit: number}>): void => {
+const explicitColumnType = (cursor: TokenCursor, nameIndex: number): OracleDeclarationType['columnType'] => {
+	const datatype = cursor.next(nameIndex);
+	const word = cursor.upper(datatype);
+
+	return (word === 'NUMBER' || word === 'VARCHAR2' || word === 'DATE') && cursor.text(cursor.next(datatype)) !== '.' ? word : undefined;
+};
+
+const parseTableColumn = (
+	input: Readonly<{state: OracleParserStateType; start: number; end: number; parent: number; unit: number; createTable: boolean}>,
+): void => {
 	const {state} = input;
 
 	if (!state.cursor.identifier(input.start) || TABLE_CONSTRAINT_PREFIXES.has(state.cursor.upper(input.start))) {
@@ -115,6 +126,7 @@ const parseTableColumn = (input: Readonly<{state: OracleParserStateType; start: 
 	}
 
 	const nameRange = rangeOf(state, input.start, input.start);
+	const columnType = input.createTable ? explicitColumnType(state.cursor, input.start) : undefined;
 	state.declarations.push({
 		kind: 'column',
 		name: namePartOf(state.cursor.text(input.start)),
@@ -125,6 +137,7 @@ const parseTableColumn = (input: Readonly<{state: OracleParserStateType; start: 
 		exported: true,
 		parameters: [],
 		typeReferences: [],
+		...(columnType === undefined ? {} : {columnType}),
 	});
 	state.definitionStarts.add(nameRange.startOffset);
 };
@@ -138,14 +151,15 @@ const parseTable = (state: OracleParserStateType, unitStart: number, tableIndex:
 	}
 
 	const end = state.cursor.findDeclarationEnd(unitStart);
-	const declarationIndex = addSqlUnit({state, unitStart, end, name, kind: 'table'});
+	const createTable = state.cursor.word(unitStart, 'CREATE');
+	const declarationIndex = addSqlUnit({state, unitStart, end, name, kind: 'table', createTable});
 	const unitIndex = state.units.length - 1;
 	const open = state.cursor.text(name.nextIndex) === '(' ? name.nextIndex : null;
 	const close = open === null ? null : state.cursor.findBalancedClose(open, end);
 
 	if (open !== null && close !== null) {
 		for (const column of state.cursor.splitTopLevel(state.cursor.next(open), state.cursor.previous(close), ',')) {
-			parseTableColumn({state, start: column.start, end: column.end, parent: declarationIndex, unit: unitIndex});
+			parseTableColumn({state, start: column.start, end: column.end, parent: declarationIndex, unit: unitIndex, createTable});
 		}
 	}
 
@@ -161,7 +175,7 @@ const parseView = (state: OracleParserStateType, unitStart: number, viewIndex: n
 	}
 
 	const end = state.cursor.findDeclarationEnd(unitStart);
-	addSqlUnit({state, unitStart, end, name, kind: 'view'});
+	addSqlUnit({state, unitStart, end, name, kind: 'view', createTable: false});
 	return state.cursor.next(end);
 };
 

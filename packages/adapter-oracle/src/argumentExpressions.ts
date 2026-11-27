@@ -17,6 +17,7 @@ type ArgumentChainType = Readonly<{
 	name: OracleNameType;
 	indexed: boolean;
 	invocation: readonly OracleReferenceArgumentType[];
+	nextIndex: number;
 }>;
 type ShapeReaderType = (state: OracleParserStateType, range: OracleTokenRangeType) => ArgumentShapeType;
 
@@ -53,10 +54,16 @@ const invocationOf = (state: OracleParserStateType, open: number, close: number,
 	return state.cursor.splitTopLevel(state.cursor.next(open), state.cursor.previous(close), ',').map((range) => shapeOf(state, range).argument);
 };
 
-const chainResult = (parts: OracleNameType['parts'], indexed: boolean, invocation: readonly OracleReferenceArgumentType[]): ArgumentChainType => ({
+const chainResult = (
+	parts: OracleNameType['parts'],
+	indexed: boolean,
+	invocation: readonly OracleReferenceArgumentType[],
+	nextIndex: number,
+): ArgumentChainType => ({
 	name: oracleNameOf({parts}),
 	indexed,
 	invocation,
+	nextIndex,
 });
 
 const readArgumentChain = (state: OracleParserStateType, start: number, shapeOf: ShapeReaderType): ArgumentChainType | undefined => {
@@ -75,20 +82,20 @@ const readArgumentChain = (state: OracleParserStateType, start: number, shapeOf:
 
 	for (;;) {
 		if (state.cursor.text(cursor) !== '(') {
-			return chainResult(parts, false, []);
+			return chainResult(parts, false, [], cursor);
 		}
 
 		const close = state.cursor.findBalancedClose(cursor, state.cursor.findDeclarationEnd(cursor));
 
 		if (close === null) {
-			return chainResult(parts, false, []);
+			return chainResult(parts, false, [], cursor);
 		}
 
 		const dot = state.cursor.next(close);
 		const next = state.cursor.text(dot) === '.' ? state.cursor.readQualifiedName(state.cursor.next(dot)) : null;
 
 		if (next === null) {
-			return chainResult(parts, true, invocationOf(state, cursor, close, shapeOf));
+			return chainResult(parts, true, invocationOf(state, cursor, close, shapeOf), dot);
 		}
 
 		parts.push(...next.parts);
@@ -100,15 +107,30 @@ const argumentOf = (
 	state: OracleParserStateType,
 	range: OracleTokenRangeType,
 	shape: Omit<ArgumentShapeType, 'argument'>,
-	invocation: readonly OracleReferenceArgumentType[] | null,
+	expression: Readonly<{invocation: readonly OracleReferenceArgumentType[]; end: number}>,
 ): OracleReferenceArgumentType => ({
 	range: state.cursor.rawRange(range.start, range.end),
 	name: shape.name,
 	...(shape.leadName === undefined ? {} : {leadName: shape.leadName}),
 	...(shape.indexed ? {indexed: true} : {}),
-	...(invocation === null || invocation.length === 0 ? {} : {invocation}),
+	...(expression.invocation.length === 0 ? {} : {invocation: expression.invocation}),
 	...(shape.literalType === undefined ? {} : {literalType: shape.literalType}),
+	...(expression.end === range.end ? {} : {partialExpression: true}),
 });
+
+const literalEndOf = (state: OracleParserStateType, start: number, literalType: string | undefined): number =>
+	literalType === 'DATE' || literalType === 'TIMESTAMP' ? state.cursor.next(start) : start;
+
+const afterAssociation = (state: OracleParserStateType, index: number): number | null => {
+	const token = state.cursor.text(index);
+	const next = state.cursor.next(index);
+
+	if (token === '=>') {
+		return next;
+	}
+
+	return token === '=' && state.cursor.text(next) === '>' ? state.cursor.next(next) : null;
+};
 
 /**
  * Reads the serializable value shape of one call argument.
@@ -122,19 +144,20 @@ export const argumentShapeOf = (state: OracleParserStateType, range: OracleToken
 
 	if (first === null) {
 		const shape = {name: null, leadName: undefined, indexed: false, literalType: literalTypeOf(state, range.start)};
-		return {...shape, argument: argumentOf(state, range, shape, null)};
+		return {...shape, argument: argumentOf(state, range, shape, {invocation: [], end: literalEndOf(state, range.start, shape.literalType)})};
 	}
 
-	const association = state.cursor.text(first.nextIndex);
-	const named = association === '=>' || (association === '=' && state.cursor.text(state.cursor.next(first.nextIndex)) === '>');
-	const valueStart = named ? state.cursor.next(state.cursor.next(first.nextIndex)) : range.start;
+	const associatedValue = afterAssociation(state, first.nextIndex);
+	const valueStart = associatedValue ?? range.start;
 	const value = readArgumentChain(state, valueStart, argumentShapeOf);
 	const shape = {
-		name: named ? (first.parts.at(-1)?.canonical ?? null) : null,
+		name: associatedValue === null ? null : (first.parts.at(-1)?.canonical ?? null),
 		leadName: value?.name,
 		indexed: value?.indexed ?? false,
 		literalType: value === undefined ? literalTypeOf(state, valueStart) : undefined,
 	};
 
-	return {...shape, argument: argumentOf(state, range, shape, value?.invocation ?? null)};
+	const end = value === undefined ? literalEndOf(state, valueStart, shape.literalType) : state.cursor.previous(value.nextIndex);
+
+	return {...shape, argument: argumentOf(state, range, shape, {invocation: value?.invocation ?? [], end})};
 };

@@ -139,8 +139,8 @@ const nameBefore = (state: OracleParserStateType, endIndex: number): OracleNameR
 /**
  * Extracts the symbolic type a declaration is written with.
  *
- * A `%TYPE` or `%ROWTYPE` anchor marks the reference as unresolved because the
- * anchored type is not part of the corpus.
+ * `%TYPE` and `%ROWTYPE` anchors retain their target names for resolution
+ * against the declarations in the project.
  *
  * @param state - Parser state.
  * @param start - First token of the type specification.

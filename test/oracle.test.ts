@@ -349,6 +349,48 @@ describe('Oracle manifest scanning and freshness', () => {
 });
 
 describe('Oracle incremental revision', () => {
+	it('moves a caller to the other overload after editing only the table datatype', async () => {
+		const local = await createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
+		const table = path.join(local.config.rootDir, 'database/amounts.sql');
+		const callerPath = 'database/amount_caller.prc';
+		const apiPath = 'database/amount_api.pks';
+
+		try {
+			writeFileSync(table, 'create table amounts (amount number(9));\n');
+			writeFileSync(
+				path.join(local.config.rootDir, apiPath),
+				'create package amount_api as\n  procedure put(p_value number);\n  procedure put(p_value varchar2);\nend;\n/\n',
+			);
+			writeFileSync(
+				path.join(local.config.rootDir, callerPath),
+				'create procedure amount_caller(p_row amounts%rowtype) is\nbegin\n  amount_api.put(p_row.amount);\nend;\n/\n',
+			);
+			await local.index.ensureReady();
+			const before = local.index.getStatus();
+			const overloads = local.index.findSymbols({query: 'owner["APP"]::AMOUNT_API.PUT', match: 'qualified', limit: 10}).items;
+			const callersOf = (line: number): readonly (readonly [number, number])[] =>
+				local.index
+					.findReferences({symbolId: overloads.find((symbol) => symbol.startLine === line)?.id ?? '', limit: 10})
+					.items.filter((reference) => reference.path === callerPath)
+					.map((reference) => [reference.startLine, reference.startColumn]);
+
+			expect(overloads).toHaveLength(2);
+			expect(callersOf(2)).toStrictEqual([[3, 14]]);
+			expect(callersOf(3)).toStrictEqual([]);
+
+			writeFileSync(table, 'create table amounts (amount varchar2(9));\n');
+			const revised = await local.index.ensureReady();
+
+			expect(revised.reused).toBe(false);
+			expect(revised.revision).toBe((before.revision ?? 0) + 1);
+			expect(local.index.getStatus().generationId).toBe(before.generationId);
+			expect(callersOf(2)).toStrictEqual([]);
+			expect(callersOf(3)).toStrictEqual([[3, 14]]);
+		} finally {
+			local.cleanup();
+		}
+	});
+
 	it('reuses facts for a content-only edit and stays reusable afterwards', async () => {
 		const local = await createFixtureIndex('oracle-project', [{name: 'app', project: 'oracle-index.json'}], 'oracle');
 

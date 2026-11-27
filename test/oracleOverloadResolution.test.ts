@@ -180,6 +180,105 @@ describe('Oracle overload resolution', () => {
 	});
 });
 
+describe('Oracle table-backed overload types', () => {
+	it('binds table-backed arguments and parameters to exact overload declarations', () => {
+		const files = [
+			parsedFileOf('items.sql', 'create table items ("Value" number(9, 2), stamp date, constraint pk_items primary key ("Value"));'),
+			parsedFileOf('other-items.sql', 'create table other.items ("Value" varchar2(20 char));'),
+			parsedFileOf('alter-items.sql', 'alter table items add ("Value" varchar2(20));'),
+			parsedFileOf(
+				'api.pks',
+				[
+					'create package api as',
+					'  procedure put("Value" items."Value"%type);',
+					'  procedure put("Value" varchar2);',
+					'  procedure put("Value" date);',
+					'end api;',
+					'/',
+				].join('\n'),
+			),
+			parsedFileOf(
+				'actuals.prc',
+				[
+					'create procedure actuals is',
+					'  l_value items."Value"%type;',
+					'  type item_rec is record (amount items."Value"%type);',
+					'  l_record item_rec;',
+					'  l_row other.items%rowtype;',
+					'  l_app_row items%rowtype;',
+					'begin',
+					'  api.put("Value" => l_value);',
+					'  api.put(l_record.amount);',
+					'  api.put(l_row."Value");',
+					'  api.put(l_app_row.stamp);',
+					'  api.put(l_app_row."Value" || \' EUR\');',
+					"  api.put(l_value || ' EUR');",
+					'end;',
+					'/',
+				].join('\n'),
+			),
+			parsedFileOf(
+				'other.actuals.prc',
+				['create procedure other.actuals is', '  l_value items."Value"%type;', 'begin', '  api.put(l_value);', 'end;', '/'].join('\n'),
+			),
+		];
+		const {symbols, analyses, packages} = extractOracleSymbols({projectId: 'p', context: 'APP', files});
+		const result = resolveOracleReferences({context: 'APP', defaultSchema: 'APP', files: analyses, packages});
+		const overloads = new Map(
+			symbols.filter((symbol) => symbol.path === 'api.pks' && symbol.kind === 'procedure').map((symbol) => [symbol.id, symbol.startLine]),
+		);
+
+		expect(
+			result.occurrences
+				.filter((occurrence) => occurrence.usage === 1 && overloads.has(occurrence.symbolId))
+				.map((occurrence) => [occurrence.path, occurrence.startLine, overloads.get(occurrence.symbolId)]),
+		).toStrictEqual([
+			['actuals.prc', 8, 2],
+			['actuals.prc', 9, 2],
+			['actuals.prc', 10, 3],
+			['actuals.prc', 11, 4],
+			['other.actuals.prc', 4, 3],
+		]);
+		expect(result.diagnostics.filter((diagnostic) => diagnostic.code === 9105).map((diagnostic) => diagnostic.startLine)).toStrictEqual([12, 13]);
+	});
+
+	it('does not infer types from missing, conflicting, unsupported, or ALTER-only columns', () => {
+		const files = [
+			parsedFileOf('items1.sql', 'create table items (amount number, payload clob);'),
+			parsedFileOf('items2.sql', 'create table items (amount varchar2(30));'),
+			parsedFileOf('legacy.sql', 'alter table legacy (amount number);'),
+			parsedFileOf('unsupported.sql', 'create table unsupported (amount binary_double);'),
+			parsedFileOf(
+				'unknown.pkb',
+				[
+					'create package body unknown as',
+					'  procedure put(p_value number) is begin null; end put;',
+					'  procedure put(p_value varchar2) is begin null; end put;',
+					'  procedure run is',
+					'    l_conflict items.amount%type;',
+					'    l_row items%rowtype;',
+					'    l_alter legacy.amount%type;',
+					'    l_unsupported unsupported.amount%type;',
+					'    l_missing missing.amount%type;',
+					'  begin',
+					'    put(l_conflict);',
+					'    put(l_row.amount);',
+					'    put(l_alter);',
+					'    put(l_unsupported);',
+					'    put(l_missing);',
+					'  end run;',
+					'end unknown;',
+					'/',
+				].join('\n'),
+			),
+		];
+		const {analyses, packages} = extractOracleSymbols({projectId: 'p', context: 'APP', files});
+		const result = resolveOracleReferences({context: 'APP', defaultSchema: 'APP', files: analyses, packages});
+
+		expect(result.diagnostics.filter((diagnostic) => diagnostic.code === 9105).map((diagnostic) => diagnostic.startLine)).toStrictEqual([11, 12, 13, 14, 15]);
+	});
+});
+
 describe('Oracle inferred overload types', () => {
 	it('uses anchored, field, source-return, and documented built-in return types', () => {
 		const files = [

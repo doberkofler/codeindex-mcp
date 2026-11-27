@@ -10,6 +10,7 @@ import {suppressNonRoutine} from './referenceScan.ts';
 import {outArgumentRangesOf, refineOutArgumentUsage, type OutArgumentRangeType} from './referenceOutArguments.ts';
 import {type OraclePackageLookupMapType} from './scopeGraph.ts';
 import {type OracleDeclarationType, type OracleReferenceSiteType} from './syntax.ts';
+import {buildTableColumns, type TableColumnsType} from './tableColumns.ts';
 
 type ResolvedDeclarationType = Readonly<{fileIndex: number; declarationIndex: number}>;
 
@@ -25,6 +26,8 @@ export type ChoiceType = Readonly<{choice: ChoiceCandidateType | null; outcome: 
 export type ResolutionType = Readonly<{
 	symbolId: string | null;
 	outcome: OracleResolveOutcomeType;
+	/** Type-only resolution of a table-backed field; no occurrence is published. */
+	columnType?: NonNullable<OracleDeclarationType['columnType']>;
 }>;
 
 /**
@@ -67,6 +70,7 @@ export type ResolveStateType = Readonly<{
 	file: OracleFileAnalysisType;
 	symbolDeclarations: ReadonlyMap<string, ResolvedDeclarationType>;
 	diagnostics: OracleDiagnosticCollector;
+	tableColumns?: TableColumnsType | undefined;
 }>;
 
 export type OracleResolvedReferencesType = Readonly<{
@@ -219,7 +223,7 @@ const bulkMarkerOccurrences = (
 const resolveFileReferences = (
 	input: ResolveInputType,
 	fileIndex: number,
-	symbolDeclarations: ReadonlyMap<string, ResolvedDeclarationType>,
+	lookups: Pick<ResolveStateType, 'symbolDeclarations' | 'tableColumns'>,
 ): FileResolveResultType => {
 	const file = input.files[fileIndex];
 
@@ -228,7 +232,8 @@ const resolveFileReferences = (
 	}
 
 	const collector = new OracleDiagnosticCollector(file.path);
-	const state: ResolveStateType = {input, fileIndex, file, symbolDeclarations, diagnostics: collector};
+	const state: ResolveStateType = {input, fileIndex, file, ...lookups, diagnostics: collector};
+	const {symbolDeclarations} = state;
 	const {storedOnly, files} = input;
 	const occurrences: IndexedOccurrenceType[] = [];
 	const outArguments: OutArgumentRangeType[] = [];
@@ -286,8 +291,9 @@ const resolveFileReferences = (
  */
 
 export const resolveOracleReferences = (input: ResolveInputType): OracleResolvedReferencesType => {
-	const symbolDeclarations = buildSymbolDeclarations(input.files);
-	const results = input.files.map((_file, fileIndex) => resolveFileReferences(input, fileIndex, symbolDeclarations));
+	const tableColumns = buildTableColumns(input.files);
+	const lookups = {symbolDeclarations: buildSymbolDeclarations(input.files), tableColumns: tableColumns.size === 0 ? undefined : tableColumns};
+	const results = input.files.map((_file, fileIndex) => resolveFileReferences(input, fileIndex, lookups));
 	const occurrences = refineOutArgumentUsage(
 		results.flatMap((result) => result.occurrences),
 		results.flatMap((result) => result.outArguments),

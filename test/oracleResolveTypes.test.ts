@@ -1,9 +1,38 @@
 import {describe, expect, it} from 'vitest';
 import {OracleDiagnosticCollector} from '@codeindex/adapter-oracle/diagnostics';
-import {type ChoiceCandidateType, type ResolutionType, type ResolveStateType} from '@codeindex/adapter-oracle/resolveReferences';
+import {extractOracleSymbols} from '@codeindex/adapter-oracle/extractSymbols';
+import {structuralOracleParser} from '@codeindex/adapter-oracle/parseUnits';
+import {resolveOracleReferences, type ChoiceCandidateType, type ResolutionType, type ResolveStateType} from '@codeindex/adapter-oracle/resolveReferences';
 import {filterByTypes, type ResolutionServicesType} from '@codeindex/adapter-oracle/resolveTypes';
 import {type OracleNamePartType, type OracleNameType} from '@codeindex/adapter-oracle/name';
 import {type OracleDeclarationType, type OracleParameterType, type OracleReferenceSiteType} from '@codeindex/adapter-oracle/syntax';
+
+describe('Oracle table-backed formal parameter scope', () => {
+	it('uses the chosen declaration when its matching body is in a multi-unit file', () => {
+		const sources = {
+			'tables.sql': 'create table items (amount varchar2(9));\ncreate table other.items (amount number);',
+			'api.pks': 'create package other.api as\n  procedure put(p_value items.amount%type);\n  procedure put(p_value date);\nend;\n/',
+			'body.sql': [
+				'create procedure dummy is begin null; end;',
+				'/',
+				'create package body other.api as',
+				'  procedure put(p_value items.amount%type) is begin null; end;',
+				'  procedure put(p_value date) is begin null; end;',
+				'end;',
+				'/',
+				'create procedure caller(p_value number) is begin other.api.put(p_value); end;',
+				'/',
+			].join('\n'),
+		};
+		const files = Object.entries(sources).map(([path, source]) => ({path, parse: structuralOracleParser({path, source, defaultSchema: 'APP'})}));
+		const {symbols, analyses, packages} = extractOracleSymbols({projectId: 'p', context: 'APP', files});
+		const result = resolveOracleReferences({context: 'APP', defaultSchema: 'APP', files: analyses, packages});
+		const call = result.occurrences.find((occurrence) => occurrence.path === 'body.sql' && occurrence.usage === 1);
+		const target = symbols.find((symbol) => symbol.id === call?.symbolId);
+
+		expect(target).toMatchObject({path: 'api.pks', startLine: 2});
+	});
+});
 
 type SpecType = Readonly<{
 	kind: OracleDeclarationType['kind'];

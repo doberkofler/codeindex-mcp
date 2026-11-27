@@ -1,8 +1,10 @@
 import {type OracleFileAnalysisType} from './extractSymbols.ts';
+import {type OracleNamePartType} from './name.ts';
 import {type OracleMemberLookupType} from './scopeGraph.ts';
 import {type ChoiceCandidateType, type ResolutionType, type ResolveStateType} from './resolveReferences.ts';
 import {type OracleDeclarationType, type OracleReferenceSiteType} from './syntax.ts';
 import {declarationAt, type LocatedDeclarationType, type ResolutionServicesType} from './resolveTypes.ts';
+import {tableColumnTypeOf} from './tableColumns.ts';
 
 const typeSymbolOf = (services: ResolutionServicesType, state: ResolveStateType, located: LocatedDeclarationType): string | null => {
 	const [typeReference] = located.declaration.typeReferences;
@@ -75,7 +77,7 @@ export const directChildren = (file: OracleFileAnalysisType, parent: number, can
 export const recordFieldResolution = (
 	services: ResolutionServicesType,
 	state: ResolveStateType,
-	field: Readonly<{symbolId: string; canonical: string}>,
+	field: Readonly<{symbolId: string; name: OracleNamePartType}>,
 	depth: number,
 ): ResolutionType => {
 	if (depth > 8) {
@@ -89,13 +91,13 @@ export const recordFieldResolution = (
 	}
 
 	if (located.declaration.kind === 'record_type' || located.declaration.kind === 'package') {
-		const [child] = directChildren(located.file, located.index, field.canonical);
+		const [child] = directChildren(located.file, located.index, field.name.canonical);
 
 		return child === undefined ? {symbolId: null, outcome: 'no-field'} : {symbolId: child.symbolId, outcome: 'resolved'};
 	}
 
 	if (located.declaration.kind === 'collection_type') {
-		const [child] = directChildren(located.file, located.index, field.canonical);
+		const [child] = directChildren(located.file, located.index, field.name.canonical);
 
 		if (child !== undefined) {
 			return {symbolId: child.symbolId, outcome: 'resolved'};
@@ -104,9 +106,20 @@ export const recordFieldResolution = (
 
 	const typeSymbolId = typeSymbolOf(services, state, located);
 
-	return typeSymbolId === null
-		? {symbolId: null, outcome: 'no-field'}
-		: recordFieldResolution(services, state, {symbolId: typeSymbolId, canonical: field.canonical}, depth + 1);
+	if (typeSymbolId !== null) {
+		return recordFieldResolution(services, state, {...field, symbolId: typeSymbolId}, depth + 1);
+	}
+
+	const [anchor] = located.declaration.typeReferences;
+
+	if (anchor?.rowType !== true || state.tableColumns === undefined) {
+		return {symbolId: null, outcome: 'no-field'};
+	}
+
+	const unit = located.file.parse.units[located.declaration.unit];
+	const columnType = tableColumnTypeOf(state.tableColumns, unit, anchor.name.parts, field.name);
+
+	return columnType === undefined ? {symbolId: null, outcome: 'no-field'} : {symbolId: null, outcome: 'no-field', columnType};
 };
 
 /**
@@ -140,11 +153,11 @@ export const resolveRecordChain = (
 
 	let symbolId = baseSymbolId;
 
-	for (const part of rest) {
-		const field = recordFieldResolution(services, state, {symbolId, canonical: part.canonical}, 0);
+	for (const [index, part] of rest.entries()) {
+		const field = recordFieldResolution(services, state, {symbolId, name: part}, 0);
 
 		if (field.symbolId === null) {
-			return field;
+			return index === rest.length - 1 ? field : {symbolId: null, outcome: field.outcome};
 		}
 
 		({symbolId} = field);
