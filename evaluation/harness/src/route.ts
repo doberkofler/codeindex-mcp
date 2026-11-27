@@ -1,6 +1,6 @@
 import {setTimeout as delay} from 'node:timers/promises';
 import {type McpCallOutcomeType, type McpSessionType} from './routeClient.ts';
-import {type McpStepType, type RouteCollectionType, type RouteStepType, type SymbolSelectionType, type TextStepType} from './routePlan.ts';
+import {compileRoutePattern, type McpStepType, type RouteCollectionType, type RouteStepType, type SymbolSelectionType, type TextStepType} from './routePlan.ts';
 import {readWorkspaceSource, runTextStep} from './routeText.ts';
 
 /** Shared empty exclusion list; a fresh empty array would only add noise. */
@@ -190,7 +190,7 @@ const filterKeptFiles = (state: ExecutionStateType, workspace: string, step: Mcp
 		return paths;
 	}
 
-	const regex = new RegExp(step.keepFilesMatching, 'u');
+	const regex = compileRoutePattern(step.keepFilesMatching);
 	const kept: string[] = [];
 
 	for (const path of paths) {

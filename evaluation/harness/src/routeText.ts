@@ -1,6 +1,6 @@
 import {readFileSync, readdirSync, statSync} from 'node:fs';
 import path from 'node:path';
-import {type TextStepType} from './routePlan.ts';
+import {compileRoutePattern, type TextStepType} from './routePlan.ts';
 
 /** Default extensions for an ordinary text search. */
 const DEFAULT_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'] as const;
@@ -79,7 +79,7 @@ const posixRelativeOf = (workspace: string, absolute: string): string => path.re
 export const runSearchStep = (input: Readonly<{workspace: string; step: Extract<TextStepType, {kind: 'search'}>}>): TextStepResultType => {
 	const extensions = input.step.extensions ?? DEFAULT_EXTENSIONS;
 	const excluded = new Set(input.step.excludePaths ?? NO_PATHS);
-	const regex = new RegExp(input.step.pattern, 'u');
+	const regex = compileRoutePattern(input.step.pattern);
 	const matches: TextMatchType[] = [];
 	const paths = new Set<string>();
 	let bytes = 0;

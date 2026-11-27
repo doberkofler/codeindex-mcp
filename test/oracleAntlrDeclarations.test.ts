@@ -60,25 +60,18 @@ const declarationIndexOf = (declarations: OracleParseResultType['declarations'],
 const parameterSignatureOf = (declaration: OracleParseResultType['declarations'][number]): readonly string[] =>
 	declaration.parameters.map((parameter) => `${parameter.mode}:${parameter.typeText}:${parameter.hasDefault}`);
 
-type ComparableDeclarationType = Omit<OracleDeclarationType, 'parameters' | 'typeReferences'> &
+type ComparableDeclarationType = Omit<OracleDeclarationType, 'parameters' | 'typeReferences' | 'heading' | 'form'> &
 	Readonly<{parameters: readonly Omit<OracleParameterType, 'typeReferences'>[]}>;
 
-const comparableDeclaration = (declaration: OracleDeclarationType): ComparableDeclarationType => {
-	const {typeReferences, heading, form, ...rest} = declaration;
-	void typeReferences;
-	void heading;
-	void form;
-
-	return {
-		...rest,
-		parameters: declaration.parameters.map((parameter) => {
-			const {typeReferences: parameterTypeReferences, ...parameterRest} = parameter;
-			void parameterTypeReferences;
-
-			return parameterRest;
-		}),
-	};
-};
+const comparableDeclaration = ({
+	typeReferences: _typeReferences,
+	heading: _heading,
+	form: _form,
+	...declaration
+}: OracleDeclarationType): ComparableDeclarationType => ({
+	...declaration,
+	parameters: declaration.parameters.map(({typeReferences: _parameterTypeReferences, ...parameter}) => parameter),
+});
 
 describe('Oracle ANTLR declaration parity', () => {
 	it.each(fixtures)('matches the structural parser on %s', (name) => {

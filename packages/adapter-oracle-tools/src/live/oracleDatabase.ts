@@ -114,9 +114,7 @@ const invalidObjectOf = (row: readonly unknown[]): OracleInvalidObjectType => {
 
 const invalidObjectKeyOf = (object: Readonly<{objectType: string; objectName: string}>): string => oracleObjectKeyOf(object.objectType, object.objectName);
 
-const ignoreProgress = (_line: string): void => {
-	void _line;
-};
+const ignoreProgress = (): void => undefined;
 
 const assertInvalidObjectsAllowed = (plan: LivePlanType, baselineKeys: ReadonlySet<string>, invalid: readonly (readonly unknown[])[]): void => {
 	const targetKeys = new Set(plan.snapshot.units.map((unit) => oracleObjectKeyOf(unit.type, unit.name)));

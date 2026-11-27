@@ -173,18 +173,11 @@ export const collectContexts = (
  * @param facts - Extracted fact bundle.
  * @param entries - Canonical bindings.
  * @param issues - Accumulated issues.
- * @param identities - Identifier derivation seam; production uses the canonical hash.
  * @returns Site rows grouped by binding.
  */
-export const collectSites = (
-	facts: ExtractedFactSetType,
-	entries: ReadonlyMap<string, BindingEntryType>,
-	issues: FactIssueType[],
-	identities: BindingIdentityFactoryType = defaultIdentityFactory,
-): SiteCollectionType => {
+export const collectSites = (facts: ExtractedFactSetType, entries: ReadonlyMap<string, BindingEntryType>, issues: FactIssueType[]): SiteCollectionType => {
 	const sites: PendingSiteType[] = [];
 	const sitesByKey = new Map<string, PendingSiteType>();
-	void identities;
 
 	// One binding may own several canonical addresses projected from the same
 	// authored site, so location identity must include the binding. Two bindings

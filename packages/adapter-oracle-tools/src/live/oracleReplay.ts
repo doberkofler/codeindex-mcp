@@ -223,9 +223,7 @@ export const replayOracleEvidenceBundle = async (environment: NodeJS.ProcessEnv,
 			],
 			{...environment, CODE_INDEX_LOG_LEVEL: 'error'},
 			{
-				stdout: (_line) => {
-					void _line;
-				},
+				stdout: (): void => undefined,
 				stderr: (line) => {
 					diagnostics.push(line);
 				},

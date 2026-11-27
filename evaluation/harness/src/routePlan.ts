@@ -183,11 +183,19 @@ const requirePath = (value: unknown, context: string): string => {
 	return path;
 };
 
+/**
+ * Compiles route search and filter patterns with the same flags used during plan validation.
+ *
+ * @param pattern - Regular-expression source from the route plan.
+ * @returns The compiled Unicode regular expression.
+ */
+export const compileRoutePattern = (pattern: string): RegExp => new RegExp(pattern, 'u');
+
 const requirePattern = (value: unknown, context: string): string => {
 	const pattern = requireString(value, context);
 
 	try {
-		void new RegExp(pattern, 'u');
+		void compileRoutePattern(pattern);
 	} catch (error) {
 		throw new Error(`${context} is not a valid Unicode regular expression: ${error instanceof Error ? error.message : String(error)}`, {cause: error});
 	}
