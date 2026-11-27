@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0](https://github.com/doberkofler/codeindex-mcp/compare/v0.22.2...v0.23.0) (2026-11-27)
+
+### Fixed
+
+* **cli:** preserve Code Mode setting on MCP reinstall ([508cb5c](https://github.com/doberkofler/codeindex-mcp/commit/508cb5c741be604e9cfab6b36ef12f206f0b9831))
+* **oracle:** resolve overloads using table column types ([75c0095](https://github.com/doberkofler/codeindex-mcp/commit/75c00951a08f7950ad964a7cb4a36a26048282fc))
+* **release:** prompt for the release version ([5a54ccb](https://github.com/doberkofler/codeindex-mcp/commit/5a54ccbee90d15936c662c20b93a0d8a4eb7d994))
+
 ## [0.22.2](https://github.com/doberkofler/codeindex-mcp/compare/v0.22.1...v0.22.2) (2026-11-26)
 
 ### Fixed
