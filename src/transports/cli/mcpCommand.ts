@@ -57,7 +57,8 @@ Options:
 --config selects the OpenCode configuration file to edit. To make the installed
 server use a CodeIndex configuration file, pass --codeindex-config. The entry
 records an absolute cwd for the project root, so sessions started in a nested
-directory still resolve the relative bundle and configuration paths. Legacy proof
+directory still resolve the relative bundle and configuration paths. Reinstalling
+preserves an explicit codemode setting on the canonical entry. Legacy proof
 compares the registered command with the one this invocation would write.
 `;
 
@@ -179,11 +180,16 @@ const serverCommandOf = (root: string, mcpPath: string, codeIndexConfig: string 
 // nested directory when a monorepo session starts below the repository root.
 // An absolute cwd keeps the relative bundle and configuration paths independent
 // of the workspace that discovered the configuration file.
-const serverEntryOf = (command: readonly string[], directory: string): Readonly<Record<string, unknown>> => ({
-	type: 'local',
-	command: [...command],
-	cwd: directory,
-});
+const serverEntryOf = (command: readonly string[], directory: string, previous: unknown): Readonly<Record<string, unknown>> => {
+	const codeMode = isObject(previous) ? previous['codemode'] : undefined;
+
+	return {
+		type: 'local',
+		command: [...command],
+		cwd: directory,
+		...(typeof codeMode === 'boolean' ? {codemode: codeMode} : {}),
+	};
+};
 
 // A legacy entry is provable only when its registered command equals the one
 // this invocation would write; extra properties do not weaken that proof.
@@ -233,7 +239,7 @@ const install = (configPath: string, command: readonly string[], directory: stri
 		next = applyPath(next, ['mcp', 'servers', serverName], REMOVE);
 	}
 
-	next = applyPath(next, ['mcp', 'servers', SERVER_NAME], serverEntryOf(command, directory));
+	next = applyPath(next, ['mcp', 'servers', SERVER_NAME], serverEntryOf(command, directory, serverAt(config, SERVER_NAME)));
 	parseJsonc(next, configPath);
 	return {text: next, migrated: legacy};
 };

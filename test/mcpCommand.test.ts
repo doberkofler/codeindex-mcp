@@ -122,16 +122,17 @@ describe('mcp command', () => {
 		expect(captured.stdout.join('\n')).toContain('Installed codeindex MCP server');
 	});
 
-	it('preserves comments and unrelated configuration', () => {
+	it.each([false, true])('preserves codemode: %s, comments, and unrelated configuration on reinstall', (codemode) => {
 		const {root, mcpPath} = fixture();
 		const configPath = path.join(root, 'opencode.jsonc');
 		mkdirSync(path.dirname(configPath), {recursive: true});
+		const codeindex = {type: 'local', command: ['node', 'old.mjs'], cwd: '/old/workspace', codemode};
 		writeFileSync(
 			configPath,
 			`{
 	// Keep this comment.
 	"model": "provider/model",
-	"mcp": {"servers": {"other": {"type": "local", "command": ["other"]}}},
+	"mcp": {"servers": {"codeindex": ${JSON.stringify(codeindex)}, "other": {"type": "local", "command": ["other"]}}},
 }
 `,
 		);
@@ -145,7 +146,7 @@ describe('mcp command', () => {
 		expect(config.model).toBe('provider/model');
 		expect(serverOf(config)).toStrictEqual({
 			other: {type: 'local', command: ['other']},
-			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs'], cwd: root},
+			codeindex: {type: 'local', command: ['node', 'tools/code_index/dist/mcp.mjs'], cwd: root, codemode},
 		});
 	});
 

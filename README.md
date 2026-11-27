@@ -216,6 +216,11 @@ paths from the repository root even when a session starts in a nested directory 
 a monorepo. Re-run `mcp install` after moving the checkout, because that `cwd` is
 an absolute path. Reconnect the MCP server after installation or an upgrade.
 
+OpenCode uses Code Mode by default. Set `"codemode": false` under
+`mcp.servers.codeindex` to expose the `codeindex_*` tools directly. Remove the
+setting to return to OpenCode's default. Reinstalling preserves either explicit
+boolean value on the existing `codeindex` entry.
+
 Older releases registered one key per adapter, such as `codeindex-oracle`.
 `mcp install` refuses to write while such legacy keys remain. When the registered
 command proves CodeIndex created the entry for this configuration, migrate it:
